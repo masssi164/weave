@@ -6,10 +6,10 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 void main() {
   group('WelcomeScreen', () {
     Widget buildApp() {
-      return MaterialApp(
+      return const MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const WelcomeScreen(),
+        home: WelcomeScreen(),
       );
     }
 
@@ -17,7 +17,6 @@ void main() {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      // Verify localised text is rendered.
       expect(find.text('Welcome to Weave'), findsOneWidget);
     });
 

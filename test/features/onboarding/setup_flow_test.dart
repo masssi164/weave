@@ -7,11 +7,11 @@ import 'package:weave/l10n/generated/app_localizations.dart';
 void main() {
   group('SetupFlow', () {
     Widget buildApp() {
-      return ProviderScope(
+      return const ProviderScope(
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const SetupFlow(),
+          home: SetupFlow(),
         ),
       );
     }
@@ -39,11 +39,9 @@ void main() {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      // Go to step 2
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      // Go back to step 1
       await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
 
