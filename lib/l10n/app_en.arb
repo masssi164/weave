@@ -1,0 +1,116 @@
+{
+  "@@locale": "en",
+  "appTitle": "Weave",
+  "@appTitle": { "description": "Application title shown in the app bar and system task switcher" },
+
+  "welcomeTitle": "Welcome to Weave",
+  "@welcomeTitle": { "description": "Main heading on the welcome screen" },
+
+  "welcomeSubtitle": "Your unified collaboration hub — messaging, files, and calendar in one place.",
+  "@welcomeSubtitle": { "description": "Subtitle text below the welcome heading" },
+
+  "continueButton": "Get Started",
+  "@continueButton": { "description": "Label for the primary CTA on the welcome screen" },
+
+  "setupTitle": "Setup",
+  "@setupTitle": { "description": "Title for the setup flow screen" },
+
+  "setupLanguageStepTitle": "Your Language",
+  "@setupLanguageStepTitle": { "description": "Title for the language preference step" },
+
+  "setupLanguageStepDescription": "Weave uses your device language. You can change it later in settings.",
+  "@setupLanguageStepDescription": { "description": "Description shown in the language step" },
+
+  "setupConfirmStepTitle": "You're All Set",
+  "@setupConfirmStepTitle": { "description": "Title for the confirmation step" },
+
+  "setupConfirmStepDescription": "Tap Finish to start using Weave.",
+  "@setupConfirmStepDescription": { "description": "Description shown in the confirmation step" },
+
+  "setupNextButton": "Next",
+  "@setupNextButton": { "description": "Button to advance to the next setup step" },
+
+  "setupFinishButton": "Finish",
+  "@setupFinishButton": { "description": "Button to complete setup" },
+
+  "setupBackButton": "Back",
+  "@setupBackButton": { "description": "Button to go back to the previous setup step" },
+
+  "setupStepIndicator": "Step {current} of {total}",
+  "@setupStepIndicator": {
+    "description": "Accessibility label for setup step progress",
+    "placeholders": {
+      "current": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "navChat": "Chat",
+  "@navChat": { "description": "Label for the Chat navigation destination" },
+
+  "navFiles": "Files",
+  "@navFiles": { "description": "Label for the Files navigation destination" },
+
+  "navCalendar": "Calendar",
+  "@navCalendar": { "description": "Label for the Calendar navigation destination" },
+
+  "navDeck": "Deck",
+  "@navDeck": { "description": "Label for the Deck navigation destination" },
+
+  "loadingLabel": "Loading…",
+  "@loadingLabel": { "description": "Screen reader label for loading indicators" },
+
+  "emptyStateLabel": "Nothing here yet",
+  "@emptyStateLabel": { "description": "Message shown when a list has no items" },
+
+  "errorStateLabel": "Something went wrong",
+  "@errorStateLabel": { "description": "Message shown when an error occurs" },
+
+  "retryButton": "Retry",
+  "@retryButton": { "description": "Label for the retry action button" },
+
+  "semanticBackButton": "Go back",
+  "@semanticBackButton": { "description": "Semantic label for back navigation buttons" },
+
+  "semanticCloseButton": "Close",
+  "@semanticCloseButton": { "description": "Semantic label for close buttons" },
+
+  "semanticChatIcon": "Chat messages",
+  "@semanticChatIcon": { "description": "Semantic label for the chat icon" },
+
+  "semanticFilesIcon": "File browser",
+  "@semanticFilesIcon": { "description": "Semantic label for the files icon" },
+
+  "semanticCalendarIcon": "Calendar events",
+  "@semanticCalendarIcon": { "description": "Semantic label for the calendar icon" },
+
+  "semanticDeckIcon": "Deck boards",
+  "@semanticDeckIcon": { "description": "Semantic label for the deck icon" },
+
+  "chatScreenTitle": "Chat",
+  "@chatScreenTitle": { "description": "Title for the chat screen app bar" },
+
+  "filesScreenTitle": "Files",
+  "@filesScreenTitle": { "description": "Title for the files screen app bar" },
+
+  "calendarScreenTitle": "Calendar",
+  "@calendarScreenTitle": { "description": "Title for the calendar screen app bar" },
+
+  "deckScreenTitle": "Deck",
+  "@deckScreenTitle": { "description": "Title for the deck screen app bar" },
+
+  "chatEmptyMessage": "No conversations yet",
+  "@chatEmptyMessage": { "description": "Empty state message for the chat screen" },
+
+  "filesEmptyMessage": "No files yet",
+  "@filesEmptyMessage": { "description": "Empty state message for the files screen" },
+
+  "calendarEmptyMessage": "No events yet",
+  "@calendarEmptyMessage": { "description": "Empty state message for the calendar screen" },
+
+  "deckEmptyMessage": "No boards yet",
+  "@deckEmptyMessage": { "description": "Empty state message for the deck screen" },
+
+  "deviceLanguageLabel": "Device Language",
+  "@deviceLanguageLabel": { "description": "Label for the detected device language display" }
+}

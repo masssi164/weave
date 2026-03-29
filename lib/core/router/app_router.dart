@@ -1,48 +1,86 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:weave/core/router/app_shell.dart';
-import 'package:weave/features/calendar/views/calendar_view.dart';
-import 'package:weave/features/chat/views/chat_view.dart';
-import 'package:weave/features/files/views/files_view.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/features/calendar/presentation/calendar_screen.dart';
+import 'package:weave/features/chat/presentation/chat_screen.dart';
+import 'package:weave/features/deck/presentation/deck_screen.dart';
+import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/onboarding/presentation/setup_flow.dart';
+import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
+import 'package:weave/features/onboarding/providers/setup_state_provider.dart';
+import 'package:weave/features/shell/presentation/app_shell.dart';
 
-/// Global navigation key used by the outer [GoRouter].
-final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+part 'app_router.g.dart';
 
-/// Navigation key scoped to the [ShellRoute] so that tab
-/// switches animate inside the shell instead of replacing it.
-final _shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
+/// Global navigator key for the root [GoRouter].
+final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
-/// Top-level router configuration for the Weave app.
-///
-/// Uses a [ShellRoute] to persist the bottom navigation bar
-/// across the three main tabs (Chat · Files · Calendar).
-final appRouter = GoRouter(
-  navigatorKey: _rootNavigatorKey,
-  initialLocation: '/chat',
-  routes: [
-    ShellRoute(
-      navigatorKey: _shellNavigatorKey,
-      builder: (context, state, child) => AppShell(child: child),
-      routes: [
-        GoRoute(
-          path: '/chat',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: ChatView(),
+/// Top-level [GoRouter] exposed as a Riverpod provider so that
+/// the router can read the setup-completion state for redirects.
+@riverpod
+GoRouter appRouter(Ref ref) {
+  final setupDone = ref.watch(setupStateProvider);
+
+  return GoRouter(
+    navigatorKey: rootNavigatorKey,
+    initialLocation: AppRoutes.welcome,
+    redirect: (context, state) {
+      final onOnboarding =
+          state.matchedLocation == AppRoutes.welcome ||
+          state.matchedLocation == AppRoutes.setup;
+
+      if (!setupDone && !onOnboarding) return AppRoutes.welcome;
+      if (setupDone && onOnboarding) return AppRoutes.chat;
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: AppRoutes.welcome,
+        builder: (context, state) => const WelcomeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.setup,
+        builder: (context, state) => const SetupFlow(),
+      ),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            AppShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.chat,
+                builder: (context, state) => const ChatScreen(),
+              ),
+            ],
           ),
-        ),
-        GoRoute(
-          path: '/files',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: FilesView(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.files,
+                builder: (context, state) => const FilesScreen(),
+              ),
+            ],
           ),
-        ),
-        GoRoute(
-          path: '/calendar',
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: CalendarView(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.calendar,
+                builder: (context, state) => const CalendarScreen(),
+              ),
+            ],
           ),
-        ),
-      ],
-    ),
-  ],
-);
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.deck,
+                builder: (context, state) => const DeckScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}

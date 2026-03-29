@@ -28,6 +28,26 @@ lib/
 \`\`\`
 
 ## 🚀 Getting Started
+### 🤖 AI Agent Setup (Optional)
+If you are contributing to Weave using an AI coding assistant (like OpenAI Codex, Cursor, or Copilot), you should initialize the local framework skills. This ensures the AI understands our specific stack (Riverpod 3.0, Clean Architecture, Accessibility rules) and doesn't generate outdated code.
+
+1. **Install the Skills CLI globally:**
+   ```bash
+   dart pub global activate skills
+   ```
+2. **Add Dart to your PATH:**
+   Ensure that your global Dart cache is available in your system's PATH. 
+   * **macOS/Linux:** Add `export PATH="$PATH":"$HOME/.pub-cache/bin"` to your `~/.zshrc` or `~/.bashrc` and restart your terminal.
+   * **Windows:** Add `%LOCALAPPDATA%\Pub\Cache\bin` to your system's Environment Variables.
+3. **Activate the skills for this project:**
+   Navigate to the repository root and run:
+   ```bash
+   skills get
+   ```
+   *(Note: This downloads the AI skill definitions into the `.dart_skills/` directory, which is intentionally excluded from version control via `.gitignore`.)*
+
+
+```
 
 ### Prerequisites
 * [Flutter SDK](https://docs.flutter.dev/get-started/install) (Version 3.19.0 or higher)
