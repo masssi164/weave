@@ -8,7 +8,7 @@ Widget createTestApp(
   List<dynamic> overrides = const <dynamic>[],
 }) {
   return ProviderScope(
-    overrides: overrides as dynamic,
+    overrides: [...overrides],
     child: MaterialApp(
       theme: AppTheme.light,
       localizationsDelegates: AppLocalizations.localizationsDelegates,

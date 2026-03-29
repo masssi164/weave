@@ -14,7 +14,7 @@ part of 'chat_provider.dart';
 /// TODO(integration): replace with Matrix SDK calls
 
 @ProviderFor(ChatNotifier)
-const chatProvider = ChatNotifierProvider._();
+final chatProvider = ChatNotifierProvider._();
 
 /// Manages the list of chat messages.
 ///
@@ -26,7 +26,7 @@ final class ChatNotifierProvider
   ///
   /// Returns an empty list by default — no network calls.
   /// TODO(integration): replace with Matrix SDK calls
-  const ChatNotifierProvider._()
+  ChatNotifierProvider._()
     : super(
         from: null,
         argument: null,
@@ -57,7 +57,6 @@ abstract class _$ChatNotifier extends $AsyncNotifier<List<ChatMessage>> {
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
     final ref =
         this.ref as $Ref<AsyncValue<List<ChatMessage>>, List<ChatMessage>>;
     final element =
@@ -68,6 +67,6 @@ abstract class _$ChatNotifier extends $AsyncNotifier<List<ChatMessage>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    element.handleCreate(ref, build);
   }
 }

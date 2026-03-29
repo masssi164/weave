@@ -14,7 +14,7 @@ part of 'calendar_provider.dart';
 /// TODO(integration): replace with Nextcloud CalDAV calls
 
 @ProviderFor(CalendarNotifier)
-const calendarProvider = CalendarNotifierProvider._();
+final calendarProvider = CalendarNotifierProvider._();
 
 /// Manages the list of calendar events.
 ///
@@ -26,7 +26,7 @@ final class CalendarNotifierProvider
   ///
   /// Returns an empty list by default — no network calls.
   /// TODO(integration): replace with Nextcloud CalDAV calls
-  const CalendarNotifierProvider._()
+  CalendarNotifierProvider._()
     : super(
         from: null,
         argument: null,
@@ -57,7 +57,6 @@ abstract class _$CalendarNotifier extends $AsyncNotifier<List<CalendarEvent>> {
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
     final ref =
         this.ref as $Ref<AsyncValue<List<CalendarEvent>>, List<CalendarEvent>>;
     final element =
@@ -68,6 +67,6 @@ abstract class _$CalendarNotifier extends $AsyncNotifier<List<CalendarEvent>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    element.handleCreate(ref, build);
   }
 }

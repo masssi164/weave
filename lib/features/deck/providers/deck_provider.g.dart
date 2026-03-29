@@ -14,7 +14,7 @@ part of 'deck_provider.dart';
 /// TODO(integration): replace with Nextcloud Deck API calls
 
 @ProviderFor(DeckNotifier)
-const deckProvider = DeckNotifierProvider._();
+final deckProvider = DeckNotifierProvider._();
 
 /// Manages the list of deck boards.
 ///
@@ -26,7 +26,7 @@ final class DeckNotifierProvider
   ///
   /// Returns an empty list by default — no network calls.
   /// TODO(integration): replace with Nextcloud Deck API calls
-  const DeckNotifierProvider._()
+  DeckNotifierProvider._()
     : super(
         from: null,
         argument: null,
@@ -57,7 +57,6 @@ abstract class _$DeckNotifier extends $AsyncNotifier<List<DeckBoard>> {
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
     final ref = this.ref as $Ref<AsyncValue<List<DeckBoard>>, List<DeckBoard>>;
     final element =
         ref.element
@@ -67,6 +66,6 @@ abstract class _$DeckNotifier extends $AsyncNotifier<List<DeckBoard>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    element.handleCreate(ref, build);
   }
 }

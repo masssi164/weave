@@ -12,7 +12,7 @@ part of 'app_router.dart';
 /// the router can read the setup-completion state for redirects.
 
 @ProviderFor(appRouter)
-const appRouterProvider = AppRouterProvider._();
+final appRouterProvider = AppRouterProvider._();
 
 /// Top-level [GoRouter] exposed as a Riverpod provider so that
 /// the router can read the setup-completion state for redirects.
@@ -22,7 +22,7 @@ final class AppRouterProvider
     with $Provider<GoRouter> {
   /// Top-level [GoRouter] exposed as a Riverpod provider so that
   /// the router can read the setup-completion state for redirects.
-  const AppRouterProvider._()
+  AppRouterProvider._()
     : super(
         from: null,
         argument: null,

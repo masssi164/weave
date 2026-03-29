@@ -14,7 +14,7 @@ part of 'files_provider.dart';
 /// TODO(integration): replace with Nextcloud WebDAV calls
 
 @ProviderFor(FilesNotifier)
-const filesProvider = FilesNotifierProvider._();
+final filesProvider = FilesNotifierProvider._();
 
 /// Manages the list of file entries.
 ///
@@ -26,7 +26,7 @@ final class FilesNotifierProvider
   ///
   /// Returns an empty list by default — no network calls.
   /// TODO(integration): replace with Nextcloud WebDAV calls
-  const FilesNotifierProvider._()
+  FilesNotifierProvider._()
     : super(
         from: null,
         argument: null,
@@ -57,7 +57,6 @@ abstract class _$FilesNotifier extends $AsyncNotifier<List<FileEntry>> {
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
     final ref = this.ref as $Ref<AsyncValue<List<FileEntry>>, List<FileEntry>>;
     final element =
         ref.element
@@ -67,6 +66,6 @@ abstract class _$FilesNotifier extends $AsyncNotifier<List<FileEntry>> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    element.handleCreate(ref, build);
   }
 }

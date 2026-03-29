@@ -14,7 +14,7 @@ part of 'setup_state_provider.dart';
 /// Call [completeSetup] to write `true` and mark setup as done.
 
 @ProviderFor(SetupState)
-const setupStateProvider = SetupStateProvider._();
+final setupStateProvider = SetupStateProvider._();
 
 /// Tracks whether the user has completed the onboarding setup flow.
 ///
@@ -25,7 +25,7 @@ final class SetupStateProvider extends $NotifierProvider<SetupState, bool> {
   ///
   /// On first read, the value is loaded from [SharedPreferences].
   /// Call [completeSetup] to write `true` and mark setup as done.
-  const SetupStateProvider._()
+  SetupStateProvider._()
     : super(
         from: null,
         argument: null,
@@ -64,7 +64,6 @@ abstract class _$SetupState extends $Notifier<bool> {
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
     final ref = this.ref as $Ref<bool, bool>;
     final element =
         ref.element
@@ -74,7 +73,7 @@ abstract class _$SetupState extends $Notifier<bool> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    element.handleCreate(ref, build);
   }
 }
 
@@ -84,7 +83,7 @@ abstract class _$SetupState extends $Notifier<bool> {
 /// other widgets (e.g. a step indicator) to react to step changes.
 
 @ProviderFor(SetupStep)
-const setupStepProvider = SetupStepProvider._();
+final setupStepProvider = SetupStepProvider._();
 
 /// Read-only provider for the current setup step index.
 ///
@@ -95,7 +94,7 @@ final class SetupStepProvider extends $NotifierProvider<SetupStep, int> {
   ///
   /// The [SetupFlow] widget manages this locally, but the provider allows
   /// other widgets (e.g. a step indicator) to react to step changes.
-  const SetupStepProvider._()
+  SetupStepProvider._()
     : super(
         from: null,
         argument: null,
@@ -134,7 +133,6 @@ abstract class _$SetupStep extends $Notifier<int> {
   @$mustCallSuper
   @override
   void runBuild() {
-    final created = build();
     final ref = this.ref as $Ref<int, int>;
     final element =
         ref.element
@@ -144,6 +142,6 @@ abstract class _$SetupStep extends $Notifier<int> {
               Object?,
               Object?
             >;
-    element.handleValue(ref, created);
+    element.handleCreate(ref, build);
   }
 }
