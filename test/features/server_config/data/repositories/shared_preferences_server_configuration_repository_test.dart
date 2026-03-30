@@ -1,18 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod/riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 
+import '../../../../helpers/in_memory_stores.dart';
 import '../../../../helpers/server_config_test_data.dart';
 
 void main() {
   group('SharedPreferencesServerConfigurationRepository', () {
-    setUp(() {
-      SharedPreferences.setMockInitialValues({});
-    });
-
     test('saves and reloads the same configuration', () async {
-      final container = ProviderContainer.test();
+      final store = InMemoryPreferencesStore();
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
       addTearDown(container.dispose);
       final repository = container.read(serverConfigurationRepositoryProvider);
       final configuration = buildTestConfiguration();
@@ -26,6 +26,10 @@ void main() {
         configuration.oidcIssuerUrl.toString(),
       );
       expect(
+        loaded?.oidcClientRegistration.clientId,
+        configuration.oidcClientRegistration.clientId,
+      );
+      expect(
         loaded?.serviceEndpoints.matrixHomeserverUrl.toString(),
         configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
       );
@@ -36,15 +40,29 @@ void main() {
     });
 
     test('removes the legacy setup key when saving', () async {
-      SharedPreferences.setMockInitialValues({legacySetupCompleteKey: true});
-      final container = ProviderContainer.test();
+      final store = InMemoryPreferencesStore({legacySetupCompleteKey: true});
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
       addTearDown(container.dispose);
       final repository = container.read(serverConfigurationRepositoryProvider);
 
       await repository.saveConfiguration(buildTestConfiguration());
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool(legacySetupCompleteKey), isNull);
+      expect(await store.getBool(legacySetupCompleteKey), isNull);
+    });
+
+    test('clears the stored configuration', () async {
+      final store = InMemoryPreferencesStore(buildStoredConfiguration());
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
+
+      await repository.clearConfiguration();
+
+      expect(await store.getString(serverConfigurationStorageKey), isNull);
     });
   });
 }

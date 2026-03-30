@@ -3,12 +3,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
+import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
 Finder _textFieldWithLabel(String label) {
@@ -22,8 +23,10 @@ void main() {
     testWidgets('loads the saved configuration and persists edits', (
       tester,
     ) async {
-      SharedPreferences.setMockInitialValues(buildStoredConfiguration());
-      final container = ProviderContainer.test();
+      final store = InMemoryPreferencesStore(buildStoredConfiguration());
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
       addTearDown(container.dispose);
 
       await tester.pumpWidget(
@@ -40,6 +43,7 @@ void main() {
 
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
+      expect(find.text('weave-mobile'), findsWidgets);
 
       await tester.enterText(
         _textFieldWithLabel('Nextcloud Base URL'),
@@ -60,8 +64,7 @@ void main() {
           .save();
       await tester.pumpAndSettle();
 
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(serverConfigurationStorageKey);
+      final raw = store.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
 
       expect(json['nextcloudBaseUrl'], 'https://nextcloud-alt.home.internal');
@@ -70,12 +73,14 @@ void main() {
     testWidgets('preserves overridden service URLs when the issuer changes', (
       tester,
     ) async {
-      SharedPreferences.setMockInitialValues(
+      final store = InMemoryPreferencesStore(
         buildStoredConfiguration(
           nextcloudBaseUrl: 'https://cloud.custom.internal',
         ),
       );
-      final container = ProviderContainer.test();
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
       addTearDown(container.dispose);
 
       await tester.pumpWidget(

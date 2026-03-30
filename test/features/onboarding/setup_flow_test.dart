@@ -1,12 +1,19 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:weave/core/persistence/flutter_secure_store.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
+import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
+import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
+import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
+
+import '../../helpers/in_memory_stores.dart';
 
 Finder _textFieldWithLabel(String label) {
   return find.byWidgetPredicate(
@@ -14,8 +21,28 @@ Finder _textFieldWithLabel(String label) {
   );
 }
 
+class _FakeOidcClient implements OidcClient {
+  @override
+  Future<OidcTokenBundle> authorizeAndExchangeCode(configuration) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> endSession(configuration, {required String idTokenHint}) async {}
+
+  @override
+  Future<OidcTokenBundle> refresh(
+    configuration, {
+    required String refreshToken,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
 void main() {
   group('SetupFlow', () {
+    late InMemoryPreferencesStore preferencesStore;
+
     Widget buildApp() {
       final router = GoRouter(
         routes: [
@@ -28,6 +55,11 @@ void main() {
             builder: (context, state) => const SetupFlow(),
           ),
           GoRoute(
+            path: AppRoutes.signIn,
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('Sign In Ready'))),
+          ),
+          GoRoute(
             path: AppRoutes.chat,
             builder: (context, state) =>
                 const Scaffold(body: Center(child: Text('Chat Ready'))),
@@ -37,6 +69,11 @@ void main() {
       );
 
       return ProviderScope(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => preferencesStore),
+          secureStoreProvider.overrideWithValue(InMemorySecureStore()),
+          oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+        ],
         child: MaterialApp.router(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -46,18 +83,38 @@ void main() {
     }
 
     setUp(() {
-      SharedPreferences.setMockInitialValues({});
+      preferencesStore = InMemoryPreferencesStore();
     });
 
-    testWidgets('renders first step with provider and issuer fields', (
-      tester,
-    ) async {
+    testWidgets(
+      'renders first step with provider, issuer, and client id fields',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Connect Your Server'), findsOneWidget);
+        expect(find.text('Provider type'), findsOneWidget);
+        expect(find.text('OIDC Client ID'), findsOneWidget);
+        expect(find.text('Next'), findsOneWidget);
+      },
+    );
+
+    testWidgets('shows public client registration guidance', (tester) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Connect Your Server'), findsOneWidget);
-      expect(find.text('Provider type'), findsOneWidget);
-      expect(find.text('Next'), findsOneWidget);
+      expect(
+        find.text('Register Weave as a native/public client'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('com.massimotter.weave:/oauthredirect'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('com.massimotter.weave:/logout'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('derives service endpoints from the issuer host', (
@@ -70,6 +127,10 @@ void main() {
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
       );
+      await tester.enterText(
+        _textFieldWithLabel('OIDC Client ID'),
+        'weave-mobile',
+      );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
@@ -79,7 +140,7 @@ void main() {
       expect(find.text('Finish'), findsOneWidget);
     });
 
-    testWidgets('saves configuration and navigates to chat on Finish tap', (
+    testWidgets('saves configuration and navigates to sign-in on Finish tap', (
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
@@ -88,6 +149,10 @@ void main() {
       await tester.enterText(
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
+      );
+      await tester.enterText(
+        _textFieldWithLabel('OIDC Client ID'),
+        'weave-mobile',
       );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
@@ -99,10 +164,11 @@ void main() {
       await tester.tap(find.text('Finish'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Chat Ready'), findsOneWidget);
+      expect(find.text('Sign In Ready'), findsOneWidget);
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString(serverConfigurationStorageKey), isNotNull);
+      final raw = preferencesStore.rawString(serverConfigurationStorageKey);
+      final json = jsonDecode(raw!) as Map<String, dynamic>;
+      expect(json['oidcClientId'], 'weave-mobile');
     });
 
     testWidgets('goes back to provider step from services step', (
@@ -114,6 +180,10 @@ void main() {
       await tester.enterText(
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
+      );
+      await tester.enterText(
+        _textFieldWithLabel('OIDC Client ID'),
+        'weave-mobile',
       );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
