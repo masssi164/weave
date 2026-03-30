@@ -128,6 +128,30 @@ abstract class AppLocalizations {
   /// **'Setup'**
   String get setupTitle;
 
+  /// Title for the setup provider and issuer step
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Your Server'**
+  String get setupProviderStepTitle;
+
+  /// Description shown in the setup provider step
+  ///
+  /// In en, this message translates to:
+  /// **'Choose your OIDC provider and enter the issuer URL for your self-hosted setup.'**
+  String get setupProviderStepDescription;
+
+  /// Title for the setup services step
+  ///
+  /// In en, this message translates to:
+  /// **'Review Service Endpoints'**
+  String get setupServicesStepTitle;
+
+  /// Description shown in the setup services step
+  ///
+  /// In en, this message translates to:
+  /// **'Weave derives common service URLs from the issuer host. Review and edit them before finishing setup.'**
+  String get setupServicesStepDescription;
+
   /// Title for the language preference step
   ///
   /// In en, this message translates to:
@@ -200,11 +224,23 @@ abstract class AppLocalizations {
   /// **'Deck'**
   String get navDeck;
 
+  /// Label for the Settings navigation destination
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get navSettings;
+
   /// Screen reader label for loading indicators
   ///
   /// In en, this message translates to:
   /// **'Loading…'**
   String get loadingLabel;
+
+  /// Message shown while bootstrap state is resolving
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing Weave…'**
+  String get bootstrapLoadingLabel;
 
   /// Message shown when a list has no items
   ///
@@ -260,6 +296,12 @@ abstract class AppLocalizations {
   /// **'Deck boards'**
   String get semanticDeckIcon;
 
+  /// Semantic label for the settings icon
+  ///
+  /// In en, this message translates to:
+  /// **'Application settings'**
+  String get semanticSettingsIcon;
+
   /// Title for the chat screen app bar
   ///
   /// In en, this message translates to:
@@ -283,6 +325,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Deck'**
   String get deckScreenTitle;
+
+  /// Title for the settings screen app bar
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settingsScreenTitle;
+
+  /// Section title for server configuration in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Server Configuration'**
+  String get settingsServerConfigurationTitle;
+
+  /// Description for the settings server configuration section
+  ///
+  /// In en, this message translates to:
+  /// **'Update the provider and service URLs Weave should use for your self-hosted environment.'**
+  String get settingsServerConfigurationDescription;
+
+  /// Label for the settings save button
+  ///
+  /// In en, this message translates to:
+  /// **'Save Changes'**
+  String get settingsSaveButton;
+
+  /// Label used while the settings form is saving
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get settingsSaveInProgress;
 
   /// Empty state message for the chat screen
   ///
@@ -313,6 +385,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Device Language'**
   String get deviceLanguageLabel;
+
+  /// Section title for choosing an OIDC provider
+  ///
+  /// In en, this message translates to:
+  /// **'OIDC Provider'**
+  String get serverConfigurationProviderLabel;
+
+  /// Label for the provider selection field
+  ///
+  /// In en, this message translates to:
+  /// **'Provider type'**
+  String get serverConfigurationProviderFieldLabel;
+
+  /// Label for the Authentik provider option
+  ///
+  /// In en, this message translates to:
+  /// **'Authentik'**
+  String get oidcProviderAuthentik;
+
+  /// Label for the Keycloak provider option
+  ///
+  /// In en, this message translates to:
+  /// **'Keycloak'**
+  String get oidcProviderKeycloak;
+
+  /// Label for the issuer URL field
+  ///
+  /// In en, this message translates to:
+  /// **'OIDC Issuer URL'**
+  String get serverConfigurationIssuerLabel;
+
+  /// Helper text for the issuer URL field
+  ///
+  /// In en, this message translates to:
+  /// **'This must be the absolute issuer URL for your OIDC provider.'**
+  String get serverConfigurationIssuerHelper;
+
+  /// Section title for derived service endpoints
+  ///
+  /// In en, this message translates to:
+  /// **'Service Endpoints'**
+  String get serverConfigurationServicesLabel;
+
+  /// Helper text for the service endpoints section
+  ///
+  /// In en, this message translates to:
+  /// **'Defaults are derived from the issuer host. Edit them if your services live elsewhere.'**
+  String get serverConfigurationServicesHelper;
+
+  /// Label for the Matrix homeserver URL field
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix Homeserver URL'**
+  String get serverConfigurationMatrixLabel;
+
+  /// Label for the Nextcloud base URL field
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud Base URL'**
+  String get serverConfigurationNextcloudLabel;
+
+  /// Helper text showing the derived default for a service endpoint
+  ///
+  /// In en, this message translates to:
+  /// **'Derived default: {value}'**
+  String serverConfigurationDerivedHint(String value);
 }
 
 class _AppLocalizationsDelegate

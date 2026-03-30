@@ -25,6 +25,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setupTitle => 'Setup';
 
   @override
+  String get setupProviderStepTitle => 'Connect Your Server';
+
+  @override
+  String get setupProviderStepDescription =>
+      'Choose your OIDC provider and enter the issuer URL for your self-hosted setup.';
+
+  @override
+  String get setupServicesStepTitle => 'Review Service Endpoints';
+
+  @override
+  String get setupServicesStepDescription =>
+      'Weave derives common service URLs from the issuer host. Review and edit them before finishing setup.';
+
+  @override
   String get setupLanguageStepTitle => 'Your Language';
 
   @override
@@ -64,7 +78,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navDeck => 'Deck';
 
   @override
+  String get navSettings => 'Settings';
+
+  @override
   String get loadingLabel => 'Loading…';
+
+  @override
+  String get bootstrapLoadingLabel => 'Preparing Weave…';
 
   @override
   String get emptyStateLabel => 'Nothing here yet';
@@ -94,6 +114,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get semanticDeckIcon => 'Deck boards';
 
   @override
+  String get semanticSettingsIcon => 'Application settings';
+
+  @override
   String get chatScreenTitle => 'Chat';
 
   @override
@@ -104,6 +127,22 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deckScreenTitle => 'Deck';
+
+  @override
+  String get settingsScreenTitle => 'Settings';
+
+  @override
+  String get settingsServerConfigurationTitle => 'Server Configuration';
+
+  @override
+  String get settingsServerConfigurationDescription =>
+      'Update the provider and service URLs Weave should use for your self-hosted environment.';
+
+  @override
+  String get settingsSaveButton => 'Save Changes';
+
+  @override
+  String get settingsSaveInProgress => 'Saving…';
 
   @override
   String get chatEmptyMessage => 'No conversations yet';
@@ -119,4 +158,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deviceLanguageLabel => 'Device Language';
+
+  @override
+  String get serverConfigurationProviderLabel => 'OIDC Provider';
+
+  @override
+  String get serverConfigurationProviderFieldLabel => 'Provider type';
+
+  @override
+  String get oidcProviderAuthentik => 'Authentik';
+
+  @override
+  String get oidcProviderKeycloak => 'Keycloak';
+
+  @override
+  String get serverConfigurationIssuerLabel => 'OIDC Issuer URL';
+
+  @override
+  String get serverConfigurationIssuerHelper =>
+      'This must be the absolute issuer URL for your OIDC provider.';
+
+  @override
+  String get serverConfigurationServicesLabel => 'Service Endpoints';
+
+  @override
+  String get serverConfigurationServicesHelper =>
+      'Defaults are derived from the issuer host. Edit them if your services live elsewhere.';
+
+  @override
+  String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';
+
+  @override
+  String get serverConfigurationNextcloudLabel => 'Nextcloud Base URL';
+
+  @override
+  String serverConfigurationDerivedHint(String value) {
+    return 'Derived default: $value';
+  }
 }

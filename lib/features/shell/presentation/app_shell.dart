@@ -70,6 +70,17 @@ class AppShell extends StatelessWidget {
             ),
             label: l10n.navDeck,
           ),
+          NavigationDestination(
+            icon: Icon(
+              Icons.settings_outlined,
+              semanticLabel: l10n.semanticSettingsIcon,
+            ),
+            selectedIcon: Icon(
+              Icons.settings,
+              semanticLabel: l10n.semanticSettingsIcon,
+            ),
+            label: l10n.navSettings,
+          ),
         ],
       ),
     );

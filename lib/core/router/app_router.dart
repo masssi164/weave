@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
@@ -8,7 +10,7 @@ import 'package:weave/features/deck/presentation/deck_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
-import 'package:weave/features/onboarding/providers/setup_state_provider.dart';
+import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/presentation/app_shell.dart';
 
 part 'app_router.g.dart';
@@ -17,10 +19,10 @@ part 'app_router.g.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 
 /// Top-level [GoRouter] exposed as a Riverpod provider so that
-/// the router can read the setup-completion state for redirects.
+/// the router can read the resolved bootstrap state for redirects.
 @riverpod
 GoRouter appRouter(Ref ref) {
-  final setupDone = ref.watch(setupStateProvider);
+  final bootstrapState = ref.watch(appBootstrapProvider).requireValue;
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -30,8 +32,14 @@ GoRouter appRouter(Ref ref) {
           state.matchedLocation == AppRoutes.welcome ||
           state.matchedLocation == AppRoutes.setup;
 
-      if (!setupDone && !onOnboarding) return AppRoutes.welcome;
-      if (setupDone && onOnboarding) return AppRoutes.chat;
+      if (bootstrapState.phase == BootstrapPhase.needsSetup && !onOnboarding) {
+        return AppRoutes.welcome;
+      }
+
+      if (bootstrapState.phase == BootstrapPhase.ready && onOnboarding) {
+        return AppRoutes.chat;
+      }
+
       return null;
     },
     routes: [
@@ -76,6 +84,14 @@ GoRouter appRouter(Ref ref) {
               GoRoute(
                 path: AppRoutes.deck,
                 builder: (context, state) => const DeckScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.settings,
+                builder: (context, state) => const SettingsScreen(),
               ),
             ],
           ),

@@ -15,6 +15,18 @@
   "setupTitle": "Setup",
   "@setupTitle": { "description": "Title for the setup flow screen" },
 
+  "setupProviderStepTitle": "Connect Your Server",
+  "@setupProviderStepTitle": { "description": "Title for the setup provider and issuer step" },
+
+  "setupProviderStepDescription": "Choose your OIDC provider and enter the issuer URL for your self-hosted setup.",
+  "@setupProviderStepDescription": { "description": "Description shown in the setup provider step" },
+
+  "setupServicesStepTitle": "Review Service Endpoints",
+  "@setupServicesStepTitle": { "description": "Title for the setup services step" },
+
+  "setupServicesStepDescription": "Weave derives common service URLs from the issuer host. Review and edit them before finishing setup.",
+  "@setupServicesStepDescription": { "description": "Description shown in the setup services step" },
+
   "setupLanguageStepTitle": "Your Language",
   "@setupLanguageStepTitle": { "description": "Title for the language preference step" },
 
@@ -57,8 +69,14 @@
   "navDeck": "Deck",
   "@navDeck": { "description": "Label for the Deck navigation destination" },
 
+  "navSettings": "Settings",
+  "@navSettings": { "description": "Label for the Settings navigation destination" },
+
   "loadingLabel": "Loading…",
   "@loadingLabel": { "description": "Screen reader label for loading indicators" },
+
+  "bootstrapLoadingLabel": "Preparing Weave…",
+  "@bootstrapLoadingLabel": { "description": "Message shown while bootstrap state is resolving" },
 
   "emptyStateLabel": "Nothing here yet",
   "@emptyStateLabel": { "description": "Message shown when a list has no items" },
@@ -87,6 +105,9 @@
   "semanticDeckIcon": "Deck boards",
   "@semanticDeckIcon": { "description": "Semantic label for the deck icon" },
 
+  "semanticSettingsIcon": "Application settings",
+  "@semanticSettingsIcon": { "description": "Semantic label for the settings icon" },
+
   "chatScreenTitle": "Chat",
   "@chatScreenTitle": { "description": "Title for the chat screen app bar" },
 
@@ -98,6 +119,21 @@
 
   "deckScreenTitle": "Deck",
   "@deckScreenTitle": { "description": "Title for the deck screen app bar" },
+
+  "settingsScreenTitle": "Settings",
+  "@settingsScreenTitle": { "description": "Title for the settings screen app bar" },
+
+  "settingsServerConfigurationTitle": "Server Configuration",
+  "@settingsServerConfigurationTitle": { "description": "Section title for server configuration in settings" },
+
+  "settingsServerConfigurationDescription": "Update the provider and service URLs Weave should use for your self-hosted environment.",
+  "@settingsServerConfigurationDescription": { "description": "Description for the settings server configuration section" },
+
+  "settingsSaveButton": "Save Changes",
+  "@settingsSaveButton": { "description": "Label for the settings save button" },
+
+  "settingsSaveInProgress": "Saving…",
+  "@settingsSaveInProgress": { "description": "Label used while the settings form is saving" },
 
   "chatEmptyMessage": "No conversations yet",
   "@chatEmptyMessage": { "description": "Empty state message for the chat screen" },
@@ -112,5 +148,43 @@
   "@deckEmptyMessage": { "description": "Empty state message for the deck screen" },
 
   "deviceLanguageLabel": "Device Language",
-  "@deviceLanguageLabel": { "description": "Label for the detected device language display" }
+  "@deviceLanguageLabel": { "description": "Label for the detected device language display" },
+
+  "serverConfigurationProviderLabel": "OIDC Provider",
+  "@serverConfigurationProviderLabel": { "description": "Section title for choosing an OIDC provider" },
+
+  "serverConfigurationProviderFieldLabel": "Provider type",
+  "@serverConfigurationProviderFieldLabel": { "description": "Label for the provider selection field" },
+
+  "oidcProviderAuthentik": "Authentik",
+  "@oidcProviderAuthentik": { "description": "Label for the Authentik provider option" },
+
+  "oidcProviderKeycloak": "Keycloak",
+  "@oidcProviderKeycloak": { "description": "Label for the Keycloak provider option" },
+
+  "serverConfigurationIssuerLabel": "OIDC Issuer URL",
+  "@serverConfigurationIssuerLabel": { "description": "Label for the issuer URL field" },
+
+  "serverConfigurationIssuerHelper": "This must be the absolute issuer URL for your OIDC provider.",
+  "@serverConfigurationIssuerHelper": { "description": "Helper text for the issuer URL field" },
+
+  "serverConfigurationServicesLabel": "Service Endpoints",
+  "@serverConfigurationServicesLabel": { "description": "Section title for derived service endpoints" },
+
+  "serverConfigurationServicesHelper": "Defaults are derived from the issuer host. Edit them if your services live elsewhere.",
+  "@serverConfigurationServicesHelper": { "description": "Helper text for the service endpoints section" },
+
+  "serverConfigurationMatrixLabel": "Matrix Homeserver URL",
+  "@serverConfigurationMatrixLabel": { "description": "Label for the Matrix homeserver URL field" },
+
+  "serverConfigurationNextcloudLabel": "Nextcloud Base URL",
+  "@serverConfigurationNextcloudLabel": { "description": "Label for the Nextcloud base URL field" },
+
+  "serverConfigurationDerivedHint": "Derived default: {value}",
+  "@serverConfigurationDerivedHint": {
+    "description": "Helper text showing the derived default for a service endpoint",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  }
 }

@@ -3,16 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/a11y/focus_utils.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
-import 'package:weave/core/a11y/semantic_list_tile.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
-import 'package:weave/features/onboarding/providers/setup_state_provider.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// A multi-step setup flow presented after the welcome screen.
 ///
 /// Two steps:
-/// 1. Language preference display (read-only — shows device locale)
-/// 2. Confirmation — tap "Finish" to complete setup
+/// 1. Select provider type and issuer URL
+/// 2. Review and adjust derived service endpoints
 ///
 /// Focus is moved to each step's heading when it becomes active.
 /// Back navigation works via both the system back gesture and the
@@ -46,6 +47,13 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
 
   void _goNext() {
     if (_currentStep < _totalSteps - 1) {
+      final isValid = ref
+          .read(serverConfigurationFormControllerProvider.notifier)
+          .validateProviderAndIssuerStep();
+      if (!isValid) {
+        return;
+      }
+
       setState(() => _currentStep++);
       FocusUtils.requestFocusAfterFrame(_step1FocusNode);
     }
@@ -61,7 +69,14 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
   }
 
   Future<void> _finish() async {
-    await ref.read(setupStateProvider.notifier).completeSetup();
+    final saved = await ref
+        .read(serverConfigurationFormControllerProvider.notifier)
+        .save();
+    if (!saved) {
+      return;
+    }
+
+    ref.read(appBootstrapProvider.notifier).markReady();
     if (mounted) {
       context.go(AppRoutes.chat);
     }
@@ -108,11 +123,11 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 250),
                     child: _currentStep == 0
-                        ? _LanguageStep(
+                        ? _ProviderStep(
                             key: const ValueKey('step_0'),
                             focusNode: _step0FocusNode,
                           )
-                        : _ConfirmStep(
+                        : _ServicesStep(
                             key: const ValueKey('step_1'),
                             focusNode: _step1FocusNode,
                           ),
@@ -156,9 +171,9 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
   }
 }
 
-/// Step 1: Language preference display (read-only).
-class _LanguageStep extends StatelessWidget {
-  const _LanguageStep({super.key, required this.focusNode});
+/// Step 1: OIDC provider and issuer collection.
+class _ProviderStep extends StatelessWidget {
+  const _ProviderStep({super.key, required this.focusNode});
 
   final FocusNode focusNode;
 
@@ -166,11 +181,6 @@ class _LanguageStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final locale = Localizations.localeOf(context);
-    final languageName = switch (locale.languageCode) {
-      'de' => 'Deutsch',
-      _ => 'English',
-    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,32 +190,30 @@ class _LanguageStep extends StatelessWidget {
           child: Semantics(
             header: true,
             child: Text(
-              l10n.setupLanguageStepTitle,
+              l10n.setupProviderStepTitle,
               style: theme.textTheme.headlineSmall,
             ),
           ),
         ),
         const SizedBox(height: 12),
         Text(
-          l10n.setupLanguageStepDescription,
+          l10n.setupProviderStepDescription,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 24),
-        AccessibleListTile(
-          leading: const Icon(Icons.language),
-          title: Text(l10n.deviceLanguageLabel),
-          subtitle: Text(languageName),
+        const ServerConfigurationForm(
+          layout: ServerConfigurationFormLayout.providerAndIssuerOnly,
         ),
       ],
     );
   }
 }
 
-/// Step 2: Confirmation.
-class _ConfirmStep extends StatelessWidget {
-  const _ConfirmStep({super.key, required this.focusNode});
+/// Step 2: editable derived services.
+class _ServicesStep extends StatelessWidget {
+  const _ServicesStep({super.key, required this.focusNode});
 
   final FocusNode focusNode;
 
@@ -222,25 +230,21 @@ class _ConfirmStep extends StatelessWidget {
           child: Semantics(
             header: true,
             child: Text(
-              l10n.setupConfirmStepTitle,
+              l10n.setupServicesStepTitle,
               style: theme.textTheme.headlineSmall,
             ),
           ),
         ),
         const SizedBox(height: 12),
         Text(
-          l10n.setupConfirmStepDescription,
+          l10n.setupServicesStepDescription,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
         ),
         const SizedBox(height: 24),
-        ExcludeSemantics(
-          child: Icon(
-            Icons.check_circle_outline,
-            size: 64,
-            color: theme.colorScheme.primary,
-          ),
+        const ServerConfigurationForm(
+          layout: ServerConfigurationFormLayout.serviceEndpointsOnly,
         ),
       ],
     );
