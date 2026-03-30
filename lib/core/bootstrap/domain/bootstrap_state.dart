@@ -1,6 +1,6 @@
 import 'package:weave/core/failures/app_failure.dart';
 
-enum BootstrapPhase { loading, needsSetup, ready, error }
+enum BootstrapPhase { loading, needsSetup, needsSignIn, ready, error }
 
 class BootstrapState {
   const BootstrapState._({required this.phase, this.failure});
@@ -8,6 +8,9 @@ class BootstrapState {
   const BootstrapState.loading() : this._(phase: BootstrapPhase.loading);
 
   const BootstrapState.needsSetup() : this._(phase: BootstrapPhase.needsSetup);
+
+  const BootstrapState.needsSignIn()
+    : this._(phase: BootstrapPhase.needsSignIn);
 
   const BootstrapState.ready() : this._(phase: BootstrapPhase.ready);
 
@@ -18,5 +21,7 @@ class BootstrapState {
   final AppFailure? failure;
 
   bool get isResolved =>
-      phase == BootstrapPhase.needsSetup || phase == BootstrapPhase.ready;
+      phase == BootstrapPhase.needsSetup ||
+      phase == BootstrapPhase.needsSignIn ||
+      phase == BootstrapPhase.ready;
 }

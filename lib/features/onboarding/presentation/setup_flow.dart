@@ -69,16 +69,17 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
   }
 
   Future<void> _finish() async {
-    final saved = await ref
+    final result = await ref
         .read(serverConfigurationFormControllerProvider.notifier)
         .save();
-    if (!saved) {
+    if (result == null) {
       return;
     }
 
-    ref.read(appBootstrapProvider.notifier).markReady();
+    ref.invalidate(savedServerConfigurationProvider);
+    await ref.read(appBootstrapProvider.notifier).retry();
     if (mounted) {
-      context.go(AppRoutes.chat);
+      context.go(AppRoutes.signIn);
     }
   }
 
@@ -182,31 +183,33 @@ class _ProviderStep extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Focus(
-          focusNode: focusNode,
-          child: Semantics(
-            header: true,
-            child: Text(
-              l10n.setupProviderStepTitle,
-              style: theme.textTheme.headlineSmall,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Focus(
+            focusNode: focusNode,
+            child: Semantics(
+              header: true,
+              child: Text(
+                l10n.setupProviderStepTitle,
+                style: theme.textTheme.headlineSmall,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          l10n.setupProviderStepDescription,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(height: 12),
+          Text(
+            l10n.setupProviderStepDescription,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-        const ServerConfigurationForm(
-          layout: ServerConfigurationFormLayout.providerAndIssuerOnly,
-        ),
-      ],
+          const SizedBox(height: 24),
+          const ServerConfigurationForm(
+            layout: ServerConfigurationFormLayout.providerAndIssuerOnly,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -222,31 +225,33 @@ class _ServicesStep extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Focus(
-          focusNode: focusNode,
-          child: Semantics(
-            header: true,
-            child: Text(
-              l10n.setupServicesStepTitle,
-              style: theme.textTheme.headlineSmall,
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Focus(
+            focusNode: focusNode,
+            child: Semantics(
+              header: true,
+              child: Text(
+                l10n.setupServicesStepTitle,
+                style: theme.textTheme.headlineSmall,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          l10n.setupServicesStepDescription,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+          const SizedBox(height: 12),
+          Text(
+            l10n.setupServicesStepDescription,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
-        ),
-        const SizedBox(height: 24),
-        const ServerConfigurationForm(
-          layout: ServerConfigurationFormLayout.serviceEndpointsOnly,
-        ),
-      ],
+          const SizedBox(height: 24),
+          const ServerConfigurationForm(
+            layout: ServerConfigurationFormLayout.serviceEndpointsOnly,
+          ),
+        ],
+      ),
     );
   }
 }

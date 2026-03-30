@@ -2,11 +2,22 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
+import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 
 part 'server_configuration_form_controller.g.dart';
+
+class ServerConfigurationSaveResult {
+  const ServerConfigurationSaveResult({
+    required this.configuration,
+    required this.authConfigurationChanged,
+  });
+
+  final ServerConfiguration configuration;
+  final bool authConfigurationChanged;
+}
 
 class ServerConfigurationFormState {
   const ServerConfigurationFormState({
@@ -14,6 +25,7 @@ class ServerConfigurationFormState {
     required this.isSaving,
     required this.providerType,
     required this.issuerUrl,
+    required this.clientId,
     required this.matrixHomeserverUrl,
     required this.nextcloudBaseUrl,
     required this.derivedMatrixHomeserverUrl,
@@ -21,6 +33,7 @@ class ServerConfigurationFormState {
     required this.matrixOverridden,
     required this.nextcloudOverridden,
     this.issuerError,
+    this.clientIdError,
     this.matrixError,
     this.nextcloudError,
     this.saveFailure,
@@ -31,6 +44,7 @@ class ServerConfigurationFormState {
       isSaving = false,
       providerType = OidcProviderType.authentik,
       issuerUrl = '',
+      clientId = '',
       matrixHomeserverUrl = '',
       nextcloudBaseUrl = '',
       derivedMatrixHomeserverUrl = '',
@@ -38,6 +52,7 @@ class ServerConfigurationFormState {
       matrixOverridden = false,
       nextcloudOverridden = false,
       issuerError = null,
+      clientIdError = null,
       matrixError = null,
       nextcloudError = null,
       saveFailure = null;
@@ -46,6 +61,7 @@ class ServerConfigurationFormState {
   final bool isSaving;
   final OidcProviderType providerType;
   final String issuerUrl;
+  final String clientId;
   final String matrixHomeserverUrl;
   final String nextcloudBaseUrl;
   final String derivedMatrixHomeserverUrl;
@@ -53,6 +69,7 @@ class ServerConfigurationFormState {
   final bool matrixOverridden;
   final bool nextcloudOverridden;
   final String? issuerError;
+  final String? clientIdError;
   final String? matrixError;
   final String? nextcloudError;
   final AppFailure? saveFailure;
@@ -66,6 +83,7 @@ class ServerConfigurationFormState {
     bool? isSaving,
     OidcProviderType? providerType,
     String? issuerUrl,
+    String? clientId,
     String? matrixHomeserverUrl,
     String? nextcloudBaseUrl,
     String? derivedMatrixHomeserverUrl,
@@ -73,10 +91,12 @@ class ServerConfigurationFormState {
     bool? matrixOverridden,
     bool? nextcloudOverridden,
     String? issuerError,
+    String? clientIdError,
     String? matrixError,
     String? nextcloudError,
     AppFailure? saveFailure,
     bool clearIssuerError = false,
+    bool clearClientIdError = false,
     bool clearMatrixError = false,
     bool clearNextcloudError = false,
     bool clearSaveFailure = false,
@@ -86,6 +106,7 @@ class ServerConfigurationFormState {
       isSaving: isSaving ?? this.isSaving,
       providerType: providerType ?? this.providerType,
       issuerUrl: issuerUrl ?? this.issuerUrl,
+      clientId: clientId ?? this.clientId,
       matrixHomeserverUrl: matrixHomeserverUrl ?? this.matrixHomeserverUrl,
       nextcloudBaseUrl: nextcloudBaseUrl ?? this.nextcloudBaseUrl,
       derivedMatrixHomeserverUrl:
@@ -95,6 +116,9 @@ class ServerConfigurationFormState {
       matrixOverridden: matrixOverridden ?? this.matrixOverridden,
       nextcloudOverridden: nextcloudOverridden ?? this.nextcloudOverridden,
       issuerError: clearIssuerError ? null : (issuerError ?? this.issuerError),
+      clientIdError: clearClientIdError
+          ? null
+          : (clientIdError ?? this.clientIdError),
       matrixError: clearMatrixError ? null : (matrixError ?? this.matrixError),
       nextcloudError: clearNextcloudError
           ? null
@@ -107,6 +131,8 @@ class ServerConfigurationFormState {
 @riverpod
 class ServerConfigurationFormController
     extends _$ServerConfigurationFormController {
+  String? _initialAuthSignature;
+
   @override
   ServerConfigurationFormState build() =>
       const ServerConfigurationFormState.initial();
@@ -117,6 +143,7 @@ class ServerConfigurationFormController
     }
 
     if (configuration == null) {
+      _initialAuthSignature = null;
       state = state.copyWith(initialized: true);
       return;
     }
@@ -128,11 +155,16 @@ class ServerConfigurationFormController
         .toString();
     final nextcloudUrl = configuration.serviceEndpoints.nextcloudBaseUrl
         .toString();
+    _initialAuthSignature = _authSignature(
+      configuration.oidcIssuerUrl.toString(),
+      configuration.oidcClientRegistration.clientId,
+    );
 
     state = state.copyWith(
       initialized: true,
       providerType: configuration.providerType,
       issuerUrl: configuration.oidcIssuerUrl.toString(),
+      clientId: configuration.oidcClientRegistration.clientId,
       matrixHomeserverUrl: matrixUrl,
       nextcloudBaseUrl: nextcloudUrl,
       derivedMatrixHomeserverUrl:
@@ -146,6 +178,7 @@ class ServerConfigurationFormController
           derivedEndpoints != null &&
           nextcloudUrl != derivedEndpoints.nextcloudBaseUrl.toString(),
       clearIssuerError: true,
+      clearClientIdError: true,
       clearMatrixError: true,
       clearNextcloudError: true,
       clearSaveFailure: true,
@@ -204,11 +237,20 @@ class ServerConfigurationFormController
     );
   }
 
+  void updateClientId(String clientId) {
+    state = state.copyWith(
+      clientId: clientId,
+      clearClientIdError: true,
+      clearSaveFailure: true,
+    );
+  }
+
   bool validateProviderAndIssuerStep() {
     try {
       final issuerUrl = ref
           .read(serviceEndpointDeriverProvider)
           .parseIssuerUrl(state.issuerUrl);
+      _validateClientId(state.clientId);
       final defaults = ref
           .read(serviceEndpointDeriverProvider)
           .derive(issuerUrl);
@@ -223,19 +265,27 @@ class ServerConfigurationFormController
             ? state.nextcloudBaseUrl
             : defaults.nextcloudBaseUrl.toString(),
         clearIssuerError: true,
+        clearClientIdError: true,
       );
       return true;
     } on AppFailure catch (failure) {
-      state = state.copyWith(issuerError: failure.message);
+      final isClientIdFailure = failure.message.contains('client ID');
+      state = state.copyWith(
+        issuerError: isClientIdFailure ? null : failure.message,
+        clientIdError: isClientIdFailure ? failure.message : null,
+        clearIssuerError: isClientIdFailure,
+        clearClientIdError: !isClientIdFailure,
+      );
       return false;
     }
   }
 
-  Future<bool> save() async {
+  Future<ServerConfigurationSaveResult?> save() async {
     final deriver = ref.read(serviceEndpointDeriverProvider);
 
     try {
       final issuerUrl = deriver.parseIssuerUrl(state.issuerUrl);
+      final clientId = _validateClientId(state.clientId);
       final matrixUrl = deriver.parseServiceUrl(
         state.matrixHomeserverUrl,
         fieldName: 'the Matrix homeserver URL',
@@ -248,6 +298,7 @@ class ServerConfigurationFormController
       state = state.copyWith(
         isSaving: true,
         clearIssuerError: true,
+        clearClientIdError: true,
         clearMatrixError: true,
         clearNextcloudError: true,
         clearSaveFailure: true,
@@ -256,6 +307,9 @@ class ServerConfigurationFormController
       final configuration = ServerConfiguration(
         providerType: state.providerType,
         oidcIssuerUrl: issuerUrl,
+        oidcClientRegistration: OidcClientRegistration.manual(
+          clientId: clientId,
+        ),
         serviceEndpoints: ServiceEndpoints(
           matrixHomeserverUrl: matrixUrl,
           nextcloudBaseUrl: nextcloudUrl,
@@ -271,11 +325,26 @@ class ServerConfigurationFormController
         isSaving: false,
         clearSaveFailure: true,
       );
-      return true;
+
+      final nextAuthSignature = _authSignature(issuerUrl.toString(), clientId);
+      final authConfigurationChanged =
+          _initialAuthSignature != null &&
+          _initialAuthSignature != nextAuthSignature;
+      _initialAuthSignature = nextAuthSignature;
+
+      return ServerConfigurationSaveResult(
+        configuration: configuration,
+        authConfigurationChanged: authConfigurationChanged,
+      );
     } on AppFailure catch (failure) {
       final issuerMessage =
           failure.type == AppFailureType.validation &&
               failure.message.contains('issuer')
+          ? failure.message
+          : null;
+      final clientIdMessage =
+          failure.type == AppFailureType.validation &&
+              failure.message.contains('client ID')
           ? failure.message
           : null;
       final matrixMessage =
@@ -292,15 +361,17 @@ class ServerConfigurationFormController
       state = state.copyWith(
         isSaving: false,
         issuerError: issuerMessage,
+        clientIdError: clientIdMessage,
         matrixError: matrixMessage,
         nextcloudError: nextcloudMessage,
         saveFailure: failure.type == AppFailureType.validation ? null : failure,
         clearIssuerError: issuerMessage == null,
+        clearClientIdError: clientIdMessage == null,
         clearMatrixError: matrixMessage == null,
         clearNextcloudError: nextcloudMessage == null,
         clearSaveFailure: failure.type == AppFailureType.validation,
       );
-      return false;
+      return null;
     } catch (error) {
       state = state.copyWith(
         isSaving: false,
@@ -309,7 +380,7 @@ class ServerConfigurationFormController
           cause: error,
         ),
       );
-      return false;
+      return null;
     }
   }
 
@@ -326,6 +397,21 @@ class ServerConfigurationFormController
     } on AppFailure {
       return null;
     }
+  }
+
+  String _validateClientId(String clientId) {
+    final trimmed = clientId.trim();
+    if (trimmed.isEmpty) {
+      throw const AppFailure.validation(
+        'Enter the OIDC client ID for your Weave native app registration.',
+      );
+    }
+
+    return trimmed;
+  }
+
+  String _authSignature(String issuerUrl, String clientId) {
+    return '${issuerUrl.trim()}::${clientId.trim()}';
   }
 }
 

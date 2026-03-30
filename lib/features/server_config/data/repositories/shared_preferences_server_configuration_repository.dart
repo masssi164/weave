@@ -81,6 +81,19 @@ class SharedPreferencesServerConfigurationRepository
       );
     }
   }
+
+  @override
+  Future<void> clearConfiguration() async {
+    try {
+      await _store.remove(serverConfigurationStorageKey);
+      await _store.remove(legacySetupCompleteKey);
+    } catch (error) {
+      throw AppFailure.storage(
+        'Failed to clear the saved server configuration.',
+        cause: error,
+      );
+    }
+  }
 }
 
 @Riverpod(keepAlive: true)
