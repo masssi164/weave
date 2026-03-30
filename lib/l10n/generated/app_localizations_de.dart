@@ -146,6 +146,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsSaveInProgress => 'Wird gespeichert…';
 
   @override
+  String get settingsSignOutTitle => 'Sitzung';
+
+  @override
+  String get settingsSignOutDescription =>
+      'Melde die aktuelle Serversitzung ab und kehre zur Anmeldeseite zurück.';
+
+  @override
+  String get settingsSignOutButton => 'Abmelden';
+
+  @override
+  String get settingsSignOutInProgress => 'Melde ab…';
+
+  @override
   String get chatEmptyMessage => 'Noch keine Unterhaltungen';
 
   @override
@@ -180,6 +193,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dies muss die absolute Issuer-URL deines OIDC-Anbieters sein.';
 
   @override
+  String get serverConfigurationClientIdLabel => 'OIDC-Client-ID';
+
+  @override
+  String get serverConfigurationClientIdHelper =>
+      'Gib die public/native Client-ID ein, die für Weave bei diesem Issuer registriert ist.';
+
+  @override
   String get serverConfigurationServicesLabel => 'Dienstendpunkte';
 
   @override
@@ -196,4 +216,83 @@ class AppLocalizationsDe extends AppLocalizations {
   String serverConfigurationDerivedHint(String value) {
     return 'Abgeleiteter Standard: $value';
   }
+
+  @override
+  String get oidcRegistrationHelpTitle =>
+      'Weave als native/public Client registrieren';
+
+  @override
+  String get oidcRegistrationHelpDescription =>
+      'Verwende Authorization Code + PKCE mit dem Systembrowser und hinterlege die folgenden Weave-Redirect-URIs in der Provider-Client-Registrierung.';
+
+  @override
+  String get oidcRegistrationHelpNoSecret =>
+      'Lege hier kein Client-Secret an und füge keines ein. Weave verwendet einen öffentlichen Native-Client-Flow.';
+
+  @override
+  String get oidcRegistrationHelpAuthentikSteps =>
+      'Erstelle in Authentik einen OAuth2/OpenID-Connect-Provider für Weave, trage diese Redirect-URIs in den Provider ein und stelle sicher, dass Authorization Code sowie bei Bedarf `offline_access` für Refresh-Tokens verfügbar sind.';
+
+  @override
+  String get oidcRegistrationHelpKeycloakSteps =>
+      'Erstelle in Keycloak einen öffentlichen OpenID-Connect-Client für Weave, trage diese Redirect-URIs und Post-Logout-Redirect-URIs ein und aktiviere Standard Flow mit PKCE (S256), damit Weave ohne Client-Secret anmelden kann.';
+
+  @override
+  String get oidcRegistrationHelpRedirectsTitle =>
+      'Diese Redirect-URIs registrieren';
+
+  @override
+  String oidcRegistrationHelpRedirectValue(String value) {
+    return 'Anmelde-Redirect: $value';
+  }
+
+  @override
+  String oidcRegistrationHelpPostLogoutRedirectValue(String value) {
+    return 'Post-Logout-Redirect: $value';
+  }
+
+  @override
+  String get signInScreenTitle => 'Anmelden';
+
+  @override
+  String get signInTitle => 'Zum Fortfahren anmelden';
+
+  @override
+  String get signInDescription =>
+      'Weave ist konfiguriert. Verwende dein Provider-Konto im Systembrowser, um die authentifizierte App zu öffnen.';
+
+  @override
+  String get signInConfigurationTitle => 'Aktuelle Anmeldekonfiguration';
+
+  @override
+  String signInConfigurationProvider(String value) {
+    return 'Provider: $value';
+  }
+
+  @override
+  String signInConfigurationIssuer(String value) {
+    return 'Issuer: $value';
+  }
+
+  @override
+  String signInConfigurationClientId(String value) {
+    return 'Client-ID: $value';
+  }
+
+  @override
+  String get signInButton => 'Anmelden';
+
+  @override
+  String get signInInProgress => 'Melde an…';
+
+  @override
+  String get signInBackToSetupButton => 'Zurück zur Einrichtung';
+
+  @override
+  String get signInMissingConfigurationTitle =>
+      'Einrichtung abschließen, um dich anzumelden';
+
+  @override
+  String get signInMissingConfigurationDescription =>
+      'Weave benötigt noch eine gültige Issuer-URL und Client-ID, bevor der Browser-Anmeldefluss gestartet werden kann.';
 }

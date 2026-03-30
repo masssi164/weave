@@ -135,6 +135,18 @@
   "settingsSaveInProgress": "Saving…",
   "@settingsSaveInProgress": { "description": "Label used while the settings form is saving" },
 
+  "settingsSignOutTitle": "Session",
+  "@settingsSignOutTitle": { "description": "Section title for session management in settings" },
+
+  "settingsSignOutDescription": "Sign out of the current server session and return to the sign-in gate.",
+  "@settingsSignOutDescription": { "description": "Description for the sign-out section in settings" },
+
+  "settingsSignOutButton": "Sign Out",
+  "@settingsSignOutButton": { "description": "Label for the settings sign-out button" },
+
+  "settingsSignOutInProgress": "Signing out…",
+  "@settingsSignOutInProgress": { "description": "Label shown while sign-out is in progress" },
+
   "chatEmptyMessage": "No conversations yet",
   "@chatEmptyMessage": { "description": "Empty state message for the chat screen" },
 
@@ -168,6 +180,12 @@
   "serverConfigurationIssuerHelper": "This must be the absolute issuer URL for your OIDC provider.",
   "@serverConfigurationIssuerHelper": { "description": "Helper text for the issuer URL field" },
 
+  "serverConfigurationClientIdLabel": "OIDC Client ID",
+  "@serverConfigurationClientIdLabel": { "description": "Label for the OIDC client ID field" },
+
+  "serverConfigurationClientIdHelper": "Enter the public/native client ID registered for Weave on this issuer.",
+  "@serverConfigurationClientIdHelper": { "description": "Helper text for the OIDC client ID field" },
+
   "serverConfigurationServicesLabel": "Service Endpoints",
   "@serverConfigurationServicesLabel": { "description": "Section title for derived service endpoints" },
 
@@ -186,5 +204,90 @@
     "placeholders": {
       "value": { "type": "String" }
     }
-  }
+  },
+
+  "oidcRegistrationHelpTitle": "Register Weave as a native/public client",
+  "@oidcRegistrationHelpTitle": { "description": "Title for the OIDC client registration help card" },
+
+  "oidcRegistrationHelpDescription": "Use Authorization Code + PKCE with the system browser, and allow the Weave redirect URIs below on the provider-side client registration.",
+  "@oidcRegistrationHelpDescription": { "description": "General description for the OIDC client registration help card" },
+
+  "oidcRegistrationHelpNoSecret": "Do not create or paste a client secret here. Weave uses a public native-client flow.",
+  "@oidcRegistrationHelpNoSecret": { "description": "Warning that Weave should not use a client secret" },
+
+  "oidcRegistrationHelpAuthentikSteps": "In Authentik, create an OAuth2/OpenID Connect provider for Weave, add these redirect URIs to the provider, and ensure the client is configured for Authorization Code flow with `offline_access` available if you want refresh tokens.",
+  "@oidcRegistrationHelpAuthentikSteps": { "description": "Provider-specific OIDC registration guidance for Authentik" },
+
+  "oidcRegistrationHelpKeycloakSteps": "In Keycloak, create a public OpenID Connect client for Weave, add these redirect URIs and post-logout redirect URIs, and enable Standard Flow with PKCE (S256) so Weave can sign in without a client secret.",
+  "@oidcRegistrationHelpKeycloakSteps": { "description": "Provider-specific OIDC registration guidance for Keycloak" },
+
+  "oidcRegistrationHelpRedirectsTitle": "Register these redirect URIs",
+  "@oidcRegistrationHelpRedirectsTitle": { "description": "Title shown above the redirect URI values" },
+
+  "oidcRegistrationHelpRedirectValue": "Sign-in redirect: {value}",
+  "@oidcRegistrationHelpRedirectValue": {
+    "description": "Text showing the sign-in redirect URI",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+
+  "oidcRegistrationHelpPostLogoutRedirectValue": "Post-logout redirect: {value}",
+  "@oidcRegistrationHelpPostLogoutRedirectValue": {
+    "description": "Text showing the post-logout redirect URI",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+
+  "signInScreenTitle": "Sign In",
+  "@signInScreenTitle": { "description": "App bar title for the sign-in screen" },
+
+  "signInTitle": "Sign in to continue",
+  "@signInTitle": { "description": "Main heading on the sign-in screen" },
+
+  "signInDescription": "Weave is configured. Use your provider account in the system browser to open the authenticated app shell.",
+  "@signInDescription": { "description": "Description text on the sign-in screen" },
+
+  "signInConfigurationTitle": "Current sign-in configuration",
+  "@signInConfigurationTitle": { "description": "Title for the sign-in configuration summary card" },
+
+  "signInConfigurationProvider": "Provider: {value}",
+  "@signInConfigurationProvider": {
+    "description": "Summary line showing the provider label on the sign-in screen",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+
+  "signInConfigurationIssuer": "Issuer: {value}",
+  "@signInConfigurationIssuer": {
+    "description": "Summary line showing the issuer URL on the sign-in screen",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+
+  "signInConfigurationClientId": "Client ID: {value}",
+  "@signInConfigurationClientId": {
+    "description": "Summary line showing the client ID on the sign-in screen",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+
+  "signInButton": "Sign In",
+  "@signInButton": { "description": "Primary sign-in button label" },
+
+  "signInInProgress": "Signing in…",
+  "@signInInProgress": { "description": "Label shown while sign-in is in progress" },
+
+  "signInBackToSetupButton": "Back to Setup",
+  "@signInBackToSetupButton": { "description": "Secondary action label to return to setup from the sign-in screen" },
+
+  "signInMissingConfigurationTitle": "Finish setup to sign in",
+  "@signInMissingConfigurationTitle": { "description": "Heading shown when auth configuration is incomplete" },
+
+  "signInMissingConfigurationDescription": "Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.",
+  "@signInMissingConfigurationDescription": { "description": "Description shown when auth configuration is incomplete" }
 }

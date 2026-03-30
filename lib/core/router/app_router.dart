@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/deck/presentation/deck_screen.dart';
@@ -31,16 +32,19 @@ GoRouter appRouter(Ref ref) {
       final onOnboarding =
           state.matchedLocation == AppRoutes.welcome ||
           state.matchedLocation == AppRoutes.setup;
+      final onSignIn = state.matchedLocation == AppRoutes.signIn;
 
-      if (bootstrapState.phase == BootstrapPhase.needsSetup && !onOnboarding) {
-        return AppRoutes.welcome;
+      switch (bootstrapState.phase) {
+        case BootstrapPhase.loading:
+        case BootstrapPhase.error:
+          return null;
+        case BootstrapPhase.needsSetup:
+          return onOnboarding ? null : AppRoutes.welcome;
+        case BootstrapPhase.needsSignIn:
+          return onSignIn ? null : AppRoutes.signIn;
+        case BootstrapPhase.ready:
+          return onOnboarding || onSignIn ? AppRoutes.chat : null;
       }
-
-      if (bootstrapState.phase == BootstrapPhase.ready && onOnboarding) {
-        return AppRoutes.chat;
-      }
-
-      return null;
     },
     routes: [
       GoRoute(
@@ -50,6 +54,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.setup,
         builder: (context, state) => const SetupFlow(),
+      ),
+      GoRoute(
+        path: AppRoutes.signIn,
+        builder: (context, state) => const SignInScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

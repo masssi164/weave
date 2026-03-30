@@ -356,6 +356,30 @@ abstract class AppLocalizations {
   /// **'Saving…'**
   String get settingsSaveInProgress;
 
+  /// Section title for session management in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Session'**
+  String get settingsSignOutTitle;
+
+  /// Description for the sign-out section in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out of the current server session and return to the sign-in gate.'**
+  String get settingsSignOutDescription;
+
+  /// Label for the settings sign-out button
+  ///
+  /// In en, this message translates to:
+  /// **'Sign Out'**
+  String get settingsSignOutButton;
+
+  /// Label shown while sign-out is in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Signing out…'**
+  String get settingsSignOutInProgress;
+
   /// Empty state message for the chat screen
   ///
   /// In en, this message translates to:
@@ -422,6 +446,18 @@ abstract class AppLocalizations {
   /// **'This must be the absolute issuer URL for your OIDC provider.'**
   String get serverConfigurationIssuerHelper;
 
+  /// Label for the OIDC client ID field
+  ///
+  /// In en, this message translates to:
+  /// **'OIDC Client ID'**
+  String get serverConfigurationClientIdLabel;
+
+  /// Helper text for the OIDC client ID field
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the public/native client ID registered for Weave on this issuer.'**
+  String get serverConfigurationClientIdHelper;
+
   /// Section title for derived service endpoints
   ///
   /// In en, this message translates to:
@@ -451,6 +487,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Derived default: {value}'**
   String serverConfigurationDerivedHint(String value);
+
+  /// Title for the OIDC client registration help card
+  ///
+  /// In en, this message translates to:
+  /// **'Register Weave as a native/public client'**
+  String get oidcRegistrationHelpTitle;
+
+  /// General description for the OIDC client registration help card
+  ///
+  /// In en, this message translates to:
+  /// **'Use Authorization Code + PKCE with the system browser, and allow the Weave redirect URIs below on the provider-side client registration.'**
+  String get oidcRegistrationHelpDescription;
+
+  /// Warning that Weave should not use a client secret
+  ///
+  /// In en, this message translates to:
+  /// **'Do not create or paste a client secret here. Weave uses a public native-client flow.'**
+  String get oidcRegistrationHelpNoSecret;
+
+  /// Provider-specific OIDC registration guidance for Authentik
+  ///
+  /// In en, this message translates to:
+  /// **'In Authentik, create an OAuth2/OpenID Connect provider for Weave, add these redirect URIs to the provider, and ensure the client is configured for Authorization Code flow with `offline_access` available if you want refresh tokens.'**
+  String get oidcRegistrationHelpAuthentikSteps;
+
+  /// Provider-specific OIDC registration guidance for Keycloak
+  ///
+  /// In en, this message translates to:
+  /// **'In Keycloak, create a public OpenID Connect client for Weave, add these redirect URIs and post-logout redirect URIs, and enable Standard Flow with PKCE (S256) so Weave can sign in without a client secret.'**
+  String get oidcRegistrationHelpKeycloakSteps;
+
+  /// Title shown above the redirect URI values
+  ///
+  /// In en, this message translates to:
+  /// **'Register these redirect URIs'**
+  String get oidcRegistrationHelpRedirectsTitle;
+
+  /// Text showing the sign-in redirect URI
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in redirect: {value}'**
+  String oidcRegistrationHelpRedirectValue(String value);
+
+  /// Text showing the post-logout redirect URI
+  ///
+  /// In en, this message translates to:
+  /// **'Post-logout redirect: {value}'**
+  String oidcRegistrationHelpPostLogoutRedirectValue(String value);
+
+  /// App bar title for the sign-in screen
+  ///
+  /// In en, this message translates to:
+  /// **'Sign In'**
+  String get signInScreenTitle;
+
+  /// Main heading on the sign-in screen
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to continue'**
+  String get signInTitle;
+
+  /// Description text on the sign-in screen
+  ///
+  /// In en, this message translates to:
+  /// **'Weave is configured. Use your provider account in the system browser to open the authenticated app shell.'**
+  String get signInDescription;
+
+  /// Title for the sign-in configuration summary card
+  ///
+  /// In en, this message translates to:
+  /// **'Current sign-in configuration'**
+  String get signInConfigurationTitle;
+
+  /// Summary line showing the provider label on the sign-in screen
+  ///
+  /// In en, this message translates to:
+  /// **'Provider: {value}'**
+  String signInConfigurationProvider(String value);
+
+  /// Summary line showing the issuer URL on the sign-in screen
+  ///
+  /// In en, this message translates to:
+  /// **'Issuer: {value}'**
+  String signInConfigurationIssuer(String value);
+
+  /// Summary line showing the client ID on the sign-in screen
+  ///
+  /// In en, this message translates to:
+  /// **'Client ID: {value}'**
+  String signInConfigurationClientId(String value);
+
+  /// Primary sign-in button label
+  ///
+  /// In en, this message translates to:
+  /// **'Sign In'**
+  String get signInButton;
+
+  /// Label shown while sign-in is in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Signing in…'**
+  String get signInInProgress;
+
+  /// Secondary action label to return to setup from the sign-in screen
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Setup'**
+  String get signInBackToSetupButton;
+
+  /// Heading shown when auth configuration is incomplete
+  ///
+  /// In en, this message translates to:
+  /// **'Finish setup to sign in'**
+  String get signInMissingConfigurationTitle;
+
+  /// Description shown when auth configuration is incomplete
+  ///
+  /// In en, this message translates to:
+  /// **'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.'**
+  String get signInMissingConfigurationDescription;
 }
 
 class _AppLocalizationsDelegate
