@@ -4,4 +4,6 @@ abstract interface class ServerConfigurationRepository {
   Future<ServerConfiguration?> loadConfiguration();
 
   Future<void> saveConfiguration(ServerConfiguration configuration);
+
+  Future<void> clearConfiguration();
 }
