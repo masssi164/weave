@@ -1,65 +1,86 @@
-# Weave 🧶
+# Weave
 
-A unified, accessibility-first, open-source collaboration client built with Flutter.
+Weave is an accessibility-first Flutter client for self-hosted collaboration stacks. It is being built around a repository-first, feature-first architecture so future protocol integrations can land behind stable domain boundaries instead of leaking transport logic into presentation code.
 
-## 🎯 The Vision
-Organizations relying on self-hosted infrastructure often face severe workflow fragmentation on mobile devices. **Weave** solves this by unifying identity, communication, and file management into a single, cohesive application.
+## Vision
+Weave aims to unify the core mobile workflows for self-hosted environments:
 
-Instead of switching between multiple apps, Weave acts as a unified frontend that weaves together three core open-source pillars:
-* **Identity:** Single Sign-On via [Authentik](https://goauthentik.io/) (OIDC).
-* **Communication:** Real-time, E2EE messaging via the [Matrix Protocol](https://matrix.org/).
-* **Productivity:** File management (WebDAV) and Calendar (CalDAV) via [Nextcloud](https://nextcloud.com/).
+- Identity through OIDC providers such as Authentik and Keycloak
+- Communication through Matrix
+- Files, calendars, and deck-style planning through Nextcloud-backed services
 
-### ♿ Accessibility First
-Accessibility is not an afterthought in this project. Weave is built from the ground up to be fully compliant with screen readers (VoiceOver for iOS, TalkBack for Android). Custom semantic trees and logical reading orders are implemented across all complex UI elements (like chat bubbles and file trees) to ensure an inclusive user experience.
+## Current foundation
+The app now starts through an explicit bootstrap phase before the router is built. Startup resolves into one of:
 
-## 🏗️ Architecture
-This project follows a strict **Feature-First (Clean Architecture)** approach to maintain scalability across different backend protocols.
+- `loading`
+- `needsSetup`
+- `ready`
+- `error`
 
-\`\`\`text
+That means routing no longer depends on a temporary default that flips later from storage.
+
+Setup and Settings now share one persisted server configuration model:
+
+- OIDC provider type
+- OIDC issuer URL
+- Matrix homeserver URL
+- Nextcloud base URL
+
+Defaults for Matrix and Nextcloud are derived from the issuer host using a simple homelab-friendly rule, but the user can override those values during setup and later in Settings.
+
+## Architecture
+Weave follows a feature-first clean architecture layout:
+
+```text
 lib/
-├── core/             # App-wide configurations (Routing, Theme, Global A11y utils)
-├── features/         # Isolated feature modules
-│   ├── auth/         # OIDC authentication & token management
-│   ├── chat/         # Matrix SDK integration & Chat UI
-│   ├── files/        # WebDAV integration & File Explorer UI
-│   └── calendar/     # CalDAV integration & Agenda UI
-└── shared/           # Reusable UI widgets (Buttons, Dialogs)
-\`\`\`
-
-## 🚀 Getting Started
-### 🤖 AI Agent Setup (Optional)
-If you are contributing to Weave using an AI coding assistant (like OpenAI Codex, Cursor, or Copilot), you should initialize the local framework skills. This ensures the AI understands our specific stack (Riverpod 3.0, Clean Architecture, Accessibility rules) and doesn't generate outdated code.
-
-1. **Install the Skills CLI globally:**
-   ```bash
-   dart pub global activate skills
-   ```
-2. **Add Dart to your PATH:**
-   Ensure that your global Dart cache is available in your system's PATH. 
-   * **macOS/Linux:** Add `export PATH="$PATH":"$HOME/.pub-cache/bin"` to your `~/.zshrc` or `~/.bashrc` and restart your terminal.
-   * **Windows:** Add `%LOCALAPPDATA%\Pub\Cache\bin` to your system's Environment Variables.
-3. **Activate the skills for this project:**
-   Navigate to the repository root and run:
-   ```bash
-   skills get
-   ```
-   *(Note: This downloads the AI skill definitions into the `.dart_skills/` directory, which is intentionally excluded from version control via `.gitignore`.)*
-
-
+├── core/
+│   ├── bootstrap/    # App start resolution before routing
+│   ├── failures/     # Shared app-level error model
+│   ├── persistence/  # Secure/non-secure storage boundaries
+│   ├── router/       # go_router setup and route constants
+│   ├── theme/
+│   └── widgets/
+└── features/
+    ├── auth/
+    ├── calendar/
+    ├── chat/
+    ├── deck/
+    ├── files/
+    ├── onboarding/
+    ├── server_config/
+    └── settings/
 ```
 
+Inside each feature:
+
+- `presentation/` contains screens, widgets, and Riverpod UI state
+- `domain/` contains entities and repository contracts
+- `data/` contains repository implementations, persistence adapters, DTOs, and protocol/service clients
+
+See [docs/architecture.md](docs/architecture.md) for the detailed design notes.
+
+## Accessibility
+Accessibility is a hard requirement, not a follow-up:
+
+- interactive targets must be at least `48x48`
+- icon-only affordances must expose semantics labels
+- complex layouts must keep a predictable reading order
+- setup, settings, shell navigation, and shared states must remain screen-reader friendly during refactors
+
+## Development
 ### Prerequisites
-* [Flutter SDK](https://docs.flutter.dev/get-started/install) (Version 3.19.0 or higher)
-* An active instance of Authentik, Matrix (e.g., Synapse), and Nextcloud.
+- [Flutter SDK](https://docs.flutter.dev/get-started/install)
 
-### Installation
-1. Clone the repository:
-   \`git clone https://github.com/masssi164/wave.git\`
-2. Install dependencies:
-   \`flutter pub get\`
-3. Run the application:
-   \`flutter run\`
+### Run locally
+1. `flutter pub get`
+2. `flutter run`
 
-## 🤝 Contributing
-Contributions are welcome! Please ensure that any UI changes include appropriate `Semantics` widgets and maintain the established clean code architecture.
+### Validation
+Run the full validation suite before opening a change:
+
+1. `flutter pub get`
+2. `flutter gen-l10n`
+3. `dart run build_runner build --delete-conflicting-outputs`
+4. `dart format --output=none --set-exit-if-changed .`
+5. `flutter analyze --fatal-infos`
+6. `flutter test`

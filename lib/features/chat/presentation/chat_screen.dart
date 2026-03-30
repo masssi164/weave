@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
-import 'package:weave/features/chat/providers/chat_provider.dart';
+import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The Chat feature screen.

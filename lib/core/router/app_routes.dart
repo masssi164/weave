@@ -8,4 +8,5 @@ abstract final class AppRoutes {
   static const files = '/files';
   static const calendar = '/calendar';
   static const deck = '/deck';
+  static const settings = '/settings';
 }

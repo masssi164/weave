@@ -25,6 +25,20 @@ class AppLocalizationsDe extends AppLocalizations {
   String get setupTitle => 'Einrichtung';
 
   @override
+  String get setupProviderStepTitle => 'Server verbinden';
+
+  @override
+  String get setupProviderStepDescription =>
+      'Wähle deinen OIDC-Anbieter und gib die Issuer-URL deiner selbst gehosteten Umgebung ein.';
+
+  @override
+  String get setupServicesStepTitle => 'Dienstendpunkte prüfen';
+
+  @override
+  String get setupServicesStepDescription =>
+      'Weave leitet gängige Dienst-URLs aus dem Issuer-Host ab. Prüfe und ändere sie bei Bedarf vor dem Abschluss.';
+
+  @override
   String get setupLanguageStepTitle => 'Deine Sprache';
 
   @override
@@ -65,7 +79,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navDeck => 'Deck';
 
   @override
+  String get navSettings => 'Einstellungen';
+
+  @override
   String get loadingLabel => 'Wird geladen…';
+
+  @override
+  String get bootstrapLoadingLabel => 'Weave wird vorbereitet…';
 
   @override
   String get emptyStateLabel => 'Noch nichts hier';
@@ -95,6 +115,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get semanticDeckIcon => 'Deck-Boards';
 
   @override
+  String get semanticSettingsIcon => 'App-Einstellungen';
+
+  @override
   String get chatScreenTitle => 'Chat';
 
   @override
@@ -105,6 +128,22 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get deckScreenTitle => 'Deck';
+
+  @override
+  String get settingsScreenTitle => 'Einstellungen';
+
+  @override
+  String get settingsServerConfigurationTitle => 'Serverkonfiguration';
+
+  @override
+  String get settingsServerConfigurationDescription =>
+      'Aktualisiere den Anbieter und die Dienst-URLs, die Weave für deine selbst gehostete Umgebung verwenden soll.';
+
+  @override
+  String get settingsSaveButton => 'Änderungen speichern';
+
+  @override
+  String get settingsSaveInProgress => 'Wird gespeichert…';
 
   @override
   String get chatEmptyMessage => 'Noch keine Unterhaltungen';
@@ -120,4 +159,41 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get deviceLanguageLabel => 'Gerätesprache';
+
+  @override
+  String get serverConfigurationProviderLabel => 'OIDC-Anbieter';
+
+  @override
+  String get serverConfigurationProviderFieldLabel => 'Anbietertyp';
+
+  @override
+  String get oidcProviderAuthentik => 'Authentik';
+
+  @override
+  String get oidcProviderKeycloak => 'Keycloak';
+
+  @override
+  String get serverConfigurationIssuerLabel => 'OIDC-Issuer-URL';
+
+  @override
+  String get serverConfigurationIssuerHelper =>
+      'Dies muss die absolute Issuer-URL deines OIDC-Anbieters sein.';
+
+  @override
+  String get serverConfigurationServicesLabel => 'Dienstendpunkte';
+
+  @override
+  String get serverConfigurationServicesHelper =>
+      'Standardwerte werden aus dem Issuer-Host abgeleitet. Ändere sie, wenn deine Dienste anderswo liegen.';
+
+  @override
+  String get serverConfigurationMatrixLabel => 'Matrix-Homeserver-URL';
+
+  @override
+  String get serverConfigurationNextcloudLabel => 'Nextcloud-Basis-URL';
+
+  @override
+  String serverConfigurationDerivedHint(String value) {
+    return 'Abgeleiteter Standard: $value';
+  }
 }

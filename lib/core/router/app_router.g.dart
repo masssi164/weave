@@ -9,19 +9,19 @@ part of 'app_router.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Top-level [GoRouter] exposed as a Riverpod provider so that
-/// the router can read the setup-completion state for redirects.
+/// the router can read the resolved bootstrap state for redirects.
 
 @ProviderFor(appRouter)
 final appRouterProvider = AppRouterProvider._();
 
 /// Top-level [GoRouter] exposed as a Riverpod provider so that
-/// the router can read the setup-completion state for redirects.
+/// the router can read the resolved bootstrap state for redirects.
 
 final class AppRouterProvider
     extends $FunctionalProvider<GoRouter, GoRouter, GoRouter>
     with $Provider<GoRouter> {
   /// Top-level [GoRouter] exposed as a Riverpod provider so that
-  /// the router can read the setup-completion state for redirects.
+  /// the router can read the resolved bootstrap state for redirects.
   AppRouterProvider._()
     : super(
         from: null,
@@ -55,4 +55,4 @@ final class AppRouterProvider
   }
 }
 
-String _$appRouterHash() => r'314a314d9723038d88e4254896409262112e5973';
+String _$appRouterHash() => r'a9182f25f618f09292b92af93267aa01a4542b19';

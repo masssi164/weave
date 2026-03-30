@@ -1,0 +1,1 @@
+enum OidcProviderType { authentik, keycloak }
