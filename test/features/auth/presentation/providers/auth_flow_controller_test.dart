@@ -7,12 +7,14 @@ import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
+import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
 import '../../../../helpers/auth_test_data.dart';
+import '../../../../helpers/fake_chat_repository.dart';
 import '../../../../helpers/in_memory_stores.dart';
 import '../../../../helpers/server_config_test_data.dart';
 
@@ -62,6 +64,7 @@ void main() {
   group('AuthFlowController', () {
     test('signOut moves bootstrap back to needsSignIn', () async {
       final secureStore = InMemorySecureStore();
+      final chatRepository = FakeChatRepository();
       await secureStore.write(
         authSessionStorageKey,
         AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
@@ -75,6 +78,7 @@ void main() {
           ),
           secureStoreProvider.overrideWithValue(secureStore),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+          chatRepositoryProvider.overrideWithValue(chatRepository),
         ],
       );
       addTearDown(container.dispose);
@@ -90,6 +94,7 @@ void main() {
         container.read(appBootstrapProvider).requireValue.phase,
         BootstrapPhase.needsSignIn,
       );
+      expect(chatRepository.signOutCalls, 1);
     });
   });
 }

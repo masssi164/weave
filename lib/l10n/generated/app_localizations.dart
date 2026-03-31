@@ -308,6 +308,24 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get chatScreenTitle;
 
+  /// Message shown while the chat room list is loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading conversations…'**
+  String get chatLoadingLabel;
+
+  /// Message shown while Matrix OAuth sign-in is in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to Matrix…'**
+  String get chatConnectingLabel;
+
+  /// Button label to start or retry Matrix sign-in
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Matrix'**
+  String get chatConnectButton;
+
   /// Title for the files screen app bar
   ///
   /// In en, this message translates to:
@@ -385,6 +403,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No conversations yet'**
   String get chatEmptyMessage;
+
+  /// Fallback preview text for a conversation without a recent event
+  ///
+  /// In en, this message translates to:
+  /// **'No recent messages'**
+  String get chatConversationNoPreview;
+
+  /// Fallback preview label for encrypted Matrix events
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted message'**
+  String get chatConversationEncryptedPreview;
+
+  /// Fallback preview label for Matrix events that cannot be rendered yet
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported message'**
+  String get chatConversationUnsupportedPreview;
+
+  /// Accessibility label for invited chat rooms
+  ///
+  /// In en, this message translates to:
+  /// **'Invitation'**
+  String get chatConversationInviteLabel;
+
+  /// Accessibility label for direct conversations
+  ///
+  /// In en, this message translates to:
+  /// **'Direct conversation'**
+  String get chatConversationDirectMessageLabel;
+
+  /// Accessibility label describing how many unread messages a conversation has
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {No unread messages} =1 {1 unread message} other {{count} unread messages}}'**
+  String chatConversationUnreadCount(int count);
 
   /// Empty state message for the files screen
   ///

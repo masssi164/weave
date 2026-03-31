@@ -13,10 +13,12 @@ class ServerConfigurationSaveResult {
   const ServerConfigurationSaveResult({
     required this.configuration,
     required this.authConfigurationChanged,
+    required this.matrixHomeserverChanged,
   });
 
   final ServerConfiguration configuration;
   final bool authConfigurationChanged;
+  final bool matrixHomeserverChanged;
 }
 
 class ServerConfigurationFormState {
@@ -132,6 +134,7 @@ class ServerConfigurationFormState {
 class ServerConfigurationFormController
     extends _$ServerConfigurationFormController {
   String? _initialAuthSignature;
+  String? _initialMatrixSignature;
 
   @override
   ServerConfigurationFormState build() =>
@@ -144,6 +147,7 @@ class ServerConfigurationFormController
 
     if (configuration == null) {
       _initialAuthSignature = null;
+      _initialMatrixSignature = null;
       state = state.copyWith(initialized: true);
       return;
     }
@@ -159,6 +163,7 @@ class ServerConfigurationFormController
       configuration.oidcIssuerUrl.toString(),
       configuration.oidcClientRegistration.clientId,
     );
+    _initialMatrixSignature = _matrixSignature(matrixUrl);
 
     state = state.copyWith(
       initialized: true,
@@ -330,11 +335,17 @@ class ServerConfigurationFormController
       final authConfigurationChanged =
           _initialAuthSignature != null &&
           _initialAuthSignature != nextAuthSignature;
+      final nextMatrixSignature = _matrixSignature(matrixUrl.toString());
+      final matrixHomeserverChanged =
+          _initialMatrixSignature != null &&
+          _initialMatrixSignature != nextMatrixSignature;
       _initialAuthSignature = nextAuthSignature;
+      _initialMatrixSignature = nextMatrixSignature;
 
       return ServerConfigurationSaveResult(
         configuration: configuration,
         authConfigurationChanged: authConfigurationChanged,
+        matrixHomeserverChanged: matrixHomeserverChanged,
       );
     } on AppFailure catch (failure) {
       final issuerMessage =
@@ -412,6 +423,10 @@ class ServerConfigurationFormController
 
   String _authSignature(String issuerUrl, String clientId) {
     return '${issuerUrl.trim()}::${clientId.trim()}';
+  }
+
+  String _matrixSignature(String matrixHomeserverUrl) {
+    return matrixHomeserverUrl.trim();
   }
 }
 

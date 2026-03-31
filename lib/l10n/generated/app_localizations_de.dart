@@ -121,6 +121,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatScreenTitle => 'Chat';
 
   @override
+  String get chatLoadingLabel => 'Unterhaltungen werden geladen…';
+
+  @override
+  String get chatConnectingLabel => 'Verbinde mit Matrix…';
+
+  @override
+  String get chatConnectButton => 'Matrix verbinden';
+
+  @override
   String get filesScreenTitle => 'Dateien';
 
   @override
@@ -160,6 +169,34 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatEmptyMessage => 'Noch keine Unterhaltungen';
+
+  @override
+  String get chatConversationNoPreview => 'Keine aktuellen Nachrichten';
+
+  @override
+  String get chatConversationEncryptedPreview => 'Verschlüsselte Nachricht';
+
+  @override
+  String get chatConversationUnsupportedPreview =>
+      'Nicht unterstützte Nachricht';
+
+  @override
+  String get chatConversationInviteLabel => 'Einladung';
+
+  @override
+  String get chatConversationDirectMessageLabel => 'Direkte Unterhaltung';
+
+  @override
+  String chatConversationUnreadCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ungelesene Nachrichten',
+      one: '1 ungelesene Nachricht',
+      zero: 'Keine ungelesenen Nachrichten',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get filesEmptyMessage => 'Noch keine Dateien';

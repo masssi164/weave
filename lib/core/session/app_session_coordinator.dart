@@ -1,0 +1,62 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
+import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
+import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+
+class AppSessionCoordinator {
+  const AppSessionCoordinator(this.ref);
+
+  final Ref ref;
+
+  Future<void> signOut() async {
+    final configuration = await ref
+        .read(serverConfigurationRepositoryProvider)
+        .loadConfiguration();
+
+    if (configuration != null && configuration.hasCompleteAuthConfiguration) {
+      await ref
+          .read(authSessionRepositoryProvider)
+          .signOut(
+            AuthConfiguration(
+              issuer: configuration.oidcIssuerUrl,
+              clientId: configuration.oidcClientRegistration.clientId.trim(),
+            ),
+          );
+    } else {
+      await ref.read(authSessionRepositoryProvider).clearLocalSession();
+    }
+
+    await ref.read(chatRepositoryProvider).signOut();
+    _invalidateMatrixSession();
+  }
+
+  Future<void> restartSetup() async {
+    await ref.read(authSessionRepositoryProvider).clearLocalSession();
+    await ref.read(chatRepositoryProvider).clearSession();
+    await ref.read(serverConfigurationRepositoryProvider).clearConfiguration();
+    _invalidateMatrixSession();
+  }
+
+  Future<void> handleConfigurationSaved(
+    ServerConfigurationSaveResult result,
+  ) async {
+    if (result.authConfigurationChanged) {
+      await ref.read(authSessionRepositoryProvider).clearLocalSession();
+    }
+
+    if (result.matrixHomeserverChanged) {
+      await ref.read(chatRepositoryProvider).clearSession();
+      _invalidateMatrixSession();
+    }
+  }
+
+  void _invalidateMatrixSession() {
+    ref.read(matrixSessionInvalidationProvider.notifier).bump();
+  }
+}
+
+final appSessionCoordinatorProvider = Provider<AppSessionCoordinator>(
+  AppSessionCoordinator.new,
+);

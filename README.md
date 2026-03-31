@@ -14,6 +14,7 @@ The app now starts through an explicit bootstrap phase before the router is buil
 
 - `loading`
 - `needsSetup`
+- `needsSignIn`
 - `ready`
 - `error`
 
@@ -27,6 +28,11 @@ Setup and Settings now share one persisted server configuration model:
 - Nextcloud base URL
 
 Defaults for Matrix and Nextcloud are derived from the issuer host using a simple homelab-friendly rule, but the user can override those values during setup and later in Settings.
+
+For the default homelab convention, Weave assumes:
+
+- OIDC issuer / auth provider: `https://auth.home.internal`
+- Matrix homeserver: `https://matrix.home.internal`
 
 ## Architecture
 Weave follows a feature-first clean architecture layout:
@@ -58,6 +64,14 @@ Inside each feature:
 - `data/` contains repository implementations, persistence adapters, DTOs, and protocol/service clients
 
 See [docs/architecture.md](docs/architecture.md) for the detailed design notes.
+
+## Matrix Chat
+Chat is the first real post-auth product slice in the app shell:
+
+- app-level OIDC auth still only controls bootstrap and shell access
+- Matrix protocol auth is handled separately inside `features/chat/`
+- chat restores its own Matrix session from the SDK database when available
+- legacy-only homeservers without Matrix OAuth metadata currently fail with a clear unsupported message instead of falling back to password login
 
 ## Accessibility
 Accessibility is a hard requirement, not a follow-up:
