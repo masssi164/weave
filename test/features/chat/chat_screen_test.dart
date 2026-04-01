@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
+import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/test_app.dart';
@@ -109,7 +109,7 @@ void main() {
           find.textContaining('does not advertise Matrix OAuth 2.0 metadata'),
           findsOneWidget,
         );
-        expect(find.text('Retry'), findsOneWidget);
+        expect(find.text('Connect Matrix'), findsOneWidget);
       },
     );
 
