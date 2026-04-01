@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 
 enum ChatViewPhase { loading, connecting, content, empty, error, unsupported }
 
@@ -54,6 +54,10 @@ class ChatController extends Notifier<ChatUiState> {
   }
 
   Future<void> connect() async {
+    if (state.phase == ChatViewPhase.connecting) {
+      return;
+    }
+
     state = const ChatUiState.connecting();
 
     try {

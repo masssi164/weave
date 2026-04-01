@@ -79,7 +79,8 @@ class _ChatErrorState extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final usesConnectAction =
         failure.type == ChatFailureType.cancelled ||
-        failure.type == ChatFailureType.sessionRequired;
+        failure.type == ChatFailureType.sessionRequired ||
+        failure.type == ChatFailureType.unsupportedConfiguration;
     final hasAction = failure.type != ChatFailureType.unsupportedPlatform;
 
     return ErrorState(

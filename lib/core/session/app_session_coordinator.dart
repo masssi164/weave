@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
-import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
+import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 
