@@ -5,7 +5,8 @@ import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_interface.dart';
 
 import 'matrix_client_io.dart'
-    if (dart.library.js_interop) 'matrix_client_web.dart' as _impl;
+    if (dart.library.js_interop) 'matrix_client_web.dart'
+    as _impl;
 
 final matrixClientProvider = Provider<MatrixClient>(
   (ref) => _impl.createMatrixClient(
