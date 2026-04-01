@@ -111,6 +111,15 @@
   "chatScreenTitle": "Chat",
   "@chatScreenTitle": { "description": "Title for the chat screen app bar" },
 
+  "chatLoadingLabel": "Loading conversations…",
+  "@chatLoadingLabel": { "description": "Message shown while the chat room list is loading" },
+
+  "chatConnectingLabel": "Connecting to Matrix…",
+  "@chatConnectingLabel": { "description": "Message shown while Matrix OAuth sign-in is in progress" },
+
+  "chatConnectButton": "Connect Matrix",
+  "@chatConnectButton": { "description": "Button label to start or retry Matrix sign-in" },
+
   "filesScreenTitle": "Files",
   "@filesScreenTitle": { "description": "Title for the files screen app bar" },
 
@@ -149,6 +158,29 @@
 
   "chatEmptyMessage": "No conversations yet",
   "@chatEmptyMessage": { "description": "Empty state message for the chat screen" },
+
+  "chatConversationNoPreview": "No recent messages",
+  "@chatConversationNoPreview": { "description": "Fallback preview text for a conversation without a recent event" },
+
+  "chatConversationEncryptedPreview": "Encrypted message",
+  "@chatConversationEncryptedPreview": { "description": "Fallback preview label for encrypted Matrix events" },
+
+  "chatConversationUnsupportedPreview": "Unsupported message",
+  "@chatConversationUnsupportedPreview": { "description": "Fallback preview label for Matrix events that cannot be rendered yet" },
+
+  "chatConversationInviteLabel": "Invitation",
+  "@chatConversationInviteLabel": { "description": "Accessibility label for invited chat rooms" },
+
+  "chatConversationDirectMessageLabel": "Direct conversation",
+  "@chatConversationDirectMessageLabel": { "description": "Accessibility label for direct conversations" },
+
+  "chatConversationUnreadCount": "{count, plural, =0 {No unread messages} =1 {1 unread message} other {{count} unread messages}}",
+  "@chatConversationUnreadCount": {
+    "description": "Accessibility label describing how many unread messages a conversation has",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
 
   "filesEmptyMessage": "No files yet",
   "@filesEmptyMessage": { "description": "Empty state message for the files screen" },

@@ -7,6 +7,7 @@ import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
+import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
@@ -16,6 +17,7 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
+import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -74,6 +76,7 @@ void main() {
             secureStore ?? InMemorySecureStore(),
           ),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
+          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
         ],
       );
     }

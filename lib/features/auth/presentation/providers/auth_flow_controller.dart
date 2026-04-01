@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/core/session/app_session_coordinator.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
@@ -78,21 +80,16 @@ class AuthFlowController extends Notifier<AuthFlowState> {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      final configuration = await ref
-          .read(serverConfigurationRepositoryProvider)
-          .loadConfiguration();
-      if (configuration != null && configuration.hasCompleteAuthConfiguration) {
-        await ref
-            .read(authSessionRepositoryProvider)
-            .signOut(_toAuthConfiguration(configuration));
-      } else {
-        await ref.read(authSessionRepositoryProvider).clearLocalSession();
-      }
-
+      await ref.read(appSessionCoordinatorProvider).signOut();
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
     } on AuthFailure catch (failure) {
       state = state.copyWith(isBusy: false, failure: failure);
+    } on ChatFailure catch (failure) {
+      state = state.copyWith(
+        isBusy: false,
+        failure: AuthFailure.storage(failure.message, cause: failure.cause),
+      );
     } on AppFailure catch (failure) {
       state = state.copyWith(
         isBusy: false,
@@ -114,18 +111,25 @@ class AuthFlowController extends Notifier<AuthFlowState> {
   ) async {
     ref.invalidate(savedServerConfigurationProvider);
 
-    if (!result.authConfigurationChanged) {
+    if (!result.authConfigurationChanged && !result.matrixHomeserverChanged) {
       return;
     }
 
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      await ref.read(authSessionRepositoryProvider).clearLocalSession();
+      await ref
+          .read(appSessionCoordinatorProvider)
+          .handleConfigurationSaved(result);
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
     } on AuthFailure catch (failure) {
       state = state.copyWith(isBusy: false, failure: failure);
+    } on ChatFailure catch (failure) {
+      state = state.copyWith(
+        isBusy: false,
+        failure: AuthFailure.storage(failure.message, cause: failure.cause),
+      );
     } catch (error) {
       state = state.copyWith(
         isBusy: false,
@@ -141,15 +145,17 @@ class AuthFlowController extends Notifier<AuthFlowState> {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      await ref.read(authSessionRepositoryProvider).clearLocalSession();
-      await ref
-          .read(serverConfigurationRepositoryProvider)
-          .clearConfiguration();
+      await ref.read(appSessionCoordinatorProvider).restartSetup();
       ref.invalidate(savedServerConfigurationProvider);
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
     } on AuthFailure catch (failure) {
       state = state.copyWith(isBusy: false, failure: failure);
+    } on ChatFailure catch (failure) {
+      state = state.copyWith(
+        isBusy: false,
+        failure: AuthFailure.storage(failure.message, cause: failure.cause),
+      );
     } on AppFailure catch (failure) {
       state = state.copyWith(
         isBusy: false,

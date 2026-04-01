@@ -1,7 +1,7 @@
 # Weave Architecture
 
 ## Overview
-Weave uses a feature-first clean architecture with deterministic bootstrap before routing. The current foundation is intentionally integration-light: protocol clients and repositories are stubbed, but the boundaries are real so future Authentik, Keycloak, Matrix, Nextcloud, WebDAV, CalDAV, and Deck work can land without reworking presentation.
+Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific sessions such as Matrix remain inside their owning feature.
 
 ## App startup
 The app now resolves bootstrap before `MaterialApp.router` is built.
@@ -10,12 +10,14 @@ Bootstrap phases:
 
 - `loading`
 - `needsSetup`
+- `needsSignIn`
 - `ready`
 - `error`
 
 Source of truth:
 
-- a valid persisted `ServerConfiguration` means `ready`
+- a valid persisted `ServerConfiguration` plus an active app OIDC session means `ready`
+- a valid persisted `ServerConfiguration` without an app OIDC session means `needsSignIn`
 - no persisted configuration means `needsSetup`
 - storage/bootstrap failures map to `error`
 
@@ -31,6 +33,7 @@ We keep:
 The router only consumes resolved bootstrap state:
 
 - `needsSetup` can access onboarding routes only
+- `needsSignIn` can access the dedicated sign-in route only
 - `ready` is redirected away from onboarding to `/chat`
 - bootstrap `error` is rendered above routing, not inside redirect logic
 
@@ -101,6 +104,21 @@ Current repository-first stub boundaries:
 - `deck` -> `DeckRepository` + `DeckClient`
 
 Presentation depends on repository contracts and Riverpod providers only. It does not own storage or protocol logic.
+
+## Session separation
+App auth and Matrix auth are intentionally separate concerns:
+
+- `auth/` owns the app-level OIDC session that decides whether the shell is reachable
+- `chat/` owns Matrix protocol discovery, Matrix Native OAuth 2.0 login, refresh, logout, and SDK persistence
+- the app does not assume an app-level OIDC access token is also a Matrix access token
+- changing the Matrix homeserver invalidates the Matrix session without redesigning bootstrap
+
+The current Matrix integration uses:
+
+- the configured Matrix homeserver URL from `ServerConfiguration`
+- `Client.checkHomeserver(..., fetchAuthMetadata: true)` for capability discovery
+- Matrix Native OAuth 2.0 when `/_matrix/client/v1/auth_metadata` is available
+- a typed unsupported-configuration failure when the homeserver only exposes legacy login
 
 ## Onboarding and settings
 Onboarding setup and Settings share:

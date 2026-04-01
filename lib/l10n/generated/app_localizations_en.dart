@@ -120,6 +120,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatScreenTitle => 'Chat';
 
   @override
+  String get chatLoadingLabel => 'Loading conversations…';
+
+  @override
+  String get chatConnectingLabel => 'Connecting to Matrix…';
+
+  @override
+  String get chatConnectButton => 'Connect Matrix';
+
+  @override
   String get filesScreenTitle => 'Files';
 
   @override
@@ -159,6 +168,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatEmptyMessage => 'No conversations yet';
+
+  @override
+  String get chatConversationNoPreview => 'No recent messages';
+
+  @override
+  String get chatConversationEncryptedPreview => 'Encrypted message';
+
+  @override
+  String get chatConversationUnsupportedPreview => 'Unsupported message';
+
+  @override
+  String get chatConversationInviteLabel => 'Invitation';
+
+  @override
+  String get chatConversationDirectMessageLabel => 'Direct conversation';
+
+  @override
+  String chatConversationUnreadCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count unread messages',
+      one: '1 unread message',
+      zero: 'No unread messages',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get filesEmptyMessage => 'No files yet';
