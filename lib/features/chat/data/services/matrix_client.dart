@@ -7,6 +7,7 @@ import 'matrix_client_io.dart'
     if (dart.library.js_interop) 'matrix_client_web.dart' as _impl;
 
 final matrixClientProvider = Provider<MatrixClient>(
-  (ref) =>
-      _impl.createMatrixClient(authBrowser: ref.watch(matrixAuthBrowserProvider)),
+  (ref) => _impl.createMatrixClient(
+    authBrowser: ref.watch(matrixAuthBrowserProvider),
+  ),
 );
