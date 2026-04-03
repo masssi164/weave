@@ -5,6 +5,7 @@ import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
@@ -38,16 +39,30 @@ class SignInScreen extends ConsumerWidget {
                 data: (configuration) {
                   if (configuration == null ||
                       !configuration.hasCompleteAuthConfiguration) {
-                    return _MissingConfigurationCard(
-                      isBusy: authState.isBusy,
-                      onReturnToSetup: () async {
-                        await ref
-                            .read(authFlowControllerProvider.notifier)
-                            .restartSetup();
-                        if (context.mounted) {
-                          context.go(AppRoutes.setup);
-                        }
-                      },
+                    return SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Center(
+                            child: WeaveLogo(
+                              semanticLabel: l10n.semanticWeaveLogo,
+                              width: 144,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          _MissingConfigurationCard(
+                            isBusy: authState.isBusy,
+                            onReturnToSetup: () async {
+                              await ref
+                                  .read(authFlowControllerProvider.notifier)
+                                  .restartSetup();
+                              if (context.mounted) {
+                                context.go(AppRoutes.setup);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
                     );
                   }
 
@@ -55,6 +70,13 @@ class SignInScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Center(
+                          child: WeaveLogo(
+                            semanticLabel: l10n.semanticWeaveLogo,
+                            width: 144,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
                         Semantics(
                           header: true,
                           child: Text(

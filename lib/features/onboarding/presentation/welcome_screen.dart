@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The first screen users see on a fresh install.
@@ -18,48 +19,45 @@ class WelcomeScreen extends StatelessWidget {
 
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Decorative icon — excluded from semantics.
-                ExcludeSemantics(
-                  child: Icon(
-                    Icons.hub_outlined,
-                    size: 80,
-                    color: theme.colorScheme.primary,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  WeaveLogo(semanticLabel: l10n.semanticWeaveLogo, width: 168),
+                  const SizedBox(height: 28),
+                  // Main heading announced as header by screen readers.
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      l10n.welcomeTitle,
+                      style: theme.textTheme.headlineMedium,
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 32),
-                // Main heading announced as header by screen readers.
-                Semantics(
-                  header: true,
-                  child: Text(
-                    l10n.welcomeTitle,
-                    style: theme.textTheme.headlineMedium,
+                  const SizedBox(height: 16),
+                  Text(
+                    l10n.welcomeSubtitle,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     textAlign: TextAlign.center,
                   ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  l10n.welcomeSubtitle,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
+                  const SizedBox(height: 48),
+                  SizedBox(
+                    width: double.infinity,
+                    child: AccessibleButton(
+                      onPressed: () => context.go(AppRoutes.setup),
+                      semanticLabel: l10n.continueButton,
+                      child: Text(l10n.continueButton),
+                    ),
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 48),
-                SizedBox(
-                  width: double.infinity,
-                  child: AccessibleButton(
-                    onPressed: () => context.go(AppRoutes.setup),
-                    semanticLabel: l10n.continueButton,
-                    child: Text(l10n.continueButton),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

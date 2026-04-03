@@ -108,6 +108,9 @@
   "semanticSettingsIcon": "Application settings",
   "@semanticSettingsIcon": { "description": "Semantic label for the settings icon" },
 
+  "semanticWeaveLogo": "Weave logo",
+  "@semanticWeaveLogo": { "description": "Semantic label for the Weave brand logo image" },
+
   "chatScreenTitle": "Chat",
   "@chatScreenTitle": { "description": "Title for the chat screen app bar" },
 
@@ -131,6 +134,9 @@
 
   "settingsScreenTitle": "Settings",
   "@settingsScreenTitle": { "description": "Title for the settings screen app bar" },
+
+  "settingsBrandSectionDescription": "Weave brings messaging, files, and calendar into one workspace while this screen manages the server connection behind it.",
+  "@settingsBrandSectionDescription": { "description": "Subtle branded copy shown in the settings header card" },
 
   "chatSecuritySectionTitle": "Matrix security",
   "@chatSecuritySectionTitle": { "description": "Section title for Matrix security status and actions in settings" },

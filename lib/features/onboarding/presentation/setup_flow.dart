@@ -5,6 +5,7 @@ import 'package:weave/core/a11y/focus_utils.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -94,7 +95,21 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(l10n.setupTitle),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const WeaveLogo(
+                semanticLabel: 'Weave logo',
+                width: 40,
+                framed: false,
+                excludeFromSemantics: true,
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(l10n.setupTitle, overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: _goBack,

@@ -302,6 +302,12 @@ abstract class AppLocalizations {
   /// **'Application settings'**
   String get semanticSettingsIcon;
 
+  /// Semantic label for the Weave brand logo image
+  ///
+  /// In en, this message translates to:
+  /// **'Weave logo'**
+  String get semanticWeaveLogo;
+
   /// Title for the chat screen app bar
   ///
   /// In en, this message translates to:
@@ -349,6 +355,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Settings'**
   String get settingsScreenTitle;
+
+  /// Subtle branded copy shown in the settings header card
+  ///
+  /// In en, this message translates to:
+  /// **'Weave brings messaging, files, and calendar into one workspace while this screen manages the server connection behind it.'**
+  String get settingsBrandSectionDescription;
 
   /// Section title for Matrix security status and actions in settings
   ///

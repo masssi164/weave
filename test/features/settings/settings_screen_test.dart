@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
@@ -48,6 +49,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(find.byType(WeaveLogo), findsOneWidget);
+      expect(
+        find.text(
+          'Weave brings messaging, files, and calendar into one workspace while this screen manages the server connection behind it.',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
       expect(find.text('weave-mobile'), findsWidgets);

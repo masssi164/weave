@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
@@ -92,6 +93,7 @@ void main() {
         await tester.pumpWidget(buildApp());
         await tester.pumpAndSettle();
 
+        expect(find.byType(WeaveLogo), findsOneWidget);
         expect(find.text('Connect Your Server'), findsOneWidget);
         expect(find.text('Provider type'), findsOneWidget);
         expect(find.text('OIDC Client ID'), findsOneWidget);

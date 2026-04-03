@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -18,6 +19,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Welcome to Weave'), findsOneWidget);
+      expect(find.byType(WeaveLogo), findsOneWidget);
     });
 
     testWidgets('renders Get Started button', (tester) async {
@@ -32,6 +34,16 @@ void main() {
       await tester.pumpAndSettle();
 
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+    });
+
+    testWidgets('announces the Weave logo semantics', (tester) async {
+      final semantics = tester.ensureSemantics();
+
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('Weave logo'), findsOneWidget);
+      semantics.dispose();
     });
 
     testWidgets('meets labeledTapTargetGuideline', (tester) async {

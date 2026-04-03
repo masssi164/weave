@@ -117,6 +117,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get semanticSettingsIcon => 'Application settings';
 
   @override
+  String get semanticWeaveLogo => 'Weave logo';
+
+  @override
   String get chatScreenTitle => 'Chat';
 
   @override
@@ -139,6 +142,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsScreenTitle => 'Settings';
+
+  @override
+  String get settingsBrandSectionDescription =>
+      'Weave brings messaging, files, and calendar into one workspace while this screen manages the server connection behind it.';
 
   @override
   String get chatSecuritySectionTitle => 'Matrix security';

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/chat/presentation/widgets/chat_security_settings_section.dart';
 import 'package:weave/features/server_config/presentation/providers/'
@@ -35,6 +36,8 @@ class SettingsScreen extends ConsumerWidget {
               data: (configuration) => Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const _SettingsBrandCard(),
+                  const SizedBox(height: 32),
                   Text(
                     l10n.settingsServerConfigurationTitle,
                     style: Theme.of(context).textTheme.headlineSmall,
@@ -101,6 +104,55 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SettingsBrandCard extends StatelessWidget {
+  const _SettingsBrandCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: MergeSemantics(
+          child: Row(
+            children: [
+              WeaveLogo(
+                semanticLabel: l10n.semanticWeaveLogo,
+                width: 72,
+                framed: false,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.appTitle, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Text(
+                      l10n.settingsBrandSectionDescription,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
