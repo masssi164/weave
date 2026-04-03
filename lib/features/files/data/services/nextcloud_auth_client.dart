@@ -25,6 +25,10 @@ class NextcloudAuthClient {
 
   Future<NextcloudSession> connect(Uri configuredBaseUrl) async {
     final normalizedBaseUrl = _normalizeBaseUrl(configuredBaseUrl);
+    _ensureHttpsBaseUrl(
+      normalizedBaseUrl,
+      message: 'Use an HTTPS Nextcloud URL before starting the login flow.',
+    );
     final startResponse = await _send(
       () => _httpClient.post(
         _resolve(normalizedBaseUrl, 'index.php/login/v2'),
@@ -124,6 +128,11 @@ class NextcloudAuthClient {
       }
 
       final serverUrl = _normalizeBaseUrl(Uri.parse(serverValue));
+      _ensureHttpsBaseUrl(
+        serverUrl,
+        message:
+            'Nextcloud returned app credentials for a non-HTTPS server, which Weave will not use.',
+      );
       if (serverUrl != configuredBaseUrl) {
         throw const FilesFailure.configuration(
           'The Nextcloud login flow completed for a different server than the one configured in Weave.',
@@ -154,6 +163,10 @@ class NextcloudAuthClient {
     required String loginName,
     required String appPassword,
   }) async {
+    _ensureHttpsBaseUrl(
+      baseUrl,
+      message: 'Use an HTTPS Nextcloud URL before validating the account.',
+    );
     final response = await _send(
       () => _httpClient.get(
         _resolve(baseUrl, 'ocs/v2.php/cloud/user?format=json'),
@@ -247,6 +260,12 @@ class NextcloudAuthClient {
 
   Uri _resolve(Uri baseUrl, String relativePath) {
     return _normalizeBaseUrl(baseUrl).resolve(relativePath);
+  }
+
+  void _ensureHttpsBaseUrl(Uri baseUrl, {required String message}) {
+    if (baseUrl.scheme.toLowerCase() != 'https') {
+      throw FilesFailure.configuration(message);
+    }
   }
 }
 

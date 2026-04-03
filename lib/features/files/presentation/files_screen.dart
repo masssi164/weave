@@ -256,6 +256,8 @@ class _ConnectionCard extends ConsumerWidget {
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
+  static final DateFormat _modifiedAtFormat = DateFormat.yMMMd().add_Hm();
+
   final FileEntry entry;
   final bool isBusy;
 
@@ -299,11 +301,26 @@ class _FileEntryTile extends ConsumerWidget {
 
     final parts = <String>[];
     if (entry.modifiedAt != null) {
-      parts.add(DateFormat.yMMMd().add_Hm().format(entry.modifiedAt!.toLocal()));
+      parts.add(_modifiedAtFormat.format(entry.modifiedAt!.toLocal()));
     }
     if (entry.sizeInBytes != null) {
-      parts.add('${entry.sizeInBytes} B');
+      parts.add(_formatSize(entry.sizeInBytes!));
     }
     return parts.join(' • ');
+  }
+
+  String _formatSize(int sizeInBytes) {
+    const units = <String>['B', 'KB', 'MB', 'GB', 'TB'];
+    var size = sizeInBytes.toDouble();
+    var unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+
+    final formatted = size >= 10 || unitIndex == 0
+        ? size.toStringAsFixed(0)
+        : size.toStringAsFixed(1);
+    return '$formatted ${units[unitIndex]}';
   }
 }

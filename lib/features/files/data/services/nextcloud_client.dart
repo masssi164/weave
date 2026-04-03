@@ -23,6 +23,7 @@ class NextcloudClient {
     NextcloudSession session,
     String path,
   ) async {
+    _ensureHttpsSession(session);
     final normalizedPath = _normalizePath(path);
     final uri = _buildDirectoryUri(session, normalizedPath);
     final request = http.Request('PROPFIND', uri)
@@ -77,8 +78,7 @@ class NextcloudClient {
       }
 
       final isDirectory = _isDirectory(prop);
-      final name = (_firstTextByLocalName(prop, 'displayname') ?? _basename(entryPath))
-          .trim();
+      final name = _entryName(prop, entryPath, isDirectory);
       if (name.isEmpty) {
         continue;
       }
@@ -105,6 +105,14 @@ class NextcloudClient {
     });
 
     return DirectoryListing(path: normalizedPath, entries: entries);
+  }
+
+  void _ensureHttpsSession(NextcloudSession session) {
+    if (session.baseUrl.scheme.toLowerCase() != 'https') {
+      throw const FilesFailure.configuration(
+        'Use an HTTPS Nextcloud URL before browsing files.',
+      );
+    }
   }
 
   XmlDocument _parseXml(String raw) {
@@ -193,6 +201,20 @@ class NextcloudClient {
     }
     final segments = path.split('/')..removeWhere((segment) => segment.isEmpty);
     return segments.isEmpty ? '/' : segments.last;
+  }
+
+  String _entryName(XmlElement prop, String entryPath, bool isDirectory) {
+    final displayName = (_firstTextByLocalName(prop, 'displayname') ?? '').trim();
+    if (displayName.isNotEmpty) {
+      return displayName;
+    }
+
+    final fallbackName = _basename(entryPath).trim();
+    if (fallbackName.isNotEmpty && fallbackName != '/') {
+      return fallbackName;
+    }
+
+    return isDirectory ? 'Unnamed folder' : 'Unnamed file';
   }
 
   String _normalizePath(String path) {

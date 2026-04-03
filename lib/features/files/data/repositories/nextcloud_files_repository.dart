@@ -37,6 +37,12 @@ class NextcloudFilesRepository implements FilesRepository {
       );
     }
 
+    if (!_usesHttps(configuration.serviceEndpoints.nextcloudBaseUrl)) {
+      return const FilesConnectionState.misconfigured(
+        message: 'Use an HTTPS Nextcloud URL before connecting files.',
+      );
+    }
+
     final session = await _sessionRepository.readSession();
     if (session == null) {
       return FilesConnectionState.disconnected(
@@ -63,6 +69,12 @@ class NextcloudFilesRepository implements FilesRepository {
     if (configuration == null) {
       throw const FilesFailure.configuration(
         'Finish server setup before connecting Nextcloud.',
+      );
+    }
+
+    if (!_usesHttps(configuration.serviceEndpoints.nextcloudBaseUrl)) {
+      throw const FilesFailure.configuration(
+        'Use an HTTPS Nextcloud URL before connecting files.',
       );
     }
 
@@ -112,6 +124,12 @@ class NextcloudFilesRepository implements FilesRepository {
       );
     }
 
+    if (!_usesHttps(configuration.serviceEndpoints.nextcloudBaseUrl)) {
+      throw const FilesFailure.configuration(
+        'Use an HTTPS Nextcloud URL before browsing Nextcloud files.',
+      );
+    }
+
     if (!session.matchesBaseUrl(configuration.serviceEndpoints.nextcloudBaseUrl)) {
       await _sessionRepository.clearSession();
       throw const FilesFailure.sessionRequired(
@@ -135,6 +153,8 @@ class NextcloudFilesRepository implements FilesRepository {
 
     return configuration;
   }
+
+  bool _usesHttps(Uri uri) => uri.scheme.toLowerCase() == 'https';
 }
 
 final filesRepositoryProvider = Provider<FilesRepository>((ref) {
