@@ -256,7 +256,8 @@ class _ConnectionCard extends ConsumerWidget {
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
-  static final DateFormat _modifiedAtFormat = DateFormat.yMMMd().add_Hm();
+  static final DateFormat _modifiedDateTimeFormat =
+      DateFormat.yMMMd().add_Hm();
 
   final FileEntry entry;
   final bool isBusy;
@@ -301,7 +302,7 @@ class _FileEntryTile extends ConsumerWidget {
 
     final parts = <String>[];
     if (entry.modifiedAt != null) {
-      parts.add(_modifiedAtFormat.format(entry.modifiedAt!.toLocal()));
+      parts.add(_modifiedDateTimeFormat.format(entry.modifiedAt!.toLocal()));
     }
     if (entry.sizeInBytes != null) {
       parts.add(_formatSize(entry.sizeInBytes!));

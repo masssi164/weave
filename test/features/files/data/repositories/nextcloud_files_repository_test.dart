@@ -15,10 +15,17 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 
 import '../../../../helpers/server_config_test_data.dart';
 
+class _NoopHttpClient extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    throw UnimplementedError();
+  }
+}
+
 class _FakeNextcloudAuthClient extends NextcloudAuthClient {
   _FakeNextcloudAuthClient()
     : super(
-        httpClient: http.Client(),
+        httpClient: _NoopHttpClient(),
         loginLauncher: _FakeNextcloudLoginLauncher(),
       );
 
@@ -43,7 +50,7 @@ class _FakeNextcloudAuthClient extends NextcloudAuthClient {
 }
 
 class _FakeNextcloudClient extends NextcloudClient {
-  _FakeNextcloudClient() : super(httpClient: http.Client());
+  _FakeNextcloudClient() : super(httpClient: _NoopHttpClient());
 
   DirectoryListing? listingToReturn;
   String? lastPath;

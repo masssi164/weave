@@ -78,14 +78,15 @@ class NextcloudClient {
       }
 
       final isDirectory = _isDirectory(prop);
-      final name = _entryName(prop, entryPath, isDirectory);
+      final fileId = (_firstTextByLocalName(prop, 'fileid') ?? entryPath).trim();
+      final name = _entryName(prop, entryPath, fallbackId: fileId);
       if (name.isEmpty) {
         continue;
       }
 
       entries.add(
         FileEntry(
-          id: (_firstTextByLocalName(prop, 'fileid') ?? entryPath).trim(),
+          id: fileId,
           name: name,
           path: entryPath,
           isDirectory: isDirectory,
@@ -203,7 +204,11 @@ class NextcloudClient {
     return segments.isEmpty ? '/' : segments.last;
   }
 
-  String _entryName(XmlElement prop, String entryPath, bool isDirectory) {
+  String _entryName(
+    XmlElement prop,
+    String entryPath, {
+    required String fallbackId,
+  }) {
     final displayName = (_firstTextByLocalName(prop, 'displayname') ?? '').trim();
     if (displayName.isNotEmpty) {
       return displayName;
@@ -214,7 +219,7 @@ class NextcloudClient {
       return fallbackName;
     }
 
-    return isDirectory ? 'Unnamed folder' : 'Unnamed file';
+    return fallbackId;
   }
 
   String _normalizePath(String path) {
