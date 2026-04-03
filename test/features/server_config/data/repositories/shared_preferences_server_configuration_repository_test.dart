@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 
 import '../../../../helpers/in_memory_stores.dart';
 import '../../../../helpers/server_config_test_data.dart';

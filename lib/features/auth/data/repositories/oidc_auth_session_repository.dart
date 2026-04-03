@@ -1,8 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
-import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
@@ -169,12 +166,3 @@ class OidcAuthSessionRepository implements AuthSessionRepository {
     }
   }
 }
-
-final authSessionRepositoryProvider = Provider<AuthSessionRepository>((ref) {
-  final secureStore = ref.watch(secureStoreProvider);
-  final oidcClient = ref.watch(oidcClientProvider);
-  return OidcAuthSessionRepository(
-    secureStore: secureStore,
-    oidcClient: oidcClient,
-  );
-});

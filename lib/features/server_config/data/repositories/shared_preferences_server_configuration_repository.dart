@@ -1,13 +1,9 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
-import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
-
-part 'shared_preferences_server_configuration_repository.g.dart';
 
 const serverConfigurationStorageKey = 'server_configuration_v1';
 const legacySetupCompleteKey = 'setup_complete';
@@ -94,14 +90,4 @@ class SharedPreferencesServerConfigurationRepository
       );
     }
   }
-}
-
-@Riverpod(keepAlive: true)
-ServerConfigurationRepository serverConfigurationRepository(Ref ref) {
-  final store = ref.watch(preferencesStoreProvider);
-  final deriver = ref.watch(serviceEndpointDeriverProvider);
-  return SharedPreferencesServerConfigurationRepository(
-    store: store,
-    deriver: deriver,
-  );
 }

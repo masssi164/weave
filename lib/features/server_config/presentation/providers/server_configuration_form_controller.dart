@@ -1,27 +1,14 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:weave/core/failures/app_failure.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
+import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 
 part 'server_configuration_form_controller.g.dart';
-
-class ServerConfigurationSaveResult {
-  const ServerConfigurationSaveResult({
-    required this.configuration,
-    required this.authConfigurationChanged,
-    required this.matrixHomeserverChanged,
-    required this.nextcloudBaseUrlChanged,
-  });
-
-  final ServerConfiguration configuration;
-  final bool authConfigurationChanged;
-  final bool matrixHomeserverChanged;
-  final bool nextcloudBaseUrlChanged;
-}
 
 class ServerConfigurationFormState {
   const ServerConfigurationFormState({

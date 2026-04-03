@@ -11,9 +11,9 @@ import 'package:weave/features/chat/presentation/providers/chat_repository_provi
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
