@@ -3,14 +3,36 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 
 import '../../helpers/fake_chat_repository.dart';
+import '../../helpers/fake_chat_security_repository.dart';
 import '../../helpers/test_app.dart';
 
 void main() {
   group('ChatScreen', () {
+    FakeChatSecurityRepository buildSecurityRepository() {
+      return FakeChatSecurityRepository(
+        loadSecurityStateHandler: ({bool refresh = false}) async {
+          return const ChatSecurityState(
+            isMatrixSignedIn: false,
+            bootstrapState: ChatSecurityBootstrapState.signedOut,
+            accountVerificationState: ChatAccountVerificationState.unavailable,
+            deviceVerificationState: ChatDeviceVerificationState.unavailable,
+            keyBackupState: ChatKeyBackupState.unavailable,
+            roomEncryptionReadiness: ChatRoomEncryptionReadiness.unavailable,
+            secretStorageReady: false,
+            crossSigningReady: false,
+            hasEncryptedConversations: false,
+            verificationSession: ChatVerificationSession.none(),
+          );
+        },
+      );
+    }
+
     testWidgets('shows the loading state while conversations are loading', (
       tester,
     ) async {
@@ -18,11 +40,17 @@ void main() {
       final repository = FakeChatRepository(
         loadConversationsHandler: () => completer.future,
       );
+      final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
         createTestApp(
           const ChatScreen(),
-          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
         ),
       );
       await tester.pump();
@@ -35,6 +63,7 @@ void main() {
     ) async {
       final connectCompleter = Completer<void>();
       final repository = FakeChatRepository();
+      final securityRepository = buildSecurityRepository();
       repository.loadConversationsHandler = () async {
         if (repository.connectCalls == 0) {
           throw const ChatFailure.sessionRequired(
@@ -59,7 +88,12 @@ void main() {
       await tester.pumpWidget(
         createTestApp(
           const ChatScreen(),
-          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
         ),
       );
       await tester.pump();
@@ -79,6 +113,7 @@ void main() {
       'shows an unsupported homeserver message when Matrix OAuth metadata is unavailable',
       (tester) async {
         final repository = FakeChatRepository();
+        final securityRepository = buildSecurityRepository();
         repository.loadConversationsHandler = () async {
           if (repository.connectCalls == 0) {
             throw const ChatFailure.sessionRequired(
@@ -99,7 +134,12 @@ void main() {
         await tester.pumpWidget(
           createTestApp(
             const ChatScreen(),
-            overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              chatSecurityRepositoryProvider.overrideWithValue(
+                securityRepository,
+              ),
+            ],
           ),
         );
         await tester.pump();
@@ -117,6 +157,7 @@ void main() {
       tester,
     ) async {
       final repository = FakeChatRepository();
+      final securityRepository = buildSecurityRepository();
       repository.loadConversationsHandler = () async {
         if (repository.connectCalls == 0) {
           throw const ChatFailure.sessionRequired(
@@ -153,7 +194,12 @@ void main() {
       await tester.pumpWidget(
         createTestApp(
           const ChatScreen(),
-          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
         ),
       );
       await tester.pump();
@@ -174,16 +220,73 @@ void main() {
       final repository = FakeChatRepository(
         loadConversationsHandler: () async => const <ChatConversation>[],
       );
+      final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
         createTestApp(
           const ChatScreen(),
-          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
         ),
       );
       await tester.pumpAndSettle();
 
       expect(find.text('No conversations yet'), findsOneWidget);
+    });
+
+    testWidgets('shows the Matrix security banner when attention is needed', (
+      tester,
+    ) async {
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => const <ChatConversation>[
+          ChatConversation(
+            id: '!room:home.internal',
+            title: 'Project',
+            previewType: ChatConversationPreviewType.encrypted,
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+        ],
+      );
+      final securityRepository = FakeChatSecurityRepository(
+        loadSecurityStateHandler: ({bool refresh = false}) async {
+          return const ChatSecurityState(
+            isMatrixSignedIn: true,
+            bootstrapState: ChatSecurityBootstrapState.recoveryRequired,
+            accountVerificationState:
+                ChatAccountVerificationState.verificationRequired,
+            deviceVerificationState: ChatDeviceVerificationState.unverified,
+            keyBackupState: ChatKeyBackupState.recoveryRequired,
+            roomEncryptionReadiness:
+                ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention,
+            secretStorageReady: true,
+            crossSigningReady: true,
+            hasEncryptedConversations: true,
+            verificationSession: ChatVerificationSession.none(),
+          );
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Matrix security needs attention'), findsOneWidget);
+      expect(find.text('Open security settings'), findsOneWidget);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {
@@ -200,11 +303,17 @@ void main() {
           ),
         ],
       );
+      final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
         createTestApp(
           const ChatScreen(),
-          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
         ),
       );
       await tester.pumpAndSettle();
@@ -226,11 +335,17 @@ void main() {
           ),
         ],
       );
+      final securityRepository = buildSecurityRepository();
 
       await tester.pumpWidget(
         createTestApp(
           const ChatScreen(),
-          overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
         ),
       );
       await tester.pumpAndSettle();

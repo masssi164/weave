@@ -73,6 +73,15 @@ Chat is the first real post-auth product slice in the app shell:
 - chat restores its own Matrix session from the SDK database when available
 - legacy-only homeservers without Matrix OAuth metadata currently fail with a clear unsupported message instead of falling back to password login
 
+The current Matrix security foundation also includes:
+
+- chat-owned E2EE bootstrap state, device/account trust state, key backup state, and encrypted-room readiness mapping
+- first-device crypto identity setup through secret storage, cross-signing, and online key backup
+- recovery reconnect for devices that know the account but have lost local crypto secrets
+- self-verification via SAS emoji/numbers, including the Matrix SDK `askSSSS` path where verification must be continued with a recovery key or passphrase
+
+This is intentionally still a security foundation, not full encrypted timeline/send-receive chat. The current product surface focuses on secure session setup, trust health, and recovery without leaking raw Matrix crypto types into presentation code.
+
 ## Accessibility
 Accessibility is a hard requirement, not a follow-up:
 

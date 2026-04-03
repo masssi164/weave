@@ -6,6 +6,8 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
+import 'package:weave/features/chat/presentation/providers/chat_security_provider.dart';
+import 'package:weave/features/chat/presentation/widgets/chat_security_banner.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The Chat feature screen.
@@ -19,10 +21,23 @@ class ChatScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
+    final securityState = ref.watch(chatSecurityProvider);
+    final security = securityState.security;
+    final showSecurityBanner =
+        security != null &&
+        security.isMatrixSignedIn &&
+        ChatSecurityBanner.messageForSecurity(l10n, security) != null;
 
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(title: Text(l10n.chatScreenTitle)),
+        if (showSecurityBanner)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: ChatSecurityBanner(security: security),
+            ),
+          ),
         switch (state.phase) {
           ChatViewPhase.loading => SliverFillRemaining(
             hasScrollBody: false,

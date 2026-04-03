@@ -132,6 +132,254 @@
   "settingsScreenTitle": "Settings",
   "@settingsScreenTitle": { "description": "Title for the settings screen app bar" },
 
+  "chatSecuritySectionTitle": "Matrix security",
+  "@chatSecuritySectionTitle": { "description": "Section title for Matrix security status and actions in settings" },
+
+  "chatSecuritySectionDescription": "Weave only treats Matrix encryption as healthy when secret storage, cross-signing, recovery, and device trust are all in place.",
+  "@chatSecuritySectionDescription": { "description": "Description shown above the Matrix security section in settings" },
+
+  "chatSecurityRecoveryKeyTitle": "Save this Matrix recovery key now",
+  "@chatSecurityRecoveryKeyTitle": { "description": "Title shown when the app displays the generated Matrix recovery key" },
+
+  "chatSecurityRecoveryKeyDescription": "Weave does not rely on app-only storage for this key because secure storage can disappear after reinstall, device replacement, or some platform restores. Keep it in your password manager or another secure place.",
+  "@chatSecurityRecoveryKeyDescription": { "description": "Warning text shown alongside the generated Matrix recovery key" },
+
+  "chatSecurityBannerTitle": "Matrix security needs attention",
+  "@chatSecurityBannerTitle": { "description": "Title for the in-chat warning banner about Matrix security" },
+
+  "chatSecurityBannerSetupMessage": "Encrypted Matrix rooms are available, but this account still needs initial security setup.",
+  "@chatSecurityBannerSetupMessage": { "description": "Banner body when Matrix encryption setup has not been completed yet" },
+
+  "chatSecurityBannerRecoveryMessage": "This device needs your Matrix recovery key before older encrypted messages can be trusted again.",
+  "@chatSecurityBannerRecoveryMessage": { "description": "Banner body when Matrix recovery is required on the current device" },
+
+  "chatSecurityBannerVerificationMessage": "This device or account is not fully verified yet. Compare security emoji with another signed-in Matrix device.",
+  "@chatSecurityBannerVerificationMessage": { "description": "Banner body when Matrix device or account verification still needs attention" },
+
+  "chatSecurityBannerMissingBackupMessage": "Matrix key backup is still missing. Set it up before relying on encrypted chat recovery.",
+  "@chatSecurityBannerMissingBackupMessage": { "description": "Banner body when Matrix key backup has not been configured" },
+
+  "chatSecurityOpenSettingsButton": "Open security settings",
+  "@chatSecurityOpenSettingsButton": { "description": "Button label that opens settings from the Matrix security banner" },
+
+  "chatSecuritySetupCardTitle": "Setup",
+  "@chatSecuritySetupCardTitle": { "description": "Title for the Matrix security setup status card" },
+
+  "chatSecurityCurrentDeviceCardTitle": "Current device",
+  "@chatSecurityCurrentDeviceCardTitle": { "description": "Title for the Matrix security current device status card" },
+
+  "chatSecurityRecoveryCardTitle": "Recovery and key backup",
+  "@chatSecurityRecoveryCardTitle": { "description": "Title for the Matrix security recovery status card" },
+
+  "chatSecurityRecoveryCardBody": "The recovery key is needed when this device is replaced, reinstalled, or loses local crypto secrets.",
+  "@chatSecurityRecoveryCardBody": { "description": "Description in the Matrix recovery card" },
+
+  "chatSecurityEncryptedRoomsCardTitle": "Encrypted rooms",
+  "@chatSecurityEncryptedRoomsCardTitle": { "description": "Title for the Matrix encrypted rooms status card" },
+
+  "chatSecurityEncryptedRoomsCardBodyExisting": "Encrypted rooms already exist on this account. Warnings stay visible until trust and recovery are healthy.",
+  "@chatSecurityEncryptedRoomsCardBodyExisting": { "description": "Description when encrypted rooms exist on the Matrix account" },
+
+  "chatSecurityEncryptedRoomsCardBodyNone": "No encrypted rooms are known yet, but the account security state is still tracked here.",
+  "@chatSecurityEncryptedRoomsCardBodyNone": { "description": "Description when no encrypted rooms are known yet" },
+
+  "chatSecurityStatusSignedOut": "Matrix not connected",
+  "@chatSecurityStatusSignedOut": { "description": "Status label when Matrix is not connected" },
+
+  "chatSecurityStatusSetupRequired": "Setup required",
+  "@chatSecurityStatusSetupRequired": { "description": "Status label when Matrix encrypted chat setup is required" },
+
+  "chatSecurityStatusSetupIncomplete": "Setup incomplete",
+  "@chatSecurityStatusSetupIncomplete": { "description": "Status label when Matrix encrypted chat setup is only partially complete" },
+
+  "chatSecurityStatusRecoveryRequired": "Recovery required",
+  "@chatSecurityStatusRecoveryRequired": { "description": "Status label when Matrix recovery is required" },
+
+  "chatSecurityStatusHealthy": "Healthy",
+  "@chatSecurityStatusHealthy": { "description": "Status label when Matrix security is healthy" },
+
+  "chatSecurityStatusUnavailable": "Unavailable",
+  "@chatSecurityStatusUnavailable": { "description": "Generic status label when Matrix security data is unavailable" },
+
+  "chatSecurityStatusVerified": "Verified",
+  "@chatSecurityStatusVerified": { "description": "Status label for a verified Matrix device" },
+
+  "chatSecurityStatusUnverified": "Unverified",
+  "@chatSecurityStatusUnverified": { "description": "Status label for an unverified Matrix device" },
+
+  "chatSecurityStatusBlocked": "Blocked",
+  "@chatSecurityStatusBlocked": { "description": "Status label for a blocked Matrix device" },
+
+  "chatSecurityStatusMissing": "Missing",
+  "@chatSecurityStatusMissing": { "description": "Status label when Matrix key backup is missing" },
+
+  "chatSecurityStatusNeedsReconnect": "Needs reconnect",
+  "@chatSecurityStatusNeedsReconnect": { "description": "Status label when Matrix recovery material needs to be reconnected on the device" },
+
+  "chatSecurityStatusReady": "Ready",
+  "@chatSecurityStatusReady": { "description": "Status label when a Matrix security feature is ready" },
+
+  "chatSecurityEncryptedRoomsStatusNone": "No encrypted rooms yet",
+  "@chatSecurityEncryptedRoomsStatusNone": { "description": "Status label when there are no encrypted Matrix rooms yet" },
+
+  "chatSecurityEncryptedRoomsStatusAttention": "Encrypted rooms need attention",
+  "@chatSecurityEncryptedRoomsStatusAttention": { "description": "Status label when encrypted Matrix rooms need user attention" },
+
+  "chatSecuritySetupDescriptionSignedOut": "Open Chat and connect Matrix before managing encryption.",
+  "@chatSecuritySetupDescriptionSignedOut": { "description": "Setup card description when Matrix is not connected" },
+
+  "chatSecuritySetupDescriptionNotInitialized": "Set up secret storage, cross-signing, and online key backup before trusting encrypted rooms.",
+  "@chatSecuritySetupDescriptionNotInitialized": { "description": "Setup card description when Matrix encryption has not been initialized" },
+
+  "chatSecuritySetupDescriptionPartiallyInitialized": "Some encryption parts exist, but recovery or cross-signing is still incomplete.",
+  "@chatSecuritySetupDescriptionPartiallyInitialized": { "description": "Setup card description when Matrix encryption setup is incomplete" },
+
+  "chatSecuritySetupDescriptionRecoveryRequired": "This account was set up before, but this device needs the recovery key or passphrase to reconnect safely.",
+  "@chatSecuritySetupDescriptionRecoveryRequired": { "description": "Setup card description when Matrix recovery is required" },
+
+  "chatSecuritySetupDescriptionReady": "This device can use the current Matrix crypto identity and recovery setup.",
+  "@chatSecuritySetupDescriptionReady": { "description": "Setup card description when Matrix setup is healthy" },
+
+  "chatSecuritySetupDescriptionUnavailable": "Matrix encryption is not available on this platform.",
+  "@chatSecuritySetupDescriptionUnavailable": { "description": "Setup card description when Matrix encryption is unavailable" },
+
+  "chatSecurityCurrentDeviceDescriptionVerified": "Another trusted Matrix device has verified this session.",
+  "@chatSecurityCurrentDeviceDescriptionVerified": { "description": "Current device card description when the device is verified" },
+
+  "chatSecurityCurrentDeviceDescriptionUnverified": "Compare security emoji or numbers with another signed-in Matrix device.",
+  "@chatSecurityCurrentDeviceDescriptionUnverified": { "description": "Current device card description when the device is unverified" },
+
+  "chatSecurityCurrentDeviceDescriptionBlocked": "This device is blocked or its trust chain is broken.",
+  "@chatSecurityCurrentDeviceDescriptionBlocked": { "description": "Current device card description when the device is blocked" },
+
+  "chatSecurityCurrentDeviceDescriptionUnavailable": "The current device key is not available yet.",
+  "@chatSecurityCurrentDeviceDescriptionUnavailable": { "description": "Current device card description when the device key is unavailable" },
+
+  "chatSecurityActionsUnavailableSignedOut": "Matrix security actions unlock after the Matrix session is connected.",
+  "@chatSecurityActionsUnavailableSignedOut": { "description": "Message shown instead of actions when Matrix is not connected" },
+
+  "chatSecurityWorkingButton": "Working…",
+  "@chatSecurityWorkingButton": { "description": "Button label shown while a Matrix security action is running" },
+
+  "chatSecuritySetupButton": "Set up encrypted chat",
+  "@chatSecuritySetupButton": { "description": "Button label to initialize Matrix encrypted chat" },
+
+  "chatSecurityReconnectButton": "Reconnect with recovery key",
+  "@chatSecurityReconnectButton": { "description": "Button label to reconnect Matrix encrypted chat with recovery material" },
+
+  "chatSecurityVerifyDeviceButton": "Verify this device",
+  "@chatSecurityVerifyDeviceButton": { "description": "Button label to start Matrix device verification" },
+
+  "chatSecurityAcceptVerificationButton": "Accept verification",
+  "@chatSecurityAcceptVerificationButton": { "description": "Button label to accept a Matrix verification request" },
+
+  "chatSecurityDeclineVerificationButton": "Decline",
+  "@chatSecurityDeclineVerificationButton": { "description": "Button label to decline a Matrix verification request" },
+
+  "chatSecurityCompareEmojiButton": "Compare security emoji",
+  "@chatSecurityCompareEmojiButton": { "description": "Button label to continue Matrix verification with SAS emoji" },
+
+  "chatSecurityUnlockVerificationButton": "Continue verification with recovery key",
+  "@chatSecurityUnlockVerificationButton": { "description": "Button label to continue Matrix verification by unlocking existing secret storage" },
+
+  "chatSecurityEmojiMatchButton": "Emoji match",
+  "@chatSecurityEmojiMatchButton": { "description": "Button label confirming the Matrix SAS emoji match" },
+
+  "chatSecurityEmojiMismatchButton": "They do not match",
+  "@chatSecurityEmojiMismatchButton": { "description": "Button label when the Matrix SAS emoji do not match" },
+
+  "chatSecurityDismissButton": "Dismiss",
+  "@chatSecurityDismissButton": { "description": "Button label to dismiss a Matrix verification result" },
+
+  "chatSecurityNoActionNeeded": "No action is needed right now.",
+  "@chatSecurityNoActionNeeded": { "description": "Message shown when there are no Matrix security actions to take" },
+
+  "chatSecurityGenericFailure": "Unable to update Matrix security right now.",
+  "@chatSecurityGenericFailure": { "description": "Fallback error shown when Matrix security actions fail without a more specific message" },
+
+  "chatSecurityNoticeSetupComplete": "Encrypted chat is now set up. Save your recovery key before closing this screen.",
+  "@chatSecurityNoticeSetupComplete": { "description": "Feedback message shown after encrypted chat setup completes" },
+
+  "chatSecurityNoticeRecoveryRestored": "Encrypted chat was reconnected for this device.",
+  "@chatSecurityNoticeRecoveryRestored": { "description": "Feedback message shown after Matrix recovery succeeds" },
+
+  "chatSecurityNoticeVerificationRequestSent": "Verification request sent. Continue on your other Matrix device.",
+  "@chatSecurityNoticeVerificationRequestSent": { "description": "Feedback message shown after starting Matrix device verification" },
+
+  "chatSecurityNoticeVerificationCancelled": "Verification cancelled.",
+  "@chatSecurityNoticeVerificationCancelled": { "description": "Feedback message shown after cancelling Matrix verification" },
+
+  "chatSecurityVerificationIncomingMessage": "Another device wants to verify this session.",
+  "@chatSecurityVerificationIncomingMessage": { "description": "Message shown for an incoming Matrix verification request" },
+
+  "chatSecurityVerificationChooseMethodMessage": "Choose a verification method to compare both devices.",
+  "@chatSecurityVerificationChooseMethodMessage": { "description": "Message shown when the user should choose a Matrix verification method" },
+
+  "chatSecurityVerificationWaitingMessage": "Waiting for the other device to continue verification.",
+  "@chatSecurityVerificationWaitingMessage": { "description": "Message shown while Matrix verification waits for the other device" },
+
+  "chatSecurityVerificationRecoveryMessage": "This verification needs your Matrix recovery key or passphrase before it can continue.",
+  "@chatSecurityVerificationRecoveryMessage": { "description": "Message shown when Matrix verification needs access to secret storage before continuing" },
+
+  "chatSecurityVerificationRecoveryHelp": "Unlock the existing Matrix secret storage to let this device complete verification safely.",
+  "@chatSecurityVerificationRecoveryHelp": { "description": "Help text shown when Matrix verification needs secret storage access" },
+
+  "chatSecurityVerificationCompareMessage": "Compare the security emoji or numbers on both devices.",
+  "@chatSecurityVerificationCompareMessage": { "description": "Message shown while Matrix SAS values should be compared" },
+
+  "chatSecurityVerificationDoneMessage": "This device is now verified.",
+  "@chatSecurityVerificationDoneMessage": { "description": "Message shown after Matrix verification succeeds" },
+
+  "chatSecurityVerificationCancelledMessage": "Verification was cancelled before it finished.",
+  "@chatSecurityVerificationCancelledMessage": { "description": "Message shown after Matrix verification is cancelled" },
+
+  "chatSecurityVerificationFailedMessage": "Verification could not be completed.",
+  "@chatSecurityVerificationFailedMessage": { "description": "Message shown after Matrix verification fails" },
+
+  "chatSecuritySetupDialogTitle": "Set up encrypted chat",
+  "@chatSecuritySetupDialogTitle": { "description": "Dialog title for initializing Matrix encrypted chat" },
+
+  "chatSecuritySetupDialogDescription": "You can optionally protect the Matrix recovery key with a memorable passphrase. Leave this blank to use a generated recovery key instead.",
+  "@chatSecuritySetupDialogDescription": { "description": "Dialog description for the Matrix encrypted chat setup flow" },
+
+  "chatSecurityOptionalPassphraseLabel": "Optional passphrase",
+  "@chatSecurityOptionalPassphraseLabel": { "description": "Field label for an optional Matrix recovery passphrase" },
+
+  "chatSecurityDialogCancelButton": "Cancel",
+  "@chatSecurityDialogCancelButton": { "description": "Generic cancel button for Matrix security dialogs" },
+
+  "chatSecurityDialogContinueButton": "Continue",
+  "@chatSecurityDialogContinueButton": { "description": "Continue button for the Matrix security setup dialog" },
+
+  "chatSecurityRestoreDialogTitle": "Reconnect encrypted chat",
+  "@chatSecurityRestoreDialogTitle": { "description": "Dialog title for reconnecting Matrix encrypted chat" },
+
+  "chatSecurityRestoreDialogDescription": "Enter the Matrix recovery key or recovery passphrase that was created when encrypted chat was first set up.",
+  "@chatSecurityRestoreDialogDescription": { "description": "Dialog description for reconnecting Matrix encrypted chat" },
+
+  "chatSecurityVerificationRecoveryDialogTitle": "Continue verification",
+  "@chatSecurityVerificationRecoveryDialogTitle": { "description": "Dialog title for continuing Matrix verification with recovery material" },
+
+  "chatSecurityVerificationRecoveryDialogDescription": "Enter your Matrix recovery key or passphrase to continue this verification. This unlocks the secrets needed for verification rather than reconnecting the whole account.",
+  "@chatSecurityVerificationRecoveryDialogDescription": { "description": "Dialog description for continuing Matrix verification with recovery material" },
+
+  "chatSecurityRecoveryKeyFieldLabel": "Recovery key or passphrase",
+  "@chatSecurityRecoveryKeyFieldLabel": { "description": "Field label for Matrix recovery material" },
+
+  "chatSecurityRecoveryKeyDismissButton": "I saved it",
+  "@chatSecurityRecoveryKeyDismissButton": { "description": "Button label confirming the Matrix recovery key was saved" },
+
+  "chatSecurityEmojiSummaryLabel": "Security emoji",
+  "@chatSecurityEmojiSummaryLabel": { "description": "Accessibility label prefix for Matrix SAS emoji" },
+
+  "chatSecurityNumbersSummaryLabel": "Security numbers {value}",
+  "@chatSecurityNumbersSummaryLabel": {
+    "description": "Accessibility label for Matrix SAS numbers",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+
   "settingsServerConfigurationTitle": "Server Configuration",
   "@settingsServerConfigurationTitle": { "description": "Section title for server configuration in settings" },
 
