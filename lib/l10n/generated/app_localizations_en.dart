@@ -500,6 +500,98 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsServerConfigurationTitle => 'Server Configuration';
 
   @override
+  String get settingsWorkspaceReadinessTitle => 'Workspace Readiness';
+
+  @override
+  String get settingsWorkspaceReadinessDescription =>
+      'Shell access is tracked separately from each service connection so Weave can show degraded integrations honestly.';
+
+  @override
+  String get settingsWorkspaceSummaryConnected =>
+      'Shell access and the mapped services are ready.';
+
+  @override
+  String get settingsWorkspaceSummaryDegraded =>
+      'Shell access is ready, but one or more services still need attention.';
+
+  @override
+  String get settingsWorkspaceSummaryNeedsSetup =>
+      'Finish setup before the workspace shell can become available.';
+
+  @override
+  String get settingsWorkspaceSummaryNeedsSignIn =>
+      'Sign in again to restore workspace shell access.';
+
+  @override
+  String get settingsWorkspaceShellAccessLabel => 'Shell access';
+
+  @override
+  String get settingsWorkspaceChatLabel => 'Chat';
+
+  @override
+  String get settingsWorkspaceFilesLabel => 'Files';
+
+  @override
+  String get settingsWorkspaceCapabilityLabel => 'Readiness';
+
+  @override
+  String get settingsWorkspaceConnectionLabel => 'Connection';
+
+  @override
+  String get settingsWorkspaceLastChangeLabel => 'Last change';
+
+  @override
+  String get settingsWorkspaceCapabilityReady => 'Ready';
+
+  @override
+  String get settingsWorkspaceCapabilityDegraded => 'Degraded';
+
+  @override
+  String get settingsWorkspaceCapabilityBlocked => 'Blocked';
+
+  @override
+  String get settingsWorkspaceCapabilityUnavailable => 'Unavailable';
+
+  @override
+  String get settingsWorkspaceConnectionConnected => 'Connected';
+
+  @override
+  String get settingsWorkspaceConnectionDisconnected => 'Disconnected';
+
+  @override
+  String get settingsWorkspaceConnectionDegraded => 'Degraded';
+
+  @override
+  String get settingsWorkspaceConnectionMisconfigured => 'Misconfigured';
+
+  @override
+  String get settingsWorkspaceConnectionRequiresReauthentication =>
+      'Needs sign-in';
+
+  @override
+  String get settingsWorkspaceConnectionUnavailableOnPlatform =>
+      'Unavailable on this platform';
+
+  @override
+  String get settingsWorkspaceInvalidationAuthConfigurationChanged =>
+      'Auth configuration changed';
+
+  @override
+  String get settingsWorkspaceInvalidationMatrixHomeserverChanged =>
+      'Matrix homeserver changed';
+
+  @override
+  String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged =>
+      'Nextcloud base URL changed';
+
+  @override
+  String get settingsWorkspaceInvalidationExplicitSignOut =>
+      'Explicit sign-out';
+
+  @override
+  String get settingsWorkspaceInvalidationRestartSetup => 'Restarted setup';
+
+  @override
   String get settingsServerConfigurationDescription =>
       'Update the provider and service URLs Weave should use for your self-hosted environment.';
 

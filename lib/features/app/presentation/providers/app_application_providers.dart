@@ -1,8 +1,10 @@
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
 import 'package:weave/features/app/domain/ports/chat_session_port.dart';
 import 'package:weave/features/app/domain/ports/files_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
+import 'package:weave/features/app/domain/ports/workspace_invalidation_port.dart';
 import 'package:weave/features/app/domain/use_cases/apply_server_configuration_changes.dart';
 import 'package:weave/features/app/domain/use_cases/resolve_app_bootstrap.dart';
 import 'package:weave/features/app/domain/use_cases/restart_workspace_setup.dart';
@@ -16,6 +18,7 @@ import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -30,6 +33,12 @@ final chatSessionPortProvider = Provider<ChatSessionPort>((ref) {
 
 final filesSessionPortProvider = Provider<FilesSessionPort>((ref) {
   return _RepositoryFilesSessionPort(ref.watch(filesRepositoryProvider));
+});
+
+final workspaceInvalidationPortProvider = Provider<WorkspaceInvalidationPort>((
+  ref,
+) {
+  return _RiverpodWorkspaceInvalidationPort(ref);
 });
 
 final serverConfigurationPortProvider = Provider<ServerConfigurationPort>((
@@ -60,6 +69,7 @@ final signOutWorkspaceProvider = Provider<SignOutWorkspace>((ref) {
     chatSessionPort: ref.watch(chatSessionPortProvider),
     filesSessionPort: ref.watch(filesSessionPortProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
+    workspaceInvalidationPort: ref.watch(workspaceInvalidationPortProvider),
   );
 });
 
@@ -69,6 +79,7 @@ final restartWorkspaceSetupProvider = Provider<RestartWorkspaceSetup>((ref) {
     chatSessionPort: ref.watch(chatSessionPortProvider),
     filesSessionPort: ref.watch(filesSessionPortProvider),
     serverConfigurationPort: ref.watch(serverConfigurationPortProvider),
+    workspaceInvalidationPort: ref.watch(workspaceInvalidationPortProvider),
   );
 });
 
@@ -78,6 +89,7 @@ final applyServerConfigurationChangesProvider =
         authPort: ref.watch(appAuthPortProvider),
         chatSessionPort: ref.watch(chatSessionPortProvider),
         filesSessionPort: ref.watch(filesSessionPortProvider),
+        workspaceInvalidationPort: ref.watch(workspaceInvalidationPortProvider),
       );
     });
 
@@ -116,11 +128,6 @@ class _RiverpodChatSessionPort implements ChatSessionPort {
   Future<void> clearSession() => _repository.clearSession();
 
   @override
-  void invalidateActiveSession() {
-    _ref.read(matrixSessionInvalidationProvider.notifier).bump();
-  }
-
-  @override
   Future<void> signOut() => _repository.signOut();
 }
 
@@ -131,6 +138,22 @@ class _RepositoryFilesSessionPort implements FilesSessionPort {
 
   @override
   Future<void> disconnect() => _repository.disconnect();
+}
+
+class _RiverpodWorkspaceInvalidationPort implements WorkspaceInvalidationPort {
+  _RiverpodWorkspaceInvalidationPort(this._ref);
+
+  final Ref _ref;
+
+  @override
+  void invalidate({
+    required WorkspaceIntegration integration,
+    required IntegrationInvalidationReason reason,
+  }) {
+    _ref
+        .read(workspaceInvalidationProvider.notifier)
+        .invalidate(integration: integration, reason: reason);
+  }
 }
 
 class _RepositoryServerConfigurationPort implements ServerConfigurationPort {

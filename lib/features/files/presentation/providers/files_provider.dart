@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
@@ -45,6 +47,7 @@ class FilesViewState {
 class FilesController extends AsyncNotifier<FilesViewState> {
   @override
   Future<FilesViewState> build() async {
+    ref.watch(integrationInvalidationProvider(WorkspaceIntegration.nextcloud));
     await ref.watch(savedServerConfigurationProvider.future);
     return _loadInitialState();
   }
