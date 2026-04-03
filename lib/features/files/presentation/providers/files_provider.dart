@@ -50,7 +50,7 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   Future<void> connect() async {
-    final current = state.valueOrNull;
+    final current = _currentStateOrNull();
     if (current != null) {
       state = AsyncData(
         current.copyWith(isBusy: true, clearDirectoryFailure: true),
@@ -69,7 +69,8 @@ class FilesController extends AsyncNotifier<FilesViewState> {
         ),
       );
     } on FilesFailure catch (failure) {
-      final fallbackState = current ??
+      final fallbackState =
+          current ??
           const FilesViewState(
             connectionState: FilesConnectionState.disconnected(),
           );
@@ -89,37 +90,41 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   Future<void> disconnect() async {
-    final current = state.valueOrNull;
+    final current = _currentStateOrNull();
     if (current != null) {
-      state = AsyncData(current.copyWith(isBusy: true, clearDirectoryFailure: true));
+      state = AsyncData(
+        current.copyWith(isBusy: true, clearDirectoryFailure: true),
+      );
     }
 
     try {
       await _repository.disconnect();
       final restored = await _repository.restoreConnection();
-      state = AsyncData(
-        FilesViewState(connectionState: restored),
-      );
+      state = AsyncData(FilesViewState(connectionState: restored));
     } on FilesFailure catch (failure) {
       if (current != null) {
-        state = AsyncData(current.copyWith(directoryFailure: failure, isBusy: false));
+        state = AsyncData(
+          current.copyWith(directoryFailure: failure, isBusy: false),
+        );
       } else {
         state = AsyncError(failure, StackTrace.current);
       }
     }
   }
 
-  Future<void> refresh() => _loadDirectory(state.valueOrNull?.currentPath ?? '/');
+  Future<void> refresh() =>
+      _loadDirectory(_currentStateOrNull()?.currentPath ?? '/');
 
   Future<void> openDirectory(String path) => _loadDirectory(path);
 
   Future<void> goUp() async {
-    final currentPath = state.valueOrNull?.currentPath ?? '/';
+    final currentPath = _currentStateOrNull()?.currentPath ?? '/';
     if (currentPath == '/') {
       return;
     }
 
-    final segments = currentPath.split('/')..removeWhere((segment) => segment.isEmpty);
+    final segments = currentPath.split('/')
+      ..removeWhere((segment) => segment.isEmpty);
     if (segments.isNotEmpty) {
       segments.removeLast();
     }
@@ -128,9 +133,11 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   Future<void> _loadDirectory(String path) async {
-    final current = state.valueOrNull;
+    final current = _currentStateOrNull();
     if (current != null) {
-      state = AsyncData(current.copyWith(isBusy: true, clearDirectoryFailure: true));
+      state = AsyncData(
+        current.copyWith(isBusy: true, clearDirectoryFailure: true),
+      );
     } else {
       state = const AsyncLoading();
     }
@@ -194,6 +201,10 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   FilesRepository get _repository => ref.read(filesRepositoryProvider);
+
+  FilesViewState? _currentStateOrNull() {
+    return state.hasValue ? state.requireValue : null;
+  }
 
   FilesConnectionState _connectionStateForFailure(
     FilesConnectionState currentConnectionState,

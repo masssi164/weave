@@ -21,154 +21,190 @@ class FilesScreen extends ConsumerWidget {
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(title: Text(l10n.filesScreenTitle)),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-          sliver: SliverFillRemaining(
-            hasScrollBody: false,
-            child: asyncFiles.when(
-              loading: () => LoadingState(message: l10n.loadingLabel),
-              error: (error, _) => ErrorState(
+        ...switch (asyncFiles) {
+          AsyncLoading() => <Widget>[
+            _fillStateSliver(child: LoadingState(message: l10n.loadingLabel)),
+          ],
+          AsyncError() => <Widget>[
+            _fillStateSliver(
+              child: ErrorState(
                 message: l10n.errorStateLabel,
                 retryLabel: l10n.retryButton,
                 onRetry: () {
                   ref.invalidate(filesProvider);
                 },
               ),
-              data: (state) => _FilesBody(state: state),
             ),
+          ],
+          AsyncData(:final value) => _buildStateSlivers(
+            context,
+            ref,
+            l10n,
+            value,
           ),
-        ),
+        },
       ],
     );
   }
-}
 
-class _FilesBody extends ConsumerWidget {
-  const _FilesBody({required this.state});
-
-  final FilesViewState state;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  List<Widget> _buildStateSlivers(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+    FilesViewState state,
+  ) {
     final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
+    final slivers = <Widget>[
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        sliver: SliverToBoxAdapter(child: _ConnectionCard(state: state)),
+      ),
+    ];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _ConnectionCard(state: state),
-        const SizedBox(height: 16),
-        if (state.connectionState.status == FilesConnectionStatus.connected) ...[
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  state.currentPath,
-                  style: theme.textTheme.titleMedium,
+    if (state.connectionState.status == FilesConnectionStatus.connected) {
+      slivers.add(
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          sliver: SliverToBoxAdapter(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    state.currentPath,
+                    style: theme.textTheme.titleMedium,
+                  ),
                 ),
-              ),
-              if (!(state.directoryListing?.isRoot ?? true))
+                if (!(state.directoryListing?.isRoot ?? true))
+                  AccessibleButton(
+                    outlined: true,
+                    onPressed: state.isBusy
+                        ? null
+                        : () {
+                            ref.read(filesProvider.notifier).goUp();
+                          },
+                    semanticLabel: l10n.filesOpenParentSemantic,
+                    child: Text(l10n.filesUpButton),
+                  ),
+                const SizedBox(width: 12),
                 AccessibleButton(
                   outlined: true,
                   onPressed: state.isBusy
                       ? null
                       : () {
-                          ref.read(filesProvider.notifier).goUp();
+                          ref.read(filesProvider.notifier).refresh();
                         },
-                  semanticLabel: l10n.filesOpenParentSemantic,
-                  child: Text(l10n.filesUpButton),
+                  semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
+                  child: Text(l10n.filesRefreshButton),
                 ),
-              const SizedBox(width: 12),
-              AccessibleButton(
-                outlined: true,
-                onPressed: state.isBusy
-                    ? null
-                    : () {
-                        ref.read(filesProvider.notifier).refresh();
-                      },
-                semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
-                child: Text(l10n.filesRefreshButton),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-        ],
-        Expanded(child: _buildContent(context, ref, l10n)),
-      ],
-    );
+        ),
+      );
+    }
+
+    slivers.add(_buildContentSliver(context, ref, l10n, state));
+    return slivers;
   }
 
-  Widget _buildContent(
+  Widget _buildContentSliver(
     BuildContext context,
     WidgetRef ref,
     AppLocalizations l10n,
+    FilesViewState state,
   ) {
     final connectionState = state.connectionState;
     switch (connectionState.status) {
       case FilesConnectionStatus.misconfigured:
-        return EmptyState(
-          message: connectionState.message ?? l10n.filesMisconfiguredMessage,
-          icon: Icons.settings_outlined,
+        return _fillStateSliver(
+          child: EmptyState(
+            message: connectionState.message ?? l10n.filesMisconfiguredMessage,
+            icon: Icons.settings_outlined,
+          ),
         );
       case FilesConnectionStatus.disconnected:
-        return EmptyState(
-          message: state.directoryFailure?.message ?? l10n.filesDisconnectedMessage,
-          icon: Icons.cloud_off_outlined,
-          actionLabel: l10n.filesConnectButton,
-          onAction: state.isBusy
-              ? null
-              : () {
-                  ref.read(filesProvider.notifier).connect();
-                },
+        return _fillStateSliver(
+          child: EmptyState(
+            message:
+                state.directoryFailure?.message ??
+                l10n.filesDisconnectedMessage,
+            icon: Icons.cloud_off_outlined,
+            actionLabel: l10n.filesConnectButton,
+            onAction: state.isBusy
+                ? null
+                : () {
+                    ref.read(filesProvider.notifier).connect();
+                  },
+          ),
         );
       case FilesConnectionStatus.invalid:
-        return ErrorState(
-          message:
-              connectionState.message ?? l10n.filesInvalidSessionMessage,
-          retryLabel: l10n.filesReconnectButton,
-          onRetry: state.isBusy
-              ? null
-              : () {
-                  ref.read(filesProvider.notifier).connect();
-                },
-        );
-      case FilesConnectionStatus.connected:
-        if (state.isBusy && state.directoryListing == null) {
-          return LoadingState(message: l10n.loadingLabel);
-        }
-        if (state.directoryFailure != null) {
-          return ErrorState(
-            message: state.directoryFailure!.message,
-            retryLabel: l10n.retryButton,
+        return _fillStateSliver(
+          child: ErrorState(
+            message: connectionState.message ?? l10n.filesInvalidSessionMessage,
+            retryLabel: l10n.filesReconnectButton,
             onRetry: state.isBusy
                 ? null
                 : () {
-                    ref.read(filesProvider.notifier).refresh();
+                    ref.read(filesProvider.notifier).connect();
                   },
+          ),
+        );
+      case FilesConnectionStatus.connected:
+        if (state.isBusy && state.directoryListing == null) {
+          return _fillStateSliver(
+            child: LoadingState(message: l10n.loadingLabel),
+          );
+        }
+        if (state.directoryFailure != null) {
+          return _fillStateSliver(
+            child: ErrorState(
+              message: state.directoryFailure!.message,
+              retryLabel: l10n.retryButton,
+              onRetry: state.isBusy
+                  ? null
+                  : () {
+                      ref.read(filesProvider.notifier).refresh();
+                    },
+            ),
           );
         }
         final listing = state.directoryListing;
         if (listing == null || listing.entries.isEmpty) {
-          return EmptyState(
-            message: l10n.filesEmptyMessage,
-            icon: Icons.folder_outlined,
-            actionLabel: l10n.filesRefreshButton,
-            onAction: state.isBusy
-                ? null
-                : () {
-                    ref.read(filesProvider.notifier).refresh();
-                  },
+          return _fillStateSliver(
+            child: EmptyState(
+              message: l10n.filesEmptyMessage,
+              icon: Icons.folder_outlined,
+              actionLabel: l10n.filesRefreshButton,
+              onAction: state.isBusy
+                  ? null
+                  : () {
+                      ref.read(filesProvider.notifier).refresh();
+                    },
+            ),
           );
         }
-        return ListView.separated(
-          itemCount: listing.entries.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) {
-            final entry = listing.entries[index];
-            return _FileEntryTile(entry: entry, isBusy: state.isBusy);
-          },
+        return SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              if (index.isOdd) {
+                return const Divider(height: 1);
+              }
+
+              final entryIndex = index ~/ 2;
+              final entry = listing.entries[entryIndex];
+              return _FileEntryTile(entry: entry, isBusy: state.isBusy);
+            }, childCount: listing.entries.length * 2 - 1),
+          ),
         );
     }
+  }
+
+  Widget _fillStateSliver({required Widget child}) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+      sliver: SliverFillRemaining(hasScrollBody: false, child: child),
+    );
   }
 }
 
@@ -183,10 +219,9 @@ class _ConnectionCard extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final connectionState = state.connectionState;
     final description = switch (connectionState.status) {
-      FilesConnectionStatus.connected =>
-        l10n.filesConnectionConnected(
-          connectionState.accountLabel ?? l10n.filesNextcloudTitle,
-        ),
+      FilesConnectionStatus.connected => l10n.filesConnectionConnected(
+        connectionState.accountLabel ?? l10n.filesNextcloudTitle,
+      ),
       FilesConnectionStatus.invalid => l10n.filesConnectionInvalid,
       FilesConnectionStatus.disconnected => l10n.filesConnectionDisconnected,
       FilesConnectionStatus.misconfigured => l10n.filesConnectionMisconfigured,
@@ -256,8 +291,7 @@ class _ConnectionCard extends ConsumerWidget {
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
-  static final DateFormat _modifiedDateTimeFormat =
-      DateFormat.yMMMd().add_Hm();
+  static final DateFormat _modifiedDateTimeFormat = DateFormat.yMMMd().add_Hm();
 
   final FileEntry entry;
   final bool isBusy;
@@ -274,10 +308,15 @@ class _FileEntryTile extends ConsumerWidget {
             ? l10n.filesFolderSemantic(entry.name)
             : l10n.filesFileSemantic(entry.name),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 4,
+            vertical: 4,
+          ),
           leading: ExcludeSemantics(
             child: Icon(
-              entry.isDirectory ? Icons.folder_outlined : Icons.insert_drive_file_outlined,
+              entry.isDirectory
+                  ? Icons.folder_outlined
+                  : Icons.insert_drive_file_outlined,
             ),
           ),
           title: Text(entry.name),

@@ -28,7 +28,7 @@ class NextcloudClient {
     final uri = _buildDirectoryUri(session, normalizedPath);
     final request = http.Request('PROPFIND', uri)
       ..headers.addAll({
-        ..._authHeaders(session.loginName, session.appPassword),
+        ..._authHeaders(session),
         'Depth': '1',
         'Content-Type': 'application/xml; charset=utf-8',
       })
@@ -78,7 +78,8 @@ class NextcloudClient {
       }
 
       final isDirectory = _isDirectory(prop);
-      final fileId = (_firstTextByLocalName(prop, 'fileid') ?? entryPath).trim();
+      final fileId = (_firstTextByLocalName(prop, 'fileid') ?? entryPath)
+          .trim();
       final name = _entryName(prop, entryPath, fallbackId: fileId);
       if (name.isEmpty) {
         continue;
@@ -90,10 +91,14 @@ class NextcloudClient {
           name: name,
           path: entryPath,
           isDirectory: isDirectory,
-          modifiedAt: _parseModifiedAt(_firstTextByLocalName(prop, 'getlastmodified')),
+          modifiedAt: _parseModifiedAt(
+            _firstTextByLocalName(prop, 'getlastmodified'),
+          ),
           sizeInBytes: isDirectory
               ? null
-              : int.tryParse(_firstTextByLocalName(prop, 'getcontentlength') ?? ''),
+              : int.tryParse(
+                  _firstTextByLocalName(prop, 'getcontentlength') ?? '',
+                ),
         ),
       );
     }
@@ -209,7 +214,8 @@ class NextcloudClient {
     String entryPath, {
     required String fallbackId,
   }) {
-    final displayName = (_firstTextByLocalName(prop, 'displayname') ?? '').trim();
+    final displayName = (_firstTextByLocalName(prop, 'displayname') ?? '')
+        .trim();
     if (displayName.isNotEmpty) {
       return displayName;
     }
@@ -254,8 +260,29 @@ class NextcloudClient {
     return uri.replace(path: path, query: null, fragment: null);
   }
 
-  Map<String, String> _authHeaders(String username, String password) {
-    final encoded = base64Encode(utf8.encode('$username:$password'));
+  Map<String, String> _authHeaders(NextcloudSession session) {
+    if (session.usesOidcBearer) {
+      final bearerToken = session.bearerToken;
+      if (bearerToken == null || bearerToken.isEmpty) {
+        throw const FilesFailure.sessionRequired(
+          'Reconnect Nextcloud because the saved bearer session is incomplete.',
+        );
+      }
+      return {'Authorization': 'Bearer $bearerToken'};
+    }
+
+    final loginName = session.loginName;
+    final appPassword = session.appPassword;
+    if (loginName == null ||
+        loginName.isEmpty ||
+        appPassword == null ||
+        appPassword.isEmpty) {
+      throw const FilesFailure.sessionRequired(
+        'Reconnect Nextcloud because the saved app password is incomplete.',
+      );
+    }
+
+    final encoded = base64Encode(utf8.encode('$loginName:$appPassword'));
     return {'Authorization': 'Basic $encoded'};
   }
 }

@@ -14,38 +14,79 @@ void main() {
       repository = SecureNextcloudSessionRepository(secureStore: secureStore);
     });
 
-    test('saveSession persists the session in secure storage', () async {
-      final session = NextcloudSession(
+    test(
+      'saveSession persists app-password fallback sessions in secure storage',
+      () async {
+        final session = NextcloudSession.appPassword(
+          baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+          loginName: 'alice@example.com',
+          userId: 'alice',
+          appPassword: 'app-password',
+        );
+
+        await repository.saveSession(session);
+
+        expect(secureStore.rawValue(nextcloudSessionStorageKey), isNotNull);
+        expect(
+          secureStore.rawValue(nextcloudSessionStorageKey),
+          contains('app-password'),
+        );
+      },
+    );
+
+    test('saveSession does not persist ephemeral bearer tokens', () async {
+      final session = NextcloudSession.oidcBearer(
         baseUrl: Uri.parse('https://nextcloud.home.internal/'),
-        loginName: 'alice@example.com',
         userId: 'alice',
-        appPassword: 'app-password',
+        accountLabel: 'Alice Example',
+        bearerToken: 'oidc-access-token',
       );
 
       await repository.saveSession(session);
 
-      expect(secureStore.rawValue(nextcloudSessionStorageKey), isNotNull);
       expect(
         secureStore.rawValue(nextcloudSessionStorageKey),
-        contains('app-password'),
+        isNot(contains('oidc-access-token')),
       );
+
+      final restored = await repository.readSession();
+      expect(restored?.usesOidcBearer, isTrue);
+      expect(restored?.accountLabel, 'Alice Example');
+      expect(restored?.bearerToken, isNull);
     });
 
-    test('readSession restores a previously saved session', () async {
-      final session = NextcloudSession(
-        baseUrl: Uri.parse('https://nextcloud.home.internal/'),
-        loginName: 'alice@example.com',
-        userId: 'alice',
-        appPassword: 'app-password',
+    test(
+      'readSession restores a previously saved app-password session',
+      () async {
+        final session = NextcloudSession.appPassword(
+          baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+          loginName: 'alice@example.com',
+          userId: 'alice',
+          appPassword: 'app-password',
+        );
+        await repository.saveSession(session);
+
+        final restored = await repository.readSession();
+
+        expect(restored?.baseUrl, session.baseUrl);
+        expect(restored?.loginName, session.loginName);
+        expect(restored?.userId, session.userId);
+        expect(restored?.appPassword, session.appPassword);
+        expect(restored?.usesAppPassword, isTrue);
+      },
+    );
+
+    test('readSession restores legacy stored app-password data', () async {
+      await secureStore.write(
+        nextcloudSessionStorageKey,
+        '{"baseUrl":"https://nextcloud.home.internal/","loginName":"alice@example.com","userId":"alice","appPassword":"app-password"}',
       );
-      await repository.saveSession(session);
 
       final restored = await repository.readSession();
 
-      expect(restored?.baseUrl, session.baseUrl);
-      expect(restored?.loginName, session.loginName);
-      expect(restored?.userId, session.userId);
-      expect(restored?.appPassword, session.appPassword);
+      expect(restored?.usesAppPassword, isTrue);
+      expect(restored?.loginName, 'alice@example.com');
+      expect(restored?.appPassword, 'app-password');
     });
 
     test('clearSession deletes persisted data', () async {

@@ -38,7 +38,8 @@ class _FakeFilesRepository implements FilesRepository {
   Future<FilesConnectionState> restoreConnection() async => connectionState;
 }
 
-class _FakeServerConfigurationRepository implements ServerConfigurationRepository {
+class _FakeServerConfigurationRepository
+    implements ServerConfigurationRepository {
   _FakeServerConfigurationRepository(this.configuration);
 
   final ServerConfiguration? configuration;
@@ -70,7 +71,8 @@ void main() {
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
             serverConfigurationRepositoryProvider.overrideWith(
-              (ref) => _FakeServerConfigurationRepository(buildTestConfiguration()),
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
             ),
           ],
         ),
@@ -78,7 +80,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Connect Nextcloud'), findsNWidgets(2));
-      expect(find.text('Connect Nextcloud to browse your files.'), findsOneWidget);
+      expect(
+        find.text('Connect Nextcloud to browse your files.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders directory contents and allows folder navigation', (
@@ -121,7 +126,8 @@ void main() {
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
             serverConfigurationRepositoryProvider.overrideWith(
-              (ref) => _FakeServerConfigurationRepository(buildTestConfiguration()),
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
             ),
           ],
         ),
@@ -133,7 +139,10 @@ void main() {
       await tester.tap(find.text('Documents'));
       await tester.pumpAndSettle();
 
-      expect(repository.requestedPaths, containsAllInOrder(['/', '/Documents']));
+      expect(
+        repository.requestedPaths,
+        containsAllInOrder(['/', '/Documents']),
+      );
       expect(find.text('Notes.txt'), findsOneWidget);
       expect(find.text('Up'), findsOneWidget);
     });
@@ -151,7 +160,8 @@ void main() {
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
             serverConfigurationRepositoryProvider.overrideWith(
-              (ref) => _FakeServerConfigurationRepository(buildTestConfiguration()),
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
             ),
           ],
         ),
@@ -174,7 +184,8 @@ void main() {
           overrides: [
             filesRepositoryProvider.overrideWithValue(repository),
             serverConfigurationRepositoryProvider.overrideWith(
-              (ref) => _FakeServerConfigurationRepository(buildTestConfiguration()),
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
             ),
           ],
         ),

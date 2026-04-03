@@ -11,12 +11,13 @@ void main() {
       final client = NextcloudClient(
         httpClient: MockClient((request) async {
           expect(request.method, 'PROPFIND');
+          expect(request.headers['Authorization'], startsWith('Basic '));
           return http.Response(_multistatusResponse, 207);
         }),
       );
 
       final listing = await client.listDirectory(
-        NextcloudSession(
+        NextcloudSession.appPassword(
           baseUrl: Uri.parse('https://nextcloud.home.internal/'),
           loginName: 'alice@example.com',
           userId: 'alice',
@@ -33,6 +34,26 @@ void main() {
       expect(listing.entries.last.isDirectory, isFalse);
     });
 
+    test('listDirectory supports OIDC bearer authorization', () async {
+      final client = NextcloudClient(
+        httpClient: MockClient((request) async {
+          expect(request.headers['Authorization'], 'Bearer oidc-access-token');
+          return http.Response(_multistatusResponse, 207);
+        }),
+      );
+
+      final listing = await client.listDirectory(
+        NextcloudSession.oidcBearer(
+          baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+          userId: 'alice',
+          bearerToken: 'oidc-access-token',
+        ),
+        '/',
+      );
+
+      expect(listing.entries, hasLength(2));
+    });
+
     test('listDirectory surfaces invalid credentials from WebDAV', () async {
       final client = NextcloudClient(
         httpClient: MockClient((request) async => http.Response('', 401)),
@@ -40,7 +61,7 @@ void main() {
 
       await expectLater(
         client.listDirectory(
-          NextcloudSession(
+          NextcloudSession.appPassword(
             baseUrl: Uri.parse('https://nextcloud.home.internal/'),
             loginName: 'alice@example.com',
             userId: 'alice',

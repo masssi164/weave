@@ -59,10 +59,10 @@ class SecureNextcloudSessionRepository implements NextcloudSessionRepository {
   }
 }
 
-final nextcloudSessionRepositoryProvider = Provider<NextcloudSessionRepository>((
-  ref,
-) {
-  return SecureNextcloudSessionRepository(
-    secureStore: ref.watch(secureStoreProvider),
-  );
-});
+final nextcloudSessionRepositoryProvider = Provider<NextcloudSessionRepository>(
+  (ref) {
+    return SecureNextcloudSessionRepository(
+      secureStore: ref.watch(secureStoreProvider),
+    );
+  },
+);

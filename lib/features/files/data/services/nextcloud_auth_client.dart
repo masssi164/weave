@@ -23,6 +23,30 @@ class NextcloudAuthClient {
   final Duration _pollInterval;
   final int _maxPollAttempts;
 
+  Future<NextcloudSession> createBearerSession({
+    required Uri configuredBaseUrl,
+    required String bearerToken,
+    String? accountLabelHint,
+  }) async {
+    final normalizedBaseUrl = _normalizeBaseUrl(configuredBaseUrl);
+    _ensureHttpsBaseUrl(
+      normalizedBaseUrl,
+      message: 'Use an HTTPS Nextcloud URL before validating bearer access.',
+    );
+
+    final userId = await _fetchUserId(
+      baseUrl: normalizedBaseUrl,
+      headers: _bearerHeaders(bearerToken),
+    );
+
+    return NextcloudSession.oidcBearer(
+      baseUrl: normalizedBaseUrl,
+      userId: userId,
+      accountLabel: accountLabelHint ?? userId,
+      bearerToken: bearerToken,
+    );
+  }
+
   Future<NextcloudSession> connect(Uri configuredBaseUrl) async {
     final normalizedBaseUrl = _normalizeBaseUrl(configuredBaseUrl);
     _ensureHttpsBaseUrl(
@@ -54,7 +78,9 @@ class NextcloudAuthClient {
     final loginValue = startPayload['login'];
     final endpointValue = poll['endpoint'];
     final tokenValue = poll['token'];
-    if (loginValue is! String || endpointValue is! String || tokenValue is! String) {
+    if (loginValue is! String ||
+        endpointValue is! String ||
+        tokenValue is! String) {
       throw const FilesFailure.protocol(
         'Nextcloud returned incomplete login flow data.',
       );
@@ -70,11 +96,17 @@ class NextcloudAuthClient {
   }
 
   Future<void> revokeAppPassword(NextcloudSession session) async {
+    if (!session.usesAppPassword ||
+        session.loginName == null ||
+        session.appPassword == null) {
+      return;
+    }
+
     try {
       await _httpClient.delete(
         _resolve(session.baseUrl, 'ocs/v2.php/core/apppassword'),
         headers: {
-          ..._authHeaders(session.loginName, session.appPassword),
+          ..._basicAuthHeaders(session.loginName!, session.appPassword!),
           'OCS-APIREQUEST': 'true',
         },
       );
@@ -141,11 +173,10 @@ class NextcloudAuthClient {
 
       final userId = await _fetchUserId(
         baseUrl: serverUrl,
-        loginName: loginNameValue,
-        appPassword: appPasswordValue,
+        headers: _basicAuthHeaders(loginNameValue, appPasswordValue),
       );
 
-      return NextcloudSession(
+      return NextcloudSession.appPassword(
         baseUrl: serverUrl,
         loginName: loginNameValue,
         userId: userId,
@@ -160,8 +191,7 @@ class NextcloudAuthClient {
 
   Future<String> _fetchUserId({
     required Uri baseUrl,
-    required String loginName,
-    required String appPassword,
+    required Map<String, String> headers,
   }) async {
     _ensureHttpsBaseUrl(
       baseUrl,
@@ -171,7 +201,7 @@ class NextcloudAuthClient {
       () => _httpClient.get(
         _resolve(baseUrl, 'ocs/v2.php/cloud/user?format=json'),
         headers: {
-          ..._authHeaders(loginName, appPassword),
+          ...headers,
           'OCS-APIREQUEST': 'true',
           'Accept': 'application/json',
         },
@@ -229,9 +259,13 @@ class NextcloudAuthClient {
     }
   }
 
-  Map<String, String> _authHeaders(String username, String password) {
+  Map<String, String> _basicAuthHeaders(String username, String password) {
     final encoded = base64Encode(utf8.encode('$username:$password'));
     return {'Authorization': 'Basic $encoded'};
+  }
+
+  Map<String, String> _bearerHeaders(String bearerToken) {
+    return {'Authorization': 'Bearer $bearerToken'};
   }
 
   Map<String, dynamic> _decodeJson(String raw) {

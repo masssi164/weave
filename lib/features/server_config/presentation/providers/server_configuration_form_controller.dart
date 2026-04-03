@@ -344,7 +344,9 @@ class ServerConfigurationFormController
       final matrixHomeserverChanged =
           _initialMatrixSignature != null &&
           _initialMatrixSignature != nextMatrixSignature;
-      final nextNextcloudSignature = _nextcloudSignature(nextcloudUrl.toString());
+      final nextNextcloudSignature = _nextcloudSignature(
+        nextcloudUrl.toString(),
+      );
       final nextcloudBaseUrlChanged =
           _initialNextcloudSignature != null &&
           _initialNextcloudSignature != nextNextcloudSignature;

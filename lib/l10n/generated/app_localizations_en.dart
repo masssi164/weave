@@ -182,8 +182,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filesOpenParentSemantic => 'Open parent folder';
 
   @override
-  String get filesRefreshCurrentFolderSemantic =>
-      'Refresh the current folder';
+  String get filesRefreshCurrentFolderSemantic => 'Refresh the current folder';
 
   @override
   String filesFolderSemantic(String name) {
