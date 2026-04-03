@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
@@ -94,6 +96,7 @@ void main() {
 
     test('refreshes when a verification event arrives', () async {
       var loadCount = 0;
+      final updateSeen = Completer<void>();
       final repository = FakeChatSecurityRepository(
         loadSecurityStateHandler: ({bool refresh = false}) async {
           loadCount++;
@@ -121,6 +124,17 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+      final removeListener = container.listen(chatSecurityProvider, (
+        previous,
+        next,
+      ) {
+        if (!updateSeen.isCompleted &&
+            next.security?.verificationSession.phase ==
+                ChatVerificationPhase.incomingRequest) {
+          updateSeen.complete();
+        }
+      });
+      addTearDown(removeListener.close);
 
       await container.read(chatSecurityProvider.notifier).refresh();
       repository.emitVerificationUpdate(
@@ -128,8 +142,7 @@ void main() {
           phase: ChatVerificationPhase.incomingRequest,
         ),
       );
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
+      await updateSeen.future;
 
       expect(
         container.read(chatSecurityProvider).security?.verificationSession.phase,

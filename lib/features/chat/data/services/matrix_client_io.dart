@@ -413,6 +413,16 @@ class SdkMatrixClient implements MatrixClient {
     }
   }
 
+  @override
+  Future<void> dispose() async {
+    await _verificationSubscription?.cancel();
+    _verificationSubscription = null;
+    _clearActiveVerification();
+    if (!_verificationUpdatesController.isClosed) {
+      await _verificationUpdatesController.close();
+    }
+  }
+
   Future<sdk.Client> _ensureClient() async {
     final existingClient = _client;
     if (existingClient != null) {

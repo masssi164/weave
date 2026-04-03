@@ -155,4 +155,6 @@ abstract interface class MatrixClient {
   Future<void> signOut();
 
   Future<void> clearSession();
+
+  Future<void> dispose();
 }

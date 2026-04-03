@@ -56,6 +56,9 @@ class _FakeMatrixClient implements MatrixClient {
   Future<void> dismissVerificationResult({required Uri homeserver}) async {}
 
   @override
+  Future<void> dispose() async {}
+
+  @override
   Future<List<MatrixRoomSnapshot>> loadConversations({
     required Uri homeserver,
   }) async {

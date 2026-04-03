@@ -105,6 +105,9 @@ class _WebMatrixClientStub implements MatrixClient {
   Future<void> dismissVerificationResult({required Uri homeserver}) async {}
 
   @override
+  Future<void> dispose() async {}
+
+  @override
   Future<void> signOut() async {}
 
   @override
