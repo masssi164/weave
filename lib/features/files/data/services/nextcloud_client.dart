@@ -174,7 +174,9 @@ class NextcloudClient {
   String _relativePathFromHref(String href, String davRootPath) {
     final parsed = Uri.parse(href);
     final decodedPath = Uri.decodeFull(parsed.path);
-    final rootPath = davRootPath.endsWith('/') ? davRootPath.substring(0, davRootPath.length - 1) : davRootPath;
+    final rootPath = davRootPath.endsWith('/')
+        ? davRootPath.substring(0, davRootPath.length - 1)
+        : davRootPath;
     if (!decodedPath.startsWith(rootPath)) {
       throw const FilesFailure.protocol(
         'Nextcloud returned a WebDAV entry outside the configured account root.',

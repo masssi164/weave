@@ -75,8 +75,8 @@ class _FilesBody extends ConsumerWidget {
                       : () {
                           ref.read(filesProvider.notifier).goUp();
                         },
-                  semanticLabel: 'Open parent folder',
-                  child: const Text('Up'),
+                  semanticLabel: l10n.filesOpenParentSemantic,
+                  child: Text(l10n.filesUpButton),
                 ),
               const SizedBox(width: 12),
               AccessibleButton(
@@ -86,8 +86,8 @@ class _FilesBody extends ConsumerWidget {
                     : () {
                         ref.read(filesProvider.notifier).refresh();
                       },
-                semanticLabel: 'Refresh the current folder',
-                child: const Text('Refresh'),
+                semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
+                child: Text(l10n.filesRefreshButton),
               ),
             ],
           ),
@@ -107,17 +107,14 @@ class _FilesBody extends ConsumerWidget {
     switch (connectionState.status) {
       case FilesConnectionStatus.misconfigured:
         return EmptyState(
-          message:
-              connectionState.message ?? 'Configure a Nextcloud URL before connecting files.',
+          message: connectionState.message ?? l10n.filesMisconfiguredMessage,
           icon: Icons.settings_outlined,
         );
       case FilesConnectionStatus.disconnected:
         return EmptyState(
-          message:
-              state.directoryFailure?.message ??
-              'Connect Nextcloud to browse your files.',
+          message: state.directoryFailure?.message ?? l10n.filesDisconnectedMessage,
           icon: Icons.cloud_off_outlined,
-          actionLabel: 'Connect Nextcloud',
+          actionLabel: l10n.filesConnectButton,
           onAction: state.isBusy
               ? null
               : () {
@@ -127,8 +124,8 @@ class _FilesBody extends ConsumerWidget {
       case FilesConnectionStatus.invalid:
         return ErrorState(
           message:
-              connectionState.message ?? 'Reconnect Nextcloud because the saved session is no longer valid.',
-          retryLabel: 'Reconnect Nextcloud',
+              connectionState.message ?? l10n.filesInvalidSessionMessage,
+          retryLabel: l10n.filesReconnectButton,
           onRetry: state.isBusy
               ? null
               : () {
@@ -155,7 +152,7 @@ class _FilesBody extends ConsumerWidget {
           return EmptyState(
             message: l10n.filesEmptyMessage,
             icon: Icons.folder_outlined,
-            actionLabel: 'Refresh',
+            actionLabel: l10n.filesRefreshButton,
             onAction: state.isBusy
                 ? null
                 : () {
@@ -183,14 +180,16 @@ class _ConnectionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final connectionState = state.connectionState;
     final description = switch (connectionState.status) {
       FilesConnectionStatus.connected =>
-        'Connected as ${connectionState.accountLabel ?? 'your Nextcloud account'}',
-      FilesConnectionStatus.invalid => 'The saved Nextcloud session needs attention.',
-      FilesConnectionStatus.disconnected => 'No Nextcloud session is connected on this device.',
-      FilesConnectionStatus.misconfigured =>
-        'Server setup is incomplete for Nextcloud files.',
+        l10n.filesConnectionConnected(
+          connectionState.accountLabel ?? l10n.filesNextcloudTitle,
+        ),
+      FilesConnectionStatus.invalid => l10n.filesConnectionInvalid,
+      FilesConnectionStatus.disconnected => l10n.filesConnectionDisconnected,
+      FilesConnectionStatus.misconfigured => l10n.filesConnectionMisconfigured,
     };
 
     return Card(
@@ -199,7 +198,7 @@ class _ConnectionCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Nextcloud', style: theme.textTheme.titleMedium),
+            Text(l10n.filesNextcloudTitle, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(description, style: theme.textTheme.bodyMedium),
             if (connectionState.baseUrl != null) ...[
@@ -223,13 +222,14 @@ class _ConnectionCard extends ConsumerWidget {
                         : () {
                             ref.read(filesProvider.notifier).connect();
                           },
-                    semanticLabel: connectionState.status == FilesConnectionStatus.invalid
-                        ? 'Reconnect Nextcloud'
-                        : 'Connect Nextcloud',
+                    semanticLabel:
+                        connectionState.status == FilesConnectionStatus.invalid
+                        ? l10n.filesReconnectButton
+                        : l10n.filesConnectButton,
                     child: Text(
                       connectionState.status == FilesConnectionStatus.invalid
-                          ? 'Reconnect Nextcloud'
-                          : 'Connect Nextcloud',
+                          ? l10n.filesReconnectButton
+                          : l10n.filesConnectButton,
                     ),
                   ),
                 if (connectionState.status == FilesConnectionStatus.connected ||
@@ -241,8 +241,8 @@ class _ConnectionCard extends ConsumerWidget {
                         : () {
                             ref.read(filesProvider.notifier).disconnect();
                           },
-                    semanticLabel: 'Disconnect Nextcloud',
-                    child: const Text('Disconnect'),
+                    semanticLabel: l10n.filesDisconnectButton,
+                    child: Text(l10n.filesDisconnectButton),
                   ),
               ],
             ),
@@ -262,11 +262,14 @@ class _FileEntryTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final subtitle = _subtitle(context, entry);
+    final l10n = AppLocalizations.of(context);
     return MergeSemantics(
       child: Semantics(
         container: true,
         button: entry.isDirectory,
-        label: '${entry.name}, ${entry.isDirectory ? 'folder' : 'file'}',
+        label: entry.isDirectory
+            ? l10n.filesFolderSemantic(entry.name)
+            : l10n.filesFileSemantic(entry.name),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           leading: ExcludeSemantics(

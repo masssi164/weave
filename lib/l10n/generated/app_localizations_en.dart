@@ -132,6 +132,70 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filesScreenTitle => 'Files';
 
   @override
+  String get filesNextcloudTitle => 'Nextcloud';
+
+  @override
+  String get filesConnectButton => 'Connect Nextcloud';
+
+  @override
+  String get filesReconnectButton => 'Reconnect Nextcloud';
+
+  @override
+  String get filesDisconnectButton => 'Disconnect';
+
+  @override
+  String get filesRefreshButton => 'Refresh';
+
+  @override
+  String get filesUpButton => 'Up';
+
+  @override
+  String get filesDisconnectedMessage =>
+      'Connect Nextcloud to browse your files.';
+
+  @override
+  String get filesInvalidSessionMessage =>
+      'Reconnect Nextcloud because the saved session is no longer valid.';
+
+  @override
+  String get filesMisconfiguredMessage =>
+      'Configure a Nextcloud URL before connecting files.';
+
+  @override
+  String filesConnectionConnected(String accountLabel) {
+    return 'Connected as $accountLabel';
+  }
+
+  @override
+  String get filesConnectionDisconnected =>
+      'No Nextcloud session is connected on this device.';
+
+  @override
+  String get filesConnectionInvalid =>
+      'The saved Nextcloud session needs attention.';
+
+  @override
+  String get filesConnectionMisconfigured =>
+      'Server setup is incomplete for Nextcloud files.';
+
+  @override
+  String get filesOpenParentSemantic => 'Open parent folder';
+
+  @override
+  String get filesRefreshCurrentFolderSemantic =>
+      'Refresh the current folder';
+
+  @override
+  String filesFolderSemantic(String name) {
+    return '$name, folder';
+  }
+
+  @override
+  String filesFileSemantic(String name) {
+    return '$name, file';
+  }
+
+  @override
   String get calendarScreenTitle => 'Calendar';
 
   @override

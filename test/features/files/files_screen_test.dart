@@ -133,7 +133,7 @@ void main() {
       await tester.tap(find.text('Documents'));
       await tester.pumpAndSettle();
 
-      expect(repository.requestedPaths, containsAllInOrder(['/','/Documents']));
+      expect(repository.requestedPaths, containsAllInOrder(['/', '/Documents']));
       expect(find.text('Notes.txt'), findsOneWidget);
       expect(find.text('Up'), findsOneWidget);
     });
