@@ -2,13 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
-import 'package:weave/core/session/app_session_coordinator.dart';
-import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
-import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
-import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
+import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 
 class AuthFlowState {
@@ -36,31 +33,12 @@ class AuthFlowController extends Notifier<AuthFlowState> {
   AuthFlowState build() => const AuthFlowState.idle();
 
   Future<void> signIn() async {
-    final configuration = await _loadConfigurationForAuth();
-    if (configuration == null) {
-      state = state.copyWith(
-        failure: const AuthFailure.configuration(
-          'Finish server setup before signing in.',
-        ),
-      );
-      return;
-    }
-
-    if (!_isSupportedPlatform) {
-      state = state.copyWith(
-        failure: const AuthFailure.unsupportedPlatform(
-          'Interactive sign-in is currently supported on Android, iOS, and macOS.',
-        ),
-      );
-      return;
-    }
-
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
       await ref
-          .read(authSessionRepositoryProvider)
-          .signIn(_toAuthConfiguration(configuration));
+          .read(signInWithOidcProvider)
+          .call(isInteractiveSignInSupported: _isSupportedPlatform);
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
     } on AuthFailure catch (failure) {
@@ -80,7 +58,7 @@ class AuthFlowController extends Notifier<AuthFlowState> {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      await ref.read(appSessionCoordinatorProvider).signOut();
+      await ref.read(signOutWorkspaceProvider).call();
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
     } on AuthFailure catch (failure) {
@@ -111,18 +89,14 @@ class AuthFlowController extends Notifier<AuthFlowState> {
   ) async {
     ref.invalidate(savedServerConfigurationProvider);
 
-    if (!result.authConfigurationChanged &&
-        !result.matrixHomeserverChanged &&
-        !result.nextcloudBaseUrlChanged) {
+    if (!result.hasSessionImpact) {
       return;
     }
 
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      await ref
-          .read(appSessionCoordinatorProvider)
-          .handleConfigurationSaved(result);
+      await ref.read(applyServerConfigurationChangesProvider).call(result);
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
     } on AuthFailure catch (failure) {
@@ -147,7 +121,7 @@ class AuthFlowController extends Notifier<AuthFlowState> {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      await ref.read(appSessionCoordinatorProvider).restartSetup();
+      await ref.read(restartWorkspaceSetupProvider).call();
       ref.invalidate(savedServerConfigurationProvider);
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
@@ -172,24 +146,6 @@ class AuthFlowController extends Notifier<AuthFlowState> {
         ),
       );
     }
-  }
-
-  Future<ServerConfiguration?> _loadConfigurationForAuth() async {
-    final configuration = await ref
-        .read(serverConfigurationRepositoryProvider)
-        .loadConfiguration();
-    if (configuration == null || !configuration.hasCompleteAuthConfiguration) {
-      return null;
-    }
-
-    return configuration;
-  }
-
-  AuthConfiguration _toAuthConfiguration(ServerConfiguration configuration) {
-    return AuthConfiguration(
-      issuer: configuration.oidcIssuerUrl,
-      clientId: configuration.oidcClientRegistration.clientId.trim(),
-    );
   }
 
   bool get _isSupportedPlatform {

@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:weave/features/files/data/repositories/nextcloud_files_repository.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
+import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 
 class FilesViewState {

@@ -1,9 +1,6 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
-import 'package:weave/features/files/data/repositories/secure_nextcloud_session_repository.dart';
 import 'package:weave/features/files/data/services/nextcloud_auth_client.dart';
 import 'package:weave/features/files/data/services/nextcloud_client.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
@@ -12,7 +9,6 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/repositories/nextcloud_session_repository.dart';
-import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
@@ -327,15 +323,3 @@ class NextcloudFilesRepository implements FilesRepository {
 
   bool _usesHttps(Uri uri) => uri.scheme.toLowerCase() == 'https';
 }
-
-final filesRepositoryProvider = Provider<FilesRepository>((ref) {
-  return NextcloudFilesRepository(
-    authClient: ref.watch(nextcloudAuthClientProvider),
-    client: ref.watch(nextcloudClientProvider),
-    authSessionRepository: ref.watch(authSessionRepositoryProvider),
-    sessionRepository: ref.watch(nextcloudSessionRepositoryProvider),
-    serverConfigurationRepository: ref.watch(
-      serverConfigurationRepositoryProvider,
-    ),
-  );
-});
