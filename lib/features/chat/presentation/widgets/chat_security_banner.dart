@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 
 class ChatSecurityBanner extends StatelessWidget {
   const ChatSecurityBanner({super.key, required this.security});
@@ -10,6 +11,7 @@ class ChatSecurityBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final message = switch (security.bootstrapState) {
       ChatSecurityBootstrapState.notInitialized ||
       ChatSecurityBootstrapState.partiallyInitialized =>
@@ -41,7 +43,7 @@ class ChatSecurityBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Matrix security needs attention',
+                l10n.chatSecurityBannerTitle,
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: theme.colorScheme.onErrorContainer,
                 ),
@@ -56,7 +58,7 @@ class ChatSecurityBanner extends StatelessWidget {
               const SizedBox(height: 12),
               TextButton(
                 onPressed: () => context.go(AppRoutes.settings),
-                child: const Text('Open security settings'),
+                child: Text(l10n.chatSecurityOpenSettingsButton),
               ),
             ],
           ),

@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_provider.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 
 class ChatSecuritySettingsSection extends ConsumerWidget {
   const ChatSecuritySettingsSection({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatSecurityProvider);
     final security = state.security;
     final theme = Theme.of(context);
@@ -19,12 +21,12 @@ class ChatSecuritySettingsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Matrix security',
+          l10n.chatSecuritySectionTitle,
           style: theme.textTheme.headlineSmall,
         ),
         const SizedBox(height: 12),
         Text(
-          'Weave only treats Matrix encryption as healthy when secret storage, cross-signing, recovery, and device trust are all in place.',
+          l10n.chatSecuritySectionDescription,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -407,6 +409,7 @@ class _RecoveryKeyNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
 
     return Card(
@@ -417,14 +420,14 @@ class _RecoveryKeyNotice extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Save this Matrix recovery key now',
+              l10n.chatSecurityRecoveryKeyTitle,
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.colorScheme.onTertiaryContainer,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Weave does not rely on app-only storage for this key because secure storage can disappear after reinstall, device replacement, or some platform restores. Keep it in your password manager or another secure place.',
+              l10n.chatSecurityRecoveryKeyDescription,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onTertiaryContainer,
               ),

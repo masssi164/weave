@@ -573,7 +573,7 @@ class SdkMatrixClient implements MatrixClient {
     if (ownKeys == null) {
       return MatrixAccountVerificationState.unavailable;
     }
-    return switch (ownKeys?.verified) {
+    return switch (ownKeys.verified) {
       sdk.UserVerifiedStatus.verified => MatrixAccountVerificationState.verified,
       sdk.UserVerifiedStatus.unknownDevice =>
         MatrixAccountVerificationState.verificationRequired,

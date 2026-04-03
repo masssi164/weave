@@ -350,6 +350,42 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsScreenTitle;
 
+  /// Section title for Matrix security status and actions in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix security'**
+  String get chatSecuritySectionTitle;
+
+  /// Description shown above the Matrix security section in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Weave only treats Matrix encryption as healthy when secret storage, cross-signing, recovery, and device trust are all in place.'**
+  String get chatSecuritySectionDescription;
+
+  /// Title shown when the app displays the generated Matrix recovery key
+  ///
+  /// In en, this message translates to:
+  /// **'Save this Matrix recovery key now'**
+  String get chatSecurityRecoveryKeyTitle;
+
+  /// Warning text shown alongside the generated Matrix recovery key
+  ///
+  /// In en, this message translates to:
+  /// **'Weave does not rely on app-only storage for this key because secure storage can disappear after reinstall, device replacement, or some platform restores. Keep it in your password manager or another secure place.'**
+  String get chatSecurityRecoveryKeyDescription;
+
+  /// Title for the in-chat warning banner about Matrix security
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix security needs attention'**
+  String get chatSecurityBannerTitle;
+
+  /// Button label that opens settings from the Matrix security banner
+  ///
+  /// In en, this message translates to:
+  /// **'Open security settings'**
+  String get chatSecurityOpenSettingsButton;
+
   /// Section title for server configuration in settings
   ///
   /// In en, this message translates to:

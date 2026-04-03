@@ -142,6 +142,29 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsScreenTitle => 'Einstellungen';
 
   @override
+  String get chatSecuritySectionTitle => 'Matrix-Sicherheit';
+
+  @override
+  String get chatSecuritySectionDescription =>
+      'Weave behandelt Matrix-Verschlüsselung nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.';
+
+  @override
+  String get chatSecurityRecoveryKeyTitle =>
+      'Diesen Matrix-Wiederherstellungsschlüssel jetzt sichern';
+
+  @override
+  String get chatSecurityRecoveryKeyDescription =>
+      'Weave verlässt sich für diesen Schlüssel nicht auf app-internen Speicher, weil sicherer Speicher nach Neuinstallation, Gerätewechsel oder manchen Wiederherstellungen verschwinden kann. Bewahren Sie ihn in Ihrem Passwortmanager oder an einem anderen sicheren Ort auf.';
+
+  @override
+  String get chatSecurityBannerTitle =>
+      'Matrix-Sicherheit braucht Aufmerksamkeit';
+
+  @override
+  String get chatSecurityOpenSettingsButton =>
+      'Sicherheitseinstellungen öffnen';
+
+  @override
   String get settingsServerConfigurationTitle => 'Serverkonfiguration';
 
   @override
