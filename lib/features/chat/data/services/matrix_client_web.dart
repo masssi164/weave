@@ -6,6 +6,10 @@ class _WebMatrixClientStub implements MatrixClient {
   const _WebMatrixClientStub();
 
   @override
+  Stream<MatrixVerificationSnapshot> get verificationUpdates =>
+      const Stream<MatrixVerificationSnapshot>.empty();
+
+  @override
   Future<List<MatrixRoomSnapshot>> loadConversations({
     required Uri homeserver,
   }) async {

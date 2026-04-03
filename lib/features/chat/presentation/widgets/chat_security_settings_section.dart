@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -36,38 +37,40 @@ class ChatSecuritySettingsSection extends ConsumerWidget {
           const LinearProgressIndicator()
         else if (security != null) ...[
           _StatusCard(
-            title: 'Setup',
-            value: _bootstrapLabel(security.bootstrapState),
-            body: _bootstrapDescription(security),
+            title: l10n.chatSecuritySetupCardTitle,
+            value: _bootstrapLabel(l10n, security.bootstrapState),
+            body: _bootstrapDescription(l10n, security),
           ),
           const SizedBox(height: 12),
           _StatusCard(
-            title: 'Current device',
-            value: _deviceLabel(security.deviceVerificationState),
-            body: _deviceDescription(security.deviceVerificationState),
+            title: l10n.chatSecurityCurrentDeviceCardTitle,
+            value: _deviceLabel(l10n, security.deviceVerificationState),
+            body: _deviceDescription(
+              l10n,
+              security.deviceVerificationState,
+            ),
           ),
           const SizedBox(height: 12),
           _StatusCard(
-            title: 'Recovery and key backup',
-            value: _backupLabel(security.keyBackupState),
-            body:
-                'The recovery key is needed when this device is replaced, reinstalled, or loses local crypto secrets.',
+            title: l10n.chatSecurityRecoveryCardTitle,
+            value: _backupLabel(l10n, security.keyBackupState),
+            body: l10n.chatSecurityRecoveryCardBody,
           ),
           const SizedBox(height: 12),
           _StatusCard(
-            title: 'Encrypted rooms',
-            value: _roomReadinessLabel(security.roomEncryptionReadiness),
+            title: l10n.chatSecurityEncryptedRoomsCardTitle,
+            value: _roomReadinessLabel(l10n, security.roomEncryptionReadiness),
             body: security.hasEncryptedConversations
-                ? 'Encrypted rooms already exist on this account. Warnings stay visible until trust and recovery are healthy.'
-                : 'No encrypted rooms are known yet, but the account security state is still tracked here.',
+                ? l10n.chatSecurityEncryptedRoomsCardBodyExisting
+                : l10n.chatSecurityEncryptedRoomsCardBodyNone,
           ),
           const SizedBox(height: 16),
-          _ActionArea(state: state),
+          _ActionArea(state: state, l10n: l10n),
         ],
         if (state.failure != null) ...[
           const SizedBox(height: 16),
           Text(
-            state.failure!.message,
+            _failureMessage(l10n, state.failure!),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.error,
             ),
@@ -77,80 +80,119 @@ class ChatSecuritySettingsSection extends ConsumerWidget {
     );
   }
 
-  static String _bootstrapLabel(ChatSecurityBootstrapState state) {
+  static String _bootstrapLabel(
+    AppLocalizations l10n,
+    ChatSecurityBootstrapState state,
+  ) {
     return switch (state) {
-      ChatSecurityBootstrapState.signedOut => 'Matrix not connected',
-      ChatSecurityBootstrapState.notInitialized => 'Setup required',
-      ChatSecurityBootstrapState.partiallyInitialized => 'Setup incomplete',
-      ChatSecurityBootstrapState.recoveryRequired => 'Recovery required',
-      ChatSecurityBootstrapState.ready => 'Healthy',
-      ChatSecurityBootstrapState.unavailable => 'Unavailable',
+      ChatSecurityBootstrapState.signedOut => l10n.chatSecurityStatusSignedOut,
+      ChatSecurityBootstrapState.notInitialized =>
+        l10n.chatSecurityStatusSetupRequired,
+      ChatSecurityBootstrapState.partiallyInitialized =>
+        l10n.chatSecurityStatusSetupIncomplete,
+      ChatSecurityBootstrapState.recoveryRequired =>
+        l10n.chatSecurityStatusRecoveryRequired,
+      ChatSecurityBootstrapState.ready => l10n.chatSecurityStatusHealthy,
+      ChatSecurityBootstrapState.unavailable =>
+        l10n.chatSecurityStatusUnavailable,
     };
   }
 
-  static String _bootstrapDescription(ChatSecurityState security) {
+  static String _bootstrapDescription(
+    AppLocalizations l10n,
+    ChatSecurityState security,
+  ) {
     return switch (security.bootstrapState) {
       ChatSecurityBootstrapState.signedOut =>
-        'Open Chat and connect Matrix before managing encryption.',
+        l10n.chatSecuritySetupDescriptionSignedOut,
       ChatSecurityBootstrapState.notInitialized =>
-        'Set up secret storage, cross-signing, and online key backup before trusting encrypted rooms.',
+        l10n.chatSecuritySetupDescriptionNotInitialized,
       ChatSecurityBootstrapState.partiallyInitialized =>
-        'Some encryption parts exist, but recovery or cross-signing is still incomplete.',
+        l10n.chatSecuritySetupDescriptionPartiallyInitialized,
       ChatSecurityBootstrapState.recoveryRequired =>
-        'This account was set up before, but this device needs the recovery key or passphrase to reconnect safely.',
+        l10n.chatSecuritySetupDescriptionRecoveryRequired,
       ChatSecurityBootstrapState.ready =>
-        'This device can use the current Matrix crypto identity and recovery setup.',
+        l10n.chatSecuritySetupDescriptionReady,
       ChatSecurityBootstrapState.unavailable =>
-        'Matrix encryption is not available on this platform.',
+        l10n.chatSecuritySetupDescriptionUnavailable,
     };
   }
 
-  static String _deviceLabel(ChatDeviceVerificationState state) {
+  static String _deviceLabel(
+    AppLocalizations l10n,
+    ChatDeviceVerificationState state,
+  ) {
     return switch (state) {
-      ChatDeviceVerificationState.verified => 'Verified',
-      ChatDeviceVerificationState.unverified => 'Unverified',
-      ChatDeviceVerificationState.blocked => 'Blocked',
-      ChatDeviceVerificationState.unavailable => 'Unavailable',
+      ChatDeviceVerificationState.verified => l10n.chatSecurityStatusVerified,
+      ChatDeviceVerificationState.unverified =>
+        l10n.chatSecurityStatusUnverified,
+      ChatDeviceVerificationState.blocked => l10n.chatSecurityStatusBlocked,
+      ChatDeviceVerificationState.unavailable =>
+        l10n.chatSecurityStatusUnavailable,
     };
   }
 
-  static String _deviceDescription(ChatDeviceVerificationState state) {
+  static String _deviceDescription(
+    AppLocalizations l10n,
+    ChatDeviceVerificationState state,
+  ) {
     return switch (state) {
       ChatDeviceVerificationState.verified =>
-        'Another trusted Matrix device has verified this session.',
+        l10n.chatSecurityCurrentDeviceDescriptionVerified,
       ChatDeviceVerificationState.unverified =>
-        'Compare security emoji or numbers with another signed-in Matrix device.',
+        l10n.chatSecurityCurrentDeviceDescriptionUnverified,
       ChatDeviceVerificationState.blocked =>
-        'This device is blocked or its trust chain is broken.',
+        l10n.chatSecurityCurrentDeviceDescriptionBlocked,
       ChatDeviceVerificationState.unavailable =>
-        'The current device key is not available yet.',
+        l10n.chatSecurityCurrentDeviceDescriptionUnavailable,
     };
   }
 
-  static String _backupLabel(ChatKeyBackupState state) {
+  static String _backupLabel(
+    AppLocalizations l10n,
+    ChatKeyBackupState state,
+  ) {
     return switch (state) {
-      ChatKeyBackupState.unavailable => 'Unavailable',
-      ChatKeyBackupState.missing => 'Missing',
-      ChatKeyBackupState.recoveryRequired => 'Needs reconnect',
-      ChatKeyBackupState.ready => 'Ready',
+      ChatKeyBackupState.unavailable => l10n.chatSecurityStatusUnavailable,
+      ChatKeyBackupState.missing => l10n.chatSecurityStatusMissing,
+      ChatKeyBackupState.recoveryRequired =>
+        l10n.chatSecurityStatusNeedsReconnect,
+      ChatKeyBackupState.ready => l10n.chatSecurityStatusReady,
     };
   }
 
-  static String _roomReadinessLabel(ChatRoomEncryptionReadiness state) {
+  static String _roomReadinessLabel(
+    AppLocalizations l10n,
+    ChatRoomEncryptionReadiness state,
+  ) {
     return switch (state) {
-      ChatRoomEncryptionReadiness.unavailable => 'Unavailable',
-      ChatRoomEncryptionReadiness.noEncryptedRooms => 'No encrypted rooms yet',
+      ChatRoomEncryptionReadiness.unavailable =>
+        l10n.chatSecurityStatusUnavailable,
+      ChatRoomEncryptionReadiness.noEncryptedRooms =>
+        l10n.chatSecurityEncryptedRoomsStatusNone,
       ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention =>
-        'Encrypted rooms need attention',
-      ChatRoomEncryptionReadiness.ready => 'Ready',
+        l10n.chatSecurityEncryptedRoomsStatusAttention,
+      ChatRoomEncryptionReadiness.ready => l10n.chatSecurityStatusReady,
     };
+  }
+
+  static String _failureMessage(
+    AppLocalizations l10n,
+    ChatFailure failure,
+  ) {
+    if (failure.message.trim().isNotEmpty) {
+      return failure.message;
+    }
+
+    return l10n.chatSecurityGenericFailure;
   }
 }
 
 class _ActionArea extends ConsumerWidget {
-  const _ActionArea({required this.state});
+  const _ActionArea({required this.state, required this.l10n});
 
   final ChatSecurityUiState state;
+  final AppLocalizations l10n;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -164,7 +206,7 @@ class _ActionArea extends ConsumerWidget {
 
     if (!security.isMatrixSignedIn) {
       return Text(
-        'Matrix security actions unlock after the Matrix session is connected.',
+        l10n.chatSecurityActionsUnavailableSignedOut,
         style: Theme.of(context).textTheme.bodyMedium,
       );
     }
@@ -177,13 +219,18 @@ class _ActionArea extends ConsumerWidget {
           onPressed: state.isBusy
               ? null
               : () => _showRecoveryKeySetupDialog(context, notifier),
-          semanticLabel: 'Set up Matrix encrypted chat',
-          child: Text(state.isBusy ? 'Working…' : 'Set up encrypted chat'),
+          semanticLabel: l10n.chatSecuritySetupButton,
+          child: Text(
+            state.isBusy
+                ? l10n.chatSecurityWorkingButton
+                : l10n.chatSecuritySetupButton,
+          ),
         ),
       );
     }
 
-    if (security.bootstrapState == ChatSecurityBootstrapState.recoveryRequired ||
+    if (security.bootstrapState ==
+            ChatSecurityBootstrapState.recoveryRequired ||
         security.keyBackupState == ChatKeyBackupState.recoveryRequired) {
       buttons.add(
         AccessibleButton(
@@ -191,20 +238,21 @@ class _ActionArea extends ConsumerWidget {
           onPressed: state.isBusy
               ? null
               : () => _showRestoreDialog(context, notifier),
-          semanticLabel: 'Reconnect encrypted chat with a recovery key',
-          child: const Text('Reconnect with recovery key'),
+          semanticLabel: l10n.chatSecurityReconnectButton,
+          child: Text(l10n.chatSecurityReconnectButton),
         ),
       );
     }
 
-    if (security.deviceVerificationState != ChatDeviceVerificationState.verified &&
+    if (security.deviceVerificationState !=
+            ChatDeviceVerificationState.verified &&
         security.bootstrapState == ChatSecurityBootstrapState.ready) {
       buttons.add(
         AccessibleButton(
           outlined: true,
           onPressed: state.isBusy ? null : () => notifier.startVerification(),
-          semanticLabel: 'Verify this Matrix device',
-          child: const Text('Verify this device'),
+          semanticLabel: l10n.chatSecurityVerifyDeviceButton,
+          child: Text(l10n.chatSecurityVerifyDeviceButton),
         ),
       );
     }
@@ -213,15 +261,19 @@ class _ActionArea extends ConsumerWidget {
     if (verification.phase == ChatVerificationPhase.incomingRequest) {
       buttons.addAll([
         AccessibleButton(
-          onPressed: state.isBusy ? null : () => notifier.acceptVerification(),
-          semanticLabel: 'Accept Matrix verification request',
-          child: const Text('Accept verification'),
+          onPressed: state.isBusy
+              ? null
+              : () => notifier.acceptVerification(),
+          semanticLabel: l10n.chatSecurityAcceptVerificationButton,
+          child: Text(l10n.chatSecurityAcceptVerificationButton),
         ),
         AccessibleButton(
           outlined: true,
-          onPressed: state.isBusy ? null : () => notifier.cancelVerification(),
-          semanticLabel: 'Decline Matrix verification request',
-          child: const Text('Decline'),
+          onPressed: state.isBusy
+              ? null
+              : () => notifier.cancelVerification(),
+          semanticLabel: l10n.chatSecurityDeclineVerificationButton,
+          child: Text(l10n.chatSecurityDeclineVerificationButton),
         ),
       ]);
     }
@@ -229,9 +281,11 @@ class _ActionArea extends ConsumerWidget {
     if (verification.phase == ChatVerificationPhase.chooseMethod) {
       buttons.add(
         AccessibleButton(
-          onPressed: state.isBusy ? null : () => notifier.startSasVerification(),
-          semanticLabel: 'Compare Matrix security emoji',
-          child: const Text('Compare security emoji'),
+          onPressed: state.isBusy
+              ? null
+              : () => notifier.startSasVerification(),
+          semanticLabel: l10n.chatSecurityCompareEmojiButton,
+          child: Text(l10n.chatSecurityCompareEmojiButton),
         ),
       );
     }
@@ -242,16 +296,16 @@ class _ActionArea extends ConsumerWidget {
           onPressed: state.isBusy
               ? null
               : () => notifier.confirmSas(matches: true),
-          semanticLabel: 'Confirm that the Matrix security emoji match',
-          child: const Text('Emoji match'),
+          semanticLabel: l10n.chatSecurityEmojiMatchButton,
+          child: Text(l10n.chatSecurityEmojiMatchButton),
         ),
         AccessibleButton(
           outlined: true,
           onPressed: state.isBusy
               ? null
               : () => notifier.confirmSas(matches: false),
-          semanticLabel: 'Cancel because the Matrix security emoji do not match',
-          child: const Text('They do not match'),
+          semanticLabel: l10n.chatSecurityEmojiMismatchButton,
+          child: Text(l10n.chatSecurityEmojiMismatchButton),
         ),
       ]);
     }
@@ -265,8 +319,8 @@ class _ActionArea extends ConsumerWidget {
           onPressed: state.isBusy
               ? null
               : () => notifier.dismissVerificationResult(),
-          semanticLabel: 'Dismiss the Matrix verification result',
-          child: const Text('Dismiss'),
+          semanticLabel: l10n.chatSecurityDismissButton,
+          child: Text(l10n.chatSecurityDismissButton),
         ),
       );
     }
@@ -279,12 +333,12 @@ class _ActionArea extends ConsumerWidget {
             recoveryKey: state.generatedRecoveryKey!,
             onDismiss: notifier.clearRecoveryKeyNotice,
           ),
-        if (state.lastActionMessage != null) ...[
-          Text(state.lastActionMessage!),
+        if (state.lastActionNotice != null) ...[
+          Text(_actionNoticeMessage(l10n, state.lastActionNotice!)),
           const SizedBox(height: 12),
         ],
-        if (verification.message != null) ...[
-          Text(verification.message!),
+        if (_verificationMessage(l10n, verification) case final message?) ...[
+          Text(message),
           const SizedBox(height: 12),
         ],
         if (verification.phase == ChatVerificationPhase.compareSas) ...[
@@ -297,13 +351,53 @@ class _ActionArea extends ConsumerWidget {
             runSpacing: 12,
             children: buttons,
           ),
-        if (buttons.isEmpty && verification.phase == ChatVerificationPhase.none)
+        if (buttons.isEmpty &&
+            verification.phase == ChatVerificationPhase.none)
           Text(
-            'No action is needed right now.',
+            l10n.chatSecurityNoActionNeeded,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
       ],
     );
+  }
+
+  String _actionNoticeMessage(
+    AppLocalizations l10n,
+    ChatSecurityActionNotice notice,
+  ) {
+    return switch (notice) {
+      ChatSecurityActionNotice.setupComplete =>
+        l10n.chatSecurityNoticeSetupComplete,
+      ChatSecurityActionNotice.recoveryRestored =>
+        l10n.chatSecurityNoticeRecoveryRestored,
+      ChatSecurityActionNotice.verificationRequestSent =>
+        l10n.chatSecurityNoticeVerificationRequestSent,
+      ChatSecurityActionNotice.verificationCancelled =>
+        l10n.chatSecurityNoticeVerificationCancelled,
+    };
+  }
+
+  String? _verificationMessage(
+    AppLocalizations l10n,
+    ChatVerificationSession verification,
+  ) {
+    return switch (verification.phase) {
+      ChatVerificationPhase.none => null,
+      ChatVerificationPhase.incomingRequest =>
+        l10n.chatSecurityVerificationIncomingMessage,
+      ChatVerificationPhase.chooseMethod =>
+        l10n.chatSecurityVerificationChooseMethodMessage,
+      ChatVerificationPhase.waitingForOtherDevice =>
+        l10n.chatSecurityVerificationWaitingMessage,
+      ChatVerificationPhase.compareSas =>
+        l10n.chatSecurityVerificationCompareMessage,
+      ChatVerificationPhase.done =>
+        l10n.chatSecurityVerificationDoneMessage,
+      ChatVerificationPhase.cancelled =>
+        l10n.chatSecurityVerificationCancelledMessage,
+      ChatVerificationPhase.failed =>
+        l10n.chatSecurityVerificationFailedMessage,
+    };
   }
 
   Future<void> _showRecoveryKeySetupDialog(
@@ -314,20 +408,20 @@ class _ActionArea extends ConsumerWidget {
     final passphrase = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Set up encrypted chat'),
+        title: Text(l10n.chatSecuritySetupDialogTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'You can optionally protect the Matrix recovery key with a memorable passphrase. Leave this blank to use a generated recovery key instead.',
+            Text(
+              l10n.chatSecuritySetupDialogDescription,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
               obscureText: true,
-              decoration: const InputDecoration(
-                labelText: 'Optional passphrase',
+              decoration: InputDecoration(
+                labelText: l10n.chatSecurityOptionalPassphraseLabel,
               ),
             ),
           ],
@@ -335,11 +429,11 @@ class _ActionArea extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(l10n.chatSecurityDialogCancelButton),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Continue'),
+            child: Text(l10n.chatSecurityDialogContinueButton),
           ),
         ],
       ),
@@ -361,19 +455,19 @@ class _ActionArea extends ConsumerWidget {
     final value = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reconnect encrypted chat'),
+        title: Text(l10n.chatSecurityRestoreDialogTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Enter the Matrix recovery key or recovery passphrase that was created when encrypted chat was first set up.',
+            Text(
+              l10n.chatSecurityRestoreDialogDescription,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
-              decoration: const InputDecoration(
-                labelText: 'Recovery key or passphrase',
+              decoration: InputDecoration(
+                labelText: l10n.chatSecurityRecoveryKeyFieldLabel,
               ),
             ),
           ],
@@ -381,11 +475,11 @@ class _ActionArea extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(l10n.chatSecurityDialogCancelButton),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text('Reconnect'),
+            child: Text(l10n.chatSecurityReconnectButton),
           ),
         ],
       ),
@@ -442,7 +536,7 @@ class _RecoveryKeyNotice extends StatelessWidget {
             const SizedBox(height: 12),
             TextButton(
               onPressed: onDismiss,
-              child: const Text('I saved it'),
+              child: Text(l10n.chatSecurityRecoveryKeyDismissButton),
             ),
           ],
         ),
@@ -458,13 +552,18 @@ class _SasSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Semantics(
       container: true,
       label: [
-        'Security emoji',
-        ...verification.sasEmojis.map((emoji) => '${emoji.label} ${emoji.symbol}'),
+        l10n.chatSecurityEmojiSummaryLabel,
+        ...verification.sasEmojis.map(
+          (emoji) => '${emoji.label} ${emoji.symbol}',
+        ),
         if (verification.sasNumbers.isNotEmpty)
-          'Security numbers ${verification.sasNumbers.join(', ')}',
+          l10n.chatSecurityNumbersSummaryLabel(
+            verification.sasNumbers.join(', '),
+          ),
       ].join('. '),
       child: ExcludeSemantics(
         child: Column(
@@ -511,7 +610,10 @@ class _StatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
         title: Text(title),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 8),

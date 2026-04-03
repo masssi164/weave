@@ -116,6 +116,8 @@ class MatrixRoomSnapshot {
 }
 
 abstract interface class MatrixClient {
+  Stream<MatrixVerificationSnapshot> get verificationUpdates;
+
   Future<List<MatrixRoomSnapshot>> loadConversations({required Uri homeserver});
 
   Future<void> connect({required Uri homeserver});

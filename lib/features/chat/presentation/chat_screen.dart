@@ -22,17 +22,20 @@ class ChatScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
     final securityState = ref.watch(chatSecurityProvider);
+    final security = securityState.security;
+    final showSecurityBanner =
+        security != null &&
+        security.isMatrixSignedIn &&
+        ChatSecurityBanner.messageForSecurity(l10n, security) != null;
 
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(title: Text(l10n.chatScreenTitle)),
-        if (securityState.security != null &&
-            securityState.security!.isMatrixSignedIn &&
-            securityState.security!.requiresAttention)
+        if (showSecurityBanner)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             sliver: SliverToBoxAdapter(
-              child: ChatSecurityBanner(security: securityState.security!),
+              child: ChatSecurityBanner(security: security!),
             ),
           ),
         switch (state.phase) {

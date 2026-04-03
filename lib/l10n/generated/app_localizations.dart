@@ -386,6 +386,77 @@ abstract class AppLocalizations {
   /// **'Open security settings'**
   String get chatSecurityOpenSettingsButton;
 
+  String get chatSecurityBannerSetupMessage;
+  String get chatSecurityBannerRecoveryMessage;
+  String get chatSecurityBannerVerificationMessage;
+  String get chatSecurityBannerMissingBackupMessage;
+  String get chatSecuritySetupCardTitle;
+  String get chatSecurityCurrentDeviceCardTitle;
+  String get chatSecurityRecoveryCardTitle;
+  String get chatSecurityRecoveryCardBody;
+  String get chatSecurityEncryptedRoomsCardTitle;
+  String get chatSecurityEncryptedRoomsCardBodyExisting;
+  String get chatSecurityEncryptedRoomsCardBodyNone;
+  String get chatSecurityStatusSignedOut;
+  String get chatSecurityStatusSetupRequired;
+  String get chatSecurityStatusSetupIncomplete;
+  String get chatSecurityStatusRecoveryRequired;
+  String get chatSecurityStatusHealthy;
+  String get chatSecurityStatusUnavailable;
+  String get chatSecurityStatusVerified;
+  String get chatSecurityStatusUnverified;
+  String get chatSecurityStatusBlocked;
+  String get chatSecurityStatusMissing;
+  String get chatSecurityStatusNeedsReconnect;
+  String get chatSecurityStatusReady;
+  String get chatSecurityEncryptedRoomsStatusNone;
+  String get chatSecurityEncryptedRoomsStatusAttention;
+  String get chatSecuritySetupDescriptionSignedOut;
+  String get chatSecuritySetupDescriptionNotInitialized;
+  String get chatSecuritySetupDescriptionPartiallyInitialized;
+  String get chatSecuritySetupDescriptionRecoveryRequired;
+  String get chatSecuritySetupDescriptionReady;
+  String get chatSecuritySetupDescriptionUnavailable;
+  String get chatSecurityCurrentDeviceDescriptionVerified;
+  String get chatSecurityCurrentDeviceDescriptionUnverified;
+  String get chatSecurityCurrentDeviceDescriptionBlocked;
+  String get chatSecurityCurrentDeviceDescriptionUnavailable;
+  String get chatSecurityActionsUnavailableSignedOut;
+  String get chatSecurityWorkingButton;
+  String get chatSecuritySetupButton;
+  String get chatSecurityReconnectButton;
+  String get chatSecurityVerifyDeviceButton;
+  String get chatSecurityAcceptVerificationButton;
+  String get chatSecurityDeclineVerificationButton;
+  String get chatSecurityCompareEmojiButton;
+  String get chatSecurityEmojiMatchButton;
+  String get chatSecurityEmojiMismatchButton;
+  String get chatSecurityDismissButton;
+  String get chatSecurityNoActionNeeded;
+  String get chatSecurityGenericFailure;
+  String get chatSecurityNoticeSetupComplete;
+  String get chatSecurityNoticeRecoveryRestored;
+  String get chatSecurityNoticeVerificationRequestSent;
+  String get chatSecurityNoticeVerificationCancelled;
+  String get chatSecurityVerificationIncomingMessage;
+  String get chatSecurityVerificationChooseMethodMessage;
+  String get chatSecurityVerificationWaitingMessage;
+  String get chatSecurityVerificationCompareMessage;
+  String get chatSecurityVerificationDoneMessage;
+  String get chatSecurityVerificationCancelledMessage;
+  String get chatSecurityVerificationFailedMessage;
+  String get chatSecuritySetupDialogTitle;
+  String get chatSecuritySetupDialogDescription;
+  String get chatSecurityOptionalPassphraseLabel;
+  String get chatSecurityDialogCancelButton;
+  String get chatSecurityDialogContinueButton;
+  String get chatSecurityRestoreDialogTitle;
+  String get chatSecurityRestoreDialogDescription;
+  String get chatSecurityRecoveryKeyFieldLabel;
+  String get chatSecurityRecoveryKeyDismissButton;
+  String get chatSecurityEmojiSummaryLabel;
+  String chatSecurityNumbersSummaryLabel(String value);
+
   /// Section title for server configuration in settings
   ///
   /// In en, this message translates to:

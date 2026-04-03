@@ -5,7 +5,8 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/chat/presentation/widgets/chat_security_settings_section.dart';
-import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/providers/'
+    'server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 

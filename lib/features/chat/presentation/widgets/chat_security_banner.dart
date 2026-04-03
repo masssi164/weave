@@ -9,22 +9,31 @@ class ChatSecurityBanner extends StatelessWidget {
 
   final ChatSecurityState security;
 
+  static String? messageForSecurity(
+    AppLocalizations l10n,
+    ChatSecurityState security,
+  ) {
+    return switch (security.bootstrapState) {
+      ChatSecurityBootstrapState.notInitialized ||
+      ChatSecurityBootstrapState.partiallyInitialized =>
+        l10n.chatSecurityBannerSetupMessage,
+      ChatSecurityBootstrapState.recoveryRequired =>
+        l10n.chatSecurityBannerRecoveryMessage,
+      _ when security.accountVerificationState ==
+              ChatAccountVerificationState.verificationRequired ||
+          security.deviceVerificationState !=
+              ChatDeviceVerificationState.verified =>
+        l10n.chatSecurityBannerVerificationMessage,
+      _ when security.keyBackupState == ChatKeyBackupState.missing =>
+        l10n.chatSecurityBannerMissingBackupMessage,
+      _ => null,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final message = switch (security.bootstrapState) {
-      ChatSecurityBootstrapState.notInitialized ||
-      ChatSecurityBootstrapState.partiallyInitialized =>
-        'Encrypted Matrix rooms are available, but this account still needs initial security setup.',
-      ChatSecurityBootstrapState.recoveryRequired =>
-        'This device needs your Matrix recovery key before older encrypted messages can be trusted again.',
-      _ when security.deviceVerificationState !=
-          ChatDeviceVerificationState.verified =>
-        'This device is not verified yet. Compare security emoji with another signed-in Matrix device.',
-      _ when security.keyBackupState == ChatKeyBackupState.missing =>
-        'Matrix key backup is still missing. Set it up before relying on encrypted chat recovery.',
-      _ => null,
-    };
+    final message = messageForSecurity(l10n, security);
 
     if (message == null) {
       return const SizedBox.shrink();

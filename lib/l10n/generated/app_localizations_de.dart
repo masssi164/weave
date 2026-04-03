@@ -165,6 +165,262 @@ class AppLocalizationsDe extends AppLocalizations {
       'Sicherheitseinstellungen öffnen';
 
   @override
+  String get chatSecurityBannerSetupMessage =>
+      'Verschlüsselte Matrix-Räume sind verfügbar, aber dieses Konto benötigt noch die anfängliche Sicherheitseinrichtung.';
+
+  @override
+  String get chatSecurityBannerRecoveryMessage =>
+      'Dieses Gerät benötigt Ihren Matrix-Wiederherstellungsschlüssel, bevor ältere verschlüsselte Nachrichten wieder als vertrauenswürdig gelten können.';
+
+  @override
+  String get chatSecurityBannerVerificationMessage =>
+      'Dieses Gerät oder Konto ist noch nicht vollständig verifiziert. Vergleichen Sie die Sicherheits-Emojis mit einem anderen angemeldeten Matrix-Gerät.';
+
+  @override
+  String get chatSecurityBannerMissingBackupMessage =>
+      'Das Matrix-Schlüssel-Backup fehlt noch. Richten Sie es ein, bevor Sie sich auf die Wiederherstellung verschlüsselter Chats verlassen.';
+
+  @override
+  String get chatSecuritySetupCardTitle => 'Einrichtung';
+
+  @override
+  String get chatSecurityCurrentDeviceCardTitle => 'Aktuelles Gerät';
+
+  @override
+  String get chatSecurityRecoveryCardTitle =>
+      'Wiederherstellung und Schlüssel-Backup';
+
+  @override
+  String get chatSecurityRecoveryCardBody =>
+      'Der Wiederherstellungsschlüssel wird benötigt, wenn dieses Gerät ersetzt, neu installiert wird oder lokale Kryptogeheimnisse verliert.';
+
+  @override
+  String get chatSecurityEncryptedRoomsCardTitle => 'Verschlüsselte Räume';
+
+  @override
+  String get chatSecurityEncryptedRoomsCardBodyExisting =>
+      'Auf diesem Konto gibt es bereits verschlüsselte Räume. Warnungen bleiben sichtbar, bis Vertrauen und Wiederherstellung gesund sind.';
+
+  @override
+  String get chatSecurityEncryptedRoomsCardBodyNone =>
+      'Es sind noch keine verschlüsselten Räume bekannt, aber der Sicherheitsstatus des Kontos wird hier trotzdem verfolgt.';
+
+  @override
+  String get chatSecurityStatusSignedOut => 'Matrix nicht verbunden';
+
+  @override
+  String get chatSecurityStatusSetupRequired => 'Einrichtung erforderlich';
+
+  @override
+  String get chatSecurityStatusSetupIncomplete => 'Einrichtung unvollständig';
+
+  @override
+  String get chatSecurityStatusRecoveryRequired =>
+      'Wiederherstellung erforderlich';
+
+  @override
+  String get chatSecurityStatusHealthy => 'Gesund';
+
+  @override
+  String get chatSecurityStatusUnavailable => 'Nicht verfügbar';
+
+  @override
+  String get chatSecurityStatusVerified => 'Verifiziert';
+
+  @override
+  String get chatSecurityStatusUnverified => 'Nicht verifiziert';
+
+  @override
+  String get chatSecurityStatusBlocked => 'Blockiert';
+
+  @override
+  String get chatSecurityStatusMissing => 'Fehlt';
+
+  @override
+  String get chatSecurityStatusNeedsReconnect => 'Neu verbinden';
+
+  @override
+  String get chatSecurityStatusReady => 'Bereit';
+
+  @override
+  String get chatSecurityEncryptedRoomsStatusNone =>
+      'Noch keine verschlüsselten Räume';
+
+  @override
+  String get chatSecurityEncryptedRoomsStatusAttention =>
+      'Verschlüsselte Räume brauchen Aufmerksamkeit';
+
+  @override
+  String get chatSecuritySetupDescriptionSignedOut =>
+      'Öffne Chat und verbinde Matrix, bevor du die Verschlüsselung verwaltest.';
+
+  @override
+  String get chatSecuritySetupDescriptionNotInitialized =>
+      'Richte Secret Storage, Cross-Signing und Online-Schlüssel-Backup ein, bevor du verschlüsselten Räumen vertraust.';
+
+  @override
+  String get chatSecuritySetupDescriptionPartiallyInitialized =>
+      'Einige Verschlüsselungsteile sind vorhanden, aber Wiederherstellung oder Cross-Signing sind noch unvollständig.';
+
+  @override
+  String get chatSecuritySetupDescriptionRecoveryRequired =>
+      'Dieses Konto wurde schon eingerichtet, aber dieses Gerät benötigt den Wiederherstellungsschlüssel oder die Passphrase, um sich sicher wieder zu verbinden.';
+
+  @override
+  String get chatSecuritySetupDescriptionReady =>
+      'Dieses Gerät kann die aktuelle Matrix-Kryptoidentität und Wiederherstellung verwenden.';
+
+  @override
+  String get chatSecuritySetupDescriptionUnavailable =>
+      'Matrix-Verschlüsselung ist auf dieser Plattform nicht verfügbar.';
+
+  @override
+  String get chatSecurityCurrentDeviceDescriptionVerified =>
+      'Ein anderes vertrauenswürdiges Matrix-Gerät hat diese Sitzung verifiziert.';
+
+  @override
+  String get chatSecurityCurrentDeviceDescriptionUnverified =>
+      'Vergleiche Sicherheits-Emojis oder Zahlen mit einem anderen angemeldeten Matrix-Gerät.';
+
+  @override
+  String get chatSecurityCurrentDeviceDescriptionBlocked =>
+      'Dieses Gerät ist blockiert oder seine Vertrauenskette ist beschädigt.';
+
+  @override
+  String get chatSecurityCurrentDeviceDescriptionUnavailable =>
+      'Der aktuelle Geräteschlüssel ist noch nicht verfügbar.';
+
+  @override
+  String get chatSecurityActionsUnavailableSignedOut =>
+      'Matrix-Sicherheitsaktionen werden verfügbar, sobald die Matrix-Sitzung verbunden ist.';
+
+  @override
+  String get chatSecurityWorkingButton => 'Wird ausgeführt…';
+
+  @override
+  String get chatSecuritySetupButton => 'Verschlüsselten Chat einrichten';
+
+  @override
+  String get chatSecurityReconnectButton =>
+      'Mit Wiederherstellungsschlüssel neu verbinden';
+
+  @override
+  String get chatSecurityVerifyDeviceButton => 'Dieses Gerät verifizieren';
+
+  @override
+  String get chatSecurityAcceptVerificationButton =>
+      'Verifizierung akzeptieren';
+
+  @override
+  String get chatSecurityDeclineVerificationButton => 'Ablehnen';
+
+  @override
+  String get chatSecurityCompareEmojiButton =>
+      'Sicherheits-Emojis vergleichen';
+
+  @override
+  String get chatSecurityEmojiMatchButton => 'Emojis stimmen überein';
+
+  @override
+  String get chatSecurityEmojiMismatchButton => 'Sie stimmen nicht überein';
+
+  @override
+  String get chatSecurityDismissButton => 'Schließen';
+
+  @override
+  String get chatSecurityNoActionNeeded =>
+      'Zurzeit ist keine Aktion erforderlich.';
+
+  @override
+  String get chatSecurityGenericFailure =>
+      'Die Matrix-Sicherheit kann im Moment nicht aktualisiert werden.';
+
+  @override
+  String get chatSecurityNoticeSetupComplete =>
+      'Verschlüsselter Chat ist jetzt eingerichtet. Speichern Sie Ihren Wiederherstellungsschlüssel, bevor Sie diesen Bildschirm schließen.';
+
+  @override
+  String get chatSecurityNoticeRecoveryRestored =>
+      'Verschlüsselter Chat wurde für dieses Gerät wieder verbunden.';
+
+  @override
+  String get chatSecurityNoticeVerificationRequestSent =>
+      'Verifizierungsanfrage gesendet. Fahren Sie auf Ihrem anderen Matrix-Gerät fort.';
+
+  @override
+  String get chatSecurityNoticeVerificationCancelled =>
+      'Verifizierung abgebrochen.';
+
+  @override
+  String get chatSecurityVerificationIncomingMessage =>
+      'Ein anderes Gerät möchte diese Sitzung verifizieren.';
+
+  @override
+  String get chatSecurityVerificationChooseMethodMessage =>
+      'Wählen Sie eine Verifizierungsmethode, um beide Geräte zu vergleichen.';
+
+  @override
+  String get chatSecurityVerificationWaitingMessage =>
+      'Es wird gewartet, bis das andere Gerät mit der Verifizierung fortfährt.';
+
+  @override
+  String get chatSecurityVerificationCompareMessage =>
+      'Vergleichen Sie die Sicherheits-Emojis oder Zahlen auf beiden Geräten.';
+
+  @override
+  String get chatSecurityVerificationDoneMessage =>
+      'Dieses Gerät ist jetzt verifiziert.';
+
+  @override
+  String get chatSecurityVerificationCancelledMessage =>
+      'Die Verifizierung wurde abgebrochen, bevor sie abgeschlossen war.';
+
+  @override
+  String get chatSecurityVerificationFailedMessage =>
+      'Die Verifizierung konnte nicht abgeschlossen werden.';
+
+  @override
+  String get chatSecuritySetupDialogTitle =>
+      'Verschlüsselten Chat einrichten';
+
+  @override
+  String get chatSecuritySetupDialogDescription =>
+      'Sie können den Matrix-Wiederherstellungsschlüssel optional mit einer merkbaren Passphrase schützen. Lassen Sie das Feld leer, um stattdessen einen generierten Wiederherstellungsschlüssel zu verwenden.';
+
+  @override
+  String get chatSecurityOptionalPassphraseLabel => 'Optionale Passphrase';
+
+  @override
+  String get chatSecurityDialogCancelButton => 'Abbrechen';
+
+  @override
+  String get chatSecurityDialogContinueButton => 'Weiter';
+
+  @override
+  String get chatSecurityRestoreDialogTitle =>
+      'Verschlüsselten Chat wieder verbinden';
+
+  @override
+  String get chatSecurityRestoreDialogDescription =>
+      'Geben Sie den Matrix-Wiederherstellungsschlüssel oder die Wiederherstellungs-Passphrase ein, die bei der ersten Einrichtung des verschlüsselten Chats erstellt wurde.';
+
+  @override
+  String get chatSecurityRecoveryKeyFieldLabel =>
+      'Wiederherstellungsschlüssel oder Passphrase';
+
+  @override
+  String get chatSecurityRecoveryKeyDismissButton =>
+      'Ich habe ihn gespeichert';
+
+  @override
+  String get chatSecurityEmojiSummaryLabel => 'Sicherheits-Emojis';
+
+  @override
+  String chatSecurityNumbersSummaryLabel(String value) {
+    return 'Sicherheitszahlen $value';
+  }
+
+  @override
   String get settingsServerConfigurationTitle => 'Serverkonfiguration';
 
   @override

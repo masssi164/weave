@@ -162,6 +162,252 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatSecurityOpenSettingsButton => 'Open security settings';
 
   @override
+  String get chatSecurityBannerSetupMessage =>
+      'Encrypted Matrix rooms are available, but this account still needs initial security setup.';
+
+  @override
+  String get chatSecurityBannerRecoveryMessage =>
+      'This device needs your Matrix recovery key before older encrypted messages can be trusted again.';
+
+  @override
+  String get chatSecurityBannerVerificationMessage =>
+      'This device or account is not fully verified yet. Compare security emoji with another signed-in Matrix device.';
+
+  @override
+  String get chatSecurityBannerMissingBackupMessage =>
+      'Matrix key backup is still missing. Set it up before relying on encrypted chat recovery.';
+
+  @override
+  String get chatSecuritySetupCardTitle => 'Setup';
+
+  @override
+  String get chatSecurityCurrentDeviceCardTitle => 'Current device';
+
+  @override
+  String get chatSecurityRecoveryCardTitle => 'Recovery and key backup';
+
+  @override
+  String get chatSecurityRecoveryCardBody =>
+      'The recovery key is needed when this device is replaced, reinstalled, or loses local crypto secrets.';
+
+  @override
+  String get chatSecurityEncryptedRoomsCardTitle => 'Encrypted rooms';
+
+  @override
+  String get chatSecurityEncryptedRoomsCardBodyExisting =>
+      'Encrypted rooms already exist on this account. Warnings stay visible until trust and recovery are healthy.';
+
+  @override
+  String get chatSecurityEncryptedRoomsCardBodyNone =>
+      'No encrypted rooms are known yet, but the account security state is still tracked here.';
+
+  @override
+  String get chatSecurityStatusSignedOut => 'Matrix not connected';
+
+  @override
+  String get chatSecurityStatusSetupRequired => 'Setup required';
+
+  @override
+  String get chatSecurityStatusSetupIncomplete => 'Setup incomplete';
+
+  @override
+  String get chatSecurityStatusRecoveryRequired => 'Recovery required';
+
+  @override
+  String get chatSecurityStatusHealthy => 'Healthy';
+
+  @override
+  String get chatSecurityStatusUnavailable => 'Unavailable';
+
+  @override
+  String get chatSecurityStatusVerified => 'Verified';
+
+  @override
+  String get chatSecurityStatusUnverified => 'Unverified';
+
+  @override
+  String get chatSecurityStatusBlocked => 'Blocked';
+
+  @override
+  String get chatSecurityStatusMissing => 'Missing';
+
+  @override
+  String get chatSecurityStatusNeedsReconnect => 'Needs reconnect';
+
+  @override
+  String get chatSecurityStatusReady => 'Ready';
+
+  @override
+  String get chatSecurityEncryptedRoomsStatusNone => 'No encrypted rooms yet';
+
+  @override
+  String get chatSecurityEncryptedRoomsStatusAttention =>
+      'Encrypted rooms need attention';
+
+  @override
+  String get chatSecuritySetupDescriptionSignedOut =>
+      'Open Chat and connect Matrix before managing encryption.';
+
+  @override
+  String get chatSecuritySetupDescriptionNotInitialized =>
+      'Set up secret storage, cross-signing, and online key backup before trusting encrypted rooms.';
+
+  @override
+  String get chatSecuritySetupDescriptionPartiallyInitialized =>
+      'Some encryption parts exist, but recovery or cross-signing is still incomplete.';
+
+  @override
+  String get chatSecuritySetupDescriptionRecoveryRequired =>
+      'This account was set up before, but this device needs the recovery key or passphrase to reconnect safely.';
+
+  @override
+  String get chatSecuritySetupDescriptionReady =>
+      'This device can use the current Matrix crypto identity and recovery setup.';
+
+  @override
+  String get chatSecuritySetupDescriptionUnavailable =>
+      'Matrix encryption is not available on this platform.';
+
+  @override
+  String get chatSecurityCurrentDeviceDescriptionVerified =>
+      'Another trusted Matrix device has verified this session.';
+
+  @override
+  String get chatSecurityCurrentDeviceDescriptionUnverified =>
+      'Compare security emoji or numbers with another signed-in Matrix device.';
+
+  @override
+  String get chatSecurityCurrentDeviceDescriptionBlocked =>
+      'This device is blocked or its trust chain is broken.';
+
+  @override
+  String get chatSecurityCurrentDeviceDescriptionUnavailable =>
+      'The current device key is not available yet.';
+
+  @override
+  String get chatSecurityActionsUnavailableSignedOut =>
+      'Matrix security actions unlock after the Matrix session is connected.';
+
+  @override
+  String get chatSecurityWorkingButton => 'Working…';
+
+  @override
+  String get chatSecuritySetupButton => 'Set up encrypted chat';
+
+  @override
+  String get chatSecurityReconnectButton => 'Reconnect with recovery key';
+
+  @override
+  String get chatSecurityVerifyDeviceButton => 'Verify this device';
+
+  @override
+  String get chatSecurityAcceptVerificationButton => 'Accept verification';
+
+  @override
+  String get chatSecurityDeclineVerificationButton => 'Decline';
+
+  @override
+  String get chatSecurityCompareEmojiButton => 'Compare security emoji';
+
+  @override
+  String get chatSecurityEmojiMatchButton => 'Emoji match';
+
+  @override
+  String get chatSecurityEmojiMismatchButton => 'They do not match';
+
+  @override
+  String get chatSecurityDismissButton => 'Dismiss';
+
+  @override
+  String get chatSecurityNoActionNeeded => 'No action is needed right now.';
+
+  @override
+  String get chatSecurityGenericFailure =>
+      'Unable to update Matrix security right now.';
+
+  @override
+  String get chatSecurityNoticeSetupComplete =>
+      'Encrypted chat is now set up. Save your recovery key before closing this screen.';
+
+  @override
+  String get chatSecurityNoticeRecoveryRestored =>
+      'Encrypted chat was reconnected for this device.';
+
+  @override
+  String get chatSecurityNoticeVerificationRequestSent =>
+      'Verification request sent. Continue on your other Matrix device.';
+
+  @override
+  String get chatSecurityNoticeVerificationCancelled =>
+      'Verification cancelled.';
+
+  @override
+  String get chatSecurityVerificationIncomingMessage =>
+      'Another device wants to verify this session.';
+
+  @override
+  String get chatSecurityVerificationChooseMethodMessage =>
+      'Choose a verification method to compare both devices.';
+
+  @override
+  String get chatSecurityVerificationWaitingMessage =>
+      'Waiting for the other device to continue verification.';
+
+  @override
+  String get chatSecurityVerificationCompareMessage =>
+      'Compare the security emoji or numbers on both devices.';
+
+  @override
+  String get chatSecurityVerificationDoneMessage =>
+      'This device is now verified.';
+
+  @override
+  String get chatSecurityVerificationCancelledMessage =>
+      'Verification was cancelled before it finished.';
+
+  @override
+  String get chatSecurityVerificationFailedMessage =>
+      'Verification could not be completed.';
+
+  @override
+  String get chatSecuritySetupDialogTitle => 'Set up encrypted chat';
+
+  @override
+  String get chatSecuritySetupDialogDescription =>
+      'You can optionally protect the Matrix recovery key with a memorable passphrase. Leave this blank to use a generated recovery key instead.';
+
+  @override
+  String get chatSecurityOptionalPassphraseLabel => 'Optional passphrase';
+
+  @override
+  String get chatSecurityDialogCancelButton => 'Cancel';
+
+  @override
+  String get chatSecurityDialogContinueButton => 'Continue';
+
+  @override
+  String get chatSecurityRestoreDialogTitle => 'Reconnect encrypted chat';
+
+  @override
+  String get chatSecurityRestoreDialogDescription =>
+      'Enter the Matrix recovery key or recovery passphrase that was created when encrypted chat was first set up.';
+
+  @override
+  String get chatSecurityRecoveryKeyFieldLabel =>
+      'Recovery key or passphrase';
+
+  @override
+  String get chatSecurityRecoveryKeyDismissButton => 'I saved it';
+
+  @override
+  String get chatSecurityEmojiSummaryLabel => 'Security emoji';
+
+  @override
+  String chatSecurityNumbersSummaryLabel(String value) {
+    return 'Security numbers $value';
+  }
+
+  @override
   String get settingsServerConfigurationTitle => 'Server Configuration';
 
   @override

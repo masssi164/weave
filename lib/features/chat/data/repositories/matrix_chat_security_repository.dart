@@ -2,7 +2,8 @@ import 'package:weave/features/chat/data/services/matrix_client.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_security_repository.dart';
-import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
+import 'package:weave/features/server_config/domain/repositories/'
+    'server_configuration_repository.dart';
 
 class MatrixChatSecurityRepository implements ChatSecurityRepository {
   const MatrixChatSecurityRepository({
@@ -13,6 +14,11 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
 
   final MatrixClient _client;
   final ServerConfigurationRepository _serverConfigurationRepository;
+
+  @override
+  Stream<ChatVerificationSession> watchVerificationUpdates() {
+    return _client.verificationUpdates.map(_mapVerificationSnapshot);
+  }
 
   @override
   Future<ChatSecurityState> loadSecurityState({bool refresh = false}) async {
@@ -144,32 +150,37 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
       secretStorageReady: snapshot.secretStorageReady,
       crossSigningReady: snapshot.crossSigningReady,
       hasEncryptedConversations: snapshot.hasEncryptedConversations,
-      verificationSession: ChatVerificationSession(
-        phase: switch (snapshot.verification.phase) {
-          MatrixVerificationPhase.none => ChatVerificationPhase.none,
-          MatrixVerificationPhase.incomingRequest =>
-            ChatVerificationPhase.incomingRequest,
-          MatrixVerificationPhase.chooseMethod =>
-            ChatVerificationPhase.chooseMethod,
-          MatrixVerificationPhase.waitingForOtherDevice =>
-            ChatVerificationPhase.waitingForOtherDevice,
-          MatrixVerificationPhase.compareSas =>
-            ChatVerificationPhase.compareSas,
-          MatrixVerificationPhase.done => ChatVerificationPhase.done,
-          MatrixVerificationPhase.cancelled => ChatVerificationPhase.cancelled,
-          MatrixVerificationPhase.failed => ChatVerificationPhase.failed,
-        },
-        message: snapshot.verification.message,
-        sasNumbers: snapshot.verification.sasNumbers,
-        sasEmojis: snapshot.verification.sasEmojis
-            .map(
-              (emoji) => ChatVerificationEmoji(
-                symbol: emoji.symbol,
-                label: emoji.label,
-              ),
-            )
-            .toList(growable: false),
-      ),
+      verificationSession: _mapVerificationSnapshot(snapshot.verification),
+    );
+  }
+
+  ChatVerificationSession _mapVerificationSnapshot(
+    MatrixVerificationSnapshot snapshot,
+  ) {
+    return ChatVerificationSession(
+      phase: switch (snapshot.phase) {
+        MatrixVerificationPhase.none => ChatVerificationPhase.none,
+        MatrixVerificationPhase.incomingRequest =>
+          ChatVerificationPhase.incomingRequest,
+        MatrixVerificationPhase.chooseMethod =>
+          ChatVerificationPhase.chooseMethod,
+        MatrixVerificationPhase.waitingForOtherDevice =>
+          ChatVerificationPhase.waitingForOtherDevice,
+        MatrixVerificationPhase.compareSas => ChatVerificationPhase.compareSas,
+        MatrixVerificationPhase.done => ChatVerificationPhase.done,
+        MatrixVerificationPhase.cancelled => ChatVerificationPhase.cancelled,
+        MatrixVerificationPhase.failed => ChatVerificationPhase.failed,
+      },
+      message: snapshot.message,
+      sasNumbers: snapshot.sasNumbers,
+      sasEmojis: snapshot.sasEmojis
+          .map(
+            (emoji) => ChatVerificationEmoji(
+              symbol: emoji.symbol,
+              label: emoji.label,
+            ),
+          )
+          .toList(growable: false),
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_security_repository.dart';
 
@@ -12,18 +14,33 @@ class FakeChatSecurityRepository implements ChatSecurityRepository {
     this.confirmSasHandler,
     this.cancelVerificationHandler,
     this.dismissVerificationResultHandler,
-  });
+    Stream<ChatVerificationSession>? verificationUpdates,
+  }) {
+    verificationUpdates?.listen(_verificationUpdatesController.add);
+  }
 
   Future<ChatSecurityState> Function({bool refresh})? loadSecurityStateHandler;
   Future<String> Function({String? passphrase})? bootstrapSecurityHandler;
   Future<void> Function({required String recoveryKeyOrPassphrase})?
-  restoreSecurityHandler;
+      restoreSecurityHandler;
   Future<void> Function()? startVerificationHandler;
   Future<void> Function()? acceptVerificationHandler;
   Future<void> Function()? startSasVerificationHandler;
   Future<void> Function({required bool matches})? confirmSasHandler;
   Future<void> Function()? cancelVerificationHandler;
   Future<void> Function()? dismissVerificationResultHandler;
+  final StreamController<ChatVerificationSession>
+      _verificationUpdatesController =
+      StreamController<ChatVerificationSession>.broadcast();
+
+  @override
+  Stream<ChatVerificationSession> watchVerificationUpdates() {
+    return _verificationUpdatesController.stream;
+  }
+
+  void emitVerificationUpdate(ChatVerificationSession session) {
+    _verificationUpdatesController.add(session);
+  }
 
   @override
   Future<void> acceptVerification() async {
@@ -68,7 +85,9 @@ class FakeChatSecurityRepository implements ChatSecurityRepository {
   }
 
   @override
-  Future<void> restoreSecurity({required String recoveryKeyOrPassphrase}) async {
+  Future<void> restoreSecurity({
+    required String recoveryKeyOrPassphrase,
+  }) async {
     await restoreSecurityHandler?.call(
       recoveryKeyOrPassphrase: recoveryKeyOrPassphrase,
     );

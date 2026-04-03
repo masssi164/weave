@@ -36,6 +36,9 @@ class SdkMatrixClient implements MatrixClient {
   sdk.Client? _client;
   Future<sdk.Client>? _clientFuture;
   StreamSubscription<sdk.KeyVerification>? _verificationSubscription;
+  final StreamController<MatrixVerificationSnapshot>
+  _verificationUpdatesController =
+      StreamController<MatrixVerificationSnapshot>.broadcast();
   sdk.KeyVerification? _activeVerification;
 
   static final Uri _redirectUri = Uri.parse(matrixOidcRedirectUri);
@@ -66,6 +69,10 @@ class SdkMatrixClient implements MatrixClient {
   static Future<void> _ensureVodozemacInitialized() {
     return _vodozemacInitFuture ??= vod.init();
   }
+
+  @override
+  Stream<MatrixVerificationSnapshot> get verificationUpdates =>
+      _verificationUpdatesController.stream;
 
   @override
   Future<List<MatrixRoomSnapshot>> loadConversations({
@@ -142,7 +149,8 @@ class SdkMatrixClient implements MatrixClient {
 
       if (code == null || code.isEmpty || state == null || state.isEmpty) {
         throw const ChatFailure.protocol(
-          'The Matrix homeserver sign-in callback did not include the expected authorization response.',
+          'The Matrix homeserver sign-in callback did not include the '
+          'expected authorization response.',
         );
       }
 
@@ -259,7 +267,7 @@ class SdkMatrixClient implements MatrixClient {
         );
       }
 
-      _activeVerification = await ownKeys.startVerification();
+      _setActiveVerification(await ownKeys.startVerification());
     } on ChatFailure {
       rethrow;
     } catch (error) {
@@ -278,6 +286,7 @@ class SdkMatrixClient implements MatrixClient {
     try {
       await client.oneShotSync();
       await verification.acceptVerification();
+      _emitVerificationUpdate();
     } catch (error) {
       throw _mapError(
         error,
@@ -299,6 +308,7 @@ class SdkMatrixClient implements MatrixClient {
         );
       }
       await verification.continueVerification(sdk.EventTypes.Sas);
+      _emitVerificationUpdate();
     } catch (error) {
       throw _mapError(
         error,
@@ -322,6 +332,7 @@ class SdkMatrixClient implements MatrixClient {
       } else {
         await verification.rejectSas();
       }
+      _emitVerificationUpdate();
     } catch (error) {
       throw _mapError(
         error,
@@ -338,6 +349,7 @@ class SdkMatrixClient implements MatrixClient {
     try {
       await client.oneShotSync();
       await verification.cancel('m.user');
+      _emitVerificationUpdate();
     } catch (error) {
       throw _mapError(
         error,
@@ -349,12 +361,10 @@ class SdkMatrixClient implements MatrixClient {
   @override
   Future<void> dismissVerificationResult({required Uri homeserver}) async {
     await _loggedInClient(homeserver);
-    final verification = _activeVerification;
-    if (verification == null || !verification.isDone) {
+    if (_activeVerification == null) {
       return;
     }
-    verification.dispose();
-    _activeVerification = null;
+    _clearActiveVerification();
   }
 
   @override
@@ -479,11 +489,54 @@ class SdkMatrixClient implements MatrixClient {
     _verificationSubscription ??= client.onKeyVerificationRequest.stream.listen((
       request,
     ) {
-      _activeVerification = request;
+      _setActiveVerification(request);
     });
   }
 
-  Future<MatrixSecuritySnapshot> _buildSecuritySnapshot(sdk.Client client) async {
+  void _setActiveVerification(sdk.KeyVerification request) {
+    if (identical(_activeVerification, request)) {
+      _emitVerificationUpdate();
+      return;
+    }
+
+    _detachVerification(_activeVerification);
+    _activeVerification = request;
+    request.onUpdate = _emitVerificationUpdate;
+    _emitVerificationUpdate();
+  }
+
+  void _clearActiveVerification() {
+    _detachVerification(_activeVerification, dispose: true);
+    _activeVerification = null;
+    _emitVerificationUpdate();
+  }
+
+  void _detachVerification(
+    sdk.KeyVerification? verification, {
+    bool dispose = true,
+  }) {
+    if (verification == null) {
+      return;
+    }
+
+    verification.onUpdate = null;
+    if (dispose) {
+      verification.dispose();
+    }
+  }
+
+  void _emitVerificationUpdate() {
+    final activeVerification = _activeVerification;
+    if (_verificationUpdatesController.isClosed) {
+      return;
+    }
+
+    _verificationUpdatesController.add(_verificationSnapshot(activeVerification));
+  }
+
+  Future<MatrixSecuritySnapshot> _buildSecuritySnapshot(
+    sdk.Client client,
+  ) async {
     final encryption = client.encryption;
     if (encryption == null || !client.encryptionEnabled) {
       return const MatrixSecuritySnapshot(
@@ -694,8 +747,7 @@ class SdkMatrixClient implements MatrixClient {
   }
 
   void _disposeActiveVerification() {
-    _activeVerification?.dispose();
-    _activeVerification = null;
+    _clearActiveVerification();
   }
 
   Future<void> _clearSessionIfHomeserverChanged(

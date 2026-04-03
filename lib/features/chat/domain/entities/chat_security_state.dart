@@ -36,6 +36,13 @@ enum ChatVerificationPhase {
   failed,
 }
 
+enum ChatSecurityActionNotice {
+  setupComplete,
+  recoveryRestored,
+  verificationRequestSent,
+  verificationCancelled,
+}
+
 class ChatVerificationEmoji {
   const ChatVerificationEmoji({required this.symbol, required this.label});
 

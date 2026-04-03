@@ -70,7 +70,7 @@ void main() {
       final state = container.read(chatSecurityProvider);
 
       expect(state.generatedRecoveryKey, 'ABC-123');
-      expect(state.lastActionMessage, contains('Save your recovery key'));
+      expect(state.lastActionNotice, ChatSecurityActionNotice.setupComplete);
     });
 
     test('surfaces repository failures', () async {
@@ -90,6 +90,52 @@ void main() {
       final state = container.read(chatSecurityProvider);
 
       expect(state.failure?.type, ChatFailureType.storage);
+    });
+
+    test('refreshes when a verification event arrives', () async {
+      var loadCount = 0;
+      final repository = FakeChatSecurityRepository(
+        loadSecurityStateHandler: ({bool refresh = false}) async {
+          loadCount++;
+          return ChatSecurityState(
+            isMatrixSignedIn: true,
+            bootstrapState: ChatSecurityBootstrapState.ready,
+            accountVerificationState: ChatAccountVerificationState.verified,
+            deviceVerificationState: ChatDeviceVerificationState.verified,
+            keyBackupState: ChatKeyBackupState.ready,
+            roomEncryptionReadiness: ChatRoomEncryptionReadiness.ready,
+            secretStorageReady: true,
+            crossSigningReady: true,
+            hasEncryptedConversations: true,
+            verificationSession: loadCount > 1
+                ? const ChatVerificationSession(
+                    phase: ChatVerificationPhase.incomingRequest,
+                  )
+                : const ChatVerificationSession.none(),
+          );
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          chatSecurityRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(chatSecurityProvider.notifier).refresh();
+      repository.emitVerificationUpdate(
+        const ChatVerificationSession(
+          phase: ChatVerificationPhase.incomingRequest,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        container.read(chatSecurityProvider).security?.verificationSession.phase,
+        ChatVerificationPhase.incomingRequest,
+      );
+      expect(loadCount, greaterThanOrEqualTo(2));
     });
   });
 }

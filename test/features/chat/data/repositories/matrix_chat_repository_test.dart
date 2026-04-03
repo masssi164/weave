@@ -15,6 +15,10 @@ class _FakeMatrixClient implements MatrixClient {
   List<MatrixRoomSnapshot> rooms = const <MatrixRoomSnapshot>[];
 
   @override
+  Stream<MatrixVerificationSnapshot> get verificationUpdates =>
+      const Stream<MatrixVerificationSnapshot>.empty();
+
+  @override
   Future<void> acceptVerification({required Uri homeserver}) async {}
 
   @override
