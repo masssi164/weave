@@ -6,6 +6,10 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/files/data/repositories/nextcloud_files_repository.dart';
+import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/files_connection_state.dart';
+import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -68,15 +72,38 @@ class _FakeServerConfigurationRepository
   }
 }
 
+class _FakeFilesRepository implements FilesRepository {
+  int disconnectCalls = 0;
+
+  @override
+  Future<FilesConnectionState> connect() async =>
+      const FilesConnectionState.disconnected();
+
+  @override
+  Future<void> disconnect() async {
+    disconnectCalls++;
+  }
+
+  @override
+  Future<DirectoryListing> listDirectory(String path) async =>
+      const DirectoryListing(path: '/', entries: []);
+
+  @override
+  Future<FilesConnectionState> restoreConnection() async =>
+      const FilesConnectionState.disconnected();
+}
+
 void main() {
   group('AppSessionCoordinator', () {
     test('signOut clears app auth and Matrix session state', () async {
       final authRepository = _FakeAuthSessionRepository();
       final chatRepository = FakeChatRepository();
+      final filesRepository = _FakeFilesRepository();
       final container = ProviderContainer(
         overrides: [
           authSessionRepositoryProvider.overrideWithValue(authRepository),
           chatRepositoryProvider.overrideWithValue(chatRepository),
+          filesRepositoryProvider.overrideWithValue(filesRepository),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) => _FakeServerConfigurationRepository(
               configuration: buildTestConfiguration(),
@@ -92,6 +119,7 @@ void main() {
 
       expect(authRepository.signOutCalls, 1);
       expect(chatRepository.signOutCalls, 1);
+      expect(filesRepository.disconnectCalls, 1);
       expect(container.read(matrixSessionInvalidationProvider), 1);
     });
 
@@ -100,6 +128,7 @@ void main() {
       () async {
         final authRepository = _FakeAuthSessionRepository();
         final chatRepository = FakeChatRepository();
+        final filesRepository = _FakeFilesRepository();
         final serverRepository = _FakeServerConfigurationRepository(
           configuration: buildTestConfiguration(),
         );
@@ -107,6 +136,7 @@ void main() {
           overrides: [
             authSessionRepositoryProvider.overrideWithValue(authRepository),
             chatRepositoryProvider.overrideWithValue(chatRepository),
+            filesRepositoryProvider.overrideWithValue(filesRepository),
             serverConfigurationRepositoryProvider.overrideWith(
               (ref) => serverRepository,
             ),
@@ -118,6 +148,7 @@ void main() {
 
         expect(authRepository.clearLocalSessionCalls, 1);
         expect(chatRepository.clearSessionCalls, 1);
+        expect(filesRepository.disconnectCalls, 1);
         expect(serverRepository.clearConfigurationCalls, 1);
         expect(container.read(matrixSessionInvalidationProvider), 1);
       },
@@ -126,10 +157,12 @@ void main() {
     test('homeserver changes clear only the Matrix session', () async {
       final authRepository = _FakeAuthSessionRepository();
       final chatRepository = FakeChatRepository();
+      final filesRepository = _FakeFilesRepository();
       final container = ProviderContainer(
         overrides: [
           authSessionRepositoryProvider.overrideWithValue(authRepository),
           chatRepositoryProvider.overrideWithValue(chatRepository),
+          filesRepositoryProvider.overrideWithValue(filesRepository),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) => _FakeServerConfigurationRepository(
               configuration: buildTestConfiguration(),
@@ -146,12 +179,49 @@ void main() {
               configuration: buildTestConfiguration(),
               authConfigurationChanged: false,
               matrixHomeserverChanged: true,
+              nextcloudBaseUrlChanged: false,
             ),
           );
 
       expect(authRepository.clearLocalSessionCalls, 0);
       expect(chatRepository.clearSessionCalls, 1);
+      expect(filesRepository.disconnectCalls, 0);
       expect(container.read(matrixSessionInvalidationProvider), 1);
+    });
+
+    test('nextcloud URL changes clear only the Nextcloud session', () async {
+      final authRepository = _FakeAuthSessionRepository();
+      final chatRepository = FakeChatRepository();
+      final filesRepository = _FakeFilesRepository();
+      final container = ProviderContainer(
+        overrides: [
+          authSessionRepositoryProvider.overrideWithValue(authRepository),
+          chatRepositoryProvider.overrideWithValue(chatRepository),
+          filesRepositoryProvider.overrideWithValue(filesRepository),
+          serverConfigurationRepositoryProvider.overrideWith(
+            (ref) => _FakeServerConfigurationRepository(
+              configuration: buildTestConfiguration(),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container
+          .read(appSessionCoordinatorProvider)
+          .handleConfigurationSaved(
+            ServerConfigurationSaveResult(
+              configuration: buildTestConfiguration(),
+              authConfigurationChanged: false,
+              matrixHomeserverChanged: false,
+              nextcloudBaseUrlChanged: true,
+            ),
+          );
+
+      expect(authRepository.clearLocalSessionCalls, 0);
+      expect(chatRepository.clearSessionCalls, 0);
+      expect(filesRepository.disconnectCalls, 1);
+      expect(container.read(matrixSessionInvalidationProvider), 0);
     });
   });
 }

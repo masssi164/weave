@@ -1,0 +1,98 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:weave/features/files/data/services/nextcloud_client.dart';
+import 'package:weave/features/files/domain/entities/files_failure.dart';
+import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
+
+void main() {
+  group('NextcloudClient', () {
+    test('listDirectory maps WebDAV responses into file entries', () async {
+      final client = NextcloudClient(
+        httpClient: MockClient((request) async {
+          expect(request.method, 'PROPFIND');
+          return http.Response(_multistatusResponse, 207);
+        }),
+      );
+
+      final listing = await client.listDirectory(
+        NextcloudSession(
+          baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+          loginName: 'alice@example.com',
+          userId: 'alice',
+          appPassword: 'app-password',
+        ),
+        '/',
+      );
+
+      expect(listing.path, '/');
+      expect(listing.entries, hasLength(2));
+      expect(listing.entries.first.name, 'Documents');
+      expect(listing.entries.first.isDirectory, isTrue);
+      expect(listing.entries.last.name, 'Notes.txt');
+      expect(listing.entries.last.isDirectory, isFalse);
+    });
+
+    test('listDirectory surfaces invalid credentials from WebDAV', () async {
+      final client = NextcloudClient(
+        httpClient: MockClient((request) async => http.Response('', 401)),
+      );
+
+      await expectLater(
+        client.listDirectory(
+          NextcloudSession(
+            baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+            loginName: 'alice@example.com',
+            userId: 'alice',
+            appPassword: 'app-password',
+          ),
+          '/',
+        ),
+        throwsA(
+          isA<FilesFailure>().having(
+            (failure) => failure.type,
+            'type',
+            FilesFailureType.invalidCredentials,
+          ),
+        ),
+      );
+    });
+  });
+}
+
+const _multistatusResponse = '''<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+  <d:response>
+    <d:href>/remote.php/dav/files/alice/</d:href>
+    <d:propstat>
+      <d:status>HTTP/1.1 200 OK</d:status>
+      <d:prop>
+        <d:displayname>alice</d:displayname>
+        <d:resourcetype><d:collection /></d:resourcetype>
+      </d:prop>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/files/alice/Documents/</d:href>
+    <d:propstat>
+      <d:status>HTTP/1.1 200 OK</d:status>
+      <d:prop>
+        <d:displayname>Documents</d:displayname>
+        <d:resourcetype><d:collection /></d:resourcetype>
+        <oc:fileid>10</oc:fileid>
+      </d:prop>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/files/alice/Notes.txt</d:href>
+    <d:propstat>
+      <d:status>HTTP/1.1 200 OK</d:status>
+      <d:prop>
+        <d:displayname>Notes.txt</d:displayname>
+        <d:getcontentlength>12</d:getcontentlength>
+        <oc:fileid>11</oc:fileid>
+      </d:prop>
+    </d:propstat>
+  </d:response>
+</d:multistatus>
+''';

@@ -99,7 +99,7 @@ Current repository-first stub boundaries:
 
 - `auth` -> `AuthSessionRepository` + `OidcClient`
 - `chat` -> `ChatRepository` + `MatrixClient`
-- `files` -> `FilesRepository` + `WebDavClient`
+- `files` -> `FilesRepository` + `NextcloudAuthClient` + `NextcloudClient`
 - `calendar` -> `CalendarRepository` + `CalDavClient`
 - `deck` -> `DeckRepository` + `DeckClient`
 

@@ -22,8 +22,11 @@ dependencies:
   matrix: ^6.2.0
   flutter_vodozemac: ^0.5.0
   flutter_web_auth_2: ^4.1.0
+  http: ^1.2.2
   path_provider: ^2.1.5
   sqflite: ^2.4.1
+  url_launcher: ^6.3.1
+  xml: ^6.5.0
 
 dev_dependencies:
   flutter_test:

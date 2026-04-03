@@ -111,7 +111,9 @@ class AuthFlowController extends Notifier<AuthFlowState> {
   ) async {
     ref.invalidate(savedServerConfigurationProvider);
 
-    if (!result.authConfigurationChanged && !result.matrixHomeserverChanged) {
+    if (!result.authConfigurationChanged &&
+        !result.matrixHomeserverChanged &&
+        !result.nextcloudBaseUrlChanged) {
       return;
     }
 
