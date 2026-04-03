@@ -86,6 +86,12 @@ class _FakeMatrixClient implements MatrixClient {
   Future<void> startSasVerification({required Uri homeserver}) async {}
 
   @override
+  Future<void> unlockVerification({
+    required Uri homeserver,
+    required String recoveryKeyOrPassphrase,
+  }) async {}
+
+  @override
   Future<void> startVerification({required Uri homeserver}) async {}
 }
 
@@ -186,5 +192,43 @@ void main() {
         ),
       );
     });
+
+    test(
+      'maps verification recovery-key requests into chat-owned phases',
+      () async {
+        final client = _FakeMatrixClient()
+          ..snapshot = const MatrixSecuritySnapshot(
+            isMatrixSignedIn: true,
+            bootstrapState: MatrixSecurityBootstrapState.ready,
+            accountVerificationState: MatrixAccountVerificationState.verified,
+            deviceVerificationState: MatrixDeviceVerificationState.unverified,
+            keyBackupState: MatrixKeyBackupState.ready,
+            roomEncryptionReadiness: MatrixRoomEncryptionReadiness.ready,
+            secretStorageReady: true,
+            crossSigningReady: true,
+            hasEncryptedConversations: true,
+            verification: MatrixVerificationSnapshot(
+              phase: MatrixVerificationPhase.needsRecoveryKey,
+              message:
+                  'Enter your Matrix recovery key or passphrase to continue verification.',
+            ),
+          );
+
+        final repository = MatrixChatSecurityRepository(
+          client: client,
+          serverConfigurationRepository: _FakeServerConfigurationRepository(
+            buildTestConfiguration(),
+          ),
+        );
+
+        final security = await repository.loadSecurityState();
+
+        expect(
+          security.verificationSession.phase,
+          ChatVerificationPhase.needsRecoveryKey,
+        );
+        expect(security.verificationSession.message, contains('recovery key'));
+      },
+    );
   });
 }

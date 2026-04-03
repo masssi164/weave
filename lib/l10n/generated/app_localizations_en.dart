@@ -159,9 +159,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatSecurityBannerTitle => 'Matrix security needs attention';
 
   @override
-  String get chatSecurityOpenSettingsButton => 'Open security settings';
-
-  @override
   String get chatSecurityBannerSetupMessage =>
       'Encrypted Matrix rooms are available, but this account still needs initial security setup.';
 
@@ -176,6 +173,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatSecurityBannerMissingBackupMessage =>
       'Matrix key backup is still missing. Set it up before relying on encrypted chat recovery.';
+
+  @override
+  String get chatSecurityOpenSettingsButton => 'Open security settings';
 
   @override
   String get chatSecuritySetupCardTitle => 'Setup';
@@ -310,6 +310,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatSecurityCompareEmojiButton => 'Compare security emoji';
 
   @override
+  String get chatSecurityUnlockVerificationButton =>
+      'Continue verification with recovery key';
+
+  @override
   String get chatSecurityEmojiMatchButton => 'Emoji match';
 
   @override
@@ -354,6 +358,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Waiting for the other device to continue verification.';
 
   @override
+  String get chatSecurityVerificationRecoveryMessage =>
+      'This verification needs your Matrix recovery key or passphrase before it can continue.';
+
+  @override
+  String get chatSecurityVerificationRecoveryHelp =>
+      'Unlock the existing Matrix secret storage to let this device complete verification safely.';
+
+  @override
   String get chatSecurityVerificationCompareMessage =>
       'Compare the security emoji or numbers on both devices.';
 
@@ -393,8 +405,15 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter the Matrix recovery key or recovery passphrase that was created when encrypted chat was first set up.';
 
   @override
-  String get chatSecurityRecoveryKeyFieldLabel =>
-      'Recovery key or passphrase';
+  String get chatSecurityVerificationRecoveryDialogTitle =>
+      'Continue verification';
+
+  @override
+  String get chatSecurityVerificationRecoveryDialogDescription =>
+      'Enter your Matrix recovery key or passphrase to continue this verification. This unlocks the secrets needed for verification rather than reconnecting the whole account.';
+
+  @override
+  String get chatSecurityRecoveryKeyFieldLabel => 'Recovery key or passphrase';
 
   @override
   String get chatSecurityRecoveryKeyDismissButton => 'I saved it';

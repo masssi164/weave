@@ -35,7 +35,7 @@ class ChatScreen extends ConsumerWidget {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             sliver: SliverToBoxAdapter(
-              child: ChatSecurityBanner(security: security!),
+              child: ChatSecurityBanner(security: security),
             ),
           ),
         switch (state.phase) {

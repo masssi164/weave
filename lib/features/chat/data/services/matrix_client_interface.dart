@@ -14,7 +14,11 @@ enum MatrixSecurityBootstrapState {
   unavailable,
 }
 
-enum MatrixAccountVerificationState { verified, verificationRequired, unavailable }
+enum MatrixAccountVerificationState {
+  verified,
+  verificationRequired,
+  unavailable,
+}
 
 enum MatrixDeviceVerificationState {
   verified,
@@ -37,6 +41,7 @@ enum MatrixVerificationPhase {
   incomingRequest,
   chooseMethod,
   waitingForOtherDevice,
+  needsRecoveryKey,
   compareSas,
   done,
   cancelled,
@@ -143,10 +148,12 @@ abstract interface class MatrixClient {
 
   Future<void> startSasVerification({required Uri homeserver});
 
-  Future<void> confirmSas({
+  Future<void> unlockVerification({
     required Uri homeserver,
-    required bool matches,
+    required String recoveryKeyOrPassphrase,
   });
+
+  Future<void> confirmSas({required Uri homeserver, required bool matches});
 
   Future<void> cancelVerification({required Uri homeserver});
 

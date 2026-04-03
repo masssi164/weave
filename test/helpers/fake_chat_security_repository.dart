@@ -11,6 +11,7 @@ class FakeChatSecurityRepository implements ChatSecurityRepository {
     this.startVerificationHandler,
     this.acceptVerificationHandler,
     this.startSasVerificationHandler,
+    this.unlockVerificationHandler,
     this.confirmSasHandler,
     this.cancelVerificationHandler,
     this.dismissVerificationResultHandler,
@@ -22,15 +23,17 @@ class FakeChatSecurityRepository implements ChatSecurityRepository {
   Future<ChatSecurityState> Function({bool refresh})? loadSecurityStateHandler;
   Future<String> Function({String? passphrase})? bootstrapSecurityHandler;
   Future<void> Function({required String recoveryKeyOrPassphrase})?
-      restoreSecurityHandler;
+  restoreSecurityHandler;
   Future<void> Function()? startVerificationHandler;
   Future<void> Function()? acceptVerificationHandler;
   Future<void> Function()? startSasVerificationHandler;
+  Future<void> Function({required String recoveryKeyOrPassphrase})?
+  unlockVerificationHandler;
   Future<void> Function({required bool matches})? confirmSasHandler;
   Future<void> Function()? cancelVerificationHandler;
   Future<void> Function()? dismissVerificationResultHandler;
   final StreamController<ChatVerificationSession>
-      _verificationUpdatesController =
+  _verificationUpdatesController =
       StreamController<ChatVerificationSession>.broadcast();
 
   @override
@@ -96,6 +99,15 @@ class FakeChatSecurityRepository implements ChatSecurityRepository {
   @override
   Future<void> startSasVerification() async {
     await startSasVerificationHandler?.call();
+  }
+
+  @override
+  Future<void> unlockVerification({
+    required String recoveryKeyOrPassphrase,
+  }) async {
+    await unlockVerificationHandler?.call(
+      recoveryKeyOrPassphrase: recoveryKeyOrPassphrase,
+    );
   }
 
   @override

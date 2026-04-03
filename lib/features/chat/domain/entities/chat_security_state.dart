@@ -7,14 +7,13 @@ enum ChatSecurityBootstrapState {
   unavailable,
 }
 
-enum ChatAccountVerificationState { verified, verificationRequired, unavailable }
-
-enum ChatDeviceVerificationState {
+enum ChatAccountVerificationState {
   verified,
-  unverified,
-  blocked,
+  verificationRequired,
   unavailable,
 }
+
+enum ChatDeviceVerificationState { verified, unverified, blocked, unavailable }
 
 enum ChatKeyBackupState { unavailable, missing, recoveryRequired, ready }
 
@@ -30,6 +29,7 @@ enum ChatVerificationPhase {
   incomingRequest,
   chooseMethod,
   waitingForOtherDevice,
+  needsRecoveryKey,
   compareSas,
   done,
   cancelled,
@@ -58,7 +58,8 @@ class ChatVerificationSession {
     this.sasEmojis = const <ChatVerificationEmoji>[],
   });
 
-  const ChatVerificationSession.none() : this(phase: ChatVerificationPhase.none);
+  const ChatVerificationSession.none()
+    : this(phase: ChatVerificationPhase.none);
 
   final ChatVerificationPhase phase;
   final String? message;
@@ -68,6 +69,7 @@ class ChatVerificationSession {
   bool get isActionable =>
       phase == ChatVerificationPhase.incomingRequest ||
       phase == ChatVerificationPhase.chooseMethod ||
+      phase == ChatVerificationPhase.needsRecoveryKey ||
       phase == ChatVerificationPhase.compareSas ||
       phase == ChatVerificationPhase.done ||
       phase == ChatVerificationPhase.cancelled ||
@@ -77,6 +79,7 @@ class ChatVerificationSession {
       phase == ChatVerificationPhase.incomingRequest ||
       phase == ChatVerificationPhase.chooseMethod ||
       phase == ChatVerificationPhase.waitingForOtherDevice ||
+      phase == ChatVerificationPhase.needsRecoveryKey ||
       phase == ChatVerificationPhase.compareSas;
 }
 
@@ -110,7 +113,8 @@ class ChatSecurityState {
       bootstrapState == ChatSecurityBootstrapState.notInitialized ||
       bootstrapState == ChatSecurityBootstrapState.partiallyInitialized ||
       bootstrapState == ChatSecurityBootstrapState.recoveryRequired ||
-      accountVerificationState == ChatAccountVerificationState.verificationRequired ||
+      accountVerificationState ==
+          ChatAccountVerificationState.verificationRequired ||
       deviceVerificationState != ChatDeviceVerificationState.verified ||
       keyBackupState == ChatKeyBackupState.missing ||
       keyBackupState == ChatKeyBackupState.recoveryRequired ||

@@ -15,6 +15,8 @@ abstract interface class ChatSecurityRepository {
 
   Future<void> startSasVerification();
 
+  Future<void> unlockVerification({required String recoveryKeyOrPassphrase});
+
   Future<void> confirmSas({required bool matches});
 
   Future<void> cancelVerification();

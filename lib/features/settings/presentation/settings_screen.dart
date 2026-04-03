@@ -56,12 +56,12 @@ class SettingsScreen extends ConsumerWidget {
                           .read(authFlowControllerProvider.notifier)
                           .handleConfigurationSaved(result);
                     },
-                   ),
-                   const SizedBox(height: 32),
-                   const ChatSecuritySettingsSection(),
-                   const SizedBox(height: 32),
-                   Text(
-                     l10n.settingsSignOutTitle,
+                  ),
+                  const SizedBox(height: 32),
+                  const ChatSecuritySettingsSection(),
+                  const SizedBox(height: 32),
+                  Text(
+                    l10n.settingsSignOutTitle,
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 12),

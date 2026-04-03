@@ -380,81 +380,460 @@ abstract class AppLocalizations {
   /// **'Matrix security needs attention'**
   String get chatSecurityBannerTitle;
 
+  /// Banner body when Matrix encryption setup has not been completed yet
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted Matrix rooms are available, but this account still needs initial security setup.'**
+  String get chatSecurityBannerSetupMessage;
+
+  /// Banner body when Matrix recovery is required on the current device
+  ///
+  /// In en, this message translates to:
+  /// **'This device needs your Matrix recovery key before older encrypted messages can be trusted again.'**
+  String get chatSecurityBannerRecoveryMessage;
+
+  /// Banner body when Matrix device or account verification still needs attention
+  ///
+  /// In en, this message translates to:
+  /// **'This device or account is not fully verified yet. Compare security emoji with another signed-in Matrix device.'**
+  String get chatSecurityBannerVerificationMessage;
+
+  /// Banner body when Matrix key backup has not been configured
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix key backup is still missing. Set it up before relying on encrypted chat recovery.'**
+  String get chatSecurityBannerMissingBackupMessage;
+
   /// Button label that opens settings from the Matrix security banner
   ///
   /// In en, this message translates to:
   /// **'Open security settings'**
   String get chatSecurityOpenSettingsButton;
 
-  String get chatSecurityBannerSetupMessage;
-  String get chatSecurityBannerRecoveryMessage;
-  String get chatSecurityBannerVerificationMessage;
-  String get chatSecurityBannerMissingBackupMessage;
+  /// Title for the Matrix security setup status card
+  ///
+  /// In en, this message translates to:
+  /// **'Setup'**
   String get chatSecuritySetupCardTitle;
+
+  /// Title for the Matrix security current device status card
+  ///
+  /// In en, this message translates to:
+  /// **'Current device'**
   String get chatSecurityCurrentDeviceCardTitle;
+
+  /// Title for the Matrix security recovery status card
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery and key backup'**
   String get chatSecurityRecoveryCardTitle;
+
+  /// Description in the Matrix recovery card
+  ///
+  /// In en, this message translates to:
+  /// **'The recovery key is needed when this device is replaced, reinstalled, or loses local crypto secrets.'**
   String get chatSecurityRecoveryCardBody;
+
+  /// Title for the Matrix encrypted rooms status card
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted rooms'**
   String get chatSecurityEncryptedRoomsCardTitle;
+
+  /// Description when encrypted rooms exist on the Matrix account
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted rooms already exist on this account. Warnings stay visible until trust and recovery are healthy.'**
   String get chatSecurityEncryptedRoomsCardBodyExisting;
+
+  /// Description when no encrypted rooms are known yet
+  ///
+  /// In en, this message translates to:
+  /// **'No encrypted rooms are known yet, but the account security state is still tracked here.'**
   String get chatSecurityEncryptedRoomsCardBodyNone;
+
+  /// Status label when Matrix is not connected
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix not connected'**
   String get chatSecurityStatusSignedOut;
+
+  /// Status label when Matrix encrypted chat setup is required
+  ///
+  /// In en, this message translates to:
+  /// **'Setup required'**
   String get chatSecurityStatusSetupRequired;
+
+  /// Status label when Matrix encrypted chat setup is only partially complete
+  ///
+  /// In en, this message translates to:
+  /// **'Setup incomplete'**
   String get chatSecurityStatusSetupIncomplete;
+
+  /// Status label when Matrix recovery is required
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery required'**
   String get chatSecurityStatusRecoveryRequired;
+
+  /// Status label when Matrix security is healthy
+  ///
+  /// In en, this message translates to:
+  /// **'Healthy'**
   String get chatSecurityStatusHealthy;
+
+  /// Generic status label when Matrix security data is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
   String get chatSecurityStatusUnavailable;
+
+  /// Status label for a verified Matrix device
+  ///
+  /// In en, this message translates to:
+  /// **'Verified'**
   String get chatSecurityStatusVerified;
+
+  /// Status label for an unverified Matrix device
+  ///
+  /// In en, this message translates to:
+  /// **'Unverified'**
   String get chatSecurityStatusUnverified;
+
+  /// Status label for a blocked Matrix device
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
   String get chatSecurityStatusBlocked;
+
+  /// Status label when Matrix key backup is missing
+  ///
+  /// In en, this message translates to:
+  /// **'Missing'**
   String get chatSecurityStatusMissing;
+
+  /// Status label when Matrix recovery material needs to be reconnected on the device
+  ///
+  /// In en, this message translates to:
+  /// **'Needs reconnect'**
   String get chatSecurityStatusNeedsReconnect;
+
+  /// Status label when a Matrix security feature is ready
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
   String get chatSecurityStatusReady;
+
+  /// Status label when there are no encrypted Matrix rooms yet
+  ///
+  /// In en, this message translates to:
+  /// **'No encrypted rooms yet'**
   String get chatSecurityEncryptedRoomsStatusNone;
+
+  /// Status label when encrypted Matrix rooms need user attention
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted rooms need attention'**
   String get chatSecurityEncryptedRoomsStatusAttention;
+
+  /// Setup card description when Matrix is not connected
+  ///
+  /// In en, this message translates to:
+  /// **'Open Chat and connect Matrix before managing encryption.'**
   String get chatSecuritySetupDescriptionSignedOut;
+
+  /// Setup card description when Matrix encryption has not been initialized
+  ///
+  /// In en, this message translates to:
+  /// **'Set up secret storage, cross-signing, and online key backup before trusting encrypted rooms.'**
   String get chatSecuritySetupDescriptionNotInitialized;
+
+  /// Setup card description when Matrix encryption setup is incomplete
+  ///
+  /// In en, this message translates to:
+  /// **'Some encryption parts exist, but recovery or cross-signing is still incomplete.'**
   String get chatSecuritySetupDescriptionPartiallyInitialized;
+
+  /// Setup card description when Matrix recovery is required
+  ///
+  /// In en, this message translates to:
+  /// **'This account was set up before, but this device needs the recovery key or passphrase to reconnect safely.'**
   String get chatSecuritySetupDescriptionRecoveryRequired;
+
+  /// Setup card description when Matrix setup is healthy
+  ///
+  /// In en, this message translates to:
+  /// **'This device can use the current Matrix crypto identity and recovery setup.'**
   String get chatSecuritySetupDescriptionReady;
+
+  /// Setup card description when Matrix encryption is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix encryption is not available on this platform.'**
   String get chatSecuritySetupDescriptionUnavailable;
+
+  /// Current device card description when the device is verified
+  ///
+  /// In en, this message translates to:
+  /// **'Another trusted Matrix device has verified this session.'**
   String get chatSecurityCurrentDeviceDescriptionVerified;
+
+  /// Current device card description when the device is unverified
+  ///
+  /// In en, this message translates to:
+  /// **'Compare security emoji or numbers with another signed-in Matrix device.'**
   String get chatSecurityCurrentDeviceDescriptionUnverified;
+
+  /// Current device card description when the device is blocked
+  ///
+  /// In en, this message translates to:
+  /// **'This device is blocked or its trust chain is broken.'**
   String get chatSecurityCurrentDeviceDescriptionBlocked;
+
+  /// Current device card description when the device key is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'The current device key is not available yet.'**
   String get chatSecurityCurrentDeviceDescriptionUnavailable;
+
+  /// Message shown instead of actions when Matrix is not connected
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix security actions unlock after the Matrix session is connected.'**
   String get chatSecurityActionsUnavailableSignedOut;
+
+  /// Button label shown while a Matrix security action is running
+  ///
+  /// In en, this message translates to:
+  /// **'Working…'**
   String get chatSecurityWorkingButton;
+
+  /// Button label to initialize Matrix encrypted chat
+  ///
+  /// In en, this message translates to:
+  /// **'Set up encrypted chat'**
   String get chatSecuritySetupButton;
+
+  /// Button label to reconnect Matrix encrypted chat with recovery material
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect with recovery key'**
   String get chatSecurityReconnectButton;
+
+  /// Button label to start Matrix device verification
+  ///
+  /// In en, this message translates to:
+  /// **'Verify this device'**
   String get chatSecurityVerifyDeviceButton;
+
+  /// Button label to accept a Matrix verification request
+  ///
+  /// In en, this message translates to:
+  /// **'Accept verification'**
   String get chatSecurityAcceptVerificationButton;
+
+  /// Button label to decline a Matrix verification request
+  ///
+  /// In en, this message translates to:
+  /// **'Decline'**
   String get chatSecurityDeclineVerificationButton;
+
+  /// Button label to continue Matrix verification with SAS emoji
+  ///
+  /// In en, this message translates to:
+  /// **'Compare security emoji'**
   String get chatSecurityCompareEmojiButton;
+
+  /// Button label to continue Matrix verification by unlocking existing secret storage
+  ///
+  /// In en, this message translates to:
+  /// **'Continue verification with recovery key'**
+  String get chatSecurityUnlockVerificationButton;
+
+  /// Button label confirming the Matrix SAS emoji match
+  ///
+  /// In en, this message translates to:
+  /// **'Emoji match'**
   String get chatSecurityEmojiMatchButton;
+
+  /// Button label when the Matrix SAS emoji do not match
+  ///
+  /// In en, this message translates to:
+  /// **'They do not match'**
   String get chatSecurityEmojiMismatchButton;
+
+  /// Button label to dismiss a Matrix verification result
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
   String get chatSecurityDismissButton;
+
+  /// Message shown when there are no Matrix security actions to take
+  ///
+  /// In en, this message translates to:
+  /// **'No action is needed right now.'**
   String get chatSecurityNoActionNeeded;
+
+  /// Fallback error shown when Matrix security actions fail without a more specific message
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to update Matrix security right now.'**
   String get chatSecurityGenericFailure;
+
+  /// Feedback message shown after encrypted chat setup completes
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted chat is now set up. Save your recovery key before closing this screen.'**
   String get chatSecurityNoticeSetupComplete;
+
+  /// Feedback message shown after Matrix recovery succeeds
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted chat was reconnected for this device.'**
   String get chatSecurityNoticeRecoveryRestored;
+
+  /// Feedback message shown after starting Matrix device verification
+  ///
+  /// In en, this message translates to:
+  /// **'Verification request sent. Continue on your other Matrix device.'**
   String get chatSecurityNoticeVerificationRequestSent;
+
+  /// Feedback message shown after cancelling Matrix verification
+  ///
+  /// In en, this message translates to:
+  /// **'Verification cancelled.'**
   String get chatSecurityNoticeVerificationCancelled;
+
+  /// Message shown for an incoming Matrix verification request
+  ///
+  /// In en, this message translates to:
+  /// **'Another device wants to verify this session.'**
   String get chatSecurityVerificationIncomingMessage;
+
+  /// Message shown when the user should choose a Matrix verification method
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a verification method to compare both devices.'**
   String get chatSecurityVerificationChooseMethodMessage;
+
+  /// Message shown while Matrix verification waits for the other device
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the other device to continue verification.'**
   String get chatSecurityVerificationWaitingMessage;
+
+  /// Message shown when Matrix verification needs access to secret storage before continuing
+  ///
+  /// In en, this message translates to:
+  /// **'This verification needs your Matrix recovery key or passphrase before it can continue.'**
+  String get chatSecurityVerificationRecoveryMessage;
+
+  /// Help text shown when Matrix verification needs secret storage access
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock the existing Matrix secret storage to let this device complete verification safely.'**
+  String get chatSecurityVerificationRecoveryHelp;
+
+  /// Message shown while Matrix SAS values should be compared
+  ///
+  /// In en, this message translates to:
+  /// **'Compare the security emoji or numbers on both devices.'**
   String get chatSecurityVerificationCompareMessage;
+
+  /// Message shown after Matrix verification succeeds
+  ///
+  /// In en, this message translates to:
+  /// **'This device is now verified.'**
   String get chatSecurityVerificationDoneMessage;
+
+  /// Message shown after Matrix verification is cancelled
+  ///
+  /// In en, this message translates to:
+  /// **'Verification was cancelled before it finished.'**
   String get chatSecurityVerificationCancelledMessage;
+
+  /// Message shown after Matrix verification fails
+  ///
+  /// In en, this message translates to:
+  /// **'Verification could not be completed.'**
   String get chatSecurityVerificationFailedMessage;
+
+  /// Dialog title for initializing Matrix encrypted chat
+  ///
+  /// In en, this message translates to:
+  /// **'Set up encrypted chat'**
   String get chatSecuritySetupDialogTitle;
+
+  /// Dialog description for the Matrix encrypted chat setup flow
+  ///
+  /// In en, this message translates to:
+  /// **'You can optionally protect the Matrix recovery key with a memorable passphrase. Leave this blank to use a generated recovery key instead.'**
   String get chatSecuritySetupDialogDescription;
+
+  /// Field label for an optional Matrix recovery passphrase
+  ///
+  /// In en, this message translates to:
+  /// **'Optional passphrase'**
   String get chatSecurityOptionalPassphraseLabel;
+
+  /// Generic cancel button for Matrix security dialogs
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
   String get chatSecurityDialogCancelButton;
+
+  /// Continue button for the Matrix security setup dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
   String get chatSecurityDialogContinueButton;
+
+  /// Dialog title for reconnecting Matrix encrypted chat
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect encrypted chat'**
   String get chatSecurityRestoreDialogTitle;
+
+  /// Dialog description for reconnecting Matrix encrypted chat
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the Matrix recovery key or recovery passphrase that was created when encrypted chat was first set up.'**
   String get chatSecurityRestoreDialogDescription;
+
+  /// Dialog title for continuing Matrix verification with recovery material
+  ///
+  /// In en, this message translates to:
+  /// **'Continue verification'**
+  String get chatSecurityVerificationRecoveryDialogTitle;
+
+  /// Dialog description for continuing Matrix verification with recovery material
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your Matrix recovery key or passphrase to continue this verification. This unlocks the secrets needed for verification rather than reconnecting the whole account.'**
+  String get chatSecurityVerificationRecoveryDialogDescription;
+
+  /// Field label for Matrix recovery material
+  ///
+  /// In en, this message translates to:
+  /// **'Recovery key or passphrase'**
   String get chatSecurityRecoveryKeyFieldLabel;
+
+  /// Button label confirming the Matrix recovery key was saved
+  ///
+  /// In en, this message translates to:
+  /// **'I saved it'**
   String get chatSecurityRecoveryKeyDismissButton;
+
+  /// Accessibility label prefix for Matrix SAS emoji
+  ///
+  /// In en, this message translates to:
+  /// **'Security emoji'**
   String get chatSecurityEmojiSummaryLabel;
+
+  /// Accessibility label for Matrix SAS numbers
+  ///
+  /// In en, this message translates to:
+  /// **'Security numbers {value}'**
   String chatSecurityNumbersSummaryLabel(String value);
 
   /// Section title for server configuration in settings

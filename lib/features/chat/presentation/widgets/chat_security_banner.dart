@@ -19,11 +19,13 @@ class ChatSecurityBanner extends StatelessWidget {
         l10n.chatSecurityBannerSetupMessage,
       ChatSecurityBootstrapState.recoveryRequired =>
         l10n.chatSecurityBannerRecoveryMessage,
-      _ when security.accountVerificationState ==
-          ChatAccountVerificationState.verificationRequired =>
+      _
+          when security.accountVerificationState ==
+              ChatAccountVerificationState.verificationRequired =>
         l10n.chatSecurityBannerVerificationMessage,
-      _ when security.deviceVerificationState !=
-          ChatDeviceVerificationState.verified =>
+      _
+          when security.deviceVerificationState !=
+              ChatDeviceVerificationState.verified =>
         l10n.chatSecurityBannerVerificationMessage,
       _ when security.keyBackupState == ChatKeyBackupState.missing =>
         l10n.chatSecurityBannerMissingBackupMessage,

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_vodozemac/flutter_vodozemac.dart' as vod;
+import 'package:matrix/encryption.dart' as crypto;
 import 'package:matrix/encryption/utils/crypto_setup_extension.dart';
 import 'package:matrix/matrix.dart' as sdk;
 import 'package:path_provider/path_provider.dart';
@@ -35,11 +36,11 @@ class SdkMatrixClient implements MatrixClient {
 
   sdk.Client? _client;
   Future<sdk.Client>? _clientFuture;
-  StreamSubscription<sdk.KeyVerification>? _verificationSubscription;
+  StreamSubscription<crypto.KeyVerification>? _verificationSubscription;
   final StreamController<MatrixVerificationSnapshot>
   _verificationUpdatesController =
       StreamController<MatrixVerificationSnapshot>.broadcast();
-  sdk.KeyVerification? _activeVerification;
+  crypto.KeyVerification? _activeVerification;
 
   static final Uri _redirectUri = Uri.parse(matrixOidcRedirectUri);
   static final Uri _clientUri = Uri.parse(matrixOidcClientUri);
@@ -49,9 +50,9 @@ class SdkMatrixClient implements MatrixClient {
     return sdk.Client(
       'weave_matrix_chat',
       database: database,
-      verificationMethods: const <sdk.KeyVerificationMethod>{
-        sdk.KeyVerificationMethod.emoji,
-        sdk.KeyVerificationMethod.numbers,
+      verificationMethods: const <crypto.KeyVerificationMethod>{
+        crypto.KeyVerificationMethod.emoji,
+        crypto.KeyVerificationMethod.numbers,
       },
       nativeImplementations: sdk.NativeImplementationsIsolate(
         compute,
@@ -210,7 +211,9 @@ class SdkMatrixClient implements MatrixClient {
     final client = await _loggedInClient(homeserver);
 
     try {
-      final recoveryKey = await client.initCryptoIdentity(passphrase: passphrase);
+      final recoveryKey = await client.initCryptoIdentity(
+        passphrase: passphrase,
+      );
       await client.oneShotSync();
       return recoveryKey;
     } catch (error) {
@@ -259,8 +262,8 @@ class SdkMatrixClient implements MatrixClient {
         );
       }
       final otherDevices = ownKeys.deviceKeys.values
-              .where((device) => device.deviceId != deviceId)
-              .toList(growable: false);
+          .where((device) => device.deviceId != deviceId)
+          .toList(growable: false);
       if (otherDevices.isEmpty) {
         throw const ChatFailure.protocol(
           'Sign in on another Matrix device before starting verification here.',
@@ -313,6 +316,26 @@ class SdkMatrixClient implements MatrixClient {
       throw _mapError(
         error,
         fallback: 'Unable to continue verification with security numbers.',
+      );
+    }
+  }
+
+  @override
+  Future<void> unlockVerification({
+    required Uri homeserver,
+    required String recoveryKeyOrPassphrase,
+  }) async {
+    final client = await _loggedInClient(homeserver);
+    final verification = _requireVerification();
+
+    try {
+      await client.oneShotSync();
+      await verification.openSSSS(keyOrPassphrase: recoveryKeyOrPassphrase);
+      _emitVerificationUpdate();
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to continue verification with that recovery key.',
       );
     }
   }
@@ -496,14 +519,14 @@ class SdkMatrixClient implements MatrixClient {
   }
 
   void _bindVerificationListener(sdk.Client client) {
-    _verificationSubscription ??= client.onKeyVerificationRequest.stream.listen((
-      request,
-    ) {
-      _setActiveVerification(request);
-    });
+    _verificationSubscription ??= client.onKeyVerificationRequest.stream.listen(
+      (request) {
+        _setActiveVerification(request);
+      },
+    );
   }
 
-  void _setActiveVerification(sdk.KeyVerification request) {
+  void _setActiveVerification(crypto.KeyVerification request) {
     if (identical(_activeVerification, request)) {
       _emitVerificationUpdate();
       return;
@@ -522,7 +545,7 @@ class SdkMatrixClient implements MatrixClient {
   }
 
   void _detachVerification(
-    sdk.KeyVerification? verification, {
+    crypto.KeyVerification? verification, {
     bool dispose = true,
   }) {
     if (verification == null) {
@@ -541,7 +564,9 @@ class SdkMatrixClient implements MatrixClient {
       return;
     }
 
-    _verificationUpdatesController.add(_verificationSnapshot(activeVerification));
+    _verificationUpdatesController.add(
+      _verificationSnapshot(activeVerification),
+    );
   }
 
   Future<MatrixSecuritySnapshot> _buildSecuritySnapshot(
@@ -566,12 +591,10 @@ class SdkMatrixClient implements MatrixClient {
     final deviceId = client.deviceID;
     final ownKeys = userId == null ? null : client.userDeviceKeys[userId];
     final ownDevice = deviceId == null ? null : ownKeys?.deviceKeys[deviceId];
+    final cryptoIdentityState = await client.getCryptoIdentityState();
     final secretStorageReady = encryption.ssss.defaultKeyId != null;
     final crossSigningReady = encryption.crossSigning.enabled;
     final keyBackupReady = encryption.keyManager.enabled;
-    final crossSigningCached = crossSigningReady
-        ? await encryption.crossSigning.isCached()
-        : false;
     final keyBackupCached = keyBackupReady
         ? await encryption.keyManager.isCached()
         : false;
@@ -583,8 +606,8 @@ class SdkMatrixClient implements MatrixClient {
         secretStorageReady: secretStorageReady,
         crossSigningReady: crossSigningReady,
         keyBackupReady: keyBackupReady,
-        crossSigningCached: crossSigningCached,
-        keyBackupCached: keyBackupCached,
+        cryptoIdentityInitialized: cryptoIdentityState.initialized,
+        cryptoIdentityConnected: cryptoIdentityState.connected,
       ),
       accountVerificationState: _accountVerificationStateForKeys(ownKeys),
       deviceVerificationState: _deviceVerificationStateForDevice(ownDevice),
@@ -595,10 +618,9 @@ class SdkMatrixClient implements MatrixClient {
       roomEncryptionReadiness: _roomEncryptionReadinessForClient(
         client,
         secretStorageReady: secretStorageReady,
-        crossSigningReady: crossSigningReady,
         keyBackupReady: keyBackupReady,
-        crossSigningCached: crossSigningCached,
-        keyBackupCached: keyBackupCached,
+        cryptoIdentityInitialized: cryptoIdentityState.initialized,
+        cryptoIdentityConnected: cryptoIdentityState.connected,
       ),
       secretStorageReady: secretStorageReady,
       crossSigningReady: crossSigningReady,
@@ -612,8 +634,8 @@ class SdkMatrixClient implements MatrixClient {
     required bool secretStorageReady,
     required bool crossSigningReady,
     required bool keyBackupReady,
-    required bool crossSigningCached,
-    required bool keyBackupCached,
+    required bool cryptoIdentityInitialized,
+    required bool cryptoIdentityConnected,
   }) {
     if (!client.isLogged()) {
       return MatrixSecurityBootstrapState.signedOut;
@@ -621,10 +643,10 @@ class SdkMatrixClient implements MatrixClient {
     if (!secretStorageReady && !crossSigningReady && !keyBackupReady) {
       return MatrixSecurityBootstrapState.notInitialized;
     }
-    if (!secretStorageReady || !crossSigningReady || !keyBackupReady) {
+    if (!secretStorageReady || !cryptoIdentityInitialized) {
       return MatrixSecurityBootstrapState.partiallyInitialized;
     }
-    if (!crossSigningCached || !keyBackupCached) {
+    if (!cryptoIdentityConnected) {
       return MatrixSecurityBootstrapState.recoveryRequired;
     }
     return MatrixSecurityBootstrapState.ready;
@@ -637,7 +659,8 @@ class SdkMatrixClient implements MatrixClient {
       return MatrixAccountVerificationState.unavailable;
     }
     return switch (ownKeys.verified) {
-      sdk.UserVerifiedStatus.verified => MatrixAccountVerificationState.verified,
+      sdk.UserVerifiedStatus.verified =>
+        MatrixAccountVerificationState.verified,
       sdk.UserVerifiedStatus.unknownDevice =>
         MatrixAccountVerificationState.verificationRequired,
       _ => MatrixAccountVerificationState.verificationRequired,
@@ -674,27 +697,27 @@ class SdkMatrixClient implements MatrixClient {
   MatrixRoomEncryptionReadiness _roomEncryptionReadinessForClient(
     sdk.Client client, {
     required bool secretStorageReady,
-    required bool crossSigningReady,
     required bool keyBackupReady,
-    required bool crossSigningCached,
-    required bool keyBackupCached,
+    required bool cryptoIdentityInitialized,
+    required bool cryptoIdentityConnected,
   }) {
-    final hasEncryptedConversations = client.rooms.any((room) => room.encrypted);
+    final hasEncryptedConversations = client.rooms.any(
+      (room) => room.encrypted,
+    );
     if (!hasEncryptedConversations) {
       return MatrixRoomEncryptionReadiness.noEncryptedRooms;
     }
     if (!secretStorageReady ||
-        !crossSigningReady ||
         !keyBackupReady ||
-        !crossSigningCached ||
-        !keyBackupCached) {
+        !cryptoIdentityInitialized ||
+        !cryptoIdentityConnected) {
       return MatrixRoomEncryptionReadiness.encryptedRoomsNeedAttention;
     }
     return MatrixRoomEncryptionReadiness.ready;
   }
 
   MatrixVerificationSnapshot _verificationSnapshot(
-    sdk.KeyVerification? verification,
+    crypto.KeyVerification? verification,
   ) {
     if (verification == null) {
       return const MatrixVerificationSnapshot.none();
@@ -710,15 +733,26 @@ class SdkMatrixClient implements MatrixClient {
     }
 
     return switch (verification.state) {
-      sdk.KeyVerificationState.askAccept => const MatrixVerificationSnapshot(
+      crypto.KeyVerificationState.askAccept => const MatrixVerificationSnapshot(
         phase: MatrixVerificationPhase.incomingRequest,
         message: 'Another device wants to verify this session.',
       ),
-      sdk.KeyVerificationState.askChoice => const MatrixVerificationSnapshot(
+      crypto.KeyVerificationState.askChoice => const MatrixVerificationSnapshot(
         phase: MatrixVerificationPhase.chooseMethod,
         message: 'Choose a verification method to compare both devices.',
       ),
-      sdk.KeyVerificationState.askSas => MatrixVerificationSnapshot(
+      crypto.KeyVerificationState.waitingAccept ||
+      crypto.KeyVerificationState.waitingSas =>
+        const MatrixVerificationSnapshot(
+          phase: MatrixVerificationPhase.waitingForOtherDevice,
+          message: 'Waiting for the other device to continue verification.',
+        ),
+      crypto.KeyVerificationState.askSSSS => const MatrixVerificationSnapshot(
+        phase: MatrixVerificationPhase.needsRecoveryKey,
+        message:
+            'Enter your Matrix recovery key or passphrase to continue verification.',
+      ),
+      crypto.KeyVerificationState.askSas => MatrixVerificationSnapshot(
         phase: MatrixVerificationPhase.compareSas,
         message: 'Compare the security emoji or numbers on both devices.',
         sasNumbers: verification.sasNumbers,
@@ -731,11 +765,11 @@ class SdkMatrixClient implements MatrixClient {
             )
             .toList(growable: false),
       ),
-      sdk.KeyVerificationState.done => const MatrixVerificationSnapshot(
+      crypto.KeyVerificationState.done => const MatrixVerificationSnapshot(
         phase: MatrixVerificationPhase.done,
         message: 'This device is now verified.',
       ),
-      sdk.KeyVerificationState.error => const MatrixVerificationSnapshot(
+      crypto.KeyVerificationState.error => const MatrixVerificationSnapshot(
         phase: MatrixVerificationPhase.failed,
         message: 'Verification could not be completed.',
       ),
@@ -746,7 +780,7 @@ class SdkMatrixClient implements MatrixClient {
     };
   }
 
-  sdk.KeyVerification _requireVerification() {
+  crypto.KeyVerification _requireVerification() {
     final verification = _activeVerification;
     if (verification == null) {
       throw const ChatFailure.protocol(

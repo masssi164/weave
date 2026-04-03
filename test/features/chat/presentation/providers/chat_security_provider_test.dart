@@ -78,7 +78,9 @@ void main() {
     test('surfaces repository failures', () async {
       final repository = FakeChatSecurityRepository(
         loadSecurityStateHandler: ({bool refresh = false}) async {
-          throw const ChatFailure.storage('Unable to read Matrix crypto state.');
+          throw const ChatFailure.storage(
+            'Unable to read Matrix crypto state.',
+          );
         },
       );
       final container = ProviderContainer(
@@ -93,6 +95,60 @@ void main() {
 
       expect(state.failure?.type, ChatFailureType.storage);
     });
+
+    test(
+      'unlocks verification with recovery material and refreshes state',
+      () async {
+        var loadCount = 0;
+        String? submittedRecoveryMaterial;
+        final repository = FakeChatSecurityRepository(
+          loadSecurityStateHandler: ({bool refresh = false}) async {
+            loadCount++;
+            return ChatSecurityState(
+              isMatrixSignedIn: true,
+              bootstrapState: ChatSecurityBootstrapState.ready,
+              accountVerificationState: ChatAccountVerificationState.verified,
+              deviceVerificationState: ChatDeviceVerificationState.unverified,
+              keyBackupState: ChatKeyBackupState.ready,
+              roomEncryptionReadiness: ChatRoomEncryptionReadiness.ready,
+              secretStorageReady: true,
+              crossSigningReady: true,
+              hasEncryptedConversations: true,
+              verificationSession: loadCount == 1
+                  ? const ChatVerificationSession(
+                      phase: ChatVerificationPhase.needsRecoveryKey,
+                    )
+                  : const ChatVerificationSession(
+                      phase: ChatVerificationPhase.waitingForOtherDevice,
+                    ),
+            );
+          },
+          unlockVerificationHandler:
+              ({required String recoveryKeyOrPassphrase}) async {
+                submittedRecoveryMaterial = recoveryKeyOrPassphrase;
+              },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            chatSecurityRepositoryProvider.overrideWithValue(repository),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(chatSecurityProvider.notifier).refresh();
+        await container
+            .read(chatSecurityProvider.notifier)
+            .unlockVerification(recoveryKeyOrPassphrase: 'RECOVERY-KEY');
+
+        final state = container.read(chatSecurityProvider);
+        expect(submittedRecoveryMaterial, 'RECOVERY-KEY');
+        expect(loadCount, greaterThanOrEqualTo(2));
+        expect(
+          state.security?.verificationSession.phase,
+          ChatVerificationPhase.waitingForOtherDevice,
+        );
+      },
+    );
 
     test('refreshes when a verification event arrives', () async {
       var loadCount = 0;
@@ -145,7 +201,11 @@ void main() {
       await updateSeen.future;
 
       expect(
-        container.read(chatSecurityProvider).security?.verificationSession.phase,
+        container
+            .read(chatSecurityProvider)
+            .security
+            ?.verificationSession
+            .phase,
         ChatVerificationPhase.incomingRequest,
       );
       expect(loadCount, greaterThanOrEqualTo(2));

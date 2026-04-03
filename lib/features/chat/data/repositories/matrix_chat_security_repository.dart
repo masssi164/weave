@@ -40,7 +40,9 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
   }
 
   @override
-  Future<void> restoreSecurity({required String recoveryKeyOrPassphrase}) async {
+  Future<void> restoreSecurity({
+    required String recoveryKeyOrPassphrase,
+  }) async {
     final homeserver = await _loadHomeserver();
     await _client.restoreSecurity(
       homeserver: homeserver,
@@ -64,6 +66,17 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
   Future<void> startSasVerification() async {
     final homeserver = await _loadHomeserver();
     await _client.startSasVerification(homeserver: homeserver);
+  }
+
+  @override
+  Future<void> unlockVerification({
+    required String recoveryKeyOrPassphrase,
+  }) async {
+    final homeserver = await _loadHomeserver();
+    await _client.unlockVerification(
+      homeserver: homeserver,
+      recoveryKeyOrPassphrase: recoveryKeyOrPassphrase,
+    );
   }
 
   @override
@@ -166,6 +179,8 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
           ChatVerificationPhase.chooseMethod,
         MatrixVerificationPhase.waitingForOtherDevice =>
           ChatVerificationPhase.waitingForOtherDevice,
+        MatrixVerificationPhase.needsRecoveryKey =>
+          ChatVerificationPhase.needsRecoveryKey,
         MatrixVerificationPhase.compareSas => ChatVerificationPhase.compareSas,
         MatrixVerificationPhase.done => ChatVerificationPhase.done,
         MatrixVerificationPhase.cancelled => ChatVerificationPhase.cancelled,
@@ -175,10 +190,8 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
       sasNumbers: snapshot.sasNumbers,
       sasEmojis: snapshot.sasEmojis
           .map(
-            (emoji) => ChatVerificationEmoji(
-              symbol: emoji.symbol,
-              label: emoji.label,
-            ),
+            (emoji) =>
+                ChatVerificationEmoji(symbol: emoji.symbol, label: emoji.label),
           )
           .toList(growable: false),
     );

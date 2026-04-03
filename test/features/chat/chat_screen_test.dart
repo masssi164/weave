@@ -47,7 +47,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
           ],
         ),
       );
@@ -88,7 +90,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
           ],
         ),
       );
@@ -192,7 +196,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
           ],
         ),
       );
@@ -221,7 +227,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
           ],
         ),
       );
@@ -269,7 +277,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
           ],
         ),
       );
@@ -300,7 +310,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
           ],
         ),
       );
@@ -330,7 +342,9 @@ void main() {
           const ChatScreen(),
           overrides: [
             chatRepositoryProvider.overrideWithValue(repository),
-            chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
           ],
         ),
       );

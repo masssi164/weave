@@ -161,10 +161,6 @@ class AppLocalizationsDe extends AppLocalizations {
       'Matrix-Sicherheit braucht Aufmerksamkeit';
 
   @override
-  String get chatSecurityOpenSettingsButton =>
-      'Sicherheitseinstellungen öffnen';
-
-  @override
   String get chatSecurityBannerSetupMessage =>
       'Verschlüsselte Matrix-Räume sind verfügbar, aber dieses Konto benötigt noch die anfängliche Sicherheitseinrichtung.';
 
@@ -179,6 +175,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatSecurityBannerMissingBackupMessage =>
       'Das Matrix-Schlüssel-Backup fehlt noch. Richten Sie es ein, bevor Sie sich auf die Wiederherstellung verschlüsselter Chats verlassen.';
+
+  @override
+  String get chatSecurityOpenSettingsButton =>
+      'Sicherheitseinstellungen öffnen';
 
   @override
   String get chatSecuritySetupCardTitle => 'Einrichtung';
@@ -315,8 +315,11 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatSecurityDeclineVerificationButton => 'Ablehnen';
 
   @override
-  String get chatSecurityCompareEmojiButton =>
-      'Sicherheits-Emojis vergleichen';
+  String get chatSecurityCompareEmojiButton => 'Sicherheits-Emojis vergleichen';
+
+  @override
+  String get chatSecurityUnlockVerificationButton =>
+      'Verifizierung mit Wiederherstellungsschlüssel fortsetzen';
 
   @override
   String get chatSecurityEmojiMatchButton => 'Emojis stimmen überein';
@@ -364,6 +367,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Es wird gewartet, bis das andere Gerät mit der Verifizierung fortfährt.';
 
   @override
+  String get chatSecurityVerificationRecoveryMessage =>
+      'Diese Verifizierung benötigt Ihren Matrix-Wiederherstellungsschlüssel oder Ihre Passphrase, bevor sie fortgesetzt werden kann.';
+
+  @override
+  String get chatSecurityVerificationRecoveryHelp =>
+      'Entsperren Sie den vorhandenen Matrix Secret Storage, damit dieses Gerät die Verifizierung sicher abschließen kann.';
+
+  @override
   String get chatSecurityVerificationCompareMessage =>
       'Vergleichen Sie die Sicherheits-Emojis oder Zahlen auf beiden Geräten.';
 
@@ -380,8 +391,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Verifizierung konnte nicht abgeschlossen werden.';
 
   @override
-  String get chatSecuritySetupDialogTitle =>
-      'Verschlüsselten Chat einrichten';
+  String get chatSecuritySetupDialogTitle => 'Verschlüsselten Chat einrichten';
 
   @override
   String get chatSecuritySetupDialogDescription =>
@@ -405,12 +415,19 @@ class AppLocalizationsDe extends AppLocalizations {
       'Geben Sie den Matrix-Wiederherstellungsschlüssel oder die Wiederherstellungs-Passphrase ein, die bei der ersten Einrichtung des verschlüsselten Chats erstellt wurde.';
 
   @override
+  String get chatSecurityVerificationRecoveryDialogTitle =>
+      'Verifizierung fortsetzen';
+
+  @override
+  String get chatSecurityVerificationRecoveryDialogDescription =>
+      'Geben Sie Ihren Matrix-Wiederherstellungsschlüssel oder Ihre Passphrase ein, um diese Verifizierung fortzusetzen. Dadurch werden nur die für die Verifizierung benötigten Geheimnisse entsperrt und nicht das gesamte Konto neu verbunden.';
+
+  @override
   String get chatSecurityRecoveryKeyFieldLabel =>
       'Wiederherstellungsschlüssel oder Passphrase';
 
   @override
-  String get chatSecurityRecoveryKeyDismissButton =>
-      'Ich habe ihn gespeichert';
+  String get chatSecurityRecoveryKeyDismissButton => 'Ich habe ihn gespeichert';
 
   @override
   String get chatSecurityEmojiSummaryLabel => 'Sicherheits-Emojis';

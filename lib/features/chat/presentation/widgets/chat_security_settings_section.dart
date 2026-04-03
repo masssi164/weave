@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
@@ -45,10 +43,7 @@ class ChatSecuritySettingsSection extends ConsumerWidget {
           _StatusCard(
             title: l10n.chatSecurityCurrentDeviceCardTitle,
             value: _deviceLabel(l10n, security.deviceVerificationState),
-            body: _deviceDescription(
-              l10n,
-              security.deviceVerificationState,
-            ),
+            body: _deviceDescription(l10n, security.deviceVerificationState),
           ),
           const SizedBox(height: 12),
           _StatusCard(
@@ -148,10 +143,7 @@ class ChatSecuritySettingsSection extends ConsumerWidget {
     };
   }
 
-  static String _backupLabel(
-    AppLocalizations l10n,
-    ChatKeyBackupState state,
-  ) {
+  static String _backupLabel(AppLocalizations l10n, ChatKeyBackupState state) {
     return switch (state) {
       ChatKeyBackupState.unavailable => l10n.chatSecurityStatusUnavailable,
       ChatKeyBackupState.missing => l10n.chatSecurityStatusMissing,
@@ -176,10 +168,7 @@ class ChatSecuritySettingsSection extends ConsumerWidget {
     };
   }
 
-  static String _failureMessage(
-    AppLocalizations l10n,
-    ChatFailure failure,
-  ) {
+  static String _failureMessage(AppLocalizations l10n, ChatFailure failure) {
     if (failure.message.trim().isNotEmpty) {
       return failure.message;
     }
@@ -203,6 +192,9 @@ class _ActionArea extends ConsumerWidget {
 
     final notifier = ref.read(chatSecurityProvider.notifier);
     final buttons = <Widget>[];
+    final verification = security.verificationSession;
+    final hasActiveVerification =
+        verification.phase != ChatVerificationPhase.none;
 
     if (!security.isMatrixSignedIn) {
       return Text(
@@ -232,21 +224,24 @@ class _ActionArea extends ConsumerWidget {
     if (security.bootstrapState ==
             ChatSecurityBootstrapState.recoveryRequired ||
         security.keyBackupState == ChatKeyBackupState.recoveryRequired) {
-      buttons.add(
-        AccessibleButton(
-          outlined: true,
-          onPressed: state.isBusy
-              ? null
-              : () => _showRestoreDialog(context, notifier),
-          semanticLabel: l10n.chatSecurityReconnectButton,
-          child: Text(l10n.chatSecurityReconnectButton),
-        ),
-      );
+      if (verification.phase != ChatVerificationPhase.needsRecoveryKey) {
+        buttons.add(
+          AccessibleButton(
+            outlined: true,
+            onPressed: state.isBusy
+                ? null
+                : () => _showRestoreDialog(context, notifier),
+            semanticLabel: l10n.chatSecurityReconnectButton,
+            child: Text(l10n.chatSecurityReconnectButton),
+          ),
+        );
+      }
     }
 
     if (security.deviceVerificationState !=
             ChatDeviceVerificationState.verified &&
-        security.bootstrapState == ChatSecurityBootstrapState.ready) {
+        security.bootstrapState == ChatSecurityBootstrapState.ready &&
+        !hasActiveVerification) {
       buttons.add(
         AccessibleButton(
           outlined: true,
@@ -256,22 +251,16 @@ class _ActionArea extends ConsumerWidget {
         ),
       );
     }
-
-    final verification = security.verificationSession;
     if (verification.phase == ChatVerificationPhase.incomingRequest) {
       buttons.addAll([
         AccessibleButton(
-          onPressed: state.isBusy
-              ? null
-              : () => notifier.acceptVerification(),
+          onPressed: state.isBusy ? null : () => notifier.acceptVerification(),
           semanticLabel: l10n.chatSecurityAcceptVerificationButton,
           child: Text(l10n.chatSecurityAcceptVerificationButton),
         ),
         AccessibleButton(
           outlined: true,
-          onPressed: state.isBusy
-              ? null
-              : () => notifier.cancelVerification(),
+          onPressed: state.isBusy ? null : () => notifier.cancelVerification(),
           semanticLabel: l10n.chatSecurityDeclineVerificationButton,
           child: Text(l10n.chatSecurityDeclineVerificationButton),
         ),
@@ -288,6 +277,24 @@ class _ActionArea extends ConsumerWidget {
           child: Text(l10n.chatSecurityCompareEmojiButton),
         ),
       );
+    }
+
+    if (verification.phase == ChatVerificationPhase.needsRecoveryKey) {
+      buttons.addAll([
+        AccessibleButton(
+          onPressed: state.isBusy
+              ? null
+              : () => _showVerificationRecoveryDialog(context, notifier),
+          semanticLabel: l10n.chatSecurityUnlockVerificationButton,
+          child: Text(l10n.chatSecurityUnlockVerificationButton),
+        ),
+        AccessibleButton(
+          outlined: true,
+          onPressed: state.isBusy ? null : () => notifier.cancelVerification(),
+          semanticLabel: l10n.chatSecurityDeclineVerificationButton,
+          child: Text(l10n.chatSecurityDeclineVerificationButton),
+        ),
+      ]);
     }
 
     if (verification.phase == ChatVerificationPhase.compareSas) {
@@ -339,6 +346,10 @@ class _ActionArea extends ConsumerWidget {
         ],
         if (_verificationMessage(l10n, verification) case final message?) ...[
           Text(message),
+          if (verification.phase == ChatVerificationPhase.needsRecoveryKey) ...[
+            const SizedBox(height: 8),
+            Text(l10n.chatSecurityVerificationRecoveryHelp),
+          ],
           const SizedBox(height: 12),
         ],
         if (verification.phase == ChatVerificationPhase.compareSas) ...[
@@ -346,13 +357,8 @@ class _ActionArea extends ConsumerWidget {
           const SizedBox(height: 12),
         ],
         if (buttons.isNotEmpty)
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: buttons,
-          ),
-        if (buttons.isEmpty &&
-            verification.phase == ChatVerificationPhase.none)
+          Wrap(spacing: 12, runSpacing: 12, children: buttons),
+        if (buttons.isEmpty && verification.phase == ChatVerificationPhase.none)
           Text(
             l10n.chatSecurityNoActionNeeded,
             style: Theme.of(context).textTheme.bodyMedium,
@@ -389,10 +395,11 @@ class _ActionArea extends ConsumerWidget {
         l10n.chatSecurityVerificationChooseMethodMessage,
       ChatVerificationPhase.waitingForOtherDevice =>
         l10n.chatSecurityVerificationWaitingMessage,
+      ChatVerificationPhase.needsRecoveryKey =>
+        l10n.chatSecurityVerificationRecoveryMessage,
       ChatVerificationPhase.compareSas =>
         l10n.chatSecurityVerificationCompareMessage,
-      ChatVerificationPhase.done =>
-        l10n.chatSecurityVerificationDoneMessage,
+      ChatVerificationPhase.done => l10n.chatSecurityVerificationDoneMessage,
       ChatVerificationPhase.cancelled =>
         l10n.chatSecurityVerificationCancelledMessage,
       ChatVerificationPhase.failed =>
@@ -404,7 +411,7 @@ class _ActionArea extends ConsumerWidget {
     BuildContext context,
     ChatSecurityController notifier,
   ) async {
-    final controller = TextEditingController();
+    var passphraseValue = '';
     final passphrase = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -413,13 +420,13 @@ class _ActionArea extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l10n.chatSecuritySetupDialogDescription,
-            ),
+            Text(l10n.chatSecuritySetupDialogDescription),
             const SizedBox(height: 12),
             TextField(
-              controller: controller,
               obscureText: true,
+              onChanged: (value) {
+                passphraseValue = value.trim();
+              },
               decoration: InputDecoration(
                 labelText: l10n.chatSecurityOptionalPassphraseLabel,
               ),
@@ -432,13 +439,12 @@ class _ActionArea extends ConsumerWidget {
             child: Text(l10n.chatSecurityDialogCancelButton),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(context).pop(passphraseValue),
             child: Text(l10n.chatSecurityDialogContinueButton),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (!context.mounted || passphrase == null) {
       return;
     }
@@ -451,7 +457,7 @@ class _ActionArea extends ConsumerWidget {
     BuildContext context,
     ChatSecurityController notifier,
   ) async {
-    final controller = TextEditingController();
+    var recoveryValue = '';
     final value = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -460,12 +466,12 @@ class _ActionArea extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              l10n.chatSecurityRestoreDialogDescription,
-            ),
+            Text(l10n.chatSecurityRestoreDialogDescription),
             const SizedBox(height: 12),
             TextField(
-              controller: controller,
+              onChanged: (value) {
+                recoveryValue = value.trim();
+              },
               decoration: InputDecoration(
                 labelText: l10n.chatSecurityRecoveryKeyFieldLabel,
               ),
@@ -478,17 +484,59 @@ class _ActionArea extends ConsumerWidget {
             child: Text(l10n.chatSecurityDialogCancelButton),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            onPressed: () => Navigator.of(context).pop(recoveryValue),
             child: Text(l10n.chatSecurityReconnectButton),
           ),
         ],
       ),
     );
-    controller.dispose();
     if (!context.mounted || value == null || value.isEmpty) {
       return;
     }
     await notifier.restore(recoveryKeyOrPassphrase: value);
+  }
+
+  Future<void> _showVerificationRecoveryDialog(
+    BuildContext context,
+    ChatSecurityController notifier,
+  ) async {
+    var recoveryValue = '';
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.chatSecurityVerificationRecoveryDialogTitle),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.chatSecurityVerificationRecoveryDialogDescription),
+            const SizedBox(height: 12),
+            TextField(
+              onChanged: (value) {
+                recoveryValue = value.trim();
+              },
+              decoration: InputDecoration(
+                labelText: l10n.chatSecurityRecoveryKeyFieldLabel,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(l10n.chatSecurityDialogCancelButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(recoveryValue),
+            child: Text(l10n.chatSecurityUnlockVerificationButton),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted || value == null || value.isEmpty) {
+      return;
+    }
+    await notifier.unlockVerification(recoveryKeyOrPassphrase: value);
   }
 }
 
@@ -530,7 +578,7 @@ class _RecoveryKeyNotice extends StatelessWidget {
             SelectableText(
               recoveryKey,
               style: theme.textTheme.bodyLarge?.copyWith(
-                fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
               ),
             ),
             const SizedBox(height: 12),
@@ -575,9 +623,8 @@ class _SasSummary extends StatelessWidget {
                 runSpacing: 8,
                 children: verification.sasEmojis
                     .map(
-                      (emoji) => Chip(
-                        label: Text('${emoji.symbol} ${emoji.label}'),
-                      ),
+                      (emoji) =>
+                          Chip(label: Text('${emoji.symbol} ${emoji.label}')),
                     )
                     .toList(growable: false),
               ),

@@ -92,6 +92,12 @@ class _FakeMatrixClient implements MatrixClient {
   Future<void> startSasVerification({required Uri homeserver}) async {}
 
   @override
+  Future<void> unlockVerification({
+    required Uri homeserver,
+    required String recoveryKeyOrPassphrase,
+  }) async {}
+
+  @override
   Future<void> startVerification({required Uri homeserver}) async {}
 }
 

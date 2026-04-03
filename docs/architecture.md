@@ -119,6 +119,9 @@ Matrix E2EE state also stays inside `features/chat/`:
 - bootstrap, trust, verification, and recovery state are mapped to Weave-owned chat models before UI consumes them
 - settings may host chat-owned security UI, but other features must not depend on raw Matrix crypto objects
 - recovery keys must be treated as external user-held material; local secure storage can help cache secrets, but reinstall/device-restore behavior differs across Android, iOS, and macOS and must not be overclaimed
+- the Matrix SDK `getCryptoIdentityState()` is the primary initialized/connected signal for chat-owned bootstrap mapping
+- verification state must stay chat-owned as well; SDK states such as `askSSSS` are surfaced as recovery/unlock prompts rather than exposed directly in widgets
+- current verification support is limited to SAS emoji/numbers plus SSSS unlock; QR verification remains out of scope until the client explicitly supports QR methods end-to-end
 
 The current Matrix integration uses:
 
@@ -126,6 +129,7 @@ The current Matrix integration uses:
 - `Client.checkHomeserver(..., fetchAuthMetadata: true)` for capability discovery
 - Matrix Native OAuth 2.0 when `/_matrix/client/v1/auth_metadata` is available
 - a typed unsupported-configuration failure when the homeserver only exposes legacy login
+- Matrix SDK crypto setup helpers for first-device bootstrap, recovery reconnect, and self-verification continuation
 
 ## Onboarding and settings
 Onboarding setup and Settings share:

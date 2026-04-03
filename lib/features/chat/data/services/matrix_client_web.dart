@@ -85,6 +85,16 @@ class _WebMatrixClientStub implements MatrixClient {
   }
 
   @override
+  Future<void> unlockVerification({
+    required Uri homeserver,
+    required String recoveryKeyOrPassphrase,
+  }) async {
+    throw const ChatFailure.unsupportedPlatform(
+      'Matrix chat is not supported on the web.',
+    );
+  }
+
+  @override
   Future<void> confirmSas({
     required Uri homeserver,
     required bool matches,

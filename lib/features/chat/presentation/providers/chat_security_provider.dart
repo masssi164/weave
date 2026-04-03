@@ -13,8 +13,7 @@ class ChatSecurityUiState {
     this.lastActionNotice,
   });
 
-  const ChatSecurityUiState.loading()
-    : this(isLoading: true, isBusy: false);
+  const ChatSecurityUiState.loading() : this(isLoading: true, isBusy: false);
 
   const ChatSecurityUiState.ready(ChatSecurityState security)
     : this(isLoading: false, isBusy: false, security: security);
@@ -86,11 +85,7 @@ class ChatSecurityController extends Notifier<ChatSecurityUiState> {
         clearFailure: true,
       );
     } on ChatFailure catch (failure) {
-      state = state.copyWith(
-        isLoading: false,
-        isBusy: false,
-        failure: failure,
-      );
+      state = state.copyWith(isLoading: false, isBusy: false, failure: failure);
     } catch (error) {
       state = state.copyWith(
         isLoading: false,
@@ -101,26 +96,22 @@ class ChatSecurityController extends Notifier<ChatSecurityUiState> {
   }
 
   Future<void> bootstrap({String? passphrase}) async {
-    await _runAction(
-      () async {
-        final recoveryKey = await ref
-            .read(chatSecurityRepositoryProvider)
-            .bootstrapSecurity(passphrase: passphrase);
-        state = state.copyWith(
-          generatedRecoveryKey: recoveryKey,
-          lastActionNotice: ChatSecurityActionNotice.setupComplete,
-        );
-      },
-    );
+    await _runAction(() async {
+      final recoveryKey = await ref
+          .read(chatSecurityRepositoryProvider)
+          .bootstrapSecurity(passphrase: passphrase);
+      state = state.copyWith(
+        generatedRecoveryKey: recoveryKey,
+        lastActionNotice: ChatSecurityActionNotice.setupComplete,
+      );
+    });
   }
 
   Future<void> restore({required String recoveryKeyOrPassphrase}) async {
     await _runAction(
       () => ref
           .read(chatSecurityRepositoryProvider)
-          .restoreSecurity(
-            recoveryKeyOrPassphrase: recoveryKeyOrPassphrase,
-          ),
+          .restoreSecurity(recoveryKeyOrPassphrase: recoveryKeyOrPassphrase),
       successNotice: ChatSecurityActionNotice.recoveryRestored,
       clearRecoveryKey: true,
     );
@@ -145,11 +136,20 @@ class ChatSecurityController extends Notifier<ChatSecurityUiState> {
     );
   }
 
-  Future<void> confirmSas({required bool matches}) async {
+  Future<void> unlockVerification({
+    required String recoveryKeyOrPassphrase,
+  }) async {
     await _runAction(
       () => ref
           .read(chatSecurityRepositoryProvider)
-          .confirmSas(matches: matches),
+          .unlockVerification(recoveryKeyOrPassphrase: recoveryKeyOrPassphrase),
+    );
+  }
+
+  Future<void> confirmSas({required bool matches}) async {
+    await _runAction(
+      () =>
+          ref.read(chatSecurityRepositoryProvider).confirmSas(matches: matches),
     );
   }
 
@@ -202,15 +202,13 @@ class ChatSecurityController extends Notifier<ChatSecurityUiState> {
       );
     }
   }
-
 }
 
-final chatVerificationUpdatesProvider =
-    StreamProvider<ChatVerificationSession>((ref) {
-      return ref
-          .watch(chatSecurityRepositoryProvider)
-          .watchVerificationUpdates();
-    });
+final chatVerificationUpdatesProvider = StreamProvider<ChatVerificationSession>(
+  (ref) {
+    return ref.watch(chatSecurityRepositoryProvider).watchVerificationUpdates();
+  },
+);
 
 final chatSecurityProvider =
     NotifierProvider<ChatSecurityController, ChatSecurityUiState>(

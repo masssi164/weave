@@ -279,6 +279,9 @@
   "chatSecurityCompareEmojiButton": "Compare security emoji",
   "@chatSecurityCompareEmojiButton": { "description": "Button label to continue Matrix verification with SAS emoji" },
 
+  "chatSecurityUnlockVerificationButton": "Continue verification with recovery key",
+  "@chatSecurityUnlockVerificationButton": { "description": "Button label to continue Matrix verification by unlocking existing secret storage" },
+
   "chatSecurityEmojiMatchButton": "Emoji match",
   "@chatSecurityEmojiMatchButton": { "description": "Button label confirming the Matrix SAS emoji match" },
 
@@ -315,6 +318,12 @@
   "chatSecurityVerificationWaitingMessage": "Waiting for the other device to continue verification.",
   "@chatSecurityVerificationWaitingMessage": { "description": "Message shown while Matrix verification waits for the other device" },
 
+  "chatSecurityVerificationRecoveryMessage": "This verification needs your Matrix recovery key or passphrase before it can continue.",
+  "@chatSecurityVerificationRecoveryMessage": { "description": "Message shown when Matrix verification needs access to secret storage before continuing" },
+
+  "chatSecurityVerificationRecoveryHelp": "Unlock the existing Matrix secret storage to let this device complete verification safely.",
+  "@chatSecurityVerificationRecoveryHelp": { "description": "Help text shown when Matrix verification needs secret storage access" },
+
   "chatSecurityVerificationCompareMessage": "Compare the security emoji or numbers on both devices.",
   "@chatSecurityVerificationCompareMessage": { "description": "Message shown while Matrix SAS values should be compared" },
 
@@ -347,6 +356,12 @@
 
   "chatSecurityRestoreDialogDescription": "Enter the Matrix recovery key or recovery passphrase that was created when encrypted chat was first set up.",
   "@chatSecurityRestoreDialogDescription": { "description": "Dialog description for reconnecting Matrix encrypted chat" },
+
+  "chatSecurityVerificationRecoveryDialogTitle": "Continue verification",
+  "@chatSecurityVerificationRecoveryDialogTitle": { "description": "Dialog title for continuing Matrix verification with recovery material" },
+
+  "chatSecurityVerificationRecoveryDialogDescription": "Enter your Matrix recovery key or passphrase to continue this verification. This unlocks the secrets needed for verification rather than reconnecting the whole account.",
+  "@chatSecurityVerificationRecoveryDialogDescription": { "description": "Dialog description for continuing Matrix verification with recovery material" },
 
   "chatSecurityRecoveryKeyFieldLabel": "Recovery key or passphrase",
   "@chatSecurityRecoveryKeyFieldLabel": { "description": "Field label for Matrix recovery material" },
