@@ -136,6 +136,70 @@ class AppLocalizationsDe extends AppLocalizations {
   String get filesScreenTitle => 'Dateien';
 
   @override
+  String get filesNextcloudTitle => 'Nextcloud';
+
+  @override
+  String get filesConnectButton => 'Nextcloud verbinden';
+
+  @override
+  String get filesReconnectButton => 'Nextcloud neu verbinden';
+
+  @override
+  String get filesDisconnectButton => 'Trennen';
+
+  @override
+  String get filesRefreshButton => 'Aktualisieren';
+
+  @override
+  String get filesUpButton => 'Nach oben';
+
+  @override
+  String get filesDisconnectedMessage =>
+      'Verbinde Nextcloud, um deine Dateien zu durchsuchen.';
+
+  @override
+  String get filesInvalidSessionMessage =>
+      'Verbinde Nextcloud erneut, weil die gespeicherte Sitzung nicht mehr gültig ist.';
+
+  @override
+  String get filesMisconfiguredMessage =>
+      'Konfiguriere zuerst eine Nextcloud-URL, bevor du Dateien verbindest.';
+
+  @override
+  String filesConnectionConnected(String accountLabel) {
+    return 'Verbunden als $accountLabel';
+  }
+
+  @override
+  String get filesConnectionDisconnected =>
+      'Auf diesem Gerät ist keine Nextcloud-Sitzung verbunden.';
+
+  @override
+  String get filesConnectionInvalid =>
+      'Die gespeicherte Nextcloud-Sitzung braucht Aufmerksamkeit.';
+
+  @override
+  String get filesConnectionMisconfigured =>
+      'Die Server-Einrichtung für Nextcloud-Dateien ist unvollständig.';
+
+  @override
+  String get filesOpenParentSemantic => 'Übergeordneten Ordner öffnen';
+
+  @override
+  String get filesRefreshCurrentFolderSemantic =>
+      'Aktuellen Ordner aktualisieren';
+
+  @override
+  String filesFolderSemantic(String name) {
+    return '$name, Ordner';
+  }
+
+  @override
+  String filesFileSemantic(String name) {
+    return '$name, Datei';
+  }
+
+  @override
   String get calendarScreenTitle => 'Kalender';
 
   @override

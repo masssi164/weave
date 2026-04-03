@@ -126,6 +126,78 @@
   "filesScreenTitle": "Files",
   "@filesScreenTitle": { "description": "Title for the files screen app bar" },
 
+  "filesNextcloudTitle": "Nextcloud",
+  "@filesNextcloudTitle": { "description": "Section title for the Nextcloud files connection card" },
+
+  "filesConnectButton": "Connect Nextcloud",
+  "@filesConnectButton": { "description": "Button label used to start the Nextcloud connection flow" },
+
+  "filesReconnectButton": "Reconnect Nextcloud",
+  "@filesReconnectButton": { "description": "Button label used to reconnect an invalid Nextcloud session" },
+
+  "filesDisconnectButton": "Disconnect",
+  "@filesDisconnectButton": { "description": "Button label used to disconnect the saved Nextcloud session" },
+
+  "filesRefreshButton": "Refresh",
+  "@filesRefreshButton": { "description": "Button label used to refresh the current Nextcloud directory" },
+
+  "filesUpButton": "Up",
+  "@filesUpButton": { "description": "Button label used to open the parent Nextcloud directory" },
+
+  "filesDisconnectedMessage": "Connect Nextcloud to browse your files.",
+  "@filesDisconnectedMessage": { "description": "Message shown when the Files screen is disconnected from Nextcloud" },
+
+  "filesInvalidSessionMessage": "Reconnect Nextcloud because the saved session is no longer valid.",
+  "@filesInvalidSessionMessage": { "description": "Message shown when the saved Nextcloud session is no longer valid" },
+
+  "filesMisconfiguredMessage": "Configure a Nextcloud URL before connecting files.",
+  "@filesMisconfiguredMessage": { "description": "Message shown when the Files feature is missing a valid Nextcloud base URL" },
+
+  "filesConnectionConnected": "Connected as {accountLabel}",
+  "@filesConnectionConnected": {
+    "description": "Status message shown when the Files feature is connected to Nextcloud",
+    "placeholders": {
+      "accountLabel": {
+        "type": "String"
+      }
+    }
+  },
+
+  "filesConnectionDisconnected": "No Nextcloud session is connected on this device.",
+  "@filesConnectionDisconnected": { "description": "Status message shown when no Nextcloud session is saved locally" },
+
+  "filesConnectionInvalid": "The saved Nextcloud session needs attention.",
+  "@filesConnectionInvalid": { "description": "Status message shown when the saved Nextcloud session is invalid" },
+
+  "filesConnectionMisconfigured": "Server setup is incomplete for Nextcloud files.",
+  "@filesConnectionMisconfigured": { "description": "Status message shown when Nextcloud server setup is incomplete" },
+
+  "filesOpenParentSemantic": "Open parent folder",
+  "@filesOpenParentSemantic": { "description": "Semantic label for the action that opens the parent Nextcloud directory" },
+
+  "filesRefreshCurrentFolderSemantic": "Refresh the current folder",
+  "@filesRefreshCurrentFolderSemantic": { "description": "Semantic label for the action that refreshes the current Nextcloud directory" },
+
+  "filesFolderSemantic": "{name}, folder",
+  "@filesFolderSemantic": {
+    "description": "Semantic label for a folder row in the Files list",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+
+  "filesFileSemantic": "{name}, file",
+  "@filesFileSemantic": {
+    "description": "Semantic label for a file row in the Files list",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+
   "calendarScreenTitle": "Calendar",
   "@calendarScreenTitle": { "description": "Title for the calendar screen app bar" },
 

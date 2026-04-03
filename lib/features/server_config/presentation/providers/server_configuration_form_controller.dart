@@ -14,11 +14,13 @@ class ServerConfigurationSaveResult {
     required this.configuration,
     required this.authConfigurationChanged,
     required this.matrixHomeserverChanged,
+    required this.nextcloudBaseUrlChanged,
   });
 
   final ServerConfiguration configuration;
   final bool authConfigurationChanged;
   final bool matrixHomeserverChanged;
+  final bool nextcloudBaseUrlChanged;
 }
 
 class ServerConfigurationFormState {
@@ -135,6 +137,7 @@ class ServerConfigurationFormController
     extends _$ServerConfigurationFormController {
   String? _initialAuthSignature;
   String? _initialMatrixSignature;
+  String? _initialNextcloudSignature;
 
   @override
   ServerConfigurationFormState build() =>
@@ -148,6 +151,7 @@ class ServerConfigurationFormController
     if (configuration == null) {
       _initialAuthSignature = null;
       _initialMatrixSignature = null;
+      _initialNextcloudSignature = null;
       state = state.copyWith(initialized: true);
       return;
     }
@@ -164,6 +168,7 @@ class ServerConfigurationFormController
       configuration.oidcClientRegistration.clientId,
     );
     _initialMatrixSignature = _matrixSignature(matrixUrl);
+    _initialNextcloudSignature = _nextcloudSignature(nextcloudUrl);
 
     state = state.copyWith(
       initialized: true,
@@ -339,13 +344,21 @@ class ServerConfigurationFormController
       final matrixHomeserverChanged =
           _initialMatrixSignature != null &&
           _initialMatrixSignature != nextMatrixSignature;
+      final nextNextcloudSignature = _nextcloudSignature(
+        nextcloudUrl.toString(),
+      );
+      final nextcloudBaseUrlChanged =
+          _initialNextcloudSignature != null &&
+          _initialNextcloudSignature != nextNextcloudSignature;
       _initialAuthSignature = nextAuthSignature;
       _initialMatrixSignature = nextMatrixSignature;
+      _initialNextcloudSignature = nextNextcloudSignature;
 
       return ServerConfigurationSaveResult(
         configuration: configuration,
         authConfigurationChanged: authConfigurationChanged,
         matrixHomeserverChanged: matrixHomeserverChanged,
+        nextcloudBaseUrlChanged: nextcloudBaseUrlChanged,
       );
     } on AppFailure catch (failure) {
       final issuerMessage =
@@ -427,6 +440,10 @@ class ServerConfigurationFormController
 
   String _matrixSignature(String matrixHomeserverUrl) {
     return matrixHomeserverUrl.trim();
+  }
+
+  String _nextcloudSignature(String nextcloudBaseUrl) {
+    return nextcloudBaseUrl.trim();
   }
 }
 

@@ -338,6 +338,108 @@ abstract class AppLocalizations {
   /// **'Files'**
   String get filesScreenTitle;
 
+  /// Section title for the Nextcloud files connection card
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud'**
+  String get filesNextcloudTitle;
+
+  /// Button label used to start the Nextcloud connection flow
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Nextcloud'**
+  String get filesConnectButton;
+
+  /// Button label used to reconnect an invalid Nextcloud session
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect Nextcloud'**
+  String get filesReconnectButton;
+
+  /// Button label used to disconnect the saved Nextcloud session
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get filesDisconnectButton;
+
+  /// Button label used to refresh the current Nextcloud directory
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get filesRefreshButton;
+
+  /// Button label used to open the parent Nextcloud directory
+  ///
+  /// In en, this message translates to:
+  /// **'Up'**
+  String get filesUpButton;
+
+  /// Message shown when the Files screen is disconnected from Nextcloud
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Nextcloud to browse your files.'**
+  String get filesDisconnectedMessage;
+
+  /// Message shown when the saved Nextcloud session is no longer valid
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect Nextcloud because the saved session is no longer valid.'**
+  String get filesInvalidSessionMessage;
+
+  /// Message shown when the Files feature is missing a valid Nextcloud base URL
+  ///
+  /// In en, this message translates to:
+  /// **'Configure a Nextcloud URL before connecting files.'**
+  String get filesMisconfiguredMessage;
+
+  /// Status message shown when the Files feature is connected to Nextcloud
+  ///
+  /// In en, this message translates to:
+  /// **'Connected as {accountLabel}'**
+  String filesConnectionConnected(String accountLabel);
+
+  /// Status message shown when no Nextcloud session is saved locally
+  ///
+  /// In en, this message translates to:
+  /// **'No Nextcloud session is connected on this device.'**
+  String get filesConnectionDisconnected;
+
+  /// Status message shown when the saved Nextcloud session is invalid
+  ///
+  /// In en, this message translates to:
+  /// **'The saved Nextcloud session needs attention.'**
+  String get filesConnectionInvalid;
+
+  /// Status message shown when Nextcloud server setup is incomplete
+  ///
+  /// In en, this message translates to:
+  /// **'Server setup is incomplete for Nextcloud files.'**
+  String get filesConnectionMisconfigured;
+
+  /// Semantic label for the action that opens the parent Nextcloud directory
+  ///
+  /// In en, this message translates to:
+  /// **'Open parent folder'**
+  String get filesOpenParentSemantic;
+
+  /// Semantic label for the action that refreshes the current Nextcloud directory
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh the current folder'**
+  String get filesRefreshCurrentFolderSemantic;
+
+  /// Semantic label for a folder row in the Files list
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, folder'**
+  String filesFolderSemantic(String name);
+
+  /// Semantic label for a file row in the Files list
+  ///
+  /// In en, this message translates to:
+  /// **'{name}, file'**
+  String filesFileSemantic(String name);
+
   /// Title for the calendar screen app bar
   ///
   /// In en, this message translates to:
