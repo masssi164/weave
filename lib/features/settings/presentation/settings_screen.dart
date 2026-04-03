@@ -4,6 +4,7 @@ import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
+import 'package:weave/features/chat/presentation/widgets/chat_security_settings_section.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -54,10 +55,12 @@ class SettingsScreen extends ConsumerWidget {
                           .read(authFlowControllerProvider.notifier)
                           .handleConfigurationSaved(result);
                     },
-                  ),
-                  const SizedBox(height: 32),
-                  Text(
-                    l10n.settingsSignOutTitle,
+                   ),
+                   const SizedBox(height: 32),
+                   const ChatSecuritySettingsSection(),
+                   const SizedBox(height: 32),
+                   Text(
+                     l10n.settingsSignOutTitle,
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 12),

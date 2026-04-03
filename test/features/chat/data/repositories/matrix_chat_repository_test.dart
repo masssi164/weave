@@ -15,12 +15,35 @@ class _FakeMatrixClient implements MatrixClient {
   List<MatrixRoomSnapshot> rooms = const <MatrixRoomSnapshot>[];
 
   @override
+  Future<void> acceptVerification({required Uri homeserver}) async {}
+
+  @override
+  Future<String> bootstrapSecurity({
+    required Uri homeserver,
+    String? passphrase,
+  }) async {
+    return 'RECOVERY-KEY';
+  }
+
+  @override
+  Future<void> cancelVerification({required Uri homeserver}) async {}
+
+  @override
   Future<void> clearSession() async {}
+
+  @override
+  Future<void> confirmSas({
+    required Uri homeserver,
+    required bool matches,
+  }) async {}
 
   @override
   Future<void> connect({required Uri homeserver}) async {
     lastHomeserverForConnect = homeserver;
   }
+
+  @override
+  Future<void> dismissVerificationResult({required Uri homeserver}) async {}
 
   @override
   Future<List<MatrixRoomSnapshot>> loadConversations({
@@ -31,7 +54,37 @@ class _FakeMatrixClient implements MatrixClient {
   }
 
   @override
+  Future<MatrixSecuritySnapshot> loadSecurityState({
+    required Uri homeserver,
+    bool refresh = false,
+  }) async {
+    return const MatrixSecuritySnapshot(
+      isMatrixSignedIn: false,
+      bootstrapState: MatrixSecurityBootstrapState.signedOut,
+      accountVerificationState: MatrixAccountVerificationState.unavailable,
+      deviceVerificationState: MatrixDeviceVerificationState.unavailable,
+      keyBackupState: MatrixKeyBackupState.unavailable,
+      roomEncryptionReadiness: MatrixRoomEncryptionReadiness.unavailable,
+      secretStorageReady: false,
+      crossSigningReady: false,
+      hasEncryptedConversations: false,
+    );
+  }
+
+  @override
+  Future<void> restoreSecurity({
+    required Uri homeserver,
+    required String recoveryKeyOrPassphrase,
+  }) async {}
+
+  @override
   Future<void> signOut() async {}
+
+  @override
+  Future<void> startSasVerification({required Uri homeserver}) async {}
+
+  @override
+  Future<void> startVerification({required Uri homeserver}) async {}
 }
 
 class _FakeServerConfigurationRepository

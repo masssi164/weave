@@ -113,6 +113,13 @@ App auth and Matrix auth are intentionally separate concerns:
 - the app does not assume an app-level OIDC access token is also a Matrix access token
 - changing the Matrix homeserver invalidates the Matrix session without redesigning bootstrap
 
+Matrix E2EE state also stays inside `features/chat/`:
+
+- the Matrix crypto runtime is wired in the chat-owned Matrix client
+- bootstrap, trust, verification, and recovery state are mapped to Weave-owned chat models before UI consumes them
+- settings may host chat-owned security UI, but other features must not depend on raw Matrix crypto objects
+- recovery keys must be treated as external user-held material; local secure storage can help cache secrets, but reinstall/device-restore behavior differs across Android, iOS, and macOS and must not be overclaimed
+
 The current Matrix integration uses:
 
 - the configured Matrix homeserver URL from `ServerConfiguration`

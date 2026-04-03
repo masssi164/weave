@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_vodozemac/flutter_vodozemac.dart' as vod;
+import 'package:matrix/encryption/utils/crypto_setup_extension.dart';
 import 'package:matrix/matrix.dart' as sdk;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart' as sqflite;
@@ -33,14 +35,25 @@ class SdkMatrixClient implements MatrixClient {
 
   sdk.Client? _client;
   Future<sdk.Client>? _clientFuture;
+  StreamSubscription<sdk.KeyVerification>? _verificationSubscription;
+  sdk.KeyVerification? _activeVerification;
 
   static final Uri _redirectUri = Uri.parse(matrixOidcRedirectUri);
   static final Uri _clientUri = Uri.parse(matrixOidcClientUri);
+  static Future<void>? _vodozemacInitFuture;
 
   static sdk.Client _defaultClientFactory({required sdk.DatabaseApi database}) {
     return sdk.Client(
       'weave_matrix_chat',
       database: database,
+      verificationMethods: const <sdk.KeyVerificationMethod>{
+        sdk.KeyVerificationMethod.emoji,
+        sdk.KeyVerificationMethod.numbers,
+      },
+      nativeImplementations: sdk.NativeImplementationsIsolate(
+        compute,
+        vodozemacInit: _ensureVodozemacInitialized,
+      ),
       supportedLoginTypes: {
         sdk.AuthenticationTypes.password,
         sdk.AuthenticationTypes.sso,
@@ -48,6 +61,10 @@ class SdkMatrixClient implements MatrixClient {
       },
       onSoftLogout: (client) => client.refreshAccessToken(),
     );
+  }
+
+  static Future<void> _ensureVodozemacInitialized() {
+    return _vodozemacInitFuture ??= vod.init();
   }
 
   @override
@@ -141,11 +158,212 @@ class SdkMatrixClient implements MatrixClient {
   }
 
   @override
+  Future<MatrixSecuritySnapshot> loadSecurityState({
+    required Uri homeserver,
+    bool refresh = false,
+  }) async {
+    final client = await _ensureClient();
+    final normalizedHomeserver = _normalizeUri(homeserver);
+
+    await _clearSessionIfHomeserverChanged(client, normalizedHomeserver);
+
+    if (!client.isLogged()) {
+      return const MatrixSecuritySnapshot(
+        isMatrixSignedIn: false,
+        bootstrapState: MatrixSecurityBootstrapState.signedOut,
+        accountVerificationState: MatrixAccountVerificationState.unavailable,
+        deviceVerificationState: MatrixDeviceVerificationState.unavailable,
+        keyBackupState: MatrixKeyBackupState.unavailable,
+        roomEncryptionReadiness: MatrixRoomEncryptionReadiness.unavailable,
+        secretStorageReady: false,
+        crossSigningReady: false,
+        hasEncryptedConversations: false,
+      );
+    }
+
+    try {
+      if (refresh) {
+        await client.oneShotSync();
+      }
+      return await _buildSecuritySnapshot(client);
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to load the Matrix security state right now.',
+      );
+    }
+  }
+
+  @override
+  Future<String> bootstrapSecurity({
+    required Uri homeserver,
+    String? passphrase,
+  }) async {
+    final client = await _loggedInClient(homeserver);
+
+    try {
+      final recoveryKey = await client.initCryptoIdentity(passphrase: passphrase);
+      await client.oneShotSync();
+      return recoveryKey;
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to finish the first encrypted-chat setup.',
+      );
+    }
+  }
+
+  @override
+  Future<void> restoreSecurity({
+    required Uri homeserver,
+    required String recoveryKeyOrPassphrase,
+  }) async {
+    final client = await _loggedInClient(homeserver);
+
+    try {
+      await client.restoreCryptoIdentity(recoveryKeyOrPassphrase);
+      await client.oneShotSync();
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to reconnect encrypted chat with that recovery key.',
+      );
+    }
+  }
+
+  @override
+  Future<void> startVerification({required Uri homeserver}) async {
+    final client = await _loggedInClient(homeserver);
+
+    try {
+      await client.oneShotSync();
+      final userId = client.userID;
+      final deviceId = client.deviceID;
+      if (userId == null || deviceId == null) {
+        throw const ChatFailure.protocol(
+          'Matrix did not expose the current device identity yet.',
+        );
+      }
+      final ownKeys = client.userDeviceKeys[userId];
+      if (ownKeys == null) {
+        throw const ChatFailure.protocol(
+          'Matrix has not finished loading your device keys yet.',
+        );
+      }
+      final otherDevices = ownKeys.deviceKeys.values
+              .where((device) => device.deviceId != deviceId)
+              .toList(growable: false);
+      if (otherDevices.isEmpty) {
+        throw const ChatFailure.protocol(
+          'Sign in on another Matrix device before starting verification here.',
+        );
+      }
+
+      _activeVerification = await ownKeys.startVerification();
+    } on ChatFailure {
+      rethrow;
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to start device verification right now.',
+      );
+    }
+  }
+
+  @override
+  Future<void> acceptVerification({required Uri homeserver}) async {
+    final client = await _loggedInClient(homeserver);
+    final verification = _requireVerification();
+
+    try {
+      await client.oneShotSync();
+      await verification.acceptVerification();
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to accept the verification request right now.',
+      );
+    }
+  }
+
+  @override
+  Future<void> startSasVerification({required Uri homeserver}) async {
+    final client = await _loggedInClient(homeserver);
+    final verification = _requireVerification();
+
+    try {
+      await client.oneShotSync();
+      if (!verification.possibleMethods.contains(sdk.EventTypes.Sas)) {
+        throw const ChatFailure.protocol(
+          'This verification request does not support comparing security numbers.',
+        );
+      }
+      await verification.continueVerification(sdk.EventTypes.Sas);
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to continue verification with security numbers.',
+      );
+    }
+  }
+
+  @override
+  Future<void> confirmSas({
+    required Uri homeserver,
+    required bool matches,
+  }) async {
+    final client = await _loggedInClient(homeserver);
+    final verification = _requireVerification();
+
+    try {
+      await client.oneShotSync();
+      if (matches) {
+        await verification.acceptSas();
+      } else {
+        await verification.rejectSas();
+      }
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to finish comparing the security numbers.',
+      );
+    }
+  }
+
+  @override
+  Future<void> cancelVerification({required Uri homeserver}) async {
+    final client = await _loggedInClient(homeserver);
+    final verification = _requireVerification();
+
+    try {
+      await client.oneShotSync();
+      await verification.cancel('m.user');
+    } catch (error) {
+      throw _mapError(
+        error,
+        fallback: 'Unable to cancel the verification request right now.',
+      );
+    }
+  }
+
+  @override
+  Future<void> dismissVerificationResult({required Uri homeserver}) async {
+    await _loggedInClient(homeserver);
+    final verification = _activeVerification;
+    if (verification == null || !verification.isDone) {
+      return;
+    }
+    verification.dispose();
+    _activeVerification = null;
+  }
+
+  @override
   Future<void> signOut() async {
     if (!_isInteractivePlatform) {
       return;
     }
 
+    _disposeActiveVerification();
     final client = await _ensureClient();
     if (!client.isLogged()) {
       await clearSession();
@@ -172,6 +390,7 @@ class SdkMatrixClient implements MatrixClient {
       return;
     }
 
+    _disposeActiveVerification();
     final client = await _ensureClient();
 
     try {
@@ -215,6 +434,7 @@ class SdkMatrixClient implements MatrixClient {
     }
 
     try {
+      await _ensureVodozemacInitialized();
       final supportDirectory = await _appSupportDirectoryProvider();
       final databasePath = supportDirectory.uri
           .resolve('weave_matrix_chat.sqlite')
@@ -230,6 +450,7 @@ class SdkMatrixClient implements MatrixClient {
       final client = _clientFactory(database: database);
 
       await client.init();
+      _bindVerificationListener(client);
       _client = client;
       return client;
     } catch (error) {
@@ -238,6 +459,243 @@ class SdkMatrixClient implements MatrixClient {
         fallback: 'Unable to initialize the Matrix chat client.',
       );
     }
+  }
+
+  Future<sdk.Client> _loggedInClient(Uri homeserver) async {
+    final client = await _ensureClient();
+    final normalizedHomeserver = _normalizeUri(homeserver);
+
+    await _clearSessionIfHomeserverChanged(client, normalizedHomeserver);
+    if (!client.isLogged()) {
+      throw const ChatFailure.sessionRequired(
+        'Connect Weave to your Matrix homeserver before managing Matrix security.',
+      );
+    }
+
+    return client;
+  }
+
+  void _bindVerificationListener(sdk.Client client) {
+    _verificationSubscription ??= client.onKeyVerificationRequest.stream.listen((
+      request,
+    ) {
+      _activeVerification = request;
+    });
+  }
+
+  Future<MatrixSecuritySnapshot> _buildSecuritySnapshot(sdk.Client client) async {
+    final encryption = client.encryption;
+    if (encryption == null || !client.encryptionEnabled) {
+      return const MatrixSecuritySnapshot(
+        isMatrixSignedIn: true,
+        bootstrapState: MatrixSecurityBootstrapState.unavailable,
+        accountVerificationState: MatrixAccountVerificationState.unavailable,
+        deviceVerificationState: MatrixDeviceVerificationState.unavailable,
+        keyBackupState: MatrixKeyBackupState.unavailable,
+        roomEncryptionReadiness: MatrixRoomEncryptionReadiness.unavailable,
+        secretStorageReady: false,
+        crossSigningReady: false,
+        hasEncryptedConversations: false,
+      );
+    }
+
+    final userId = client.userID;
+    final deviceId = client.deviceID;
+    final ownKeys = userId == null ? null : client.userDeviceKeys[userId];
+    final ownDevice = deviceId == null ? null : ownKeys?.deviceKeys[deviceId];
+    final secretStorageReady = encryption.ssss.defaultKeyId != null;
+    final crossSigningReady = encryption.crossSigning.enabled;
+    final keyBackupReady = encryption.keyManager.enabled;
+    final crossSigningCached = crossSigningReady
+        ? await encryption.crossSigning.isCached()
+        : false;
+    final keyBackupCached = keyBackupReady
+        ? await encryption.keyManager.isCached()
+        : false;
+
+    return MatrixSecuritySnapshot(
+      isMatrixSignedIn: true,
+      bootstrapState: _bootstrapStateForClient(
+        client,
+        secretStorageReady: secretStorageReady,
+        crossSigningReady: crossSigningReady,
+        keyBackupReady: keyBackupReady,
+        crossSigningCached: crossSigningCached,
+        keyBackupCached: keyBackupCached,
+      ),
+      accountVerificationState: _accountVerificationStateForKeys(ownKeys),
+      deviceVerificationState: _deviceVerificationStateForDevice(ownDevice),
+      keyBackupState: _keyBackupStateForClient(
+        keyBackupReady: keyBackupReady,
+        keyBackupCached: keyBackupCached,
+      ),
+      roomEncryptionReadiness: _roomEncryptionReadinessForClient(
+        client,
+        secretStorageReady: secretStorageReady,
+        crossSigningReady: crossSigningReady,
+        keyBackupReady: keyBackupReady,
+        crossSigningCached: crossSigningCached,
+        keyBackupCached: keyBackupCached,
+      ),
+      secretStorageReady: secretStorageReady,
+      crossSigningReady: crossSigningReady,
+      hasEncryptedConversations: client.rooms.any((room) => room.encrypted),
+      verification: _verificationSnapshot(_activeVerification),
+    );
+  }
+
+  MatrixSecurityBootstrapState _bootstrapStateForClient(
+    sdk.Client client, {
+    required bool secretStorageReady,
+    required bool crossSigningReady,
+    required bool keyBackupReady,
+    required bool crossSigningCached,
+    required bool keyBackupCached,
+  }) {
+    if (!client.isLogged()) {
+      return MatrixSecurityBootstrapState.signedOut;
+    }
+    if (!secretStorageReady && !crossSigningReady && !keyBackupReady) {
+      return MatrixSecurityBootstrapState.notInitialized;
+    }
+    if (!secretStorageReady || !crossSigningReady || !keyBackupReady) {
+      return MatrixSecurityBootstrapState.partiallyInitialized;
+    }
+    if (!crossSigningCached || !keyBackupCached) {
+      return MatrixSecurityBootstrapState.recoveryRequired;
+    }
+    return MatrixSecurityBootstrapState.ready;
+  }
+
+  MatrixAccountVerificationState _accountVerificationStateForKeys(
+    sdk.DeviceKeysList? ownKeys,
+  ) {
+    if (ownKeys == null) {
+      return MatrixAccountVerificationState.unavailable;
+    }
+    return switch (ownKeys?.verified) {
+      sdk.UserVerifiedStatus.verified => MatrixAccountVerificationState.verified,
+      sdk.UserVerifiedStatus.unknownDevice =>
+        MatrixAccountVerificationState.verificationRequired,
+      _ => MatrixAccountVerificationState.verificationRequired,
+    };
+  }
+
+  MatrixDeviceVerificationState _deviceVerificationStateForDevice(
+    sdk.DeviceKeys? device,
+  ) {
+    if (device == null) {
+      return MatrixDeviceVerificationState.unavailable;
+    }
+    if (device.blocked) {
+      return MatrixDeviceVerificationState.blocked;
+    }
+    if (device.verified) {
+      return MatrixDeviceVerificationState.verified;
+    }
+    return MatrixDeviceVerificationState.unverified;
+  }
+
+  MatrixKeyBackupState _keyBackupStateForClient({
+    required bool keyBackupReady,
+    required bool keyBackupCached,
+  }) {
+    if (!keyBackupReady) {
+      return MatrixKeyBackupState.missing;
+    }
+    return keyBackupCached
+        ? MatrixKeyBackupState.ready
+        : MatrixKeyBackupState.recoveryRequired;
+  }
+
+  MatrixRoomEncryptionReadiness _roomEncryptionReadinessForClient(
+    sdk.Client client, {
+    required bool secretStorageReady,
+    required bool crossSigningReady,
+    required bool keyBackupReady,
+    required bool crossSigningCached,
+    required bool keyBackupCached,
+  }) {
+    final hasEncryptedConversations = client.rooms.any((room) => room.encrypted);
+    if (!hasEncryptedConversations) {
+      return MatrixRoomEncryptionReadiness.noEncryptedRooms;
+    }
+    if (!secretStorageReady ||
+        !crossSigningReady ||
+        !keyBackupReady ||
+        !crossSigningCached ||
+        !keyBackupCached) {
+      return MatrixRoomEncryptionReadiness.encryptedRoomsNeedAttention;
+    }
+    return MatrixRoomEncryptionReadiness.ready;
+  }
+
+  MatrixVerificationSnapshot _verificationSnapshot(
+    sdk.KeyVerification? verification,
+  ) {
+    if (verification == null) {
+      return const MatrixVerificationSnapshot.none();
+    }
+
+    if (verification.canceled) {
+      return MatrixVerificationSnapshot(
+        phase: MatrixVerificationPhase.cancelled,
+        message:
+            verification.canceledReason ??
+            'Verification was cancelled before it finished.',
+      );
+    }
+
+    return switch (verification.state) {
+      sdk.KeyVerificationState.askAccept => const MatrixVerificationSnapshot(
+        phase: MatrixVerificationPhase.incomingRequest,
+        message: 'Another device wants to verify this session.',
+      ),
+      sdk.KeyVerificationState.askChoice => const MatrixVerificationSnapshot(
+        phase: MatrixVerificationPhase.chooseMethod,
+        message: 'Choose a verification method to compare both devices.',
+      ),
+      sdk.KeyVerificationState.askSas => MatrixVerificationSnapshot(
+        phase: MatrixVerificationPhase.compareSas,
+        message: 'Compare the security emoji or numbers on both devices.',
+        sasNumbers: verification.sasNumbers,
+        sasEmojis: verification.sasEmojis
+            .map(
+              (emoji) => MatrixVerificationEmoji(
+                symbol: emoji.emoji,
+                label: emoji.name,
+              ),
+            )
+            .toList(growable: false),
+      ),
+      sdk.KeyVerificationState.done => const MatrixVerificationSnapshot(
+        phase: MatrixVerificationPhase.done,
+        message: 'This device is now verified.',
+      ),
+      sdk.KeyVerificationState.error => const MatrixVerificationSnapshot(
+        phase: MatrixVerificationPhase.failed,
+        message: 'Verification could not be completed.',
+      ),
+      _ => const MatrixVerificationSnapshot(
+        phase: MatrixVerificationPhase.waitingForOtherDevice,
+        message: 'Waiting for the other device to continue verification.',
+      ),
+    };
+  }
+
+  sdk.KeyVerification _requireVerification() {
+    final verification = _activeVerification;
+    if (verification == null) {
+      throw const ChatFailure.protocol(
+        'There is no active Matrix verification request right now.',
+      );
+    }
+    return verification;
+  }
+
+  void _disposeActiveVerification() {
+    _activeVerification?.dispose();
+    _activeVerification = null;
   }
 
   Future<void> _clearSessionIfHomeserverChanged(
@@ -253,6 +711,7 @@ class SdkMatrixClient implements MatrixClient {
       return;
     }
 
+    _disposeActiveVerification();
     await client.clear();
   }
 
