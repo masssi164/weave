@@ -9,9 +9,9 @@ import 'package:weave/features/server_config/domain/entities/service_endpoints.d
 ServerConfiguration buildTestConfiguration({
   OidcProviderType providerType = OidcProviderType.authentik,
   String issuerUrl = 'https://auth.home.internal',
-  String clientId = 'weave-mobile',
+  String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://nextcloud.home.internal',
+  String nextcloudBaseUrl = 'https://files.home.internal',
 }) {
   return ServerConfiguration(
     providerType: providerType,
@@ -27,9 +27,9 @@ ServerConfiguration buildTestConfiguration({
 String encodeTestConfiguration({
   OidcProviderType providerType = OidcProviderType.authentik,
   String issuerUrl = 'https://auth.home.internal',
-  String clientId = 'weave-mobile',
+  String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://nextcloud.home.internal',
+  String nextcloudBaseUrl = 'https://files.home.internal',
 }) {
   return jsonEncode({
     'providerType': providerType.name,
@@ -44,9 +44,9 @@ String encodeTestConfiguration({
 Map<String, Object> buildStoredConfiguration({
   OidcProviderType providerType = OidcProviderType.authentik,
   String issuerUrl = 'https://auth.home.internal',
-  String clientId = 'weave-mobile',
+  String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://nextcloud.home.internal',
+  String nextcloudBaseUrl = 'https://files.home.internal',
 }) {
   return {
     serverConfigurationStorageKey: encodeTestConfiguration(

@@ -201,7 +201,9 @@ void main() {
       davAccessValidator = _FakeNextcloudDavAccessValidator();
       sessionRepository = _FakeNextcloudSessionRepository();
       configurationRepository = _FakeServerConfigurationRepository(
-        buildTestConfiguration(),
+        buildTestConfiguration(
+          nextcloudBaseUrl: 'https://nextcloud.home.internal',
+        ),
       );
       service = DefaultNextcloudConnectionService(
         authClient: authClient,
@@ -219,6 +221,20 @@ void main() {
 
         expect(state.status, NextcloudConnectionStatus.disconnected);
         expect(state.baseUrl, Uri.parse('https://nextcloud.home.internal'));
+      },
+    );
+
+    test(
+      'restoreConnection allows HTTP files URLs for local dev stacks',
+      () async {
+        configurationRepository.configuration = buildTestConfiguration(
+          nextcloudBaseUrl: 'http://files.home.internal',
+        );
+
+        final state = await service.restoreConnection();
+
+        expect(state.status, NextcloudConnectionStatus.disconnected);
+        expect(state.baseUrl, Uri.parse('http://files.home.internal'));
       },
     );
 

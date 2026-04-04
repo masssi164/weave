@@ -19,3 +19,8 @@ Session expectations:
 - keep auth reusable for setup and later authenticated features without coupling it to `onboarding`
 - downstream integrations may consume restored app OIDC sessions to derive their own protocol access, but auth still owns token refresh, storage, and validity decisions
 - do not let non-auth features or integrations persist duplicate copies of app OIDC tokens
+
+Infrastructure-aligned app OIDC defaults:
+- keep the app-native redirect scheme aligned to infrastructure: `weaveapp://login/callback` and `weaveapp://logout/callback`
+- keep the app client ID aligned to infrastructure: `weave-app`
+- treat the app client as infra-managed; do not reintroduce manual client-registration or client-ID setup UI unless the product requirements explicitly change

@@ -28,9 +28,10 @@ class NextcloudAuthClient {
     String? accountLabelHint,
   }) async {
     final normalizedBaseUrl = normalizeNextcloudBaseUrl(configuredBaseUrl);
-    _ensureHttpsBaseUrl(
+    _ensureSupportedBaseUrl(
       normalizedBaseUrl,
-      message: 'Use an HTTPS Nextcloud URL before validating bearer access.',
+      message:
+          'Use an HTTP or HTTPS Nextcloud URL before validating bearer access.',
     );
 
     final userId = await _fetchUserId(
@@ -48,9 +49,10 @@ class NextcloudAuthClient {
 
   Future<NextcloudSession> connect(Uri configuredBaseUrl) async {
     final normalizedBaseUrl = normalizeNextcloudBaseUrl(configuredBaseUrl);
-    _ensureHttpsBaseUrl(
+    _ensureSupportedBaseUrl(
       normalizedBaseUrl,
-      message: 'Use an HTTPS Nextcloud URL before starting the login flow.',
+      message:
+          'Use an HTTP or HTTPS Nextcloud URL before starting the login flow.',
     );
     final startResponse = await _send(
       () => _httpClient.post(
@@ -159,10 +161,10 @@ class NextcloudAuthClient {
       }
 
       final serverUrl = normalizeNextcloudBaseUrl(Uri.parse(serverValue));
-      _ensureHttpsBaseUrl(
+      _ensureSupportedBaseUrl(
         serverUrl,
         message:
-            'Nextcloud returned app credentials for a non-HTTPS server, which Weave will not use.',
+            'Nextcloud returned app credentials for a server that does not use HTTP or HTTPS, which Weave will not use.',
       );
       if (serverUrl != configuredBaseUrl) {
         throw const NextcloudFailure.configuration(
@@ -192,9 +194,10 @@ class NextcloudAuthClient {
     required Uri baseUrl,
     required Map<String, String> headers,
   }) async {
-    _ensureHttpsBaseUrl(
+    _ensureSupportedBaseUrl(
       baseUrl,
-      message: 'Use an HTTPS Nextcloud URL before validating the account.',
+      message:
+          'Use an HTTP or HTTPS Nextcloud URL before validating the account.',
     );
     final response = await _send(
       () => _httpClient.get(
@@ -290,8 +293,9 @@ class NextcloudAuthClient {
     return normalizeNextcloudBaseUrl(baseUrl).resolve(relativePath);
   }
 
-  void _ensureHttpsBaseUrl(Uri baseUrl, {required String message}) {
-    if (baseUrl.scheme.toLowerCase() != 'https') {
+  void _ensureSupportedBaseUrl(Uri baseUrl, {required String message}) {
+    final scheme = baseUrl.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') {
       throw NextcloudFailure.configuration(message);
     }
   }

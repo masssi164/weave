@@ -16,7 +16,7 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://nextcloud.home.internal',
+        'https://files.home.internal',
       );
     });
 
@@ -30,13 +30,34 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://nextcloud.example.com',
+        'https://files.example.com',
       );
     });
 
-    test('rejects issuer URLs with non-https schemes', () {
+    test('preserves HTTP scheme for local dev stacks', () {
+      final issuerUrl = deriver.parseIssuerUrl('http://auth.home.internal');
+      final endpoints = deriver.derive(issuerUrl);
+
+      expect(
+        endpoints.matrixHomeserverUrl.toString(),
+        'http://matrix.home.internal',
+      );
+      expect(
+        endpoints.nextcloudBaseUrl.toString(),
+        'http://files.home.internal',
+      );
+    });
+
+    test('accepts issuer URLs with HTTP scheme', () {
       expect(
         () => deriver.parseIssuerUrl('http://auth.home.internal'),
+        returnsNormally,
+      );
+    });
+
+    test('rejects issuer URLs with non-http/https schemes', () {
+      expect(
+        () => deriver.parseIssuerUrl('ftp://auth.home.internal'),
         throwsA(isA<AppFailure>()),
       );
     });

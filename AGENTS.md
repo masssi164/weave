@@ -18,6 +18,13 @@ Feature boundaries:
 - Cross-feature integration should go through domain contracts, app-level orchestration, or shared core abstractions.
 - Integrations may depend on shared app foundations such as `core/`, `features/auth/`, and `features/server_config/`, but must not depend on feature presentation code or feature-specific entities they are meant to serve.
 
+App-config alignment:
+- treat `../weave-inf` as the infrastructure SSOT for app OIDC and endpoint defaults
+- the app OIDC client is infrastructure-managed as `weave-app`; do not reintroduce manual client-ID entry for the normal setup flow
+- app redirect URIs are `weaveapp://login/callback` and `weaveapp://logout/callback`
+- user-facing files defaults should derive to `files.<tenant_domain>`, while compatibility-sensitive storage fields may still use `nextcloud*` names internally
+- local development stacks may legitimately use `http://` issuer and service URLs
+
 Accessibility is mandatory:
 - interactive controls must provide at least `48x48` logical touch targets
 - icon-only actions must have semantics labels

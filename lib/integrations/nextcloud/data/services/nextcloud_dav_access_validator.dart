@@ -15,7 +15,7 @@ class HttpNextcloudDavAccessValidator implements NextcloudDavAccessValidator {
 
   @override
   Future<void> validateRootAccess(NextcloudSession session) async {
-    _ensureHttpsSession(session);
+    _ensureSupportedSession(session);
     final request =
         http.Request(
             'PROPFIND',
@@ -56,10 +56,11 @@ class HttpNextcloudDavAccessValidator implements NextcloudDavAccessValidator {
     }
   }
 
-  void _ensureHttpsSession(NextcloudSession session) {
-    if (session.baseUrl.scheme.toLowerCase() != 'https') {
+  void _ensureSupportedSession(NextcloudSession session) {
+    final scheme = session.baseUrl.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') {
       throw const NextcloudFailure.configuration(
-        'Use an HTTPS Nextcloud URL before validating WebDAV access.',
+        'Use an HTTP or HTTPS Nextcloud URL before validating WebDAV access.',
       );
     }
   }
