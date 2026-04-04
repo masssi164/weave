@@ -25,7 +25,6 @@ class ServerConfigurationFormState {
     required this.matrixOverridden,
     required this.nextcloudOverridden,
     this.issuerError,
-    this.clientIdError,
     this.matrixError,
     this.nextcloudError,
     this.saveFailure,
@@ -36,7 +35,7 @@ class ServerConfigurationFormState {
       isSaving = false,
       providerType = OidcProviderType.authentik,
       issuerUrl = '',
-      clientId = '',
+      clientId = oidcDefaultClientId,
       matrixHomeserverUrl = '',
       nextcloudBaseUrl = '',
       derivedMatrixHomeserverUrl = '',
@@ -44,7 +43,6 @@ class ServerConfigurationFormState {
       matrixOverridden = false,
       nextcloudOverridden = false,
       issuerError = null,
-      clientIdError = null,
       matrixError = null,
       nextcloudError = null,
       saveFailure = null;
@@ -61,7 +59,6 @@ class ServerConfigurationFormState {
   final bool matrixOverridden;
   final bool nextcloudOverridden;
   final String? issuerError;
-  final String? clientIdError;
   final String? matrixError;
   final String? nextcloudError;
   final AppFailure? saveFailure;
@@ -83,12 +80,10 @@ class ServerConfigurationFormState {
     bool? matrixOverridden,
     bool? nextcloudOverridden,
     String? issuerError,
-    String? clientIdError,
     String? matrixError,
     String? nextcloudError,
     AppFailure? saveFailure,
     bool clearIssuerError = false,
-    bool clearClientIdError = false,
     bool clearMatrixError = false,
     bool clearNextcloudError = false,
     bool clearSaveFailure = false,
@@ -108,9 +103,6 @@ class ServerConfigurationFormState {
       matrixOverridden: matrixOverridden ?? this.matrixOverridden,
       nextcloudOverridden: nextcloudOverridden ?? this.nextcloudOverridden,
       issuerError: clearIssuerError ? null : (issuerError ?? this.issuerError),
-      clientIdError: clearClientIdError
-          ? null
-          : (clientIdError ?? this.clientIdError),
       matrixError: clearMatrixError ? null : (matrixError ?? this.matrixError),
       nextcloudError: clearNextcloudError
           ? null
@@ -140,10 +132,7 @@ class ServerConfigurationFormController
       _initialAuthSignature = null;
       _initialMatrixSignature = null;
       _initialNextcloudSignature = null;
-      state = state.copyWith(
-        initialized: true,
-        clientId: oidcDefaultClientId,
-      );
+      state = state.copyWith(initialized: true, clientId: oidcDefaultClientId);
       return;
     }
 
@@ -179,7 +168,6 @@ class ServerConfigurationFormController
           derivedEndpoints != null &&
           nextcloudUrl != derivedEndpoints.nextcloudBaseUrl.toString(),
       clearIssuerError: true,
-      clearClientIdError: true,
       clearMatrixError: true,
       clearNextcloudError: true,
       clearSaveFailure: true,
@@ -205,6 +193,7 @@ class ServerConfigurationFormController
       nextcloudBaseUrl: state.nextcloudOverridden
           ? state.nextcloudBaseUrl
           : (derivedEndpoints?.nextcloudBaseUrl.toString() ?? ''),
+      clientId: _validateClientId(state.clientId),
       clearIssuerError: true,
       clearSaveFailure: true,
     );
@@ -238,14 +227,6 @@ class ServerConfigurationFormController
     );
   }
 
-  void updateClientId(String clientId) {
-    state = state.copyWith(
-      clientId: clientId,
-      clearClientIdError: true,
-      clearSaveFailure: true,
-    );
-  }
-
   bool validateProviderAndIssuerStep() {
     try {
       final issuerUrl = ref
@@ -265,15 +246,12 @@ class ServerConfigurationFormController
         nextcloudBaseUrl: state.nextcloudOverridden
             ? state.nextcloudBaseUrl
             : defaults.nextcloudBaseUrl.toString(),
+        clientId: _validateClientId(state.clientId),
         clearIssuerError: true,
-        clearClientIdError: true,
       );
       return true;
     } on AppFailure catch (failure) {
-      state = state.copyWith(
-        issuerError: failure.message,
-        clearClientIdError: true,
-      );
+      state = state.copyWith(issuerError: failure.message);
       return false;
     }
   }
@@ -296,7 +274,6 @@ class ServerConfigurationFormController
       state = state.copyWith(
         isSaving: true,
         clearIssuerError: true,
-        clearClientIdError: true,
         clearMatrixError: true,
         clearNextcloudError: true,
         clearSaveFailure: true,
@@ -372,7 +349,6 @@ class ServerConfigurationFormController
         nextcloudError: nextcloudMessage,
         saveFailure: failure.type == AppFailureType.validation ? null : failure,
         clearIssuerError: issuerMessage == null,
-        clearClientIdError: true,
         clearMatrixError: matrixMessage == null,
         clearNextcloudError: nextcloudMessage == null,
         clearSaveFailure: failure.type == AppFailureType.validation,

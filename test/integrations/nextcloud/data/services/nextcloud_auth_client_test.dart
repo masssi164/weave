@@ -52,6 +52,40 @@ void main() {
     );
 
     test(
+      'createBearerSession accepts HTTP base URLs for local dev stacks',
+      () async {
+        final client = MockClient((request) async {
+          expect(
+            request.url,
+            Uri.parse(
+              'http://files.home.internal/ocs/v2.php/cloud/user?format=json',
+            ),
+          );
+          return http.Response(
+            jsonEncode({
+              'ocs': {
+                'data': {'id': 'alice'},
+              },
+            }),
+            200,
+          );
+        });
+        final authClient = NextcloudAuthClient(
+          httpClient: client,
+          loginLauncher: _FakeNextcloudLoginLauncher(),
+        );
+
+        final session = await authClient.createBearerSession(
+          configuredBaseUrl: Uri.parse('http://files.home.internal'),
+          bearerToken: 'oidc-id-token',
+        );
+
+        expect(session.baseUrl, Uri.parse('http://files.home.internal/'));
+        expect(session.userId, 'alice');
+      },
+    );
+
+    test(
       'connect completes the Login Flow v2 handshake and resolves the user id',
       () async {
         final launcher = _FakeNextcloudLoginLauncher();
@@ -169,5 +203,66 @@ void main() {
         );
       },
     );
+
+    test('connect accepts HTTP login flow URLs for local dev stacks', () async {
+      final launcher = _FakeNextcloudLoginLauncher();
+      final client = MockClient((request) async {
+        if (request.url.path.endsWith('/index.php/login/v2')) {
+          return http.Response(
+            jsonEncode({
+              'poll': {
+                'token': 'poll-token',
+                'endpoint': 'http://files.home.internal/login/v2/poll',
+              },
+              'login': 'http://files.home.internal/login/v2/flow/abc',
+            }),
+            200,
+          );
+        }
+
+        if (request.url.path.endsWith('/login/v2/poll')) {
+          return http.Response(
+            jsonEncode({
+              'server': 'http://files.home.internal',
+              'loginName': 'alice@example.com',
+              'appPassword': 'app-password',
+            }),
+            200,
+          );
+        }
+
+        if (request.url.path.endsWith('/ocs/v2.php/cloud/user')) {
+          return http.Response(
+            jsonEncode({
+              'ocs': {
+                'data': {'id': 'alice'},
+              },
+            }),
+            200,
+          );
+        }
+
+        throw StateError(
+          'Unexpected request: ${request.method} ${request.url}',
+        );
+      });
+      final authClient = NextcloudAuthClient(
+        httpClient: client,
+        loginLauncher: launcher,
+        pollInterval: Duration.zero,
+        maxPollAttempts: 1,
+      );
+
+      final session = await authClient.connect(
+        Uri.parse('http://files.home.internal'),
+      );
+
+      expect(
+        launcher.launchedUri,
+        Uri.parse('http://files.home.internal/login/v2/flow/abc'),
+      );
+      expect(session.baseUrl, Uri.parse('http://files.home.internal/'));
+      expect(session.appPassword, 'app-password');
+    });
   });
 }

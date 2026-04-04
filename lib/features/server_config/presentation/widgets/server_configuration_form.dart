@@ -150,7 +150,9 @@ class _ServerConfigurationFormState
         TextField(
           controller: _issuerController,
           keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.done,
+          textInputAction: widget.layout == ServerConfigurationFormLayout.full
+              ? TextInputAction.next
+              : TextInputAction.done,
           decoration: InputDecoration(
             labelText: l10n.serverConfigurationIssuerLabel,
             hintText: 'https://auth.home.internal',

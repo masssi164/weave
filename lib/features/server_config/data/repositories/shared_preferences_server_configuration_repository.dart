@@ -1,5 +1,6 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
+import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -30,6 +31,9 @@ class SharedPreferencesServerConfigurationRepository
       final configuration = ServerConfigurationDto.decode(
         raw,
       ).toConfiguration();
+      final normalizedClientId = _normalizedClientId(
+        configuration.oidcClientRegistration.clientId,
+      );
 
       // Re-validate persisted values on load so presentation never receives
       // malformed configuration from storage.
@@ -47,6 +51,9 @@ class SharedPreferencesServerConfigurationRepository
 
       return configuration.copyWith(
         oidcIssuerUrl: issuerUrl,
+        oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
+          clientId: normalizedClientId,
+        ),
         serviceEndpoints: configuration.serviceEndpoints.copyWith(
           matrixHomeserverUrl: matrixUrl,
           nextcloudBaseUrl: nextcloudUrl,
@@ -89,5 +96,10 @@ class SharedPreferencesServerConfigurationRepository
         cause: error,
       );
     }
+  }
+
+  String _normalizedClientId(String clientId) {
+    final trimmed = clientId.trim();
+    return trimmed.isEmpty ? oidcDefaultClientId : trimmed;
   }
 }

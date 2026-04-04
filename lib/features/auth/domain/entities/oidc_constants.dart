@@ -1,6 +1,6 @@
 const oidcRedirectScheme = 'weaveapp';
-const oidcRedirectUri = 'weaveapp://login/callback';
-const oidcPostLogoutRedirectUri = 'weaveapp://logout/callback';
+const oidcRedirectUri = '$oidcRedirectScheme://login/callback';
+const oidcPostLogoutRedirectUri = '$oidcRedirectScheme://logout/callback';
 const oidcDefaultClientId = 'weave-app';
 
 const oidcDefaultScopes = <String>[

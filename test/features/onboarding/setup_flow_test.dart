@@ -87,19 +87,18 @@ void main() {
       preferencesStore = InMemoryPreferencesStore();
     });
 
-    testWidgets(
-      'renders first step with provider and issuer fields',
-      (tester) async {
-        await tester.pumpWidget(buildApp());
-        await tester.pumpAndSettle();
+    testWidgets('renders first step with provider and issuer fields', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
 
-        expect(find.byType(WeaveLogo), findsOneWidget);
-        expect(find.text('Connect Your Server'), findsOneWidget);
-        expect(find.text('Provider type'), findsOneWidget);
-        expect(find.text('OIDC Client ID'), findsNothing);
-        expect(find.text('Next'), findsOneWidget);
-      },
-    );
+      expect(find.byType(WeaveLogo), findsOneWidget);
+      expect(find.text('Connect Your Server'), findsOneWidget);
+      expect(find.text('Provider type'), findsOneWidget);
+      expect(find.text('OIDC Client ID'), findsNothing);
+      expect(find.text('Next'), findsOneWidget);
+    });
 
     testWidgets('does not show manual OIDC registration guidance', (
       tester,

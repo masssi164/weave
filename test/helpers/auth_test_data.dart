@@ -2,7 +2,7 @@ import 'package:weave/features/auth/domain/entities/auth_session.dart';
 
 AuthSession buildTestAuthSession({
   String issuer = 'https://auth.home.internal',
-  String clientId = 'weave-mobile',
+  String clientId = 'weave-app',
   String accessToken = 'access-token',
   String? refreshToken = 'refresh-token',
   String? idToken = 'id-token',
