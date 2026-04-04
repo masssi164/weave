@@ -5,6 +5,17 @@ import 'package:weave/features/files/data/services/nextcloud_dav_client.dart';
 import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
 import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
 
+class _ThrowingHttpClient extends http.BaseClient {
+  _ThrowingHttpClient(this.error);
+
+  final Object error;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    return Future<http.StreamedResponse>.error(error);
+  }
+}
+
 void main() {
   group('NextcloudDavClient', () {
     test('listDirectory maps WebDAV responses into file entries', () async {
@@ -78,6 +89,35 @@ void main() {
         ),
       );
     });
+
+    test(
+      'listDirectory preserves typed Nextcloud failures from custom transports',
+      () async {
+        const failure = NextcloudFailure.sessionRequired(
+          'Reconnect Nextcloud because the saved app password is incomplete.',
+        );
+        final client = NextcloudDavClient(
+          httpClient: _ThrowingHttpClient(failure),
+        );
+
+        await expectLater(
+          client.listDirectory(
+            NextcloudSession.appPassword(
+              baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+              loginName: 'alice@example.com',
+              userId: 'alice',
+              appPassword: 'app-password',
+            ),
+            '/',
+          ),
+          throwsA(
+            isA<NextcloudFailure>()
+                .having((value) => value.type, 'type', failure.type)
+                .having((value) => value.message, 'message', failure.message),
+          ),
+        );
+      },
+    );
   });
 }
 

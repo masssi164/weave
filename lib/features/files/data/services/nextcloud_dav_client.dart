@@ -37,6 +37,8 @@ class NextcloudDavClient {
     late http.StreamedResponse response;
     try {
       response = await _httpClient.send(request);
+    } on NextcloudFailure {
+      rethrow;
     } catch (error) {
       throw NextcloudFailure.unknown(
         'Unable to load the Nextcloud directory.',
