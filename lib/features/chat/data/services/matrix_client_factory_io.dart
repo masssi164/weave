@@ -201,10 +201,7 @@ class SdkMatrixClientFactory implements MatrixClientFactory {
 /// Maps low-level factory errors (SDK, SQLite, I/O) into [ChatFailure].
 ///
 /// Internal to the factory – services use [mapMatrixServiceError] instead.
-ChatFailure mapMatrixFactoryError(
-  Object error, {
-  required String fallback,
-}) {
+ChatFailure mapMatrixFactoryError(Object error, {required String fallback}) {
   if (error is ChatFailure) return error;
 
   if (error is sdk.MatrixException) {
@@ -217,23 +214,6 @@ ChatFailure mapMatrixFactoryError(
 
   if (error is IOException || error is sqflite.DatabaseException) {
     return ChatFailure.storage(fallback, cause: error);
-  }
-
-  return ChatFailure.unknown(fallback, cause: error);
-}
-
-/// Maps Matrix SDK protocol errors into [ChatFailure].
-///
-/// Used by all services that call into the SDK but do not handle I/O directly.
-ChatFailure mapMatrixServiceError(Object error, {required String fallback}) {
-  if (error is ChatFailure) return error;
-
-  if (error is sdk.MatrixException) {
-    final message = error.errorMessage.trim();
-    return ChatFailure.protocol(
-      message.isEmpty ? fallback : message,
-      cause: error,
-    );
   }
 
   return ChatFailure.unknown(fallback, cause: error);

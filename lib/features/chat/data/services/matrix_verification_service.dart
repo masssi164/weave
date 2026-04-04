@@ -4,9 +4,7 @@ import 'package:matrix/encryption.dart' as crypto;
 import 'package:matrix/matrix.dart' as sdk;
 import 'package:riverpod/riverpod.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
-import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart'
-    if (dart.library.js_interop)
-    'package:weave/features/chat/data/services/matrix_client_factory_web.dart';
+import 'package:weave/features/chat/data/services/matrix_error_mapper.dart';
 import 'package:weave/features/chat/data/services/matrix_service_types.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 
@@ -68,6 +66,7 @@ class SdkMatrixVerificationService implements MatrixVerificationService {
   StreamSubscription<sdk.Client>? _clientCreatedSubscription;
   StreamSubscription<void>? _sessionClearedSubscription;
   StreamSubscription<crypto.KeyVerification>? _verificationSubscription;
+  sdk.Client? _boundClient;
 
   final StreamController<MatrixVerificationSnapshot>
   _verificationUpdatesController =
@@ -235,6 +234,7 @@ class SdkMatrixVerificationService implements MatrixVerificationService {
     _sessionClearedSubscription = null;
     await _verificationSubscription?.cancel();
     _verificationSubscription = null;
+    _boundClient = null;
     _clearActiveVerification();
     if (!_verificationUpdatesController.isClosed) {
       await _verificationUpdatesController.close();
@@ -252,8 +252,12 @@ class SdkMatrixVerificationService implements MatrixVerificationService {
   }
 
   void _bindVerificationListener(sdk.Client client) {
-    _verificationSubscription ??= client.onKeyVerificationRequest.stream
-        .listen(_setActiveVerification);
+    if (identical(_boundClient, client)) return;
+    _verificationSubscription?.cancel();
+    _verificationSubscription = client.onKeyVerificationRequest.stream.listen(
+      _setActiveVerification,
+    );
+    _boundClient = client;
   }
 
   void _setActiveVerification(crypto.KeyVerification request) {
@@ -367,11 +371,12 @@ class SdkMatrixVerificationService implements MatrixVerificationService {
   }
 }
 
-final matrixVerificationServiceProvider =
-    Provider<MatrixVerificationService>((ref) {
-      final service = SdkMatrixVerificationService(
-        factory: ref.watch(matrixClientFactoryProvider),
-      );
-      ref.onDispose(service.dispose);
-      return service;
-    });
+final matrixVerificationServiceProvider = Provider<MatrixVerificationService>((
+  ref,
+) {
+  final service = SdkMatrixVerificationService(
+    factory: ref.watch(matrixClientFactoryProvider),
+  );
+  ref.onDispose(service.dispose);
+  return service;
+});

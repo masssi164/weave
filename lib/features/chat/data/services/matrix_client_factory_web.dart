@@ -1,6 +1,6 @@
 import 'package:matrix/matrix.dart' as sdk;
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
-import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_failure.dart'; // needed for unsupportedPlatform
 
 class _WebMatrixClientFactory implements MatrixClientFactory {
   const _WebMatrixClientFactory();
@@ -38,10 +38,4 @@ class _WebMatrixClientFactory implements MatrixClientFactory {
 // ignore: unused_element
 MatrixClientFactory createMatrixClientFactory() {
   return const _WebMatrixClientFactory();
-}
-
-/// Stub used by services on web. Identical semantics to the io version.
-ChatFailure mapMatrixServiceError(Object error, {required String fallback}) {
-  if (error is ChatFailure) return error;
-  return ChatFailure.unknown(fallback, cause: error);
 }

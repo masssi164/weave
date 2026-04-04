@@ -1,9 +1,7 @@
 import 'package:matrix/matrix.dart' as sdk;
 import 'package:riverpod/riverpod.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
-import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart'
-    if (dart.library.js_interop)
-    'package:weave/features/chat/data/services/matrix_client_factory_web.dart';
+import 'package:weave/features/chat/data/services/matrix_error_mapper.dart';
 import 'package:weave/features/chat/data/services/matrix_service_types.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 
@@ -13,9 +11,7 @@ abstract interface class MatrixConversationService {
   /// the currently signed-in account for [homeserver].
   ///
   /// Throws [ChatFailure.sessionRequired] when not signed in.
-  Future<List<MatrixRoomSnapshot>> loadConversations({
-    required Uri homeserver,
-  });
+  Future<List<MatrixRoomSnapshot>> loadConversations({required Uri homeserver});
 }
 
 class SdkMatrixConversationService implements MatrixConversationService {
@@ -86,9 +82,10 @@ class SdkMatrixConversationService implements MatrixConversationService {
   }
 }
 
-final matrixConversationServiceProvider =
-    Provider<MatrixConversationService>((ref) {
-      return SdkMatrixConversationService(
-        factory: ref.watch(matrixClientFactoryProvider),
-      );
-    });
+final matrixConversationServiceProvider = Provider<MatrixConversationService>((
+  ref,
+) {
+  return SdkMatrixConversationService(
+    factory: ref.watch(matrixClientFactoryProvider),
+  );
+});

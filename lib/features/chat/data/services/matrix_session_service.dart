@@ -2,9 +2,7 @@ import 'package:matrix/matrix.dart' as sdk;
 import 'package:riverpod/riverpod.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
-import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart'
-    if (dart.library.js_interop)
-    'package:weave/features/chat/data/services/matrix_client_factory_web.dart';
+import 'package:weave/features/chat/data/services/matrix_error_mapper.dart';
 import 'package:weave/features/chat/data/services/matrix_service_types.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 
