@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -171,6 +174,36 @@ void main() {
           IntegrationRecoveryRequirement.completeSetup,
         );
         expect(filesRepository.restoreConnectionCalls, 0);
+      },
+    );
+
+    test(
+      'returns an aggregate error when one integration fails while another is still loading',
+      () {
+        final loadingCompleter = Completer<IntegrationConnectionState>();
+        final error = StateError('App auth failed.');
+        final container = ProviderContainer.test(
+          overrides: [
+            appAuthIntegrationConnectionProvider.overrideWithValue(
+              AsyncError<IntegrationConnectionState>(error, StackTrace.empty),
+            ),
+            matrixIntegrationConnectionProvider.overrideWith(
+              (ref) => loadingCompleter.future,
+            ),
+            nextcloudIntegrationConnectionProvider.overrideWith(
+              (ref) async => const IntegrationConnectionState(
+                integration: WorkspaceIntegration.nextcloud,
+                status: IntegrationConnectionStatus.connected,
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final state = container.read(workspaceConnectionStateProvider);
+
+        expect(state.hasError, isTrue);
+        expect(state.error, same(error));
       },
     );
 

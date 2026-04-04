@@ -94,9 +94,6 @@ final workspaceConnectionStateProvider =
       final matrix = ref.watch(matrixIntegrationConnectionProvider);
       final nextcloud = ref.watch(nextcloudIntegrationConnectionProvider);
 
-      if (appAuth.isLoading || matrix.isLoading || nextcloud.isLoading) {
-        return const AsyncLoading();
-      }
       if (appAuth.hasError) {
         return AsyncError(appAuth.error!, appAuth.stackTrace!);
       }
@@ -105,6 +102,9 @@ final workspaceConnectionStateProvider =
       }
       if (nextcloud.hasError) {
         return AsyncError(nextcloud.error!, nextcloud.stackTrace!);
+      }
+      if (appAuth.isLoading || matrix.isLoading || nextcloud.isLoading) {
+        return const AsyncLoading();
       }
 
       return AsyncData(
