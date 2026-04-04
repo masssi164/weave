@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
@@ -139,7 +140,10 @@ class ServerConfigurationFormController
       _initialAuthSignature = null;
       _initialMatrixSignature = null;
       _initialNextcloudSignature = null;
-      state = state.copyWith(initialized: true);
+      state = state.copyWith(
+        initialized: true,
+        clientId: oidcDefaultClientId,
+      );
       return;
     }
 
@@ -266,12 +270,9 @@ class ServerConfigurationFormController
       );
       return true;
     } on AppFailure catch (failure) {
-      final isClientIdFailure = failure.message.contains('client ID');
       state = state.copyWith(
-        issuerError: isClientIdFailure ? null : failure.message,
-        clientIdError: isClientIdFailure ? failure.message : null,
-        clearIssuerError: isClientIdFailure,
-        clearClientIdError: !isClientIdFailure,
+        issuerError: failure.message,
+        clearClientIdError: true,
       );
       return false;
     }
@@ -353,11 +354,6 @@ class ServerConfigurationFormController
               failure.message.contains('issuer')
           ? failure.message
           : null;
-      final clientIdMessage =
-          failure.type == AppFailureType.validation &&
-              failure.message.contains('client ID')
-          ? failure.message
-          : null;
       final matrixMessage =
           failure.type == AppFailureType.validation &&
               failure.message.contains('Matrix')
@@ -372,12 +368,11 @@ class ServerConfigurationFormController
       state = state.copyWith(
         isSaving: false,
         issuerError: issuerMessage,
-        clientIdError: clientIdMessage,
         matrixError: matrixMessage,
         nextcloudError: nextcloudMessage,
         saveFailure: failure.type == AppFailureType.validation ? null : failure,
         clearIssuerError: issuerMessage == null,
-        clearClientIdError: clientIdMessage == null,
+        clearClientIdError: true,
         clearMatrixError: matrixMessage == null,
         clearNextcloudError: nextcloudMessage == null,
         clearSaveFailure: failure.type == AppFailureType.validation,
@@ -412,13 +407,7 @@ class ServerConfigurationFormController
 
   String _validateClientId(String clientId) {
     final trimmed = clientId.trim();
-    if (trimmed.isEmpty) {
-      throw const AppFailure.validation(
-        'Enter the OIDC client ID for your Weave native app registration.',
-      );
-    }
-
-    return trimmed;
+    return trimmed.isEmpty ? oidcDefaultClientId : trimmed;
   }
 
   String _authSignature(String issuerUrl, String clientId) {

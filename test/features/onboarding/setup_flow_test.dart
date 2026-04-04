@@ -88,7 +88,7 @@ void main() {
     });
 
     testWidgets(
-      'renders first step with provider, issuer, and client id fields',
+      'renders first step with provider and issuer fields',
       (tester) async {
         await tester.pumpWidget(buildApp());
         await tester.pumpAndSettle();
@@ -96,26 +96,20 @@ void main() {
         expect(find.byType(WeaveLogo), findsOneWidget);
         expect(find.text('Connect Your Server'), findsOneWidget);
         expect(find.text('Provider type'), findsOneWidget);
-        expect(find.text('OIDC Client ID'), findsOneWidget);
+        expect(find.text('OIDC Client ID'), findsNothing);
         expect(find.text('Next'), findsOneWidget);
       },
     );
 
-    testWidgets('shows public client registration guidance', (tester) async {
+    testWidgets('does not show manual OIDC registration guidance', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
       expect(
         find.text('Register Weave as a native/public client'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('com.massimotter.weave:/oauthredirect'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('com.massimotter.weave:/logout'),
-        findsOneWidget,
+        findsNothing,
       );
     });
 
@@ -129,16 +123,12 @@ void main() {
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
       );
-      await tester.enterText(
-        _textFieldWithLabel('OIDC Client ID'),
-        'weave-mobile',
-      );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
       expect(find.text('Review Service Endpoints'), findsOneWidget);
       expect(find.text('https://matrix.home.internal'), findsWidgets);
-      expect(find.text('https://nextcloud.home.internal'), findsWidgets);
+      expect(find.text('https://files.home.internal'), findsWidgets);
       expect(find.text('Finish'), findsOneWidget);
     });
 
@@ -152,16 +142,12 @@ void main() {
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
       );
-      await tester.enterText(
-        _textFieldWithLabel('OIDC Client ID'),
-        'weave-mobile',
-      );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
       await tester.enterText(
-        _textFieldWithLabel('Nextcloud Base URL'),
-        'https://cloud.home.internal',
+        _textFieldWithLabel('Files Base URL'),
+        'https://files.home.internal',
       );
       await tester.tap(find.text('Finish'));
       await tester.pumpAndSettle();
@@ -170,7 +156,7 @@ void main() {
 
       final raw = preferencesStore.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
-      expect(json['oidcClientId'], 'weave-mobile');
+      expect(json['oidcClientId'], 'weave-app');
     });
 
     testWidgets('goes back to provider step from services step', (
@@ -182,10 +168,6 @@ void main() {
       await tester.enterText(
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
-      );
-      await tester.enterText(
-        _textFieldWithLabel('OIDC Client ID'),
-        'weave-mobile',
       );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();

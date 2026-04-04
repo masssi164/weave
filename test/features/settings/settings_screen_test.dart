@@ -160,10 +160,9 @@ void main() {
       );
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
-      expect(find.text('weave-mobile'), findsWidgets);
 
       await tester.enterText(
-        _textFieldWithLabel('Nextcloud Base URL'),
+        _textFieldWithLabel('Files Base URL'),
         'https://nextcloud-alt.home.internal',
       );
       await tester.pump();
