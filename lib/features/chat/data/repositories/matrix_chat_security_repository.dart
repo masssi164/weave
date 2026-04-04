@@ -1,4 +1,6 @@
-import 'package:weave/features/chat/data/services/matrix_client.dart';
+import 'package:weave/features/chat/data/services/matrix_security_service.dart';
+import 'package:weave/features/chat/data/services/matrix_service_types.dart';
+import 'package:weave/features/chat/data/services/matrix_verification_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_security_repository.dart';
@@ -7,23 +9,28 @@ import 'package:weave/features/server_config/domain/repositories/'
 
 class MatrixChatSecurityRepository implements ChatSecurityRepository {
   const MatrixChatSecurityRepository({
-    required MatrixClient client,
+    required MatrixSecurityService securityService,
+    required MatrixVerificationService verificationService,
     required ServerConfigurationRepository serverConfigurationRepository,
-  }) : _client = client,
+  }) : _securityService = securityService,
+       _verificationService = verificationService,
        _serverConfigurationRepository = serverConfigurationRepository;
 
-  final MatrixClient _client;
+  final MatrixSecurityService _securityService;
+  final MatrixVerificationService _verificationService;
   final ServerConfigurationRepository _serverConfigurationRepository;
 
   @override
   Stream<ChatVerificationSession> watchVerificationUpdates() {
-    return _client.verificationUpdates.map(_mapVerificationSnapshot);
+    return _verificationService.verificationUpdates.map(
+      _mapVerificationSnapshot,
+    );
   }
 
   @override
   Future<ChatSecurityState> loadSecurityState({bool refresh = false}) async {
     final homeserver = await _loadHomeserver();
-    final snapshot = await _client.loadSecurityState(
+    final snapshot = await _securityService.loadSecurityState(
       homeserver: homeserver,
       refresh: refresh,
     );
@@ -33,7 +40,7 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
   @override
   Future<String> bootstrapSecurity({String? passphrase}) async {
     final homeserver = await _loadHomeserver();
-    return _client.bootstrapSecurity(
+    return _securityService.bootstrapSecurity(
       homeserver: homeserver,
       passphrase: passphrase,
     );
@@ -44,7 +51,7 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
     required String recoveryKeyOrPassphrase,
   }) async {
     final homeserver = await _loadHomeserver();
-    await _client.restoreSecurity(
+    await _securityService.restoreSecurity(
       homeserver: homeserver,
       recoveryKeyOrPassphrase: recoveryKeyOrPassphrase,
     );
@@ -53,19 +60,19 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
   @override
   Future<void> startVerification() async {
     final homeserver = await _loadHomeserver();
-    await _client.startVerification(homeserver: homeserver);
+    await _verificationService.startVerification(homeserver: homeserver);
   }
 
   @override
   Future<void> acceptVerification() async {
     final homeserver = await _loadHomeserver();
-    await _client.acceptVerification(homeserver: homeserver);
+    await _verificationService.acceptVerification(homeserver: homeserver);
   }
 
   @override
   Future<void> startSasVerification() async {
     final homeserver = await _loadHomeserver();
-    await _client.startSasVerification(homeserver: homeserver);
+    await _verificationService.startSasVerification(homeserver: homeserver);
   }
 
   @override
@@ -73,7 +80,7 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
     required String recoveryKeyOrPassphrase,
   }) async {
     final homeserver = await _loadHomeserver();
-    await _client.unlockVerification(
+    await _verificationService.unlockVerification(
       homeserver: homeserver,
       recoveryKeyOrPassphrase: recoveryKeyOrPassphrase,
     );
@@ -82,19 +89,24 @@ class MatrixChatSecurityRepository implements ChatSecurityRepository {
   @override
   Future<void> confirmSas({required bool matches}) async {
     final homeserver = await _loadHomeserver();
-    await _client.confirmSas(homeserver: homeserver, matches: matches);
+    await _verificationService.confirmSas(
+      homeserver: homeserver,
+      matches: matches,
+    );
   }
 
   @override
   Future<void> cancelVerification() async {
     final homeserver = await _loadHomeserver();
-    await _client.cancelVerification(homeserver: homeserver);
+    await _verificationService.cancelVerification(homeserver: homeserver);
   }
 
   @override
   Future<void> dismissVerificationResult() async {
     final homeserver = await _loadHomeserver();
-    await _client.dismissVerificationResult(homeserver: homeserver);
+    await _verificationService.dismissVerificationResult(
+      homeserver: homeserver,
+    );
   }
 
   Future<Uri> _loadHomeserver() async {

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
-import 'package:weave/features/chat/data/services/matrix_client.dart';
+import 'package:weave/features/chat/data/services/matrix_conversation_service.dart';
+import 'package:weave/features/chat/data/services/matrix_service_types.dart';
+import 'package:weave/features/chat/data/services/matrix_session_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -9,38 +11,8 @@ import 'package:weave/features/server_config/domain/repositories/'
 
 import '../../../../helpers/server_config_test_data.dart';
 
-class _FakeMatrixClient implements MatrixClient {
-  Uri? lastHomeserverForLoad;
+class _FakeMatrixSessionService implements MatrixSessionService {
   Uri? lastHomeserverForConnect;
-
-  List<MatrixRoomSnapshot> rooms = const <MatrixRoomSnapshot>[];
-
-  @override
-  Stream<MatrixVerificationSnapshot> get verificationUpdates =>
-      const Stream<MatrixVerificationSnapshot>.empty();
-
-  @override
-  Future<void> acceptVerification({required Uri homeserver}) async {}
-
-  @override
-  Future<String> bootstrapSecurity({
-    required Uri homeserver,
-    String? passphrase,
-  }) async {
-    return 'RECOVERY-KEY';
-  }
-
-  @override
-  Future<void> cancelVerification({required Uri homeserver}) async {}
-
-  @override
-  Future<void> clearSession() async {}
-
-  @override
-  Future<void> confirmSas({
-    required Uri homeserver,
-    required bool matches,
-  }) async {}
 
   @override
   Future<void> connect({required Uri homeserver}) async {
@@ -48,10 +20,16 @@ class _FakeMatrixClient implements MatrixClient {
   }
 
   @override
-  Future<void> dismissVerificationResult({required Uri homeserver}) async {}
+  Future<void> signOut() async {}
 
   @override
-  Future<void> dispose() async {}
+  Future<void> clearSession() async {}
+}
+
+class _FakeMatrixConversationService implements MatrixConversationService {
+  Uri? lastHomeserverForLoad;
+
+  List<MatrixRoomSnapshot> rooms = const <MatrixRoomSnapshot>[];
 
   @override
   Future<List<MatrixRoomSnapshot>> loadConversations({
@@ -60,45 +38,6 @@ class _FakeMatrixClient implements MatrixClient {
     lastHomeserverForLoad = homeserver;
     return rooms;
   }
-
-  @override
-  Future<MatrixSecuritySnapshot> loadSecurityState({
-    required Uri homeserver,
-    bool refresh = false,
-  }) async {
-    return const MatrixSecuritySnapshot(
-      isMatrixSignedIn: false,
-      bootstrapState: MatrixSecurityBootstrapState.signedOut,
-      accountVerificationState: MatrixAccountVerificationState.unavailable,
-      deviceVerificationState: MatrixDeviceVerificationState.unavailable,
-      keyBackupState: MatrixKeyBackupState.unavailable,
-      roomEncryptionReadiness: MatrixRoomEncryptionReadiness.unavailable,
-      secretStorageReady: false,
-      crossSigningReady: false,
-      hasEncryptedConversations: false,
-    );
-  }
-
-  @override
-  Future<void> restoreSecurity({
-    required Uri homeserver,
-    required String recoveryKeyOrPassphrase,
-  }) async {}
-
-  @override
-  Future<void> signOut() async {}
-
-  @override
-  Future<void> startSasVerification({required Uri homeserver}) async {}
-
-  @override
-  Future<void> unlockVerification({
-    required Uri homeserver,
-    required String recoveryKeyOrPassphrase,
-  }) async {}
-
-  @override
-  Future<void> startVerification({required Uri homeserver}) async {}
 }
 
 class _FakeServerConfigurationRepository
@@ -124,7 +63,7 @@ class _FakeServerConfigurationRepository
 void main() {
   group('MatrixChatRepository', () {
     test('loads conversations from the configured Matrix homeserver', () async {
-      final client = _FakeMatrixClient()
+      final conversationService = _FakeMatrixConversationService()
         ..rooms = const <MatrixRoomSnapshot>[
           MatrixRoomSnapshot(
             id: '!room:home.internal',
@@ -137,7 +76,8 @@ void main() {
           ),
         ];
       final repository = MatrixChatRepository(
-        client: client,
+        sessionService: _FakeMatrixSessionService(),
+        conversationService: conversationService,
         serverConfigurationRepository: _FakeServerConfigurationRepository(
           buildTestConfiguration(),
         ),
@@ -146,7 +86,7 @@ void main() {
       final conversations = await repository.loadConversations();
 
       expect(
-        client.lastHomeserverForLoad.toString(),
+        conversationService.lastHomeserverForLoad.toString(),
         'https://matrix.home.internal',
       );
       expect(conversations, hasLength(1));
@@ -155,9 +95,10 @@ void main() {
     });
 
     test('connect uses the configured Matrix homeserver', () async {
-      final client = _FakeMatrixClient();
+      final sessionService = _FakeMatrixSessionService();
       final repository = MatrixChatRepository(
-        client: client,
+        sessionService: sessionService,
+        conversationService: _FakeMatrixConversationService(),
         serverConfigurationRepository: _FakeServerConfigurationRepository(
           buildTestConfiguration(),
         ),
@@ -166,14 +107,15 @@ void main() {
       await repository.connect();
 
       expect(
-        client.lastHomeserverForConnect.toString(),
+        sessionService.lastHomeserverForConnect.toString(),
         'https://matrix.home.internal',
       );
     });
 
     test('fails clearly when setup is missing', () async {
       final repository = MatrixChatRepository(
-        client: _FakeMatrixClient(),
+        sessionService: _FakeMatrixSessionService(),
+        conversationService: _FakeMatrixConversationService(),
         serverConfigurationRepository: _FakeServerConfigurationRepository(null),
       );
 

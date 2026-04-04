@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/data/repositories/matrix_chat_security_repository.dart';
-import 'package:weave/features/chat/data/services/matrix_client.dart';
+import 'package:weave/features/chat/data/services/matrix_security_service.dart';
+import 'package:weave/features/chat/data/services/matrix_service_types.dart';
+import 'package:weave/features/chat/data/services/matrix_verification_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -9,7 +11,7 @@ import 'package:weave/features/server_config/domain/repositories/'
 
 import '../../../../helpers/server_config_test_data.dart';
 
-class _FakeMatrixClient implements MatrixClient {
+class _FakeMatrixSecurityService implements MatrixSecurityService {
   MatrixSecuritySnapshot snapshot = const MatrixSecuritySnapshot(
     isMatrixSignedIn: true,
     bootstrapState: MatrixSecurityBootstrapState.ready,
@@ -23,8 +25,12 @@ class _FakeMatrixClient implements MatrixClient {
   );
 
   @override
-  Stream<MatrixVerificationSnapshot> get verificationUpdates =>
-      const Stream<MatrixVerificationSnapshot>.empty();
+  Future<MatrixSecuritySnapshot> loadSecurityState({
+    required Uri homeserver,
+    bool refresh = false,
+  }) async {
+    return snapshot;
+  }
 
   @override
   Future<String> bootstrapSecurity({
@@ -35,52 +41,22 @@ class _FakeMatrixClient implements MatrixClient {
   }
 
   @override
-  Future<void> acceptVerification({required Uri homeserver}) async {}
-
-  @override
-  Future<void> cancelVerification({required Uri homeserver}) async {}
-
-  @override
-  Future<void> clearSession() async {}
-
-  @override
-  Future<void> confirmSas({
-    required Uri homeserver,
-    required bool matches,
-  }) async {}
-
-  @override
-  Future<void> connect({required Uri homeserver}) async {}
-
-  @override
-  Future<void> dismissVerificationResult({required Uri homeserver}) async {}
-
-  @override
-  Future<void> dispose() async {}
-
-  @override
-  Future<List<MatrixRoomSnapshot>> loadConversations({
-    required Uri homeserver,
-  }) async {
-    return const <MatrixRoomSnapshot>[];
-  }
-
-  @override
-  Future<MatrixSecuritySnapshot> loadSecurityState({
-    required Uri homeserver,
-    bool refresh = false,
-  }) async {
-    return snapshot;
-  }
-
-  @override
   Future<void> restoreSecurity({
     required Uri homeserver,
     required String recoveryKeyOrPassphrase,
   }) async {}
+}
+
+class _FakeMatrixVerificationService implements MatrixVerificationService {
+  @override
+  Stream<MatrixVerificationSnapshot> get verificationUpdates =>
+      const Stream<MatrixVerificationSnapshot>.empty();
 
   @override
-  Future<void> signOut() async {}
+  Future<void> startVerification({required Uri homeserver}) async {}
+
+  @override
+  Future<void> acceptVerification({required Uri homeserver}) async {}
 
   @override
   Future<void> startSasVerification({required Uri homeserver}) async {}
@@ -92,7 +68,19 @@ class _FakeMatrixClient implements MatrixClient {
   }) async {}
 
   @override
-  Future<void> startVerification({required Uri homeserver}) async {}
+  Future<void> confirmSas({
+    required Uri homeserver,
+    required bool matches,
+  }) async {}
+
+  @override
+  Future<void> cancelVerification({required Uri homeserver}) async {}
+
+  @override
+  Future<void> dismissVerificationResult({required Uri homeserver}) async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 class _FakeServerConfigurationRepository
@@ -118,7 +106,7 @@ class _FakeServerConfigurationRepository
 void main() {
   group('MatrixChatSecurityRepository', () {
     test('maps the Matrix security snapshot into chat-owned models', () async {
-      final client = _FakeMatrixClient()
+      final securityService = _FakeMatrixSecurityService()
         ..snapshot = const MatrixSecuritySnapshot(
           isMatrixSignedIn: true,
           bootstrapState: MatrixSecurityBootstrapState.recoveryRequired,
@@ -142,7 +130,8 @@ void main() {
         );
 
       final repository = MatrixChatSecurityRepository(
-        client: client,
+        securityService: securityService,
+        verificationService: _FakeMatrixVerificationService(),
         serverConfigurationRepository: _FakeServerConfigurationRepository(
           buildTestConfiguration(),
         ),
@@ -177,7 +166,8 @@ void main() {
 
     test('fails clearly when setup is missing', () async {
       final repository = MatrixChatSecurityRepository(
-        client: _FakeMatrixClient(),
+        securityService: _FakeMatrixSecurityService(),
+        verificationService: _FakeMatrixVerificationService(),
         serverConfigurationRepository: _FakeServerConfigurationRepository(null),
       );
 
@@ -196,7 +186,7 @@ void main() {
     test(
       'maps verification recovery-key requests into chat-owned phases',
       () async {
-        final client = _FakeMatrixClient()
+        final securityService = _FakeMatrixSecurityService()
           ..snapshot = const MatrixSecuritySnapshot(
             isMatrixSignedIn: true,
             bootstrapState: MatrixSecurityBootstrapState.ready,
@@ -215,7 +205,8 @@ void main() {
           );
 
         final repository = MatrixChatSecurityRepository(
-          client: client,
+          securityService: securityService,
+          verificationService: _FakeMatrixVerificationService(),
           serverConfigurationRepository: _FakeServerConfigurationRepository(
             buildTestConfiguration(),
           ),
