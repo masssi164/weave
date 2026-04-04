@@ -512,96 +512,97 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsServerConfigurationTitle => 'Serverkonfiguration';
 
   @override
-  String get settingsWorkspaceReadinessTitle => 'Workspace Readiness';
+  String get settingsWorkspaceReadinessTitle => 'Workspace-Status';
 
   @override
   String get settingsWorkspaceReadinessDescription =>
-      'Shell access is tracked separately from each service connection so Weave can show degraded integrations honestly.';
+      'Der Zugriff auf die App-Shell wird getrennt von den einzelnen Dienstverbindungen verfolgt, damit Weave beeinträchtigte Integrationen transparent anzeigen kann.';
 
   @override
   String get settingsWorkspaceSummaryConnected =>
-      'Shell access and the mapped services are ready.';
+      'Shell-Zugriff und die zugeordneten Dienste sind bereit.';
 
   @override
   String get settingsWorkspaceSummaryDegraded =>
-      'Shell access is ready, but one or more services still need attention.';
+      'Der Shell-Zugriff ist bereit, aber ein oder mehrere Dienste benötigen noch Aufmerksamkeit.';
 
   @override
   String get settingsWorkspaceSummaryNeedsSetup =>
-      'Finish setup before the workspace shell can become available.';
+      'Schließe die Einrichtung ab, bevor die Workspace-Shell verfügbar werden kann.';
 
   @override
   String get settingsWorkspaceSummaryNeedsSignIn =>
-      'Sign in again to restore workspace shell access.';
+      'Melde dich erneut an, um den Zugriff auf die Workspace-Shell wiederherzustellen.';
 
   @override
-  String get settingsWorkspaceShellAccessLabel => 'Shell access';
+  String get settingsWorkspaceShellAccessLabel => 'Shell-Zugriff';
 
   @override
   String get settingsWorkspaceChatLabel => 'Chat';
 
   @override
-  String get settingsWorkspaceFilesLabel => 'Files';
+  String get settingsWorkspaceFilesLabel => 'Dateien';
 
   @override
-  String get settingsWorkspaceCapabilityLabel => 'Readiness';
+  String get settingsWorkspaceCapabilityLabel => 'Bereitschaft';
 
   @override
-  String get settingsWorkspaceConnectionLabel => 'Connection';
+  String get settingsWorkspaceConnectionLabel => 'Verbindung';
 
   @override
-  String get settingsWorkspaceLastChangeLabel => 'Last change';
+  String get settingsWorkspaceLastChangeLabel => 'Letzte Änderung';
 
   @override
-  String get settingsWorkspaceCapabilityReady => 'Ready';
+  String get settingsWorkspaceCapabilityReady => 'Bereit';
 
   @override
-  String get settingsWorkspaceCapabilityDegraded => 'Degraded';
+  String get settingsWorkspaceCapabilityDegraded => 'Beeinträchtigt';
 
   @override
-  String get settingsWorkspaceCapabilityBlocked => 'Blocked';
+  String get settingsWorkspaceCapabilityBlocked => 'Blockiert';
 
   @override
-  String get settingsWorkspaceCapabilityUnavailable => 'Unavailable';
+  String get settingsWorkspaceCapabilityUnavailable => 'Nicht verfügbar';
 
   @override
-  String get settingsWorkspaceConnectionConnected => 'Connected';
+  String get settingsWorkspaceConnectionConnected => 'Verbunden';
 
   @override
-  String get settingsWorkspaceConnectionDisconnected => 'Disconnected';
+  String get settingsWorkspaceConnectionDisconnected => 'Nicht verbunden';
 
   @override
-  String get settingsWorkspaceConnectionDegraded => 'Degraded';
+  String get settingsWorkspaceConnectionDegraded => 'Beeinträchtigt';
 
   @override
-  String get settingsWorkspaceConnectionMisconfigured => 'Misconfigured';
+  String get settingsWorkspaceConnectionMisconfigured => 'Fehlkonfiguriert';
 
   @override
   String get settingsWorkspaceConnectionRequiresReauthentication =>
-      'Needs sign-in';
+      'Anmeldung nötig';
 
   @override
   String get settingsWorkspaceConnectionUnavailableOnPlatform =>
-      'Unavailable on this platform';
+      'Auf dieser Plattform nicht verfügbar';
 
   @override
   String get settingsWorkspaceInvalidationAuthConfigurationChanged =>
-      'Auth configuration changed';
+      'Anmeldekonfiguration geändert';
 
   @override
   String get settingsWorkspaceInvalidationMatrixHomeserverChanged =>
-      'Matrix homeserver changed';
+      'Matrix-Homeserver geändert';
 
   @override
   String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged =>
-      'Nextcloud base URL changed';
+      'Nextcloud-Basis-URL geändert';
 
   @override
   String get settingsWorkspaceInvalidationExplicitSignOut =>
-      'Explicit sign-out';
+      'Manuell abgemeldet';
 
   @override
-  String get settingsWorkspaceInvalidationRestartSetup => 'Restarted setup';
+  String get settingsWorkspaceInvalidationRestartSetup =>
+      'Einrichtung neu gestartet';
 
   @override
   String get settingsServerConfigurationDescription =>
