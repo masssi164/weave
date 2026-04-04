@@ -1,5 +1,5 @@
-import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
 import 'package:weave/features/app/domain/ports/chat_session_port.dart';
 import 'package:weave/features/app/domain/ports/files_session_port.dart';

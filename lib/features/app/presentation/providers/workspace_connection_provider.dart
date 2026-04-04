@@ -66,7 +66,17 @@ final nextcloudIntegrationConnectionProvider =
       final invalidation = ref.watch(
         integrationInvalidationProvider(WorkspaceIntegration.nextcloud),
       );
-      await ref.watch(savedServerConfigurationProvider.future);
+      final configuration = await ref.watch(
+        savedServerConfigurationProvider.future,
+      );
+      if (configuration == null) {
+        return IntegrationConnectionState(
+          integration: WorkspaceIntegration.nextcloud,
+          status: IntegrationConnectionStatus.misconfigured,
+          recoveryRequirement: IntegrationRecoveryRequirement.completeSetup,
+          lastInvalidation: invalidation,
+        );
+      }
 
       try {
         final connectionState = await ref

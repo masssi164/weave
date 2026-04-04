@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
@@ -11,7 +12,6 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../helpers/fake_chat_security_repository.dart';
 import '../../../../helpers/server_config_test_data.dart';
@@ -29,6 +29,7 @@ class _FakeFilesRepository implements FilesRepository {
   _FakeFilesRepository({required this.connectionState});
 
   final FilesConnectionState connectionState;
+  int restoreConnectionCalls = 0;
 
   @override
   Future<FilesConnectionState> connect() async => connectionState;
@@ -42,7 +43,10 @@ class _FakeFilesRepository implements FilesRepository {
   }
 
   @override
-  Future<FilesConnectionState> restoreConnection() async => connectionState;
+  Future<FilesConnectionState> restoreConnection() async {
+    restoreConnectionCalls++;
+    return connectionState;
+  }
 }
 
 void main() {
@@ -142,6 +146,33 @@ void main() {
         IntegrationRecoveryRequirement.reauthenticate,
       );
     });
+
+    test(
+      'maps missing Nextcloud configuration to setup-required without restoring a session',
+      () async {
+        final filesRepository = _FakeFilesRepository(
+          connectionState: const FilesConnectionState.misconfigured(),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            savedServerConfigurationProvider.overrideWith((ref) async => null),
+            filesRepositoryProvider.overrideWithValue(filesRepository),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final state = await container.read(
+          nextcloudIntegrationConnectionProvider.future,
+        );
+
+        expect(state.status, IntegrationConnectionStatus.misconfigured);
+        expect(
+          state.recoveryRequirement,
+          IntegrationRecoveryRequirement.completeSetup,
+        );
+        expect(filesRepository.restoreConnectionCalls, 0);
+      },
+    );
 
     test(
       'keeps shell access ready while service readiness stays degraded',

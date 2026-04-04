@@ -2,9 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 
 class WorkspaceInvalidationState {
-  const WorkspaceInvalidationState({
-    this.integrations = const <WorkspaceIntegration, IntegrationInvalidation>{},
-  });
+  WorkspaceInvalidationState({
+    Map<WorkspaceIntegration, IntegrationInvalidation> integrations =
+        const <WorkspaceIntegration, IntegrationInvalidation>{},
+  }) : integrations =
+           Map<WorkspaceIntegration, IntegrationInvalidation>.unmodifiable(
+             integrations,
+           );
 
   final Map<WorkspaceIntegration, IntegrationInvalidation> integrations;
 
@@ -16,7 +20,7 @@ class WorkspaceInvalidationState {
 class WorkspaceInvalidationController
     extends Notifier<WorkspaceInvalidationState> {
   @override
-  WorkspaceInvalidationState build() => const WorkspaceInvalidationState();
+  WorkspaceInvalidationState build() => WorkspaceInvalidationState();
 
   void invalidate({
     required WorkspaceIntegration integration,

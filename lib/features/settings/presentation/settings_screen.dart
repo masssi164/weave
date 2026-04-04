@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
@@ -230,6 +233,9 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
             message: l10n.errorStateLabel,
             retryLabel: l10n.retryButton,
             onRetry: () {
+              if (ref.read(appAuthIntegrationConnectionProvider).hasError) {
+                unawaited(ref.read(appBootstrapProvider.notifier).retry());
+              }
               ref.invalidate(appAuthIntegrationConnectionProvider);
               ref.invalidate(matrixIntegrationConnectionProvider);
               ref.invalidate(nextcloudIntegrationConnectionProvider);
