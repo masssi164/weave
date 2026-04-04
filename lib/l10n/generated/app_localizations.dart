@@ -956,6 +956,168 @@ abstract class AppLocalizations {
   /// **'Server Configuration'**
   String get settingsServerConfigurationTitle;
 
+  /// Section title for the shared workspace readiness summary in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace Readiness'**
+  String get settingsWorkspaceReadinessTitle;
+
+  /// Description for the shared workspace readiness summary in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Shell access is tracked separately from each service connection so Weave can show degraded integrations honestly.'**
+  String get settingsWorkspaceReadinessDescription;
+
+  /// Summary shown when shell access and mapped services are all ready
+  ///
+  /// In en, this message translates to:
+  /// **'Shell access and the mapped services are ready.'**
+  String get settingsWorkspaceSummaryConnected;
+
+  /// Summary shown when shell access is available but one or more services are degraded
+  ///
+  /// In en, this message translates to:
+  /// **'Shell access is ready, but one or more services still need attention.'**
+  String get settingsWorkspaceSummaryDegraded;
+
+  /// Summary shown when workspace shell access is blocked by missing setup
+  ///
+  /// In en, this message translates to:
+  /// **'Finish setup before the workspace shell can become available.'**
+  String get settingsWorkspaceSummaryNeedsSetup;
+
+  /// Summary shown when workspace shell access needs another sign-in
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again to restore workspace shell access.'**
+  String get settingsWorkspaceSummaryNeedsSignIn;
+
+  /// Row label for workspace shell access in the readiness summary
+  ///
+  /// In en, this message translates to:
+  /// **'Shell access'**
+  String get settingsWorkspaceShellAccessLabel;
+
+  /// Row label for chat readiness in the workspace readiness summary
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get settingsWorkspaceChatLabel;
+
+  /// Row label for files readiness in the workspace readiness summary
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get settingsWorkspaceFilesLabel;
+
+  /// Label used for readiness pills in the workspace summary
+  ///
+  /// In en, this message translates to:
+  /// **'Readiness'**
+  String get settingsWorkspaceCapabilityLabel;
+
+  /// Label used for connection-state pills in the workspace summary
+  ///
+  /// In en, this message translates to:
+  /// **'Connection'**
+  String get settingsWorkspaceConnectionLabel;
+
+  /// Label used for invalidation-reason pills in the workspace summary
+  ///
+  /// In en, this message translates to:
+  /// **'Last change'**
+  String get settingsWorkspaceLastChangeLabel;
+
+  /// Readiness label for a ready capability
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get settingsWorkspaceCapabilityReady;
+
+  /// Readiness label for a degraded capability
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded'**
+  String get settingsWorkspaceCapabilityDegraded;
+
+  /// Readiness label for a blocked capability
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get settingsWorkspaceCapabilityBlocked;
+
+  /// Readiness label for an unavailable capability
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get settingsWorkspaceCapabilityUnavailable;
+
+  /// Connection label for a connected integration
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get settingsWorkspaceConnectionConnected;
+
+  /// Connection label for a disconnected integration
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get settingsWorkspaceConnectionDisconnected;
+
+  /// Connection label for a degraded integration
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded'**
+  String get settingsWorkspaceConnectionDegraded;
+
+  /// Connection label for a misconfigured integration
+  ///
+  /// In en, this message translates to:
+  /// **'Misconfigured'**
+  String get settingsWorkspaceConnectionMisconfigured;
+
+  /// Connection label for an integration that requires another sign-in
+  ///
+  /// In en, this message translates to:
+  /// **'Needs sign-in'**
+  String get settingsWorkspaceConnectionRequiresReauthentication;
+
+  /// Connection label for an integration that is unavailable on the current platform
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable on this platform'**
+  String get settingsWorkspaceConnectionUnavailableOnPlatform;
+
+  /// Invalidation label for auth configuration changes
+  ///
+  /// In en, this message translates to:
+  /// **'Auth configuration changed'**
+  String get settingsWorkspaceInvalidationAuthConfigurationChanged;
+
+  /// Invalidation label for Matrix homeserver changes
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix homeserver changed'**
+  String get settingsWorkspaceInvalidationMatrixHomeserverChanged;
+
+  /// Invalidation label for Nextcloud base URL changes
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud base URL changed'**
+  String get settingsWorkspaceInvalidationNextcloudBaseUrlChanged;
+
+  /// Invalidation label for explicit sign-outs
+  ///
+  /// In en, this message translates to:
+  /// **'Explicit sign-out'**
+  String get settingsWorkspaceInvalidationExplicitSignOut;
+
+  /// Invalidation label for restart-setup actions
+  ///
+  /// In en, this message translates to:
+  /// **'Restarted setup'**
+  String get settingsWorkspaceInvalidationRestartSetup;
+
   /// Description for the settings server configuration section
   ///
   /// In en, this message translates to:

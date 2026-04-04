@@ -461,6 +461,87 @@
   "settingsServerConfigurationTitle": "Server Configuration",
   "@settingsServerConfigurationTitle": { "description": "Section title for server configuration in settings" },
 
+  "settingsWorkspaceReadinessTitle": "Workspace Readiness",
+  "@settingsWorkspaceReadinessTitle": { "description": "Section title for the shared workspace readiness summary in settings" },
+
+  "settingsWorkspaceReadinessDescription": "Shell access is tracked separately from each service connection so Weave can show degraded integrations honestly.",
+  "@settingsWorkspaceReadinessDescription": { "description": "Description for the shared workspace readiness summary in settings" },
+
+  "settingsWorkspaceSummaryConnected": "Shell access and the mapped services are ready.",
+  "@settingsWorkspaceSummaryConnected": { "description": "Summary shown when shell access and mapped services are all ready" },
+
+  "settingsWorkspaceSummaryDegraded": "Shell access is ready, but one or more services still need attention.",
+  "@settingsWorkspaceSummaryDegraded": { "description": "Summary shown when shell access is available but one or more services are degraded" },
+
+  "settingsWorkspaceSummaryNeedsSetup": "Finish setup before the workspace shell can become available.",
+  "@settingsWorkspaceSummaryNeedsSetup": { "description": "Summary shown when workspace shell access is blocked by missing setup" },
+
+  "settingsWorkspaceSummaryNeedsSignIn": "Sign in again to restore workspace shell access.",
+  "@settingsWorkspaceSummaryNeedsSignIn": { "description": "Summary shown when workspace shell access needs another sign-in" },
+
+  "settingsWorkspaceShellAccessLabel": "Shell access",
+  "@settingsWorkspaceShellAccessLabel": { "description": "Row label for workspace shell access in the readiness summary" },
+
+  "settingsWorkspaceChatLabel": "Chat",
+  "@settingsWorkspaceChatLabel": { "description": "Row label for chat readiness in the workspace readiness summary" },
+
+  "settingsWorkspaceFilesLabel": "Files",
+  "@settingsWorkspaceFilesLabel": { "description": "Row label for files readiness in the workspace readiness summary" },
+
+  "settingsWorkspaceCapabilityLabel": "Readiness",
+  "@settingsWorkspaceCapabilityLabel": { "description": "Label used for readiness pills in the workspace summary" },
+
+  "settingsWorkspaceConnectionLabel": "Connection",
+  "@settingsWorkspaceConnectionLabel": { "description": "Label used for connection-state pills in the workspace summary" },
+
+  "settingsWorkspaceLastChangeLabel": "Last change",
+  "@settingsWorkspaceLastChangeLabel": { "description": "Label used for invalidation-reason pills in the workspace summary" },
+
+  "settingsWorkspaceCapabilityReady": "Ready",
+  "@settingsWorkspaceCapabilityReady": { "description": "Readiness label for a ready capability" },
+
+  "settingsWorkspaceCapabilityDegraded": "Degraded",
+  "@settingsWorkspaceCapabilityDegraded": { "description": "Readiness label for a degraded capability" },
+
+  "settingsWorkspaceCapabilityBlocked": "Blocked",
+  "@settingsWorkspaceCapabilityBlocked": { "description": "Readiness label for a blocked capability" },
+
+  "settingsWorkspaceCapabilityUnavailable": "Unavailable",
+  "@settingsWorkspaceCapabilityUnavailable": { "description": "Readiness label for an unavailable capability" },
+
+  "settingsWorkspaceConnectionConnected": "Connected",
+  "@settingsWorkspaceConnectionConnected": { "description": "Connection label for a connected integration" },
+
+  "settingsWorkspaceConnectionDisconnected": "Disconnected",
+  "@settingsWorkspaceConnectionDisconnected": { "description": "Connection label for a disconnected integration" },
+
+  "settingsWorkspaceConnectionDegraded": "Degraded",
+  "@settingsWorkspaceConnectionDegraded": { "description": "Connection label for a degraded integration" },
+
+  "settingsWorkspaceConnectionMisconfigured": "Misconfigured",
+  "@settingsWorkspaceConnectionMisconfigured": { "description": "Connection label for a misconfigured integration" },
+
+  "settingsWorkspaceConnectionRequiresReauthentication": "Needs sign-in",
+  "@settingsWorkspaceConnectionRequiresReauthentication": { "description": "Connection label for an integration that requires another sign-in" },
+
+  "settingsWorkspaceConnectionUnavailableOnPlatform": "Unavailable on this platform",
+  "@settingsWorkspaceConnectionUnavailableOnPlatform": { "description": "Connection label for an integration that is unavailable on the current platform" },
+
+  "settingsWorkspaceInvalidationAuthConfigurationChanged": "Auth configuration changed",
+  "@settingsWorkspaceInvalidationAuthConfigurationChanged": { "description": "Invalidation label for auth configuration changes" },
+
+  "settingsWorkspaceInvalidationMatrixHomeserverChanged": "Matrix homeserver changed",
+  "@settingsWorkspaceInvalidationMatrixHomeserverChanged": { "description": "Invalidation label for Matrix homeserver changes" },
+
+  "settingsWorkspaceInvalidationNextcloudBaseUrlChanged": "Nextcloud base URL changed",
+  "@settingsWorkspaceInvalidationNextcloudBaseUrlChanged": { "description": "Invalidation label for Nextcloud base URL changes" },
+
+  "settingsWorkspaceInvalidationExplicitSignOut": "Explicit sign-out",
+  "@settingsWorkspaceInvalidationExplicitSignOut": { "description": "Invalidation label for explicit sign-outs" },
+
+  "settingsWorkspaceInvalidationRestartSetup": "Restarted setup",
+  "@settingsWorkspaceInvalidationRestartSetup": { "description": "Invalidation label for restart-setup actions" },
+
   "settingsServerConfigurationDescription": "Update the provider and service URLs Weave should use for your self-hosted environment.",
   "@settingsServerConfigurationDescription": { "description": "Description for the settings server configuration section" },
 

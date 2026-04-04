@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
@@ -38,11 +40,16 @@ class ChatController extends Notifier<ChatUiState> {
 
   @override
   ChatUiState build() {
-    final sessionGeneration = ref.watch(matrixSessionInvalidationProvider);
+    final invalidation = ref.watch(
+      integrationInvalidationProvider(WorkspaceIntegration.matrix),
+    );
+    final sessionGeneration = invalidation?.sequence ?? 0;
     if (_sessionGeneration != sessionGeneration) {
       _sessionGeneration = sessionGeneration;
       _autoConnectAttempted = false;
-      Future<void>.microtask(_loadInitial);
+      Future<void>.microtask(
+        () => _loadInitial(invalidationReason: invalidation?.reason),
+      );
     }
 
     return const ChatUiState.loading();
@@ -75,8 +82,12 @@ class ChatController extends Notifier<ChatUiState> {
     }
   }
 
-  Future<void> _loadInitial() async {
-    await _loadConversations(allowAutoConnect: true);
+  Future<void> _loadInitial({
+    IntegrationInvalidationReason? invalidationReason,
+  }) async {
+    await _loadConversations(
+      allowAutoConnect: _shouldAutoConnect(invalidationReason),
+    );
   }
 
   Future<void> _loadConversations({required bool allowAutoConnect}) async {
@@ -112,6 +123,17 @@ class ChatController extends Notifier<ChatUiState> {
       ChatFailureType.unsupportedConfiguration ||
       ChatFailureType.unsupportedPlatform => ChatUiState.unsupported(failure),
       _ => ChatUiState.error(failure),
+    };
+  }
+
+  bool _shouldAutoConnect(IntegrationInvalidationReason? invalidationReason) {
+    return switch (invalidationReason) {
+      null => true,
+      IntegrationInvalidationReason.matrixHomeserverChanged ||
+      IntegrationInvalidationReason.explicitSignOut ||
+      IntegrationInvalidationReason.restartSetup => false,
+      IntegrationInvalidationReason.authConfigurationChanged ||
+      IntegrationInvalidationReason.nextcloudBaseUrlChanged => true,
     };
   }
 }

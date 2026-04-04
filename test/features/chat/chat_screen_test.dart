@@ -1,12 +1,18 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/theme/app_theme.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_chat_security_repository.dart';
@@ -213,6 +219,74 @@ void main() {
       expect(find.text('Sam'), findsOneWidget);
       expect(repository.connectCalls, 2);
     });
+
+    testWidgets(
+      'does not auto-connect again after a typed Matrix homeserver invalidation',
+      (tester) async {
+        var homeserverChanged = false;
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async {
+            if (homeserverChanged) {
+              throw const ChatFailure.sessionRequired(
+                'Connect Weave to your Matrix homeserver to load conversations.',
+              );
+            }
+
+            return const <ChatConversation>[
+              ChatConversation(
+                id: '!abc:home.internal',
+                title: 'Family',
+                previewType: ChatConversationPreviewType.text,
+                previewText: 'Dinner is ready',
+                unreadCount: 2,
+                isInvite: false,
+                isDirectMessage: false,
+              ),
+            ];
+          },
+        );
+        final securityRepository = buildSecurityRepository();
+        final container = ProviderContainer.test(
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              theme: AppTheme.light,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const Scaffold(body: ChatScreen()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Family'), findsOneWidget);
+        expect(repository.connectCalls, 0);
+
+        homeserverChanged = true;
+        container
+            .read(workspaceInvalidationProvider.notifier)
+            .invalidate(
+              integration: WorkspaceIntegration.matrix,
+              reason: IntegrationInvalidationReason.matrixHomeserverChanged,
+            );
+
+        await tester.pump();
+        await tester.pump();
+
+        expect(repository.connectCalls, 0);
+        expect(find.text('Connect Matrix'), findsOneWidget);
+      },
+    );
 
     testWidgets('shows the empty state when there are no conversations', (
       tester,

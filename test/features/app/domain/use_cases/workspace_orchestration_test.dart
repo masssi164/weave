@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/ports/app_auth_port.dart';
 import 'package:weave/features/app/domain/ports/chat_session_port.dart';
 import 'package:weave/features/app/domain/ports/files_session_port.dart';
 import 'package:weave/features/app/domain/ports/server_configuration_port.dart';
+import 'package:weave/features/app/domain/ports/workspace_invalidation_port.dart';
 import 'package:weave/features/app/domain/use_cases/apply_server_configuration_changes.dart';
 import 'package:weave/features/app/domain/use_cases/restart_workspace_setup.dart';
 import 'package:weave/features/app/domain/use_cases/sign_out_workspace.dart';
@@ -43,16 +45,10 @@ class _FakeAppAuthPort implements AppAuthPort {
 class _FakeChatSessionPort implements ChatSessionPort {
   int signOutCalls = 0;
   int clearSessionCalls = 0;
-  int invalidationCalls = 0;
 
   @override
   Future<void> clearSession() async {
     clearSessionCalls++;
-  }
-
-  @override
-  void invalidateActiveSession() {
-    invalidationCalls++;
   }
 
   @override
@@ -86,12 +82,49 @@ class _FakeServerConfigurationPort implements ServerConfigurationPort {
   Future<ServerConfiguration?> loadConfiguration() async => configuration;
 }
 
+class _FakeWorkspaceInvalidationPort implements WorkspaceInvalidationPort {
+  final List<IntegrationInvalidation> invalidations =
+      <IntegrationInvalidation>[];
+
+  @override
+  void invalidate({
+    required WorkspaceIntegration integration,
+    required IntegrationInvalidationReason reason,
+  }) {
+    final sequence =
+        invalidations
+            .where((entry) => entry.integration == integration)
+            .length +
+        1;
+    invalidations.add(
+      IntegrationInvalidation(
+        integration: integration,
+        reason: reason,
+        sequence: sequence,
+      ),
+    );
+  }
+
+  IntegrationInvalidationReason? lastReasonFor(
+    WorkspaceIntegration integration,
+  ) {
+    for (final invalidation in invalidations.reversed) {
+      if (invalidation.integration == integration) {
+        return invalidation.reason;
+      }
+    }
+
+    return null;
+  }
+}
+
 void main() {
   group('SignOutWorkspace', () {
     test('signs out auth, chat, and files with session invalidation', () async {
       final authPort = _FakeAppAuthPort();
       final chatSessionPort = _FakeChatSessionPort();
       final filesSessionPort = _FakeFilesSessionPort();
+      final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
       final useCase = SignOutWorkspace(
         authPort: authPort,
         chatSessionPort: chatSessionPort,
@@ -99,6 +132,7 @@ void main() {
         serverConfigurationPort: _FakeServerConfigurationPort(
           configuration: buildTestConfiguration(clientId: ' weave-mobile '),
         ),
+        workspaceInvalidationPort: workspaceInvalidationPort,
       );
 
       await useCase.call();
@@ -107,7 +141,18 @@ void main() {
       expect(authPort.lastSignOutConfiguration?.clientId, 'weave-mobile');
       expect(chatSessionPort.signOutCalls, 1);
       expect(filesSessionPort.disconnectCalls, 1);
-      expect(chatSessionPort.invalidationCalls, 1);
+      expect(
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.appAuth),
+        IntegrationInvalidationReason.explicitSignOut,
+      );
+      expect(
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.matrix),
+        IntegrationInvalidationReason.explicitSignOut,
+      );
+      expect(
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.nextcloud),
+        IntegrationInvalidationReason.explicitSignOut,
+      );
     });
 
     test('clears local auth when no complete configuration is saved', () async {
@@ -117,6 +162,7 @@ void main() {
         chatSessionPort: _FakeChatSessionPort(),
         filesSessionPort: _FakeFilesSessionPort(),
         serverConfigurationPort: _FakeServerConfigurationPort(),
+        workspaceInvalidationPort: _FakeWorkspaceInvalidationPort(),
       );
 
       await useCase.call();
@@ -136,11 +182,13 @@ void main() {
         final serverConfigurationPort = _FakeServerConfigurationPort(
           configuration: buildTestConfiguration(),
         );
+        final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
         final useCase = RestartWorkspaceSetup(
           authPort: authPort,
           chatSessionPort: chatSessionPort,
           filesSessionPort: filesSessionPort,
           serverConfigurationPort: serverConfigurationPort,
+          workspaceInvalidationPort: workspaceInvalidationPort,
         );
 
         await useCase.call();
@@ -149,7 +197,20 @@ void main() {
         expect(chatSessionPort.clearSessionCalls, 1);
         expect(filesSessionPort.disconnectCalls, 1);
         expect(serverConfigurationPort.clearConfigurationCalls, 1);
-        expect(chatSessionPort.invalidationCalls, 1);
+        expect(
+          workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.appAuth),
+          IntegrationInvalidationReason.restartSetup,
+        );
+        expect(
+          workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.matrix),
+          IntegrationInvalidationReason.restartSetup,
+        );
+        expect(
+          workspaceInvalidationPort.lastReasonFor(
+            WorkspaceIntegration.nextcloud,
+          ),
+          IntegrationInvalidationReason.restartSetup,
+        );
       },
     );
   });
@@ -159,10 +220,12 @@ void main() {
       final authPort = _FakeAppAuthPort();
       final chatSessionPort = _FakeChatSessionPort();
       final filesSessionPort = _FakeFilesSessionPort();
+      final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
       final useCase = ApplyServerConfigurationChanges(
         authPort: authPort,
         chatSessionPort: chatSessionPort,
         filesSessionPort: filesSessionPort,
+        workspaceInvalidationPort: workspaceInvalidationPort,
       );
 
       await useCase.call(
@@ -177,17 +240,22 @@ void main() {
       expect(authPort.clearLocalSessionCalls, 0);
       expect(chatSessionPort.clearSessionCalls, 1);
       expect(filesSessionPort.disconnectCalls, 0);
-      expect(chatSessionPort.invalidationCalls, 1);
+      expect(
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.matrix),
+        IntegrationInvalidationReason.matrixHomeserverChanged,
+      );
     });
 
     test('clears only Nextcloud when the base URL changes', () async {
       final authPort = _FakeAppAuthPort();
       final chatSessionPort = _FakeChatSessionPort();
       final filesSessionPort = _FakeFilesSessionPort();
+      final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
       final useCase = ApplyServerConfigurationChanges(
         authPort: authPort,
         chatSessionPort: chatSessionPort,
         filesSessionPort: filesSessionPort,
+        workspaceInvalidationPort: workspaceInvalidationPort,
       );
 
       await useCase.call(
@@ -202,7 +270,36 @@ void main() {
       expect(authPort.clearLocalSessionCalls, 0);
       expect(chatSessionPort.clearSessionCalls, 0);
       expect(filesSessionPort.disconnectCalls, 1);
-      expect(chatSessionPort.invalidationCalls, 0);
+      expect(
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.nextcloud),
+        IntegrationInvalidationReason.nextcloudBaseUrlChanged,
+      );
+    });
+
+    test('records app auth invalidation when auth settings change', () async {
+      final authPort = _FakeAppAuthPort();
+      final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
+      final useCase = ApplyServerConfigurationChanges(
+        authPort: authPort,
+        chatSessionPort: _FakeChatSessionPort(),
+        filesSessionPort: _FakeFilesSessionPort(),
+        workspaceInvalidationPort: workspaceInvalidationPort,
+      );
+
+      await useCase.call(
+        ServerConfigurationSaveResult(
+          configuration: buildTestConfiguration(),
+          authConfigurationChanged: true,
+          matrixHomeserverChanged: false,
+          nextcloudBaseUrlChanged: false,
+        ),
+      );
+
+      expect(authPort.clearLocalSessionCalls, 1);
+      expect(
+        workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.appAuth),
+        IntegrationInvalidationReason.authConfigurationChanged,
+      );
     });
   });
 }
