@@ -1,6 +1,6 @@
 # Weave Repository Instructions
 
-Weave uses a feature-first clean architecture under `lib/features/<feature>/`. New work and refactors should follow this layout even where older features still use transitional folders like `models/` or top-level `providers/`.
+Weave uses a feature-first clean architecture under `lib/features/<feature>/`, with shared cross-feature protocol/platform code living under `lib/integrations/<integration>/`. New work and refactors should follow those ownership boundaries even where older code still uses transitional folders like `models/` or top-level `providers/`.
 
 Placement rules:
 - `presentation/` for screens, widgets, and feature UI composition
@@ -8,9 +8,15 @@ Placement rules:
 - `domain/` for entities, use cases, and repository contracts
 - `data/` for repository implementations, datasources, and DTOs
 
+Integration placement:
+- use `lib/integrations/<integration>/` for reusable auth/session/capability/protocol logic that is shared by multiple features
+- keep the same `presentation/`, `domain/`, and `data/` split inside integrations so shared boundaries stay predictable
+- move feature-specific transport mapping back into the owning feature once the code stops being reusable across features
+
 Feature boundaries:
-- Features may depend on `core/` and shared reusable UI, but must not import another feature's `data/` layer directly.
+- Features may depend on `core/`, shared reusable UI, and `lib/integrations/`, but must not import another feature's `data/` layer directly.
 - Cross-feature integration should go through domain contracts, app-level orchestration, or shared core abstractions.
+- Integrations may depend on shared app foundations such as `core/`, `features/auth/`, and `features/server_config/`, but must not depend on feature presentation code or feature-specific entities they are meant to serve.
 
 Accessibility is mandatory:
 - interactive controls must provide at least `48x48` logical touch targets

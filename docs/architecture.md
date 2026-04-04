@@ -1,7 +1,7 @@
 # Weave Architecture
 
 ## Overview
-Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific sessions such as Matrix remain inside their owning feature.
+Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific or platform-specific code lives either inside the owning feature or in `lib/integrations/<integration>/` when the boundary is shared across multiple features.
 
 ## App startup
 The app now resolves bootstrap before `MaterialApp.router` is built.
@@ -74,9 +74,9 @@ This is intentionally simple, explicit, and easy to change later. It is a conven
 Persistence is split by responsibility:
 
 - `PreferencesStore` for harmless configuration and future non-sensitive flags
-- `SecureStore` as the future boundary for tokens and secrets
+- `SecureStore` for tokens, sensitive protocol credentials, and persisted sessions that should not live in preferences
 
-This task does not add real secure storage yet. The interface exists so auth work can plug into a dedicated sensitive path later without refactoring unrelated features.
+Current secure-storage usage includes app-auth session persistence and the shared Nextcloud session store.
 
 ## Failure model
 `AppFailure` is the shared app-level failure model used across bootstrap, storage, and repositories. Presentation should respond to `AppFailure` rather than raw package exceptions.
@@ -88,30 +88,42 @@ Current failure types:
 - `validation`
 - `unknown`
 
-## Feature layering
+## Feature and integration layering
 Each feature follows the same three layers:
 
 - `presentation/`
 - `domain/`
 - `data/`
 
+Shared integrations follow the same layering under `lib/integrations/<integration>/` when multiple features need the same protocol/platform boundary.
+
 Current repository-first stub boundaries:
 
 - `auth` -> `AuthSessionRepository` + `OidcClient`
 - `chat` -> `ChatRepository` + `MatrixClient`
-- `files` -> `FilesRepository` + `NextcloudAuthClient` + `NextcloudClient`
+- `integrations/nextcloud` -> `NextcloudConnectionService` + `NextcloudAuthClient` + `NextcloudSessionRepository` + shared providers
+- `files` -> `FilesRepository` + `NextcloudDavClient`
 - `calendar` -> `CalendarRepository` + `CalDavClient`
 - `deck` -> `DeckRepository` + `DeckClient`
 
 Presentation depends on repository contracts and Riverpod providers only. It does not own storage or protocol logic.
 
+Boundary rule:
+
+- feature-specific mapping stays in the feature
+- reusable external-service auth/session/orchestration belongs in an integration layer
+- features may depend on integrations, but integrations must not depend on feature presentation state or feature-owned transport mappings they are meant to support
+
 ## Session separation
-App auth and Matrix auth are intentionally separate concerns:
+App auth, Matrix auth, and shared Nextcloud session handling are intentionally separate concerns:
 
 - `auth/` owns the app-level OIDC session that decides whether the shell is reachable
 - `chat/` owns Matrix protocol discovery, Matrix Native OAuth 2.0 login, refresh, logout, and SDK persistence
+- `integrations/nextcloud/` consumes app-auth state when available, but owns Nextcloud bearer/app-password selection, secure Nextcloud session persistence, reconnect rules, and app-password revocation
 - the app does not assume an app-level OIDC access token is also a Matrix access token
+- the app does not assume an app-level OIDC token can be persisted as a raw Nextcloud bearer session; persisted Nextcloud bearer sessions are stored as tokenless markers and rehydrated from app auth state
 - changing the Matrix homeserver invalidates the Matrix session without redesigning bootstrap
+- changing the configured Nextcloud base URL invalidates the persisted Nextcloud session without requiring feature-owned cleanup logic
 
 Matrix E2EE state also stays inside `features/chat/`:
 
@@ -130,6 +142,14 @@ The current Matrix integration uses:
 - Matrix Native OAuth 2.0 when `/_matrix/client/v1/auth_metadata` is available
 - a typed unsupported-configuration failure when the homeserver only exposes legacy login
 - Matrix SDK crypto setup helpers for first-device bootstrap, recovery reconnect, and self-verification continuation
+
+## Nextcloud integration split
+Nextcloud is now split into:
+
+- `integrations/nextcloud/` for shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration
+- `features/files/` for DAV directory browsing, file-entry mapping, and file-facing presentation/state
+
+This keeps the current Files UX intact while making the same Nextcloud platform layer reusable for future Calendar or Deck work without importing `features/files/`.
 
 ## Onboarding and settings
 Onboarding setup and Settings share:
