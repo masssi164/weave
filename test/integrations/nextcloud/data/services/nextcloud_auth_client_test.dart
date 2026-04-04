@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:weave/features/files/data/services/nextcloud_auth_client.dart';
-import 'package:weave/features/files/data/services/nextcloud_login_launcher.dart';
-import 'package:weave/features/files/domain/entities/files_failure.dart';
+import 'package:weave/integrations/nextcloud/data/services/nextcloud_auth_client.dart';
+import 'package:weave/integrations/nextcloud/data/services/nextcloud_login_launcher.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
 
 class _FakeNextcloudLoginLauncher implements NextcloudLoginLauncher {
   Uri? launchedUri;
@@ -160,10 +160,10 @@ void main() {
         await expectLater(
           authClient.connect(Uri.parse('https://nextcloud.home.internal')),
           throwsA(
-            isA<FilesFailure>().having(
+            isA<NextcloudFailure>().having(
               (failure) => failure.type,
               'type',
-              FilesFailureType.configuration,
+              NextcloudFailureType.configuration,
             ),
           ),
         );

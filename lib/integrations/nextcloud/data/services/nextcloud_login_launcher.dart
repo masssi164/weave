@@ -1,6 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:weave/features/files/domain/entities/files_failure.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
 
 abstract interface class NextcloudLoginLauncher {
   Future<void> launch(Uri loginUri);
@@ -17,21 +16,17 @@ class UrlLauncherNextcloudLoginLauncher implements NextcloudLoginLauncher {
         mode: LaunchMode.externalApplication,
       );
       if (!didLaunch) {
-        throw const FilesFailure.unsupportedPlatform(
+        throw const NextcloudFailure.unsupportedPlatform(
           'Unable to open the Nextcloud login page on this device.',
         );
       }
-    } on FilesFailure {
+    } on NextcloudFailure {
       rethrow;
     } catch (error) {
-      throw FilesFailure.unknown(
+      throw NextcloudFailure.unknown(
         'Unable to open the Nextcloud login page.',
         cause: error,
       );
     }
   }
 }
-
-final nextcloudLoginLauncherProvider = Provider<NextcloudLoginLauncher>((ref) {
-  return const UrlLauncherNextcloudLoginLauncher();
-});
