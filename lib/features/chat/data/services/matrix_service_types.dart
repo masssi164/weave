@@ -1,3 +1,7 @@
+// Internal Matrix types – never exported outside features/chat/.
+// These constants, enums and value objects are shared across the internal
+// service layer.
+
 const matrixOidcClientName = 'Weave';
 const matrixOidcClientUri = 'https://github.com/masssi164/weave';
 const matrixOidcRedirectScheme = 'com.massimotter.weave.matrix';
@@ -118,50 +122,4 @@ class MatrixRoomSnapshot {
   final int unreadCount;
   final bool isInvite;
   final bool isDirectMessage;
-}
-
-abstract interface class MatrixClient {
-  Stream<MatrixVerificationSnapshot> get verificationUpdates;
-
-  Future<List<MatrixRoomSnapshot>> loadConversations({required Uri homeserver});
-
-  Future<void> connect({required Uri homeserver});
-
-  Future<MatrixSecuritySnapshot> loadSecurityState({
-    required Uri homeserver,
-    bool refresh = false,
-  });
-
-  Future<String> bootstrapSecurity({
-    required Uri homeserver,
-    String? passphrase,
-  });
-
-  Future<void> restoreSecurity({
-    required Uri homeserver,
-    required String recoveryKeyOrPassphrase,
-  });
-
-  Future<void> startVerification({required Uri homeserver});
-
-  Future<void> acceptVerification({required Uri homeserver});
-
-  Future<void> startSasVerification({required Uri homeserver});
-
-  Future<void> unlockVerification({
-    required Uri homeserver,
-    required String recoveryKeyOrPassphrase,
-  });
-
-  Future<void> confirmSas({required Uri homeserver, required bool matches});
-
-  Future<void> cancelVerification({required Uri homeserver});
-
-  Future<void> dismissVerificationResult({required Uri homeserver});
-
-  Future<void> signOut();
-
-  Future<void> clearSession();
-
-  Future<void> dispose();
 }

@@ -1,4 +1,6 @@
-import 'package:weave/features/chat/data/services/matrix_client.dart';
+import 'package:weave/features/chat/data/services/matrix_conversation_service.dart';
+import 'package:weave/features/chat/data/services/matrix_service_types.dart';
+import 'package:weave/features/chat/data/services/matrix_session_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
@@ -6,18 +8,23 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 
 class MatrixChatRepository implements ChatRepository {
   const MatrixChatRepository({
-    required MatrixClient client,
+    required MatrixSessionService sessionService,
+    required MatrixConversationService conversationService,
     required ServerConfigurationRepository serverConfigurationRepository,
-  }) : _client = client,
+  }) : _sessionService = sessionService,
+       _conversationService = conversationService,
        _serverConfigurationRepository = serverConfigurationRepository;
 
-  final MatrixClient _client;
+  final MatrixSessionService _sessionService;
+  final MatrixConversationService _conversationService;
   final ServerConfigurationRepository _serverConfigurationRepository;
 
   @override
   Future<List<ChatConversation>> loadConversations() async {
     final homeserver = await _loadHomeserver();
-    final rooms = await _client.loadConversations(homeserver: homeserver);
+    final rooms = await _conversationService.loadConversations(
+      homeserver: homeserver,
+    );
 
     return rooms
         .map(
@@ -45,14 +52,14 @@ class MatrixChatRepository implements ChatRepository {
   @override
   Future<void> connect() async {
     final homeserver = await _loadHomeserver();
-    await _client.connect(homeserver: homeserver);
+    await _sessionService.connect(homeserver: homeserver);
   }
 
   @override
-  Future<void> signOut() => _client.signOut();
+  Future<void> signOut() => _sessionService.signOut();
 
   @override
-  Future<void> clearSession() => _client.clearSession();
+  Future<void> clearSession() => _sessionService.clearSession();
 
   Future<Uri> _loadHomeserver() async {
     final configuration = await _serverConfigurationRepository
