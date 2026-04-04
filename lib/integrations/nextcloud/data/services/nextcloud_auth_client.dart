@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
-import 'package:weave/features/files/data/services/nextcloud_login_launcher.dart';
-import 'package:weave/features/files/domain/entities/files_failure.dart';
-import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
+import 'package:weave/integrations/nextcloud/data/services/nextcloud_login_launcher.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
 
 class NextcloudAuthClient {
   NextcloudAuthClient({
@@ -28,7 +27,7 @@ class NextcloudAuthClient {
     required String bearerToken,
     String? accountLabelHint,
   }) async {
-    final normalizedBaseUrl = _normalizeBaseUrl(configuredBaseUrl);
+    final normalizedBaseUrl = normalizeNextcloudBaseUrl(configuredBaseUrl);
     _ensureHttpsBaseUrl(
       normalizedBaseUrl,
       message: 'Use an HTTPS Nextcloud URL before validating bearer access.',
@@ -48,7 +47,7 @@ class NextcloudAuthClient {
   }
 
   Future<NextcloudSession> connect(Uri configuredBaseUrl) async {
-    final normalizedBaseUrl = _normalizeBaseUrl(configuredBaseUrl);
+    final normalizedBaseUrl = normalizeNextcloudBaseUrl(configuredBaseUrl);
     _ensureHttpsBaseUrl(
       normalizedBaseUrl,
       message: 'Use an HTTPS Nextcloud URL before starting the login flow.',
@@ -62,7 +61,7 @@ class NextcloudAuthClient {
     );
 
     if (startResponse.statusCode != 200) {
-      throw FilesFailure.protocol(
+      throw NextcloudFailure.protocol(
         'Nextcloud rejected the login flow request (${startResponse.statusCode}).',
       );
     }
@@ -70,7 +69,7 @@ class NextcloudAuthClient {
     final startPayload = _decodeJson(startResponse.body);
     final poll = startPayload['poll'];
     if (poll is! Map<String, dynamic>) {
-      throw const FilesFailure.protocol(
+      throw const NextcloudFailure.protocol(
         'Nextcloud returned an invalid login flow response.',
       );
     }
@@ -81,7 +80,7 @@ class NextcloudAuthClient {
     if (loginValue is! String ||
         endpointValue is! String ||
         tokenValue is! String) {
-      throw const FilesFailure.protocol(
+      throw const NextcloudFailure.protocol(
         'Nextcloud returned incomplete login flow data.',
       );
     }
@@ -142,7 +141,7 @@ class NextcloudAuthClient {
       }
 
       if (response.statusCode != 200) {
-        throw FilesFailure.protocol(
+        throw NextcloudFailure.protocol(
           'Nextcloud returned an unexpected login status (${response.statusCode}).',
         );
       }
@@ -154,19 +153,19 @@ class NextcloudAuthClient {
       if (serverValue is! String ||
           loginNameValue is! String ||
           appPasswordValue is! String) {
-        throw const FilesFailure.protocol(
+        throw const NextcloudFailure.protocol(
           'Nextcloud returned incomplete app credentials.',
         );
       }
 
-      final serverUrl = _normalizeBaseUrl(Uri.parse(serverValue));
+      final serverUrl = normalizeNextcloudBaseUrl(Uri.parse(serverValue));
       _ensureHttpsBaseUrl(
         serverUrl,
         message:
             'Nextcloud returned app credentials for a non-HTTPS server, which Weave will not use.',
       );
       if (serverUrl != configuredBaseUrl) {
-        throw const FilesFailure.configuration(
+        throw const NextcloudFailure.configuration(
           'The Nextcloud login flow completed for a different server than the one configured in Weave.',
         );
       }
@@ -184,7 +183,7 @@ class NextcloudAuthClient {
       );
     }
 
-    throw const FilesFailure.cancelled(
+    throw const NextcloudFailure.cancelled(
       'The Nextcloud login flow did not finish before it timed out.',
     );
   }
@@ -210,13 +209,13 @@ class NextcloudAuthClient {
     );
 
     if (response.statusCode == 401 || response.statusCode == 403) {
-      throw const FilesFailure.invalidCredentials(
+      throw const NextcloudFailure.invalidCredentials(
         'The saved Nextcloud credentials are no longer valid.',
       );
     }
 
     if (response.statusCode != 200) {
-      throw FilesFailure.protocol(
+      throw NextcloudFailure.protocol(
         'Nextcloud returned an unexpected account lookup status (${response.statusCode}).',
       );
     }
@@ -224,21 +223,21 @@ class NextcloudAuthClient {
     final payload = _decodeJson(response.body);
     final ocs = payload['ocs'];
     if (ocs is! Map<String, dynamic>) {
-      throw const FilesFailure.protocol(
+      throw const NextcloudFailure.protocol(
         'Nextcloud returned an invalid account response.',
       );
     }
 
     final data = ocs['data'];
     if (data is! Map<String, dynamic>) {
-      throw const FilesFailure.protocol(
+      throw const NextcloudFailure.protocol(
         'Nextcloud returned incomplete account data.',
       );
     }
 
     final userId = (data['id'] as String?)?.trim();
     if (userId == null || userId.isEmpty) {
-      throw const FilesFailure.protocol(
+      throw const NextcloudFailure.protocol(
         'Nextcloud did not provide a usable account identifier.',
       );
     }
@@ -252,10 +251,10 @@ class NextcloudAuthClient {
   }) async {
     try {
       return await request();
-    } on FilesFailure {
+    } on NextcloudFailure {
       rethrow;
     } catch (error) {
-      throw FilesFailure.unknown(fallbackMessage, cause: error);
+      throw NextcloudFailure.unknown(fallbackMessage, cause: error);
     }
   }
 
@@ -272,46 +271,28 @@ class NextcloudAuthClient {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) {
-        throw const FilesFailure.protocol(
+        throw const NextcloudFailure.protocol(
           'Nextcloud returned an invalid JSON payload.',
         );
       }
       return decoded;
-    } on FilesFailure {
+    } on NextcloudFailure {
       rethrow;
     } catch (error) {
-      throw FilesFailure.protocol(
+      throw NextcloudFailure.protocol(
         'Nextcloud returned an invalid JSON payload.',
         cause: error,
       );
     }
   }
 
-  Uri _normalizeBaseUrl(Uri uri) {
-    final path = uri.path.endsWith('/') ? uri.path : '${uri.path}/';
-    return uri.replace(path: path, query: null, fragment: null);
-  }
-
   Uri _resolve(Uri baseUrl, String relativePath) {
-    return _normalizeBaseUrl(baseUrl).resolve(relativePath);
+    return normalizeNextcloudBaseUrl(baseUrl).resolve(relativePath);
   }
 
   void _ensureHttpsBaseUrl(Uri baseUrl, {required String message}) {
     if (baseUrl.scheme.toLowerCase() != 'https') {
-      throw FilesFailure.configuration(message);
+      throw NextcloudFailure.configuration(message);
     }
   }
 }
-
-final nextcloudHttpClientProvider = Provider<http.Client>((ref) {
-  final client = http.Client();
-  ref.onDispose(client.close);
-  return client;
-});
-
-final nextcloudAuthClientProvider = Provider<NextcloudAuthClient>((ref) {
-  return NextcloudAuthClient(
-    httpClient: ref.watch(nextcloudHttpClientProvider),
-    loginLauncher: ref.watch(nextcloudLoginLauncherProvider),
-  );
-});

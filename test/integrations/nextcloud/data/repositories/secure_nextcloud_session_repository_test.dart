@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:weave/features/files/data/repositories/secure_nextcloud_session_repository.dart';
-import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
+import 'package:weave/integrations/nextcloud/data/repositories/secure_nextcloud_session_repository.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
 
 import '../../../../helpers/in_memory_stores.dart';
 

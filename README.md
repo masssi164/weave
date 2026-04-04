@@ -46,6 +46,8 @@ lib/
 │   ├── router/       # go_router setup and route constants
 │   ├── theme/
 │   └── widgets/
+├── integrations/
+│   └── nextcloud/    # Shared Nextcloud auth/session/platform boundary
 └── features/
     ├── auth/
     ├── calendar/
@@ -62,6 +64,14 @@ Inside each feature:
 - `presentation/` contains screens, widgets, and Riverpod UI state
 - `domain/` contains entities and repository contracts
 - `data/` contains repository implementations, persistence adapters, DTOs, and protocol/service clients
+
+Inside each shared integration:
+
+- `presentation/` contains reusable Riverpod providers and composition for the integration stack
+- `domain/` contains shared entities, failures, and service/repository contracts
+- `data/` contains persistence, protocol clients, and integration-level orchestration
+
+Today, Nextcloud auth, session persistence, login-flow handling, bearer fallback, and connection lifecycle live under `lib/integrations/nextcloud/`, while `features/files/` stays focused on DAV directory browsing and file-domain mapping.
 
 See [docs/architecture.md](docs/architecture.md) for the detailed design notes.
 

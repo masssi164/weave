@@ -1,17 +1,17 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:weave/features/files/data/services/nextcloud_auth_client.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
-import 'package:weave/features/files/domain/entities/files_failure.dart';
-import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
+import 'package:weave/integrations/nextcloud/data/services/nextcloud_auth_headers.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
+import 'package:weave/integrations/nextcloud/presentation/providers/nextcloud_provider.dart';
 import 'package:xml/xml.dart';
 
-class NextcloudClient {
-  NextcloudClient({required http.Client httpClient}) : _httpClient = httpClient;
+class NextcloudDavClient {
+  NextcloudDavClient({required http.Client httpClient})
+    : _httpClient = httpClient;
 
   final http.Client _httpClient;
   static final DateFormat _modifiedDateFormat = DateFormat(
@@ -28,7 +28,7 @@ class NextcloudClient {
     final uri = _buildDirectoryUri(session, normalizedPath);
     final request = http.Request('PROPFIND', uri)
       ..headers.addAll({
-        ..._authHeaders(session),
+        ...buildNextcloudAuthHeaders(session),
         'Depth': '1',
         'Content-Type': 'application/xml; charset=utf-8',
       })
@@ -37,8 +37,10 @@ class NextcloudClient {
     late http.StreamedResponse response;
     try {
       response = await _httpClient.send(request);
+    } on NextcloudFailure {
+      rethrow;
     } catch (error) {
-      throw FilesFailure.unknown(
+      throw NextcloudFailure.unknown(
         'Unable to load the Nextcloud directory.',
         cause: error,
       );
@@ -46,13 +48,13 @@ class NextcloudClient {
 
     final body = await response.stream.bytesToString();
     if (response.statusCode == 401 || response.statusCode == 403) {
-      throw const FilesFailure.invalidCredentials(
+      throw const NextcloudFailure.invalidCredentials(
         'The saved Nextcloud credentials are no longer valid.',
       );
     }
 
     if (response.statusCode != 207) {
-      throw FilesFailure.protocol(
+      throw NextcloudFailure.protocol(
         'Nextcloud returned an unexpected WebDAV status (${response.statusCode}).',
       );
     }
@@ -115,7 +117,7 @@ class NextcloudClient {
 
   void _ensureHttpsSession(NextcloudSession session) {
     if (session.baseUrl.scheme.toLowerCase() != 'https') {
-      throw const FilesFailure.configuration(
+      throw const NextcloudFailure.configuration(
         'Use an HTTPS Nextcloud URL before browsing files.',
       );
     }
@@ -125,7 +127,7 @@ class NextcloudClient {
     try {
       return XmlDocument.parse(raw);
     } catch (error) {
-      throw FilesFailure.protocol(
+      throw NextcloudFailure.protocol(
         'Nextcloud returned an invalid WebDAV response.',
         cause: error,
       );
@@ -192,7 +194,7 @@ class NextcloudClient {
         ? davRootPath.substring(0, davRootPath.length - 1)
         : davRootPath;
     if (!decodedPath.startsWith(rootPath)) {
-      throw const FilesFailure.protocol(
+      throw const NextcloudFailure.protocol(
         'Nextcloud returned a WebDAV entry outside the configured account root.',
       );
     }
@@ -242,7 +244,7 @@ class NextcloudClient {
   }
 
   Uri _buildDirectoryUri(NextcloudSession session, String path) {
-    final normalizedBaseUrl = _normalizeBaseUrl(session.baseUrl);
+    final normalizedBaseUrl = normalizeNextcloudBaseUrl(session.baseUrl);
     final encodedUserId = Uri.encodeComponent(session.userId);
     final encodedSegments = _normalizePath(path)
         .split('/')
@@ -253,37 +255,6 @@ class NextcloudClient {
         ? 'remote.php/dav/files/$encodedUserId/'
         : 'remote.php/dav/files/$encodedUserId/$encodedSegments';
     return normalizedBaseUrl.resolve(relativePath);
-  }
-
-  Uri _normalizeBaseUrl(Uri uri) {
-    final path = uri.path.endsWith('/') ? uri.path : '${uri.path}/';
-    return uri.replace(path: path, query: null, fragment: null);
-  }
-
-  Map<String, String> _authHeaders(NextcloudSession session) {
-    if (session.usesOidcBearer) {
-      final bearerToken = session.bearerToken;
-      if (bearerToken == null || bearerToken.isEmpty) {
-        throw const FilesFailure.sessionRequired(
-          'Reconnect Nextcloud because the saved bearer session is incomplete.',
-        );
-      }
-      return {'Authorization': 'Bearer $bearerToken'};
-    }
-
-    final loginName = session.loginName;
-    final appPassword = session.appPassword;
-    if (loginName == null ||
-        loginName.isEmpty ||
-        appPassword == null ||
-        appPassword.isEmpty) {
-      throw const FilesFailure.sessionRequired(
-        'Reconnect Nextcloud because the saved app password is incomplete.',
-      );
-    }
-
-    final encoded = base64Encode(utf8.encode('$loginName:$appPassword'));
-    return {'Authorization': 'Basic $encoded'};
   }
 }
 
@@ -299,6 +270,6 @@ const _propfindBody = '''<?xml version="1.0"?>
 </d:propfind>
 ''';
 
-final nextcloudClientProvider = Provider<NextcloudClient>((ref) {
-  return NextcloudClient(httpClient: ref.watch(nextcloudHttpClientProvider));
+final nextcloudDavClientProvider = Provider<NextcloudDavClient>((ref) {
+  return NextcloudDavClient(httpClient: ref.watch(nextcloudHttpClientProvider));
 });

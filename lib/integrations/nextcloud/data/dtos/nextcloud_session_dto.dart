@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
 
 class NextcloudSessionDto {
   const NextcloudSessionDto({

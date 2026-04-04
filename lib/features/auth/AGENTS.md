@@ -17,3 +17,5 @@ Session expectations:
 - refresh proactively when expiry is known and a request would otherwise fail
 - treat refresh failure as an invalid session and collapse cleanly to signed-out state
 - keep auth reusable for setup and later authenticated features without coupling it to `onboarding`
+- downstream integrations may consume restored app OIDC sessions to derive their own protocol access, but auth still owns token refresh, storage, and validity decisions
+- do not let non-auth features or integrations persist duplicate copies of app OIDC tokens

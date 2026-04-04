@@ -1,5 +1,10 @@
 enum NextcloudSessionAuthMethod { oidcBearer, appPassword }
 
+Uri normalizeNextcloudBaseUrl(Uri uri) {
+  final path = uri.path.endsWith('/') ? uri.path : '${uri.path}/';
+  return uri.replace(path: path, query: null, fragment: null);
+}
+
 class NextcloudSession {
   const NextcloudSession._({
     required this.baseUrl,
@@ -79,11 +84,7 @@ class NextcloudSession {
   }
 
   bool matchesBaseUrl(Uri configuredBaseUrl) {
-    return _normalizeBaseUrl(baseUrl) == _normalizeBaseUrl(configuredBaseUrl);
-  }
-
-  static Uri _normalizeBaseUrl(Uri uri) {
-    final path = uri.path.endsWith('/') ? uri.path : '${uri.path}/';
-    return uri.replace(path: path, query: null, fragment: null);
+    return normalizeNextcloudBaseUrl(baseUrl) ==
+        normalizeNextcloudBaseUrl(configuredBaseUrl);
   }
 }

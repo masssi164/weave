@@ -1,14 +1,25 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:weave/features/files/data/services/nextcloud_client.dart';
-import 'package:weave/features/files/domain/entities/files_failure.dart';
-import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
+import 'package:weave/features/files/data/services/nextcloud_dav_client.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
+
+class _ThrowingHttpClient extends http.BaseClient {
+  _ThrowingHttpClient(this.error);
+
+  final Object error;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    return Future<http.StreamedResponse>.error(error);
+  }
+}
 
 void main() {
-  group('NextcloudClient', () {
+  group('NextcloudDavClient', () {
     test('listDirectory maps WebDAV responses into file entries', () async {
-      final client = NextcloudClient(
+      final client = NextcloudDavClient(
         httpClient: MockClient((request) async {
           expect(request.method, 'PROPFIND');
           expect(request.headers['Authorization'], startsWith('Basic '));
@@ -35,7 +46,7 @@ void main() {
     });
 
     test('listDirectory supports OIDC bearer authorization', () async {
-      final client = NextcloudClient(
+      final client = NextcloudDavClient(
         httpClient: MockClient((request) async {
           expect(request.headers['Authorization'], 'Bearer oidc-access-token');
           return http.Response(_multistatusResponse, 207);
@@ -55,7 +66,7 @@ void main() {
     });
 
     test('listDirectory surfaces invalid credentials from WebDAV', () async {
-      final client = NextcloudClient(
+      final client = NextcloudDavClient(
         httpClient: MockClient((request) async => http.Response('', 401)),
       );
 
@@ -70,14 +81,43 @@ void main() {
           '/',
         ),
         throwsA(
-          isA<FilesFailure>().having(
+          isA<NextcloudFailure>().having(
             (failure) => failure.type,
             'type',
-            FilesFailureType.invalidCredentials,
+            NextcloudFailureType.invalidCredentials,
           ),
         ),
       );
     });
+
+    test(
+      'listDirectory preserves typed Nextcloud failures from custom transports',
+      () async {
+        const failure = NextcloudFailure.sessionRequired(
+          'Reconnect Nextcloud because the saved app password is incomplete.',
+        );
+        final client = NextcloudDavClient(
+          httpClient: _ThrowingHttpClient(failure),
+        );
+
+        await expectLater(
+          client.listDirectory(
+            NextcloudSession.appPassword(
+              baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+              loginName: 'alice@example.com',
+              userId: 'alice',
+              appPassword: 'app-password',
+            ),
+            '/',
+          ),
+          throwsA(
+            isA<NextcloudFailure>()
+                .having((value) => value.type, 'type', failure.type)
+                .having((value) => value.message, 'message', failure.message),
+          ),
+        );
+      },
+    );
   });
 }
 

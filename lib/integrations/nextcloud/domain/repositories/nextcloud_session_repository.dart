@@ -1,4 +1,4 @@
-import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
 
 abstract interface class NextcloudSessionRepository {
   Future<NextcloudSession?> readSession();

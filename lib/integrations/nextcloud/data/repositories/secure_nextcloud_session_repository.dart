@@ -1,10 +1,8 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
-import 'package:weave/features/files/data/dtos/nextcloud_session_dto.dart';
-import 'package:weave/features/files/domain/entities/files_failure.dart';
-import 'package:weave/features/files/domain/entities/nextcloud_session.dart';
-import 'package:weave/features/files/domain/repositories/nextcloud_session_repository.dart';
+import 'package:weave/integrations/nextcloud/data/dtos/nextcloud_session_dto.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
+import 'package:weave/integrations/nextcloud/domain/repositories/nextcloud_session_repository.dart';
 
 const nextcloudSessionStorageKey = 'nextcloud_session_v1';
 
@@ -24,7 +22,7 @@ class SecureNextcloudSessionRepository implements NextcloudSessionRepository {
 
       return NextcloudSessionDto.decode(raw).toSession();
     } catch (error) {
-      throw FilesFailure.storage(
+      throw NextcloudFailure.storage(
         'Unable to read the saved Nextcloud session.',
         cause: error,
       );
@@ -39,7 +37,7 @@ class SecureNextcloudSessionRepository implements NextcloudSessionRepository {
         NextcloudSessionDto.fromSession(session).encode(),
       );
     } catch (error) {
-      throw FilesFailure.storage(
+      throw NextcloudFailure.storage(
         'Unable to save the Nextcloud session.',
         cause: error,
       );
@@ -51,18 +49,10 @@ class SecureNextcloudSessionRepository implements NextcloudSessionRepository {
     try {
       await _secureStore.delete(nextcloudSessionStorageKey);
     } catch (error) {
-      throw FilesFailure.storage(
+      throw NextcloudFailure.storage(
         'Unable to clear the saved Nextcloud session.',
         cause: error,
       );
     }
   }
 }
-
-final nextcloudSessionRepositoryProvider = Provider<NextcloudSessionRepository>(
-  (ref) {
-    return SecureNextcloudSessionRepository(
-      secureStore: ref.watch(secureStoreProvider),
-    );
-  },
-);
