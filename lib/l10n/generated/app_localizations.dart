@@ -149,7 +149,7 @@ abstract class AppLocalizations {
   /// Description shown in the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Weave derives common service URLs from the issuer host. Review and edit them before finishing setup.'**
+  /// **'Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.'**
   String get setupServicesStepDescription;
 
   /// Title for the language preference step
@@ -1262,6 +1262,18 @@ abstract class AppLocalizations {
   /// **'This must be the absolute issuer URL for your OIDC provider.'**
   String get serverConfigurationIssuerHelper;
 
+  /// Label for the OIDC client ID field
+  ///
+  /// In en, this message translates to:
+  /// **'OIDC Client ID'**
+  String get serverConfigurationClientIdLabel;
+
+  /// Helper text for the OIDC client ID field
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the public/native client ID registered for Weave on this issuer.'**
+  String get serverConfigurationClientIdHelper;
+
   /// Section title for derived service endpoints
   ///
   /// In en, this message translates to:
@@ -1271,7 +1283,7 @@ abstract class AppLocalizations {
   /// Helper text for the service endpoints section
   ///
   /// In en, this message translates to:
-  /// **'Defaults are derived from the issuer host. Edit them if your services live elsewhere.'**
+  /// **'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.'**
   String get serverConfigurationServicesHelper;
 
   /// Label for the Matrix homeserver URL field
@@ -1280,17 +1292,71 @@ abstract class AppLocalizations {
   /// **'Matrix Homeserver URL'**
   String get serverConfigurationMatrixLabel;
 
-  /// Label for the files base URL field
+  /// Label for the Nextcloud base URL field
   ///
   /// In en, this message translates to:
-  /// **'Files Base URL'**
+  /// **'Nextcloud Base URL'**
   String get serverConfigurationNextcloudLabel;
+
+  /// Label for the backend API base URL field
+  ///
+  /// In en, this message translates to:
+  /// **'Backend API Base URL'**
+  String get serverConfigurationBackendApiLabel;
 
   /// Helper text showing the derived default for a service endpoint
   ///
   /// In en, this message translates to:
   /// **'Derived default: {value}'**
   String serverConfigurationDerivedHint(String value);
+
+  /// Title for the OIDC client registration help card
+  ///
+  /// In en, this message translates to:
+  /// **'Register Weave as a native/public client'**
+  String get oidcRegistrationHelpTitle;
+
+  /// General description for the OIDC client registration help card
+  ///
+  /// In en, this message translates to:
+  /// **'Use Authorization Code + PKCE with the system browser, and allow the Weave redirect URIs below on the provider-side client registration.'**
+  String get oidcRegistrationHelpDescription;
+
+  /// Warning that Weave should not use a client secret
+  ///
+  /// In en, this message translates to:
+  /// **'Do not create or paste a client secret here. Weave uses a public native-client flow.'**
+  String get oidcRegistrationHelpNoSecret;
+
+  /// Provider-specific OIDC registration guidance for Authentik
+  ///
+  /// In en, this message translates to:
+  /// **'In Authentik, create an OAuth2/OpenID Connect provider for Weave, add these redirect URIs to the provider, and ensure the client is configured for Authorization Code flow with `offline_access` available if you want refresh tokens.'**
+  String get oidcRegistrationHelpAuthentikSteps;
+
+  /// Provider-specific OIDC registration guidance for Keycloak
+  ///
+  /// In en, this message translates to:
+  /// **'In Keycloak, create a public OpenID Connect client for Weave, add these redirect URIs and post-logout redirect URIs, and enable Standard Flow with PKCE (S256) so Weave can sign in without a client secret.'**
+  String get oidcRegistrationHelpKeycloakSteps;
+
+  /// Title shown above the redirect URI values
+  ///
+  /// In en, this message translates to:
+  /// **'Register these redirect URIs'**
+  String get oidcRegistrationHelpRedirectsTitle;
+
+  /// Text showing the sign-in redirect URI
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in redirect: {value}'**
+  String oidcRegistrationHelpRedirectValue(String value);
+
+  /// Text showing the post-logout redirect URI
+  ///
+  /// In en, this message translates to:
+  /// **'Post-logout redirect: {value}'**
+  String oidcRegistrationHelpPostLogoutRedirectValue(String value);
 
   /// App bar title for the sign-in screen
   ///

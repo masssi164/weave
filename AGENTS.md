@@ -20,9 +20,9 @@ Feature boundaries:
 
 App-config alignment:
 - treat `../weave-inf` as the infrastructure SSOT for app OIDC and endpoint defaults
-- the app OIDC client is infrastructure-managed as `weave-app`; do not reintroduce manual client-ID entry for the normal setup flow
-- app redirect URIs are `weaveapp://login/callback` and `weaveapp://logout/callback`
-- user-facing files defaults should derive to `files.<tenant_domain>`, while compatibility-sensitive storage fields may still use `nextcloud*` names internally
+- default the app OIDC client to the infrastructure-managed `weave-app`, while still allowing an override for custom issuers
+- app redirect URIs are `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`
+- user-facing Nextcloud defaults should derive to `nextcloud.<tenant_domain>`, while compatibility-sensitive storage fields may still use `nextcloud*` names internally
 - local development stacks may legitimately use `http://` issuer and service URLs
 
 Accessibility is mandatory:

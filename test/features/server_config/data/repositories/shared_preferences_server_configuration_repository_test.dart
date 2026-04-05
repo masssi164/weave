@@ -40,6 +40,10 @@ void main() {
         loaded?.serviceEndpoints.nextcloudBaseUrl.toString(),
         configuration.serviceEndpoints.nextcloudBaseUrl.toString(),
       );
+      expect(
+        loaded?.serviceEndpoints.backendApiBaseUrl.toString(),
+        configuration.serviceEndpoints.backendApiBaseUrl.toString(),
+      );
     });
 
     test('removes the legacy setup key when saving', () async {
@@ -68,6 +72,31 @@ void main() {
       expect(await store.getString(serverConfigurationStorageKey), isNull);
     });
 
+    test(
+      'derives the backend API URL for legacy saved configurations',
+      () async {
+        final store = InMemoryPreferencesStore({
+          serverConfigurationStorageKey: encodeTestConfiguration(
+            backendApiBaseUrl: null,
+          ),
+        });
+        final container = ProviderContainer.test(
+          overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+        );
+        addTearDown(container.dispose);
+        final repository = container.read(
+          serverConfigurationRepositoryProvider,
+        );
+
+        final loaded = await repository.loadConfiguration();
+
+        expect(
+          loaded?.serviceEndpoints.backendApiBaseUrl.toString(),
+          'https://api.home.internal',
+        );
+      },
+    );
+
     test('normalizes a blank stored client ID to weave-app', () async {
       final store = InMemoryPreferencesStore(
         buildStoredConfiguration(clientId: ''),
@@ -89,7 +118,7 @@ void main() {
         'oidcIssuerUrl': 'https://auth.home.internal',
         'oidcClientRegistrationMode': 'manual',
         'matrixHomeserverUrl': 'https://matrix.home.internal',
-        'nextcloudBaseUrl': 'https://files.home.internal',
+        'nextcloudBaseUrl': 'https://nextcloud.home.internal',
       });
       final store = InMemoryPreferencesStore({
         serverConfigurationStorageKey: raw,

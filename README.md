@@ -26,14 +26,15 @@ Setup and Settings now share one persisted server configuration model:
 - OIDC issuer URL
 - Infra-managed OIDC app client ID: `weave-app`
 - Matrix homeserver URL
-- Files base URL (Nextcloud-backed)
+- Nextcloud base URL
+- Backend API base URL
 
-Defaults for Matrix and Nextcloud are derived from the issuer host using a simple homelab-friendly rule, but the user can override those values during setup and later in Settings.
+Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host using a homelab-friendly rule, but the user can override those values during setup and later in Settings.
 
 App OIDC redirect handling is aligned to the infrastructure SSOT:
 
-- Sign-in redirect URI: `weaveapp://login/callback`
-- Logout redirect URI: `weaveapp://logout/callback`
+- Sign-in redirect URI: `com.massimotter.weave:/oauthredirect`
+- Logout redirect URI: `com.massimotter.weave:/logout`
 
 For local development stacks, Weave accepts `http://` issuer and service URLs in addition to `https://`.
 
@@ -41,7 +42,8 @@ For the default homelab convention, Weave assumes:
 
 - OIDC issuer / auth provider: `https://auth.home.internal`
 - Matrix homeserver: `https://matrix.home.internal`
-- Files / Nextcloud base URL: `https://files.home.internal`
+- Nextcloud base URL: `https://nextcloud.home.internal`
+- Backend API base URL: `https://api.home.internal`
 
 ## Architecture
 Weave follows a feature-first clean architecture layout:

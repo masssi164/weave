@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
@@ -35,22 +36,28 @@ class ServerConfigurationForm extends ConsumerStatefulWidget {
 class _ServerConfigurationFormState
     extends ConsumerState<ServerConfigurationForm> {
   late final TextEditingController _issuerController;
+  late final TextEditingController _clientIdController;
   late final TextEditingController _matrixController;
   late final TextEditingController _nextcloudController;
+  late final TextEditingController _backendApiController;
 
   @override
   void initState() {
     super.initState();
     _issuerController = TextEditingController();
+    _clientIdController = TextEditingController();
     _matrixController = TextEditingController();
     _nextcloudController = TextEditingController();
+    _backendApiController = TextEditingController();
   }
 
   @override
   void dispose() {
     _issuerController.dispose();
+    _clientIdController.dispose();
     _matrixController.dispose();
     _nextcloudController.dispose();
+    _backendApiController.dispose();
     super.dispose();
   }
 
@@ -70,8 +77,10 @@ class _ServerConfigurationFormState
     }
 
     _syncController(_issuerController, formState.issuerUrl);
+    _syncController(_clientIdController, formState.clientId);
     _syncController(_matrixController, formState.matrixHomeserverUrl);
     _syncController(_nextcloudController, formState.nextcloudBaseUrl);
+    _syncController(_backendApiController, formState.backendApiBaseUrl);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -150,9 +159,7 @@ class _ServerConfigurationFormState
         TextField(
           controller: _issuerController,
           keyboardType: TextInputType.url,
-          textInputAction: widget.layout == ServerConfigurationFormLayout.full
-              ? TextInputAction.next
-              : TextInputAction.done,
+          textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             labelText: l10n.serverConfigurationIssuerLabel,
             hintText: 'https://auth.home.internal',
@@ -163,6 +170,26 @@ class _ServerConfigurationFormState
               .read(serverConfigurationFormControllerProvider.notifier)
               .updateIssuerUrl,
         ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _clientIdController,
+          textInputAction:
+              widget.layout ==
+                  ServerConfigurationFormLayout.providerAndIssuerOnly
+              ? TextInputAction.done
+              : TextInputAction.next,
+          decoration: InputDecoration(
+            labelText: l10n.serverConfigurationClientIdLabel,
+            hintText: 'weave-app',
+            helperText: l10n.serverConfigurationClientIdHelper,
+            errorText: formState.clientIdError,
+          ),
+          onChanged: ref
+              .read(serverConfigurationFormControllerProvider.notifier)
+              .updateClientId,
+        ),
+        const SizedBox(height: 24),
+        _OidcRegistrationHelpCard(providerType: formState.providerType),
       ],
     );
   }
@@ -211,10 +238,10 @@ class _ServerConfigurationFormState
         TextField(
           controller: _nextcloudController,
           keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.done,
+          textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             labelText: l10n.serverConfigurationNextcloudLabel,
-            hintText: 'https://files.home.internal',
+            hintText: 'https://nextcloud.home.internal',
             helperText: formState.derivedNextcloudBaseUrl.isEmpty
                 ? null
                 : l10n.serverConfigurationDerivedHint(
@@ -225,6 +252,25 @@ class _ServerConfigurationFormState
           onChanged: ref
               .read(serverConfigurationFormControllerProvider.notifier)
               .updateNextcloudBaseUrl,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _backendApiController,
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            labelText: l10n.serverConfigurationBackendApiLabel,
+            hintText: 'https://api.home.internal',
+            helperText: formState.derivedBackendApiBaseUrl.isEmpty
+                ? null
+                : l10n.serverConfigurationDerivedHint(
+                    formState.derivedBackendApiBaseUrl,
+                  ),
+            errorText: formState.backendApiError,
+          ),
+          onChanged: ref
+              .read(serverConfigurationFormControllerProvider.notifier)
+              .updateBackendApiBaseUrl,
         ),
         if (formState.saveFailure != null) ...[
           const SizedBox(height: 16),
@@ -247,6 +293,61 @@ class _ServerConfigurationFormState
     controller.value = TextEditingValue(
       text: nextValue,
       selection: TextSelection.collapsed(offset: nextValue.length),
+    );
+  }
+}
+
+class _OidcRegistrationHelpCard extends StatelessWidget {
+  const _OidcRegistrationHelpCard({required this.providerType});
+
+  final OidcProviderType providerType;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final providerSteps = switch (providerType) {
+      OidcProviderType.authentik => l10n.oidcRegistrationHelpAuthentikSteps,
+      OidcProviderType.keycloak => l10n.oidcRegistrationHelpKeycloakSteps,
+    };
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.oidcRegistrationHelpTitle,
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            Text(l10n.oidcRegistrationHelpDescription),
+            const SizedBox(height: 8),
+            Text(
+              l10n.oidcRegistrationHelpNoSecret,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(providerSteps),
+            const SizedBox(height: 12),
+            Text(
+              l10n.oidcRegistrationHelpRedirectsTitle,
+              style: theme.textTheme.titleSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(l10n.oidcRegistrationHelpRedirectValue(oidcRedirectUri)),
+            const SizedBox(height: 4),
+            Text(
+              l10n.oidcRegistrationHelpPostLogoutRedirectValue(
+                oidcPostLogoutRedirectUri,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

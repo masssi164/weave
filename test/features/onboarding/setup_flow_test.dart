@@ -87,28 +87,27 @@ void main() {
       preferencesStore = InMemoryPreferencesStore();
     });
 
-    testWidgets('renders first step with provider and issuer fields', (
-      tester,
-    ) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+    testWidgets(
+      'renders first step with provider, issuer, and client id fields',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
 
-      expect(find.byType(WeaveLogo), findsOneWidget);
-      expect(find.text('Connect Your Server'), findsOneWidget);
-      expect(find.text('Provider type'), findsOneWidget);
-      expect(find.text('OIDC Client ID'), findsNothing);
-      expect(find.text('Next'), findsOneWidget);
-    });
+        expect(find.byType(WeaveLogo), findsOneWidget);
+        expect(find.text('Connect Your Server'), findsOneWidget);
+        expect(find.text('Provider type'), findsOneWidget);
+        expect(find.text('OIDC Client ID'), findsOneWidget);
+        expect(find.text('Next'), findsOneWidget);
+      },
+    );
 
-    testWidgets('does not show manual OIDC registration guidance', (
-      tester,
-    ) async {
+    testWidgets('shows public client registration guidance', (tester) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
       expect(
         find.text('Register Weave as a native/public client'),
-        findsNothing,
+        findsOneWidget,
       );
     });
 
@@ -127,7 +126,8 @@ void main() {
 
       expect(find.text('Review Service Endpoints'), findsOneWidget);
       expect(find.text('https://matrix.home.internal'), findsWidgets);
-      expect(find.text('https://files.home.internal'), findsWidgets);
+      expect(find.text('https://nextcloud.home.internal'), findsWidgets);
+      expect(find.text('https://api.home.internal'), findsWidgets);
       expect(find.text('Finish'), findsOneWidget);
     });
 
@@ -145,8 +145,8 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.enterText(
-        _textFieldWithLabel('Files Base URL'),
-        'https://files.home.internal',
+        _textFieldWithLabel('Nextcloud Base URL'),
+        'https://nextcloud.home.internal',
       );
       await tester.tap(find.text('Finish'));
       await tester.pumpAndSettle();
@@ -156,6 +156,7 @@ void main() {
       final raw = preferencesStore.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
       expect(json['oidcClientId'], 'weave-app');
+      expect(json['backendApiBaseUrl'], 'https://api.home.internal');
     });
 
     testWidgets('goes back to provider step from services step', (

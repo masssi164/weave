@@ -16,12 +16,16 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://files.home.internal',
+        'https://nextcloud.home.internal',
+      );
+      expect(
+        endpoints.backendApiBaseUrl.toString(),
+        'https://api.home.internal',
       );
     });
 
-    test('falls back to the full host when only two labels exist', () {
-      final issuerUrl = deriver.parseIssuerUrl('https://example.com');
+    test('derives shared hostnames from known auth-style issuer prefixes', () {
+      final issuerUrl = deriver.parseIssuerUrl('https://sso.example.com');
       final endpoints = deriver.derive(issuerUrl);
 
       expect(
@@ -30,9 +34,33 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://files.example.com',
+        'https://nextcloud.example.com',
       );
+      expect(endpoints.backendApiBaseUrl.toString(), 'https://api.example.com');
     });
+
+    test(
+      'keeps the full issuer host when it is not an auth-style subdomain',
+      () {
+        final issuerUrl = deriver.parseIssuerUrl(
+          'https://workspace.example.com',
+        );
+        final endpoints = deriver.derive(issuerUrl);
+
+        expect(
+          endpoints.matrixHomeserverUrl.toString(),
+          'https://matrix.workspace.example.com',
+        );
+        expect(
+          endpoints.nextcloudBaseUrl.toString(),
+          'https://nextcloud.workspace.example.com',
+        );
+        expect(
+          endpoints.backendApiBaseUrl.toString(),
+          'https://api.workspace.example.com',
+        );
+      },
+    );
 
     test('preserves HTTP scheme for local dev stacks', () {
       final issuerUrl = deriver.parseIssuerUrl('http://auth.home.internal');
@@ -44,7 +72,11 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'http://files.home.internal',
+        'http://nextcloud.home.internal',
+      );
+      expect(
+        endpoints.backendApiBaseUrl.toString(),
+        'http://api.home.internal',
       );
     });
 

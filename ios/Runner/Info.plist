@@ -29,7 +29,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>weaveapp</string>
+				<string>com.massimotter.weave</string>
 				<string>com.massimotter.weave.matrix</string>
 			</array>
 		</dict>

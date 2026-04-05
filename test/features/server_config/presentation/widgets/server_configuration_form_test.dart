@@ -15,7 +15,11 @@ Widget _buildApp(ServerConfigurationFormLayout layout) {
     child: MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: Scaffold(body: ServerConfigurationForm(layout: layout)),
+      home: Scaffold(
+        body: SingleChildScrollView(
+          child: ServerConfigurationForm(layout: layout),
+        ),
+      ),
     ),
   );
 }
@@ -36,20 +40,19 @@ void main() {
       },
     );
 
-    testWidgets(
-      'uses done keyboard action when the issuer field is the last input',
-      (tester) async {
-        await tester.pumpWidget(
-          _buildApp(ServerConfigurationFormLayout.providerAndIssuerOnly),
-        );
-        await tester.pump();
+    testWidgets('uses done keyboard action for the client id last input', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _buildApp(ServerConfigurationFormLayout.providerAndIssuerOnly),
+      );
+      await tester.pump();
 
-        final issuerField = tester.widget<TextField>(
-          _textFieldWithLabel('OIDC Issuer URL'),
-        );
+      final clientIdField = tester.widget<TextField>(
+        _textFieldWithLabel('OIDC Client ID'),
+      );
 
-        expect(issuerField.textInputAction, TextInputAction.done);
-      },
-    );
+      expect(clientIdField.textInputAction, TextInputAction.done);
+    });
   });
 }

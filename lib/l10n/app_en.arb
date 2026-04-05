@@ -24,7 +24,7 @@
   "setupServicesStepTitle": "Review Service Endpoints",
   "@setupServicesStepTitle": { "description": "Title for the setup services step" },
 
-  "setupServicesStepDescription": "Weave derives common service URLs from the issuer host. Review and edit them before finishing setup.",
+  "setupServicesStepDescription": "Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.",
   "@setupServicesStepDescription": { "description": "Description shown in the setup services step" },
 
   "setupLanguageStepTitle": "Your Language",
@@ -619,21 +619,64 @@
   "serverConfigurationIssuerHelper": "This must be the absolute issuer URL for your OIDC provider.",
   "@serverConfigurationIssuerHelper": { "description": "Helper text for the issuer URL field" },
 
+  "serverConfigurationClientIdLabel": "OIDC Client ID",
+  "@serverConfigurationClientIdLabel": { "description": "Label for the OIDC client ID field" },
+
+  "serverConfigurationClientIdHelper": "Enter the public/native client ID registered for Weave on this issuer.",
+  "@serverConfigurationClientIdHelper": { "description": "Helper text for the OIDC client ID field" },
+
   "serverConfigurationServicesLabel": "Service Endpoints",
   "@serverConfigurationServicesLabel": { "description": "Section title for derived service endpoints" },
 
-  "serverConfigurationServicesHelper": "Defaults are derived from the issuer host. Edit them if your services live elsewhere.",
+  "serverConfigurationServicesHelper": "Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.",
   "@serverConfigurationServicesHelper": { "description": "Helper text for the service endpoints section" },
 
   "serverConfigurationMatrixLabel": "Matrix Homeserver URL",
   "@serverConfigurationMatrixLabel": { "description": "Label for the Matrix homeserver URL field" },
 
-  "serverConfigurationNextcloudLabel": "Files Base URL",
-  "@serverConfigurationNextcloudLabel": { "description": "Label for the files base URL field" },
+  "serverConfigurationNextcloudLabel": "Nextcloud Base URL",
+  "@serverConfigurationNextcloudLabel": { "description": "Label for the Nextcloud base URL field" },
+
+  "serverConfigurationBackendApiLabel": "Backend API Base URL",
+  "@serverConfigurationBackendApiLabel": { "description": "Label for the backend API base URL field" },
 
   "serverConfigurationDerivedHint": "Derived default: {value}",
   "@serverConfigurationDerivedHint": {
     "description": "Helper text showing the derived default for a service endpoint",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+
+  "oidcRegistrationHelpTitle": "Register Weave as a native/public client",
+  "@oidcRegistrationHelpTitle": { "description": "Title for the OIDC client registration help card" },
+
+  "oidcRegistrationHelpDescription": "Use Authorization Code + PKCE with the system browser, and allow the Weave redirect URIs below on the provider-side client registration.",
+  "@oidcRegistrationHelpDescription": { "description": "General description for the OIDC client registration help card" },
+
+  "oidcRegistrationHelpNoSecret": "Do not create or paste a client secret here. Weave uses a public native-client flow.",
+  "@oidcRegistrationHelpNoSecret": { "description": "Warning that Weave should not use a client secret" },
+
+  "oidcRegistrationHelpAuthentikSteps": "In Authentik, create an OAuth2/OpenID Connect provider for Weave, add these redirect URIs to the provider, and ensure the client is configured for Authorization Code flow with `offline_access` available if you want refresh tokens.",
+  "@oidcRegistrationHelpAuthentikSteps": { "description": "Provider-specific OIDC registration guidance for Authentik" },
+
+  "oidcRegistrationHelpKeycloakSteps": "In Keycloak, create a public OpenID Connect client for Weave, add these redirect URIs and post-logout redirect URIs, and enable Standard Flow with PKCE (S256) so Weave can sign in without a client secret.",
+  "@oidcRegistrationHelpKeycloakSteps": { "description": "Provider-specific OIDC registration guidance for Keycloak" },
+
+  "oidcRegistrationHelpRedirectsTitle": "Register these redirect URIs",
+  "@oidcRegistrationHelpRedirectsTitle": { "description": "Title shown above the redirect URI values" },
+
+  "oidcRegistrationHelpRedirectValue": "Sign-in redirect: {value}",
+  "@oidcRegistrationHelpRedirectValue": {
+    "description": "Text showing the sign-in redirect URI",
+    "placeholders": {
+      "value": { "type": "String" }
+    }
+  },
+
+  "oidcRegistrationHelpPostLogoutRedirectValue": "Post-logout redirect: {value}",
+  "@oidcRegistrationHelpPostLogoutRedirectValue": {
+    "description": "Text showing the post-logout redirect URI",
     "placeholders": {
       "value": { "type": "String" }
     }

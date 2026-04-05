@@ -5,6 +5,16 @@ import 'package:weave/features/server_config/domain/entities/service_endpoints.d
 part 'service_endpoint_deriver.g.dart';
 
 class ServiceEndpointDeriver {
+  static const Set<String> _authHostLabels = {
+    'auth',
+    'id',
+    'iam',
+    'keycloak',
+    'login',
+    'oauth',
+    'sso',
+  };
+
   Uri parseIssuerUrl(String rawValue) {
     final trimmed = rawValue.trim();
     final uri = Uri.tryParse(trimmed);
@@ -50,16 +60,27 @@ class ServiceEndpointDeriver {
   }
 
   ServiceEndpoints derive(Uri issuerUrl) {
-    final labels = issuerUrl.host.split('.');
-    final baseHost = labels.length >= 3
-        ? labels.skip(1).join('.')
-        : issuerUrl.host;
+    final baseHost = _deriveWorkspaceBaseHost(issuerUrl.host);
     final scheme = issuerUrl.scheme;
 
     return ServiceEndpoints(
       matrixHomeserverUrl: Uri.parse('$scheme://matrix.$baseHost'),
-      nextcloudBaseUrl: Uri.parse('$scheme://files.$baseHost'),
+      nextcloudBaseUrl: Uri.parse('$scheme://nextcloud.$baseHost'),
+      backendApiBaseUrl: Uri.parse('$scheme://api.$baseHost'),
     );
+  }
+
+  String _deriveWorkspaceBaseHost(String issuerHost) {
+    final labels = issuerHost.split('.');
+    if (labels.length <= 2) {
+      return issuerHost;
+    }
+
+    if (_authHostLabels.contains(labels.first.toLowerCase())) {
+      return labels.skip(1).join('.');
+    }
+
+    return issuerHost;
   }
 }
 

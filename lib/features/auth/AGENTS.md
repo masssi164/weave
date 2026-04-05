@@ -21,6 +21,6 @@ Session expectations:
 - do not let non-auth features or integrations persist duplicate copies of app OIDC tokens
 
 Infrastructure-aligned app OIDC defaults:
-- keep the app-native redirect scheme aligned to infrastructure: `weaveapp://login/callback` and `weaveapp://logout/callback`
+- keep the app-native redirect scheme aligned to infrastructure: `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`
 - keep the app client ID aligned to infrastructure: `weave-app`
-- treat the app client as infra-managed; do not reintroduce manual client-registration or client-ID setup UI unless the product requirements explicitly change
+- treat the app client as infra-managed by default; the server config flow may expose the client ID with `weave-app` as the default and allow override for custom issuers

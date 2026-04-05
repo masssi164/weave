@@ -28,17 +28,16 @@ class SharedPreferencesServerConfigurationRepository
         return null;
       }
 
-      final configuration = ServerConfigurationDto.decode(
-        raw,
-      ).toConfiguration();
-      final normalizedClientId = _normalizedClientId(
-        configuration.oidcClientRegistration.clientId,
-      );
-
       // Re-validate persisted values on load so presentation never receives
       // malformed configuration from storage.
-      final issuerUrl = _deriver.parseIssuerUrl(
-        configuration.oidcIssuerUrl.toString(),
+      final dto = ServerConfigurationDto.decode(raw);
+      final issuerUrl = _deriver.parseIssuerUrl(dto.oidcIssuerUrl);
+      final defaults = _deriver.derive(issuerUrl);
+      final configuration = dto.toConfiguration(
+        fallbackBackendApiBaseUrl: defaults.backendApiBaseUrl,
+      );
+      final normalizedClientId = _normalizedClientId(
+        configuration.oidcClientRegistration.clientId,
       );
       final matrixUrl = _deriver.parseServiceUrl(
         configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
@@ -47,6 +46,10 @@ class SharedPreferencesServerConfigurationRepository
       final nextcloudUrl = _deriver.parseServiceUrl(
         configuration.serviceEndpoints.nextcloudBaseUrl.toString(),
         fieldName: 'the Nextcloud URL',
+      );
+      final backendApiUrl = _deriver.parseServiceUrl(
+        configuration.serviceEndpoints.backendApiBaseUrl.toString(),
+        fieldName: 'the backend API URL',
       );
 
       return configuration.copyWith(
@@ -57,6 +60,7 @@ class SharedPreferencesServerConfigurationRepository
         serviceEndpoints: configuration.serviceEndpoints.copyWith(
           matrixHomeserverUrl: matrixUrl,
           nextcloudBaseUrl: nextcloudUrl,
+          backendApiBaseUrl: backendApiUrl,
         ),
       );
     } on AppFailure {

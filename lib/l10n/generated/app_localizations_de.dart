@@ -36,7 +36,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get setupServicesStepDescription =>
-      'Weave leitet gängige Dienst-URLs aus dem Issuer-Host ab. Prüfe und ändere sie bei Bedarf vor dem Abschluss.';
+      'Weave leitet Matrix-, Nextcloud- und Backend-API-URLs aus dem Issuer-Host ab. Prüfe und ändere sie bei Bedarf vor dem Abschluss.';
 
   @override
   String get setupLanguageStepTitle => 'Deine Sprache';
@@ -690,21 +690,65 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dies muss die absolute Issuer-URL deines OIDC-Anbieters sein.';
 
   @override
+  String get serverConfigurationClientIdLabel => 'OIDC-Client-ID';
+
+  @override
+  String get serverConfigurationClientIdHelper =>
+      'Gib die public/native Client-ID ein, die für Weave bei diesem Issuer registriert ist.';
+
+  @override
   String get serverConfigurationServicesLabel => 'Dienstendpunkte';
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Standardwerte werden aus dem Issuer-Host abgeleitet. Ändere sie, wenn deine Dienste anderswo liegen.';
+      'Standardwerte für Matrix, Nextcloud und die Backend-API werden aus dem Issuer-Host abgeleitet. Ändere sie, wenn deine Dienste anderswo liegen.';
 
   @override
   String get serverConfigurationMatrixLabel => 'Matrix-Homeserver-URL';
 
   @override
-  String get serverConfigurationNextcloudLabel => 'Dateien-Basis-URL';
+  String get serverConfigurationNextcloudLabel => 'Nextcloud-Basis-URL';
+
+  @override
+  String get serverConfigurationBackendApiLabel => 'Backend-API-Basis-URL';
 
   @override
   String serverConfigurationDerivedHint(String value) {
     return 'Abgeleiteter Standard: $value';
+  }
+
+  @override
+  String get oidcRegistrationHelpTitle =>
+      'Weave als native/public Client registrieren';
+
+  @override
+  String get oidcRegistrationHelpDescription =>
+      'Verwende Authorization Code + PKCE mit dem Systembrowser und hinterlege die folgenden Weave-Redirect-URIs in der Provider-Client-Registrierung.';
+
+  @override
+  String get oidcRegistrationHelpNoSecret =>
+      'Lege hier kein Client-Secret an und füge keines ein. Weave verwendet einen öffentlichen Native-Client-Flow.';
+
+  @override
+  String get oidcRegistrationHelpAuthentikSteps =>
+      'Erstelle in Authentik einen OAuth2/OpenID-Connect-Provider für Weave, trage diese Redirect-URIs in den Provider ein und stelle sicher, dass Authorization Code sowie bei Bedarf `offline_access` für Refresh-Tokens verfügbar sind.';
+
+  @override
+  String get oidcRegistrationHelpKeycloakSteps =>
+      'Erstelle in Keycloak einen öffentlichen OpenID-Connect-Client für Weave, trage diese Redirect-URIs und Post-Logout-Redirect-URIs ein und aktiviere Standard Flow mit PKCE (S256), damit Weave ohne Client-Secret anmelden kann.';
+
+  @override
+  String get oidcRegistrationHelpRedirectsTitle =>
+      'Diese Redirect-URIs registrieren';
+
+  @override
+  String oidcRegistrationHelpRedirectValue(String value) {
+    return 'Anmelde-Redirect: $value';
+  }
+
+  @override
+  String oidcRegistrationHelpPostLogoutRedirectValue(String value) {
+    return 'Post-Logout-Redirect: $value';
   }
 
   @override

@@ -11,7 +11,8 @@ ServerConfiguration buildTestConfiguration({
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String nextcloudBaseUrl = 'https://nextcloud.home.internal',
+  String backendApiBaseUrl = 'https://api.home.internal',
 }) {
   return ServerConfiguration(
     providerType: providerType,
@@ -20,6 +21,7 @@ ServerConfiguration buildTestConfiguration({
     serviceEndpoints: ServiceEndpoints(
       matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
       nextcloudBaseUrl: Uri.parse(nextcloudBaseUrl),
+      backendApiBaseUrl: Uri.parse(backendApiBaseUrl),
     ),
   );
 }
@@ -29,16 +31,21 @@ String encodeTestConfiguration({
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String nextcloudBaseUrl = 'https://nextcloud.home.internal',
+  String? backendApiBaseUrl = 'https://api.home.internal',
 }) {
-  return jsonEncode({
+  final json = <String, Object?>{
     'providerType': providerType.name,
     'oidcIssuerUrl': issuerUrl,
     'oidcClientRegistrationMode': 'manual',
     'oidcClientId': clientId,
     'matrixHomeserverUrl': matrixHomeserverUrl,
     'nextcloudBaseUrl': nextcloudBaseUrl,
-  });
+  };
+  if (backendApiBaseUrl != null) {
+    json['backendApiBaseUrl'] = backendApiBaseUrl;
+  }
+  return jsonEncode(json);
 }
 
 Map<String, Object> buildStoredConfiguration({
@@ -46,7 +53,8 @@ Map<String, Object> buildStoredConfiguration({
   String issuerUrl = 'https://auth.home.internal',
   String clientId = 'weave-app',
   String matrixHomeserverUrl = 'https://matrix.home.internal',
-  String nextcloudBaseUrl = 'https://files.home.internal',
+  String nextcloudBaseUrl = 'https://nextcloud.home.internal',
+  String? backendApiBaseUrl = 'https://api.home.internal',
 }) {
   return {
     serverConfigurationStorageKey: encodeTestConfiguration(
@@ -55,6 +63,7 @@ Map<String, Object> buildStoredConfiguration({
       clientId: clientId,
       matrixHomeserverUrl: matrixHomeserverUrl,
       nextcloudBaseUrl: nextcloudBaseUrl,
+      backendApiBaseUrl: backendApiBaseUrl,
     ),
   };
 }

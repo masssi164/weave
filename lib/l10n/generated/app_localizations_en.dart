@@ -36,7 +36,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupServicesStepDescription =>
-      'Weave derives common service URLs from the issuer host. Review and edit them before finishing setup.';
+      'Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.';
 
   @override
   String get setupLanguageStepTitle => 'Your Language';
@@ -676,21 +676,65 @@ class AppLocalizationsEn extends AppLocalizations {
       'This must be the absolute issuer URL for your OIDC provider.';
 
   @override
+  String get serverConfigurationClientIdLabel => 'OIDC Client ID';
+
+  @override
+  String get serverConfigurationClientIdHelper =>
+      'Enter the public/native client ID registered for Weave on this issuer.';
+
+  @override
   String get serverConfigurationServicesLabel => 'Service Endpoints';
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Defaults are derived from the issuer host. Edit them if your services live elsewhere.';
+      'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.';
 
   @override
   String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';
 
   @override
-  String get serverConfigurationNextcloudLabel => 'Files Base URL';
+  String get serverConfigurationNextcloudLabel => 'Nextcloud Base URL';
+
+  @override
+  String get serverConfigurationBackendApiLabel => 'Backend API Base URL';
 
   @override
   String serverConfigurationDerivedHint(String value) {
     return 'Derived default: $value';
+  }
+
+  @override
+  String get oidcRegistrationHelpTitle =>
+      'Register Weave as a native/public client';
+
+  @override
+  String get oidcRegistrationHelpDescription =>
+      'Use Authorization Code + PKCE with the system browser, and allow the Weave redirect URIs below on the provider-side client registration.';
+
+  @override
+  String get oidcRegistrationHelpNoSecret =>
+      'Do not create or paste a client secret here. Weave uses a public native-client flow.';
+
+  @override
+  String get oidcRegistrationHelpAuthentikSteps =>
+      'In Authentik, create an OAuth2/OpenID Connect provider for Weave, add these redirect URIs to the provider, and ensure the client is configured for Authorization Code flow with `offline_access` available if you want refresh tokens.';
+
+  @override
+  String get oidcRegistrationHelpKeycloakSteps =>
+      'In Keycloak, create a public OpenID Connect client for Weave, add these redirect URIs and post-logout redirect URIs, and enable Standard Flow with PKCE (S256) so Weave can sign in without a client secret.';
+
+  @override
+  String get oidcRegistrationHelpRedirectsTitle =>
+      'Register these redirect URIs';
+
+  @override
+  String oidcRegistrationHelpRedirectValue(String value) {
+    return 'Sign-in redirect: $value';
+  }
+
+  @override
+  String oidcRegistrationHelpPostLogoutRedirectValue(String value) {
+    return 'Post-logout redirect: $value';
   }
 
   @override
