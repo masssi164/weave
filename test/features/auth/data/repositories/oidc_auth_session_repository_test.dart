@@ -66,7 +66,7 @@ void main() {
     late OidcAuthSessionRepository repository;
     final configuration = AuthConfiguration(
       issuer: Uri.parse('https://auth.home.internal'),
-      clientId: 'weave-mobile',
+      clientId: 'weave-app',
     );
 
     setUp(() {

@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
@@ -39,7 +40,7 @@ class ServerConfigurationFormState {
       isSaving = false,
       providerType = OidcProviderType.authentik,
       issuerUrl = '',
-      clientId = '',
+      clientId = oidcDefaultClientId,
       matrixHomeserverUrl = '',
       nextcloudBaseUrl = '',
       backendApiBaseUrl = '',
@@ -164,7 +165,7 @@ class ServerConfigurationFormController
       _initialAuthSignature = null;
       _initialMatrixSignature = null;
       _initialNextcloudSignature = null;
-      state = state.copyWith(initialized: true);
+      state = state.copyWith(initialized: true, clientId: oidcDefaultClientId);
       return;
     }
 
@@ -224,9 +225,11 @@ class ServerConfigurationFormController
     final derivedEndpoints = _tryDeriveFromIssuer(issuerUrl);
     final matrixWillBeReplaced = !state.matrixOverridden;
     final nextcloudWillBeReplaced = !state.nextcloudOverridden;
+    final backendApiWillBeReplaced = !state.backendApiOverridden;
 
     state = state.copyWith(
       issuerUrl: issuerUrl,
+      clientId: _validateClientId(state.clientId),
       derivedMatrixHomeserverUrl:
           derivedEndpoints?.matrixHomeserverUrl.toString() ?? '',
       derivedNextcloudBaseUrl:
@@ -243,9 +246,18 @@ class ServerConfigurationFormController
           ? state.backendApiBaseUrl
           : (derivedEndpoints?.backendApiBaseUrl.toString() ?? ''),
       clearIssuerError: true,
+      clearClientIdError: true,
       clearMatrixError: matrixWillBeReplaced,
       clearNextcloudError: nextcloudWillBeReplaced,
-      clearBackendApiError: true,
+      clearBackendApiError: backendApiWillBeReplaced,
+      clearSaveFailure: true,
+    );
+  }
+
+  void updateClientId(String clientId) {
+    state = state.copyWith(
+      clientId: clientId,
+      clearClientIdError: true,
       clearSaveFailure: true,
     );
   }
@@ -292,25 +304,18 @@ class ServerConfigurationFormController
     );
   }
 
-  void updateClientId(String clientId) {
-    state = state.copyWith(
-      clientId: clientId,
-      clearClientIdError: true,
-      clearSaveFailure: true,
-    );
-  }
-
   bool validateProviderAndIssuerStep() {
     try {
       final issuerUrl = ref
           .read(serviceEndpointDeriverProvider)
           .parseIssuerUrl(state.issuerUrl);
-      _validateClientId(state.clientId);
+      final clientId = _validateClientId(state.clientId);
       final defaults = ref
           .read(serviceEndpointDeriverProvider)
           .derive(issuerUrl);
 
       state = state.copyWith(
+        clientId: clientId,
         derivedMatrixHomeserverUrl: defaults.matrixHomeserverUrl.toString(),
         derivedNextcloudBaseUrl: defaults.nextcloudBaseUrl.toString(),
         derivedBackendApiBaseUrl: defaults.backendApiBaseUrl.toString(),
@@ -325,16 +330,15 @@ class ServerConfigurationFormController
             : defaults.backendApiBaseUrl.toString(),
         clearIssuerError: true,
         clearClientIdError: true,
-        clearBackendApiError: true,
+        clearMatrixError: !state.matrixOverridden,
+        clearNextcloudError: !state.nextcloudOverridden,
+        clearBackendApiError: !state.backendApiOverridden,
       );
       return true;
     } on AppFailure catch (failure) {
-      final isClientIdFailure = failure.message.contains('client ID');
       state = state.copyWith(
-        issuerError: isClientIdFailure ? null : failure.message,
-        clientIdError: isClientIdFailure ? failure.message : null,
-        clearIssuerError: isClientIdFailure,
-        clearClientIdError: !isClientIdFailure,
+        issuerError: failure.message,
+        clearClientIdError: true,
       );
       return false;
     }
@@ -488,13 +492,7 @@ class ServerConfigurationFormController
 
   String _validateClientId(String clientId) {
     final trimmed = clientId.trim();
-    if (trimmed.isEmpty) {
-      throw const AppFailure.validation(
-        'Enter the OIDC client ID for your Weave native app registration.',
-      );
-    }
-
-    return trimmed;
+    return trimmed.isEmpty ? oidcDefaultClientId : trimmed;
   }
 
   String _authSignature(String issuerUrl, String clientId) {

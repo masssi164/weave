@@ -39,9 +39,11 @@ class DefaultNextcloudConnectionService implements NextcloudConnectionService {
       );
     }
 
-    if (!_usesHttps(configuration.serviceEndpoints.nextcloudBaseUrl)) {
+    if (!_usesSupportedScheme(
+      configuration.serviceEndpoints.nextcloudBaseUrl,
+    )) {
       return const NextcloudConnectionState.misconfigured(
-        message: 'Use an HTTPS Nextcloud URL before connecting files.',
+        message: 'Use an HTTP or HTTPS Nextcloud URL before connecting files.',
       );
     }
 
@@ -87,9 +89,11 @@ class DefaultNextcloudConnectionService implements NextcloudConnectionService {
       );
     }
 
-    if (!_usesHttps(configuration.serviceEndpoints.nextcloudBaseUrl)) {
+    if (!_usesSupportedScheme(
+      configuration.serviceEndpoints.nextcloudBaseUrl,
+    )) {
       throw const NextcloudFailure.configuration(
-        'Use an HTTPS Nextcloud URL before connecting files.',
+        'Use an HTTP or HTTPS Nextcloud URL before connecting files.',
       );
     }
 
@@ -154,9 +158,11 @@ class DefaultNextcloudConnectionService implements NextcloudConnectionService {
       );
     }
 
-    if (!_usesHttps(configuration.serviceEndpoints.nextcloudBaseUrl)) {
+    if (!_usesSupportedScheme(
+      configuration.serviceEndpoints.nextcloudBaseUrl,
+    )) {
       throw const NextcloudFailure.configuration(
-        'Use an HTTPS Nextcloud URL before browsing Nextcloud files.',
+        'Use an HTTP or HTTPS Nextcloud URL before browsing Nextcloud files.',
       );
     }
 
@@ -316,5 +322,8 @@ class DefaultNextcloudConnectionService implements NextcloudConnectionService {
     return configuration;
   }
 
-  bool _usesHttps(Uri uri) => uri.scheme.toLowerCase() == 'https';
+  bool _usesSupportedScheme(Uri uri) {
+    final scheme = uri.scheme.toLowerCase();
+    return scheme == 'http' || scheme == 'https';
+  }
 }

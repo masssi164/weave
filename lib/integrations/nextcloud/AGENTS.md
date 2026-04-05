@@ -19,3 +19,7 @@ Boundary rules:
 - keep persisted bearer sessions tokenless; only live bearer sessions should carry an in-memory bearer token
 - preserve current app-password revocation and stale-session invalidation behavior when refactoring
 - shared Nextcloud protocol code should become more reusable here, while DAV parsing that is still file-specific should remain in `features/files/`
+
+Default endpoint expectations:
+- the user-facing default files endpoint now derives from `files.<tenant_domain>` to match infrastructure, even though some internal compatibility-safe field names still refer to Nextcloud
+- do not assume the browser-facing default host is `nextcloud.<tenant_domain>` when updating setup or endpoint-derivation behavior

@@ -1,5 +1,6 @@
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/preferences_store.dart';
+import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/server_config/data/dtos/server_configuration_dto.dart';
 import 'package:weave/features/server_config/data/services/service_endpoint_deriver.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -35,6 +36,9 @@ class SharedPreferencesServerConfigurationRepository
       final configuration = dto.toConfiguration(
         fallbackBackendApiBaseUrl: defaults.backendApiBaseUrl,
       );
+      final normalizedClientId = _normalizedClientId(
+        configuration.oidcClientRegistration.clientId,
+      );
       final matrixUrl = _deriver.parseServiceUrl(
         configuration.serviceEndpoints.matrixHomeserverUrl.toString(),
         fieldName: 'the Matrix homeserver URL',
@@ -50,6 +54,9 @@ class SharedPreferencesServerConfigurationRepository
 
       return configuration.copyWith(
         oidcIssuerUrl: issuerUrl,
+        oidcClientRegistration: configuration.oidcClientRegistration.copyWith(
+          clientId: normalizedClientId,
+        ),
         serviceEndpoints: configuration.serviceEndpoints.copyWith(
           matrixHomeserverUrl: matrixUrl,
           nextcloudBaseUrl: nextcloudUrl,
@@ -93,5 +100,10 @@ class SharedPreferencesServerConfigurationRepository
         cause: error,
       );
     }
+  }
+
+  String _normalizedClientId(String clientId) {
+    final trimmed = clientId.trim();
+    return trimmed.isEmpty ? oidcDefaultClientId : trimmed;
   }
 }

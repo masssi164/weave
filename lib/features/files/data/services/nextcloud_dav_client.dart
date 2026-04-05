@@ -23,7 +23,7 @@ class NextcloudDavClient {
     NextcloudSession session,
     String path,
   ) async {
-    _ensureHttpsSession(session);
+    _ensureSupportedSession(session);
     final normalizedPath = _normalizePath(path);
     final uri = _buildDirectoryUri(session, normalizedPath);
     final request = http.Request('PROPFIND', uri)
@@ -115,10 +115,11 @@ class NextcloudDavClient {
     return DirectoryListing(path: normalizedPath, entries: entries);
   }
 
-  void _ensureHttpsSession(NextcloudSession session) {
-    if (session.baseUrl.scheme.toLowerCase() != 'https') {
+  void _ensureSupportedSession(NextcloudSession session) {
+    final scheme = session.baseUrl.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') {
       throw const NextcloudFailure.configuration(
-        'Use an HTTPS Nextcloud URL before browsing files.',
+        'Use an HTTP or HTTPS Nextcloud URL before browsing files.',
       );
     }
   }

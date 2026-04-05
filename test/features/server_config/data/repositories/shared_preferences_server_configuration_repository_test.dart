@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
@@ -94,5 +96,42 @@ void main() {
         );
       },
     );
+
+    test('normalizes a blank stored client ID to weave-app', () async {
+      final store = InMemoryPreferencesStore(
+        buildStoredConfiguration(clientId: ''),
+      );
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
+
+      final loaded = await repository.loadConfiguration();
+
+      expect(loaded?.oidcClientRegistration.clientId, 'weave-app');
+    });
+
+    test('normalizes a missing stored client ID to weave-app', () async {
+      final raw = jsonEncode({
+        'providerType': 'authentik',
+        'oidcIssuerUrl': 'https://auth.home.internal',
+        'oidcClientRegistrationMode': 'manual',
+        'matrixHomeserverUrl': 'https://matrix.home.internal',
+        'nextcloudBaseUrl': 'https://nextcloud.home.internal',
+      });
+      final store = InMemoryPreferencesStore({
+        serverConfigurationStorageKey: raw,
+      });
+      final container = ProviderContainer.test(
+        overrides: [preferencesStoreProvider.overrideWith((ref) => store)],
+      );
+      addTearDown(container.dispose);
+      final repository = container.read(serverConfigurationRepositoryProvider);
+
+      final loaded = await repository.loadConfiguration();
+
+      expect(loaded?.oidcClientRegistration.clientId, 'weave-app');
+    });
   });
 }

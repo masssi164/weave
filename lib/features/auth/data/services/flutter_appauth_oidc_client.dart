@@ -26,6 +26,7 @@ class FlutterAppAuthOidcClient implements OidcClient {
           issuer: configuration.issuer.toString(),
           scopes: oidcDefaultScopes,
           nonce: _generateNonce(),
+          allowInsecureConnections: _usesInsecureIssuer(configuration),
         ),
       );
 
@@ -65,6 +66,7 @@ class FlutterAppAuthOidcClient implements OidcClient {
           issuer: configuration.issuer.toString(),
           refreshToken: refreshToken,
           scopes: oidcDefaultScopes,
+          allowInsecureConnections: _usesInsecureIssuer(configuration),
         ),
       );
 
@@ -103,6 +105,7 @@ class FlutterAppAuthOidcClient implements OidcClient {
           idTokenHint: idTokenHint,
           postLogoutRedirectUrl: oidcPostLogoutRedirectUri,
           issuer: configuration.issuer.toString(),
+          allowInsecureConnections: _usesInsecureIssuer(configuration),
         ),
       );
     } on FlutterAppAuthPlatformException catch (error) {
@@ -169,6 +172,10 @@ class FlutterAppAuthOidcClient implements OidcClient {
     }
 
     return fallback;
+  }
+
+  bool _usesInsecureIssuer(AuthConfiguration configuration) {
+    return configuration.issuer.scheme.toLowerCase() == 'http';
   }
 }
 

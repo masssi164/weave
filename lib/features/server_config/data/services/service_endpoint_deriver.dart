@@ -23,8 +23,10 @@ class ServiceEndpointDeriver {
       throw const AppFailure.validation('Enter a valid absolute issuer URL.');
     }
 
-    if (uri.scheme != 'https') {
-      throw const AppFailure.validation('The issuer URL must use HTTPS.');
+    if (uri.scheme != 'http' && uri.scheme != 'https') {
+      throw const AppFailure.validation(
+        'The issuer URL must use HTTP or HTTPS.',
+      );
     }
 
     if (uri.hasQuery || uri.hasFragment) {
@@ -59,11 +61,12 @@ class ServiceEndpointDeriver {
 
   ServiceEndpoints derive(Uri issuerUrl) {
     final baseHost = _deriveWorkspaceBaseHost(issuerUrl.host);
+    final scheme = issuerUrl.scheme;
 
     return ServiceEndpoints(
-      matrixHomeserverUrl: Uri.parse('https://matrix.$baseHost'),
-      nextcloudBaseUrl: Uri.parse('https://nextcloud.$baseHost'),
-      backendApiBaseUrl: Uri.parse('https://api.$baseHost'),
+      matrixHomeserverUrl: Uri.parse('$scheme://matrix.$baseHost'),
+      nextcloudBaseUrl: Uri.parse('$scheme://nextcloud.$baseHost'),
+      backendApiBaseUrl: Uri.parse('$scheme://api.$baseHost'),
     );
   }
 

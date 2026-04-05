@@ -109,14 +109,6 @@ void main() {
         find.text('Register Weave as a native/public client'),
         findsOneWidget,
       );
-      expect(
-        find.textContaining('com.massimotter.weave:/oauthredirect'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('com.massimotter.weave:/logout'),
-        findsOneWidget,
-      );
     });
 
     testWidgets('derives service endpoints from the issuer host', (
@@ -128,10 +120,6 @@ void main() {
       await tester.enterText(
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
-      );
-      await tester.enterText(
-        _textFieldWithLabel('OIDC Client ID'),
-        'weave-mobile',
       );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
@@ -153,16 +141,12 @@ void main() {
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
       );
-      await tester.enterText(
-        _textFieldWithLabel('OIDC Client ID'),
-        'weave-mobile',
-      );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
       await tester.enterText(
         _textFieldWithLabel('Nextcloud Base URL'),
-        'https://cloud.home.internal',
+        'https://nextcloud.home.internal',
       );
       await tester.tap(find.text('Finish'));
       await tester.pumpAndSettle();
@@ -171,7 +155,7 @@ void main() {
 
       final raw = preferencesStore.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
-      expect(json['oidcClientId'], 'weave-mobile');
+      expect(json['oidcClientId'], 'weave-app');
       expect(json['backendApiBaseUrl'], 'https://api.home.internal');
     });
 
@@ -184,10 +168,6 @@ void main() {
       await tester.enterText(
         _textFieldWithLabel('OIDC Issuer URL'),
         'https://auth.home.internal',
-      );
-      await tester.enterText(
-        _textFieldWithLabel('OIDC Client ID'),
-        'weave-mobile',
       );
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();

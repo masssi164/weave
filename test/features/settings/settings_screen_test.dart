@@ -160,7 +160,7 @@ void main() {
       );
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
-      expect(find.text('weave-mobile'), findsWidgets);
+      expect(find.text('weave-app'), findsWidgets);
       expect(find.text('https://api.home.internal'), findsWidgets);
 
       await tester.enterText(

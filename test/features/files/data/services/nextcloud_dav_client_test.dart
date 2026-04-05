@@ -65,6 +65,29 @@ void main() {
       expect(listing.entries, hasLength(2));
     });
 
+    test('listDirectory accepts HTTP sessions for local dev stacks', () async {
+      final client = NextcloudDavClient(
+        httpClient: MockClient((request) async {
+          expect(
+            request.url,
+            Uri.parse('http://files.home.internal/remote.php/dav/files/alice/'),
+          );
+          return http.Response(_multistatusResponse, 207);
+        }),
+      );
+
+      final listing = await client.listDirectory(
+        NextcloudSession.oidcBearer(
+          baseUrl: Uri.parse('http://files.home.internal/'),
+          userId: 'alice',
+          bearerToken: 'oidc-access-token',
+        ),
+        '/',
+      );
+
+      expect(listing.entries, hasLength(2));
+    });
+
     test('listDirectory surfaces invalid credentials from WebDAV', () async {
       final client = NextcloudDavClient(
         httpClient: MockClient((request) async => http.Response('', 401)),
