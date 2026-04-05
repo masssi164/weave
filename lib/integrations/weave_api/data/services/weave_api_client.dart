@@ -30,8 +30,8 @@ class HttpWeaveApiClient implements WeaveApiClient {
       response = await _httpClient.get(
         requestUri,
         headers: {
-          'accept': 'application/json',
-          'authorization': 'Bearer $accessToken',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $accessToken',
         },
       );
     } catch (error) {

@@ -55,7 +55,8 @@ void main() {
         capturedRequest.url.toString(),
         'https://api.home.internal/api/v1/workspace/capabilities',
       );
-      expect(capturedRequest.headers['authorization'], 'Bearer token-123');
+      expect(capturedRequest.headers['Accept'], 'application/json');
+      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(
         snapshot.shellAccess.readiness,
         WorkspaceCapabilityReadiness.ready,
@@ -66,6 +67,35 @@ void main() {
         WorkspaceCapabilityReadiness.unavailable,
       );
     });
+
+    test(
+      'rejects unauthorized backend sessions with a dedicated failure',
+      () async {
+        for (final statusCode in [401, 403]) {
+          final client = HttpWeaveApiClient(
+            httpClient: _RecordingHttpClient((request) async {
+              return _jsonResponse({
+                'error': 'unauthorized',
+              }, statusCode: statusCode);
+            }),
+          );
+
+          await expectLater(
+            () => client.fetchWorkspaceCapabilities(
+              baseUrl: Uri.parse('https://api.home.internal'),
+              accessToken: 'token-123',
+            ),
+            throwsA(
+              isA<AppFailure>().having(
+                (failure) => failure.message,
+                'message',
+                contains('rejected the current session'),
+              ),
+            ),
+          );
+        }
+      },
+    );
 
     test('throws when the backend returns a non-success response', () async {
       final client = HttpWeaveApiClient(
