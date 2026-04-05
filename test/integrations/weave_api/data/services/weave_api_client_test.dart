@@ -68,6 +68,32 @@ void main() {
       );
     });
 
+    test('preserves a base path when building the workspace endpoint', () async {
+      late http.BaseRequest capturedRequest;
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          return _jsonResponse({
+            'shellAccess': {'enabled': true, 'readiness': 'ready'},
+            'chat': {'enabled': true, 'readiness': 'ready'},
+            'files': {'enabled': true, 'readiness': 'ready'},
+            'calendar': {'enabled': true, 'readiness': 'ready'},
+            'boards': {'enabled': true, 'readiness': 'ready'},
+          });
+        }),
+      );
+
+      await client.fetchWorkspaceCapabilities(
+        baseUrl: Uri.parse('https://api.home.internal/service/root'),
+        accessToken: 'token-123',
+      );
+
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.home.internal/service/root/api/v1/workspace/capabilities',
+      );
+    });
+
     test(
       'rejects unauthorized backend sessions with a dedicated failure',
       () async {

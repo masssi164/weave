@@ -23,7 +23,7 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required Uri baseUrl,
     required String accessToken,
   }) async {
-    final requestUri = baseUrl.resolve('/api/v1/workspace/capabilities');
+    final requestUri = _workspaceCapabilitiesUri(baseUrl);
 
     late http.Response response;
     try {
@@ -71,5 +71,17 @@ class HttpWeaveApiClient implements WeaveApiClient {
         cause: error,
       );
     }
+  }
+
+  Uri _workspaceCapabilitiesUri(Uri baseUrl) {
+    return baseUrl.replace(
+      pathSegments: [
+        ...baseUrl.pathSegments.where((segment) => segment.isNotEmpty),
+        'api',
+        'v1',
+        'workspace',
+        'capabilities',
+      ],
+    );
   }
 }
