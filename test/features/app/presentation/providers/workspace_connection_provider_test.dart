@@ -15,6 +15,7 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 
 import '../../../../helpers/fake_chat_security_repository.dart';
 import '../../../../helpers/server_config_test_data.dart';
@@ -277,6 +278,97 @@ void main() {
         expect(
           capabilities.requireValue.files.readiness,
           WorkspaceCapabilityReadiness.ready,
+        );
+      },
+    );
+
+    test(
+      'prefers backend capability readiness when a backend snapshot exists',
+      () async {
+        final container = ProviderContainer.test(
+          overrides: [
+            appBootstrapProvider.overrideWith(
+              () => _FakeAppBootstrap(const BootstrapState.ready()),
+            ),
+            savedServerConfigurationProvider.overrideWith(
+              (ref) async => buildTestConfiguration(),
+            ),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              FakeChatSecurityRepository(
+                loadSecurityStateHandler: ({bool refresh = false}) async {
+                  return const ChatSecurityState(
+                    isMatrixSignedIn: true,
+                    bootstrapState:
+                        ChatSecurityBootstrapState.partiallyInitialized,
+                    accountVerificationState:
+                        ChatAccountVerificationState.verificationRequired,
+                    deviceVerificationState:
+                        ChatDeviceVerificationState.unverified,
+                    keyBackupState: ChatKeyBackupState.missing,
+                    roomEncryptionReadiness:
+                        ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention,
+                    secretStorageReady: false,
+                    crossSigningReady: false,
+                    hasEncryptedConversations: true,
+                    verificationSession: ChatVerificationSession.none(),
+                  );
+                },
+              ),
+            ),
+            filesRepositoryProvider.overrideWithValue(
+              _FakeFilesRepository(
+                connectionState: FilesConnectionState.connected(
+                  baseUrl: Uri.parse('https://nextcloud.home.internal'),
+                  accountLabel: 'alice',
+                ),
+              ),
+            ),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => const WorkspaceCapabilitySnapshot(
+                shellAccess: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.shellAccess,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                chat: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.chat,
+                  readiness: WorkspaceCapabilityReadiness.ready,
+                ),
+                files: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.files,
+                  readiness: WorkspaceCapabilityReadiness.blocked,
+                ),
+                calendar: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.calendar,
+                  readiness: WorkspaceCapabilityReadiness.unavailable,
+                ),
+                boards: WorkspaceCapabilityState(
+                  capability: WorkspaceCapability.boards,
+                  readiness: WorkspaceCapabilityReadiness.unavailable,
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(appBootstrapProvider.future);
+        await container.read(matrixIntegrationConnectionProvider.future);
+        await container.read(nextcloudIntegrationConnectionProvider.future);
+        await container.read(
+          weaveApiWorkspaceCapabilitySnapshotProvider.future,
+        );
+
+        final capabilities = container.read(
+          workspaceCapabilitySnapshotProvider,
+        );
+
+        expect(
+          capabilities.requireValue.chat.readiness,
+          WorkspaceCapabilityReadiness.ready,
+        );
+        expect(
+          capabilities.requireValue.files.readiness,
+          WorkspaceCapabilityReadiness.blocked,
         );
       },
     );
