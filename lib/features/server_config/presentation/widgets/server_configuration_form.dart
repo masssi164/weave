@@ -180,7 +180,7 @@ class _ServerConfigurationFormState
               : TextInputAction.next,
           decoration: InputDecoration(
             labelText: l10n.serverConfigurationClientIdLabel,
-            hintText: 'weave-mobile',
+            hintText: 'weave-app',
             helperText: l10n.serverConfigurationClientIdHelper,
             errorText: formState.clientIdError,
           ),

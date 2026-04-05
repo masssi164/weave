@@ -24,8 +24,8 @@ void main() {
       );
     });
 
-    test('falls back to the full host when only two labels exist', () {
-      final issuerUrl = deriver.parseIssuerUrl('https://example.com');
+    test('derives shared hostnames from known auth-style issuer prefixes', () {
+      final issuerUrl = deriver.parseIssuerUrl('https://sso.example.com');
       final endpoints = deriver.derive(issuerUrl);
 
       expect(
@@ -38,6 +38,29 @@ void main() {
       );
       expect(endpoints.backendApiBaseUrl.toString(), 'https://api.example.com');
     });
+
+    test(
+      'keeps the full issuer host when it is not an auth-style subdomain',
+      () {
+        final issuerUrl = deriver.parseIssuerUrl(
+          'https://workspace.example.com',
+        );
+        final endpoints = deriver.derive(issuerUrl);
+
+        expect(
+          endpoints.matrixHomeserverUrl.toString(),
+          'https://matrix.workspace.example.com',
+        );
+        expect(
+          endpoints.nextcloudBaseUrl.toString(),
+          'https://nextcloud.workspace.example.com',
+        );
+        expect(
+          endpoints.backendApiBaseUrl.toString(),
+          'https://api.workspace.example.com',
+        );
+      },
+    );
 
     test('rejects issuer URLs with non-https schemes', () {
       expect(
