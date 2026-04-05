@@ -18,6 +18,10 @@ void main() {
         endpoints.nextcloudBaseUrl.toString(),
         'https://nextcloud.home.internal',
       );
+      expect(
+        endpoints.backendApiBaseUrl.toString(),
+        'https://api.home.internal',
+      );
     });
 
     test('falls back to the full host when only two labels exist', () {
@@ -32,6 +36,7 @@ void main() {
         endpoints.nextcloudBaseUrl.toString(),
         'https://nextcloud.example.com',
       );
+      expect(endpoints.backendApiBaseUrl.toString(), 'https://api.example.com');
     });
 
     test('rejects issuer URLs with non-https schemes', () {

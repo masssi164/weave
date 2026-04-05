@@ -13,6 +13,7 @@ class ServerConfigurationDto {
     required this.oidcClientId,
     required this.matrixHomeserverUrl,
     required this.nextcloudBaseUrl,
+    required this.backendApiBaseUrl,
   });
 
   factory ServerConfigurationDto.fromConfiguration(
@@ -28,6 +29,8 @@ class ServerConfigurationDto {
           .toString(),
       nextcloudBaseUrl: configuration.serviceEndpoints.nextcloudBaseUrl
           .toString(),
+      backendApiBaseUrl: configuration.serviceEndpoints.backendApiBaseUrl
+          .toString(),
     );
   }
 
@@ -40,6 +43,7 @@ class ServerConfigurationDto {
       oidcClientId: (json['oidcClientId'] as String?) ?? '',
       matrixHomeserverUrl: json['matrixHomeserverUrl'] as String,
       nextcloudBaseUrl: json['nextcloudBaseUrl'] as String,
+      backendApiBaseUrl: json['backendApiBaseUrl'] as String?,
     );
   }
 
@@ -49,8 +53,15 @@ class ServerConfigurationDto {
   final String oidcClientId;
   final String matrixHomeserverUrl;
   final String nextcloudBaseUrl;
+  final String? backendApiBaseUrl;
 
-  ServerConfiguration toConfiguration() {
+  ServerConfiguration toConfiguration({Uri? fallbackBackendApiBaseUrl}) {
+    final resolvedBackendApiBaseUrl =
+        backendApiBaseUrl ?? fallbackBackendApiBaseUrl?.toString();
+    if (resolvedBackendApiBaseUrl == null) {
+      throw const FormatException('Missing backend API base URL.');
+    }
+
     return ServerConfiguration(
       providerType: OidcProviderType.values.byName(providerType),
       oidcIssuerUrl: Uri.parse(oidcIssuerUrl),
@@ -63,6 +74,7 @@ class ServerConfigurationDto {
       serviceEndpoints: ServiceEndpoints(
         matrixHomeserverUrl: Uri.parse(matrixHomeserverUrl),
         nextcloudBaseUrl: Uri.parse(nextcloudBaseUrl),
+        backendApiBaseUrl: Uri.parse(resolvedBackendApiBaseUrl),
       ),
     );
   }
@@ -77,6 +89,7 @@ class ServerConfigurationDto {
       'oidcClientId': oidcClientId,
       'matrixHomeserverUrl': matrixHomeserverUrl,
       'nextcloudBaseUrl': nextcloudBaseUrl,
+      'backendApiBaseUrl': backendApiBaseUrl,
     };
   }
 

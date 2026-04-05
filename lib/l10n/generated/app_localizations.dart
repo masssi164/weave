@@ -149,7 +149,7 @@ abstract class AppLocalizations {
   /// Description shown in the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Weave derives common service URLs from the issuer host. Review and edit them before finishing setup.'**
+  /// **'Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.'**
   String get setupServicesStepDescription;
 
   /// Title for the language preference step
@@ -1283,7 +1283,7 @@ abstract class AppLocalizations {
   /// Helper text for the service endpoints section
   ///
   /// In en, this message translates to:
-  /// **'Defaults are derived from the issuer host. Edit them if your services live elsewhere.'**
+  /// **'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.'**
   String get serverConfigurationServicesHelper;
 
   /// Label for the Matrix homeserver URL field
@@ -1297,6 +1297,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Nextcloud Base URL'**
   String get serverConfigurationNextcloudLabel;
+
+  /// Label for the backend API base URL field
+  ///
+  /// In en, this message translates to:
+  /// **'Backend API Base URL'**
+  String get serverConfigurationBackendApiLabel;
 
   /// Helper text showing the derived default for a service endpoint
   ///

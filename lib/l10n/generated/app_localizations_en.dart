@@ -36,7 +36,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get setupServicesStepDescription =>
-      'Weave derives common service URLs from the issuer host. Review and edit them before finishing setup.';
+      'Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.';
 
   @override
   String get setupLanguageStepTitle => 'Your Language';
@@ -687,13 +687,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get serverConfigurationServicesHelper =>
-      'Defaults are derived from the issuer host. Edit them if your services live elsewhere.';
+      'Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.';
 
   @override
   String get serverConfigurationMatrixLabel => 'Matrix Homeserver URL';
 
   @override
   String get serverConfigurationNextcloudLabel => 'Nextcloud Base URL';
+
+  @override
+  String get serverConfigurationBackendApiLabel => 'Backend API Base URL';
 
   @override
   String serverConfigurationDerivedHint(String value) {

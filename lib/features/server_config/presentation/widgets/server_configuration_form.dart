@@ -39,6 +39,7 @@ class _ServerConfigurationFormState
   late final TextEditingController _clientIdController;
   late final TextEditingController _matrixController;
   late final TextEditingController _nextcloudController;
+  late final TextEditingController _backendApiController;
 
   @override
   void initState() {
@@ -47,6 +48,7 @@ class _ServerConfigurationFormState
     _clientIdController = TextEditingController();
     _matrixController = TextEditingController();
     _nextcloudController = TextEditingController();
+    _backendApiController = TextEditingController();
   }
 
   @override
@@ -55,6 +57,7 @@ class _ServerConfigurationFormState
     _clientIdController.dispose();
     _matrixController.dispose();
     _nextcloudController.dispose();
+    _backendApiController.dispose();
     super.dispose();
   }
 
@@ -77,6 +80,7 @@ class _ServerConfigurationFormState
     _syncController(_clientIdController, formState.clientId);
     _syncController(_matrixController, formState.matrixHomeserverUrl);
     _syncController(_nextcloudController, formState.nextcloudBaseUrl);
+    _syncController(_backendApiController, formState.backendApiBaseUrl);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -234,7 +238,7 @@ class _ServerConfigurationFormState
         TextField(
           controller: _nextcloudController,
           keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.done,
+          textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             labelText: l10n.serverConfigurationNextcloudLabel,
             hintText: 'https://nextcloud.home.internal',
@@ -248,6 +252,25 @@ class _ServerConfigurationFormState
           onChanged: ref
               .read(serverConfigurationFormControllerProvider.notifier)
               .updateNextcloudBaseUrl,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _backendApiController,
+          keyboardType: TextInputType.url,
+          textInputAction: TextInputAction.done,
+          decoration: InputDecoration(
+            labelText: l10n.serverConfigurationBackendApiLabel,
+            hintText: 'https://api.home.internal',
+            helperText: formState.derivedBackendApiBaseUrl.isEmpty
+                ? null
+                : l10n.serverConfigurationDerivedHint(
+                    formState.derivedBackendApiBaseUrl,
+                  ),
+            errorText: formState.backendApiError,
+          ),
+          onChanged: ref
+              .read(serverConfigurationFormControllerProvider.notifier)
+              .updateBackendApiBaseUrl,
         ),
         if (formState.saveFailure != null) ...[
           const SizedBox(height: 16),

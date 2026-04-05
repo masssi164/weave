@@ -161,6 +161,7 @@ void main() {
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
       expect(find.text('weave-mobile'), findsWidgets);
+      expect(find.text('https://api.home.internal'), findsWidgets);
 
       await tester.enterText(
         _textFieldWithLabel('Nextcloud Base URL'),
@@ -185,6 +186,7 @@ void main() {
       final json = jsonDecode(raw!) as Map<String, dynamic>;
 
       expect(json['nextcloudBaseUrl'], 'https://nextcloud-alt.home.internal');
+      expect(json['backendApiBaseUrl'], 'https://api.home.internal');
     });
 
     testWidgets('preserves overridden service URLs when the issuer changes', (
@@ -193,6 +195,7 @@ void main() {
       final store = InMemoryPreferencesStore(
         buildStoredConfiguration(
           nextcloudBaseUrl: 'https://cloud.custom.internal',
+          backendApiBaseUrl: 'https://backend.custom.internal',
         ),
       );
       final container = ProviderContainer.test(
@@ -231,6 +234,7 @@ void main() {
 
       expect(find.text('https://matrix.example.com'), findsWidgets);
       expect(find.text('https://cloud.custom.internal'), findsWidgets);
+      expect(find.text('https://backend.custom.internal'), findsWidgets);
     });
 
     testWidgets(

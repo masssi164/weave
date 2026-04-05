@@ -19,14 +19,18 @@ class ServerConfigurationFormState {
     required this.clientId,
     required this.matrixHomeserverUrl,
     required this.nextcloudBaseUrl,
+    required this.backendApiBaseUrl,
     required this.derivedMatrixHomeserverUrl,
     required this.derivedNextcloudBaseUrl,
+    required this.derivedBackendApiBaseUrl,
     required this.matrixOverridden,
     required this.nextcloudOverridden,
+    required this.backendApiOverridden,
     this.issuerError,
     this.clientIdError,
     this.matrixError,
     this.nextcloudError,
+    this.backendApiError,
     this.saveFailure,
   });
 
@@ -38,14 +42,18 @@ class ServerConfigurationFormState {
       clientId = '',
       matrixHomeserverUrl = '',
       nextcloudBaseUrl = '',
+      backendApiBaseUrl = '',
       derivedMatrixHomeserverUrl = '',
       derivedNextcloudBaseUrl = '',
+      derivedBackendApiBaseUrl = '',
       matrixOverridden = false,
       nextcloudOverridden = false,
+      backendApiOverridden = false,
       issuerError = null,
       clientIdError = null,
       matrixError = null,
       nextcloudError = null,
+      backendApiError = null,
       saveFailure = null;
 
   final bool initialized;
@@ -55,19 +63,24 @@ class ServerConfigurationFormState {
   final String clientId;
   final String matrixHomeserverUrl;
   final String nextcloudBaseUrl;
+  final String backendApiBaseUrl;
   final String derivedMatrixHomeserverUrl;
   final String derivedNextcloudBaseUrl;
+  final String derivedBackendApiBaseUrl;
   final bool matrixOverridden;
   final bool nextcloudOverridden;
+  final bool backendApiOverridden;
   final String? issuerError;
   final String? clientIdError;
   final String? matrixError;
   final String? nextcloudError;
+  final String? backendApiError;
   final AppFailure? saveFailure;
 
   bool get hasDerivedDefaults =>
       derivedMatrixHomeserverUrl.isNotEmpty &&
-      derivedNextcloudBaseUrl.isNotEmpty;
+      derivedNextcloudBaseUrl.isNotEmpty &&
+      derivedBackendApiBaseUrl.isNotEmpty;
 
   ServerConfigurationFormState copyWith({
     bool? initialized,
@@ -77,19 +90,24 @@ class ServerConfigurationFormState {
     String? clientId,
     String? matrixHomeserverUrl,
     String? nextcloudBaseUrl,
+    String? backendApiBaseUrl,
     String? derivedMatrixHomeserverUrl,
     String? derivedNextcloudBaseUrl,
+    String? derivedBackendApiBaseUrl,
     bool? matrixOverridden,
     bool? nextcloudOverridden,
+    bool? backendApiOverridden,
     String? issuerError,
     String? clientIdError,
     String? matrixError,
     String? nextcloudError,
+    String? backendApiError,
     AppFailure? saveFailure,
     bool clearIssuerError = false,
     bool clearClientIdError = false,
     bool clearMatrixError = false,
     bool clearNextcloudError = false,
+    bool clearBackendApiError = false,
     bool clearSaveFailure = false,
   }) {
     return ServerConfigurationFormState(
@@ -100,12 +118,16 @@ class ServerConfigurationFormState {
       clientId: clientId ?? this.clientId,
       matrixHomeserverUrl: matrixHomeserverUrl ?? this.matrixHomeserverUrl,
       nextcloudBaseUrl: nextcloudBaseUrl ?? this.nextcloudBaseUrl,
+      backendApiBaseUrl: backendApiBaseUrl ?? this.backendApiBaseUrl,
       derivedMatrixHomeserverUrl:
           derivedMatrixHomeserverUrl ?? this.derivedMatrixHomeserverUrl,
       derivedNextcloudBaseUrl:
           derivedNextcloudBaseUrl ?? this.derivedNextcloudBaseUrl,
+      derivedBackendApiBaseUrl:
+          derivedBackendApiBaseUrl ?? this.derivedBackendApiBaseUrl,
       matrixOverridden: matrixOverridden ?? this.matrixOverridden,
       nextcloudOverridden: nextcloudOverridden ?? this.nextcloudOverridden,
+      backendApiOverridden: backendApiOverridden ?? this.backendApiOverridden,
       issuerError: clearIssuerError ? null : (issuerError ?? this.issuerError),
       clientIdError: clearClientIdError
           ? null
@@ -114,6 +136,9 @@ class ServerConfigurationFormState {
       nextcloudError: clearNextcloudError
           ? null
           : (nextcloudError ?? this.nextcloudError),
+      backendApiError: clearBackendApiError
+          ? null
+          : (backendApiError ?? this.backendApiError),
       saveFailure: clearSaveFailure ? null : (saveFailure ?? this.saveFailure),
     );
   }
@@ -150,6 +175,8 @@ class ServerConfigurationFormController
         .toString();
     final nextcloudUrl = configuration.serviceEndpoints.nextcloudBaseUrl
         .toString();
+    final backendApiUrl = configuration.serviceEndpoints.backendApiBaseUrl
+        .toString();
     _initialAuthSignature = _authSignature(
       configuration.oidcIssuerUrl.toString(),
       configuration.oidcClientRegistration.clientId,
@@ -164,20 +191,27 @@ class ServerConfigurationFormController
       clientId: configuration.oidcClientRegistration.clientId,
       matrixHomeserverUrl: matrixUrl,
       nextcloudBaseUrl: nextcloudUrl,
+      backendApiBaseUrl: backendApiUrl,
       derivedMatrixHomeserverUrl:
           derivedEndpoints?.matrixHomeserverUrl.toString() ?? '',
       derivedNextcloudBaseUrl:
           derivedEndpoints?.nextcloudBaseUrl.toString() ?? '',
+      derivedBackendApiBaseUrl:
+          derivedEndpoints?.backendApiBaseUrl.toString() ?? '',
       matrixOverridden:
           derivedEndpoints != null &&
           matrixUrl != derivedEndpoints.matrixHomeserverUrl.toString(),
       nextcloudOverridden:
           derivedEndpoints != null &&
           nextcloudUrl != derivedEndpoints.nextcloudBaseUrl.toString(),
+      backendApiOverridden:
+          derivedEndpoints != null &&
+          backendApiUrl != derivedEndpoints.backendApiBaseUrl.toString(),
       clearIssuerError: true,
       clearClientIdError: true,
       clearMatrixError: true,
       clearNextcloudError: true,
+      clearBackendApiError: true,
       clearSaveFailure: true,
     );
   }
@@ -195,13 +229,19 @@ class ServerConfigurationFormController
           derivedEndpoints?.matrixHomeserverUrl.toString() ?? '',
       derivedNextcloudBaseUrl:
           derivedEndpoints?.nextcloudBaseUrl.toString() ?? '',
+      derivedBackendApiBaseUrl:
+          derivedEndpoints?.backendApiBaseUrl.toString() ?? '',
       matrixHomeserverUrl: state.matrixOverridden
           ? state.matrixHomeserverUrl
           : (derivedEndpoints?.matrixHomeserverUrl.toString() ?? ''),
       nextcloudBaseUrl: state.nextcloudOverridden
           ? state.nextcloudBaseUrl
           : (derivedEndpoints?.nextcloudBaseUrl.toString() ?? ''),
+      backendApiBaseUrl: state.backendApiOverridden
+          ? state.backendApiBaseUrl
+          : (derivedEndpoints?.backendApiBaseUrl.toString() ?? ''),
       clearIssuerError: true,
+      clearBackendApiError: true,
       clearSaveFailure: true,
     );
   }
@@ -234,6 +274,20 @@ class ServerConfigurationFormController
     );
   }
 
+  void updateBackendApiBaseUrl(String value) {
+    final trimmed = value.trim();
+    final derivedValue = state.derivedBackendApiBaseUrl;
+
+    state = state.copyWith(
+      backendApiBaseUrl: value,
+      backendApiOverridden: derivedValue.isEmpty
+          ? trimmed.isNotEmpty
+          : trimmed != derivedValue,
+      clearBackendApiError: true,
+      clearSaveFailure: true,
+    );
+  }
+
   void updateClientId(String clientId) {
     state = state.copyWith(
       clientId: clientId,
@@ -255,14 +309,19 @@ class ServerConfigurationFormController
       state = state.copyWith(
         derivedMatrixHomeserverUrl: defaults.matrixHomeserverUrl.toString(),
         derivedNextcloudBaseUrl: defaults.nextcloudBaseUrl.toString(),
+        derivedBackendApiBaseUrl: defaults.backendApiBaseUrl.toString(),
         matrixHomeserverUrl: state.matrixOverridden
             ? state.matrixHomeserverUrl
             : defaults.matrixHomeserverUrl.toString(),
         nextcloudBaseUrl: state.nextcloudOverridden
             ? state.nextcloudBaseUrl
             : defaults.nextcloudBaseUrl.toString(),
+        backendApiBaseUrl: state.backendApiOverridden
+            ? state.backendApiBaseUrl
+            : defaults.backendApiBaseUrl.toString(),
         clearIssuerError: true,
         clearClientIdError: true,
+        clearBackendApiError: true,
       );
       return true;
     } on AppFailure catch (failure) {
@@ -291,6 +350,10 @@ class ServerConfigurationFormController
         state.nextcloudBaseUrl,
         fieldName: 'the Nextcloud URL',
       );
+      final backendApiUrl = deriver.parseServiceUrl(
+        state.backendApiBaseUrl,
+        fieldName: 'the backend API URL',
+      );
 
       state = state.copyWith(
         isSaving: true,
@@ -298,6 +361,7 @@ class ServerConfigurationFormController
         clearClientIdError: true,
         clearMatrixError: true,
         clearNextcloudError: true,
+        clearBackendApiError: true,
         clearSaveFailure: true,
       );
 
@@ -310,6 +374,7 @@ class ServerConfigurationFormController
         serviceEndpoints: ServiceEndpoints(
           matrixHomeserverUrl: matrixUrl,
           nextcloudBaseUrl: nextcloudUrl,
+          backendApiBaseUrl: backendApiUrl,
         ),
       );
 
@@ -368,6 +433,11 @@ class ServerConfigurationFormController
               failure.message.contains('Nextcloud')
           ? failure.message
           : null;
+      final backendApiMessage =
+          failure.type == AppFailureType.validation &&
+              failure.message.contains('backend API')
+          ? failure.message
+          : null;
 
       state = state.copyWith(
         isSaving: false,
@@ -375,11 +445,13 @@ class ServerConfigurationFormController
         clientIdError: clientIdMessage,
         matrixError: matrixMessage,
         nextcloudError: nextcloudMessage,
+        backendApiError: backendApiMessage,
         saveFailure: failure.type == AppFailureType.validation ? null : failure,
         clearIssuerError: issuerMessage == null,
         clearClientIdError: clientIdMessage == null,
         clearMatrixError: matrixMessage == null,
         clearNextcloudError: nextcloudMessage == null,
+        clearBackendApiError: backendApiMessage == null,
         clearSaveFailure: failure.type == AppFailureType.validation,
       );
       return null;

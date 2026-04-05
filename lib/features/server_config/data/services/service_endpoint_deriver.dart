@@ -56,6 +56,7 @@ class ServiceEndpointDeriver {
     return ServiceEndpoints(
       matrixHomeserverUrl: Uri.parse('https://matrix.$baseHost'),
       nextcloudBaseUrl: Uri.parse('https://nextcloud.$baseHost'),
+      backendApiBaseUrl: Uri.parse('https://api.$baseHost'),
     );
   }
 }
