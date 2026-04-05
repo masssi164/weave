@@ -13,6 +13,7 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 
 final appAuthIntegrationConnectionProvider =
     Provider<AsyncValue<IntegrationConnectionState>>((ref) {
@@ -119,7 +120,32 @@ final workspaceConnectionStateProvider =
 final workspaceCapabilitySnapshotProvider =
     Provider<AsyncValue<WorkspaceCapabilitySnapshot>>((ref) {
       final workspace = ref.watch(workspaceConnectionStateProvider);
-      return workspace.whenData(_mapWorkspaceCapabilitySnapshot);
+      final backendCapabilities = ref.watch(
+        weaveApiWorkspaceCapabilitySnapshotProvider,
+      );
+
+      if (workspace.hasError) {
+        return AsyncError(workspace.error!, workspace.stackTrace!);
+      }
+      if (workspace.isLoading) {
+        return const AsyncLoading();
+      }
+
+      final localSnapshot = _mapWorkspaceCapabilitySnapshot(
+        workspace.requireValue,
+      );
+
+      return switch (backendCapabilities) {
+        AsyncData(value: final snapshot) => AsyncData(
+          snapshot == null
+              ? localSnapshot
+              : _mergeWorkspaceCapabilitySnapshots(
+                  localSnapshot: localSnapshot,
+                  backendSnapshot: snapshot,
+                ),
+        ),
+        AsyncLoading() || AsyncError() => AsyncData(localSnapshot),
+      };
     });
 
 IntegrationConnectionState _mapAppAuthConnectionState(
@@ -333,6 +359,46 @@ WorkspaceCapabilitySnapshot _mapWorkspaceCapabilitySnapshot(
       capability: WorkspaceCapability.boards,
       shellAccess: connection.appAuth,
     ),
+  );
+}
+
+WorkspaceCapabilitySnapshot _mergeWorkspaceCapabilitySnapshots({
+  required WorkspaceCapabilitySnapshot localSnapshot,
+  required WorkspaceCapabilitySnapshot backendSnapshot,
+}) {
+  return WorkspaceCapabilitySnapshot(
+    shellAccess: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.shellAccess,
+      backend: backendSnapshot.shellAccess,
+    ),
+    chat: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.chat,
+      backend: backendSnapshot.chat,
+    ),
+    files: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.files,
+      backend: backendSnapshot.files,
+    ),
+    calendar: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.calendar,
+      backend: backendSnapshot.calendar,
+    ),
+    boards: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.boards,
+      backend: backendSnapshot.boards,
+    ),
+  );
+}
+
+WorkspaceCapabilityState _mergeWorkspaceCapabilityState({
+  required WorkspaceCapabilityState local,
+  required WorkspaceCapabilityState backend,
+}) {
+  return WorkspaceCapabilityState(
+    capability: local.capability,
+    readiness: backend.readiness,
+    connectionStatus: local.connectionStatus,
+    recoveryRequirement: local.recoveryRequirement,
   );
 }
 
