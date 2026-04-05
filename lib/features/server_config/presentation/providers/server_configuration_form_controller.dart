@@ -222,6 +222,8 @@ class ServerConfigurationFormController
 
   void updateIssuerUrl(String issuerUrl) {
     final derivedEndpoints = _tryDeriveFromIssuer(issuerUrl);
+    final matrixWillBeReplaced = !state.matrixOverridden;
+    final nextcloudWillBeReplaced = !state.nextcloudOverridden;
 
     state = state.copyWith(
       issuerUrl: issuerUrl,
@@ -241,6 +243,8 @@ class ServerConfigurationFormController
           ? state.backendApiBaseUrl
           : (derivedEndpoints?.backendApiBaseUrl.toString() ?? ''),
       clearIssuerError: true,
+      clearMatrixError: matrixWillBeReplaced,
+      clearNextcloudError: nextcloudWillBeReplaced,
       clearBackendApiError: true,
       clearSaveFailure: true,
     );
