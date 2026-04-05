@@ -75,7 +75,7 @@ class WorkspaceCapabilityStatusDto {
     final readiness = json['readiness'];
 
     if (enabled is! bool || readiness is! String) {
-      throw AppFailure.unknown(
+      throw const AppFailure.unknown(
         'The backend returned an invalid workspace capability item.',
       );
     }
