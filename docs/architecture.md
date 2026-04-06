@@ -54,6 +54,7 @@ Persisted fields:
 - `oidcIssuerUrl`
 - `matrixHomeserverUrl`
 - `nextcloudBaseUrl`
+- `backendApiBaseUrl`
 
 Derivation rule:
 
