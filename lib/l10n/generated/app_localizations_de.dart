@@ -605,6 +605,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Einrichtung neu gestartet';
 
   @override
+  String get settingsWorkspaceInvalidationBackendApiBaseUrlChanged =>
+      'Backend-API-URL geändert';
+
+  @override
   String get settingsServerConfigurationDescription =>
       'Aktualisiere den Anbieter und die Dienst-URLs, die Weave für deine selbst gehostete Umgebung verwenden soll.';
 

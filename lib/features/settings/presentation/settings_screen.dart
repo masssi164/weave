@@ -369,6 +369,8 @@ class _WorkspaceReadinessRow extends StatelessWidget {
         l10n.settingsWorkspaceInvalidationMatrixHomeserverChanged,
       IntegrationInvalidationReason.nextcloudBaseUrlChanged =>
         l10n.settingsWorkspaceInvalidationNextcloudBaseUrlChanged,
+      IntegrationInvalidationReason.backendApiBaseUrlChanged =>
+        l10n.settingsWorkspaceInvalidationBackendApiBaseUrlChanged,
       IntegrationInvalidationReason.explicitSignOut =>
         l10n.settingsWorkspaceInvalidationExplicitSignOut,
       IntegrationInvalidationReason.restartSetup =>

@@ -133,7 +133,8 @@ class ChatController extends Notifier<ChatUiState> {
       IntegrationInvalidationReason.explicitSignOut ||
       IntegrationInvalidationReason.restartSetup => false,
       IntegrationInvalidationReason.authConfigurationChanged ||
-      IntegrationInvalidationReason.nextcloudBaseUrlChanged => true,
+      IntegrationInvalidationReason.nextcloudBaseUrlChanged ||
+      IntegrationInvalidationReason.backendApiBaseUrlChanged => true,
     };
   }
 }

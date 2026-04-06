@@ -1118,6 +1118,12 @@ abstract class AppLocalizations {
   /// **'Restarted setup'**
   String get settingsWorkspaceInvalidationRestartSetup;
 
+  /// Invalidation label for backend API base URL changes
+  ///
+  /// In en, this message translates to:
+  /// **'Backend API URL changed'**
+  String get settingsWorkspaceInvalidationBackendApiBaseUrlChanged;
+
   /// Description for the settings server configuration section
   ///
   /// In en, this message translates to:

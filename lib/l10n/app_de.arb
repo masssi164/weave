@@ -88,6 +88,7 @@
   "settingsWorkspaceInvalidationNextcloudBaseUrlChanged": "Nextcloud-Basis-URL geändert",
   "settingsWorkspaceInvalidationExplicitSignOut": "Manuell abgemeldet",
   "settingsWorkspaceInvalidationRestartSetup": "Einrichtung neu gestartet",
+  "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend-API-URL ge\u00e4ndert",
   "chatSecuritySectionTitle": "Matrix-Sicherheit",
   "chatSecuritySectionDescription": "Weave behandelt Matrix-Verschlüsselung nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.",
   "chatSecurityRecoveryKeyTitle": "Diesen Matrix-Wiederherstellungsschlüssel jetzt sichern",

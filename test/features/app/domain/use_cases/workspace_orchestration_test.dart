@@ -234,6 +234,7 @@ void main() {
           authConfigurationChanged: false,
           matrixHomeserverChanged: true,
           nextcloudBaseUrlChanged: false,
+          backendApiBaseUrlChanged: false,
         ),
       );
 
@@ -264,6 +265,7 @@ void main() {
           authConfigurationChanged: false,
           matrixHomeserverChanged: false,
           nextcloudBaseUrlChanged: true,
+          backendApiBaseUrlChanged: false,
         ),
       );
 
@@ -292,6 +294,7 @@ void main() {
           authConfigurationChanged: true,
           matrixHomeserverChanged: false,
           nextcloudBaseUrlChanged: false,
+          backendApiBaseUrlChanged: false,
         ),
       );
 
@@ -301,5 +304,35 @@ void main() {
         IntegrationInvalidationReason.authConfigurationChanged,
       );
     });
+
+    test(
+      'records weaveBackend invalidation when backend API URL changes',
+      () async {
+        final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
+        final useCase = ApplyServerConfigurationChanges(
+          authPort: _FakeAppAuthPort(),
+          chatSessionPort: _FakeChatSessionPort(),
+          filesSessionPort: _FakeFilesSessionPort(),
+          workspaceInvalidationPort: workspaceInvalidationPort,
+        );
+
+        await useCase.call(
+          ServerConfigurationSaveResult(
+            configuration: buildTestConfiguration(),
+            authConfigurationChanged: false,
+            matrixHomeserverChanged: false,
+            nextcloudBaseUrlChanged: false,
+            backendApiBaseUrlChanged: true,
+          ),
+        );
+
+        expect(
+          workspaceInvalidationPort.lastReasonFor(
+            WorkspaceIntegration.weaveBackend,
+          ),
+          IntegrationInvalidationReason.backendApiBaseUrlChanged,
+        );
+      },
+    );
   });
 }

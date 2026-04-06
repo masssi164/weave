@@ -45,5 +45,12 @@ class ApplyServerConfigurationChanges {
         reason: IntegrationInvalidationReason.nextcloudBaseUrlChanged,
       );
     }
+
+    if (result.backendApiBaseUrlChanged) {
+      _workspaceInvalidationPort.invalidate(
+        integration: WorkspaceIntegration.weaveBackend,
+        reason: IntegrationInvalidationReason.backendApiBaseUrlChanged,
+      );
+    }
   }
 }
