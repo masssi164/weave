@@ -16,12 +16,16 @@ import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart
 ///
 /// Distinct states allow the UI to surface actionable failure messages
 /// rather than silently degrading to local-only capabilities.
+///
+/// The error states ([unreachable], [unauthorized], [serverError]) are
+/// reachable because [weaveApiWorkspaceCapabilitySnapshotProvider] propagates
+/// [AppFailure] into the Riverpod error channel. The merged
+/// [workspaceCapabilitySnapshotProvider] handles the error gracefully by
+/// falling back to the local capability snapshot.
 enum WeaveBackendConnectionState {
-  /// The backend URL is not configured; no fetch is attempted.
+  /// The backend URL is not configured (or the app is not yet ready); no
+  /// fetch is attempted.
   unconfigured,
-
-  /// The app is not yet in a ready bootstrap phase; no fetch is attempted.
-  notReady,
 
   /// A fetch is in progress.
   loading,
@@ -90,11 +94,20 @@ final weaveApiWorkspaceCapabilitySnapshotProvider =
               accessToken: session.accessToken,
             );
       } on AuthFailure {
-        return null;
+        // Treat an OIDC session-restore failure as backend-unauthorised so
+        // weaveBackendConnectionStateProvider can surface the right state.
+        throw const AppFailure.unknown(
+          'The Weave backend rejected the current session.',
+        );
       } on AppFailure {
-        return null;
-      } catch (_) {
-        return null;
+        // Propagate to Riverpod error channel; workspaceCapabilitySnapshotProvider
+        // already falls back to the local snapshot on AsyncError.
+        rethrow;
+      } catch (error) {
+        throw AppFailure.unknown(
+          'The Weave backend returned an unexpected error.',
+          cause: error,
+        );
       }
     });
 

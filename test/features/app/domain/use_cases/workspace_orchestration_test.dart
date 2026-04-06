@@ -153,6 +153,12 @@ void main() {
         workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.nextcloud),
         IntegrationInvalidationReason.explicitSignOut,
       );
+      expect(
+        workspaceInvalidationPort.lastReasonFor(
+          WorkspaceIntegration.weaveBackend,
+        ),
+        IntegrationInvalidationReason.explicitSignOut,
+      );
     });
 
     test('clears local auth when no complete configuration is saved', () async {
@@ -208,6 +214,12 @@ void main() {
         expect(
           workspaceInvalidationPort.lastReasonFor(
             WorkspaceIntegration.nextcloud,
+          ),
+          IntegrationInvalidationReason.restartSetup,
+        );
+        expect(
+          workspaceInvalidationPort.lastReasonFor(
+            WorkspaceIntegration.weaveBackend,
           ),
           IntegrationInvalidationReason.restartSetup,
         );
@@ -301,6 +313,12 @@ void main() {
       expect(authPort.clearLocalSessionCalls, 1);
       expect(
         workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.appAuth),
+        IntegrationInvalidationReason.authConfigurationChanged,
+      );
+      expect(
+        workspaceInvalidationPort.lastReasonFor(
+          WorkspaceIntegration.weaveBackend,
+        ),
         IntegrationInvalidationReason.authConfigurationChanged,
       );
     });
