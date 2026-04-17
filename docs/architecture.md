@@ -54,6 +54,7 @@ Persisted fields:
 - `oidcIssuerUrl`
 - `matrixHomeserverUrl`
 - `nextcloudBaseUrl`
+- `backendApiBaseUrl`
 
 Derivation rule:
 
@@ -63,10 +64,11 @@ Derivation rule:
 - derive:
   - `https://matrix.<base-domain>`
   - `https://nextcloud.<base-domain>`
+  - `https://api.<base-domain>`
 
 Example:
 
-- `https://auth.home.internal` becomes `https://matrix.home.internal` and `https://nextcloud.home.internal`
+- `https://auth.home.internal` becomes `https://matrix.home.internal`, `https://nextcloud.home.internal`, and `https://api.home.internal`
 
 This is intentionally simple, explicit, and easy to change later. It is a convenience default, not a hard rule. Users can edit the derived values during setup and in Settings.
 
