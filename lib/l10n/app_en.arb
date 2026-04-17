@@ -542,6 +542,9 @@
   "settingsWorkspaceInvalidationRestartSetup": "Restarted setup",
   "@settingsWorkspaceInvalidationRestartSetup": { "description": "Invalidation label for restart-setup actions" },
 
+  "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend API URL changed",
+  "@settingsWorkspaceInvalidationBackendApiBaseUrlChanged": { "description": "Invalidation label for backend API base URL changes" },
+
   "settingsServerConfigurationDescription": "Update the provider and service URLs Weave should use for your self-hosted environment.",
   "@settingsServerConfigurationDescription": { "description": "Description for the settings server configuration section" },
 

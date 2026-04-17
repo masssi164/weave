@@ -151,6 +151,7 @@ class ServerConfigurationFormController
   String? _initialAuthSignature;
   String? _initialMatrixSignature;
   String? _initialNextcloudSignature;
+  String? _initialBackendApiSignature;
 
   @override
   ServerConfigurationFormState build() =>
@@ -165,6 +166,7 @@ class ServerConfigurationFormController
       _initialAuthSignature = null;
       _initialMatrixSignature = null;
       _initialNextcloudSignature = null;
+      _initialBackendApiSignature = null;
       state = state.copyWith(initialized: true, clientId: oidcDefaultClientId);
       return;
     }
@@ -184,6 +186,7 @@ class ServerConfigurationFormController
     );
     _initialMatrixSignature = _matrixSignature(matrixUrl);
     _initialNextcloudSignature = _nextcloudSignature(nextcloudUrl);
+    _initialBackendApiSignature = _backendApiSignature(backendApiUrl);
 
     state = state.copyWith(
       initialized: true,
@@ -410,15 +413,23 @@ class ServerConfigurationFormController
       final nextcloudBaseUrlChanged =
           _initialNextcloudSignature != null &&
           _initialNextcloudSignature != nextNextcloudSignature;
+      final nextBackendApiSignature = _backendApiSignature(
+        backendApiUrl.toString(),
+      );
+      final backendApiBaseUrlChanged =
+          _initialBackendApiSignature != null &&
+          _initialBackendApiSignature != nextBackendApiSignature;
       _initialAuthSignature = nextAuthSignature;
       _initialMatrixSignature = nextMatrixSignature;
       _initialNextcloudSignature = nextNextcloudSignature;
+      _initialBackendApiSignature = nextBackendApiSignature;
 
       return ServerConfigurationSaveResult(
         configuration: configuration,
         authConfigurationChanged: authConfigurationChanged,
         matrixHomeserverChanged: matrixHomeserverChanged,
         nextcloudBaseUrlChanged: nextcloudBaseUrlChanged,
+        backendApiBaseUrlChanged: backendApiBaseUrlChanged,
       );
     } on AppFailure catch (failure) {
       final issuerMessage =
@@ -505,6 +516,10 @@ class ServerConfigurationFormController
 
   String _nextcloudSignature(String nextcloudBaseUrl) {
     return nextcloudBaseUrl.trim();
+  }
+
+  String _backendApiSignature(String backendApiBaseUrl) {
+    return backendApiBaseUrl.trim();
   }
 }
 

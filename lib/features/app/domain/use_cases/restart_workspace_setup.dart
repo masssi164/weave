@@ -41,5 +41,9 @@ class RestartWorkspaceSetup {
       integration: WorkspaceIntegration.nextcloud,
       reason: IntegrationInvalidationReason.restartSetup,
     );
+    _workspaceInvalidationPort.invalidate(
+      integration: WorkspaceIntegration.weaveBackend,
+      reason: IntegrationInvalidationReason.restartSetup,
+    );
   }
 }

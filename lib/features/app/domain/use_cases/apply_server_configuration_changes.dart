@@ -28,6 +28,12 @@ class ApplyServerConfigurationChanges {
         integration: WorkspaceIntegration.appAuth,
         reason: IntegrationInvalidationReason.authConfigurationChanged,
       );
+      // The Weave backend access token is derived from the OIDC session;
+      // invalidate so it is re-fetched once the user reauthenticates.
+      _workspaceInvalidationPort.invalidate(
+        integration: WorkspaceIntegration.weaveBackend,
+        reason: IntegrationInvalidationReason.authConfigurationChanged,
+      );
     }
 
     if (result.matrixHomeserverChanged) {
@@ -43,6 +49,13 @@ class ApplyServerConfigurationChanges {
       _workspaceInvalidationPort.invalidate(
         integration: WorkspaceIntegration.nextcloud,
         reason: IntegrationInvalidationReason.nextcloudBaseUrlChanged,
+      );
+    }
+
+    if (result.backendApiBaseUrlChanged) {
+      _workspaceInvalidationPort.invalidate(
+        integration: WorkspaceIntegration.weaveBackend,
+        reason: IntegrationInvalidationReason.backendApiBaseUrlChanged,
       );
     }
   }

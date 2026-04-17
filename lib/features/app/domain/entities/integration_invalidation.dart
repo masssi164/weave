@@ -1,9 +1,10 @@
-enum WorkspaceIntegration { appAuth, matrix, nextcloud }
+enum WorkspaceIntegration { appAuth, matrix, nextcloud, weaveBackend }
 
 enum IntegrationInvalidationReason {
   authConfigurationChanged,
   matrixHomeserverChanged,
   nextcloudBaseUrlChanged,
+  backendApiBaseUrlChanged,
   explicitSignOut,
   restartSetup,
 }

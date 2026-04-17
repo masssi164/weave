@@ -49,6 +49,10 @@ class SignOutWorkspace {
       integration: WorkspaceIntegration.nextcloud,
       reason: IntegrationInvalidationReason.explicitSignOut,
     );
+    _workspaceInvalidationPort.invalidate(
+      integration: WorkspaceIntegration.weaveBackend,
+      reason: IntegrationInvalidationReason.explicitSignOut,
+    );
   }
 
   AuthConfiguration _toAuthConfiguration(ServerConfiguration configuration) {

@@ -153,6 +153,12 @@ void main() {
         workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.nextcloud),
         IntegrationInvalidationReason.explicitSignOut,
       );
+      expect(
+        workspaceInvalidationPort.lastReasonFor(
+          WorkspaceIntegration.weaveBackend,
+        ),
+        IntegrationInvalidationReason.explicitSignOut,
+      );
     });
 
     test('clears local auth when no complete configuration is saved', () async {
@@ -211,6 +217,12 @@ void main() {
           ),
           IntegrationInvalidationReason.restartSetup,
         );
+        expect(
+          workspaceInvalidationPort.lastReasonFor(
+            WorkspaceIntegration.weaveBackend,
+          ),
+          IntegrationInvalidationReason.restartSetup,
+        );
       },
     );
   });
@@ -234,6 +246,7 @@ void main() {
           authConfigurationChanged: false,
           matrixHomeserverChanged: true,
           nextcloudBaseUrlChanged: false,
+          backendApiBaseUrlChanged: false,
         ),
       );
 
@@ -264,6 +277,7 @@ void main() {
           authConfigurationChanged: false,
           matrixHomeserverChanged: false,
           nextcloudBaseUrlChanged: true,
+          backendApiBaseUrlChanged: false,
         ),
       );
 
@@ -292,6 +306,7 @@ void main() {
           authConfigurationChanged: true,
           matrixHomeserverChanged: false,
           nextcloudBaseUrlChanged: false,
+          backendApiBaseUrlChanged: false,
         ),
       );
 
@@ -300,6 +315,42 @@ void main() {
         workspaceInvalidationPort.lastReasonFor(WorkspaceIntegration.appAuth),
         IntegrationInvalidationReason.authConfigurationChanged,
       );
+      expect(
+        workspaceInvalidationPort.lastReasonFor(
+          WorkspaceIntegration.weaveBackend,
+        ),
+        IntegrationInvalidationReason.authConfigurationChanged,
+      );
     });
+
+    test(
+      'records weaveBackend invalidation when backend API URL changes',
+      () async {
+        final workspaceInvalidationPort = _FakeWorkspaceInvalidationPort();
+        final useCase = ApplyServerConfigurationChanges(
+          authPort: _FakeAppAuthPort(),
+          chatSessionPort: _FakeChatSessionPort(),
+          filesSessionPort: _FakeFilesSessionPort(),
+          workspaceInvalidationPort: workspaceInvalidationPort,
+        );
+
+        await useCase.call(
+          ServerConfigurationSaveResult(
+            configuration: buildTestConfiguration(),
+            authConfigurationChanged: false,
+            matrixHomeserverChanged: false,
+            nextcloudBaseUrlChanged: false,
+            backendApiBaseUrlChanged: true,
+          ),
+        );
+
+        expect(
+          workspaceInvalidationPort.lastReasonFor(
+            WorkspaceIntegration.weaveBackend,
+          ),
+          IntegrationInvalidationReason.backendApiBaseUrlChanged,
+        );
+      },
+    );
   });
 }
