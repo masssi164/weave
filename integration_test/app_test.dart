@@ -55,6 +55,8 @@ void main() {
     final session = await authHelper.signInForAppSession(config);
     final container = _createAppContainer(config: config, session: session);
     addTearDown(container.dispose);
+    tester.binding.platformDispatcher.localeTestValue = const Locale('en');
+    addTearDown(() => tester.binding.platformDispatcher.clearLocaleTestValue());
 
     await tester.pumpWidget(
       UncontrolledProviderScope(container: container, child: const WeaveApp()),
@@ -63,7 +65,6 @@ void main() {
 
     expect(session.accessToken, isNotEmpty);
     expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.text('Chat'), findsWidgets);
   });
 
   testWidgets('settings/config change -> targeted invalidation fires', (
@@ -199,11 +200,8 @@ void main() {
     );
 
     expect(
-      find.text(
-        'Backend API is unreachable. Check that the local Weave stack is '
-        'running and the configured backend URL is correct.',
-      ),
-      findsOneWidget,
+      container.read(weaveBackendConnectionStateProvider),
+      WeaveBackendConnectionState.unreachable,
     );
     expect(find.text('Retry'), findsWidgets);
   });

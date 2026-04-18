@@ -7,7 +7,7 @@ on:
       WEAVE_BASE_URL:
         description: "Base URL for the live Weave backend stack"
         required: false
-        default: "https://weave.local"
+        default: ""
       WEAVE_TEST_USERNAME:
         description: "Username for the live-stack integration test account"
         required: true
@@ -16,7 +16,7 @@ on:
       WEAVE_BASE_URL:
         type: string
         required: false
-        default: "https://weave.local"
+        default: ""
       WEAVE_TEST_USERNAME:
         type: string
         required: true
@@ -41,7 +41,7 @@ jobs:
       - run: flutter test
 
   integration-test:
-    # Requires a live local Weave stack and explicit manual/workflow_call inputs.
+    # Requires a publicly routable Weave stack or VPN/tunnel reachable from GitHub runners.
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     env:

@@ -26,7 +26,7 @@ class TestConfig {
     return TestConfig(
       baseUrl: baseUrl,
       username: const String.fromEnvironment('WEAVE_TEST_USERNAME'),
-      password: const String.fromEnvironment('WEAVE_TEST_PASSWORD'),
+      password: const String.fromEnvironment('WEAVE_TEST_PASSWORD').trim(),
       issuerUrl: _serviceUri(
         baseUrl,
         host: 'auth.$workspaceHost',
@@ -95,7 +95,7 @@ class TestConfig {
   void requireCredentials() {
     final missing = <String>[
       if (username.trim().isEmpty) 'WEAVE_TEST_USERNAME',
-      if (password.isEmpty) 'WEAVE_TEST_PASSWORD',
+      if (password.trim().isEmpty) 'WEAVE_TEST_PASSWORD',
     ];
 
     if (missing.isNotEmpty) {

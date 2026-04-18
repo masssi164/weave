@@ -508,7 +508,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsWorkspaceBackendUnreachable =>
-      'Backend API is unreachable. Check that the local Weave stack is running and the configured backend URL is correct.';
+      'Backend API is unreachable. Check that the Weave stack is running and the configured backend URL is correct.';
 
   @override
   String get settingsWorkspaceBackendUnauthorized =>
@@ -516,7 +516,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsWorkspaceBackendServerError =>
-      'Backend API returned an unexpected response. Check the local Weave stack logs before retrying.';
+      'Backend API returned an unexpected response. Check the Weave stack logs before retrying.';
 
   @override
   String get settingsWorkspaceSummaryConnected =>

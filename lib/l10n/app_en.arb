@@ -467,13 +467,13 @@
   "settingsWorkspaceReadinessDescription": "Shell access is tracked separately from each service connection so Weave can show degraded integrations honestly.",
   "@settingsWorkspaceReadinessDescription": { "description": "Description for the shared workspace readiness summary in settings" },
 
-  "settingsWorkspaceBackendUnreachable": "Backend API is unreachable. Check that the local Weave stack is running and the configured backend URL is correct.",
+  "settingsWorkspaceBackendUnreachable": "Backend API is unreachable. Check that the Weave stack is running and the configured backend URL is correct.",
   "@settingsWorkspaceBackendUnreachable": { "description": "Error shown when the Weave backend API cannot be reached from the app" },
 
   "settingsWorkspaceBackendUnauthorized": "Backend API rejected the current session. Sign in again before retrying.",
   "@settingsWorkspaceBackendUnauthorized": { "description": "Error shown when the Weave backend API rejects the current session" },
 
-  "settingsWorkspaceBackendServerError": "Backend API returned an unexpected response. Check the local Weave stack logs before retrying.",
+  "settingsWorkspaceBackendServerError": "Backend API returned an unexpected response. Check the Weave stack logs before retrying.",
   "@settingsWorkspaceBackendServerError": { "description": "Error shown when the Weave backend API returns an unexpected error" },
 
   "settingsWorkspaceSummaryConnected": "Shell access and the mapped services are ready.",

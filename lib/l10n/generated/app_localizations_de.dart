@@ -520,15 +520,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsWorkspaceBackendUnreachable =>
-      'Backend-API ist nicht erreichbar. Prüfe, ob der lokale Weave-Stack läuft und die konfigurierte Backend-URL stimmt.';
+      'Backend-API ist nicht erreichbar. Prüfe, ob der Weave-Stack läuft und die konfigurierte Backend-URL korrekt ist.';
 
   @override
   String get settingsWorkspaceBackendUnauthorized =>
-      'Backend-API hat die aktuelle Sitzung abgelehnt. Melde dich erneut an und versuche es noch einmal.';
+      'Backend-API hat die aktuelle Sitzung abgewiesen. Bitte erneut anmelden.';
 
   @override
   String get settingsWorkspaceBackendServerError =>
-      'Backend-API hat eine unerwartete Antwort zurückgegeben. Prüfe vor dem erneuten Versuch die Logs des lokalen Weave-Stacks.';
+      'Backend-API hat eine unerwartete Antwort zurückgegeben. Prüfe die Weave-Stack-Logs.';
 
   @override
   String get settingsWorkspaceSummaryConnected =>
