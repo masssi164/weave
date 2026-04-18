@@ -507,6 +507,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Shell access is tracked separately from each service connection so Weave can show degraded integrations honestly.';
 
   @override
+  String get settingsWorkspaceBackendUnreachable =>
+      'Backend API is unreachable. Check that the Weave stack is running and the configured backend URL is correct.';
+
+  @override
+  String get settingsWorkspaceBackendUnauthorized =>
+      'Backend API rejected the current session. Sign in again before retrying.';
+
+  @override
+  String get settingsWorkspaceBackendServerError =>
+      'Backend API returned an unexpected response. Check the Weave stack logs before retrying.';
+
+  @override
   String get settingsWorkspaceSummaryConnected =>
       'Shell access and the mapped services are ready.';
 

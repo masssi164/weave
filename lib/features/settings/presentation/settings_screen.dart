@@ -16,6 +16,7 @@ import 'package:weave/features/chat/presentation/widgets/chat_security_settings_
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -175,6 +176,7 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final workspace = ref.watch(workspaceConnectionStateProvider);
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
+    final backendState = ref.watch(weaveBackendConnectionStateProvider);
 
     return Card(
       elevation: 0,
@@ -204,6 +206,19 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (_backendFailureMessage(l10n, backendState)
+                    case final message?) ...[
+                  const SizedBox(height: 16),
+                  ErrorState(
+                    message: message,
+                    retryLabel: l10n.retryButton,
+                    onRetry: () {
+                      ref.invalidate(
+                        weaveApiWorkspaceCapabilitySnapshotProvider,
+                      );
+                    },
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Text(
                   _workspaceSummary(l10n, workspaceState),
@@ -245,6 +260,23 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  String? _backendFailureMessage(
+    AppLocalizations l10n,
+    WeaveBackendConnectionState backendState,
+  ) {
+    return switch (backendState) {
+      WeaveBackendConnectionState.unreachable =>
+        l10n.settingsWorkspaceBackendUnreachable,
+      WeaveBackendConnectionState.unauthorized =>
+        l10n.settingsWorkspaceBackendUnauthorized,
+      WeaveBackendConnectionState.serverError =>
+        l10n.settingsWorkspaceBackendServerError,
+      WeaveBackendConnectionState.unconfigured ||
+      WeaveBackendConnectionState.loading ||
+      WeaveBackendConnectionState.connected => null,
+    };
   }
 
   String _workspaceSummary(

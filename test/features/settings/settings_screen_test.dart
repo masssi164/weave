@@ -16,6 +16,7 @@ import 'package:weave/features/chat/presentation/providers/chat_security_reposit
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 import '../../helpers/fake_chat_security_repository.dart';
@@ -124,6 +125,9 @@ void main() {
           workspaceCapabilitySnapshotProvider.overrideWithValue(
             _workspaceCapabilitySnapshot(),
           ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -210,6 +214,9 @@ void main() {
           workspaceCapabilitySnapshotProvider.overrideWithValue(
             _workspaceCapabilitySnapshot(),
           ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -261,6 +268,9 @@ void main() {
             ),
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
+            ),
+            weaveBackendConnectionStateProvider.overrideWithValue(
+              WeaveBackendConnectionState.connected,
             ),
           ],
         );

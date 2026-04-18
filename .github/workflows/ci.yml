@@ -1,7 +1,32 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      WEAVE_BASE_URL:
+        description: "Base URL for the live Weave backend stack"
+        required: false
+        default: ""
+      WEAVE_TEST_USERNAME:
+        description: "Username for the live-stack integration test account"
+        required: true
+  workflow_call:
+    inputs:
+      WEAVE_BASE_URL:
+        type: string
+        required: false
+        default: ""
+      WEAVE_TEST_USERNAME:
+        type: string
+        required: true
+    secrets:
+      WEAVE_TEST_PASSWORD:
+        required: true
+
 jobs:
   build:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,3 +39,21 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze --fatal-infos
       - run: flutter test
+
+  integration-test:
+    # Requires a publicly routable Weave stack or VPN/tunnel reachable from GitHub runners.
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
+    runs-on: ubuntu-latest
+    env:
+      WEAVE_BASE_URL: ${{ inputs.WEAVE_BASE_URL }}
+      WEAVE_TEST_USERNAME: ${{ inputs.WEAVE_TEST_USERNAME }}
+      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter gen-l10n
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: make integration-test

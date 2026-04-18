@@ -519,6 +519,18 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der Zugriff auf die App-Shell wird getrennt von den einzelnen Dienstverbindungen verfolgt, damit Weave beeinträchtigte Integrationen transparent anzeigen kann.';
 
   @override
+  String get settingsWorkspaceBackendUnreachable =>
+      'Backend-API ist nicht erreichbar. Prüfe, ob der Weave-Stack läuft und die konfigurierte Backend-URL korrekt ist.';
+
+  @override
+  String get settingsWorkspaceBackendUnauthorized =>
+      'Backend-API hat die aktuelle Sitzung abgewiesen. Bitte erneut anmelden.';
+
+  @override
+  String get settingsWorkspaceBackendServerError =>
+      'Backend-API hat eine unerwartete Antwort zurückgegeben. Prüfe die Weave-Stack-Logs.';
+
+  @override
   String get settingsWorkspaceSummaryConnected =>
       'Shell-Zugriff und die zugeordneten Dienste sind bereit.';
 

@@ -968,6 +968,24 @@ abstract class AppLocalizations {
   /// **'Shell access is tracked separately from each service connection so Weave can show degraded integrations honestly.'**
   String get settingsWorkspaceReadinessDescription;
 
+  /// Error shown when the Weave backend API cannot be reached from the app
+  ///
+  /// In en, this message translates to:
+  /// **'Backend API is unreachable. Check that the Weave stack is running and the configured backend URL is correct.'**
+  String get settingsWorkspaceBackendUnreachable;
+
+  /// Error shown when the Weave backend API rejects the current session
+  ///
+  /// In en, this message translates to:
+  /// **'Backend API rejected the current session. Sign in again before retrying.'**
+  String get settingsWorkspaceBackendUnauthorized;
+
+  /// Error shown when the Weave backend API returns an unexpected error
+  ///
+  /// In en, this message translates to:
+  /// **'Backend API returned an unexpected response. Check the Weave stack logs before retrying.'**
+  String get settingsWorkspaceBackendServerError;
+
   /// Summary shown when shell access and mapped services are all ready
   ///
   /// In en, this message translates to:
