@@ -326,6 +326,16 @@ class _SessionAuthRepository implements AuthSessionRepository {
   }
 
   @override
+  Future<AuthState> refreshSession(AuthConfiguration configuration) async {
+    final session = _session;
+    if (session == null || !session.matches(configuration)) {
+      return const AuthState.signedOut();
+    }
+
+    return AuthState.authenticated(session);
+  }
+
+  @override
   Future<void> signOut(AuthConfiguration configuration) async {
     _session = null;
   }
