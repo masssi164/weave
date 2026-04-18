@@ -120,19 +120,34 @@ Accessibility is a hard requirement, not a follow-up:
 2. `flutter run`
 
 ## Running Integration Tests
-Integration tests require a live local Weave stack, including the backend API and Keycloak OIDC provider. Start the stack from the `weave-infra` setup first, ensure the test client can exchange the test username and password for an OIDC access token, then provide test-account credentials through environment variables.
+Integration tests require a live local Weave stack, including the backend API and Keycloak OIDC provider. Start the stack from the `weave-infra` setup first, with local hostnames resolving to the stack and the local CA trusted by the machine or simulator running the tests.
 
-Required environment variables:
+The local stack writes reusable test settings to `/tmp/weave-infra/weave-workspace/.generated/bootstrap.env`. `make integration-test` sources that file automatically when it exists. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere.
 
-- `WEAVE_BASE_URL`: base URL for the Weave backend, defaulting to `https://weave.local`
-- `WEAVE_TEST_USERNAME`: username for the test account
-- `WEAVE_TEST_PASSWORD`: password for the test account
+Expected local hostnames include `api.weave.local`, `keycloak.weave.local`, `matrix.weave.local`, and `nextcloud.weave.local`.
 
-Run:
+Run against the default local stack:
 
 ```sh
+cd /tmp/weave-infra/weave-workspace
+TF_VAR_create_test_user=true ./install.sh
+cd -
 make integration-test
 ```
+
+Run against a different infra checkout:
+
+```sh
+WEAVE_BOOTSTRAP_ENV=../weave-inf/weave-workspace/.generated/bootstrap.env make integration-test
+```
+
+Supported overrides:
+
+- `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://api.weave.local`
+- `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://keycloak.weave.local/realms/weave`
+- `WEAVE_OIDC_CLIENT_ID`: app OIDC client ID, defaulting to `weave-app`
+- `WEAVE_TEST_USERNAME`: username for the test account
+- `WEAVE_TEST_PASSWORD`: password for the test account
 
 ### Validation
 Run the full validation suite before opening a change:

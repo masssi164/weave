@@ -6,6 +6,9 @@ import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 
 import 'test_config.dart';
 
+const _backendApiScope = 'weave:workspace';
+const _integrationTestScopes = <String>[...oidcDefaultScopes, _backendApiScope];
+
 class TestAuthTokens {
   const TestAuthTokens({
     required this.accessToken,
@@ -69,7 +72,7 @@ class AuthHelper {
           'client_id': config.clientId,
           'username': config.username,
           'password': config.password,
-          'scope': oidcDefaultScopes.join(' '),
+          'scope': _integrationTestScopes.join(' '),
         },
       );
 
@@ -161,7 +164,7 @@ class AuthHelper {
       return value.split(' ').where((scope) => scope.isNotEmpty).toList();
     }
 
-    return oidcDefaultScopes;
+    return _integrationTestScopes;
   }
 
   String _responseSummary(String body) {
@@ -170,6 +173,35 @@ class AuthHelper {
       return '<empty response body>';
     }
 
-    return trimmed.length <= 240 ? trimmed : '${trimmed.substring(0, 240)}...';
+    final redacted = _redactSecrets(trimmed);
+    return redacted.length <= 240
+        ? redacted
+        : '${redacted.substring(0, 240)}...';
+  }
+
+  String _redactSecrets(String value) {
+    const secretKeys = [
+      'access_token',
+      'refresh_token',
+      'id_token',
+      'password',
+      'client_secret',
+    ];
+    final keyPattern = secretKeys.join('|');
+    final jsonSecret = RegExp(
+      '("($keyPattern)"\\s*:\\s*")[^"]*(")',
+      caseSensitive: false,
+    );
+    final formSecret = RegExp(
+      '\\b($keyPattern)=([^\\s&]+)',
+      caseSensitive: false,
+    );
+
+    return value
+        .replaceAllMapped(
+          jsonSecret,
+          (match) => '${match[1]}<redacted>${match[3]}',
+        )
+        .replaceAllMapped(formSecret, (match) => '${match[1]}=<redacted>');
   }
 }
