@@ -119,6 +119,21 @@ Accessibility is a hard requirement, not a follow-up:
 1. `flutter pub get`
 2. `flutter run`
 
+## Running Integration Tests
+Integration tests require a live local Weave stack, including the backend API and Keycloak OIDC provider. Start the stack from the `weave-infra` setup first, ensure the test client can exchange the test username and password for an OIDC access token, then provide test-account credentials through environment variables.
+
+Required environment variables:
+
+- `WEAVE_BASE_URL`: base URL for the Weave backend, defaulting to `https://weave.local`
+- `WEAVE_TEST_USERNAME`: username for the test account
+- `WEAVE_TEST_PASSWORD`: password for the test account
+
+Run:
+
+```sh
+make integration-test
+```
+
 ### Validation
 Run the full validation suite before opening a change:
 
