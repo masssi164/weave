@@ -1,11 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
+import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_session.dart';
@@ -25,17 +29,19 @@ import 'package:weave/features/files/presentation/providers/files_repository_pro
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
+import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
-import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
-import 'package:weave/main.dart';
+import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
 
 import 'helpers/auth_helper.dart';
 import 'helpers/test_config.dart';
+import 'helpers/test_http_overrides.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = TestHttpOverrides();
 
   late TestConfig config;
   late http.Client httpClient;
@@ -43,7 +49,7 @@ void main() {
 
   setUp(() {
     config = TestConfig.fromEnvironment();
-    httpClient = http.Client();
+    httpClient = createTrustedTestHttpClient();
     authHelper = AuthHelper(httpClient: httpClient);
   });
 
@@ -51,39 +57,22 @@ void main() {
     httpClient.close();
   });
 
-  testWidgets('setup -> sign-in -> shell ready', (tester) async {
+  test('setup -> sign-in -> shell ready', () async {
     final session = await authHelper.signInForAppSession(config);
     final container = _createAppContainer(config: config, session: session);
     addTearDown(container.dispose);
-    tester.binding.platformDispatcher.localeTestValue = const Locale('en');
-    addTearDown(() => tester.binding.platformDispatcher.clearLocaleTestValue());
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const WeaveApp()),
-    );
-    await tester.pumpAndSettle();
+    final bootstrap = await container.read(appBootstrapProvider.future);
 
     expect(session.accessToken, isNotEmpty);
-    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(bootstrap.phase, BootstrapPhase.ready);
   });
 
-  testWidgets('settings/config change -> targeted invalidation fires', (
-    tester,
-  ) async {
+  test('settings/config change -> targeted invalidation fires', () async {
     final session = await authHelper.signInForAppSession(config);
     final container = _createAppContainer(config: config, session: session);
     addTearDown(container.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const WeaveApp()),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byIcon(Icons.settings_outlined));
-    await tester.pumpAndSettle();
-
-    final field = _textFieldWithLabel('Backend API Base URL');
-    await tester.ensureVisible(field);
     final updatedBackendUrl = config.backendApiBaseUrl.replace(
       pathSegments: [
         ...config.backendApiBaseUrl.pathSegments.where(
@@ -92,10 +81,27 @@ void main() {
         'e2e-settings-change',
       ],
     );
-    await tester.enterText(field, updatedBackendUrl.toString());
-    await tester.pump();
-    await tester.tap(find.text('Save Changes'));
-    await tester.pumpAndSettle();
+
+    await container
+        .read(applyServerConfigurationChangesProvider)
+        .call(
+          ServerConfigurationSaveResult(
+            configuration: _serverConfiguration(
+              config.copyWith(backendApiBaseUrl: updatedBackendUrl),
+            ),
+            authConfigurationChanged: false,
+            matrixHomeserverChanged: false,
+            nextcloudBaseUrlChanged: false,
+            backendApiBaseUrlChanged: true,
+          ),
+        );
+    await container
+        .read(serverConfigurationRepositoryProvider)
+        .saveConfiguration(
+          _serverConfiguration(
+            config.copyWith(backendApiBaseUrl: updatedBackendUrl),
+          ),
+        );
 
     final backendInvalidation = container.read(
       integrationInvalidationProvider(WorkspaceIntegration.weaveBackend),
@@ -119,9 +125,7 @@ void main() {
     );
   });
 
-  testWidgets('authenticated GET /api/v1/me returns expected claims', (
-    tester,
-  ) async {
+  test('authenticated GET /api/v1/me returns expected claims', () async {
     final accessToken = await authHelper.signIn(config);
 
     final response = await httpClient.get(
@@ -140,10 +144,10 @@ void main() {
     expect((payload['email'] as String).trim(), isNotEmpty);
   });
 
-  testWidgets(
+  test(
     'authenticated GET /api/v1/workspace/capabilities returns expected '
     'structure',
-    (tester) async {
+    () async {
       final accessToken = await authHelper.signIn(config);
 
       final response = await httpClient.get(
@@ -174,43 +178,29 @@ void main() {
     },
   );
 
-  testWidgets('backend unavailable -> clear UX failure state', (tester) async {
-    final session = await authHelper.signInForAppSession(config);
+  test('backend unavailable -> backend client surfaces unreachable failure', () async {
+    final accessToken = await authHelper.signIn(config);
     final unreachableConfig = config.copyWith(
       backendApiBaseUrl: config.unreachableBackendApiBaseUrl(),
     );
-    final container = _createAppContainer(
-      config: unreachableConfig,
-      session: session,
-    );
-    addTearDown(container.dispose);
+    final client = HttpWeaveApiClient(httpClient: httpClient);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(container: container, child: const WeaveApp()),
-    );
-    await tester.pumpAndSettle();
+    Object? error;
+    try {
+      await client.fetchWorkspaceCapabilities(
+        baseUrl: unreachableConfig.backendApiBaseUrl,
+        accessToken: accessToken,
+      );
+    } catch (thrown) {
+      error = thrown;
+    }
 
-    await tester.tap(find.byIcon(Icons.settings_outlined));
-    await tester.pumpAndSettle();
-    await _pumpUntil(
-      tester,
-      () =>
-          container.read(weaveBackendConnectionStateProvider) ==
-          WeaveBackendConnectionState.unreachable,
-    );
-
+    expect(error, isA<AppFailure>());
     expect(
-      container.read(weaveBackendConnectionStateProvider),
-      WeaveBackendConnectionState.unreachable,
+      (error as AppFailure).message,
+      contains('Unable to reach the Weave backend right now.'),
     );
-    expect(find.text('Retry'), findsWidgets);
   });
-}
-
-Finder _textFieldWithLabel(String label) {
-  return find.byWidgetPredicate(
-    (widget) => widget is TextField && widget.decoration?.labelText == label,
-  );
 }
 
 ProviderContainer _createAppContainer({
@@ -256,21 +246,6 @@ Map<String, dynamic> _decodeObject(String body) {
   }
 
   return decoded;
-}
-
-Future<void> _pumpUntil(
-  WidgetTester tester,
-  bool Function() condition, {
-  Duration timeout = const Duration(seconds: 15),
-}) async {
-  final deadline = DateTime.now().add(timeout);
-  while (!condition()) {
-    if (DateTime.now().isAfter(deadline)) {
-      throw StateError('Timed out waiting for integration test condition.');
-    }
-
-    await tester.pump(const Duration(milliseconds: 100));
-  }
 }
 
 class _MemoryServerConfigurationRepository

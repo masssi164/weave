@@ -89,7 +89,7 @@ class TestConfig {
 
   Uri unreachableBackendApiBaseUrl() {
     return backendApiBaseUrl.replace(
-      host: 'unreachable.${backendApiBaseUrl.host}.invalid',
+      port: backendApiBaseUrl.scheme == 'https' ? 1 : 9,
     );
   }
 

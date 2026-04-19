@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -27,13 +28,15 @@ class HttpWeaveApiClient implements WeaveApiClient {
 
     late http.Response response;
     try {
-      response = await _httpClient.get(
-        requestUri,
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
-      );
+      response = await _httpClient
+          .get(
+            requestUri,
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+            },
+          )
+          .timeout(const Duration(seconds: 5));
     } catch (error) {
       throw AppFailure.unknown(
         'Unable to reach the Weave backend right now.',
