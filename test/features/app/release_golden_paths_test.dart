@@ -14,6 +14,7 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
@@ -165,6 +166,20 @@ class _MutableChatRepository implements ChatRepository {
 
     return conversations;
   }
+
+  @override
+  Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> markRoomRead(String roomId) async {}
+
+  @override
+  Future<void> sendMessage({
+    required String roomId,
+    required String message,
+  }) async {}
 
   @override
   Future<void> signOut() async {

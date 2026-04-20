@@ -9,6 +9,10 @@ const matrixOidcRedirectUri = '$matrixOidcRedirectScheme:/oauthredirect';
 
 enum MatrixRoomPreviewType { none, text, encrypted, unsupported }
 
+enum MatrixMessageDeliveryState { sending, sent, failed }
+
+enum MatrixMessageContentType { text, encrypted, unsupported }
+
 enum MatrixSecurityBootstrapState {
   signedOut,
   notInitialized,
@@ -122,4 +126,42 @@ class MatrixRoomSnapshot {
   final int unreadCount;
   final bool isInvite;
   final bool isDirectMessage;
+}
+
+class MatrixTimelineMessageSnapshot {
+  const MatrixTimelineMessageSnapshot({
+    required this.id,
+    required this.senderId,
+    required this.senderDisplayName,
+    required this.sentAt,
+    required this.isMine,
+    required this.deliveryState,
+    required this.contentType,
+    this.text,
+  });
+
+  final String id;
+  final String senderId;
+  final String senderDisplayName;
+  final DateTime sentAt;
+  final bool isMine;
+  final MatrixMessageDeliveryState deliveryState;
+  final MatrixMessageContentType contentType;
+  final String? text;
+}
+
+class MatrixRoomTimelineSnapshot {
+  const MatrixRoomTimelineSnapshot({
+    required this.roomId,
+    required this.roomTitle,
+    required this.isInvite,
+    required this.canSendMessages,
+    required this.messages,
+  });
+
+  final String roomId;
+  final String roomTitle;
+  final bool isInvite;
+  final bool canSendMessages;
+  final List<MatrixTimelineMessageSnapshot> messages;
 }

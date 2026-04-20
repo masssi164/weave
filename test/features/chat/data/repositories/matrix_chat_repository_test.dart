@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
 import 'package:weave/features/chat/data/services/matrix_conversation_service.dart';
+import 'package:weave/features/chat/data/services/matrix_room_service.dart';
 import 'package:weave/features/chat/data/services/matrix_service_types.dart';
 import 'package:weave/features/chat/data/services/matrix_session_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
@@ -60,6 +61,29 @@ class _FakeServerConfigurationRepository
   }
 }
 
+class _FakeMatrixRoomService implements MatrixRoomService {
+  @override
+  Future<MatrixRoomTimelineSnapshot> loadRoomTimeline({
+    required Uri homeserver,
+    required String roomId,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> markRoomRead({
+    required Uri homeserver,
+    required String roomId,
+  }) async {}
+
+  @override
+  Future<void> sendMessage({
+    required Uri homeserver,
+    required String roomId,
+    required String message,
+  }) async {}
+}
+
 void main() {
   group('MatrixChatRepository', () {
     test('loads conversations from the configured Matrix homeserver', () async {
@@ -78,6 +102,7 @@ void main() {
       final repository = MatrixChatRepository(
         sessionService: _FakeMatrixSessionService(),
         conversationService: conversationService,
+        roomService: _FakeMatrixRoomService(),
         serverConfigurationRepository: _FakeServerConfigurationRepository(
           buildTestConfiguration(),
         ),
@@ -99,6 +124,7 @@ void main() {
       final repository = MatrixChatRepository(
         sessionService: sessionService,
         conversationService: _FakeMatrixConversationService(),
+        roomService: _FakeMatrixRoomService(),
         serverConfigurationRepository: _FakeServerConfigurationRepository(
           buildTestConfiguration(),
         ),
@@ -116,6 +142,7 @@ void main() {
       final repository = MatrixChatRepository(
         sessionService: _FakeMatrixSessionService(),
         conversationService: _FakeMatrixConversationService(),
+        roomService: _FakeMatrixRoomService(),
         serverConfigurationRepository: _FakeServerConfigurationRepository(null),
       );
 

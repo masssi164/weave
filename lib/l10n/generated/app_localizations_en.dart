@@ -661,6 +661,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get chatRoomLoadingLabel => 'Loading conversation…';
+
+  @override
+  String get chatRoomEmptyMessage => 'No messages yet';
+
+  @override
+  String get chatRoomComposerHint => 'Write a message';
+
+  @override
+  String get chatRoomComposerDisabledHint =>
+      'Messages are unavailable in this room right now';
+
+  @override
+  String get chatRoomSendButton => 'Send';
+
+  @override
+  String get chatRoomSendingButton => 'Sending…';
+
+  @override
   String get filesEmptyMessage => 'No files yet';
 
   @override

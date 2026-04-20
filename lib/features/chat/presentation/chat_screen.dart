@@ -5,6 +5,7 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_provider.dart';
 import 'package:weave/features/chat/presentation/widgets/chat_security_banner.dart';
@@ -67,8 +68,19 @@ class ChatScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             sliver: SliverList.separated(
               itemCount: state.conversations.length,
-              itemBuilder: (context, index) =>
-                  _ConversationTile(conversation: state.conversations[index]),
+              itemBuilder: (context, index) => _ConversationTile(
+                conversation: state.conversations[index],
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (context) => ChatRoomScreen(
+                        conversation: state.conversations[index],
+                      ),
+                    ),
+                  );
+                  await ref.read(chatProvider.notifier).retry();
+                },
+              ),
               separatorBuilder: (context, index) => const SizedBox(height: 12),
             ),
           ),
@@ -109,9 +121,10 @@ class _ChatErrorState extends StatelessWidget {
 }
 
 class _ConversationTile extends StatelessWidget {
-  const _ConversationTile({required this.conversation});
+  const _ConversationTile({required this.conversation, required this.onTap});
 
   final ChatConversation conversation;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +164,7 @@ class _ConversationTile extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: ListTile(
+              onTap: onTap,
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: 8,
