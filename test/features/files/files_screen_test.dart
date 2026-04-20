@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
@@ -110,9 +111,26 @@ void main() {
             path: '/Documents',
             entries: [
               FileEntry(
+                id: 'folder-2',
+                name: 'Reports',
+                path: '/Documents/Reports',
+                isDirectory: true,
+              ),
+              FileEntry(
                 id: 'file-1',
                 name: 'Notes.txt',
                 path: '/Documents/Notes.txt',
+                isDirectory: false,
+              ),
+            ],
+          ),
+          '/Documents/Reports': DirectoryListing(
+            path: '/Documents/Reports',
+            entries: [
+              FileEntry(
+                id: 'file-2',
+                name: 'Q2.pdf',
+                path: '/Documents/Reports/Q2.pdf',
                 isDirectory: false,
               ),
             ],
@@ -134,17 +152,38 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Documents'), findsOneWidget);
+      expect(find.text('Documents'), findsAtLeastNWidgets(1));
 
-      await tester.tap(find.text('Documents'));
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Documents').first,
+          matching: find.byType(InkWell),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Reports').first,
+          matching: find.byType(InkWell),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Documents').last);
       await tester.pumpAndSettle();
 
       expect(
         repository.requestedPaths,
-        containsAllInOrder(['/', '/Documents']),
+        containsAllInOrder([
+          '/',
+          '/Documents',
+          '/Documents/Reports',
+          '/Documents',
+        ]),
       );
       expect(find.text('Notes.txt'), findsOneWidget);
+      expect(find.text('1 folder • 1 file'), findsOneWidget);
       expect(find.text('Up'), findsOneWidget);
+      expect(find.text('Root'), findsOneWidget);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {
