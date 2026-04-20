@@ -17,22 +17,23 @@ class TestConfig {
     final baseUrl = _parseUrl(
       const String.fromEnvironment(
         'WEAVE_BASE_URL',
-        defaultValue: 'https://weave.local',
+        defaultValue: 'https://api.weave.local',
       ),
       variableName: 'WEAVE_BASE_URL',
     );
     final workspaceHost = _workspaceHost(baseUrl.host);
+    final issuerUrl = _issuerUrl(baseUrl, workspaceHost);
+    final clientId = const String.fromEnvironment(
+      'WEAVE_OIDC_CLIENT_ID',
+      defaultValue: oidcDefaultClientId,
+    ).trim();
 
     return TestConfig(
       baseUrl: baseUrl,
       username: const String.fromEnvironment('WEAVE_TEST_USERNAME'),
       password: const String.fromEnvironment('WEAVE_TEST_PASSWORD').trim(),
-      issuerUrl: _serviceUri(
-        baseUrl,
-        host: 'auth.$workspaceHost',
-        pathSegments: const <String>['realms', 'weave'],
-      ),
-      clientId: oidcDefaultClientId,
+      issuerUrl: issuerUrl,
+      clientId: clientId,
       matrixHomeserverUrl: _serviceUri(baseUrl, host: 'matrix.$workspaceHost'),
       nextcloudBaseUrl: _serviceUri(baseUrl, host: 'nextcloud.$workspaceHost'),
       backendApiBaseUrl: baseUrl,
@@ -88,7 +89,7 @@ class TestConfig {
 
   Uri unreachableBackendApiBaseUrl() {
     return backendApiBaseUrl.replace(
-      host: 'unreachable.${backendApiBaseUrl.host}.invalid',
+      port: backendApiBaseUrl.scheme == 'https' ? 1 : 9,
     );
   }
 
@@ -134,13 +135,27 @@ class TestConfig {
     );
   }
 
+  static Uri _issuerUrl(Uri baseUrl, String workspaceHost) {
+    const override = String.fromEnvironment('WEAVE_OIDC_ISSUER_URL');
+    if (override.trim().isNotEmpty) {
+      return _parseUrl(override, variableName: 'WEAVE_OIDC_ISSUER_URL');
+    }
+
+    return _serviceUri(
+      baseUrl,
+      host: 'keycloak.$workspaceHost',
+      pathSegments: const <String>['realms', 'weave'],
+    );
+  }
+
   static String _workspaceHost(String host) {
     final labels = host.split('.');
     final serviceLabel = labels.first.toLowerCase();
     if (labels.length > 2 &&
         (serviceLabel == 'api' ||
             serviceLabel == 'weave' ||
-            serviceLabel == 'auth')) {
+            serviceLabel == 'auth' ||
+            serviceLabel == 'keycloak')) {
       return labels.skip(1).join('.');
     }
 
