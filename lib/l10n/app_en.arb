@@ -6,7 +6,7 @@
   "welcomeTitle": "Welcome to Weave",
   "@welcomeTitle": { "description": "Main heading on the welcome screen" },
 
-  "welcomeSubtitle": "Your unified collaboration hub — messaging, files, and calendar in one place.",
+  "welcomeSubtitle": "Your unified collaboration hub for messaging, files, and secure self-hosted access.",
   "@welcomeSubtitle": { "description": "Subtitle text below the welcome heading" },
 
   "continueButton": "Get Started",
@@ -207,7 +207,7 @@
   "settingsScreenTitle": "Settings",
   "@settingsScreenTitle": { "description": "Title for the settings screen app bar" },
 
-  "settingsBrandSectionDescription": "Weave brings messaging, files, and calendar into one workspace while this screen manages the server connection behind it.",
+  "settingsBrandSectionDescription": "Weave Release 1 focuses on messaging, files, and the server connection that holds them together.",
   "@settingsBrandSectionDescription": { "description": "Subtle branded copy shown in the settings header card" },
 
   "chatSecuritySectionTitle": "Matrix security",

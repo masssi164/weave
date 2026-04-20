@@ -147,7 +147,7 @@ void main() {
       expect(find.byType(WeaveLogo), findsOneWidget);
       expect(
         find.text(
-          'Weave brings messaging, files, and calendar into one workspace while this screen manages the server connection behind it.',
+          'Weave Release 1 focuses on messaging, files, and the server connection that holds them together.',
         ),
         findsOneWidget,
       );

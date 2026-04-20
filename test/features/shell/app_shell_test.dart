@@ -84,16 +84,18 @@ void main() {
       );
     }
 
-    testWidgets('renders five bottom navigation destinations', (tester) async {
+    testWidgets('renders the Release 1 bottom navigation destinations', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
       expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.dashboard_outlined), findsOneWidget);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.calendar_today_outlined), findsNothing);
+      expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
     });
 
     testWidgets('navigates to settings from the bottom navigation bar', (

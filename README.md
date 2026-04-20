@@ -3,11 +3,15 @@
 Weave is an accessibility-first Flutter client for self-hosted collaboration stacks. It is being built around a repository-first, feature-first architecture so future protocol integrations can land behind stable domain boundaries instead of leaking transport logic into presentation code.
 
 ## Vision
-Weave aims to unify the core mobile workflows for self-hosted environments:
+Weave aims to unify the core mobile workflows for self-hosted environments.
 
-- Identity through OIDC providers such as Authentik and Keycloak
-- Communication through Matrix
-- Files, calendars, and deck-style planning through Nextcloud-backed services
+Release 1 is intentionally narrower:
+
+- identity through OIDC providers such as Authentik and Keycloak
+- communication through Matrix
+- files through Nextcloud-backed services
+
+Calendar and Deck remain future product areas, not Release 1 promises.
 
 ## Current foundation
 The app now starts through an explicit bootstrap phase before the router is built. Startup resolves into one of:
@@ -85,6 +89,11 @@ Inside each shared integration:
 Today, Nextcloud auth, session persistence, login-flow handling, bearer fallback, and connection lifecycle live under `lib/integrations/nextcloud/`, while `features/files/` stays focused on DAV directory browsing and file-domain mapping.
 
 See [docs/architecture.md](docs/architecture.md) for the detailed design notes.
+
+## Release 1 boundary
+The first public release only presents Chat, Files, and Settings in the main app shell.
+
+Calendar and Deck code may still exist behind the scenes while those features are under construction, but they are not presented as release-ready surfaces.
 
 ## Matrix Chat
 Chat is the first real post-auth product slice in the app shell:
