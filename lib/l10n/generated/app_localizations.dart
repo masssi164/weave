@@ -113,7 +113,7 @@ abstract class AppLocalizations {
   /// Subtitle text below the welcome heading
   ///
   /// In en, this message translates to:
-  /// **'Your unified collaboration hub — messaging, files, and calendar in one place.'**
+  /// **'Your unified collaboration hub for messaging, files, and secure self-hosted access.'**
   String get welcomeSubtitle;
 
   /// Label for the primary CTA on the welcome screen
@@ -461,7 +461,7 @@ abstract class AppLocalizations {
   /// Subtle branded copy shown in the settings header card
   ///
   /// In en, this message translates to:
-  /// **'Weave brings messaging, files, and calendar into one workspace while this screen manages the server connection behind it.'**
+  /// **'Weave Release 1 focuses on messaging, files, and the server connection that holds them together.'**
   String get settingsBrandSectionDescription;
 
   /// Section title for Matrix security status and actions in settings

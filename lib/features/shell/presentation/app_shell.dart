@@ -50,28 +50,6 @@ class AppShell extends StatelessWidget {
           ),
           NavigationDestination(
             icon: Icon(
-              Icons.calendar_today_outlined,
-              semanticLabel: l10n.semanticCalendarIcon,
-            ),
-            selectedIcon: Icon(
-              Icons.calendar_month,
-              semanticLabel: l10n.semanticCalendarIcon,
-            ),
-            label: l10n.navCalendar,
-          ),
-          NavigationDestination(
-            icon: Icon(
-              Icons.dashboard_outlined,
-              semanticLabel: l10n.semanticDeckIcon,
-            ),
-            selectedIcon: Icon(
-              Icons.dashboard,
-              semanticLabel: l10n.semanticDeckIcon,
-            ),
-            label: l10n.navDeck,
-          ),
-          NavigationDestination(
-            icon: Icon(
               Icons.settings_outlined,
               semanticLabel: l10n.semanticSettingsIcon,
             ),

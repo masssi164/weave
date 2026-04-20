@@ -41,8 +41,8 @@ Shell destinations:
 
 - Chat
 - Files
-- Calendar
-- Deck
+- Calendar (future, not part of Release 1 navigation)
+- Deck (future, not part of Release 1 navigation)
 - Settings
 
 ## Shared server configuration

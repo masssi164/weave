@@ -16,7 +16,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get welcomeSubtitle =>
-      'Your unified collaboration hub — messaging, files, and calendar in one place.';
+      'Your unified collaboration hub for messaging, files, and secure self-hosted access.';
 
   @override
   String get continueButton => 'Get Started';
@@ -208,7 +208,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsBrandSectionDescription =>
-      'Weave brings messaging, files, and calendar into one workspace while this screen manages the server connection behind it.';
+      'Weave Release 1 focuses on messaging, files, and the server connection that holds them together.';
 
   @override
   String get chatSecuritySectionTitle => 'Matrix security';

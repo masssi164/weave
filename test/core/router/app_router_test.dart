@@ -145,6 +145,34 @@ void main() {
       expect(find.byType(ChatScreen), findsOneWidget);
     });
 
+    testWidgets('redirects hidden release-one routes back to chat when ready', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      container.read(appRouterProvider).go(AppRoutes.calendar);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChatScreen), findsOneWidget);
+    });
+
     testWidgets('redirects shell routes back to welcome when setup is needed', (
       tester,
     ) async {
