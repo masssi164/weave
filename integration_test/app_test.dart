@@ -144,63 +144,63 @@ void main() {
     expect((payload['email'] as String).trim(), isNotEmpty);
   });
 
+  test('authenticated GET /api/v1/workspace/capabilities returns expected '
+      'structure', () async {
+    final accessToken = await authHelper.signIn(config);
+
+    final response = await httpClient.get(
+      config.apiUri('/api/v1/workspace/capabilities'),
+      headers: <String, String>{
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    expect(response.statusCode, 200, reason: response.body);
+    final payload = _decodeObject(response.body);
+
+    final features = payload['features'];
+    if (features != null) {
+      expect(features, isA<Map>());
+    } else {
+      for (final key in <String>[
+        'shellAccess',
+        'chat',
+        'files',
+        'calendar',
+        'boards',
+      ]) {
+        expect(payload[key], isA<Map>(), reason: 'Missing "$key".');
+      }
+    }
+  });
+
   test(
-    'authenticated GET /api/v1/workspace/capabilities returns expected '
-    'structure',
+    'backend unavailable -> backend client surfaces unreachable failure',
     () async {
       final accessToken = await authHelper.signIn(config);
-
-      final response = await httpClient.get(
-        config.apiUri('/api/v1/workspace/capabilities'),
-        headers: <String, String>{
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $accessToken',
-        },
+      final unreachableConfig = config.copyWith(
+        backendApiBaseUrl: config.unreachableBackendApiBaseUrl(),
       );
+      final client = HttpWeaveApiClient(httpClient: httpClient);
 
-      expect(response.statusCode, 200, reason: response.body);
-      final payload = _decodeObject(response.body);
-
-      final features = payload['features'];
-      if (features != null) {
-        expect(features, isA<Map>());
-      } else {
-        for (final key in <String>[
-          'shellAccess',
-          'chat',
-          'files',
-          'calendar',
-          'boards',
-        ]) {
-          expect(payload[key], isA<Map>(), reason: 'Missing "$key".');
-        }
+      Object? error;
+      try {
+        await client.fetchWorkspaceCapabilities(
+          baseUrl: unreachableConfig.backendApiBaseUrl,
+          accessToken: accessToken,
+        );
+      } catch (thrown) {
+        error = thrown;
       }
+
+      expect(error, isA<AppFailure>());
+      expect(
+        (error as AppFailure).message,
+        contains('Unable to reach the Weave backend right now.'),
+      );
     },
   );
-
-  test('backend unavailable -> backend client surfaces unreachable failure', () async {
-    final accessToken = await authHelper.signIn(config);
-    final unreachableConfig = config.copyWith(
-      backendApiBaseUrl: config.unreachableBackendApiBaseUrl(),
-    );
-    final client = HttpWeaveApiClient(httpClient: httpClient);
-
-    Object? error;
-    try {
-      await client.fetchWorkspaceCapabilities(
-        baseUrl: unreachableConfig.backendApiBaseUrl,
-        accessToken: accessToken,
-      );
-    } catch (thrown) {
-      error = thrown;
-    }
-
-    expect(error, isA<AppFailure>());
-    expect(
-      (error as AppFailure).message,
-      contains('Unable to reach the Weave backend right now.'),
-    );
-  });
 }
 
 ProviderContainer _createAppContainer({
