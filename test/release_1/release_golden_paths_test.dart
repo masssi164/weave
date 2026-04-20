@@ -17,7 +17,7 @@ import 'package:weave/features/auth/domain/repositories/auth_session_repository.
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
-import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
@@ -39,7 +39,7 @@ import 'package:weave/main.dart';
 void main() {
   group('Release 1 auth/files golden paths', () {
     testWidgets(
-      'setup, sign-in, ready shell, files browsing, sign-out/re-auth, and changed-server recovery',
+      'setup, sign-in, ready shell, files browsing, chat room open plus send, sign-out/re-auth, and changed-server recovery',
       (tester) async {
         final authRepository = _ScenarioAuthSessionRepository();
         final serverConfigurationRepository =
@@ -124,7 +124,17 @@ void main() {
           container.read(appBootstrapProvider).requireValue.phase,
           BootstrapPhase.ready,
         );
-        expect(find.text('Connect Matrix'), findsWidgets);
+        expect(find.text('Release Room'), findsOneWidget);
+
+        await tester.tap(find.text('Release Room'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Golden path ready'), findsOneWidget);
+        await tester.enterText(find.byType(TextField), 'Looks shippable');
+        await tester.tap(find.text('Send'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Looks shippable'), findsOneWidget);
 
         await tester.tap(find.text('Files').last);
         await tester.pumpAndSettle();
@@ -410,6 +420,19 @@ class _ScenarioFilesRepository implements FilesRepository {
 }
 
 class _ScenarioChatRepository implements ChatRepository {
+  final List<ChatMessage> _messages = <ChatMessage>[
+    ChatMessage(
+      id: r'$seed',
+      senderId: '@alex:weave.local',
+      senderDisplayName: 'Alex',
+      sentAt: DateTime.utc(2026, 4, 20, 18),
+      isMine: false,
+      deliveryState: ChatMessageDeliveryState.sent,
+      contentType: ChatMessageContentType.text,
+      text: 'Golden path ready',
+    ),
+  ];
+
   @override
   Future<void> clearSession() async {}
 
@@ -417,18 +440,27 @@ class _ScenarioChatRepository implements ChatRepository {
   Future<void> connect() async {}
 
   @override
-  Future<List<ChatConversation>> loadConversations() async {
-    throw const ChatFailure.sessionRequired('Connect Matrix');
-  }
+  Future<List<ChatConversation>> loadConversations() async =>
+      const <ChatConversation>[
+        ChatConversation(
+          id: '!release:weave.local',
+          title: 'Release Room',
+          previewType: ChatConversationPreviewType.text,
+          previewText: 'Golden path ready',
+          unreadCount: 1,
+          isInvite: false,
+          isDirectMessage: false,
+        ),
+      ];
 
   @override
   Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async =>
       ChatRoomTimeline(
         roomId: roomId,
-        roomTitle: 'Weave',
+        roomTitle: 'Release Room',
         isInvite: false,
-        canSendMessages: false,
-        messages: const [],
+        canSendMessages: true,
+        messages: List<ChatMessage>.unmodifiable(_messages),
       );
 
   @override
@@ -438,7 +470,20 @@ class _ScenarioChatRepository implements ChatRepository {
   Future<void> sendMessage({
     required String roomId,
     required String message,
-  }) async {}
+  }) async {
+    _messages.add(
+      ChatMessage(
+        id: 'msg-${_messages.length + 1}',
+        senderId: '@me:weave.local',
+        senderDisplayName: 'Me',
+        sentAt: DateTime.utc(2026, 4, 20, 18, _messages.length),
+        isMine: true,
+        deliveryState: ChatMessageDeliveryState.sent,
+        contentType: ChatMessageContentType.text,
+        text: message,
+      ),
+    );
+  }
 
   @override
   Future<void> signOut() async {}
