@@ -84,7 +84,9 @@ void main() {
       );
     }
 
-    testWidgets('renders the Release 1 bottom navigation destinations', (tester) async {
+    testWidgets('renders the Release 1 bottom navigation destinations', (
+      tester,
+    ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 

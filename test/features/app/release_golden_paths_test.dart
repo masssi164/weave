@@ -14,7 +14,6 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
-import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
@@ -58,10 +57,9 @@ class _FakeServerConfigurationRepository
 }
 
 class _FakeOidcClient implements OidcClient {
-  _FakeOidcClient({this.authorizeHandler, this.refreshHandler});
+  _FakeOidcClient({this.authorizeHandler});
 
   Future<OidcTokenBundle> Function()? authorizeHandler;
-  Future<OidcTokenBundle> Function(String refreshToken)? refreshHandler;
 
   @override
   Future<OidcTokenBundle> authorizeAndExchangeCode(configuration) async {
@@ -81,12 +79,7 @@ class _FakeOidcClient implements OidcClient {
     configuration, {
     required String refreshToken,
   }) async {
-    final handler = refreshHandler;
-    if (handler == null) {
-      throw UnimplementedError();
-    }
-
-    return handler(refreshToken);
+    throw UnimplementedError();
   }
 }
 
@@ -301,9 +294,9 @@ void main() {
             baseUrl: Uri.parse('https://nextcloud.home.internal'),
           ),
           listings: <String, DirectoryListing>{
-            '/': DirectoryListing(
+            '/': const DirectoryListing(
               path: '/',
-              entries: const <FileEntry>[
+              entries: <FileEntry>[
                 FileEntry(
                   id: 'projects',
                   name: 'Projects',
@@ -312,9 +305,9 @@ void main() {
                 ),
               ],
             ),
-            '/Projects': DirectoryListing(
+            '/Projects': const DirectoryListing(
               path: '/Projects',
-              entries: const <FileEntry>[
+              entries: <FileEntry>[
                 FileEntry(
                   id: 'roadmap',
                   name: 'roadmap.md',
