@@ -153,6 +153,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filesUpButton => 'Up';
 
   @override
+  String get filesRootBreadcrumb => 'Root';
+
+  @override
+  String filesDirectorySummary(int folderCount, int fileCount) {
+    String _temp0 = intl.Intl.pluralLogic(
+      folderCount,
+      locale: localeName,
+      other: '$folderCount folders',
+      one: '1 folder',
+      zero: 'No folders',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      fileCount,
+      locale: localeName,
+      other: '$fileCount files',
+      one: '1 file',
+      zero: 'no files',
+    );
+    return '$_temp0 • $_temp1';
+  }
+
+  @override
   String get filesDisconnectedMessage =>
       'Connect Nextcloud to browse your files.';
 

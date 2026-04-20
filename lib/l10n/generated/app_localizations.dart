@@ -374,6 +374,18 @@ abstract class AppLocalizations {
   /// **'Up'**
   String get filesUpButton;
 
+  /// Label for the root breadcrumb in the files browser
+  ///
+  /// In en, this message translates to:
+  /// **'Root'**
+  String get filesRootBreadcrumb;
+
+  /// Summary for the current directory contents
+  ///
+  /// In en, this message translates to:
+  /// **'{folderCount, plural, =0{No folders} one{1 folder} other{{folderCount} folders}} • {fileCount, plural, =0{no files} one{1 file} other{{fileCount} files}}'**
+  String filesDirectorySummary(int folderCount, int fileCount);
+
   /// Message shown when the Files screen is disconnected from Nextcloud
   ///
   /// In en, this message translates to:

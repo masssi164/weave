@@ -409,6 +409,12 @@ void main() {
         expect(filesRepository.connectCalls, 1);
         expect(find.text('Projects'), findsOneWidget);
 
+        await tester.drag(
+          find.byType(CustomScrollView).last,
+          const Offset(0, -120),
+        );
+        await tester.pumpAndSettle();
+
         await tester.tap(find.text('Projects'));
         await tester.pumpAndSettle();
 

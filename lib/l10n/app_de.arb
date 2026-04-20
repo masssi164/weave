@@ -46,6 +46,8 @@
   "filesDisconnectButton": "Trennen",
   "filesRefreshButton": "Aktualisieren",
   "filesUpButton": "Nach oben",
+  "filesRootBreadcrumb": "Root",
+  "filesDirectorySummary": "{folderCount, plural, =0{Keine Ordner} one{1 Ordner} other{{folderCount} Ordner}} • {fileCount, plural, =0{keine Dateien} one{1 Datei} other{{fileCount} Dateien}}",
   "filesDisconnectedMessage": "Verbinde Nextcloud, um deine Dateien zu durchsuchen.",
   "filesInvalidSessionMessage": "Verbinde Nextcloud erneut, weil die gespeicherte Sitzung nicht mehr gültig ist.",
   "filesMisconfiguredMessage": "Konfiguriere zuerst eine Nextcloud-URL, bevor du Dateien verbindest.",

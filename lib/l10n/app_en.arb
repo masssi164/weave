@@ -144,6 +144,18 @@
   "filesUpButton": "Up",
   "@filesUpButton": { "description": "Button label used to open the parent Nextcloud directory" },
 
+  "filesRootBreadcrumb": "Root",
+  "@filesRootBreadcrumb": { "description": "Label for the root breadcrumb in the files browser" },
+
+  "filesDirectorySummary": "{folderCount, plural, =0{No folders} one{1 folder} other{{folderCount} folders}} • {fileCount, plural, =0{no files} one{1 file} other{{fileCount} files}}",
+  "@filesDirectorySummary": {
+    "description": "Summary for the current directory contents",
+    "placeholders": {
+      "folderCount": { "type": "int" },
+      "fileCount": { "type": "int" }
+    }
+  },
+
   "filesDisconnectedMessage": "Connect Nextcloud to browse your files.",
   "@filesDisconnectedMessage": { "description": "Message shown when the Files screen is disconnected from Nextcloud" },
 

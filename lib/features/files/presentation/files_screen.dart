@@ -5,6 +5,7 @@ import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
@@ -53,7 +54,6 @@ class FilesScreen extends ConsumerWidget {
     AppLocalizations l10n,
     FilesViewState state,
   ) {
-    final theme = Theme.of(context);
     final slivers = <Widget>[
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
@@ -65,40 +65,7 @@ class FilesScreen extends ConsumerWidget {
       slivers.add(
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          sliver: SliverToBoxAdapter(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    state.currentPath,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                ),
-                if (!(state.directoryListing?.isRoot ?? true))
-                  AccessibleButton(
-                    outlined: true,
-                    onPressed: state.isBusy
-                        ? null
-                        : () {
-                            ref.read(filesProvider.notifier).goUp();
-                          },
-                    semanticLabel: l10n.filesOpenParentSemantic,
-                    child: Text(l10n.filesUpButton),
-                  ),
-                const SizedBox(width: 12),
-                AccessibleButton(
-                  outlined: true,
-                  onPressed: state.isBusy
-                      ? null
-                      : () {
-                          ref.read(filesProvider.notifier).refresh();
-                        },
-                  semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
-                  child: Text(l10n.filesRefreshButton),
-                ),
-              ],
-            ),
-          ),
+          sliver: SliverToBoxAdapter(child: _DirectoryToolbar(state: state)),
         ),
       );
     }
@@ -186,15 +153,19 @@ class FilesScreen extends ConsumerWidget {
         return SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
           sliver: SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              if (index.isOdd) {
-                return const Divider(height: 1);
-              }
+            delegate: SliverChildListDelegate.fixed([
+              _DirectorySummary(listing: listing),
+              const SizedBox(height: 12),
+              ...List<Widget>.generate(listing.entries.length * 2 - 1, (index) {
+                if (index.isOdd) {
+                  return const Divider(height: 1);
+                }
 
-              final entryIndex = index ~/ 2;
-              final entry = listing.entries[entryIndex];
-              return _FileEntryTile(entry: entry, isBusy: state.isBusy);
-            }, childCount: listing.entries.length * 2 - 1),
+                final entryIndex = index ~/ 2;
+                final entry = listing.entries[entryIndex];
+                return _FileEntryTile(entry: entry, isBusy: state.isBusy);
+              }),
+            ]),
           ),
         );
     }
@@ -204,6 +175,144 @@ class FilesScreen extends ConsumerWidget {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       sliver: SliverFillRemaining(hasScrollBody: false, child: child),
+    );
+  }
+}
+
+class _DirectoryToolbar extends ConsumerWidget {
+  const _DirectoryToolbar({required this.state});
+
+  final FilesViewState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final listing = state.directoryListing;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PathBreadcrumbs(path: state.currentPath, isBusy: state.isBusy),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(state.currentPath, style: theme.textTheme.titleMedium),
+            if (!(listing?.isRoot ?? true))
+              AccessibleButton(
+                outlined: true,
+                onPressed: state.isBusy
+                    ? null
+                    : () {
+                        ref.read(filesProvider.notifier).goUp();
+                      },
+                semanticLabel: l10n.filesOpenParentSemantic,
+                child: Text(l10n.filesUpButton),
+              ),
+            AccessibleButton(
+              outlined: true,
+              onPressed: state.isBusy
+                  ? null
+                  : () {
+                      ref.read(filesProvider.notifier).refresh();
+                    },
+              semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
+              child: Text(l10n.filesRefreshButton),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PathBreadcrumbs extends ConsumerWidget {
+  const _PathBreadcrumbs({required this.path, required this.isBusy});
+
+  final String path;
+  final bool isBusy;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final segments = path.split('/')..removeWhere((segment) => segment.isEmpty);
+    final crumbs = <Widget>[
+      _BreadcrumbChip(
+        label: l10n.filesRootBreadcrumb,
+        onPressed: path == '/' || isBusy
+            ? null
+            : () {
+                ref.read(filesProvider.notifier).openDirectory('/');
+              },
+      ),
+    ];
+
+    for (var index = 0; index < segments.length; index++) {
+      final crumbPath = '/${segments.take(index + 1).join('/')}';
+      final isCurrent = crumbPath == path;
+      crumbs
+        ..add(
+          ExcludeSemantics(
+            child: Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        )
+        ..add(
+          _BreadcrumbChip(
+            label: segments[index],
+            onPressed: isCurrent || isBusy
+                ? null
+                : () {
+                    ref.read(filesProvider.notifier).openDirectory(crumbPath);
+                  },
+          ),
+        );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: crumbs),
+    );
+  }
+}
+
+class _BreadcrumbChip extends StatelessWidget {
+  const _BreadcrumbChip({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(label: Text(label), onPressed: onPressed);
+  }
+}
+
+class _DirectorySummary extends StatelessWidget {
+  const _DirectorySummary({required this.listing});
+
+  final DirectoryListing listing;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final folderCount = listing.entries
+        .where((entry) => entry.isDirectory)
+        .length;
+    final fileCount = listing.entries.length - folderCount;
+
+    return Text(
+      l10n.filesDirectorySummary(folderCount, fileCount),
+      style: theme.textTheme.bodyMedium?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }
