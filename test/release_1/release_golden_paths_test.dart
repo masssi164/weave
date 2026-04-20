@@ -18,6 +18,7 @@ import 'package:weave/features/auth/presentation/providers/auth_flow_controller.
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_security_repository.dart';
@@ -30,7 +31,6 @@ import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
-import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
@@ -175,9 +175,7 @@ void main() {
           _textFieldWithLabel('Nextcloud Base URL'),
           'https://files-alt.weave.local',
         );
-        await tester.tap(
-          find.widgetWithText(AccessibleButton, 'Save Changes'),
-        );
+        await tester.tap(find.widgetWithText(AccessibleButton, 'Save Changes'));
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('Files').last);
@@ -357,8 +355,8 @@ class _ScenarioFilesRepository implements FilesRepository {
     }
 
     return switch (path) {
-      '/' => DirectoryListing(path: '/', entries: _rootEntries),
-      '/Documents' => DirectoryListing(
+      '/' => const DirectoryListing(path: '/', entries: _rootEntries),
+      '/Documents' => const DirectoryListing(
         path: '/Documents',
         entries: _documentsEntries,
       ),
@@ -422,6 +420,25 @@ class _ScenarioChatRepository implements ChatRepository {
   Future<List<ChatConversation>> loadConversations() async {
     throw const ChatFailure.sessionRequired('Connect Matrix');
   }
+
+  @override
+  Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async =>
+      ChatRoomTimeline(
+        roomId: roomId,
+        roomTitle: 'Weave',
+        isInvite: false,
+        canSendMessages: false,
+        messages: const [],
+      );
+
+  @override
+  Future<void> markRoomRead(String roomId) async {}
+
+  @override
+  Future<void> sendMessage({
+    required String roomId,
+    required String message,
+  }) async {}
 
   @override
   Future<void> signOut() async {}
