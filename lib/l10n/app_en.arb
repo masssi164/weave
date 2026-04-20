@@ -601,6 +601,24 @@
     }
   },
 
+  "chatRoomLoadingLabel": "Loading conversation…",
+  "@chatRoomLoadingLabel": { "description": "Message shown while a room timeline is loading" },
+
+  "chatRoomEmptyMessage": "No messages yet",
+  "@chatRoomEmptyMessage": { "description": "Empty state message for a room without timeline events" },
+
+  "chatRoomComposerHint": "Write a message",
+  "@chatRoomComposerHint": { "description": "Hint text for the room composer when sending is allowed" },
+
+  "chatRoomComposerDisabledHint": "Messages are unavailable in this room right now",
+  "@chatRoomComposerDisabledHint": { "description": "Hint text for the room composer when sending is disabled" },
+
+  "chatRoomSendButton": "Send",
+  "@chatRoomSendButton": { "description": "Primary button label for sending a room message" },
+
+  "chatRoomSendingButton": "Sending…",
+  "@chatRoomSendingButton": { "description": "Button label shown while a room message is sending" },
+
   "filesEmptyMessage": "No files yet",
   "@filesEmptyMessage": { "description": "Empty state message for the files screen" },
 

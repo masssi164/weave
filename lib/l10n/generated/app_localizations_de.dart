@@ -675,6 +675,25 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get chatRoomLoadingLabel => 'Konversation wird geladen…';
+
+  @override
+  String get chatRoomEmptyMessage => 'Noch keine Nachrichten';
+
+  @override
+  String get chatRoomComposerHint => 'Nachricht schreiben';
+
+  @override
+  String get chatRoomComposerDisabledHint =>
+      'Nachrichten sind in diesem Raum gerade nicht verfügbar';
+
+  @override
+  String get chatRoomSendButton => 'Senden';
+
+  @override
+  String get chatRoomSendingButton => 'Wird gesendet…';
+
+  @override
   String get filesEmptyMessage => 'Noch keine Dateien';
 
   @override

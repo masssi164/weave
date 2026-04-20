@@ -1226,6 +1226,42 @@ abstract class AppLocalizations {
   /// **'{count, plural, =0 {No unread messages} =1 {1 unread message} other {{count} unread messages}}'**
   String chatConversationUnreadCount(int count);
 
+  /// Message shown while a room timeline is loading
+  ///
+  /// In en, this message translates to:
+  /// **'Loading conversation…'**
+  String get chatRoomLoadingLabel;
+
+  /// Empty state message for a room without timeline events
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet'**
+  String get chatRoomEmptyMessage;
+
+  /// Hint text for the room composer when sending is allowed
+  ///
+  /// In en, this message translates to:
+  /// **'Write a message'**
+  String get chatRoomComposerHint;
+
+  /// Hint text for the room composer when sending is disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Messages are unavailable in this room right now'**
+  String get chatRoomComposerDisabledHint;
+
+  /// Primary button label for sending a room message
+  ///
+  /// In en, this message translates to:
+  /// **'Send'**
+  String get chatRoomSendButton;
+
+  /// Button label shown while a room message is sending
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get chatRoomSendingButton;
+
   /// Empty state message for the files screen
   ///
   /// In en, this message translates to:

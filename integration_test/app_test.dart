@@ -17,6 +17,7 @@ import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/auth/presentation/providers/auth_session_repository_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/domain/repositories/chat_security_repository.dart';
@@ -324,6 +325,20 @@ class _EmptyChatRepository implements ChatRepository {
   @override
   Future<List<ChatConversation>> loadConversations() async =>
       const <ChatConversation>[];
+
+  @override
+  Future<ChatRoomTimeline> loadRoomTimeline(String roomId) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> markRoomRead(String roomId) async {}
+
+  @override
+  Future<void> sendMessage({
+    required String roomId,
+    required String message,
+  }) async {}
 
   @override
   Future<void> signOut() async {}
