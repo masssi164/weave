@@ -138,7 +138,7 @@ class SdkMatrixRoomService implements MatrixRoomService {
     return MatrixTimelineMessageSnapshot(
       id: event.eventId,
       senderId: event.senderId,
-      senderDisplayName: event.sender.calcDisplayname(),
+      senderDisplayName: event.senderFromMemoryOrFallback.calcDisplayname(),
       sentAt: event.originServerTs.toLocal(),
       isMine: event.senderId == client.userID,
       deliveryState: switch (event.status) {
