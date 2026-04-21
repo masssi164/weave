@@ -144,7 +144,8 @@ void main() {
       waitForSync: true,
       federated: false,
     );
-    final sentMessage = 'live-e2e message ${DateTime.now().toUtc().toIso8601String()}';
+    final sentMessage =
+        'live-e2e message ${DateTime.now().toUtc().toIso8601String()}';
     await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
     final timeline = await chatRepository.loadRoomTimeline(roomId);
     final deliveredMessage = timeline.messages
@@ -208,7 +209,8 @@ void main() {
     final nextcloudSession = await container
         .read(nextcloudConnectionServiceProvider)
         .requireLiveSession();
-    final seededFileName = 'weave-live-e2e-${DateTime.now().millisecondsSinceEpoch}.txt';
+    final seededFileName =
+        'weave-live-e2e-${DateTime.now().millisecondsSinceEpoch}.txt';
     final seededFileUri = nextcloudSession.baseUrl.resolve(
       'remote.php/dav/files/${Uri.encodeComponent(nextcloudSession.userId)}/$seededFileName',
     );
@@ -238,7 +240,8 @@ void main() {
         return listing != null &&
             listing.entries.any((entry) => entry.name == seededFileName);
       },
-      reason: 'Files view should show the file uploaded to the live Nextcloud WebDAV path.',
+      reason:
+          'Files view should show the file uploaded to the live Nextcloud WebDAV path.',
       timeout: const Duration(minutes: 1),
     );
 
@@ -254,7 +257,10 @@ void main() {
       'fileName=$seededFileName',
     );
 
-    if (!matrixConnected || !nextcloudConnected || deliveredMessage.isEmpty || matchedFiles.isEmpty) {
+    if (!matrixConnected ||
+        !nextcloudConnected ||
+        deliveredMessage.isEmpty ||
+        matchedFiles.isEmpty) {
       fail(
         'live_e2e_result '
         'authSignedIn=true '
