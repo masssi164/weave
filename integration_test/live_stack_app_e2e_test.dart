@@ -11,7 +11,9 @@ import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
+import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
+import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
@@ -19,6 +21,7 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/integrations/nextcloud/data/services/nextcloud_auth_headers.dart';
 import 'package:weave/integrations/nextcloud/presentation/providers/nextcloud_provider.dart';
 import 'package:weave/main.dart';
 
@@ -128,6 +131,33 @@ void main() {
     final matrixConnected =
         chatState.phase == ChatViewPhase.empty ||
         chatState.phase == ChatViewPhase.content;
+
+    final chatRepository = container.read(chatRepositoryProvider);
+    final matrixClientFactory = container.read(matrixClientFactoryProvider);
+    final matrixClient = await matrixClientFactory.getClientForHomeserver(
+      config.matrixHomeserverUrl,
+    );
+    final roomName = 'weave-live-e2e-${DateTime.now().millisecondsSinceEpoch}';
+    final roomId = await matrixClient.createGroupChat(
+      groupName: roomName,
+      enableEncryption: false,
+      waitForSync: true,
+      federated: false,
+    );
+    final sentMessage =
+        'live-e2e message ${DateTime.now().toUtc().toIso8601String()}';
+    await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
+    final timeline = await chatRepository.loadRoomTimeline(roomId);
+    final deliveredMessage = timeline.messages
+        .where((message) => message.text == sentMessage)
+        .toList(growable: false);
+    // ignore: avoid_print
+    print(
+      'CHAT_RESULT roomId=$roomId roomName=$roomName '
+      'timelineMessages=${timeline.messages.length} '
+      'matchedMessages=${deliveredMessage.length}',
+    );
+
     // Keep the Matrix outcome visible while still validating the Nextcloud path.
     // ignore: avoid_print
     print(
@@ -176,7 +206,61 @@ void main() {
         filesState.connectionState.isConnected &&
         filesState.directoryListing != null;
 
-    if (!matrixConnected || !nextcloudConnected) {
+    final nextcloudSession = await container
+        .read(nextcloudConnectionServiceProvider)
+        .requireLiveSession();
+    final seededFileName =
+        'weave-live-e2e-${DateTime.now().millisecondsSinceEpoch}.txt';
+    final seededFileUri = nextcloudSession.baseUrl.resolve(
+      'remote.php/dav/files/${Uri.encodeComponent(nextcloudSession.userId)}/$seededFileName',
+    );
+    final putResponse = await nextcloudHttpClient.put(
+      seededFileUri,
+      headers: <String, String>{
+        ...buildNextcloudAuthHeaders(nextcloudSession),
+        HttpHeaders.contentTypeHeader: 'text/plain; charset=utf-8',
+      },
+      body: 'weave live e2e ${DateTime.now().toUtc().toIso8601String()}',
+    );
+    expect(
+      putResponse.statusCode,
+      anyOf(201, 204),
+      reason: 'Nextcloud WebDAV upload should succeed for the live session.',
+    );
+
+    await container.read(filesProvider.notifier).refresh();
+    await _waitFor(
+      tester,
+      () {
+        final state = container.read(filesProvider);
+        if (!state.hasValue) {
+          return false;
+        }
+        final listing = state.requireValue.directoryListing;
+        return listing != null &&
+            listing.entries.any((entry) => entry.name == seededFileName);
+      },
+      reason:
+          'Files view should show the file uploaded to the live Nextcloud WebDAV path.',
+      timeout: const Duration(minutes: 1),
+    );
+
+    final refreshedFilesState = container.read(filesProvider).requireValue;
+    final matchedFiles = refreshedFilesState.directoryListing!.entries
+        .where((entry) => entry.name == seededFileName)
+        .toList(growable: false);
+    // ignore: avoid_print
+    print(
+      'FILES_RESULT path=${refreshedFilesState.directoryListing!.path} '
+      'entries=${refreshedFilesState.directoryListing!.entries.length} '
+      'matchedFiles=${matchedFiles.length} '
+      'fileName=$seededFileName',
+    );
+
+    if (!matrixConnected ||
+        !nextcloudConnected ||
+        deliveredMessage.isEmpty ||
+        matchedFiles.isEmpty) {
       fail(
         'live_e2e_result '
         'authSignedIn=true '
@@ -184,15 +268,21 @@ void main() {
         'matrixPhase=${chatState.phase} '
         'matrixFailure=${chatState.failure} '
         'matrixCause=${chatState.failure?.cause} '
+        'chatRoomId=$roomId '
+        'chatMatchedMessages=${deliveredMessage.length} '
         'nextcloudConnected=$nextcloudConnected '
         'nextcloudStatus=${filesState.connectionState.status} '
         'nextcloudMessage=${filesState.connectionState.message} '
-        'nextcloudEntries=${filesState.directoryListing?.entries.length}',
+        'nextcloudEntries=${refreshedFilesState.directoryListing?.entries.length} '
+        'nextcloudMatchedFiles=${matchedFiles.length} '
+        'seededFileName=$seededFileName',
       );
     }
 
     expect(matrixConnected, isTrue);
+    expect(deliveredMessage, isNotEmpty);
     expect(nextcloudConnected, isTrue);
+    expect(matchedFiles, isNotEmpty);
   });
 }
 

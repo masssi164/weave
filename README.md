@@ -131,16 +131,16 @@ Accessibility is a hard requirement, not a follow-up:
 ## Running Integration Tests
 Integration tests require a live local Weave stack, including the backend API and Keycloak OIDC provider. Start the stack from the `weave-infra` setup first, with local hostnames resolving to the stack and the local CA trusted by the machine or simulator running the tests.
 
-The local stack writes reusable test settings to `/tmp/weave-infra/weave-workspace/.generated/bootstrap.env`. `make integration-test` sources that file automatically when it exists. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere.
+The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env` and mirrors them to `/tmp/weave-infra/weave-workspace/.generated/bootstrap.env` for the self-hosted GitHub runner path. `make integration-test` sources the repo-local file first, then falls back to the `/tmp` mirror. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere.
 
 Expected local hostnames include `api.weave.local`, `keycloak.weave.local`, `matrix.weave.local`, and `nextcloud.weave.local`.
 
 Run against the default local stack:
 
 ```sh
-cd /tmp/weave-infra/weave-workspace
+cd ../weave-infra/weave-workspace
 TF_VAR_create_test_user=true ./install.sh
-cd -
+cd ../../weave
 make integration-test
 ```
 
@@ -149,6 +149,8 @@ Run against a different infra checkout:
 ```sh
 WEAVE_BOOTSTRAP_ENV=../weave-inf/weave-workspace/.generated/bootstrap.env make integration-test
 ```
+
+The GitHub Actions live-stack job now runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. That runner only needs the local stack bootstrapped once on the same machine because the workflow reads the mirrored `/tmp/weave-infra/.../bootstrap.env` file.
 
 Supported overrides:
 

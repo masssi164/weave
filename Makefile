@@ -20,11 +20,11 @@ integration-test:
 	if [ -f "$$bootstrap_env" ]; then \
 	  . "$$bootstrap_env"; \
 	fi; \
-	if [ "$$caller_WEAVE_BASE_URL_set" = x ]; then WEAVE_BASE_URL="$$caller_WEAVE_BASE_URL"; fi; \
-	if [ "$$caller_WEAVE_OIDC_ISSUER_URL_set" = x ]; then WEAVE_OIDC_ISSUER_URL="$$caller_WEAVE_OIDC_ISSUER_URL"; fi; \
-	if [ "$$caller_WEAVE_OIDC_CLIENT_ID_set" = x ]; then WEAVE_OIDC_CLIENT_ID="$$caller_WEAVE_OIDC_CLIENT_ID"; fi; \
-	if [ "$$caller_WEAVE_TEST_USERNAME_set" = x ]; then WEAVE_TEST_USERNAME="$$caller_WEAVE_TEST_USERNAME"; fi; \
-	if [ "$$caller_WEAVE_TEST_PASSWORD_set" = x ]; then WEAVE_TEST_PASSWORD="$$caller_WEAVE_TEST_PASSWORD"; fi; \
+	if [ "$$caller_WEAVE_BASE_URL_set" = x ] && [ -n "$$caller_WEAVE_BASE_URL" ]; then WEAVE_BASE_URL="$$caller_WEAVE_BASE_URL"; fi; \
+	if [ "$$caller_WEAVE_OIDC_ISSUER_URL_set" = x ] && [ -n "$$caller_WEAVE_OIDC_ISSUER_URL" ]; then WEAVE_OIDC_ISSUER_URL="$$caller_WEAVE_OIDC_ISSUER_URL"; fi; \
+	if [ "$$caller_WEAVE_OIDC_CLIENT_ID_set" = x ] && [ -n "$$caller_WEAVE_OIDC_CLIENT_ID" ]; then WEAVE_OIDC_CLIENT_ID="$$caller_WEAVE_OIDC_CLIENT_ID"; fi; \
+	if [ "$$caller_WEAVE_TEST_USERNAME_set" = x ] && [ -n "$$caller_WEAVE_TEST_USERNAME" ]; then WEAVE_TEST_USERNAME="$$caller_WEAVE_TEST_USERNAME"; fi; \
+	if [ "$$caller_WEAVE_TEST_PASSWORD_set" = x ] && [ -n "$$caller_WEAVE_TEST_PASSWORD" ]; then WEAVE_TEST_PASSWORD="$$caller_WEAVE_TEST_PASSWORD"; fi; \
 	WEAVE_BASE_URL="$${WEAVE_BASE_URL:-https://api.weave.local}"; \
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://keycloak.weave.local/realms/weave}"; \
 	WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID:-weave-app}"; \
@@ -36,5 +36,7 @@ integration-test:
 	  '  "WEAVE_TEST_USERNAME": "'"$${WEAVE_TEST_USERNAME}"'",' \
 	  '  "WEAVE_TEST_PASSWORD": "'"$${WEAVE_TEST_PASSWORD}"'"' \
 	  '}' > "$$dart_defines_file"; \
-	flutter test integration_test/ -d "$$test_device" \
-	  --dart-define-from-file="$$dart_defines_file"
+	for test_file in integration_test/app_test.dart integration_test/live_stack_app_e2e_test.dart; do \
+	  flutter test "$$test_file" -d "$$test_device" \
+	    --dart-define-from-file="$$dart_defines_file" || exit $$?; \
+	done
