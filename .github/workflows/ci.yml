@@ -41,15 +41,25 @@ jobs:
       - run: flutter test
 
   integration-test:
-    # Requires a publicly routable Weave stack or VPN/tunnel reachable from GitHub runners.
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call'
-    runs-on: ubuntu-latest
+    name: Live Stack Integration Test
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - weave-live
+    timeout-minutes: 45
     env:
       WEAVE_BASE_URL: ${{ inputs.WEAVE_BASE_URL }}
       WEAVE_TEST_USERNAME: ${{ inputs.WEAVE_TEST_USERNAME }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
+      WEAVE_BOOTSTRAP_ENV: /tmp/weave-infra/weave-workspace/.generated/bootstrap.env
+      WEAVE_INTEGRATION_TEST_DEVICE: macos
     steps:
       - uses: actions/checkout@v4
+      - name: Verify local live-stack bootstrap env
+        run: |
+          test -f /tmp/weave-infra/weave-workspace/.generated/bootstrap.env
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
