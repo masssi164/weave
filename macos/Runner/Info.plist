@@ -10,7 +10,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>com.massimotter.weave</string>
-				<string>com.massimotter.weave.matrix</string>
 			</array>
 		</dict>
 	</array>

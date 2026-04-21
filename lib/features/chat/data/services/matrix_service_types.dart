@@ -4,8 +4,9 @@
 
 const matrixOidcClientName = 'Weave';
 const matrixOidcClientUri = 'https://github.com/masssi164/weave';
-const matrixOidcRedirectScheme = 'com.massimotter.weave.matrix';
-const matrixOidcRedirectUri = '$matrixOidcRedirectScheme:/oauthredirect';
+const matrixOidcContact = 'support@weave.local';
+const matrixOidcLoopbackRedirectHost = '127.0.0.1';
+const matrixOidcRedirectPath = '/oauthredirect';
 
 enum MatrixRoomPreviewType { none, text, encrypted, unsupported }
 
