@@ -33,6 +33,7 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+  crypto: ^3.0.7
   flutter_lints: ^4.0.0
   build_runner: ^2.5.0
   riverpod_generator: ^4.0.3

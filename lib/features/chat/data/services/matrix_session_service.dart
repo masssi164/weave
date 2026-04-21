@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:matrix/matrix.dart' as sdk;
 import 'package:riverpod/riverpod.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
@@ -32,7 +35,6 @@ class SdkMatrixSessionService implements MatrixSessionService {
   final MatrixClientFactory _factory;
   final MatrixAuthBrowser _authBrowser;
 
-  static final Uri _redirectUri = Uri.parse(matrixOidcRedirectUri);
   static final Uri _clientUri = Uri.parse(matrixOidcClientUri);
 
   @override
@@ -57,24 +59,26 @@ class SdkMatrixSessionService implements MatrixSessionService {
     }
 
     try {
-      final oidcClient = await client.registerOidcClient(
-        redirectUris: [_redirectUri],
-        applicationType: sdk.OidcApplicationType.native,
-        clientInformation: sdk.OidcClientInformation(
-          clientName: matrixOidcClientName,
-          clientUri: _clientUri,
-          logoUri: null,
-          tosUri: null,
-          policyUri: null,
-        ),
+      final redirectUri = _buildLoopbackRedirectUri();
+      final clientInformation = sdk.OidcClientInformation(
+        clientName: matrixOidcClientName,
+        clientUri: _clientUri,
+        logoUri: null,
+        tosUri: null,
+        policyUri: null,
+      );
+      final oidcClient = await _registerOidcClient(
+        client,
+        redirectUri: redirectUri,
+        clientInformation: clientInformation,
       );
       final session = await client.initOidcLoginSession(
         oidcClientData: oidcClient,
-        redirectUri: _redirectUri,
+        redirectUri: redirectUri,
       );
       final callbackUri = await _authBrowser.authenticate(
         authorizationUri: session.authenticationUri,
-        redirectUri: _redirectUri,
+        redirectUri: redirectUri,
       );
       final callbackParameters = _extractCallbackParameters(callbackUri);
       final code = callbackParameters['code']?.trim();
@@ -199,6 +203,73 @@ class SdkMatrixSessionService implements MatrixSessionService {
     }
 
     return Uri.splitQueryString(callbackUri.fragment);
+  }
+
+  Future<sdk.OidcClientData> _registerOidcClient(
+    sdk.Client client, {
+    required Uri redirectUri,
+    required sdk.OidcClientInformation clientInformation,
+  }) async {
+    final authMetadata = await client.getAuthMetadata();
+    final response = await client.httpClient.post(
+      authMetadata.registrationEndpoint,
+      body: jsonEncode({
+        'redirect_uris': [redirectUri.toString()],
+        'token_endpoint_auth_method': 'none',
+        'response_types': const ['code'],
+        'grant_types': const ['authorization_code', 'refresh_token'],
+        'application_type': sdk.OidcApplicationType.native.name,
+        ...clientInformation.toJson(),
+        'contacts': [matrixOidcContact],
+      }),
+      headers: const {'content-type': 'application/json'},
+    );
+    if (response.statusCode != 201) {
+      throw ChatFailure.protocol(
+        'Matrix OIDC client registration failed with HTTP '
+        '${response.statusCode}: ${utf8.decode(response.bodyBytes)}',
+      );
+    }
+
+    final json = jsonDecode(utf8.decode(response.bodyBytes));
+    if (json is! Map<String, Object?>) {
+      throw const ChatFailure.protocol(
+        'The Matrix OIDC client registration response was not a JSON object.',
+      );
+    }
+
+    final clientId = json['client_id'];
+    if (clientId is! String || clientId.isEmpty) {
+      throw const ChatFailure.protocol(
+        'The Matrix OIDC client registration response did not include a client_id.',
+      );
+    }
+
+    final issuedAtRaw = json['client_id_issued_at'];
+    final issuedAt = switch (issuedAtRaw) {
+      int value when value > 9999999999 => DateTime.fromMillisecondsSinceEpoch(
+        value,
+      ),
+      int value => DateTime.fromMillisecondsSinceEpoch(value * 1000),
+      _ => null,
+    };
+
+    return sdk.OidcClientData(
+      clientId: clientId,
+      clientIdIssuedAt: issuedAt,
+      clientInformation: clientInformation,
+      additionalProperties: json,
+    );
+  }
+
+  Uri _buildLoopbackRedirectUri() {
+    final port = 20000 + Random.secure().nextInt(30000);
+    return Uri(
+      scheme: 'http',
+      host: matrixOidcLoopbackRedirectHost,
+      port: port,
+      path: matrixOidcRedirectPath,
+    );
   }
 
   Uri _normalizeUri(Uri uri) {
