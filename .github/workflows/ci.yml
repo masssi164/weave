@@ -57,6 +57,10 @@ jobs:
       WEAVE_INTEGRATION_TEST_DEVICE: macos
     steps:
       - uses: actions/checkout@v4
+      - name: Free disk space on self-hosted runner
+        run: |
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData"
+          rm -rf "$GITHUB_WORKSPACE/build"
       - name: Verify local live-stack bootstrap env
         run: |
           test -f /tmp/weave-infra/weave-workspace/.generated/bootstrap.env
