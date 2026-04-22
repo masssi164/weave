@@ -1232,6 +1232,30 @@ abstract class AppLocalizations {
   /// **'Direct conversation'**
   String get chatConversationDirectMessageLabel;
 
+  /// Recency badge for a chat conversation with activity in the last hour
+  ///
+  /// In en, this message translates to:
+  /// **'Active now'**
+  String get chatConversationRecentNow;
+
+  /// Recency badge for a chat conversation with activity earlier today
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get chatConversationRecentToday;
+
+  /// Recency badge for a chat conversation with activity yesterday
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get chatConversationRecentYesterday;
+
+  /// Recency badge for a chat conversation with activity in the last week
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get chatConversationRecentThisWeek;
+
   /// Accessibility label describing how many unread messages a conversation has
   ///
   /// In en, this message translates to:

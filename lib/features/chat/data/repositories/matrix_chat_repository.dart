@@ -32,7 +32,7 @@ class MatrixChatRepository implements ChatRepository {
       homeserver: homeserver,
     );
 
-    return rooms
+    final conversations = rooms
         .map(
           (room) => ChatConversation(
             id: room.id,
@@ -53,6 +53,26 @@ class MatrixChatRepository implements ChatRepository {
           ),
         )
         .toList(growable: false);
+
+    conversations.sort((a, b) {
+      final activityComparison =
+          (b.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0))
+              .compareTo(
+                a.lastActivityAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+              );
+      if (activityComparison != 0) {
+        return activityComparison;
+      }
+
+      final unreadComparison = b.unreadCount.compareTo(a.unreadCount);
+      if (unreadComparison != 0) {
+        return unreadComparison;
+      }
+
+      return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+    });
+
+    return conversations;
   }
 
   @override

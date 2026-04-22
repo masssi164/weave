@@ -605,6 +605,18 @@
   "chatConversationDirectMessageLabel": "Direct conversation",
   "@chatConversationDirectMessageLabel": { "description": "Accessibility label for direct conversations" },
 
+  "chatConversationRecentNow": "Active now",
+  "@chatConversationRecentNow": { "description": "Recency badge for a chat conversation with activity in the last hour" },
+
+  "chatConversationRecentToday": "Today",
+  "@chatConversationRecentToday": { "description": "Recency badge for a chat conversation with activity earlier today" },
+
+  "chatConversationRecentYesterday": "Yesterday",
+  "@chatConversationRecentYesterday": { "description": "Recency badge for a chat conversation with activity yesterday" },
+
+  "chatConversationRecentThisWeek": "This week",
+  "@chatConversationRecentThisWeek": { "description": "Recency badge for a chat conversation with activity in the last week" },
+
   "chatConversationUnreadCount": "{count, plural, =0 {No unread messages} =1 {1 unread message} other {{count} unread messages}}",
   "@chatConversationUnreadCount": {
     "description": "Accessibility label describing how many unread messages a conversation has",
