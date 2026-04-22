@@ -728,6 +728,30 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatRoomSendingButton => 'Wird gesendet…';
 
   @override
+  String get chatRoomMessageActionsLabel => 'Nachrichtenaktionen';
+
+  @override
+  String get chatRoomArchiveAction => 'Archivieren';
+
+  @override
+  String get chatRoomArchiveDialogTitle => 'Nachricht archivieren?';
+
+  @override
+  String get chatRoomArchiveDialogMessage =>
+      'Dadurch wird die Nachricht auf diesem Gerät aus deiner Hauptzeitleiste ausgeblendet, bis archivierte Nachrichten eine eigene Ansicht bekommen.';
+
+  @override
+  String get chatRoomArchiveSuccessMessage => 'Nachricht archiviert.';
+
+  @override
+  String get chatRoomArchiveFailureMessage =>
+      'Diese Nachricht konnte gerade nicht archiviert werden.';
+
+  @override
+  String get chatRoomArchivedEmptyMessage =>
+      'Archivierte Nachrichten sind in dieser Zeitleiste ausgeblendet.';
+
+  @override
   String get filesEmptyMessage => 'Noch keine Dateien';
 
   @override

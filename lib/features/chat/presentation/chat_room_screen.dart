@@ -9,6 +9,7 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
+import 'package:weave/features/chat/presentation/providers/archived_message_store_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -25,8 +26,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   final _composerController = TextEditingController();
   ChatRoomTimeline? _timeline;
   ChatFailure? _failure;
+  Set<String> _archivedMessageIds = <String>{};
   bool _loading = true;
   bool _sending = false;
+  bool _archiving = false;
 
   @override
   void initState() {
@@ -50,10 +53,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       final timeline = await ref
           .read(chatRepositoryProvider)
           .loadRoomTimeline(widget.conversation.id);
+      final archivedMessageIds = await ref
+          .read(archivedMessageStoreProvider)
+          .loadArchivedMessageIds(widget.conversation.id);
       if (!mounted) return;
 
       setState(() {
         _timeline = timeline;
+        _archivedMessageIds = archivedMessageIds;
         _loading = false;
       });
 
@@ -119,10 +126,75 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
+  Future<void> _archiveMessage(ChatMessage message) async {
+    if (_archiving) {
+      return;
+    }
+
+    final l10n = AppLocalizations.of(context);
+    final shouldArchive = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l10n.chatRoomArchiveDialogTitle),
+        content: Text(l10n.chatRoomArchiveDialogMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(l10n.chatRoomArchiveAction),
+          ),
+        ],
+      ),
+    );
+    if (shouldArchive != true || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _archiving = true;
+      _failure = null;
+    });
+
+    try {
+      await ref
+          .read(archivedMessageStoreProvider)
+          .archiveMessage(
+            roomId: widget.conversation.id,
+            messageId: message.id,
+          );
+      if (!mounted) return;
+      setState(() {
+        _archivedMessageIds = {..._archivedMessageIds, message.id};
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.chatRoomArchiveSuccessMessage)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.chatRoomArchiveFailureMessage)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _archiving = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final timeline = _timeline;
+    final visibleMessages = timeline == null
+        ? const <ChatMessage>[]
+        : timeline.messages
+              .where((message) => !_archivedMessageIds.contains(message.id))
+              .toList(growable: false);
     final roomTitle = timeline?.roomTitle ?? widget.conversation.title;
     final canSend = timeline?.canSendMessages ?? !widget.conversation.isInvite;
 
@@ -156,7 +228,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 message: failure.message,
                 onRetry: _loadTimeline,
               ),
-              (false, final timeline?, _) when timeline.messages.isEmpty =>
+              (false, final timeline?, _) when visibleMessages.isEmpty =>
                 RefreshIndicator(
                   onRefresh: _loadTimeline,
                   child: ListView(
@@ -166,7 +238,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                         height: MediaQuery.sizeOf(context).height * 0.5,
                         child: Center(
                           child: EmptyState(
-                            message: l10n.chatRoomEmptyMessage,
+                            message: timeline.messages.isEmpty
+                                ? l10n.chatRoomEmptyMessage
+                                : l10n.chatRoomArchivedEmptyMessage,
                             icon: Icons.chat_bubble_outline,
                           ),
                         ),
@@ -174,18 +248,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     ],
                   ),
                 ),
-              (false, final timeline?, _) => RefreshIndicator(
+              (false, final ChatRoomTimeline _, _) => RefreshIndicator(
                 onRefresh: _loadTimeline,
                 child: ListView.separated(
                   reverse: true,
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  itemCount: timeline.messages.length,
+                  itemCount: visibleMessages.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final message =
-                        timeline.messages[timeline.messages.length - 1 - index];
-                    return _MessageBubble(message: message);
+                        visibleMessages[visibleMessages.length - 1 - index];
+                    return _MessageBubble(
+                      message: message,
+                      onArchive: _archiving
+                          ? null
+                          : () => _archiveMessage(message),
+                    );
                   },
                 ),
               ),
@@ -233,9 +312,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message});
+  const _MessageBubble({required this.message, this.onArchive});
 
   final ChatMessage message;
+  final VoidCallback? onArchive;
 
   @override
   Widget build(BuildContext context) {
@@ -282,11 +362,43 @@ class _MessageBubble extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      message.senderDisplayName,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: foregroundColor.withValues(alpha: 0.85),
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            message.senderDisplayName,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: foregroundColor.withValues(alpha: 0.85),
+                            ),
+                          ),
+                        ),
+                        PopupMenuButton<_MessageAction>(
+                          tooltip: AppLocalizations.of(
+                            context,
+                          ).chatRoomMessageActionsLabel,
+                          onSelected: (value) {
+                            if (value == _MessageAction.archive) {
+                              onArchive?.call();
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem<_MessageAction>(
+                              value: _MessageAction.archive,
+                              enabled: onArchive != null,
+                              child: Text(
+                                AppLocalizations.of(
+                                  context,
+                                ).chatRoomArchiveAction,
+                              ),
+                            ),
+                          ],
+                          icon: Icon(
+                            Icons.more_vert,
+                            color: foregroundColor.withValues(alpha: 0.85),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -328,3 +440,5 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 }
+
+enum _MessageAction { archive }
