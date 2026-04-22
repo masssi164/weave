@@ -144,12 +144,20 @@ class _ConversationTile extends StatelessWidget {
         : MaterialLocalizations.of(
             context,
           ).formatShortDate(conversation.lastActivityAt!);
+    final recencyLabel = conversation.lastActivityAt == null
+        ? null
+        : _conversationRecencyLabel(
+            context,
+            l10n,
+            conversation.lastActivityAt!,
+          );
     final unreadLabel = l10n.chatConversationUnreadCount(
       conversation.unreadCount,
     );
     final semanticsLabel = <String>[
       conversation.title,
       preview,
+      if (recencyLabel != null) recencyLabel,
       if (timestamp != null) timestamp,
       unreadLabel,
       if (conversation.isInvite) l10n.chatConversationInviteLabel,
@@ -193,6 +201,7 @@ class _ConversationTile extends StatelessWidget {
               ),
               trailing: _ConversationTrailing(
                 timestamp: timestamp,
+                recencyLabel: recencyLabel,
                 unreadCount: conversation.unreadCount,
               ),
             ),
@@ -206,10 +215,12 @@ class _ConversationTile extends StatelessWidget {
 class _ConversationTrailing extends StatelessWidget {
   const _ConversationTrailing({
     required this.timestamp,
+    required this.recencyLabel,
     required this.unreadCount,
   });
 
   final String? timestamp;
+  final String? recencyLabel;
   final int unreadCount;
 
   @override
@@ -227,6 +238,25 @@ class _ConversationTrailing extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
+        if (recencyLabel != null) ...[
+          const SizedBox(height: 6),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Text(
+                recencyLabel!,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSecondaryContainer,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
         if (unreadCount > 0) ...[
           const SizedBox(height: 8),
           DecoratedBox(
@@ -248,4 +278,41 @@ class _ConversationTrailing extends StatelessWidget {
       ],
     );
   }
+}
+
+String? _conversationRecencyLabel(
+  BuildContext context,
+  AppLocalizations l10n,
+  DateTime lastActivityAt,
+) {
+  final now = DateTime.now();
+  final localActivity = lastActivityAt.toLocal();
+  final difference = now.difference(localActivity);
+
+  if (difference.inMinutes < 0) {
+    return null;
+  }
+  if (difference < const Duration(hours: 1)) {
+    return l10n.chatConversationRecentNow;
+  }
+  if (_isSameDay(now, localActivity)) {
+    return l10n.chatConversationRecentToday;
+  }
+
+  final yesterday = now.subtract(const Duration(days: 1));
+  if (_isSameDay(yesterday, localActivity)) {
+    return l10n.chatConversationRecentYesterday;
+  }
+
+  if (difference < const Duration(days: 7)) {
+    return l10n.chatConversationRecentThisWeek;
+  }
+
+  return null;
+}
+
+bool _isSameDay(DateTime left, DateTime right) {
+  return left.year == right.year &&
+      left.month == right.month &&
+      left.day == right.day;
 }

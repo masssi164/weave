@@ -685,6 +685,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatConversationDirectMessageLabel => 'Direkte Unterhaltung';
 
   @override
+  String get chatConversationRecentNow => 'Gerade aktiv';
+
+  @override
+  String get chatConversationRecentToday => 'Heute';
+
+  @override
+  String get chatConversationRecentYesterday => 'Gestern';
+
+  @override
+  String get chatConversationRecentThisWeek => 'Diese Woche';
+
+  @override
   String chatConversationUnreadCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

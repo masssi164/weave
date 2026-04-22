@@ -363,6 +363,60 @@ void main() {
       expect(find.text('Open security settings'), findsOneWidget);
     });
 
+    testWidgets('shows recency badges and keeps the newest room first', (
+      tester,
+    ) async {
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => <ChatConversation>[
+          ChatConversation(
+            id: '!latest:home.internal',
+            title: 'Newest room',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Fresh update',
+            lastActivityAt: DateTime.now().subtract(
+              const Duration(minutes: 10),
+            ),
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+          ChatConversation(
+            id: '!older:home.internal',
+            title: 'Older room',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Yesterday update',
+            lastActivityAt: DateTime.now().subtract(
+              const Duration(days: 1, hours: 1),
+            ),
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+        ],
+      );
+      final securityRepository = buildSecurityRepository();
+
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Active now'), findsOneWidget);
+      expect(find.text('Yesterday'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Newest room')).dy,
+        lessThan(tester.getTopLeft(find.text('Older room')).dy),
+      );
+    });
+
     testWidgets('meets androidTapTargetGuideline', (tester) async {
       final repository = FakeChatRepository(
         loadConversationsHandler: () async => const <ChatConversation>[

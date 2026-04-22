@@ -119,6 +119,82 @@ void main() {
       expect(conversations.first.unreadCount, 3);
     });
 
+    test(
+      'sorts conversations by recency, then unread count, then title',
+      () async {
+        final conversationService = _FakeMatrixConversationService()
+          ..rooms = <MatrixRoomSnapshot>[
+            MatrixRoomSnapshot(
+              id: '!later:home.internal',
+              title: 'Later unread',
+              previewType: MatrixRoomPreviewType.text,
+              previewText: 'Later',
+              lastActivityAt: DateTime(2026, 4, 22, 9),
+              unreadCount: 1,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+            MatrixRoomSnapshot(
+              id: '!earlier:home.internal',
+              title: 'Earlier',
+              previewType: MatrixRoomPreviewType.text,
+              previewText: 'Earlier',
+              lastActivityAt: DateTime(2026, 4, 21, 9),
+              unreadCount: 99,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+            MatrixRoomSnapshot(
+              id: '!same-time-more-unread:home.internal',
+              title: 'Same time more unread',
+              previewType: MatrixRoomPreviewType.text,
+              previewText: 'Same time',
+              lastActivityAt: DateTime(2026, 4, 22, 9),
+              unreadCount: 5,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+            const MatrixRoomSnapshot(
+              id: '!no-activity-a:home.internal',
+              title: 'Alpha',
+              previewType: MatrixRoomPreviewType.none,
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+            const MatrixRoomSnapshot(
+              id: '!no-activity-z:home.internal',
+              title: 'Zulu',
+              previewType: MatrixRoomPreviewType.none,
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
+        final repository = MatrixChatRepository(
+          sessionService: _FakeMatrixSessionService(),
+          conversationService: conversationService,
+          roomService: _FakeMatrixRoomService(),
+          serverConfigurationRepository: _FakeServerConfigurationRepository(
+            buildTestConfiguration(),
+          ),
+        );
+
+        final conversations = await repository.loadConversations();
+
+        expect(
+          conversations.map((conversation) => conversation.title).toList(),
+          <String>[
+            'Same time more unread',
+            'Later unread',
+            'Earlier',
+            'Alpha',
+            'Zulu',
+          ],
+        );
+      },
+    );
+
     test('connect uses the configured Matrix homeserver', () async {
       final sessionService = _FakeMatrixSessionService();
       final repository = MatrixChatRepository(
