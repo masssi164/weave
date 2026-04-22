@@ -380,6 +380,18 @@ abstract class AppLocalizations {
   /// **'Root'**
   String get filesRootBreadcrumb;
 
+  /// Semantic label for a breadcrumb that opens a folder in the files browser
+  ///
+  /// In en, this message translates to:
+  /// **'Open folder: {name}'**
+  String filesOpenFolderSemantic(String name);
+
+  /// Semantic label for the current breadcrumb in the files browser
+  ///
+  /// In en, this message translates to:
+  /// **'Current folder: {name}'**
+  String filesCurrentFolderSemantic(String name);
+
   /// Summary for the current directory contents
   ///
   /// In en, this message translates to:
