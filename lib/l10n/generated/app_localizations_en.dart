@@ -714,6 +714,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatRoomSendingButton => 'Sending…';
 
   @override
+  String get chatRoomRetrySendAction => 'Retry send';
+
+  @override
+  String get chatRoomYouLabel => 'You';
+
+  @override
+  String get chatRoomMessageSendingStatus => 'Sending…';
+
+  @override
+  String get chatRoomMessageFailedStatus => 'Not sent';
+
+  @override
+  String get chatRoomEncryptedMessageLabel => 'Encrypted message';
+
+  @override
+  String get chatRoomUnsupportedMessageLabel => 'Unsupported message';
+
+  @override
   String get chatRoomMessageActionsLabel => 'Message actions';
 
   @override

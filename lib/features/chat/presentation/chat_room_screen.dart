@@ -30,6 +30,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   bool _loading = true;
   bool _sending = false;
   bool _archiving = false;
+  _PendingOutgoingMessage? _pendingMessage;
 
   @override
   void initState() {
@@ -85,15 +86,22 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
-  Future<void> _sendMessage() async {
-    final message = _composerController.text.trim();
+  Future<void> _sendMessage({_PendingOutgoingMessage? retryingMessage}) async {
+    final message = (retryingMessage?.text ?? _composerController.text).trim();
     if (message.isEmpty || _sending) {
       return;
     }
 
+    final pendingMessage =
+        retryingMessage ?? _PendingOutgoingMessage.create(text: message);
+
     setState(() {
       _sending = true;
       _failure = null;
+      _pendingMessage = pendingMessage.copyWith(
+        deliveryState: ChatMessageDeliveryState.sending,
+        failure: null,
+      );
     });
 
     try {
@@ -102,19 +110,31 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           .sendMessage(roomId: widget.conversation.id, message: message);
       _composerController.clear();
       await _loadTimeline();
+      if (!mounted) return;
+      setState(() {
+        _pendingMessage = null;
+      });
     } on ChatFailure catch (failure) {
       if (!mounted) return;
       setState(() {
-        _failure = failure;
+        _pendingMessage = pendingMessage.copyWith(
+          deliveryState: ChatMessageDeliveryState.failed,
+          failure: failure,
+        );
+        _failure = null;
         _sending = false;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _failure = ChatFailure.unknown(
-          'Unable to send that message right now.',
-          cause: error,
+        _pendingMessage = pendingMessage.copyWith(
+          deliveryState: ChatMessageDeliveryState.failed,
+          failure: ChatFailure.unknown(
+            'Unable to send that message right now.',
+            cause: error,
+          ),
         );
+        _failure = null;
         _sending = false;
       });
     } finally {
@@ -221,6 +241,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 ),
               ],
             ),
+          if (_pendingMessage?.failure case final failure?)
+            MaterialBanner(
+              content: Text(failure.message),
+              actions: [
+                TextButton(
+                  onPressed: _sending
+                      ? null
+                      : () => _sendMessage(retryingMessage: _pendingMessage),
+                  child: Text(l10n.chatRoomRetrySendAction),
+                ),
+              ],
+            ),
           Expanded(
             child: switch ((_loading, timeline, _failure)) {
               (true, _, _) => LoadingState(message: l10n.chatRoomLoadingLabel),
@@ -228,7 +260,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 message: failure.message,
                 onRetry: _loadTimeline,
               ),
-              (false, final timeline?, _) when visibleMessages.isEmpty =>
+              (false, final timeline?, _)
+                  when visibleMessages.isEmpty && _pendingMessage == null =>
                 RefreshIndicator(
                   onRefresh: _loadTimeline,
                   child: ListView(
@@ -253,12 +286,30 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 child: ListView.separated(
                   reverse: true,
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  itemCount: visibleMessages.length,
+                  itemCount:
+                      visibleMessages.length +
+                      (_pendingMessage == null ? 0 : 1),
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 8),
                   itemBuilder: (context, index) {
-                    final message =
-                        visibleMessages[visibleMessages.length - 1 - index];
+                    if (_pendingMessage != null && index == 0) {
+                      return _MessageBubble(
+                        message: _pendingMessage!.toChatMessage(context),
+                        onRetry:
+                            _pendingMessage!.deliveryState ==
+                                    ChatMessageDeliveryState.failed &&
+                                !_sending
+                            ? () =>
+                                  _sendMessage(retryingMessage: _pendingMessage)
+                            : null,
+                      );
+                    }
+
+                    final messageIndex =
+                        visibleMessages.length -
+                        1 -
+                        (index - (_pendingMessage == null ? 0 : 1));
+                    final message = visibleMessages[messageIndex];
                     return _MessageBubble(
                       message: message,
                       onArchive: _archiving
@@ -312,14 +363,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
 }
 
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, this.onArchive});
+  const _MessageBubble({required this.message, this.onArchive, this.onRetry});
 
   final ChatMessage message;
   final VoidCallback? onArchive;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final bubbleColor = message.isMine
         ? theme.colorScheme.primaryContainer
         : theme.colorScheme.surfaceContainerHighest;
@@ -328,13 +381,14 @@ class _MessageBubble extends StatelessWidget {
         : theme.colorScheme.onSurface;
     final body = switch (message.contentType) {
       ChatMessageContentType.text => message.text ?? '',
-      ChatMessageContentType.encrypted => 'Encrypted message',
-      ChatMessageContentType.unsupported => 'Unsupported message',
+      ChatMessageContentType.encrypted => l10n.chatRoomEncryptedMessageLabel,
+      ChatMessageContentType.unsupported =>
+        l10n.chatRoomUnsupportedMessageLabel,
     };
     final status = switch (message.deliveryState) {
-      ChatMessageDeliveryState.sending => 'Sending…',
+      ChatMessageDeliveryState.sending => l10n.chatRoomMessageSendingStatus,
       ChatMessageDeliveryState.sent => null,
-      ChatMessageDeliveryState.failed => 'Failed to send',
+      ChatMessageDeliveryState.failed => l10n.chatRoomMessageFailedStatus,
     };
 
     return Align(
@@ -356,6 +410,9 @@ class _MessageBubble extends StatelessWidget {
               decoration: BoxDecoration(
                 color: bubbleColor,
                 borderRadius: BorderRadius.circular(18),
+                border: message.deliveryState == ChatMessageDeliveryState.failed
+                    ? Border.all(color: theme.colorScheme.error)
+                    : null,
               ),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
@@ -373,31 +430,39 @@ class _MessageBubble extends StatelessWidget {
                             ),
                           ),
                         ),
-                        PopupMenuButton<_MessageAction>(
-                          tooltip: AppLocalizations.of(
-                            context,
-                          ).chatRoomMessageActionsLabel,
-                          onSelected: (value) {
-                            if (value == _MessageAction.archive) {
-                              onArchive?.call();
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem<_MessageAction>(
-                              value: _MessageAction.archive,
-                              enabled: onArchive != null,
-                              child: Text(
-                                AppLocalizations.of(
-                                  context,
-                                ).chatRoomArchiveAction,
-                              ),
-                            ),
-                          ],
-                          icon: Icon(
-                            Icons.more_vert,
+                        if (onRetry != null)
+                          IconButton(
+                            onPressed: onRetry,
+                            tooltip: l10n.chatRoomRetrySendAction,
+                            icon: const Icon(Icons.refresh),
                             color: foregroundColor.withValues(alpha: 0.85),
+                          )
+                        else
+                          PopupMenuButton<_MessageAction>(
+                            tooltip: AppLocalizations.of(
+                              context,
+                            ).chatRoomMessageActionsLabel,
+                            onSelected: (value) {
+                              if (value == _MessageAction.archive) {
+                                onArchive?.call();
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              PopupMenuItem<_MessageAction>(
+                                value: _MessageAction.archive,
+                                enabled: onArchive != null,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  ).chatRoomArchiveAction,
+                                ),
+                              ),
+                            ],
+                            icon: Icon(
+                              Icons.more_vert,
+                              color: foregroundColor.withValues(alpha: 0.85),
+                            ),
                           ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -424,7 +489,11 @@ class _MessageBubble extends StatelessWidget {
                           Text(
                             status,
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: foregroundColor.withValues(alpha: 0.75),
+                              color:
+                                  message.deliveryState ==
+                                      ChatMessageDeliveryState.failed
+                                  ? theme.colorScheme.error
+                                  : foregroundColor.withValues(alpha: 0.75),
                             ),
                           ),
                         ],
@@ -437,6 +506,57 @@ class _MessageBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PendingOutgoingMessage {
+  const _PendingOutgoingMessage({
+    required this.localId,
+    required this.text,
+    required this.sentAt,
+    required this.deliveryState,
+    this.failure,
+  });
+
+  factory _PendingOutgoingMessage.create({required String text}) {
+    return _PendingOutgoingMessage(
+      localId: 'local-${DateTime.now().microsecondsSinceEpoch}',
+      text: text,
+      sentAt: DateTime.now(),
+      deliveryState: ChatMessageDeliveryState.sending,
+    );
+  }
+
+  final String localId;
+  final String text;
+  final DateTime sentAt;
+  final ChatMessageDeliveryState deliveryState;
+  final ChatFailure? failure;
+
+  _PendingOutgoingMessage copyWith({
+    ChatMessageDeliveryState? deliveryState,
+    ChatFailure? failure,
+  }) {
+    return _PendingOutgoingMessage(
+      localId: localId,
+      text: text,
+      sentAt: sentAt,
+      deliveryState: deliveryState ?? this.deliveryState,
+      failure: failure,
+    );
+  }
+
+  ChatMessage toChatMessage(BuildContext context) {
+    return ChatMessage(
+      id: localId,
+      senderId: '@me:local',
+      senderDisplayName: AppLocalizations.of(context).chatRoomYouLabel,
+      sentAt: sentAt,
+      isMine: true,
+      deliveryState: deliveryState,
+      contentType: ChatMessageContentType.text,
+      text: text,
     );
   }
 }
