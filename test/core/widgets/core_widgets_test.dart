@@ -6,15 +6,26 @@ import 'package:weave/core/widgets/error_state.dart';
 
 void main() {
   group('LoadingState', () {
-    testWidgets('displays message and progress indicator', (tester) async {
+    testWidgets('displays shared loading chrome and supporting hint', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: LoadingState(message: 'Loading…')),
+          home: Scaffold(
+            body: LoadingState(
+              message: 'Loading…',
+              hint: 'Checking for changes.',
+              icon: Icons.folder_outlined,
+            ),
+          ),
         ),
       );
 
       expect(find.text('Loading…'), findsOneWidget);
+      expect(find.text('Checking for changes.'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(Card), findsOneWidget);
+      expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
     });
 
     testWidgets('meets labeledTapTargetGuideline', (tester) async {

@@ -242,6 +242,12 @@ abstract class AppLocalizations {
   /// **'Preparing Weave…'**
   String get bootstrapLoadingLabel;
 
+  /// Supporting copy shown while the workspace bootstrap state is resolving
+  ///
+  /// In en, this message translates to:
+  /// **'Checking your workspace services and getting the shell ready.'**
+  String get bootstrapLoadingHint;
+
   /// Message shown when a list has no items
   ///
   /// In en, this message translates to:
@@ -320,11 +326,23 @@ abstract class AppLocalizations {
   /// **'Loading conversations…'**
   String get chatLoadingLabel;
 
+  /// Supporting copy shown while the chat conversation list is loading
+  ///
+  /// In en, this message translates to:
+  /// **'Gathering your latest rooms and recent conversation state.'**
+  String get chatLoadingHint;
+
   /// Message shown while Matrix OAuth sign-in is in progress
   ///
   /// In en, this message translates to:
   /// **'Connecting to Matrix…'**
   String get chatConnectingLabel;
+
+  /// Supporting copy shown while Matrix sign-in is connecting
+  ///
+  /// In en, this message translates to:
+  /// **'We are opening your secure Matrix session and syncing the first room list.'**
+  String get chatConnectingHint;
 
   /// Button label to start or retry Matrix sign-in
   ///
@@ -337,6 +355,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Files'**
   String get filesScreenTitle;
+
+  /// Message shown while the Files screen is loading the current directory
+  ///
+  /// In en, this message translates to:
+  /// **'Loading files…'**
+  String get filesLoadingLabel;
+
+  /// Supporting copy shown while the Files screen is loading the current directory
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing the current folder and checking what changed.'**
+  String get filesLoadingHint;
 
   /// Section title for the Nextcloud files connection card
   ///

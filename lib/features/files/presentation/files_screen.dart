@@ -24,7 +24,13 @@ class FilesScreen extends ConsumerWidget {
         SliverAppBar.large(title: Text(l10n.filesScreenTitle)),
         ...switch (asyncFiles) {
           AsyncLoading() => <Widget>[
-            _fillStateSliver(child: LoadingState(message: l10n.loadingLabel)),
+            _fillStateSliver(
+              child: LoadingState(
+                message: l10n.filesLoadingLabel,
+                hint: l10n.filesLoadingHint,
+                icon: Icons.folder_outlined,
+              ),
+            ),
           ],
           AsyncError() => <Widget>[
             _fillStateSliver(
@@ -119,7 +125,11 @@ class FilesScreen extends ConsumerWidget {
       case FilesConnectionStatus.connected:
         if (state.isBusy && state.directoryListing == null) {
           return _fillStateSliver(
-            child: LoadingState(message: l10n.loadingLabel),
+            child: LoadingState(
+              message: l10n.filesLoadingLabel,
+              hint: l10n.filesLoadingHint,
+              icon: Icons.folder_outlined,
+            ),
           );
         }
         if (state.directoryFailure != null) {

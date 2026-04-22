@@ -42,11 +42,19 @@ class ChatScreen extends ConsumerWidget {
         switch (state.phase) {
           ChatViewPhase.loading => SliverFillRemaining(
             hasScrollBody: false,
-            child: LoadingState(message: l10n.chatLoadingLabel),
+            child: LoadingState(
+              message: l10n.chatLoadingLabel,
+              hint: l10n.chatLoadingHint,
+              icon: Icons.chat_bubble_outline,
+            ),
           ),
           ChatViewPhase.connecting => SliverFillRemaining(
             hasScrollBody: false,
-            child: LoadingState(message: l10n.chatConnectingLabel),
+            child: LoadingState(
+              message: l10n.chatConnectingLabel,
+              hint: l10n.chatConnectingHint,
+              icon: Icons.sync_outlined,
+            ),
           ),
           ChatViewPhase.empty => SliverFillRemaining(
             hasScrollBody: false,

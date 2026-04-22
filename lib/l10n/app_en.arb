@@ -77,6 +77,8 @@
 
   "bootstrapLoadingLabel": "Preparing Weave…",
   "@bootstrapLoadingLabel": { "description": "Message shown while bootstrap state is resolving" },
+  "bootstrapLoadingHint": "Checking your workspace services and getting the shell ready.",
+  "@bootstrapLoadingHint": { "description": "Supporting copy shown while the workspace bootstrap state is resolving" },
 
   "emptyStateLabel": "Nothing here yet",
   "@emptyStateLabel": { "description": "Message shown when a list has no items" },
@@ -116,15 +118,23 @@
 
   "chatLoadingLabel": "Loading conversations…",
   "@chatLoadingLabel": { "description": "Message shown while the chat room list is loading" },
+  "chatLoadingHint": "Gathering your latest rooms and recent conversation state.",
+  "@chatLoadingHint": { "description": "Supporting copy shown while the chat conversation list is loading" },
 
   "chatConnectingLabel": "Connecting to Matrix…",
   "@chatConnectingLabel": { "description": "Message shown while Matrix OAuth sign-in is in progress" },
+  "chatConnectingHint": "We are opening your secure Matrix session and syncing the first room list.",
+  "@chatConnectingHint": { "description": "Supporting copy shown while Matrix sign-in is connecting" },
 
   "chatConnectButton": "Connect Matrix",
   "@chatConnectButton": { "description": "Button label to start or retry Matrix sign-in" },
 
   "filesScreenTitle": "Files",
   "@filesScreenTitle": { "description": "Title for the files screen app bar" },
+  "filesLoadingLabel": "Loading files…",
+  "@filesLoadingLabel": { "description": "Message shown while the Files screen is loading the current directory" },
+  "filesLoadingHint": "Refreshing the current folder and checking what changed.",
+  "@filesLoadingHint": { "description": "Supporting copy shown while the Files screen is loading the current directory" },
 
   "filesNextcloudTitle": "Nextcloud",
   "@filesNextcloudTitle": { "description": "Section title for the Nextcloud files connection card" },
