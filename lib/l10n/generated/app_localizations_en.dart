@@ -702,6 +702,30 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatRoomSendingButton => 'Sending…';
 
   @override
+  String get chatRoomMessageActionsLabel => 'Message actions';
+
+  @override
+  String get chatRoomArchiveAction => 'Archive';
+
+  @override
+  String get chatRoomArchiveDialogTitle => 'Archive message?';
+
+  @override
+  String get chatRoomArchiveDialogMessage =>
+      'This hides the message from your main timeline on this device until archived messages get their own review view.';
+
+  @override
+  String get chatRoomArchiveSuccessMessage => 'Message archived.';
+
+  @override
+  String get chatRoomArchiveFailureMessage =>
+      'This message could not be archived right now.';
+
+  @override
+  String get chatRoomArchivedEmptyMessage =>
+      'Archived messages are hidden from this timeline.';
+
+  @override
   String get filesEmptyMessage => 'No files yet';
 
   @override

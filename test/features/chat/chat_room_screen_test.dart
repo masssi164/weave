@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/features/chat/data/services/archived_message_store.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
@@ -8,6 +10,7 @@ import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 
 import '../../helpers/fake_chat_repository.dart';
+import '../../helpers/in_memory_stores.dart';
 import '../../helpers/test_app.dart';
 
 void main() {
@@ -41,6 +44,18 @@ void main() {
     );
   }
 
+  List<dynamic> _overrides(
+    FakeChatRepository repository, {
+    InMemoryPreferencesStore? store,
+  }) {
+    return [
+      chatRepositoryProvider.overrideWithValue(repository),
+      preferencesStoreProvider.overrideWith(
+        (ref) => store ?? InMemoryPreferencesStore(),
+      ),
+    ];
+  }
+
   testWidgets('loads and renders a room timeline', (tester) async {
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async => buildTimeline(),
@@ -49,7 +64,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+        overrides: _overrides(repository),
       ),
     );
     await tester.pumpAndSettle();
@@ -100,7 +115,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+        overrides: _overrides(repository),
       ),
     );
     await tester.pumpAndSettle();
@@ -123,7 +138,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+        overrides: _overrides(repository),
       ),
     );
     await tester.pumpAndSettle();
@@ -144,7 +159,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: [chatRepositoryProvider.overrideWithValue(repository)],
+        overrides: _overrides(repository),
       ),
     );
     await tester.pumpAndSettle();
@@ -153,5 +168,39 @@ void main() {
     final sendButton = tester.widget<FilledButton>(find.byType(FilledButton));
     expect(textField.enabled, isFalse);
     expect(sendButton.onPressed, isNull);
+  });
+
+  testWidgets('archives a message from the actions menu', (tester) async {
+    final store = InMemoryPreferencesStore();
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(),
+    );
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: _overrides(repository, store: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Archive'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Archive'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hey there'), findsNothing);
+    expect(
+      find.text('Archived messages are hidden from this timeline.'),
+      findsOneWidget,
+    );
+    expect(
+      store.rawString(
+        '${ArchivedMessageStore.storageKeyPrefix}${conversation.id}',
+      ),
+      contains(r'$one'),
+    );
   });
 }

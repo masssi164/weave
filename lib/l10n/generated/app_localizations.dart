@@ -1274,6 +1274,48 @@ abstract class AppLocalizations {
   /// **'Sending…'**
   String get chatRoomSendingButton;
 
+  /// Tooltip for the message actions menu
+  ///
+  /// In en, this message translates to:
+  /// **'Message actions'**
+  String get chatRoomMessageActionsLabel;
+
+  /// Action label for archiving a message from the room timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get chatRoomArchiveAction;
+
+  /// Dialog title shown before a chat message is archived
+  ///
+  /// In en, this message translates to:
+  /// **'Archive message?'**
+  String get chatRoomArchiveDialogTitle;
+
+  /// Dialog body shown before a chat message is archived
+  ///
+  /// In en, this message translates to:
+  /// **'This hides the message from your main timeline on this device until archived messages get their own review view.'**
+  String get chatRoomArchiveDialogMessage;
+
+  /// Snackbar confirmation after archiving a message
+  ///
+  /// In en, this message translates to:
+  /// **'Message archived.'**
+  String get chatRoomArchiveSuccessMessage;
+
+  /// Snackbar error shown when archiving a message fails
+  ///
+  /// In en, this message translates to:
+  /// **'This message could not be archived right now.'**
+  String get chatRoomArchiveFailureMessage;
+
+  /// Empty state shown when all loaded messages have been archived from the main timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Archived messages are hidden from this timeline.'**
+  String get chatRoomArchivedEmptyMessage;
+
   /// Empty state message for the files screen
   ///
   /// In en, this message translates to:
