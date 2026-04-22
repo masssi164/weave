@@ -147,6 +147,22 @@
   "filesRootBreadcrumb": "Root",
   "@filesRootBreadcrumb": { "description": "Label for the root breadcrumb in the files browser" },
 
+  "filesOpenFolderSemantic": "Open folder: {name}",
+  "@filesOpenFolderSemantic": {
+    "description": "Semantic label for a breadcrumb that opens a folder in the files browser",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+
+  "filesCurrentFolderSemantic": "Current folder: {name}",
+  "@filesCurrentFolderSemantic": {
+    "description": "Semantic label for the current breadcrumb in the files browser",
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+
   "filesDirectorySummary": "{folderCount, plural, =0{No folders} one{1 folder} other{{folderCount} folders}} • {fileCount, plural, =0{no files} one{1 file} other{{fileCount} files}}",
   "@filesDirectorySummary": {
     "description": "Summary for the current directory contents",

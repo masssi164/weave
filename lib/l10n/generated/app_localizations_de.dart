@@ -157,6 +157,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get filesRootBreadcrumb => 'Root';
 
   @override
+  String filesOpenFolderSemantic(String name) {
+    return 'Ordner öffnen: $name';
+  }
+
+  @override
+  String filesCurrentFolderSemantic(String name) {
+    return 'Aktueller Ordner: $name';
+  }
+
+  @override
   String filesDirectorySummary(int folderCount, int fileCount) {
     String _temp0 = intl.Intl.pluralLogic(
       folderCount,

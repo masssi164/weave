@@ -242,6 +242,10 @@ class _PathBreadcrumbs extends ConsumerWidget {
     final crumbs = <Widget>[
       _BreadcrumbChip(
         label: l10n.filesRootBreadcrumb,
+        semanticLabel: path == '/'
+            ? l10n.filesCurrentFolderSemantic(l10n.filesRootBreadcrumb)
+            : l10n.filesOpenFolderSemantic(l10n.filesRootBreadcrumb),
+        isCurrent: path == '/',
         onPressed: path == '/' || isBusy
             ? null
             : () {
@@ -266,6 +270,10 @@ class _PathBreadcrumbs extends ConsumerWidget {
         ..add(
           _BreadcrumbChip(
             label: segments[index],
+            semanticLabel: isCurrent
+                ? l10n.filesCurrentFolderSemantic(segments[index])
+                : l10n.filesOpenFolderSemantic(segments[index]),
+            isCurrent: isCurrent,
             onPressed: isCurrent || isBusy
                 ? null
                 : () {
@@ -283,14 +291,33 @@ class _PathBreadcrumbs extends ConsumerWidget {
 }
 
 class _BreadcrumbChip extends StatelessWidget {
-  const _BreadcrumbChip({required this.label, required this.onPressed});
+  const _BreadcrumbChip({
+    required this.label,
+    required this.semanticLabel,
+    required this.isCurrent,
+    required this.onPressed,
+  });
 
   final String label;
+  final String semanticLabel;
+  final bool isCurrent;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return ActionChip(label: Text(label), onPressed: onPressed);
+    return Semantics(
+      button: onPressed != null,
+      enabled: onPressed != null,
+      selected: isCurrent,
+      label: semanticLabel,
+      child: ExcludeSemantics(
+        child: ActionChip(
+          avatar: isCurrent ? const Icon(Icons.place_outlined, size: 18) : null,
+          label: Text(label),
+          onPressed: onPressed,
+        ),
+      ),
+    );
   }
 }
 

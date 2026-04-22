@@ -186,6 +186,94 @@ void main() {
       expect(find.text('Root'), findsOneWidget);
     });
 
+    testWidgets('marks the current breadcrumb and lets users jump back home', (
+      tester,
+    ) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          accountLabel: 'alice',
+        ),
+        listings: const {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'folder-1',
+                name: 'Documents',
+                path: '/Documents',
+                isDirectory: true,
+              ),
+            ],
+          ),
+          '/Documents': DirectoryListing(
+            path: '/Documents',
+            entries: [
+              FileEntry(
+                id: 'folder-2',
+                name: 'Reports',
+                path: '/Documents/Reports',
+                isDirectory: true,
+              ),
+            ],
+          ),
+          '/Documents/Reports': DirectoryListing(
+            path: '/Documents/Reports',
+            entries: [
+              FileEntry(
+                id: 'file-2',
+                name: 'Q2.pdf',
+                path: '/Documents/Reports/Q2.pdf',
+                isDirectory: false,
+              ),
+            ],
+          ),
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Documents').first,
+          matching: find.byType(InkWell),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.ancestor(
+          of: find.text('Reports').first,
+          matching: find.byType(InkWell),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final reportsChip = tester.widget<ActionChip>(
+        find.widgetWithText(ActionChip, 'Reports'),
+      );
+      expect(reportsChip.onPressed, isNull);
+      expect(find.bySemanticsLabel('Current folder: Reports'), findsOneWidget);
+      expect(find.bySemanticsLabel('Open folder: Root'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(ActionChip, 'Root'));
+      await tester.pumpAndSettle();
+
+      expect(repository.requestedPaths.last, '/');
+      expect(find.text('Documents'), findsAtLeastNWidgets(1));
+    });
+
     testWidgets('meets androidTapTargetGuideline', (tester) async {
       final repository = _FakeFilesRepository(
         connectionState: FilesConnectionState.disconnected(
