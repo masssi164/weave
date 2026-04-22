@@ -44,7 +44,7 @@ void main() {
     );
   }
 
-  List<dynamic> _overrides(
+  List<dynamic> overridesFor(
     FakeChatRepository repository, {
     InMemoryPreferencesStore? store,
   }) {
@@ -64,7 +64,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: _overrides(repository),
+        overrides: overridesFor(repository),
       ),
     );
     await tester.pumpAndSettle();
@@ -115,7 +115,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: _overrides(repository),
+        overrides: overridesFor(repository),
       ),
     );
     await tester.pumpAndSettle();
@@ -138,7 +138,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: _overrides(repository),
+        overrides: overridesFor(repository),
       ),
     );
     await tester.pumpAndSettle();
@@ -159,7 +159,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: _overrides(repository),
+        overrides: overridesFor(repository),
       ),
     );
     await tester.pumpAndSettle();
@@ -179,7 +179,7 @@ void main() {
     await tester.pumpWidget(
       createTestApp(
         const ChatRoomScreen(conversation: conversation),
-        overrides: _overrides(repository, store: store),
+        overrides: overridesFor(repository, store: store),
       ),
     );
     await tester.pumpAndSettle();

@@ -248,7 +248,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     ],
                   ),
                 ),
-              (false, final timeline?, _) => RefreshIndicator(
+              (false, final ChatRoomTimeline _, _) => RefreshIndicator(
                 onRefresh: _loadTimeline,
                 child: ListView.separated(
                   reverse: true,
