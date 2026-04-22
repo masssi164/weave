@@ -25,7 +25,11 @@ class BootstrapGate extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: failure == null
-              ? LoadingState(message: l10n.bootstrapLoadingLabel)
+              ? LoadingState(
+                  message: l10n.bootstrapLoadingLabel,
+                  hint: l10n.bootstrapLoadingHint,
+                  icon: Icons.hub_outlined,
+                )
               : ErrorState(
                   message: failure!.message,
                   retryLabel: l10n.retryButton,

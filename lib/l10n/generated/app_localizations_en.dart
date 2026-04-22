@@ -87,6 +87,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bootstrapLoadingLabel => 'Preparing Weave…';
 
   @override
+  String get bootstrapLoadingHint =>
+      'Checking your workspace services and getting the shell ready.';
+
+  @override
   String get emptyStateLabel => 'Nothing here yet';
 
   @override
@@ -126,13 +130,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatLoadingLabel => 'Loading conversations…';
 
   @override
+  String get chatLoadingHint =>
+      'Gathering your latest rooms and recent conversation state.';
+
+  @override
   String get chatConnectingLabel => 'Connecting to Matrix…';
+
+  @override
+  String get chatConnectingHint =>
+      'We are opening your secure Matrix session and syncing the first room list.';
 
   @override
   String get chatConnectButton => 'Connect Matrix';
 
   @override
   String get filesScreenTitle => 'Files';
+
+  @override
+  String get filesLoadingLabel => 'Loading files…';
+
+  @override
+  String get filesLoadingHint =>
+      'Refreshing the current folder and checking what changed.';
 
   @override
   String get filesNextcloudTitle => 'Nextcloud';
