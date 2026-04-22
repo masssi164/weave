@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
@@ -36,6 +37,8 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/main.dart';
 
+import '../helpers/in_memory_stores.dart';
+
 void main() {
   group('Release 1 auth/files golden paths', () {
     testWidgets(
@@ -58,6 +61,9 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             authSessionRepositoryProvider.overrideWithValue(authRepository),
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(),
+            ),
             serverConfigurationRepositoryProvider.overrideWithValue(
               serverConfigurationRepository,
             ),
