@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
+import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
+import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -59,7 +62,7 @@ class _FakeOidcClient implements OidcClient {
 
 void main() {
   group('AppShell', () {
-    ProviderScope buildApp() {
+    ProviderScope buildApp({FakeChatRepository? chatRepository}) {
       final secureStore = InMemorySecureStore({
         authSessionStorageKey: AuthSessionDto.fromSession(
           buildTestAuthSession(),
@@ -75,7 +78,9 @@ void main() {
           ),
           secureStoreProvider.overrideWithValue(secureStore),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
-          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+          chatRepositoryProvider.overrideWithValue(
+            chatRepository ?? FakeChatRepository(),
+          ),
           chatSecurityRepositoryProvider.overrideWithValue(
             FakeChatSecurityRepository(),
           ),
@@ -108,6 +113,70 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Server Configuration'), findsOneWidget);
+    });
+
+    testWidgets('shows recent room activity on non-chat shell tabs', (
+      tester,
+    ) async {
+      final chatRepository = FakeChatRepository(
+        loadConversationsHandler: () async => <ChatConversation>[
+          const ChatConversation(
+            id: '!planning:weave.local',
+            title: 'Planning',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Roadmap draft is ready',
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+            lastActivityAt: null,
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(buildApp(chatRepository: chatRepository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recent chat rooms'), findsOneWidget);
+      expect(find.text('Planning'), findsOneWidget);
+      expect(find.text('Roadmap draft is ready'), findsOneWidget);
+    });
+
+    testWidgets('opens a recent room from the shell card', (tester) async {
+      const conversation = ChatConversation(
+        id: '!planning:weave.local',
+        title: 'Planning',
+        previewType: ChatConversationPreviewType.text,
+        previewText: 'Roadmap draft is ready',
+        unreadCount: 0,
+        isInvite: false,
+        isDirectMessage: false,
+        lastActivityAt: null,
+      );
+      final chatRepository = FakeChatRepository(
+        loadConversationsHandler: () async => <ChatConversation>[conversation],
+        loadRoomTimelineHandler: (roomId) async => ChatRoomTimeline(
+          roomId: roomId,
+          roomTitle: 'Planning',
+          isInvite: false,
+          canSendMessages: true,
+          messages: const [],
+        ),
+      );
+
+      await tester.pumpWidget(buildApp(chatRepository: chatRepository));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.folder_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Planning'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ChatRoomScreen), findsOneWidget);
+      expect(find.byIcon(Icons.refresh), findsOneWidget);
     });
   });
 }

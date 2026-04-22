@@ -132,6 +132,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatConnectButton => 'Connect Matrix';
 
   @override
+  String get shellRecentRoomsTitle => 'Recent chat rooms';
+
+  @override
+  String get shellRecentRoomsDescription =>
+      'Jump back into the conversations that changed most recently.';
+
+  @override
+  String get shellRecentRoomsLoading => 'Loading recent room activity…';
+
+  @override
+  String get shellRecentRoomsEmpty => 'No recent chat activity yet.';
+
+  @override
+  String get shellRecentRoomsUnavailable =>
+      'Recent room activity is unavailable right now.';
+
+  @override
+  String get shellRecentRoomsNoActivity => 'No recent activity';
+
+  @override
+  String shellRecentRoomsItemSemantic(
+    String roomTitle,
+    String preview,
+    String recency,
+  ) {
+    return 'Open $roomTitle. Preview: $preview. Recent activity: $recency.';
+  }
+
+  @override
   String get filesScreenTitle => 'Files';
 
   @override

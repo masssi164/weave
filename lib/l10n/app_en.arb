@@ -123,6 +123,34 @@
   "chatConnectButton": "Connect Matrix",
   "@chatConnectButton": { "description": "Button label to start or retry Matrix sign-in" },
 
+  "shellRecentRoomsTitle": "Recent chat rooms",
+  "@shellRecentRoomsTitle": { "description": "Title for the recent chat activity card shown in the workspace shell" },
+
+  "shellRecentRoomsDescription": "Jump back into the conversations that changed most recently.",
+  "@shellRecentRoomsDescription": { "description": "Description for the recent chat activity card shown in the workspace shell" },
+
+  "shellRecentRoomsLoading": "Loading recent room activity…",
+  "@shellRecentRoomsLoading": { "description": "Loading label shown while the shell fetches recent room activity" },
+
+  "shellRecentRoomsEmpty": "No recent chat activity yet.",
+  "@shellRecentRoomsEmpty": { "description": "Empty state shown when the workspace shell has no recent room activity to show" },
+
+  "shellRecentRoomsUnavailable": "Recent room activity is unavailable right now.",
+  "@shellRecentRoomsUnavailable": { "description": "Fallback error message shown when recent room activity cannot be shown in the shell" },
+
+  "shellRecentRoomsNoActivity": "No recent activity",
+  "@shellRecentRoomsNoActivity": { "description": "Fallback recency label for shell recent room items without a known activity timestamp" },
+
+  "shellRecentRoomsItemSemantic": "Open {roomTitle}. Preview: {preview}. Recent activity: {recency}.",
+  "@shellRecentRoomsItemSemantic": {
+    "description": "Semantic label for a recent room activity item in the workspace shell",
+    "placeholders": {
+      "roomTitle": { "type": "String" },
+      "preview": { "type": "String" },
+      "recency": { "type": "String" }
+    }
+  },
+
   "filesScreenTitle": "Files",
   "@filesScreenTitle": { "description": "Title for the files screen app bar" },
 

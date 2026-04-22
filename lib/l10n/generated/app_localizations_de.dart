@@ -133,6 +133,35 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatConnectButton => 'Matrix verbinden';
 
   @override
+  String get shellRecentRoomsTitle => 'Letzte Chaträume';
+
+  @override
+  String get shellRecentRoomsDescription =>
+      'Springe zurück in die Unterhaltungen mit den neuesten Änderungen.';
+
+  @override
+  String get shellRecentRoomsLoading => 'Letzte Raumaktivität wird geladen…';
+
+  @override
+  String get shellRecentRoomsEmpty => 'Noch keine aktuelle Chataktivität.';
+
+  @override
+  String get shellRecentRoomsUnavailable =>
+      'Aktuelle Raumaktivität ist gerade nicht verfügbar.';
+
+  @override
+  String get shellRecentRoomsNoActivity => 'Keine aktuelle Aktivität';
+
+  @override
+  String shellRecentRoomsItemSemantic(
+    String roomTitle,
+    String preview,
+    String recency,
+  ) {
+    return '$roomTitle öffnen. Vorschau: $preview. Letzte Aktivität: $recency.';
+  }
+
+  @override
   String get filesScreenTitle => 'Dateien';
 
   @override

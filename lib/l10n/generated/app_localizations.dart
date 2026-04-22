@@ -332,6 +332,52 @@ abstract class AppLocalizations {
   /// **'Connect Matrix'**
   String get chatConnectButton;
 
+  /// Title for the recent chat activity card shown in the workspace shell
+  ///
+  /// In en, this message translates to:
+  /// **'Recent chat rooms'**
+  String get shellRecentRoomsTitle;
+
+  /// Description for the recent chat activity card shown in the workspace shell
+  ///
+  /// In en, this message translates to:
+  /// **'Jump back into the conversations that changed most recently.'**
+  String get shellRecentRoomsDescription;
+
+  /// Loading label shown while the shell fetches recent room activity
+  ///
+  /// In en, this message translates to:
+  /// **'Loading recent room activity…'**
+  String get shellRecentRoomsLoading;
+
+  /// Empty state shown when the workspace shell has no recent room activity to show
+  ///
+  /// In en, this message translates to:
+  /// **'No recent chat activity yet.'**
+  String get shellRecentRoomsEmpty;
+
+  /// Fallback error message shown when recent room activity cannot be shown in the shell
+  ///
+  /// In en, this message translates to:
+  /// **'Recent room activity is unavailable right now.'**
+  String get shellRecentRoomsUnavailable;
+
+  /// Fallback recency label for shell recent room items without a known activity timestamp
+  ///
+  /// In en, this message translates to:
+  /// **'No recent activity'**
+  String get shellRecentRoomsNoActivity;
+
+  /// Semantic label for a recent room activity item in the workspace shell
+  ///
+  /// In en, this message translates to:
+  /// **'Open {roomTitle}. Preview: {preview}. Recent activity: {recency}.'**
+  String shellRecentRoomsItemSemantic(
+    String roomTitle,
+    String preview,
+    String recency,
+  );
+
   /// Title for the files screen app bar
   ///
   /// In en, this message translates to:
