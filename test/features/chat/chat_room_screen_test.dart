@@ -150,6 +150,57 @@ void main() {
     expect(find.text('Retry'), findsAtLeastNWidgets(1));
   });
 
+  testWidgets('keeps a failed outgoing message visible with retry actions', (
+    tester,
+  ) async {
+    var sendAttempts = 0;
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(),
+      sendMessageHandler: ({required roomId, required message}) async {
+        sendAttempts++;
+        if (sendAttempts == 1) {
+          throw const ChatFailure.protocol(
+            'Message could not be sent. Check your connection and try again.',
+          );
+        }
+      },
+    );
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'Retry me');
+    await tester.tap(find.text('Send'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Retry me'), findsAtLeastNWidgets(1));
+    expect(find.text('Not sent'), findsOneWidget);
+    expect(
+      find.text(
+        'Message could not be sent. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Retry send'), findsOneWidget);
+
+    await tester.tap(find.text('Retry send').first);
+    await tester.pumpAndSettle();
+
+    expect(repository.sendMessageCalls, 2);
+    expect(find.text('Not sent'), findsNothing);
+    expect(
+      find.text(
+        'Message could not be sent. Check your connection and try again.',
+      ),
+      findsNothing,
+    );
+  });
+
   testWidgets('disables the composer for invite-only rooms', (tester) async {
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async =>

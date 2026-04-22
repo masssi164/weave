@@ -1298,6 +1298,42 @@ abstract class AppLocalizations {
   /// **'Sending…'**
   String get chatRoomSendingButton;
 
+  /// Action label for retrying a failed room message send
+  ///
+  /// In en, this message translates to:
+  /// **'Retry send'**
+  String get chatRoomRetrySendAction;
+
+  /// Sender label used for locally pending outgoing messages
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get chatRoomYouLabel;
+
+  /// Status label shown on a message bubble while the message is sending
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get chatRoomMessageSendingStatus;
+
+  /// Friendly status label shown on a message bubble when sending failed
+  ///
+  /// In en, this message translates to:
+  /// **'Not sent'**
+  String get chatRoomMessageFailedStatus;
+
+  /// Fallback label for encrypted messages in the room timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted message'**
+  String get chatRoomEncryptedMessageLabel;
+
+  /// Fallback label for unsupported messages in the room timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported message'**
+  String get chatRoomUnsupportedMessageLabel;
+
   /// Tooltip for the message actions menu
   ///
   /// In en, this message translates to:
