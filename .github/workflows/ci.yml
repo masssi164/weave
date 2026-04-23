@@ -74,11 +74,14 @@ jobs:
           path: weave-infra
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/docker-weave-ghcr
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_PASSWORD: ${{ github.token }}
+        run: |
+          mkdir -p "$DOCKER_CONFIG"
+          printf '{"auths":{},"credsStore":""}\n' > "$DOCKER_CONFIG/config.json"
+          printf '%s' "$GHCR_PASSWORD" | docker --config "$DOCKER_CONFIG" login ghcr.io -u "$GHCR_USERNAME" --password-stdin
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -96,7 +99,9 @@ jobs:
         run: bash ./teardown.sh
 
       - name: Pull backend image
-        run: docker pull ghcr.io/masssi164/weave-backend:latest
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/docker-weave-ghcr
+        run: docker --config "$DOCKER_CONFIG" pull ghcr.io/masssi164/weave-backend:latest
 
       - name: Bootstrap local stack
         working-directory: weave-infra/weave-workspace
@@ -140,3 +145,9 @@ jobs:
         if: always()
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
+
+      - name: Log out of GHCR
+        if: always()
+        env:
+          DOCKER_CONFIG: ${{ runner.temp }}/docker-weave-ghcr
+        run: docker --config "$DOCKER_CONFIG" logout ghcr.io || true
