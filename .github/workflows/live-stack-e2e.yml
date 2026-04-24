@@ -27,8 +27,8 @@ permissions:
   packages: read
 
 concurrency:
-  group: live-stack-e2e-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: weave-live-stack-self-hosted
+  cancel-in-progress: false
 
 jobs:
   live-stack-e2e:
@@ -99,6 +99,10 @@ jobs:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
 
+      - name: Verify stack readiness before Flutter work
+        working-directory: weave-infra/weave-workspace
+        run: bash ./operator-check.sh
+
       - name: Trust local Weave CA for this runner user
         run: |
           CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
@@ -125,6 +129,7 @@ jobs:
       - name: Dump stack logs on failure
         if: failure()
         run: |
+          bash weave-infra/weave-workspace/operator-check.sh || true
           docker ps -a
           for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
             echo "--- ${container}"

@@ -22,6 +22,8 @@ import 'package:weave/features/server_config/domain/entities/service_endpoints.d
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/nextcloud/data/services/nextcloud_auth_headers.dart';
+import 'package:weave/integrations/nextcloud/data/services/nextcloud_login_launcher.dart';
+import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
 import 'package:weave/integrations/nextcloud/presentation/providers/nextcloud_provider.dart';
 import 'package:weave/main.dart';
 
@@ -74,11 +76,16 @@ void main() {
           oidcClientProvider.overrideWithValue(liveOidcDriver),
           matrixAuthBrowserProvider.overrideWithValue(liveOidcDriver),
           nextcloudHttpClientProvider.overrideWithValue(nextcloudHttpClient),
+          nextcloudLoginLauncherProvider.overrideWithValue(
+            const _FailingNextcloudLoginLauncher(),
+          ),
         ],
         child: const WeaveApp(),
       ),
     );
 
+    // ignore: avoid_print
+    print('APP_E2E_MARKER stage=app_started');
     await _pumpUntilSettled(tester);
 
     final container = ProviderScope.containerOf(
@@ -101,9 +108,15 @@ void main() {
       },
     );
 
+    // ignore: avoid_print
+    print('APP_E2E_MARKER stage=before_sign_in');
     await tester.tap(find.widgetWithText(AccessibleButton, 'Anmelden').first);
     await tester.pump();
+    // ignore: avoid_print
+    print('APP_E2E_MARKER stage=after_sign_in_tap');
 
+    // ignore: avoid_print
+    print('APP_E2E_MARKER stage=before_matrix_connect');
     container.read(chatProvider.notifier).connect();
     await tester.pump();
 
@@ -127,6 +140,9 @@ void main() {
       },
     );
 
+    // ignore: avoid_print
+    print('APP_E2E_MARKER stage=after_matrix_connect_wait');
+
     final chatState = container.read(chatProvider);
     final matrixConnected =
         chatState.phase == ChatViewPhase.empty ||
@@ -141,9 +157,25 @@ void main() {
     final roomId = await matrixClient.createGroupChat(
       groupName: roomName,
       enableEncryption: false,
-      waitForSync: true,
+      waitForSync: false,
       federated: false,
     );
+    await _waitFor(
+      tester,
+      () => matrixClient.getRoomById(roomId) != null,
+      reason: 'The live Matrix room should become available after creation.',
+      timeout: const Duration(minutes: 1),
+      diagnostics: () {
+        final state = container.read(chatProvider);
+        return 'roomId=$roomId '
+            'chatPhase=${state.phase} '
+            'failure=${state.failure?.message} '
+            'cause=${state.failure?.cause} '
+            'knownRooms=${matrixClient.rooms.length}';
+      },
+    );
+    // ignore: avoid_print
+    print('APP_E2E_MARKER stage=after_room_visible');
     final sentMessage =
         'live-e2e message ${DateTime.now().toUtc().toIso8601String()}';
     await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
@@ -166,6 +198,8 @@ void main() {
       'cause=${chatState.failure?.cause}',
     );
 
+    // ignore: avoid_print
+    print('APP_E2E_MARKER stage=before_nextcloud_connect');
     await container.read(filesProvider.notifier).connect();
     await tester.pump();
 
@@ -308,6 +342,19 @@ Future<void> _waitFor(
   }
   final details = diagnostics?.call();
   fail(details == null ? reason : '$reason\n$details');
+}
+
+class _FailingNextcloudLoginLauncher implements NextcloudLoginLauncher {
+  const _FailingNextcloudLoginLauncher();
+
+  @override
+  Future<void> launch(Uri loginUri) {
+    throw NextcloudFailure.unsupportedPlatform(
+      'Live app e2e should not fall back to the interactive Nextcloud login '
+      'flow during CI. Expected bearer session reuse instead. '
+      'loginUri=$loginUri',
+    );
+  }
 }
 
 class _MemorySecureStore implements SecureStore {

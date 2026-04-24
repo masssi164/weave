@@ -46,6 +46,9 @@ jobs:
   integration-test:
     name: Live Stack Integration Test
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    concurrency:
+      group: weave-live-stack-self-hosted
+      cancel-in-progress: false
     runs-on:
       - self-hosted
       - macOS
@@ -62,8 +65,7 @@ jobs:
       WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
       WEAVE_INFRA_REF: main
-      WEAVE_BACKEND_REF: main
-      WEAVE_BACKEND_IMAGE: weave-backend:latest
+      WEAVE_BACKEND_IMAGE: ghcr.io/masssi164/weave-backend:latest
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
@@ -82,14 +84,14 @@ jobs:
           repository: masssi164/weave-infra
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
-      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          repository: masssi164/weave-backend
-          ref: ${{ env.WEAVE_BACKEND_REF }}
-          path: weave-backend
-      - name: Build backend image
-        working-directory: weave-backend
-        run: docker build -t "${WEAVE_BACKEND_IMAGE}" .
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Pull backend image
+        run: docker pull "${WEAVE_BACKEND_IMAGE}"
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
@@ -108,6 +110,9 @@ jobs:
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
+      - name: Verify stack readiness before Flutter work
+        working-directory: weave-infra/weave-workspace
+        run: bash ./operator-check.sh
       - name: Trust local Weave CA for this runner user
         run: |
           CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
@@ -129,6 +134,7 @@ jobs:
       - name: Dump stack logs on failure
         if: failure()
         run: |
+          bash weave-infra/weave-workspace/operator-check.sh || true
           docker ps -a
           for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
             echo "--- ${container}"

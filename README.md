@@ -161,8 +161,8 @@ Supported overrides:
 - `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://api.weave.local`
 - `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://keycloak.weave.local/realms/weave`
 - `WEAVE_OIDC_CLIENT_ID`: app OIDC client ID, defaulting to `weave-app`
-- `WEAVE_TEST_USERNAME`: username for the test account
-- `WEAVE_TEST_PASSWORD`: password for the test account
+- `WEAVE_TEST_USERNAME`: username for the test account used in the browser-grade PKCE login flow
+- `WEAVE_TEST_PASSWORD`: password for the test account used in the browser-grade PKCE login flow
 
 ### Validation
 Run the full validation suite before opening a change:

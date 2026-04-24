@@ -54,7 +54,7 @@ void main() {
   setUp(() {
     config = liveConfig;
     httpClient = createTrustedTestHttpClient();
-    authHelper = AuthHelper(httpClient: httpClient);
+    authHelper = AuthHelper();
   });
 
   tearDown(() {
