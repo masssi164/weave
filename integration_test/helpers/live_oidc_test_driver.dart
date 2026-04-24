@@ -75,7 +75,10 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
     } on AuthFailure {
       rethrow;
     } catch (error) {
-      throw AuthFailure.unknown('Unable to complete sign-in.', cause: error);
+      throw AuthFailure.unknown(
+        'Unable to complete sign-in: $error',
+        cause: error,
+      );
     }
   }
 
@@ -521,6 +524,9 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
       }
       final type = (_extractHtmlAttribute(attributes, 'type') ?? 'text')
           .toLowerCase();
+      if (type == 'submit' || type == 'button') {
+        continue;
+      }
       final isChecked = RegExp(
         r'\schecked(?:\s|>|$)',
         caseSensitive: false,
@@ -530,6 +536,32 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
       }
       fields[name] = _extractHtmlAttribute(attributes, 'value') ?? 'on';
     }
+
+    final submitButton =
+        RegExp(
+          r'<button([^>]*)>([\s\S]*?)</button>',
+          caseSensitive: false,
+        ).allMatches(formHtml).firstWhere((match) {
+          final attributes = match.group(1) ?? '';
+          final type = (_extractHtmlAttribute(attributes, 'type') ?? 'submit')
+              .toLowerCase();
+          final disabled = RegExp(
+            r'\sdisabled(?:\s|>|$)',
+            caseSensitive: false,
+          ).hasMatch(attributes);
+          return !disabled && type == 'submit';
+        }, orElse: () => RegExp(r'a^').firstMatch('')!);
+    final submitAttributes = submitButton.groupCount > 0
+        ? submitButton.group(1) ?? ''
+        : '';
+    final submitName = _extractHtmlAttribute(submitAttributes, 'name');
+    if (submitName != null && submitName.isNotEmpty) {
+      fields.putIfAbsent(
+        submitName,
+        () => _extractHtmlAttribute(submitAttributes, 'value') ?? 'on',
+      );
+    }
+
     return fields;
   }
 
