@@ -24,6 +24,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: weave-live-stack-self-hosted
@@ -75,7 +76,9 @@ jobs:
           export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
           mkdir -p "$DOCKER_CONFIG"
           chmod 700 "$DOCKER_CONFIG"
-          printf '%s\n' '{"auths":{}}' > "$DOCKER_CONFIG/config.json"
+          cat > "$DOCKER_CONFIG/config.json" <<'EOF'
+          {"auths":{}}
+          EOF
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
             --username "$GITHUB_ACTOR" \
