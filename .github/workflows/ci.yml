@@ -26,7 +26,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   build:
@@ -63,7 +62,8 @@ jobs:
       WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
       WEAVE_INFRA_REF: main
-      WEAVE_BACKEND_IMAGE: ghcr.io/masssi164/weave-backend:latest
+      WEAVE_BACKEND_REF: main
+      WEAVE_BACKEND_IMAGE: weave-backend:latest
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
@@ -82,14 +82,14 @@ jobs:
           repository: masssi164/weave-infra
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
-      - name: Pull backend image
-        run: |
-          export DOCKER_CONFIG="$(mktemp -d)"
-          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
-          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          docker pull "${WEAVE_BACKEND_IMAGE}"
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@v4
+        with:
+          repository: masssi164/weave-backend
+          ref: ${{ env.WEAVE_BACKEND_REF }}
+          path: weave-backend
+      - name: Build backend image
+        working-directory: weave-backend
+        run: docker build -t "${WEAVE_BACKEND_IMAGE}" .
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
