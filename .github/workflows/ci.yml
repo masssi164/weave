@@ -87,10 +87,22 @@ jobs:
           repository: masssi164/weave-infra
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
+      - name: Resolve weave-backend ref
+        id: resolve_backend_ref
+        env:
+          DEFAULT_BACKEND_REF: ${{ env.WEAVE_BACKEND_REF }}
+          CURRENT_REF_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          resolved_ref="$DEFAULT_BACKEND_REF"
+          if [[ -n "$CURRENT_REF_NAME" ]] && git ls-remote --exit-code --heads "https://github.com/${WEAVE_BACKEND_REPO}.git" "$CURRENT_REF_NAME" >/dev/null 2>&1; then
+            resolved_ref="$CURRENT_REF_NAME"
+          fi
+          echo "Resolved weave-backend ref: ${resolved_ref}"
+          echo "resolved_ref=${resolved_ref}" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           repository: ${{ env.WEAVE_BACKEND_REPO }}
-          ref: ${{ env.WEAVE_BACKEND_REF }}
+          ref: ${{ steps.resolve_backend_ref.outputs.resolved_ref }}
           path: weave-backend
       - name: Build backend image locally for the live stack
         working-directory: weave-backend
