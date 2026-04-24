@@ -70,7 +70,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: masssi164/weave-infra
-          ref: main
+          ref: pr-21
           path: weave-infra
 
       - name: Set up Flutter
