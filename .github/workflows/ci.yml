@@ -77,6 +77,7 @@ jobs:
       TF_VAR_nextcloud_host_port: '48083'
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'true'
+      WEAVE_REMOVE_VOLUMES: 'true'
     steps:
       - uses: actions/checkout@v4
         with:
