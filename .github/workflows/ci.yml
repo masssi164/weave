@@ -73,7 +73,6 @@ jobs:
       TF_VAR_nextcloud_host_port: '48083'
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'true'
-      DOCKER_CONFIG: ${{ runner.temp }}/docker-ghcr
     steps:
       - uses: actions/checkout@v4
         with:
@@ -83,10 +82,12 @@ jobs:
           repository: masssi164/weave-infra
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
-      - name: Log in to GHCR
+      - name: Pull backend image
         run: |
-          mkdir -p "$DOCKER_CONFIG"
+          export DOCKER_CONFIG="$(mktemp -d)"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker pull "${WEAVE_BACKEND_IMAGE}"
         env:
           GITHUB_TOKEN: ${{ github.token }}
       - name: Set up Terraform
@@ -102,8 +103,6 @@ jobs:
       - name: Clean up stale stack state before bootstrap
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
-      - name: Pull backend image
-        run: docker pull "${WEAVE_BACKEND_IMAGE}"
       - name: Bootstrap local stack
         working-directory: weave-infra/weave-workspace
         env:
