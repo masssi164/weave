@@ -93,10 +93,11 @@ jobs:
           export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
           mkdir -p "$DOCKER_CONFIG"
           chmod 700 "$DOCKER_CONFIG"
-          printf '{"auths":{}}
-' > "$DOCKER_CONFIG/config.json"
+          printf '%s\n' '{"auths":{}}' > "$DOCKER_CONFIG/config.json"
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io             --username "$GITHUB_ACTOR"             --password-stdin
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+            --username "$GITHUB_ACTOR" \
+            --password-stdin
       - name: Pull backend image
         run: docker pull "${WEAVE_BACKEND_IMAGE}"
       - name: Set up Terraform
