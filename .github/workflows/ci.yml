@@ -24,6 +24,10 @@ on:
       WEAVE_TEST_PASSWORD:
         required: true
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build:
     if: github.event_name == 'push' || github.event_name == 'pull_request'
@@ -48,28 +52,92 @@ jobs:
       - macOS
       - ARM64
       - weave-live
-    timeout-minutes: 45
+    timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
     env:
       WEAVE_BASE_URL: ${{ inputs.WEAVE_BASE_URL }}
       WEAVE_TEST_USERNAME: ${{ inputs.WEAVE_TEST_USERNAME }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
-      WEAVE_BOOTSTRAP_ENV: /tmp/weave-infra/weave-workspace/.generated/bootstrap.env
+      WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
+      WEAVE_INFRA_REF: main
+      WEAVE_BACKEND_IMAGE: ghcr.io/masssi164/weave-backend:latest
+      TF_VAR_create_test_user: 'true'
+      TF_VAR_proxy_http_host_port: '44080'
+      TF_VAR_proxy_host_port: '44443'
+      TF_VAR_keycloak_host_port: '48080'
+      TF_VAR_mas_host_port: '48082'
+      TF_VAR_synapse_host_port: '48008'
+      TF_VAR_nextcloud_host_port: '48083'
+      TF_VAR_backend_host_port: '48084'
+      WEAVE_RUNNER_HYGIENE: 'true'
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: weave
+      - uses: actions/checkout@v4
+        with:
+          repository: masssi164/weave-infra
+          ref: ${{ env.WEAVE_INFRA_REF }}
+          path: weave-infra
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
       - name: Free disk space on self-hosted runner
+        working-directory: weave
         run: |
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData"
-          rm -rf "$GITHUB_WORKSPACE/build"
+          rm -rf "$GITHUB_WORKSPACE/weave/build"
+      - name: Clean up stale stack state before bootstrap
+        working-directory: weave-infra/weave-workspace
+        run: bash ./teardown.sh
+      - name: Pull backend image
+        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+      - name: Bootstrap local stack
+        working-directory: weave-infra/weave-workspace
+        env:
+          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
+        run: ./install.sh
+      - name: Trust local Weave CA for this runner user
+        run: |
+          CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
+          security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
       - name: Verify local live-stack bootstrap env
         run: |
-          test -f /tmp/weave-infra/weave-workspace/.generated/bootstrap.env
+          test -f "$WEAVE_BOOTSTRAP_ENV"
       - name: Use host Flutter SDK
+        working-directory: weave
         run: flutter --version
-      - run: flutter pub get
-      - run: flutter gen-l10n
-      - run: dart run build_runner build --delete-conflicting-outputs
-      - run: make integration-test
+      - working-directory: weave
+        run: flutter pub get
+      - working-directory: weave
+        run: flutter gen-l10n
+      - working-directory: weave
+        run: dart run build_runner build --delete-conflicting-outputs
+      - working-directory: weave
+        run: make integration-test
+      - name: Dump stack logs on failure
+        if: failure()
+        run: |
+          docker ps -a
+          for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
+            echo "--- ${container}"
+            docker logs "${container}" || true
+          done
+      - name: Destroy stack and scrub stale resources
+        if: always()
+        working-directory: weave-infra/weave-workspace
+        run: bash ./teardown.sh
 
   integration-contract-test:
     # Headless live-stack contract checks can run on GitHub-hosted Linux once a stack is reachable.
