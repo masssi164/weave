@@ -3,20 +3,28 @@ name: Live Stack E2E
 on:
   workflow_dispatch:
     inputs:
-      weave_backend_image:
-        description: "Backend image to boot inside the infra stack"
+      weave_backend_repo:
+        description: "Backend repository to build locally on the runner"
         required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
+        default: "masssi164/weave-backend"
+      weave_backend_ref:
+        description: "Git ref to use for weave-backend"
+        required: false
+        default: "main"
       weave_infra_ref:
         description: "Git ref to use for weave-infra"
         required: false
         default: "main"
   workflow_call:
     inputs:
-      weave_backend_image:
+      weave_backend_repo:
         type: string
         required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
+        default: "masssi164/weave-backend"
+      weave_backend_ref:
+        type: string
+        required: false
+        default: "main"
       weave_infra_ref:
         type: string
         required: false
@@ -24,7 +32,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 concurrency:
   group: weave-live-stack-self-hosted
@@ -38,7 +45,9 @@ jobs:
       - macOS
     timeout-minutes: 75
     env:
-      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
+      WEAVE_BACKEND_REPO: ${{ inputs.weave_backend_repo || github.event.inputs.weave_backend_repo || 'masssi164/weave-backend' }}
+      WEAVE_BACKEND_REF: ${{ inputs.weave_backend_ref || github.event.inputs.weave_backend_ref || 'main' }}
+      WEAVE_BACKEND_IMAGE: weave-backend:live-stack-${{ github.run_id }}-${{ github.run_attempt }}
       WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
@@ -68,21 +77,12 @@ jobs:
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
 
-      - name: Configure Docker auth without macOS Keychain
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
-          mkdir -p "$DOCKER_CONFIG"
-          chmod 700 "$DOCKER_CONFIG"
-          cat > "$DOCKER_CONFIG/config.json" <<'EOF'
-          {"auths":{}}
-          EOF
-          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
-            --username "$GITHUB_ACTOR" \
-            --password-stdin
+      - name: Check out weave-backend
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.WEAVE_BACKEND_REPO }}
+          ref: ${{ env.WEAVE_BACKEND_REF }}
+          path: weave-backend
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -99,8 +99,9 @@ jobs:
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
 
-      - name: Pull backend image
-        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+      - name: Build backend image locally for the live stack
+        working-directory: weave-backend
+        run: docker build --tag "${WEAVE_BACKEND_IMAGE}" .
 
       - name: Bootstrap local stack
         working-directory: weave-infra/weave-workspace

@@ -26,7 +26,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   build:
@@ -66,7 +65,9 @@ jobs:
       WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
       WEAVE_INFRA_REF: main
-      WEAVE_BACKEND_IMAGE: ghcr.io/masssi164/weave-backend:latest
+      WEAVE_BACKEND_REPO: masssi164/weave-backend
+      WEAVE_BACKEND_REF: main
+      WEAVE_BACKEND_IMAGE: weave-backend:live-stack-${{ github.run_id }}-${{ github.run_attempt }}
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
@@ -85,24 +86,14 @@ jobs:
           repository: masssi164/weave-infra
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
-      - name: Configure Docker auth without macOS Keychain
-        shell: bash
-        env:
-          GHCR_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
-          mkdir -p "$DOCKER_CONFIG"
-          chmod 700 "$DOCKER_CONFIG"
-          cat > "$DOCKER_CONFIG/config.json" <<'EOF'
-          {"auths":{}}
-          EOF
-          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
-            --username "$GITHUB_ACTOR" \
-            --password-stdin
-      - name: Pull backend image
-        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.WEAVE_BACKEND_REPO }}
+          ref: ${{ env.WEAVE_BACKEND_REF }}
+          path: weave-backend
+      - name: Build backend image locally for the live stack
+        working-directory: weave-backend
+        run: docker build --tag "${WEAVE_BACKEND_IMAGE}" .
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:

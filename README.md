@@ -154,7 +154,7 @@ Run against a different infra checkout:
 WEAVE_BOOTSTRAP_ENV=../weave-inf/weave-workspace/.generated/bootstrap.env make integration-test
 ```
 
-The GitHub Actions live-stack job now runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. That runner only needs the local stack bootstrapped once on the same machine because the workflow reads the mirrored `/tmp/weave-infra/.../bootstrap.env` file.
+The GitHub Actions live-stack job now runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. That runner builds the backend image locally from a checked out `weave-backend` ref, then boots the stack with that local tag while reading the mirrored `/tmp/weave-infra/.../bootstrap.env` file. The self-hosted validation path no longer needs GHCR login or image pulls.
 
 Supported overrides:
 
