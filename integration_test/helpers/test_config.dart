@@ -93,6 +93,9 @@ class TestConfig {
     );
   }
 
+  bool get hasCredentials =>
+      username.trim().isNotEmpty && password.trim().isNotEmpty;
+
   void requireCredentials() {
     final missing = <String>[
       if (username.trim().isEmpty) 'WEAVE_TEST_USERNAME',

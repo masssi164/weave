@@ -144,6 +144,10 @@ cd ../../weave
 make integration-test
 ```
 
+That target runs the non-UI contract checks in `test/live_stack_contract_test.dart` headlessly first, then launches the macOS app once for `integration_test/live_stack_app_e2e_test.dart`. Keeping the first file off-device avoids an unnecessary extra app build and launch cycle in CI.
+
+Set `WEAVE_RUN_APP_E2E=false` when you only want the headless contract leg, for example on GitHub-hosted Linux runners that cannot launch the macOS app target.
+
 Run against a different infra checkout:
 
 ```sh

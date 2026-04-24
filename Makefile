@@ -17,6 +17,7 @@ integration-test:
 	caller_WEAVE_TEST_PASSWORD_set="$${WEAVE_TEST_PASSWORD+x}"; \
 	caller_WEAVE_TEST_PASSWORD="$${WEAVE_TEST_PASSWORD-}"; \
 	test_device="$${WEAVE_INTEGRATION_TEST_DEVICE:-$${FLUTTER_TEST_DEVICE:-macos}}"; \
+	run_app_e2e="$${WEAVE_RUN_APP_E2E:-true}"; \
 	if [ -f "$$bootstrap_env" ]; then \
 	  . "$$bootstrap_env"; \
 	fi; \
@@ -29,14 +30,17 @@ integration-test:
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://keycloak.weave.local/realms/weave}"; \
 	WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID:-weave-app}"; \
 	printf '%s\n' \
-	  '{' \
-	  '  "WEAVE_BASE_URL": "'"$$WEAVE_BASE_URL"'",' \
-	  '  "WEAVE_OIDC_ISSUER_URL": "'"$$WEAVE_OIDC_ISSUER_URL"'",' \
-	  '  "WEAVE_OIDC_CLIENT_ID": "'"$$WEAVE_OIDC_CLIENT_ID"'",' \
-	  '  "WEAVE_TEST_USERNAME": "'"$${WEAVE_TEST_USERNAME}"'",' \
-	  '  "WEAVE_TEST_PASSWORD": "'"$${WEAVE_TEST_PASSWORD}"'"' \
-	  '}' > "$$dart_defines_file"; \
-	for test_file in integration_test/app_test.dart integration_test/live_stack_app_e2e_test.dart; do \
-	  flutter test "$$test_file" -d "$$test_device" \
-	    --dart-define-from-file="$$dart_defines_file" || exit $$?; \
-	done
+	  "{" \
+	  "  \"WEAVE_BASE_URL\": \"$$WEAVE_BASE_URL\"," \
+	  "  \"WEAVE_OIDC_ISSUER_URL\": \"$$WEAVE_OIDC_ISSUER_URL\"," \
+	  "  \"WEAVE_OIDC_CLIENT_ID\": \"$$WEAVE_OIDC_CLIENT_ID\"," \
+	  "  \"WEAVE_TEST_USERNAME\": \"$${WEAVE_TEST_USERNAME}\"," \
+	  "  \"WEAVE_TEST_PASSWORD\": \"$${WEAVE_TEST_PASSWORD}\"" \
+	  "}" > "$$dart_defines_file"; \
+	flutter test test/live_stack_contract_test.dart \
+	  --dart-define-from-file="$$dart_defines_file" || exit $$?; \
+	if [ "$$run_app_e2e" = "false" ]; then \
+	  exit 0; \
+	fi; \
+	flutter test integration_test/live_stack_app_e2e_test.dart -d "$$test_device" \
+	  --dart-define-from-file="$$dart_defines_file"

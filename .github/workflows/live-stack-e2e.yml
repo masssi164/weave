@@ -1,0 +1,137 @@
+name: Live Stack E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      weave_backend_image:
+        description: "Backend image to boot inside the infra stack"
+        required: false
+        default: "ghcr.io/masssi164/weave-backend:latest"
+      weave_infra_ref:
+        description: "Git ref to use for weave-infra"
+        required: false
+        default: "main"
+  workflow_call:
+    inputs:
+      weave_backend_image:
+        type: string
+        required: false
+        default: "ghcr.io/masssi164/weave-backend:latest"
+      weave_infra_ref:
+        type: string
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: live-stack-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-stack-e2e:
+    name: Bootstrap Stack And Run App E2E
+    runs-on:
+      - self-hosted
+      - macOS
+    timeout-minutes: 75
+    env:
+      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
+      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
+      TF_VAR_create_test_user: 'true'
+      TF_VAR_proxy_http_host_port: '44080'
+      TF_VAR_proxy_host_port: '44443'
+      TF_VAR_keycloak_host_port: '48080'
+      TF_VAR_mas_host_port: '48082'
+      TF_VAR_synapse_host_port: '48008'
+      TF_VAR_nextcloud_host_port: '48083'
+      TF_VAR_backend_host_port: '48084'
+      WEAVE_RUNNER_HYGIENE: 'true'
+      WEAVE_INTEGRATION_TEST_DEVICE: macos
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out weave
+        uses: actions/checkout@v4
+        with:
+          path: weave
+
+      - name: Check out weave-infra
+        uses: actions/checkout@v4
+        with:
+          repository: masssi164/weave-infra
+          ref: ${{ env.WEAVE_INFRA_REF }}
+          path: weave-infra
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Clean up stale stack state before bootstrap
+        working-directory: weave-infra/weave-workspace
+        run: bash ./teardown.sh
+
+      - name: Pull backend image
+        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+
+      - name: Bootstrap local stack
+        working-directory: weave-infra/weave-workspace
+        env:
+          TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
+        run: ./install.sh
+
+      - name: Trust local Weave CA for this runner user
+        run: |
+          CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
+          security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
+
+      - name: Install Flutter dependencies
+        working-directory: weave
+        run: flutter pub get
+
+      - name: Generate l10n
+        working-directory: weave
+        run: flutter gen-l10n
+
+      - name: Generate code
+        working-directory: weave
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Run live stack integration tests
+        working-directory: weave
+        env:
+          WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
+        run: make integration-test
+
+      - name: Dump stack logs on failure
+        if: failure()
+        run: |
+          docker ps -a
+          for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
+            echo "--- ${container}"
+            docker logs "${container}" || true
+          done
+
+      - name: Destroy stack and scrub stale resources
+        if: always()
+        working-directory: weave-infra/weave-workspace
+        run: bash ./teardown.sh

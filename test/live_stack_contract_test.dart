@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:integration_test/integration_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
@@ -36,20 +35,24 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
 
-import 'helpers/auth_helper.dart';
-import 'helpers/test_config.dart';
-import 'helpers/test_http_overrides.dart';
+import '../integration_test/helpers/auth_helper.dart';
+import '../integration_test/helpers/test_config.dart';
+import '../integration_test/helpers/test_http_overrides.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = TestHttpOverrides();
+
+  final liveConfig = TestConfig.fromEnvironment();
+  final skipReason = liveConfig.hasCredentials
+      ? false
+      : 'Requires WEAVE_TEST_USERNAME and WEAVE_TEST_PASSWORD dart-defines.';
 
   late TestConfig config;
   late http.Client httpClient;
   late AuthHelper authHelper;
 
   setUp(() {
-    config = TestConfig.fromEnvironment();
+    config = liveConfig;
     httpClient = createTrustedTestHttpClient();
     authHelper = AuthHelper(httpClient: httpClient);
   });
@@ -67,7 +70,7 @@ void main() {
 
     expect(session.accessToken, isNotEmpty);
     expect(bootstrap.phase, BootstrapPhase.ready);
-  });
+  }, skip: skipReason);
 
   test('settings/config change -> targeted invalidation fires', () async {
     final session = await authHelper.signInForAppSession(config);
@@ -124,7 +127,7 @@ void main() {
       ),
       isNull,
     );
-  });
+  }, skip: skipReason);
 
   test('authenticated GET /api/v1/me returns expected claims', () async {
     final accessToken = await authHelper.signIn(config);
@@ -143,7 +146,7 @@ void main() {
     expect((payload['sub'] as String).trim(), isNotEmpty);
     expect(payload['email'], isA<String>());
     expect((payload['email'] as String).trim(), isNotEmpty);
-  });
+  }, skip: skipReason);
 
   test('authenticated GET /api/v1/workspace/capabilities returns expected '
       'structure', () async {
@@ -174,7 +177,7 @@ void main() {
         expect(payload[key], isA<Map>(), reason: 'Missing "$key".');
       }
     }
-  });
+  }, skip: skipReason);
 
   test(
     'backend unavailable -> backend client surfaces unreachable failure',
@@ -201,6 +204,7 @@ void main() {
         contains('Unable to reach the Weave backend right now.'),
       );
     },
+    skip: skipReason,
   );
 }
 

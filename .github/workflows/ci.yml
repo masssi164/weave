@@ -70,3 +70,22 @@ jobs:
       - run: flutter gen-l10n
       - run: dart run build_runner build --delete-conflicting-outputs
       - run: make integration-test
+
+  integration-contract-test:
+    # Headless live-stack contract checks can run on GitHub-hosted Linux once a stack is reachable.
+    if: github.event_name == 'workflow_call'
+    runs-on: ubuntu-latest
+    env:
+      WEAVE_BASE_URL: ${{ inputs.WEAVE_BASE_URL }}
+      WEAVE_TEST_USERNAME: ${{ inputs.WEAVE_TEST_USERNAME }}
+      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
+      WEAVE_RUN_APP_E2E: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter gen-l10n
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: make integration-test
