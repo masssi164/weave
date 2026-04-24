@@ -73,6 +73,12 @@ jobs:
           ref: pr-21
           path: weave-infra
 
+      - name: Check out weave-backend
+        uses: actions/checkout@v4
+        with:
+          repository: masssi164/weave-backend
+          path: weave-backend
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -87,6 +93,10 @@ jobs:
       - name: Clean up stale stack state before bootstrap
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
+
+      - name: Build local backend image for bootstrap
+        working-directory: weave-backend
+        run: docker build -t weave-backend:latest .
 
       - name: Bootstrap local stack
         working-directory: weave-infra/weave-workspace
