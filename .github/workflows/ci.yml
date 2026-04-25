@@ -14,7 +14,7 @@ on:
       WEAVE_INFRA_REF:
         description: "Git ref to use for weave-infra"
         required: false
-        default: "main"
+        default: "fix/keycloak-bootstrap-admin-env"
       WEAVE_BACKEND_IMAGE:
         description: "Backend image to boot inside the infra stack"
         required: false
@@ -31,7 +31,7 @@ on:
       WEAVE_INFRA_REF:
         type: string
         required: false
-        default: "main"
+        default: "fix/keycloak-bootstrap-admin-env"
       WEAVE_BACKEND_IMAGE:
         type: string
         required: false
@@ -95,7 +95,7 @@ jobs:
       TF_VAR_synapse_form_secret: ci-synapse-form-secret
       WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
-      WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || 'main' }}
+      WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || 'fix/keycloak-bootstrap-admin-env' }}
       WEAVE_BACKEND_IMAGE: ${{ inputs.WEAVE_BACKEND_IMAGE || 'ghcr.io/masssi164/weave-backend:latest' }}
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'

@@ -10,7 +10,7 @@ on:
       weave_infra_ref:
         description: "Git ref to use for weave-infra"
         required: false
-        default: "main"
+        default: "fix/keycloak-bootstrap-admin-env"
   workflow_call:
     inputs:
       weave_backend_image:
@@ -20,7 +20,7 @@ on:
       weave_infra_ref:
         type: string
         required: false
-        default: "main"
+        default: "fix/keycloak-bootstrap-admin-env"
     secrets:
       WEAVE_TEST_PASSWORD:
         required: true
@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 75
     env:
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
-      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
+      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'fix/keycloak-bootstrap-admin-env' }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_db_admin_password: ci-db-admin-password
