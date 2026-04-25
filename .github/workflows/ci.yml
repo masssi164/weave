@@ -15,6 +15,10 @@ on:
         description: "Git ref to use for weave-infra"
         required: false
         default: "main"
+      WEAVE_BACKEND_REF:
+        description: "Git ref to use for weave-backend when building the live-stack backend image"
+        required: false
+        default: "main"
       WEAVE_BACKEND_IMAGE:
         description: "Backend image to boot inside the infra stack"
         required: false
@@ -29,6 +33,10 @@ on:
         type: string
         required: true
       WEAVE_INFRA_REF:
+        type: string
+        required: false
+        default: "main"
+      WEAVE_BACKEND_REF:
         type: string
         required: false
         default: "main"
@@ -95,8 +103,9 @@ jobs:
       TF_VAR_synapse_form_secret: ci-synapse-form-secret
       WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
-      WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || 'main' }}
-      WEAVE_BACKEND_IMAGE: ${{ inputs.WEAVE_BACKEND_IMAGE || 'ghcr.io/masssi164/weave-backend:latest' }}
+      REQUESTED_WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || github.head_ref || github.ref_name || 'main' }}
+      REQUESTED_WEAVE_BACKEND_REF: ${{ inputs.WEAVE_BACKEND_REF || github.head_ref || github.ref_name || 'main' }}
+      WEAVE_BACKEND_IMAGE: ${{ inputs.WEAVE_BACKEND_IMAGE || 'weave-backend:live-stack-ci' }}
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
@@ -107,14 +116,46 @@ jobs:
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'true'
     steps:
+      - name: Resolve companion repository refs
+        id: companion_refs
+        run: |
+          set -euo pipefail
+
+          resolve_ref() {
+            local repo="$1"
+            local requested_ref="$2"
+
+            if git ls-remote --exit-code --heads "https://github.com/${repo}.git" "${requested_ref}" >/dev/null 2>&1; then
+              printf '%s' "${requested_ref}"
+            else
+              printf '%s' "main"
+            fi
+          }
+
+          infra_ref="$(resolve_ref masssi164/weave-infra "${REQUESTED_WEAVE_INFRA_REF}")"
+          backend_ref="$(resolve_ref masssi164/weave-backend "${REQUESTED_WEAVE_BACKEND_REF}")"
+
+          {
+            echo "infra_ref=${infra_ref}"
+            echo "backend_ref=${backend_ref}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Using weave-infra ref: ${infra_ref}"
+          echo "Using weave-backend ref: ${backend_ref}"
+
       - uses: actions/checkout@v4
         with:
           path: weave
       - uses: actions/checkout@v4
         with:
           repository: masssi164/weave-infra
-          ref: ${{ env.WEAVE_INFRA_REF }}
+          ref: ${{ steps.companion_refs.outputs.infra_ref }}
           path: weave-infra
+      - uses: actions/checkout@v4
+        with:
+          repository: masssi164/weave-backend
+          ref: ${{ steps.companion_refs.outputs.backend_ref }}
+          path: weave-backend
       - name: Configure Docker auth without macOS Keychain
         shell: bash
         env:
@@ -131,8 +172,8 @@ jobs:
           chmod 600 "$DOCKER_CONFIG/config.json"
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           docker --config "$DOCKER_CONFIG" info >/dev/null
-      - name: Pull backend image
-        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+      - name: Build backend image
+        run: docker build -t "${WEAVE_BACKEND_IMAGE}" weave-backend
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
