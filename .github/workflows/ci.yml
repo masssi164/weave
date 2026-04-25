@@ -143,6 +143,21 @@ jobs:
         run: |
           CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
           security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
+      - name: Ensure local Weave hostnames resolve on the runner
+        run: |
+          set -euo pipefail
+          hosts_line='127.0.0.1 keycloak.weave.local nextcloud.weave.local matrix.weave.local api.weave.local'
+          if grep -Fq "$hosts_line" /etc/hosts; then
+            exit 0
+          fi
+
+          if sudo -n true 2>/dev/null; then
+            printf '%s\n' "$hosts_line" | sudo tee -a /etc/hosts >/dev/null
+          else
+            echo "Missing passwordless sudo for /etc/hosts update on weave-live runner" >&2
+            echo "Pre-provision this hosts entry on the runner: $hosts_line" >&2
+            exit 1
+          fi
       - name: Verify local live-stack bootstrap env
         run: |
           test -f "$WEAVE_BOOTSTRAP_ENV"
