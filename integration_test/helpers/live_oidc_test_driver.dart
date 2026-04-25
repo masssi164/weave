@@ -172,6 +172,7 @@ class LiveOidcTestDriver
     Uri? redirectUri,
     HttpClient? clientOverride,
     List<_StoredCookie>? cookieJarOverride,
+    void Function()? onNextcloudGrantSubmitted,
   }) async {
     final client = clientOverride ?? _newHttpClient();
     final ownsClient = clientOverride == null;
@@ -224,11 +225,14 @@ class LiveOidcTestDriver
         );
         if (nextcloudLoginFlowAuth != null && redirectUri == null) {
           madeProgress = true;
-          await _completeNextcloudLoginFlow(
+          final grantSubmitted = await _completeNextcloudLoginFlow(
             client,
             nextcloudLoginFlowAuth,
             cookieJar,
           );
+          if (grantSubmitted) {
+            onNextcloudGrantSubmitted?.call();
+          }
           return null;
         }
 
@@ -244,6 +248,7 @@ class LiveOidcTestDriver
             cookieJar,
             referer: previousUri ?? nextUri,
           );
+          onNextcloudGrantSubmitted?.call();
           return null;
         }
 
@@ -376,34 +381,49 @@ class LiveOidcTestDriver
     }
   }
 
-  Future<void> _completeNextcloudLoginFlow(
+  Future<bool> _completeNextcloudLoginFlow(
     HttpClient client,
     _NextcloudLoginFlowAuth auth,
     List<_StoredCookie> cookieJar,
   ) async {
-    var grantResponse = await _open(client, auth.loginRedirectUrl, cookieJar);
-    var grantBody = await utf8.decodeStream(grantResponse);
+    for (var attempt = 0; attempt < 3; attempt++) {
+      var grantUri = auth.loginRedirectUrl;
+      var grantResponse = await _open(client, grantUri, cookieJar);
+      var grantBody = await utf8.decodeStream(grantResponse);
 
-    if (grantResponse.statusCode == 401) {
-      await _signIntoNextcloud(client, auth.loginRedirectUrl, cookieJar);
-      grantResponse = await _open(client, auth.loginRedirectUrl, cookieJar);
-      grantBody = await utf8.decodeStream(grantResponse);
-    }
+      final grantLocation = grantResponse.headers.value(
+        HttpHeaders.locationHeader,
+      );
+      if (_isRedirect(grantResponse.statusCode) && grantLocation != null) {
+        grantUri = grantUri.resolve(grantLocation);
+        grantResponse = await _open(client, grantUri, cookieJar);
+        grantBody = await utf8.decodeStream(grantResponse);
+      }
 
-    final grantLocation = grantResponse.headers.value(
-      HttpHeaders.locationHeader,
-    );
-    if (_isRedirect(grantResponse.statusCode) && grantLocation != null) {
-      final redirected = auth.loginRedirectUrl.resolve(grantLocation);
-      grantResponse = await _open(client, redirected, cookieJar);
-      grantBody = await utf8.decodeStream(grantResponse);
-    }
+      if (grantResponse.statusCode == 401 ||
+          _hasNextcloudLoginAction(grantBody, grantUri)) {
+        final grantSubmitted = await _signIntoNextcloud(
+          client,
+          auth.loginRedirectUrl,
+          cookieJar,
+        );
+        if (grantSubmitted) {
+          return true;
+        }
+        continue;
+      }
 
-    final grant = _tryParseNextcloudLoginFlowGrant(
-      grantBody,
-      auth.loginRedirectUrl,
-    );
-    if (grant == null) {
+      final grant = _tryParseNextcloudLoginFlowGrant(grantBody, grantUri);
+      if (grant != null) {
+        await _submitNextcloudGrant(
+          client,
+          grant,
+          cookieJar,
+          referer: grantUri,
+        );
+        return true;
+      }
+
       final snippet = grantBody.replaceAll(RegExp(r'\s+'), ' ');
       throw StateError(
         'Nextcloud login flow did not expose a grant form after sign-in. '
@@ -411,15 +431,10 @@ class LiveOidcTestDriver
       );
     }
 
-    await _submitNextcloudGrant(
-      client,
-      grant,
-      cookieJar,
-      referer: auth.loginRedirectUrl,
-    );
+    throw StateError('Nextcloud login flow did not expose a grant form.');
   }
 
-  Future<void> _signIntoNextcloud(
+  Future<bool> _signIntoNextcloud(
     HttpClient client,
     Uri grantUri,
     List<_StoredCookie> cookieJar,
@@ -438,11 +453,16 @@ class LiveOidcTestDriver
       );
     }
 
+    var grantSubmitted = false;
     await _driveBrowserLikeFlow(
       startUri: oidcLogin,
       clientOverride: client,
       cookieJarOverride: cookieJar,
+      onNextcloudGrantSubmitted: () {
+        grantSubmitted = true;
+      },
     );
+    return grantSubmitted;
   }
 
   Future<void> _submitNextcloudGrant(
@@ -650,6 +670,12 @@ class LiveOidcTestDriver
       return value.split(' ').where((scope) => scope.isNotEmpty).toList();
     }
     return oidcDefaultScopes;
+  }
+
+  bool _hasNextcloudLoginAction(String html, Uri baseUri) {
+    return _tryParseNextcloudOidcProviderLink(html, baseUri) != null ||
+        _tryParseNextcloudAlternativeLoginLink(html, baseUri) != null ||
+        _tryParseLoginForm(html, baseUri) != null;
   }
 
   _NextcloudLoginFlowAuth? _tryParseNextcloudLoginFlowAuth(
