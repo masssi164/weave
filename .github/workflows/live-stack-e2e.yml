@@ -36,6 +36,8 @@ jobs:
     runs-on:
       - self-hosted
       - macOS
+      - ARM64
+      - weave-live
     timeout-minutes: 75
     env:
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
@@ -76,13 +78,13 @@ jobs:
           export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
           mkdir -p "$DOCKER_CONFIG"
           chmod 700 "$DOCKER_CONFIG"
-          cat > "$DOCKER_CONFIG/config.json" <<'EOF'
-          {"auths":{}}
-          EOF
-          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+          printf '{}\n' > "$DOCKER_CONFIG/config.json"
+          chmod 600 "$DOCKER_CONFIG/config.json"
+          echo "$GHCR_TOKEN" | docker --config "$DOCKER_CONFIG" login ghcr.io \
             --username "$GITHUB_ACTOR" \
             --password-stdin
+          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
+          docker --config "$DOCKER_CONFIG" info >/dev/null
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2

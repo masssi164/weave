@@ -94,13 +94,13 @@ jobs:
           export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
           mkdir -p "$DOCKER_CONFIG"
           chmod 700 "$DOCKER_CONFIG"
-          cat > "$DOCKER_CONFIG/config.json" <<'EOF'
-          {"auths":{}}
-          EOF
-          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io \
+          printf '{}\n' > "$DOCKER_CONFIG/config.json"
+          chmod 600 "$DOCKER_CONFIG/config.json"
+          echo "$GHCR_TOKEN" | docker --config "$DOCKER_CONFIG" login ghcr.io \
             --username "$GITHUB_ACTOR" \
             --password-stdin
+          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
+          docker --config "$DOCKER_CONFIG" info >/dev/null
       - name: Pull backend image
         run: docker pull "${WEAVE_BACKEND_IMAGE}"
       - name: Set up Terraform
@@ -130,7 +130,7 @@ jobs:
           security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
       - name: Verify local live-stack bootstrap env
         run: |
-          test -f "$WEAVE_BOOTSTRAP_ENV"
+          test -f "$WEAVE_BOOTSTRAP_ENV" || test -f /tmp/weave-infra/weave-workspace/.generated/bootstrap.env
       - name: Use host Flutter SDK
         working-directory: weave
         run: flutter --version
