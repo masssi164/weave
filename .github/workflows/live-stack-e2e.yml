@@ -6,7 +6,11 @@ on:
       weave_backend_image:
         description: "Backend image to boot inside the infra stack"
         required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
+        default: "weave-backend:live-stack-ci"
+      weave_backend_ref:
+        description: "Git ref to use for weave-backend when building the live-stack backend image"
+        required: false
+        default: "main"
       weave_infra_ref:
         description: "Git ref to use for weave-infra"
         required: false
@@ -16,7 +20,11 @@ on:
       weave_backend_image:
         type: string
         required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
+        default: "weave-backend:live-stack-ci"
+      weave_backend_ref:
+        type: string
+        required: false
+        default: "main"
       weave_infra_ref:
         type: string
         required: false
@@ -43,8 +51,9 @@ jobs:
       - weave-live
     timeout-minutes: 75
     env:
-      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
+      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
       WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
+      WEAVE_BACKEND_REF: ${{ inputs.weave_backend_ref || github.event.inputs.weave_backend_ref || 'main' }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_db_admin_password: ci-db-admin-password
@@ -61,6 +70,7 @@ jobs:
       TF_VAR_synapse_macaroon_secret_key: ci-synapse-macaroon-secret-key
       TF_VAR_synapse_form_secret: ci-synapse-form-secret
       TF_VAR_create_test_user: 'true'
+      TF_VAR_tenant_domain: localhost
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
       TF_VAR_keycloak_host_port: '48080'
@@ -88,6 +98,13 @@ jobs:
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
 
+      - name: Check out weave-backend
+        uses: actions/checkout@v4
+        with:
+          repository: masssi164/weave-backend
+          ref: ${{ env.WEAVE_BACKEND_REF }}
+          path: weave-backend
+
       - name: Configure Docker auth without macOS Keychain
         env:
           GHCR_TOKEN: ${{ github.token }}
@@ -109,6 +126,9 @@ jobs:
         with:
           channel: stable
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
@@ -119,14 +139,24 @@ jobs:
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
 
-      - name: Pull backend image
-        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+      - name: Build backend image
+        run: docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" weave-backend
 
       - name: Bootstrap local stack
         working-directory: weave-infra/weave-workspace
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
+
+      - name: Verify local test hostnames resolve on the runner
+        run: |
+          set -euo pipefail
+          for host in localhost auth.localhost files.localhost matrix.localhost; do
+            dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || {
+              echo "Runner cannot resolve $host to loopback" >&2
+              exit 1
+            }
+          done
 
       - name: Verify stack readiness before Flutter work
         working-directory: weave-infra/weave-workspace

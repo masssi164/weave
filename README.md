@@ -46,7 +46,7 @@ For the default homelab convention, Weave assumes:
 
 - OIDC issuer / auth provider: `https://auth.home.internal`
 - Matrix homeserver: `https://matrix.home.internal`
-- Raw Nextcloud fallback URL: `https://files.home.internal`
+- Canonical Nextcloud URL: `https://files.home.internal`
 - Backend API base URL: `https://home.internal/api`
 
 ## Architecture
@@ -147,7 +147,7 @@ make integration-test
 Run against a different infra checkout:
 
 ```sh
-WEAVE_BOOTSTRAP_ENV=../weave-inf/weave-workspace/.generated/bootstrap.env make integration-test
+WEAVE_BOOTSTRAP_ENV=../weave-infra/weave-workspace/.generated/bootstrap.env make integration-test
 ```
 
 The GitHub Actions live-stack job runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. The job bootstraps a fresh local stack, builds the backend image from the selected backend ref, then reads the generated bootstrap env so the Flutter tests consume the exact API/Auth/Matrix/Nextcloud endpoints that infra exposed.
