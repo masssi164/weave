@@ -79,6 +79,7 @@ jobs:
       WEAVE_BASE_URL: ${{ inputs.WEAVE_BASE_URL }}
       WEAVE_TEST_USERNAME: ${{ inputs.WEAVE_TEST_USERNAME }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
+      TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
       WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
       WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || 'main' }}

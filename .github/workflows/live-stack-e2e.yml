@@ -26,6 +26,10 @@ permissions:
   contents: read
   packages: read
 
+secrets:
+  WEAVE_TEST_PASSWORD:
+    required: true
+
 concurrency:
   group: weave-live-stack-self-hosted
   cancel-in-progress: false
@@ -42,6 +46,8 @@ jobs:
     env:
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
       WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
+      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
+      TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
