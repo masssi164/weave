@@ -170,10 +170,13 @@ class LiveOidcTestDriver
   Future<Uri?> _driveBrowserLikeFlow({
     required Uri startUri,
     Uri? redirectUri,
+    HttpClient? clientOverride,
+    List<_StoredCookie>? cookieJarOverride,
   }) async {
-    final client = _newHttpClient();
+    final client = clientOverride ?? _newHttpClient();
+    final ownsClient = clientOverride == null;
     try {
-      final cookieJar = <_StoredCookie>[];
+      final cookieJar = cookieJarOverride ?? <_StoredCookie>[];
       Uri? previousUri;
       var madeProgress = false;
       var nextUri = startUri;
@@ -203,6 +206,45 @@ class LiveOidcTestDriver
           previousUri = nextUri;
           nextUri = nextcloudOidcLink;
           continue;
+        }
+
+        final nextcloudAlternativeLogin =
+            _tryParseNextcloudAlternativeLoginLink(body, nextUri);
+        if (nextcloudAlternativeLogin != null &&
+            nextcloudAlternativeLogin != nextUri) {
+          madeProgress = true;
+          previousUri = nextUri;
+          nextUri = nextcloudAlternativeLogin;
+          continue;
+        }
+
+        final nextcloudLoginFlowAuth = _tryParseNextcloudLoginFlowAuth(
+          body,
+          nextUri,
+        );
+        if (nextcloudLoginFlowAuth != null && redirectUri == null) {
+          madeProgress = true;
+          await _completeNextcloudLoginFlow(
+            client,
+            nextcloudLoginFlowAuth,
+            cookieJar,
+          );
+          return null;
+        }
+
+        final nextcloudLoginFlowGrant = _tryParseNextcloudLoginFlowGrant(
+          body,
+          nextUri,
+        );
+        if (nextcloudLoginFlowGrant != null && redirectUri == null) {
+          madeProgress = true;
+          await _submitNextcloudGrant(
+            client,
+            nextcloudLoginFlowGrant,
+            cookieJar,
+            referer: previousUri ?? nextUri,
+          );
+          return null;
         }
 
         final loginForm = _tryParseLoginForm(body, nextUri);
@@ -328,7 +370,108 @@ class LiveOidcTestDriver
         );
       }
     } finally {
-      client.close(force: true);
+      if (ownsClient) {
+        client.close(force: true);
+      }
+    }
+  }
+
+  Future<void> _completeNextcloudLoginFlow(
+    HttpClient client,
+    _NextcloudLoginFlowAuth auth,
+    List<_StoredCookie> cookieJar,
+  ) async {
+    var grantResponse = await _open(client, auth.loginRedirectUrl, cookieJar);
+    var grantBody = await utf8.decodeStream(grantResponse);
+
+    if (grantResponse.statusCode == 401) {
+      await _signIntoNextcloud(client, auth.loginRedirectUrl, cookieJar);
+      grantResponse = await _open(client, auth.loginRedirectUrl, cookieJar);
+      grantBody = await utf8.decodeStream(grantResponse);
+    }
+
+    final grantLocation = grantResponse.headers.value(
+      HttpHeaders.locationHeader,
+    );
+    if (_isRedirect(grantResponse.statusCode) && grantLocation != null) {
+      final redirected = auth.loginRedirectUrl.resolve(grantLocation);
+      grantResponse = await _open(client, redirected, cookieJar);
+      grantBody = await utf8.decodeStream(grantResponse);
+    }
+
+    final grant = _tryParseNextcloudLoginFlowGrant(
+      grantBody,
+      auth.loginRedirectUrl,
+    );
+    if (grant == null) {
+      final snippet = grantBody.replaceAll(RegExp(r'\s+'), ' ');
+      throw StateError(
+        'Nextcloud login flow did not expose a grant form after sign-in. '
+        'Status=${grantResponse.statusCode} Body=${snippet.substring(0, snippet.length > 300 ? 300 : snippet.length)}',
+      );
+    }
+
+    await _submitNextcloudGrant(
+      client,
+      grant,
+      cookieJar,
+      referer: auth.loginRedirectUrl,
+    );
+  }
+
+  Future<void> _signIntoNextcloud(
+    HttpClient client,
+    Uri grantUri,
+    List<_StoredCookie> cookieJar,
+  ) async {
+    final loginUri = grantUri.replace(path: '/login', queryParameters: null);
+    final response = await _open(client, loginUri, cookieJar);
+    final body = await utf8.decodeStream(response);
+    final oidcLogin =
+        _tryParseNextcloudOidcProviderLink(body, loginUri) ??
+        _tryParseNextcloudAlternativeLoginLink(body, loginUri);
+    if (oidcLogin == null) {
+      final snippet = body.replaceAll(RegExp(r'\s+'), ' ');
+      throw StateError(
+        'Nextcloud login page did not expose an OIDC provider link. '
+        'Status=${response.statusCode} Body=${snippet.substring(0, snippet.length > 300 ? 300 : snippet.length)}',
+      );
+    }
+
+    await _driveBrowserLikeFlow(
+      startUri: oidcLogin,
+      clientOverride: client,
+      cookieJarOverride: cookieJar,
+    );
+  }
+
+  Future<void> _submitNextcloudGrant(
+    HttpClient client,
+    _NextcloudLoginFlowGrant grant,
+    List<_StoredCookie> cookieJar, {
+    Uri? referer,
+  }) async {
+    final response = await _postForm(
+      client,
+      grant.action,
+      grant.fields,
+      cookieJar,
+      referer: referer,
+    );
+    final location = response.headers.value(HttpHeaders.locationHeader);
+    final body = await utf8.decodeStream(response);
+    if (_isRedirect(response.statusCode) && location != null) {
+      final redirected = grant.action.resolve(location);
+      final followUp = await _open(client, redirected, cookieJar);
+      await utf8.decodeStream(followUp);
+      return;
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final snippet = body.replaceAll(RegExp(r'\s+'), ' ');
+      throw StateError(
+        'Nextcloud rejected the login-flow grant. '
+        'Status=${response.statusCode} Body=${snippet.substring(0, snippet.length > 300 ? 300 : snippet.length)}',
+      );
     }
   }
 
@@ -507,6 +650,138 @@ class LiveOidcTestDriver
     return oidcDefaultScopes;
   }
 
+  _NextcloudLoginFlowAuth? _tryParseNextcloudLoginFlowAuth(
+    String html,
+    Uri baseUri,
+  ) {
+    final payload = _tryParseInitialStateObject(
+      html,
+      'initial-state-core-loginFlowAuth',
+    );
+    final loginRedirectUrl = payload?['loginRedirectUrl'];
+    final appTokenUrl = payload?['appTokenUrl'];
+    final stateToken = payload?['stateToken'];
+    if (loginRedirectUrl is! String ||
+        loginRedirectUrl.trim().isEmpty ||
+        appTokenUrl is! String ||
+        appTokenUrl.trim().isEmpty ||
+        stateToken is! String ||
+        stateToken.trim().isEmpty) {
+      return null;
+    }
+    return _NextcloudLoginFlowAuth(
+      loginRedirectUrl: baseUri.resolve(_htmlDecode(loginRedirectUrl)),
+      appTokenUrl: baseUri.resolve(_htmlDecode(appTokenUrl)),
+      stateToken: stateToken,
+    );
+  }
+
+  _NextcloudLoginFlowGrant? _tryParseNextcloudLoginFlowGrant(
+    String html,
+    Uri baseUri,
+  ) {
+    final payload = _tryParseInitialStateObject(
+      html,
+      'initial-state-core-loginFlowGrant',
+    );
+    final actionUrl = payload?['actionUrl'];
+    final stateToken = payload?['stateToken'];
+    final requestToken = _tryParseRequestToken(html);
+    if (actionUrl is! String ||
+        actionUrl.trim().isEmpty ||
+        stateToken is! String ||
+        stateToken.trim().isEmpty ||
+        requestToken == null ||
+        requestToken.trim().isEmpty) {
+      return null;
+    }
+
+    String? optionalString(String key) {
+      final value = payload?[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value;
+      }
+      return null;
+    }
+
+    return _NextcloudLoginFlowGrant(
+      action: baseUri.resolve(_htmlDecode(actionUrl)),
+      requestToken: requestToken,
+      stateToken: stateToken,
+      direct: payload?['direct'] == true,
+      clientIdentifier: optionalString('clientIdentifier'),
+      oauthState: optionalString('oauthState'),
+      providedRedirectUri: optionalString('providedRedirectUri'),
+    );
+  }
+
+  Uri? _tryParseNextcloudAlternativeLoginLink(String html, Uri baseUri) {
+    final decoded = _tryParseInitialState(
+      html,
+      'initial-state-core-alternativeLogins',
+    );
+    if (decoded is! List) {
+      return null;
+    }
+    for (final entry in decoded) {
+      if (entry is! Map) {
+        continue;
+      }
+      final href = entry['href'];
+      if (href is! String || href.trim().isEmpty) {
+        continue;
+      }
+      final resolved = baseUri.resolve(_htmlDecode(href));
+      if (resolved.path.contains('/apps/user_oidc/login/')) {
+        return resolved;
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _tryParseInitialStateObject(String html, String id) {
+    final decoded = _tryParseInitialState(html, id);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    return null;
+  }
+
+  Object? _tryParseInitialState(String html, String id) {
+    final inputMatches = RegExp(
+      r'<input([^>]*)>',
+      caseSensitive: false,
+    ).allMatches(html);
+    for (final match in inputMatches) {
+      final attributes = match.group(1) ?? '';
+      if (_extractHtmlAttribute(attributes, 'id') != id) {
+        continue;
+      }
+      final value = _extractHtmlAttribute(attributes, 'value');
+      if (value == null || value.trim().isEmpty) {
+        return null;
+      }
+      try {
+        return jsonDecode(utf8.decode(base64Decode(value)));
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  String? _tryParseRequestToken(String html) {
+    final headMatch = RegExp(
+      r'<head([^>]*)>',
+      caseSensitive: false,
+    ).firstMatch(html);
+    final attributes = headMatch?.group(1);
+    if (attributes == null) {
+      return null;
+    }
+    return _extractHtmlAttribute(attributes, 'data-requesttoken');
+  }
+
   Uri? _tryParseNextcloudOidcProviderLink(String html, Uri baseUri) {
     final anchorMatches = RegExp(
       r'<a([^>]*)>',
@@ -591,11 +866,9 @@ class LiveOidcTestDriver
   }
 
   Uri _resolveFormAction(String formAttributes, Uri baseUri) {
-    final actionMatch = RegExp(
-      r'action="([^"]*)"',
-      caseSensitive: false,
-    ).firstMatch(formAttributes);
-    final rawAction = _htmlDecode(actionMatch?.group(1) ?? '').trim();
+    final rawAction = _htmlDecode(
+      _extractHtmlAttribute(formAttributes, 'action') ?? '',
+    ).trim();
     if (rawAction.isEmpty) {
       return baseUri;
     }
@@ -630,10 +903,10 @@ class LiveOidcTestDriver
 
   String? _extractHtmlAttribute(String html, String name) {
     final match = RegExp(
-      '$name="([^"]*)"',
+      "\\b${RegExp.escape(name)}\\s*=\\s*([\"'])((?:.|\\n)*?)\\1",
       caseSensitive: false,
     ).firstMatch(html);
-    final value = match?.group(1);
+    final value = match?.group(2);
     if (value == null) {
       return null;
     }
@@ -654,6 +927,7 @@ class LiveOidcTestDriver
         .replaceAll('&amp;', '&')
         .replaceAll('&#x2F;', '/')
         .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
         .replaceAll('&#39;', "'");
   }
 
@@ -678,6 +952,50 @@ class _ParsedLoginForm {
 
   final Uri action;
   final Map<String, String> fields;
+}
+
+class _NextcloudLoginFlowAuth {
+  const _NextcloudLoginFlowAuth({
+    required this.loginRedirectUrl,
+    required this.appTokenUrl,
+    required this.stateToken,
+  });
+
+  final Uri loginRedirectUrl;
+  final Uri appTokenUrl;
+  final String stateToken;
+}
+
+class _NextcloudLoginFlowGrant {
+  const _NextcloudLoginFlowGrant({
+    required this.action,
+    required this.requestToken,
+    required this.stateToken,
+    required this.direct,
+    this.clientIdentifier,
+    this.oauthState,
+    this.providedRedirectUri,
+  });
+
+  final Uri action;
+  final String requestToken;
+  final String stateToken;
+  final bool direct;
+  final String? clientIdentifier;
+  final String? oauthState;
+  final String? providedRedirectUri;
+
+  Map<String, String> get fields {
+    return <String, String>{
+      'requesttoken': requestToken,
+      'stateToken': stateToken,
+      if (direct) 'direct': '1',
+      if (clientIdentifier != null) 'clientIdentifier': clientIdentifier!,
+      if (oauthState != null) 'oauthState': oauthState!,
+      if (providedRedirectUri != null)
+        'providedRedirectUri': providedRedirectUri!,
+    };
+  }
 }
 
 class _SimpleHttpResponse {
