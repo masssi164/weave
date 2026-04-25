@@ -128,6 +128,13 @@ jobs:
         run: |
           CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
           security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
+      - name: Ensure local Weave hostnames resolve on the runner
+        run: |
+          set -euo pipefail
+          hosts_line='127.0.0.1 keycloak.weave.local nextcloud.weave.local matrix.weave.local api.weave.local'
+          if ! grep -Fq "$hosts_line" /etc/hosts; then
+            printf '%s\n' "$hosts_line" | sudo tee -a /etc/hosts >/dev/null
+          fi
       - name: Verify local live-stack bootstrap env
         run: |
           test -f "$WEAVE_BOOTSTRAP_ENV" || test -f /tmp/weave-infra/weave-workspace/.generated/bootstrap.env

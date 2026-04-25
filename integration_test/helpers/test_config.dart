@@ -130,8 +130,10 @@ class TestConfig {
     required String host,
     List<String> pathSegments = const <String>[],
   }) {
+    final effectivePort = baseUrl.hasPort ? baseUrl.port : null;
     return baseUrl.replace(
       host: host,
+      port: effectivePort,
       pathSegments: pathSegments,
       query: null,
       fragment: null,

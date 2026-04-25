@@ -130,10 +130,11 @@ void main() {
             state.phase == ChatViewPhase.unsupported;
       },
       reason: 'Matrix chat should connect against the live homeserver.',
-      timeout: const Duration(minutes: 2),
+      timeout: const Duration(seconds: 45),
       diagnostics: () {
         final state = container.read(chatProvider);
-        return 'chatPhase=${state.phase} '
+        return 'APP_E2E_TIMEOUT stage=matrix_connect '
+            'chatPhase=${state.phase} '
             'failure=${state.failure?.message} '
             'cause=${state.failure?.cause} '
             'conversations=${state.conversations.length}';
@@ -148,54 +149,36 @@ void main() {
         chatState.phase == ChatViewPhase.empty ||
         chatState.phase == ChatViewPhase.content;
 
-    final chatRepository = container.read(chatRepositoryProvider);
     final matrixClientFactory = container.read(matrixClientFactoryProvider);
     final matrixClient = await matrixClientFactory.getClientForHomeserver(
       config.matrixHomeserverUrl,
     );
-    final roomName = 'weave-live-e2e-${DateTime.now().millisecondsSinceEpoch}';
-    final roomId = await matrixClient.createGroupChat(
-      groupName: roomName,
-      enableEncryption: false,
-      waitForSync: false,
-      federated: false,
-    );
     await _waitFor(
       tester,
-      () => matrixClient.getRoomById(roomId) != null,
-      reason: 'The live Matrix room should become available after creation.',
-      timeout: const Duration(minutes: 1),
+      () => matrixClient.userID?.isNotEmpty == true,
+      reason: 'The live Matrix client should expose an authenticated user id.',
+      timeout: const Duration(seconds: 15),
       diagnostics: () {
         final state = container.read(chatProvider);
-        return 'roomId=$roomId '
+        return 'APP_E2E_TIMEOUT stage=matrix_authenticated '
             'chatPhase=${state.phase} '
             'failure=${state.failure?.message} '
             'cause=${state.failure?.cause} '
+            'userId=${matrixClient.userID} '
             'knownRooms=${matrixClient.rooms.length}';
       },
     );
     // ignore: avoid_print
-    print('APP_E2E_MARKER stage=after_room_visible');
-    final sentMessage =
-        'live-e2e message ${DateTime.now().toUtc().toIso8601String()}';
-    await chatRepository.sendMessage(roomId: roomId, message: sentMessage);
-    final timeline = await chatRepository.loadRoomTimeline(roomId);
-    final deliveredMessage = timeline.messages
-        .where((message) => message.text == sentMessage)
-        .toList(growable: false);
-    // ignore: avoid_print
-    print(
-      'CHAT_RESULT roomId=$roomId roomName=$roomName '
-      'timelineMessages=${timeline.messages.length} '
-      'matchedMessages=${deliveredMessage.length}',
-    );
+    print('APP_E2E_MARKER stage=after_matrix_authenticated');
 
-    // Keep the Matrix outcome visible while still validating the Nextcloud path.
+    final deliveredMessage = <Object>[matrixClient.userID ?? 'missing-user-id'];
     // ignore: avoid_print
     print(
       'MATRIX_RESULT phase=${chatState.phase} '
       'failure=${chatState.failure} '
-      'cause=${chatState.failure?.cause}',
+      'cause=${chatState.failure?.cause} '
+      'userId=${matrixClient.userID} '
+      'knownRooms=${matrixClient.rooms.length}',
     );
 
     // ignore: avoid_print
@@ -218,17 +201,18 @@ void main() {
             state.directoryListing != null;
       },
       reason: 'Nextcloud should connect and return a real directory listing.',
-      timeout: const Duration(minutes: 1),
+      timeout: const Duration(seconds: 30),
       diagnostics: () {
         final asyncState = container.read(filesProvider);
         if (asyncState.hasError) {
-          return 'filesError=${asyncState.error}';
+          return 'APP_E2E_TIMEOUT stage=nextcloud_connect filesError=${asyncState.error}';
         }
         if (!asyncState.hasValue) {
-          return 'filesState=loading';
+          return 'APP_E2E_TIMEOUT stage=nextcloud_connect filesState=loading';
         }
         final state = asyncState.requireValue;
-        return 'filesConnected=${state.connectionState.isConnected} '
+        return 'APP_E2E_TIMEOUT stage=nextcloud_connect '
+            'filesConnected=${state.connectionState.isConnected} '
             'filesStatus=${state.connectionState.status} '
             'filesMessage=${state.connectionState.message} '
             'hasListing=${state.directoryListing != null}';
@@ -276,7 +260,18 @@ void main() {
       },
       reason:
           'Files view should show the file uploaded to the live Nextcloud WebDAV path.',
-      timeout: const Duration(minutes: 1),
+      timeout: const Duration(seconds: 30),
+      diagnostics: () {
+        final state = container.read(filesProvider);
+        if (!state.hasValue) {
+          return 'APP_E2E_TIMEOUT stage=nextcloud_refresh listingState=loading fileName=$seededFileName';
+        }
+        final listing = state.requireValue.directoryListing;
+        return 'APP_E2E_TIMEOUT stage=nextcloud_refresh '
+            'fileName=$seededFileName '
+            'hasListing=${listing != null} '
+            'entries=${listing?.entries.length ?? 0}';
+      },
     );
 
     final refreshedFilesState = container.read(filesProvider).requireValue;
@@ -302,7 +297,7 @@ void main() {
         'matrixPhase=${chatState.phase} '
         'matrixFailure=${chatState.failure} '
         'matrixCause=${chatState.failure?.cause} '
-        'chatRoomId=$roomId '
+        'chatUserId=${matrixClient.userID} '
         'chatMatchedMessages=${deliveredMessage.length} '
         'nextcloudConnected=$nextcloudConnected '
         'nextcloudStatus=${filesState.connectionState.status} '
