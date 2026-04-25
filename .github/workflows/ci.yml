@@ -110,6 +110,8 @@ jobs:
       WEAVE_REMOVE_VOLUMES: 'true'
       TF_VAR_create_test_user: 'true'
       TF_VAR_tenant_domain: 127.0.0.1.sslip.io
+      TF_VAR_caddy_tls_cert_file: ${{ github.workspace }}/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/127.0.0.1.sslip.io.pem
+      TF_VAR_caddy_tls_key_file: ${{ github.workspace }}/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/127.0.0.1.sslip.io-key.pem
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
       TF_VAR_keycloak_host_port: '48080'
