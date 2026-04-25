@@ -401,10 +401,11 @@ class LiveOidcTestDriver
       }
 
       if (grantResponse.statusCode == 401 ||
-          _hasNextcloudLoginAction(grantBody, grantUri)) {
+          _hasNextcloudLoginAction(grantBody, grantUri) ||
+          _isNextcloudLoginPage(grantBody, grantUri)) {
         final grantSubmitted = await _signIntoNextcloud(
           client,
-          auth.loginRedirectUrl,
+          grantUri,
           cookieJar,
         );
         if (grantSubmitted) {
@@ -439,7 +440,7 @@ class LiveOidcTestDriver
     Uri grantUri,
     List<_StoredCookie> cookieJar,
   ) async {
-    final loginUri = grantUri.replace(path: '/login', queryParameters: null);
+    final loginUri = _nextcloudLoginUriForGrant(grantUri);
     final response = await _open(client, loginUri, cookieJar);
     final body = await utf8.decodeStream(response);
     final oidcLogin =
@@ -676,6 +677,31 @@ class LiveOidcTestDriver
     return _tryParseNextcloudOidcProviderLink(html, baseUri) != null ||
         _tryParseNextcloudAlternativeLoginLink(html, baseUri) != null ||
         _tryParseLoginForm(html, baseUri) != null;
+  }
+
+  bool _isNextcloudLoginPage(String html, Uri uri) {
+    if (uri.path == '/login' || uri.path.endsWith('/login')) {
+      return true;
+    }
+    return html.contains('Login – Nextcloud') ||
+        html.contains('Login - Nextcloud') ||
+        html.contains('id="body-login"') ||
+        html.contains("id='body-login'");
+  }
+
+  Uri _nextcloudLoginUriForGrant(Uri grantUri) {
+    if (grantUri.path == '/login' || grantUri.path.endsWith('/login')) {
+      return grantUri;
+    }
+
+    final relativeGrant = Uri(
+      path: grantUri.path,
+      query: grantUri.query.isEmpty ? null : grantUri.query,
+    ).toString();
+    return grantUri.replace(
+      path: '/login',
+      queryParameters: <String, String>{'redirect_url': relativeGrant},
+    );
   }
 
   _NextcloudLoginFlowAuth? _tryParseNextcloudLoginFlowAuth(
