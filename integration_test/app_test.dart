@@ -126,11 +126,11 @@ void main() {
     );
   });
 
-  test('authenticated GET /api/v1/me returns expected claims', () async {
+  test('authenticated GET /api/me returns expected identity', () async {
     final accessToken = await authHelper.signIn(config);
 
     final response = await httpClient.get(
-      config.apiUri('/api/v1/me'),
+      config.apiUri('/api/me'),
       headers: <String, String>{
         'Accept': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -139,8 +139,10 @@ void main() {
 
     expect(response.statusCode, 200, reason: response.body);
     final payload = _decodeObject(response.body);
-    expect(payload['sub'], isA<String>());
-    expect((payload['sub'] as String).trim(), isNotEmpty);
+    expect(payload['userId'], isA<String>());
+    expect((payload['userId'] as String).trim(), isNotEmpty);
+    expect(payload['username'], isA<String>());
+    expect((payload['username'] as String).trim(), isNotEmpty);
     expect(payload['email'], isA<String>());
     expect((payload['email'] as String).trim(), isNotEmpty);
   });

@@ -17,7 +17,7 @@ class TestConfig {
     final baseUrl = _parseUrl(
       const String.fromEnvironment(
         'WEAVE_BASE_URL',
-        defaultValue: 'https://api.weave.local',
+        defaultValue: 'https://weave.local/api',
       ),
       variableName: 'WEAVE_BASE_URL',
     );
@@ -34,8 +34,8 @@ class TestConfig {
       password: const String.fromEnvironment('WEAVE_TEST_PASSWORD').trim(),
       issuerUrl: issuerUrl,
       clientId: clientId,
-      matrixHomeserverUrl: _serviceUri(baseUrl, host: 'matrix.$workspaceHost'),
-      nextcloudBaseUrl: _serviceUri(baseUrl, host: 'nextcloud.$workspaceHost'),
+      matrixHomeserverUrl: _matrixHomeserverUrl(baseUrl, workspaceHost),
+      nextcloudBaseUrl: _nextcloudBaseUrl(baseUrl, workspaceHost),
       backendApiBaseUrl: baseUrl,
     );
   }
@@ -76,15 +76,14 @@ class TestConfig {
         .split('/')
         .where((segment) => segment.isNotEmpty)
         .toList(growable: false);
-
-    return backendApiBaseUrl.replace(
-      pathSegments: [
-        ...backendApiBaseUrl.pathSegments.where(
-          (segment) => segment.isNotEmpty,
-        ),
-        ...pathSegments,
-      ],
+    final normalizedPathSegments = _dropDuplicateApiSegment(
+      backendApiBaseUrl.pathSegments
+          .where((segment) => segment.isNotEmpty)
+          .toList(growable: false),
+      pathSegments,
     );
+
+    return backendApiBaseUrl.replace(pathSegments: normalizedPathSegments);
   }
 
   Uri unreachableBackendApiBaseUrl() {
@@ -143,9 +142,51 @@ class TestConfig {
 
     return _serviceUri(
       baseUrl,
-      host: 'keycloak.$workspaceHost',
+      host: 'auth.$workspaceHost',
       pathSegments: const <String>['realms', 'weave'],
     );
+  }
+
+  static Uri _matrixHomeserverUrl(Uri baseUrl, String workspaceHost) {
+    const override = String.fromEnvironment('WEAVE_MATRIX_HOMESERVER_URL');
+    if (override.trim().isNotEmpty) {
+      return _parseUrl(override, variableName: 'WEAVE_MATRIX_HOMESERVER_URL');
+    }
+
+    const legacyOverride = String.fromEnvironment('WEAVE_MATRIX_URL');
+    if (legacyOverride.trim().isNotEmpty) {
+      return _parseUrl(legacyOverride, variableName: 'WEAVE_MATRIX_URL');
+    }
+
+    return _serviceUri(baseUrl, host: 'matrix.$workspaceHost');
+  }
+
+  static Uri _nextcloudBaseUrl(Uri baseUrl, String workspaceHost) {
+    const override = String.fromEnvironment('WEAVE_NEXTCLOUD_BASE_URL');
+    if (override.trim().isNotEmpty) {
+      return _parseUrl(override, variableName: 'WEAVE_NEXTCLOUD_BASE_URL');
+    }
+
+    const legacyOverride = String.fromEnvironment('WEAVE_NEXTCLOUD_URL');
+    if (legacyOverride.trim().isNotEmpty) {
+      return _parseUrl(legacyOverride, variableName: 'WEAVE_NEXTCLOUD_URL');
+    }
+
+    return _serviceUri(baseUrl, host: 'files.$workspaceHost');
+  }
+
+  static List<String> _dropDuplicateApiSegment(
+    List<String> baseSegments,
+    List<String> pathSegments,
+  ) {
+    if (baseSegments.isNotEmpty &&
+        pathSegments.isNotEmpty &&
+        baseSegments.last == 'api' &&
+        pathSegments.first == 'api') {
+      return [...baseSegments, ...pathSegments.skip(1)];
+    }
+
+    return [...baseSegments, ...pathSegments];
   }
 
   static String _workspaceHost(String host) {

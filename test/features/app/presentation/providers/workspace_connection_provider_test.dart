@@ -129,7 +129,7 @@ void main() {
           filesRepositoryProvider.overrideWithValue(
             _FakeFilesRepository(
               connectionState: FilesConnectionState.invalid(
-                baseUrl: Uri.parse('https://nextcloud.home.internal'),
+                baseUrl: Uri.parse('https://files.home.internal'),
               ),
             ),
           ),
@@ -244,7 +244,7 @@ void main() {
             filesRepositoryProvider.overrideWithValue(
               _FakeFilesRepository(
                 connectionState: FilesConnectionState.connected(
-                  baseUrl: Uri.parse('https://nextcloud.home.internal'),
+                  baseUrl: Uri.parse('https://files.home.internal'),
                   accountLabel: 'alice',
                 ),
               ),
@@ -318,7 +318,7 @@ void main() {
             filesRepositoryProvider.overrideWithValue(
               _FakeFilesRepository(
                 connectionState: FilesConnectionState.connected(
-                  baseUrl: Uri.parse('https://nextcloud.home.internal'),
+                  baseUrl: Uri.parse('https://files.home.internal'),
                   accountLabel: 'alice',
                 ),
               ),

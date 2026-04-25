@@ -46,8 +46,8 @@ For the default homelab convention, Weave assumes:
 
 - OIDC issuer / auth provider: `https://auth.home.internal`
 - Matrix homeserver: `https://matrix.home.internal`
-- Nextcloud base URL: `https://nextcloud.home.internal`
-- Backend API base URL: `https://api.home.internal`
+- Canonical Nextcloud URL: `https://files.home.internal`
+- Backend API base URL: `https://home.internal/api`
 
 ## Architecture
 Weave follows a feature-first clean architecture layout:
@@ -133,7 +133,9 @@ Integration tests require a live local Weave stack, including the backend API an
 
 The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env` and mirrors them to `/tmp/weave-infra/weave-workspace/.generated/bootstrap.env` for the self-hosted GitHub runner path. `make integration-test` sources the repo-local file first, then falls back to the `/tmp` mirror. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere.
 
-Expected local hostnames include `api.weave.local`, `keycloak.weave.local`, `matrix.weave.local`, and `nextcloud.weave.local`.
+Expected local hostnames include `weave.local`, `auth.weave.local`, `matrix.weave.local`, and `files.weave.local`.
+
+The live Nextcloud E2E helper currently follows the real Nextcloud OIDC/login-flow HTML pages so the MVP stack can prove the existing fallback path end to end. Treat that as an honest compatibility smoke, not the target product contract: longer term, Weave should prefer deterministic backend/API contracts for product files flows over brittle Flutter-side HTML scraping.
 
 Run against the default local stack:
 
@@ -147,16 +149,18 @@ make integration-test
 Run against a different infra checkout:
 
 ```sh
-WEAVE_BOOTSTRAP_ENV=../weave-inf/weave-workspace/.generated/bootstrap.env make integration-test
+WEAVE_BOOTSTRAP_ENV=../weave-infra/weave-workspace/.generated/bootstrap.env make integration-test
 ```
 
-The GitHub Actions live-stack job now runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. That runner only needs the local stack bootstrapped once on the same machine because the workflow reads the mirrored `/tmp/weave-infra/.../bootstrap.env` file.
+The GitHub Actions live-stack paths run on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. Pull-request CI uses the loopback `127.0.0.1.sslip.io` tenant so shared runners do not need `/etc/hosts` mutation. The standalone Live Stack E2E workflow uses the canonical `*.weave.local` hostnames used by local developers; if that runner cannot resolve them and cannot update `/etc/hosts` non-interactively, the job fails fast with the exact host line to add. Both paths build the backend image from the selected backend ref and read the generated bootstrap env so Flutter tests consume the exact API/Auth/Matrix/Nextcloud endpoints that infra exposed.
 
 Supported overrides:
 
-- `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://api.weave.local`
-- `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://keycloak.weave.local/realms/weave`
+- `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://weave.local/api`
+- `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://auth.weave.local/realms/weave`
 - `WEAVE_OIDC_CLIENT_ID`: app OIDC client ID, defaulting to `weave-app`
+- `WEAVE_NEXTCLOUD_BASE_URL`: canonical Nextcloud URL, defaulting to `files.<workspace-host>` (legacy `WEAVE_NEXTCLOUD_URL` is also accepted)
+- `WEAVE_MATRIX_HOMESERVER_URL`: Matrix homeserver URL, defaulting to `matrix.<workspace-host>` (legacy `WEAVE_MATRIX_URL` is also accepted)
 - `WEAVE_TEST_USERNAME`: username for the test account
 - `WEAVE_TEST_PASSWORD`: password for the test account
 

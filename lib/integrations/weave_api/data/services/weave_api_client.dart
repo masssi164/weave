@@ -78,13 +78,26 @@ class HttpWeaveApiClient implements WeaveApiClient {
 
   Uri _workspaceCapabilitiesUri(Uri baseUrl) {
     return baseUrl.replace(
-      pathSegments: [
-        ...baseUrl.pathSegments.where((segment) => segment.isNotEmpty),
+      pathSegments: _apiPath(baseUrl, const [
         'api',
         'v1',
         'workspace',
         'capabilities',
-      ],
+      ]),
     );
+  }
+
+  List<String> _apiPath(Uri baseUrl, List<String> pathSegments) {
+    final baseSegments = baseUrl.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    if (baseSegments.isNotEmpty &&
+        pathSegments.isNotEmpty &&
+        baseSegments.last == 'api' &&
+        pathSegments.first == 'api') {
+      return [...baseSegments, ...pathSegments.skip(1)];
+    }
+
+    return [...baseSegments, ...pathSegments];
   }
 }

@@ -16,11 +16,11 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://nextcloud.home.internal',
+        'https://files.home.internal',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
-        'https://api.home.internal',
+        'https://home.internal/api',
       );
     });
 
@@ -34,9 +34,9 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'https://nextcloud.example.com',
+        'https://files.example.com',
       );
-      expect(endpoints.backendApiBaseUrl.toString(), 'https://api.example.com');
+      expect(endpoints.backendApiBaseUrl.toString(), 'https://example.com/api');
     });
 
     test(
@@ -53,11 +53,11 @@ void main() {
         );
         expect(
           endpoints.nextcloudBaseUrl.toString(),
-          'https://nextcloud.workspace.example.com',
+          'https://files.workspace.example.com',
         );
         expect(
           endpoints.backendApiBaseUrl.toString(),
-          'https://api.workspace.example.com',
+          'https://workspace.example.com/api',
         );
       },
     );
@@ -72,11 +72,11 @@ void main() {
       );
       expect(
         endpoints.nextcloudBaseUrl.toString(),
-        'http://nextcloud.home.internal',
+        'http://files.home.internal',
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
-        'http://api.home.internal',
+        'http://home.internal/api',
       );
     });
 

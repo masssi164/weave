@@ -111,8 +111,8 @@ void main() {
 
         expect(find.text('Review Service Endpoints'), findsOneWidget);
         expect(find.text('https://matrix.weave.local'), findsWidgets);
-        expect(find.text('https://nextcloud.weave.local'), findsWidgets);
-        expect(find.text('https://api.weave.local'), findsWidgets);
+        expect(find.text('https://files.weave.local'), findsWidgets);
+        expect(find.text('https://weave.local/api'), findsWidgets);
 
         await tester.tap(find.text('Finish'));
         await tester.pumpAndSettle();
@@ -347,7 +347,7 @@ class _ScenarioFilesRepository implements FilesRepository {
           .configuration
           ?.serviceEndpoints
           .nextcloudBaseUrl ??
-      Uri.parse('https://nextcloud.weave.local');
+      Uri.parse('https://files.weave.local');
 
   @override
   Future<FilesConnectionState> connect() async {

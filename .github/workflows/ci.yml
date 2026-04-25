@@ -15,10 +15,14 @@ on:
         description: "Git ref to use for weave-infra"
         required: false
         default: "main"
+      WEAVE_BACKEND_REF:
+        description: "Git ref to use for weave-backend when building the live-stack backend image"
+        required: false
+        default: "main"
       WEAVE_BACKEND_IMAGE:
         description: "Backend image to boot inside the infra stack"
         required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
+        default: "weave-backend:live-stack-ci"
   workflow_call:
     inputs:
       WEAVE_BASE_URL:
@@ -32,10 +36,14 @@ on:
         type: string
         required: false
         default: "main"
+      WEAVE_BACKEND_REF:
+        type: string
+        required: false
+        default: "main"
       WEAVE_BACKEND_IMAGE:
         type: string
         required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
+        default: "weave-backend:live-stack-ci"
     secrets:
       WEAVE_TEST_PASSWORD:
         required: true
@@ -62,7 +70,7 @@ jobs:
 
   integration-test:
     name: Live Stack Integration Test
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
     concurrency:
       group: weave-live-stack-self-hosted
       cancel-in-progress: false
@@ -95,9 +103,15 @@ jobs:
       TF_VAR_synapse_form_secret: ci-synapse-form-secret
       WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
-      WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || 'main' }}
-      WEAVE_BACKEND_IMAGE: ${{ inputs.WEAVE_BACKEND_IMAGE || 'ghcr.io/masssi164/weave-backend:latest' }}
+      REQUESTED_WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || github.head_ref || github.ref_name || 'main' }}
+      REQUESTED_WEAVE_BACKEND_REF: ${{ inputs.WEAVE_BACKEND_REF || github.head_ref || github.ref_name || 'main' }}
+      WEAVE_BACKEND_IMAGE: ${{ inputs.WEAVE_BACKEND_IMAGE || 'weave-backend:live-stack-ci' }}
+      DOCKER_BUILDKIT: '1'
+      WEAVE_REMOVE_VOLUMES: 'true'
       TF_VAR_create_test_user: 'true'
+      TF_VAR_tenant_domain: 127.0.0.1.sslip.io
+      TF_VAR_caddy_tls_cert_file: ${{ github.workspace }}/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/127.0.0.1.sslip.io.pem
+      TF_VAR_caddy_tls_key_file: ${{ github.workspace }}/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/127.0.0.1.sslip.io-key.pem
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
       TF_VAR_keycloak_host_port: '48080'
@@ -107,14 +121,46 @@ jobs:
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'true'
     steps:
+      - name: Resolve companion repository refs
+        id: companion_refs
+        run: |
+          set -euo pipefail
+
+          resolve_ref() {
+            local repo="$1"
+            local requested_ref="$2"
+
+            if git ls-remote --exit-code --heads "https://github.com/${repo}.git" "${requested_ref}" >/dev/null 2>&1; then
+              printf '%s' "${requested_ref}"
+            else
+              printf '%s' "main"
+            fi
+          }
+
+          infra_ref="$(resolve_ref masssi164/weave-infra "${REQUESTED_WEAVE_INFRA_REF}")"
+          backend_ref="$(resolve_ref masssi164/weave-backend "${REQUESTED_WEAVE_BACKEND_REF}")"
+
+          {
+            echo "infra_ref=${infra_ref}"
+            echo "backend_ref=${backend_ref}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Using weave-infra ref: ${infra_ref}"
+          echo "Using weave-backend ref: ${backend_ref}"
+
       - uses: actions/checkout@v4
         with:
           path: weave
       - uses: actions/checkout@v4
         with:
           repository: masssi164/weave-infra
-          ref: ${{ env.WEAVE_INFRA_REF }}
+          ref: ${{ steps.companion_refs.outputs.infra_ref }}
           path: weave-infra
+      - uses: actions/checkout@v4
+        with:
+          repository: masssi164/weave-backend
+          ref: ${{ steps.companion_refs.outputs.backend_ref }}
+          path: weave-backend
       - name: Configure Docker auth without macOS Keychain
         shell: bash
         env:
@@ -131,8 +177,10 @@ jobs:
           chmod 600 "$DOCKER_CONFIG/config.json"
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           docker --config "$DOCKER_CONFIG" info >/dev/null
-      - name: Pull backend image
-        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        run: docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" weave-backend
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
@@ -150,6 +198,16 @@ jobs:
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
+      - name: Verify local test hostnames resolve on the runner
+        run: |
+          set -euo pipefail
+          hosts=(127.0.0.1.sslip.io auth.127.0.0.1.sslip.io files.127.0.0.1.sslip.io matrix.127.0.0.1.sslip.io)
+          for host in "${hosts[@]}"; do
+            dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1' || {
+              echo "Runner cannot resolve $host to loopback" >&2
+              exit 1
+            }
+          done
       - name: Verify stack readiness before Flutter work
         working-directory: weave-infra/weave-workspace
         run: bash ./operator-check.sh
@@ -157,21 +215,6 @@ jobs:
         run: |
           CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
           security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
-      - name: Ensure local Weave hostnames resolve on the runner
-        run: |
-          set -euo pipefail
-          hosts_line='127.0.0.1 keycloak.weave.local nextcloud.weave.local matrix.weave.local api.weave.local'
-          if grep -Fq "$hosts_line" /etc/hosts; then
-            exit 0
-          fi
-
-          if sudo -n true 2>/dev/null; then
-            printf '%s\n' "$hosts_line" | sudo tee -a /etc/hosts >/dev/null
-          else
-            echo "Missing passwordless sudo for /etc/hosts update on weave-live runner" >&2
-            echo "Pre-provision this hosts entry on the runner: $hosts_line" >&2
-            exit 1
-          fi
       - name: Verify local live-stack bootstrap env
         run: |
           test -f "$WEAVE_BOOTSTRAP_ENV"
