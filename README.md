@@ -150,7 +150,7 @@ Run against a different infra checkout:
 WEAVE_BOOTSTRAP_ENV=../weave-infra/weave-workspace/.generated/bootstrap.env make integration-test
 ```
 
-The GitHub Actions live-stack job runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. The job bootstraps a fresh local stack, builds the backend image from the selected backend ref, then reads the generated bootstrap env so the Flutter tests consume the exact API/Auth/Matrix/Nextcloud endpoints that infra exposed.
+The GitHub Actions live-stack job runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. The job bootstraps a fresh local stack on the same canonical `*.weave.local` hostnames used by local developers, builds the backend image from the selected backend ref, then reads the generated bootstrap env so the Flutter tests consume the exact API/Auth/Matrix/Nextcloud endpoints that infra exposed. If the runner cannot resolve those hostnames and cannot update `/etc/hosts` non-interactively, the job fails fast with the exact host line to add.
 
 Supported overrides:
 
