@@ -144,6 +144,8 @@ jobs:
           rm -rf "$GITHUB_WORKSPACE/build"
       - name: Clean up stale stack state before bootstrap
         working-directory: weave-infra/weave-workspace
+        env:
+          WEAVE_REMOVE_VOLUMES: "true"
         run: bash ./teardown.sh
       - name: Bootstrap local stack
         working-directory: weave-infra/weave-workspace
@@ -204,4 +206,6 @@ jobs:
       - name: Destroy stack and scrub stale resources
         if: always()
         working-directory: weave-infra/weave-workspace
+        env:
+          WEAVE_REMOVE_VOLUMES: "true"
         run: bash ./teardown.sh

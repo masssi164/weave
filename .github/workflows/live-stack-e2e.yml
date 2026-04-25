@@ -117,6 +117,8 @@ jobs:
 
       - name: Clean up stale stack state before bootstrap
         working-directory: weave-infra/weave-workspace
+        env:
+          WEAVE_REMOVE_VOLUMES: "true"
         run: bash ./teardown.sh
 
       - name: Pull backend image
@@ -170,4 +172,6 @@ jobs:
       - name: Destroy stack and scrub stale resources
         if: always()
         working-directory: weave-infra/weave-workspace
+        env:
+          WEAVE_REMOVE_VOLUMES: "true"
         run: bash ./teardown.sh
