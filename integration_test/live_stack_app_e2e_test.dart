@@ -12,6 +12,7 @@ import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
+import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
@@ -36,16 +37,28 @@ void main() {
   late TestConfig config;
   late LiveOidcTestDriver liveOidcDriver;
   late http.Client nextcloudHttpClient;
+  late Directory matrixSupportDirectory;
+  late SdkMatrixClientFactory liveMatrixClientFactory;
 
-  setUp(() {
+  setUp(() async {
     config = TestConfig.fromEnvironment();
     config.requireCredentials();
     liveOidcDriver = LiveOidcTestDriver(config: config);
     nextcloudHttpClient = createTrustedTestHttpClient();
+    matrixSupportDirectory = await Directory.systemTemp.createTemp(
+      'weave-live-e2e-matrix-',
+    );
+    liveMatrixClientFactory = SdkMatrixClientFactory(
+      appSupportDirectoryProvider: () async => matrixSupportDirectory,
+    );
   });
 
-  tearDown(() {
+  tearDown(() async {
     nextcloudHttpClient.close();
+    await liveMatrixClientFactory.dispose();
+    if (await matrixSupportDirectory.exists()) {
+      await matrixSupportDirectory.delete(recursive: true);
+    }
   });
 
   testWidgets('real live-stack sign-in, Matrix connect, and Nextcloud browse', (
@@ -73,6 +86,9 @@ void main() {
           ),
           oidcClientProvider.overrideWithValue(liveOidcDriver),
           matrixAuthBrowserProvider.overrideWithValue(liveOidcDriver),
+          matrixClientFactoryProvider.overrideWithValue(
+            liveMatrixClientFactory,
+          ),
           nextcloudHttpClientProvider.overrideWithValue(nextcloudHttpClient),
         ],
         child: const WeaveApp(),
