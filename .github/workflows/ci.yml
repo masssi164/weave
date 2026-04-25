@@ -160,7 +160,7 @@ jobs:
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
           set -euo pipefail
-          hosts_line='127.0.0.1 keycloak.weave.local nextcloud.weave.local matrix.weave.local api.weave.local'
+          hosts_line='127.0.0.1 weave.local auth.weave.local files.weave.local matrix.weave.local'
           if grep -Fq "$hosts_line" /etc/hosts; then
             exit 0
           fi

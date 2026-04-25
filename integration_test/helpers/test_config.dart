@@ -17,7 +17,7 @@ class TestConfig {
     final baseUrl = _parseUrl(
       const String.fromEnvironment(
         'WEAVE_BASE_URL',
-        defaultValue: 'https://api.weave.local',
+        defaultValue: 'https://weave.local/api',
       ),
       variableName: 'WEAVE_BASE_URL',
     );
@@ -35,7 +35,7 @@ class TestConfig {
       issuerUrl: issuerUrl,
       clientId: clientId,
       matrixHomeserverUrl: _serviceUri(baseUrl, host: 'matrix.$workspaceHost'),
-      nextcloudBaseUrl: _serviceUri(baseUrl, host: 'nextcloud.$workspaceHost'),
+      nextcloudBaseUrl: _serviceUri(baseUrl, host: 'files.$workspaceHost'),
       backendApiBaseUrl: baseUrl,
     );
   }
@@ -76,15 +76,14 @@ class TestConfig {
         .split('/')
         .where((segment) => segment.isNotEmpty)
         .toList(growable: false);
-
-    return backendApiBaseUrl.replace(
-      pathSegments: [
-        ...backendApiBaseUrl.pathSegments.where(
-          (segment) => segment.isNotEmpty,
-        ),
-        ...pathSegments,
-      ],
+    final normalizedPathSegments = _dropDuplicateApiSegment(
+      backendApiBaseUrl.pathSegments
+          .where((segment) => segment.isNotEmpty)
+          .toList(growable: false),
+      pathSegments,
     );
+
+    return backendApiBaseUrl.replace(pathSegments: normalizedPathSegments);
   }
 
   Uri unreachableBackendApiBaseUrl() {
@@ -143,9 +142,23 @@ class TestConfig {
 
     return _serviceUri(
       baseUrl,
-      host: 'keycloak.$workspaceHost',
+      host: 'auth.$workspaceHost',
       pathSegments: const <String>['realms', 'weave'],
     );
+  }
+
+  static List<String> _dropDuplicateApiSegment(
+    List<String> baseSegments,
+    List<String> pathSegments,
+  ) {
+    if (baseSegments.isNotEmpty &&
+        pathSegments.isNotEmpty &&
+        baseSegments.last == 'api' &&
+        pathSegments.first == 'api') {
+      return [...baseSegments, ...pathSegments.skip(1)];
+    }
+
+    return [...baseSegments, ...pathSegments];
   }
 
   static String _workspaceHost(String host) {

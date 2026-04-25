@@ -46,8 +46,8 @@ For the default homelab convention, Weave assumes:
 
 - OIDC issuer / auth provider: `https://auth.home.internal`
 - Matrix homeserver: `https://matrix.home.internal`
-- Nextcloud base URL: `https://nextcloud.home.internal`
-- Backend API base URL: `https://api.home.internal`
+- Raw Nextcloud fallback URL: `https://files.home.internal`
+- Backend API base URL: `https://home.internal/api`
 
 ## Architecture
 Weave follows a feature-first clean architecture layout:
@@ -133,7 +133,7 @@ Integration tests require a live local Weave stack, including the backend API an
 
 The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env` and mirrors them to `/tmp/weave-infra/weave-workspace/.generated/bootstrap.env` for the self-hosted GitHub runner path. `make integration-test` sources the repo-local file first, then falls back to the `/tmp` mirror. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere.
 
-Expected local hostnames include `api.weave.local`, `keycloak.weave.local`, `matrix.weave.local`, and `nextcloud.weave.local`.
+Expected local hostnames include `weave.local`, `auth.weave.local`, `matrix.weave.local`, and `files.weave.local`.
 
 Run against the default local stack:
 
@@ -154,8 +154,8 @@ The GitHub Actions live-stack job now runs on a dedicated `self-hosted`, `macOS`
 
 Supported overrides:
 
-- `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://api.weave.local`
-- `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://keycloak.weave.local/realms/weave`
+- `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://weave.local/api`
+- `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://auth.weave.local/realms/weave`
 - `WEAVE_OIDC_CLIENT_ID`: app OIDC client ID, defaulting to `weave-app`
 - `WEAVE_TEST_USERNAME`: username for the test account
 - `WEAVE_TEST_PASSWORD`: password for the test account

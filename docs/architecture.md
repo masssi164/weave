@@ -63,12 +63,12 @@ Derivation rule:
 - if the host has 3 or more labels, drop the first label
 - derive:
   - `https://matrix.<base-domain>`
-  - `https://nextcloud.<base-domain>`
-  - `https://api.<base-domain>`
+  - `https://files.<base-domain>`
+  - `https://<base-domain>/api`
 
 Example:
 
-- `https://auth.home.internal` becomes `https://matrix.home.internal`, `https://nextcloud.home.internal`, and `https://api.home.internal`
+- `https://auth.home.internal` becomes `https://matrix.home.internal`, `https://files.home.internal`, and `https://home.internal/api`
 
 This is intentionally simple, explicit, and easy to change later. It is a convenience default, not a hard rule. Users can edit the derived values during setup and in Settings.
 

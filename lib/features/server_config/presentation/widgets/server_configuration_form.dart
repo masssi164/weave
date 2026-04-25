@@ -241,7 +241,7 @@ class _ServerConfigurationFormState
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             labelText: l10n.serverConfigurationNextcloudLabel,
-            hintText: 'https://nextcloud.home.internal',
+            hintText: 'https://files.home.internal',
             helperText: formState.derivedNextcloudBaseUrl.isEmpty
                 ? null
                 : l10n.serverConfigurationDerivedHint(
@@ -260,7 +260,7 @@ class _ServerConfigurationFormState
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(
             labelText: l10n.serverConfigurationBackendApiLabel,
-            hintText: 'https://api.home.internal',
+            hintText: 'https://home.internal/api',
             helperText: formState.derivedBackendApiBaseUrl.isEmpty
                 ? null
                 : l10n.serverConfigurationDerivedHint(

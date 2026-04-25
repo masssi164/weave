@@ -92,7 +92,7 @@ void main() {
 
         expect(
           loaded?.serviceEndpoints.backendApiBaseUrl.toString(),
-          'https://api.home.internal',
+          'https://home.internal/api',
         );
       },
     );
@@ -118,7 +118,7 @@ void main() {
         'oidcIssuerUrl': 'https://auth.home.internal',
         'oidcClientRegistrationMode': 'manual',
         'matrixHomeserverUrl': 'https://matrix.home.internal',
-        'nextcloudBaseUrl': 'https://nextcloud.home.internal',
+        'nextcloudBaseUrl': 'https://files.home.internal',
       });
       final store = InMemoryPreferencesStore({
         serverConfigurationStorageKey: raw,

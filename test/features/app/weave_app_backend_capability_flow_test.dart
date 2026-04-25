@@ -176,7 +176,7 @@ void main() {
             filesRepositoryProvider.overrideWithValue(
               _FakeFilesRepository(
                 connectionState: FilesConnectionState.connected(
-                  baseUrl: Uri.parse('https://nextcloud.home.internal'),
+                  baseUrl: Uri.parse('https://files.home.internal'),
                   accountLabel: 'alice',
                 ),
               ),
@@ -196,7 +196,7 @@ void main() {
       expect(weaveApiClient.callCount, 1);
       expect(
         weaveApiClient.lastBaseUrl,
-        Uri.parse('https://api.home.internal'),
+        Uri.parse('https://home.internal/api'),
       );
       expect(weaveApiClient.lastAccessToken, 'backend-boundary-token');
 

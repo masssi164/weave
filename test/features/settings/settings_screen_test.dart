@@ -165,20 +165,20 @@ void main() {
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
       expect(find.text('weave-app'), findsWidgets);
-      expect(find.text('https://api.home.internal'), findsWidgets);
+      expect(find.text('https://home.internal/api'), findsWidgets);
 
       await tester.enterText(
         _textFieldWithLabel('Nextcloud Base URL'),
-        'https://nextcloud-alt.home.internal',
+        'https://files-alt.home.internal',
       );
       await tester.pump();
-      expect(find.text('https://nextcloud-alt.home.internal'), findsWidgets);
+      expect(find.text('https://files-alt.home.internal'), findsWidgets);
 
       expect(
         container
             .read(serverConfigurationFormControllerProvider)
             .nextcloudBaseUrl,
-        'https://nextcloud-alt.home.internal',
+        'https://files-alt.home.internal',
       );
 
       await container
@@ -189,8 +189,8 @@ void main() {
       final raw = store.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
 
-      expect(json['nextcloudBaseUrl'], 'https://nextcloud-alt.home.internal');
-      expect(json['backendApiBaseUrl'], 'https://api.home.internal');
+      expect(json['nextcloudBaseUrl'], 'https://files-alt.home.internal');
+      expect(json['backendApiBaseUrl'], 'https://home.internal/api');
     });
 
     testWidgets('preserves overridden service URLs when the issuer changes', (

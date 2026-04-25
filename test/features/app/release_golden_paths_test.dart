@@ -94,7 +94,7 @@ class _MutableFilesRepository implements FilesRepository {
        _connectedState =
            connectedState ??
            FilesConnectionState.connected(
-             baseUrl: Uri.parse('https://nextcloud.home.internal'),
+             baseUrl: Uri.parse('https://files.home.internal'),
              accountLabel: 'alice',
            );
 
@@ -306,7 +306,7 @@ void main() {
         });
         final filesRepository = _MutableFilesRepository(
           initialConnectionState: FilesConnectionState.disconnected(
-            baseUrl: Uri.parse('https://nextcloud.home.internal'),
+            baseUrl: Uri.parse('https://files.home.internal'),
           ),
           listings: <String, DirectoryListing>{
             '/': const DirectoryListing(
@@ -440,7 +440,7 @@ void main() {
       });
       final filesRepository = _MutableFilesRepository(
         initialConnectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
           accountLabel: 'alice',
         ),
         listings: const <String, DirectoryListing>{
@@ -525,7 +525,7 @@ void main() {
         );
         final filesRepository = _MutableFilesRepository(
           initialConnectionState: FilesConnectionState.connected(
-            baseUrl: Uri.parse('https://nextcloud.home.internal'),
+            baseUrl: Uri.parse('https://files.home.internal'),
             accountLabel: 'alice',
           ),
           listings: const <String, DirectoryListing>{
