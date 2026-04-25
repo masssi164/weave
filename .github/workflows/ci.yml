@@ -22,7 +22,7 @@ on:
       WEAVE_BACKEND_IMAGE:
         description: "Backend image to boot inside the infra stack"
         required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
+        default: "weave-backend:live-stack-ci"
   workflow_call:
     inputs:
       WEAVE_BASE_URL:
@@ -43,7 +43,7 @@ on:
       WEAVE_BACKEND_IMAGE:
         type: string
         required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
+        default: "weave-backend:live-stack-ci"
     secrets:
       WEAVE_TEST_PASSWORD:
         required: true

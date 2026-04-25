@@ -194,6 +194,17 @@ class LiveOidcTestDriver
           continue;
         }
 
+        final nextcloudOidcLink = _tryParseNextcloudOidcProviderLink(
+          body,
+          nextUri,
+        );
+        if (nextcloudOidcLink != null && nextcloudOidcLink != nextUri) {
+          madeProgress = true;
+          previousUri = nextUri;
+          nextUri = nextcloudOidcLink;
+          continue;
+        }
+
         final loginForm = _tryParseLoginForm(body, nextUri);
         if (loginForm != null) {
           madeProgress = true;
@@ -496,6 +507,38 @@ class LiveOidcTestDriver
     return oidcDefaultScopes;
   }
 
+  Uri? _tryParseNextcloudOidcProviderLink(String html, Uri baseUri) {
+    final anchorMatches = RegExp(
+      r'<a([^>]*)>',
+      caseSensitive: false,
+    ).allMatches(html);
+    for (final match in anchorMatches) {
+      final attributes = match.group(1) ?? '';
+      final href = _extractHtmlAttribute(attributes, 'href')?.trim();
+      if (href == null || href.isEmpty) {
+        continue;
+      }
+      final decodedHref = _htmlDecode(href);
+      if (decodedHref.contains('/apps/user_oidc/login/')) {
+        return baseUri.resolve(decodedHref);
+      }
+    }
+
+    final formMatches = RegExp(
+      r'<form([^>]*)>',
+      caseSensitive: false,
+    ).allMatches(html);
+    for (final match in formMatches) {
+      final attributes = match.group(1) ?? '';
+      final action = _resolveFormAction(attributes, baseUri);
+      if (action.path.contains('/apps/user_oidc/login/')) {
+        return action;
+      }
+    }
+
+    return null;
+  }
+
   _ParsedLoginForm? _tryParseLoginForm(String html, Uri baseUri) {
     final formMatch = RegExp(
       r'<form([^>]*)>([\s\S]*?)</form>',
@@ -534,7 +577,9 @@ class LiveOidcTestDriver
       }
       if (!RegExp(r'type="submit"', caseSensitive: false).hasMatch(formHtml) &&
           !formHtml.contains('Create Account') &&
-          !formHtml.contains('Continue')) {
+          !formHtml.contains('Continue') &&
+          !formHtml.contains('Grant access') &&
+          !formHtml.contains('Authorize')) {
         continue;
       }
       return _ParsedLoginForm(

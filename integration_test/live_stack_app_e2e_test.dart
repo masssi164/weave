@@ -214,6 +214,9 @@ void main() {
         return 'filesConnected=${state.connectionState.isConnected} '
             'filesStatus=${state.connectionState.status} '
             'filesMessage=${state.connectionState.message} '
+            'directoryFailure=${state.directoryFailure?.message} '
+            'directoryFailureCause=${state.directoryFailure?.cause} '
+            'configuredNextcloudBaseUrl=${config.nextcloudBaseUrl} '
             'hasListing=${state.directoryListing != null}';
       },
     );

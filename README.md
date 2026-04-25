@@ -150,13 +150,15 @@ Run against a different infra checkout:
 WEAVE_BOOTSTRAP_ENV=../weave-inf/weave-workspace/.generated/bootstrap.env make integration-test
 ```
 
-The GitHub Actions live-stack job now runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. That runner only needs the local stack bootstrapped once on the same machine because the workflow reads the mirrored `/tmp/weave-infra/.../bootstrap.env` file.
+The GitHub Actions live-stack job runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. The job bootstraps a fresh local stack, builds the backend image from the selected backend ref, then reads the generated bootstrap env so the Flutter tests consume the exact API/Auth/Matrix/Nextcloud endpoints that infra exposed.
 
 Supported overrides:
 
 - `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://weave.local/api`
 - `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://auth.weave.local/realms/weave`
 - `WEAVE_OIDC_CLIENT_ID`: app OIDC client ID, defaulting to `weave-app`
+- `WEAVE_NEXTCLOUD_BASE_URL`: canonical Nextcloud URL, defaulting to `files.<workspace-host>` (legacy `WEAVE_NEXTCLOUD_URL` is also accepted)
+- `WEAVE_MATRIX_HOMESERVER_URL`: Matrix homeserver URL, defaulting to `matrix.<workspace-host>` (legacy `WEAVE_MATRIX_URL` is also accepted)
 - `WEAVE_TEST_USERNAME`: username for the test account
 - `WEAVE_TEST_PASSWORD`: password for the test account
 

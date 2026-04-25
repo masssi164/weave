@@ -12,6 +12,10 @@ integration-test:
 	caller_WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL-}"; \
 	caller_WEAVE_OIDC_CLIENT_ID_set="$${WEAVE_OIDC_CLIENT_ID+x}"; \
 	caller_WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID-}"; \
+	caller_WEAVE_NEXTCLOUD_BASE_URL_set="$${WEAVE_NEXTCLOUD_BASE_URL+x}"; \
+	caller_WEAVE_NEXTCLOUD_BASE_URL="$${WEAVE_NEXTCLOUD_BASE_URL-}"; \
+	caller_WEAVE_MATRIX_HOMESERVER_URL_set="$${WEAVE_MATRIX_HOMESERVER_URL+x}"; \
+	caller_WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL-}"; \
 	caller_WEAVE_TEST_USERNAME_set="$${WEAVE_TEST_USERNAME+x}"; \
 	caller_WEAVE_TEST_USERNAME="$${WEAVE_TEST_USERNAME-}"; \
 	caller_WEAVE_TEST_PASSWORD_set="$${WEAVE_TEST_PASSWORD+x}"; \
@@ -23,16 +27,22 @@ integration-test:
 	if [ "$$caller_WEAVE_BASE_URL_set" = x ] && [ -n "$$caller_WEAVE_BASE_URL" ]; then WEAVE_BASE_URL="$$caller_WEAVE_BASE_URL"; fi; \
 	if [ "$$caller_WEAVE_OIDC_ISSUER_URL_set" = x ] && [ -n "$$caller_WEAVE_OIDC_ISSUER_URL" ]; then WEAVE_OIDC_ISSUER_URL="$$caller_WEAVE_OIDC_ISSUER_URL"; fi; \
 	if [ "$$caller_WEAVE_OIDC_CLIENT_ID_set" = x ] && [ -n "$$caller_WEAVE_OIDC_CLIENT_ID" ]; then WEAVE_OIDC_CLIENT_ID="$$caller_WEAVE_OIDC_CLIENT_ID"; fi; \
+	if [ "$$caller_WEAVE_NEXTCLOUD_BASE_URL_set" = x ] && [ -n "$$caller_WEAVE_NEXTCLOUD_BASE_URL" ]; then WEAVE_NEXTCLOUD_BASE_URL="$$caller_WEAVE_NEXTCLOUD_BASE_URL"; fi; \
+	if [ "$$caller_WEAVE_MATRIX_HOMESERVER_URL_set" = x ] && [ -n "$$caller_WEAVE_MATRIX_HOMESERVER_URL" ]; then WEAVE_MATRIX_HOMESERVER_URL="$$caller_WEAVE_MATRIX_HOMESERVER_URL"; fi; \
 	if [ "$$caller_WEAVE_TEST_USERNAME_set" = x ] && [ -n "$$caller_WEAVE_TEST_USERNAME" ]; then WEAVE_TEST_USERNAME="$$caller_WEAVE_TEST_USERNAME"; fi; \
 	if [ "$$caller_WEAVE_TEST_PASSWORD_set" = x ] && [ -n "$$caller_WEAVE_TEST_PASSWORD" ]; then WEAVE_TEST_PASSWORD="$$caller_WEAVE_TEST_PASSWORD"; fi; \
 	WEAVE_BASE_URL="$${WEAVE_BASE_URL:-https://weave.local/api}"; \
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://auth.weave.local/realms/weave}"; \
 	WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID:-weave-app}"; \
+	WEAVE_NEXTCLOUD_BASE_URL="$${WEAVE_NEXTCLOUD_BASE_URL:-$${WEAVE_NEXTCLOUD_URL:-}}"; \
+	WEAVE_MATRIX_HOMESERVER_URL="$${WEAVE_MATRIX_HOMESERVER_URL:-$${WEAVE_MATRIX_URL:-}}"; \
 	printf '%s\n' \
 	  '{' \
 	  '  "WEAVE_BASE_URL": "'"$$WEAVE_BASE_URL"'",' \
 	  '  "WEAVE_OIDC_ISSUER_URL": "'"$$WEAVE_OIDC_ISSUER_URL"'",' \
 	  '  "WEAVE_OIDC_CLIENT_ID": "'"$$WEAVE_OIDC_CLIENT_ID"'",' \
+	  '  "WEAVE_NEXTCLOUD_BASE_URL": "'"$$WEAVE_NEXTCLOUD_BASE_URL"'",' \
+	  '  "WEAVE_MATRIX_HOMESERVER_URL": "'"$$WEAVE_MATRIX_HOMESERVER_URL"'",' \
 	  '  "WEAVE_TEST_USERNAME": "'"$${WEAVE_TEST_USERNAME}"'",' \
 	  '  "WEAVE_TEST_PASSWORD": "'"$${WEAVE_TEST_PASSWORD}"'"' \
 	  '}' > "$$dart_defines_file"; \
