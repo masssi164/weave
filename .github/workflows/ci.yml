@@ -107,6 +107,7 @@ jobs:
       REQUESTED_WEAVE_BACKEND_REF: ${{ inputs.WEAVE_BACKEND_REF || github.head_ref || github.ref_name || 'main' }}
       WEAVE_BACKEND_IMAGE: ${{ inputs.WEAVE_BACKEND_IMAGE || 'weave-backend:live-stack-ci' }}
       DOCKER_BUILDKIT: '1'
+      WEAVE_REMOVE_VOLUMES: 'true'
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
