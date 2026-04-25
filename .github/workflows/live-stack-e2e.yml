@@ -10,7 +10,7 @@ on:
       weave_infra_ref:
         description: "Git ref to use for weave-infra"
         required: false
-        default: "fix/keycloak-bootstrap-admin-env"
+        default: "main"
   workflow_call:
     inputs:
       weave_backend_image:
@@ -20,7 +20,7 @@ on:
       weave_infra_ref:
         type: string
         required: false
-        default: "fix/keycloak-bootstrap-admin-env"
+        default: "main"
     secrets:
       WEAVE_TEST_PASSWORD:
         required: true
@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 75
     env:
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
-      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'fix/keycloak-bootstrap-admin-env' }}
+      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_db_admin_password: ci-db-admin-password
@@ -122,7 +122,16 @@ jobs:
         run: bash ./teardown.sh
 
       - name: Pull backend image
-        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+        run: |
+          set -euo pipefail
+          docker pull "${WEAVE_BACKEND_IMAGE}"
+          resolved_image="$(docker image inspect --format='{{ index .RepoDigests 0 }}' "${WEAVE_BACKEND_IMAGE}")"
+          if [ -z "${resolved_image}" ]; then
+            echo "Failed to resolve ${WEAVE_BACKEND_IMAGE} to an immutable digest" >&2
+            exit 1
+          fi
+          echo "WEAVE_BACKEND_IMAGE=${resolved_image}" >> "${GITHUB_ENV}"
+          echo "Resolved backend image: ${resolved_image}"
 
       - name: Bootstrap local stack
         working-directory: weave-infra/weave-workspace

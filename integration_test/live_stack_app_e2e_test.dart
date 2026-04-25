@@ -104,7 +104,7 @@ void main() {
     await tester.tap(find.widgetWithText(AccessibleButton, 'Anmelden').first);
     await tester.pump();
 
-    container.read(chatProvider.notifier).connect();
+    await container.read(chatProvider.notifier).connect();
     await tester.pump();
 
     await _waitFor(
@@ -136,6 +136,11 @@ void main() {
     final matrixClientFactory = container.read(matrixClientFactoryProvider);
     final matrixClient = await matrixClientFactory.getClientForHomeserver(
       config.matrixHomeserverUrl,
+    );
+    expect(
+      matrixClient.isLogged(),
+      isTrue,
+      reason: 'Matrix client must be logged in before seeding a live E2E room.',
     );
     final roomName = 'weave-live-e2e-${DateTime.now().millisecondsSinceEpoch}';
     final roomId = await matrixClient.createGroupChat(
