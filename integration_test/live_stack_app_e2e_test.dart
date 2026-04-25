@@ -31,7 +31,11 @@ import 'helpers/test_config.dart';
 import 'helpers/test_http_overrides.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  // The self-hosted macOS runner can expose host accessibility state to the
+  // launched Flutter app. Keep the live E2E deterministic and prevent a
+  // platform-requested semantics handle from leaking past test teardown.
+  binding.platformDispatcher.semanticsEnabledTestValue = false;
   HttpOverrides.global = TestHttpOverrides();
 
   late TestConfig config;
