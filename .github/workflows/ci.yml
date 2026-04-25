@@ -80,6 +80,19 @@ jobs:
       WEAVE_TEST_USERNAME: ${{ inputs.WEAVE_TEST_USERNAME }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
+      TF_VAR_db_admin_password: ci-db-admin-password
+      TF_VAR_keycloak_admin_password: ci-keycloak-admin-password
+      TF_VAR_keycloak_db_password: ci-keycloak-db-password
+      TF_VAR_mas_db_password: ci-mas-db-password
+      TF_VAR_synapse_db_password: ci-synapse-db-password
+      TF_VAR_nextcloud_db_password: ci-nextcloud-db-password
+      TF_VAR_nextcloud_admin_password: ci-nextcloud-admin-password
+      TF_VAR_matrix_mas_client_secret: ci-matrix-mas-client-secret
+      TF_VAR_mas_encryption_secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      TF_VAR_mas_matrix_secret: ci-mas-matrix-secret
+      TF_VAR_synapse_registration_shared_secret: ci-synapse-registration-shared-secret
+      TF_VAR_synapse_macaroon_secret_key: ci-synapse-macaroon-secret-key
+      TF_VAR_synapse_form_secret: ci-synapse-form-secret
       WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
       WEAVE_INTEGRATION_TEST_DEVICE: macos
       WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || 'main' }}
