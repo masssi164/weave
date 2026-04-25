@@ -386,26 +386,48 @@ class LiveOidcTestDriver
     _NextcloudLoginFlowAuth auth,
     List<_StoredCookie> cookieJar,
   ) async {
-    for (var attempt = 0; attempt < 3; attempt++) {
-      var grantUri = auth.loginRedirectUrl;
-      var grantResponse = await _open(client, grantUri, cookieJar);
-      var grantBody = await utf8.decodeStream(grantResponse);
-
-      final grantLocation = grantResponse.headers.value(
-        HttpHeaders.locationHeader,
+    var grantUri = auth.loginRedirectUrl;
+    var lastDiagnostic = 'not-opened';
+    for (var attempt = 0; attempt < 4; attempt++) {
+      final requestedGrantUri = grantUri;
+      final page = await _openFollowingRedirects(client, grantUri, cookieJar);
+      lastDiagnostic = _describeNextcloudPage(
+        page.body,
+        page.uri,
+        page.statusCode,
       );
-      if (_isRedirect(grantResponse.statusCode) && grantLocation != null) {
-        grantUri = grantUri.resolve(grantLocation);
-        grantResponse = await _open(client, grantUri, cookieJar);
-        grantBody = await utf8.decodeStream(grantResponse);
+      _logNextcloudFlow(
+        'NEXTCLOUD_LOGIN_FLOW_GRANT_PAGE attempt=$attempt $lastDiagnostic',
+      );
+
+      if (_isNextcloudLoginFlowDone(page.body)) {
+        return true;
       }
 
-      if (grantResponse.statusCode == 401 ||
-          _hasNextcloudLoginAction(grantBody, grantUri) ||
-          _isNextcloudLoginPage(grantBody, grantUri)) {
+      final grant = _tryParseNextcloudLoginFlowGrant(page.body, page.uri);
+      if (grant != null) {
+        await _submitNextcloudGrant(
+          client,
+          grant,
+          cookieJar,
+          referer: page.uri,
+        );
+        return true;
+      }
+
+      final nestedAuth = _tryParseNextcloudLoginFlowAuth(page.body, page.uri);
+      if (nestedAuth != null && nestedAuth.loginRedirectUrl != page.uri) {
+        grantUri = nestedAuth.loginRedirectUrl;
+      }
+      final loginGrantUri = nestedAuth?.loginRedirectUrl ?? requestedGrantUri;
+
+      if (page.statusCode == 401 ||
+          nestedAuth != null ||
+          _hasNextcloudLoginAction(page.body, page.uri) ||
+          _isNextcloudLoginPage(page.body, page.uri)) {
         final grantSubmitted = await _signIntoNextcloud(
           client,
-          grantUri,
+          loginGrantUri,
           cookieJar,
         );
         if (grantSubmitted) {
@@ -414,25 +436,16 @@ class LiveOidcTestDriver
         continue;
       }
 
-      final grant = _tryParseNextcloudLoginFlowGrant(grantBody, grantUri);
-      if (grant != null) {
-        await _submitNextcloudGrant(
-          client,
-          grant,
-          cookieJar,
-          referer: grantUri,
-        );
-        return true;
-      }
-
-      final snippet = grantBody.replaceAll(RegExp(r'\s+'), ' ');
       throw StateError(
         'Nextcloud login flow did not expose a grant form after sign-in. '
-        'Status=${grantResponse.statusCode} Body=${snippet.substring(0, snippet.length > 300 ? 300 : snippet.length)}',
+        '$lastDiagnostic',
       );
     }
 
-    throw StateError('Nextcloud login flow did not expose a grant form.');
+    throw StateError(
+      'Nextcloud login flow did not expose a grant form after retries. '
+      '$lastDiagnostic',
+    );
   }
 
   Future<bool> _signIntoNextcloud(
@@ -441,16 +454,34 @@ class LiveOidcTestDriver
     List<_StoredCookie> cookieJar,
   ) async {
     final loginUri = _nextcloudLoginUriForGrant(grantUri);
-    final response = await _open(client, loginUri, cookieJar);
-    final body = await utf8.decodeStream(response);
+    final loginPage = await _openFollowingRedirects(
+      client,
+      loginUri,
+      cookieJar,
+    );
+    if (_isNextcloudLoginFlowDone(loginPage.body)) {
+      return true;
+    }
+    final loginPageGrant = _tryParseNextcloudLoginFlowGrant(
+      loginPage.body,
+      loginPage.uri,
+    );
+    if (loginPageGrant != null) {
+      await _submitNextcloudGrant(
+        client,
+        loginPageGrant,
+        cookieJar,
+        referer: loginPage.uri,
+      );
+      return true;
+    }
     final oidcLogin =
-        _tryParseNextcloudOidcProviderLink(body, loginUri) ??
-        _tryParseNextcloudAlternativeLoginLink(body, loginUri);
+        _tryParseNextcloudOidcProviderLink(loginPage.body, loginPage.uri) ??
+        _tryParseNextcloudAlternativeLoginLink(loginPage.body, loginPage.uri);
     if (oidcLogin == null) {
-      final snippet = body.replaceAll(RegExp(r'\s+'), ' ');
       throw StateError(
         'Nextcloud login page did not expose an OIDC provider link. '
-        'Status=${response.statusCode} Body=${snippet.substring(0, snippet.length > 300 ? 300 : snippet.length)}',
+        '${_describeNextcloudPage(loginPage.body, loginPage.uri, loginPage.statusCode)}',
       );
     }
 
@@ -463,7 +494,24 @@ class LiveOidcTestDriver
         grantSubmitted = true;
       },
     );
-    return grantSubmitted;
+    if (grantSubmitted) {
+      return true;
+    }
+
+    final page = await _openFollowingRedirects(client, grantUri, cookieJar);
+    final grant = _tryParseNextcloudLoginFlowGrant(page.body, page.uri);
+    if (grant != null) {
+      await _submitNextcloudGrant(client, grant, cookieJar, referer: page.uri);
+      return true;
+    }
+    if (_isNextcloudLoginFlowDone(page.body)) {
+      return true;
+    }
+    _logNextcloudFlow(
+      'NEXTCLOUD_LOGIN_FLOW_POST_SIGN_IN '
+      '${_describeNextcloudPage(page.body, page.uri, page.statusCode)}',
+    );
+    return false;
   }
 
   Future<void> _submitNextcloudGrant(
@@ -483,17 +531,27 @@ class LiveOidcTestDriver
     final body = await utf8.decodeStream(response);
     if (_isRedirect(response.statusCode) && location != null) {
       final redirected = grant.action.resolve(location);
-      final followUp = await _open(client, redirected, cookieJar);
-      await utf8.decodeStream(followUp);
+      final followUp = await _openFollowingRedirects(
+        client,
+        redirected,
+        cookieJar,
+      );
+      _logNextcloudFlow(
+        'NEXTCLOUD_LOGIN_FLOW_GRANT_SUBMITTED '
+        '${_describeNextcloudPage(followUp.body, followUp.uri, followUp.statusCode)}',
+      );
       return;
     }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final snippet = body.replaceAll(RegExp(r'\s+'), ' ');
       throw StateError(
         'Nextcloud rejected the login-flow grant. '
-        'Status=${response.statusCode} Body=${snippet.substring(0, snippet.length > 300 ? 300 : snippet.length)}',
+        '${_describeNextcloudPage(body, grant.action, response.statusCode)}',
       );
     }
+    _logNextcloudFlow(
+      'NEXTCLOUD_LOGIN_FLOW_GRANT_SUBMITTED '
+      '${_describeNextcloudPage(body, grant.action, response.statusCode)}',
+    );
   }
 
   Future<Map<String, dynamic>> _readDiscovery(Uri issuer) async {
@@ -548,6 +606,37 @@ class LiveOidcTestDriver
     final response = await request.close();
     _storeCookies(response, uri, cookieJar);
     return response;
+  }
+
+  Future<_FetchedPage> _openFollowingRedirects(
+    HttpClient client,
+    Uri uri,
+    List<_StoredCookie> cookieJar, {
+    int maxRedirects = 6,
+  }) async {
+    var currentUri = uri;
+    for (
+      var redirectCount = 0;
+      redirectCount <= maxRedirects;
+      redirectCount++
+    ) {
+      final response = await _open(client, currentUri, cookieJar);
+      final location = response.headers.value(HttpHeaders.locationHeader);
+      final body = await utf8.decodeStream(response);
+      if (_isRedirect(response.statusCode) && location != null) {
+        currentUri = currentUri.resolve(location);
+        continue;
+      }
+      return _FetchedPage(
+        uri: currentUri,
+        statusCode: response.statusCode,
+        body: body,
+      );
+    }
+    throw StateError(
+      'Nextcloud login flow exceeded redirect limit at '
+      '${_safeUriForDiagnostics(currentUri)}.',
+    );
   }
 
   Future<HttpClientResponse> _postForm(
@@ -687,6 +776,86 @@ class LiveOidcTestDriver
         html.contains('Login - Nextcloud') ||
         html.contains('id="body-login"') ||
         html.contains("id='body-login'");
+  }
+
+  bool _isNextcloudLoginFlowDone(String html) {
+    return _tryParseInitialState(html, 'initial-state-core-loginFlowState') ==
+        'done';
+  }
+
+  String _describeNextcloudPage(String html, Uri uri, int statusCode) {
+    final initialStateIds = _initialStateIds(html).take(12).join(',');
+    final formSummaries = _formSummaries(html, uri).take(4).join(';');
+    final flowState = _tryParseInitialState(
+      html,
+      'initial-state-core-loginFlowState',
+    );
+    return 'status=$statusCode '
+        'uri=${_safeUriForDiagnostics(uri)} '
+        'flowState=${flowState is String ? flowState : 'none'} '
+        'hasAuth=${_tryParseNextcloudLoginFlowAuth(html, uri) != null} '
+        'hasGrant=${_tryParseNextcloudLoginFlowGrant(html, uri) != null} '
+        'hasRequestToken=${_tryParseRequestToken(html) != null} '
+        'hasOidcLink=${_tryParseNextcloudOidcProviderLink(html, uri) != null} '
+        'hasAlternativeLogin=${_tryParseNextcloudAlternativeLoginLink(html, uri) != null} '
+        'hasLoginForm=${_tryParseLoginForm(html, uri) != null} '
+        'initialStateIds=[$initialStateIds] '
+        'forms=[$formSummaries]';
+  }
+
+  Iterable<String> _initialStateIds(String html) sync* {
+    final inputMatches = RegExp(
+      r'<input([^>]*)>',
+      caseSensitive: false,
+    ).allMatches(html);
+    for (final match in inputMatches) {
+      final id = _extractHtmlAttribute(match.group(1) ?? '', 'id');
+      if (id != null && id.startsWith('initial-state-')) {
+        yield id;
+      }
+    }
+  }
+
+  Iterable<String> _formSummaries(String html, Uri baseUri) sync* {
+    final formMatches = RegExp(
+      r'<form([^>]*)>([\s\S]*?)</form>',
+      caseSensitive: false,
+    ).allMatches(html);
+    for (final match in formMatches) {
+      final attributes = match.group(1) ?? '';
+      final formHtml = match.group(0)!;
+      final action = _safeUriForDiagnostics(
+        _resolveFormAction(attributes, baseUri),
+      );
+      final fieldNames = _parseFormFields(formHtml).keys.take(8).join('|');
+      yield '$action fields=$fieldNames';
+    }
+  }
+
+  String _safeUriForDiagnostics(Uri uri) {
+    var safePath = uri.path.replaceAll(
+      RegExp(r'/login/v2/(flow|poll)/[^/?#]+'),
+      r'/login/v2/$1/<redacted>',
+    );
+    if (safePath.length > 120) {
+      safePath = '${safePath.substring(0, 117)}...';
+    }
+    final query = uri.queryParametersAll.keys
+        .take(12)
+        .map((key) {
+          return '${Uri.encodeQueryComponent(key)}=<redacted>';
+        })
+        .join('&');
+    return uri
+        .replace(path: safePath, query: query.isEmpty ? null : query)
+        .toString();
+  }
+
+  void _logNextcloudFlow(String message) {
+    // Integration-test diagnostics are intentionally printed because GitHub
+    // Actions preserves stdout with the failed Flutter test output.
+    // ignore: avoid_print
+    print(message);
   }
 
   Uri _nextcloudLoginUriForGrant(Uri grantUri) {
@@ -1055,6 +1224,18 @@ class _NextcloudLoginFlowGrant {
 class _SimpleHttpResponse {
   const _SimpleHttpResponse(this.statusCode, this.body);
 
+  final int statusCode;
+  final String body;
+}
+
+class _FetchedPage {
+  const _FetchedPage({
+    required this.uri,
+    required this.statusCode,
+    required this.body,
+  });
+
+  final Uri uri;
   final int statusCode;
   final String body;
 }
