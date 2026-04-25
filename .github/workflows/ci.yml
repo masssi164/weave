@@ -195,13 +195,6 @@ jobs:
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
-      - name: Verify stack readiness before Flutter work
-        working-directory: weave-infra/weave-workspace
-        run: bash ./operator-check.sh
-      - name: Trust local Weave CA for this runner user
-        run: |
-          CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
-          security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
           set -euo pipefail
@@ -217,6 +210,13 @@ jobs:
             echo "Pre-provision this hosts entry on the runner: $hosts_line" >&2
             exit 1
           fi
+      - name: Verify stack readiness before Flutter work
+        working-directory: weave-infra/weave-workspace
+        run: bash ./operator-check.sh
+      - name: Trust local Weave CA for this runner user
+        run: |
+          CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
+          security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
       - name: Verify local live-stack bootstrap env
         run: |
           test -f "$WEAVE_BOOTSTRAP_ENV"
