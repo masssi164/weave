@@ -90,6 +90,7 @@ void main() {
             liveMatrixClientFactory,
           ),
           nextcloudHttpClientProvider.overrideWithValue(nextcloudHttpClient),
+          nextcloudLoginLauncherProvider.overrideWithValue(liveOidcDriver),
         ],
         child: const WeaveApp(),
       ),

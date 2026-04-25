@@ -8,10 +8,12 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
+import 'package:weave/integrations/nextcloud/data/services/nextcloud_login_launcher.dart';
 
 import 'test_config.dart';
 
-class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
+class LiveOidcTestDriver
+    implements OidcClient, MatrixAuthBrowser, NextcloudLoginLauncher {
   LiveOidcTestDriver({required TestConfig config}) : _config = config;
 
   final TestConfig _config;
@@ -140,24 +142,52 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
     );
   }
 
+  @override
+  Future<void> launch(Uri loginUri) async {
+    await _completeBrowserLikeFlow(loginUri);
+  }
+
   Future<Uri> _authenticateInBrowserLikeFlow({
     required Uri authorizationUri,
     required Uri redirectUri,
+  }) async {
+    final redirected = await _driveBrowserLikeFlow(
+      startUri: authorizationUri,
+      redirectUri: redirectUri,
+    );
+    if (redirected == null) {
+      throw StateError(
+        'Live browser flow for $authorizationUri completed without the expected redirect.',
+      );
+    }
+    return redirected;
+  }
+
+  Future<void> _completeBrowserLikeFlow(Uri startUri) async {
+    await _driveBrowserLikeFlow(startUri: startUri);
+  }
+
+  Future<Uri?> _driveBrowserLikeFlow({
+    required Uri startUri,
+    Uri? redirectUri,
   }) async {
     final client = _newHttpClient();
     try {
       final cookieJar = <_StoredCookie>[];
       Uri? previousUri;
-      var nextUri = authorizationUri;
+      var madeProgress = false;
+      var nextUri = startUri;
       while (true) {
         final response = await _open(client, nextUri, cookieJar);
         final location = response.headers.value(HttpHeaders.locationHeader);
         final body = await utf8.decodeStream(response);
 
         if (_isRedirect(response.statusCode) && location != null) {
+          madeProgress = true;
           previousUri = nextUri;
           final redirected = nextUri.resolve(location);
-          if (_matchesRedirect(redirected, redirectUri)) {
+          if (redirectUri != null &&
+              _matchesRedirect(redirected, redirectUri)) {
             return redirected;
           }
           nextUri = redirected;
@@ -166,6 +196,7 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
 
         final loginForm = _tryParseLoginForm(body, nextUri);
         if (loginForm != null) {
+          madeProgress = true;
           final postResponse = await _postForm(
             client,
             loginForm.action,
@@ -185,9 +216,11 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
           final postBody = await utf8.decodeStream(postResponse);
 
           if (_isRedirect(postResponse.statusCode) && postLocation != null) {
+            madeProgress = true;
             previousUri = loginForm.action;
             final redirected = loginForm.action.resolve(postLocation);
-            if (_matchesRedirect(redirected, redirectUri)) {
+            if (redirectUri != null &&
+                _matchesRedirect(redirected, redirectUri)) {
               return redirected;
             }
             nextUri = redirected;
@@ -220,14 +253,23 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
             await utf8.decodeStream(followUpResponse);
             if (_isRedirect(followUpResponse.statusCode) &&
                 followUpLocation != null) {
+              madeProgress = true;
               previousUri = followUpForm.action;
               final redirected = followUpForm.action.resolve(followUpLocation);
-              if (_matchesRedirect(redirected, redirectUri)) {
+              if (redirectUri != null &&
+                  _matchesRedirect(redirected, redirectUri)) {
                 return redirected;
               }
               nextUri = redirected;
               continue;
             }
+            if (redirectUri == null) {
+              return null;
+            }
+          }
+
+          if (redirectUri == null) {
+            return null;
           }
 
           final snippet = postBody.replaceAll(RegExp(r'\s+'), ' ');
@@ -240,6 +282,7 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
 
         final followUpForm = _tryParseAutoSubmitForm(body, nextUri);
         if (followUpForm != null) {
+          madeProgress = true;
           final postResponse = await _postForm(
             client,
             followUpForm.action,
@@ -252,9 +295,11 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
           );
           await utf8.decodeStream(postResponse);
           if (_isRedirect(postResponse.statusCode) && postLocation != null) {
+            madeProgress = true;
             previousUri = followUpForm.action;
             final redirected = followUpForm.action.resolve(postLocation);
-            if (_matchesRedirect(redirected, redirectUri)) {
+            if (redirectUri != null &&
+                _matchesRedirect(redirected, redirectUri)) {
               return redirected;
             }
             nextUri = redirected;
@@ -262,8 +307,12 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
           }
         }
 
+        if (redirectUri == null && madeProgress) {
+          return null;
+        }
+
         throw StateError(
-          'Unable to continue the live browser flow for $authorizationUri. '
+          'Unable to continue the live browser flow for $startUri. '
           'Expected a redirect or supported form on ${nextUri.toString()}.',
         );
       }
