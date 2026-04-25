@@ -135,6 +135,8 @@ The local stack writes reusable test settings to `weave-infra/weave-workspace/.g
 
 Expected local hostnames include `weave.local`, `auth.weave.local`, `matrix.weave.local`, and `files.weave.local`.
 
+The live Nextcloud E2E helper currently follows the real Nextcloud OIDC/login-flow HTML pages so the MVP stack can prove the existing fallback path end to end. Treat that as an honest compatibility smoke, not the target product contract: longer term, Weave should prefer deterministic backend/API contracts for product files flows over brittle Flutter-side HTML scraping.
+
 Run against the default local stack:
 
 ```sh
