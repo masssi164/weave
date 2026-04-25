@@ -51,6 +51,7 @@ jobs:
       TF_VAR_nextcloud_host_port: '48083'
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'true'
+      WEAVE_REMOVE_VOLUMES: 'true'
       WEAVE_INTEGRATION_TEST_DEVICE: macos
 
     defaults:
