@@ -109,9 +109,7 @@ jobs:
       DOCKER_BUILDKIT: '1'
       WEAVE_REMOVE_VOLUMES: 'true'
       TF_VAR_create_test_user: 'true'
-      TF_VAR_tenant_domain: 127.0.0.1.sslip.io
-      TF_VAR_caddy_tls_cert_file: ${{ github.workspace }}/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/127.0.0.1.sslip.io.pem
-      TF_VAR_caddy_tls_key_file: ${{ github.workspace }}/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/127.0.0.1.sslip.io-key.pem
+      TF_VAR_tenant_domain: weave.local
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
       TF_VAR_keycloak_host_port: '48080'
@@ -190,6 +188,34 @@ jobs:
         run: |
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData"
           rm -rf "$GITHUB_WORKSPACE/build"
+      - name: Ensure local Weave hostnames resolve on the runner
+        run: |
+          set -euo pipefail
+          hosts=(weave.local auth.weave.local files.weave.local matrix.weave.local)
+          missing=()
+          for host in "${hosts[@]}"; do
+            if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1'; then
+              missing+=("$host")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            line="127.0.0.1 ${missing[*]}"
+            if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+              printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
+              sudo dscacheutil -flushcache || true
+            else
+              echo "::error::Runner cannot resolve required Weave hostnames and passwordless sudo is unavailable. Add this /etc/hosts line before rerunning: $line" >&2
+              exit 1
+            fi
+          fi
+
+          for host in "${hosts[@]}"; do
+            dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1' || {
+              echo "::error::Runner still cannot resolve $host to 127.0.0.1" >&2
+              exit 1
+            }
+          done
       - name: Clean up stale stack state before bootstrap
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
@@ -201,7 +227,7 @@ jobs:
       - name: Verify local test hostnames resolve on the runner
         run: |
           set -euo pipefail
-          hosts=(127.0.0.1.sslip.io auth.127.0.0.1.sslip.io files.127.0.0.1.sslip.io matrix.127.0.0.1.sslip.io)
+          hosts=(weave.local auth.weave.local files.weave.local matrix.weave.local)
           for host in "${hosts[@]}"; do
             dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1' || {
               echo "Runner cannot resolve $host to loopback" >&2
