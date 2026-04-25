@@ -587,7 +587,8 @@ class LiveOidcTestDriver
           host == 'localhost' ||
           host == '127.0.0.1' ||
           host.endsWith('.localhost') ||
-          host.endsWith('.weave.local');
+          host.endsWith('.weave.local') ||
+          host.endsWith('.sslip.io');
   }
 
   bool _isRedirect(int statusCode) =>

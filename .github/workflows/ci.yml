@@ -109,7 +109,7 @@ jobs:
       DOCKER_BUILDKIT: '1'
       WEAVE_REMOVE_VOLUMES: 'true'
       TF_VAR_create_test_user: 'true'
-      TF_VAR_tenant_domain: weave.local
+      TF_VAR_tenant_domain: 127.0.0.1.sslip.io
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
       TF_VAR_keycloak_host_port: '48080'
@@ -196,24 +196,12 @@ jobs:
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
-      - name: Ensure local test hostnames resolve on the runner
+      - name: Verify local test hostnames resolve on the runner
         run: |
           set -euo pipefail
-          hosts=(weave.local auth.weave.local files.weave.local matrix.weave.local)
-          missing=()
+          hosts=(127.0.0.1.sslip.io auth.127.0.0.1.sslip.io files.127.0.0.1.sslip.io matrix.127.0.0.1.sslip.io)
           for host in "${hosts[@]}"; do
-            if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address:'; then
-              missing+=("$host")
-            fi
-          done
-          if (( ${#missing[@]} > 0 )); then
-            line="127.0.0.1 ${missing[*]}"
-            echo "Adding local live-stack host entries: ${missing[*]}"
-            printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
-            dscacheutil -flushcache || true
-          fi
-          for host in "${hosts[@]}"; do
-            dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || {
+            dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1' || {
               echo "Runner cannot resolve $host to loopback" >&2
               exit 1
             }
