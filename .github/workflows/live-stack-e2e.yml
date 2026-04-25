@@ -1,88 +1,47 @@
-name: CI
+name: Live Stack E2E
+
 on:
-  push:
-  pull_request:
   workflow_dispatch:
     inputs:
-      WEAVE_BASE_URL:
-        description: "Base URL for the live Weave backend stack"
-        required: false
-        default: ""
-      WEAVE_TEST_USERNAME:
-        description: "Username for the live-stack integration test account"
-        required: true
-      WEAVE_INFRA_REF:
-        description: "Git ref to use for weave-infra"
-        required: false
-        default: "main"
-      WEAVE_BACKEND_IMAGE:
+      weave_backend_image:
         description: "Backend image to boot inside the infra stack"
         required: false
         default: "ghcr.io/masssi164/weave-backend:latest"
-  workflow_call:
-    inputs:
-      WEAVE_BASE_URL:
-        type: string
-        required: false
-        default: ""
-      WEAVE_TEST_USERNAME:
-        type: string
-        required: true
-      WEAVE_INFRA_REF:
-        type: string
+      weave_infra_ref:
+        description: "Git ref to use for weave-infra"
         required: false
         default: "main"
-      WEAVE_BACKEND_IMAGE:
+  workflow_call:
+    inputs:
+      weave_backend_image:
         type: string
         required: false
         default: "ghcr.io/masssi164/weave-backend:latest"
-    secrets:
-      WEAVE_TEST_PASSWORD:
-        required: true
+      weave_infra_ref:
+        type: string
+        required: false
+        default: "main"
 
 permissions:
   contents: read
   packages: read
 
-jobs:
-  build:
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-      - run: flutter pub get
-      - run: flutter gen-l10n
-      - run: dart run build_runner build --delete-conflicting-outputs
-      - run: dart format --output=none --set-exit-if-changed .
-      - run: flutter analyze --fatal-infos
-      - run: flutter test
+concurrency:
+  group: weave-live-stack-self-hosted
+  cancel-in-progress: false
 
-  integration-test:
-    name: Live Stack Integration Test
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    concurrency:
-      group: weave-live-stack-self-hosted
-      cancel-in-progress: false
+jobs:
+  live-stack-e2e:
+    name: Bootstrap Stack And Run App E2E
     runs-on:
       - self-hosted
       - macOS
       - ARM64
       - weave-live
     timeout-minutes: 75
-    defaults:
-      run:
-        shell: bash
     env:
-      WEAVE_BASE_URL: ${{ inputs.WEAVE_BASE_URL }}
-      WEAVE_TEST_USERNAME: ${{ inputs.WEAVE_TEST_USERNAME }}
-      WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
-      WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
-      WEAVE_INTEGRATION_TEST_DEVICE: macos
-      WEAVE_INFRA_REF: ${{ inputs.WEAVE_INFRA_REF || 'main' }}
-      WEAVE_BACKEND_IMAGE: ${{ inputs.WEAVE_BACKEND_IMAGE || 'ghcr.io/masssi164/weave-backend:latest' }}
+      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
+      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
@@ -92,17 +51,26 @@ jobs:
       TF_VAR_nextcloud_host_port: '48083'
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'true'
+      WEAVE_INTEGRATION_TEST_DEVICE: macos
+
+    defaults:
+      run:
+        shell: bash
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out weave
+        uses: actions/checkout@v4
         with:
           path: weave
-      - uses: actions/checkout@v4
+
+      - name: Check out weave-infra
+        uses: actions/checkout@v4
         with:
           repository: masssi164/weave-infra
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
+
       - name: Configure Docker auth without macOS Keychain
-        shell: bash
         env:
           GHCR_TOKEN: ${{ github.token }}
         run: |
@@ -117,50 +85,58 @@ jobs:
           chmod 600 "$DOCKER_CONFIG/config.json"
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> "$GITHUB_ENV"
           docker --config "$DOCKER_CONFIG" info >/dev/null
-      - name: Pull backend image
-        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.9.8
           terraform_wrapper: false
-      - name: Free disk space on self-hosted runner
-        run: |
-          rm -rf "$HOME/Library/Developer/Xcode/DerivedData"
-          rm -rf "$GITHUB_WORKSPACE/build"
+
       - name: Clean up stale stack state before bootstrap
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
+
+      - name: Pull backend image
+        run: docker pull "${WEAVE_BACKEND_IMAGE}"
+
       - name: Bootstrap local stack
         working-directory: weave-infra/weave-workspace
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
+
       - name: Verify stack readiness before Flutter work
         working-directory: weave-infra/weave-workspace
         run: bash ./operator-check.sh
+
       - name: Trust local Weave CA for this runner user
         run: |
           CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
           security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
-      - name: Verify local live-stack bootstrap env
-        run: |
-          test -f "$WEAVE_BOOTSTRAP_ENV"
-      - name: Use host Flutter SDK
-        working-directory: weave
-        run: flutter --version
+
       - name: Install Flutter dependencies
         working-directory: weave
         run: flutter pub get
+
       - name: Generate l10n
         working-directory: weave
         run: flutter gen-l10n
+
       - name: Generate code
         working-directory: weave
         run: dart run build_runner build --delete-conflicting-outputs
+
       - name: Run live stack integration tests
         working-directory: weave
+        env:
+          WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
         run: make integration-test
+
       - name: Dump stack logs on failure
         if: failure()
         run: |
@@ -170,6 +146,7 @@ jobs:
             echo "--- ${container}"
             docker logs "${container}" || true
           done
+
       - name: Destroy stack and scrub stale resources
         if: always()
         working-directory: weave-infra/weave-workspace
