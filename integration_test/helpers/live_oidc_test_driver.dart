@@ -383,6 +383,7 @@ class LiveOidcTestDriver implements OidcClient, MatrixAuthBrowser {
       ..badCertificateCallback = (cert, host, port) =>
           host == 'localhost' ||
           host == '127.0.0.1' ||
+          host.endsWith('.localhost') ||
           host.endsWith('.weave.local');
   }
 

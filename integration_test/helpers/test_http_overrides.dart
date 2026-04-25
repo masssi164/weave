@@ -10,6 +10,7 @@ class TestHttpOverrides extends HttpOverrides {
     final normalized = host.toLowerCase();
     return normalized == '127.0.0.1' ||
         normalized == 'localhost' ||
+        normalized.endsWith('.localhost') ||
         normalized.endsWith('.weave.local');
   }
 
