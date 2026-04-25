@@ -29,10 +29,6 @@ permissions:
   contents: read
   packages: read
 
-secrets:
-  WEAVE_TEST_PASSWORD:
-    required: true
-
 concurrency:
   group: weave-live-stack-self-hosted
   cancel-in-progress: false
