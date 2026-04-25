@@ -126,7 +126,9 @@ jobs:
         working-directory: weave-infra/weave-workspace
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
-        run: ./install.sh
+        run: |
+          unset TF_VAR_mas_signing_key_pem || true
+          ./install.sh
 
       - name: Verify stack readiness before Flutter work
         working-directory: weave-infra/weave-workspace
