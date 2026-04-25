@@ -683,11 +683,16 @@ class LiveOidcTestDriver
     List<_StoredCookie> cookieJar,
   ) {
     for (final cookie in response.cookies) {
+      final stored = _StoredCookie.fromCookie(cookie, uri);
       cookieJar.removeWhere(
         (existing) =>
-            existing.name == cookie.name && existing.domain == cookie.domain,
+            existing.name == stored.name &&
+            existing.domain == stored.domain &&
+            existing.path == stored.path,
       );
-      cookieJar.add(_StoredCookie.fromCookie(cookie, uri));
+      if (stored.value.isNotEmpty) {
+        cookieJar.add(stored);
+      }
     }
   }
 
