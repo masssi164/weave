@@ -21,14 +21,13 @@ on:
         type: string
         required: false
         default: "main"
+    secrets:
+      WEAVE_TEST_PASSWORD:
+        required: true
 
 permissions:
   contents: read
   packages: read
-
-secrets:
-  WEAVE_TEST_PASSWORD:
-    required: true
 
 concurrency:
   group: weave-live-stack-self-hosted
