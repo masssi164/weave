@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +34,17 @@ import 'helpers/test_config.dart';
 import 'helpers/test_http_overrides.dart';
 
 void main() {
+  final previousPlatformErrorHandler = ui.PlatformDispatcher.instance.onError;
+  ui.PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    if (_isStrayKeyboardKeyUpAssertion(error, stack)) {
+      // ignore: avoid_print
+      print('IGNORED_STRAY_KEYBOARD_KEYUP_ASSERTION $error');
+      _resetKeyboardTestState();
+      return true;
+    }
+    return previousPlatformErrorHandler?.call(error, stack) ?? false;
+  };
+
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   // The self-hosted macOS runner can expose host accessibility state to the
   // launched Flutter app. Keep the live E2E deterministic and prevent a
@@ -321,10 +333,20 @@ Future<void> _pumpUntilSettled(WidgetTester tester) async {
   }
 }
 
+bool _isStrayKeyboardKeyUpAssertion(Object error, StackTrace stack) {
+  final message = error.toString();
+  final trace = stack.toString();
+  return error is AssertionError &&
+      message.contains('A KeyUpEvent is dispatched') &&
+      message.contains('_pressedKeys.containsKey(event.physicalKey)') &&
+      trace.contains('HardwareKeyboard.handleKeyEvent');
+}
+
 void _resetKeyboardTestState() {
-  // The self-hosted macOS runner can deliver a stray synthesized Meta key-up
-  // after a long live-stack run. Keep Flutter's debug keyboard state hermetic
-  // so an unrelated host key event cannot fail the product smoke assertions.
+  // The self-hosted macOS runner can deliver a stray synthesized key-up after a
+  // long live-stack run or while the Flutter macOS test app is closing. Keep
+  // Flutter's debug keyboard state hermetic so an unrelated host key event
+  // cannot fail the product smoke assertions.
   // ignore: invalid_use_of_visible_for_testing_member, deprecated_member_use
   RawKeyboard.instance.clearKeysPressed();
   // ignore: invalid_use_of_visible_for_testing_member
