@@ -166,10 +166,6 @@ class LiveOidcTestDriver
     return redirected;
   }
 
-  Future<void> _completeBrowserLikeFlow(Uri startUri) async {
-    await _driveBrowserLikeFlow(startUri: startUri);
-  }
-
   Future<Uri?> _driveBrowserLikeFlow({
     required Uri startUri,
     Uri? redirectUri,
