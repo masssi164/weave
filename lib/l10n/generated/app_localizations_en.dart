@@ -964,4 +964,110 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get signInMissingConfigurationDescription =>
       'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.';
+
+  @override
+  String get profileSectionTitle => 'Weave profile';
+
+  @override
+  String get profileSectionDescription =>
+      'This profile comes from the Weave backend identity facade and is shared by product modules.';
+
+  @override
+  String get profileLoadFailure =>
+      'The Weave profile could not be loaded right now.';
+
+  @override
+  String get profileSignedOutMessage => 'Sign in to view your Weave profile.';
+
+  @override
+  String get profileDisplayNameLabel => 'Display name';
+
+  @override
+  String get profileUsernameLabel => 'Username';
+
+  @override
+  String get profileEmailLabel => 'Email';
+
+  @override
+  String get profileEmailVerifiedLabel => 'Email verified';
+
+  @override
+  String get profileEmailVerifiedYes => 'Yes';
+
+  @override
+  String get profileEmailVerifiedNo => 'No';
+
+  @override
+  String get profileLocaleLabel => 'Locale';
+
+  @override
+  String get profileTimezoneLabel => 'Timezone';
+
+  @override
+  String get profileRolesLabel => 'Roles';
+
+  @override
+  String get profileGroupsLabel => 'Groups';
+
+  @override
+  String get profileEditingBlockedMessage =>
+      'Profile editing is prepared in the app, but saving changes is blocked until the backend exposes PATCH /api/profile.';
+
+  @override
+  String get settingsWorkspaceCalendarLabel => 'Calendar';
+
+  @override
+  String get calendarCreateButton => 'Create event';
+
+  @override
+  String get calendarCreateDialogTitle => 'Create calendar event';
+
+  @override
+  String get calendarEditDialogTitle => 'Edit calendar event';
+
+  @override
+  String get calendarTitleFieldLabel => 'Title';
+
+  @override
+  String get calendarDescriptionFieldLabel => 'Description';
+
+  @override
+  String get calendarLocationFieldLabel => 'Location';
+
+  @override
+  String get calendarTitleRequired => 'Enter an event title.';
+
+  @override
+  String get calendarCancelButton => 'Cancel';
+
+  @override
+  String get calendarSaveButton => 'Save event';
+
+  @override
+  String calendarDeleteEventTooltip(String title) {
+    return 'Delete $title';
+  }
+
+  @override
+  String calendarEditEventTooltip(String title) {
+    return 'Edit $title';
+  }
+
+  @override
+  String calendarEventSemantic(String title, String startsAt, String endsAt) {
+    return '$title, starts $startsAt, ends $endsAt';
+  }
+
+  @override
+  String get calendarCreateSuccess => 'Calendar event created.';
+
+  @override
+  String get calendarUpdateSuccess => 'Calendar event updated.';
+
+  @override
+  String get calendarDeleteSuccess => 'Calendar event deleted.';
+
+  @override
+  String get calendarOperationFailure =>
+      'The calendar could not save that change right now.';
 }

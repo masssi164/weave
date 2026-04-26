@@ -129,7 +129,7 @@ final class CalendarNotifierProvider
   CalendarNotifier create() => CalendarNotifier();
 }
 
-String _$calendarNotifierHash() => r'0be3b0fdd80f51576d1dffa1f46f79b0a3c7fcbb';
+String _$calendarNotifierHash() => r'585c2aa0318fe37ec8f33256d1d9e3ba10df871b';
 
 abstract class _$CalendarNotifier extends $AsyncNotifier<List<CalendarEvent>> {
   FutureOr<List<CalendarEvent>> build();

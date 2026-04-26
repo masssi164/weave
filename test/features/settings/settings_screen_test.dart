@@ -13,6 +13,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
@@ -128,6 +129,7 @@ void main() {
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
           ),
+          userProfileProvider.overrideWith((ref) async => null),
         ],
       );
       addTearDown(container.dispose);
@@ -217,6 +219,7 @@ void main() {
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
           ),
+          userProfileProvider.overrideWith((ref) async => null),
         ],
       );
       addTearDown(container.dispose);
@@ -272,6 +275,7 @@ void main() {
             weaveBackendConnectionStateProvider.overrideWithValue(
               WeaveBackendConnectionState.connected,
             ),
+            userProfileProvider.overrideWith((ref) async => null),
           ],
         );
         addTearDown(container.dispose);
@@ -294,6 +298,8 @@ void main() {
           findsNothing,
         );
 
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Retry'));
         await tester.pumpAndSettle();
 

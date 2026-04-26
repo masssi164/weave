@@ -13,6 +13,7 @@ import 'package:weave/features/app/domain/entities/workspace_connection_state.da
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/chat/presentation/widgets/chat_security_settings_section.dart';
+import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
@@ -45,6 +46,8 @@ class SettingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const _SettingsBrandCard(),
+                  const SizedBox(height: 32),
+                  const ProfileSummaryCard(),
                   const SizedBox(height: 32),
                   const _WorkspaceReadinessCard(),
                   const SizedBox(height: 32),
@@ -240,6 +243,12 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceFilesLabel,
                   capability: capabilitySnapshot.files,
+                  connection: workspaceState.nextcloud,
+                ),
+                const Divider(height: 32),
+                _WorkspaceReadinessRow(
+                  label: l10n.settingsWorkspaceCalendarLabel,
+                  capability: capabilitySnapshot.calendar,
                   connection: workspaceState.nextcloud,
                 ),
               ],

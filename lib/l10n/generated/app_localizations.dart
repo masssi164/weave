@@ -1711,6 +1711,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.'**
   String get signInMissingConfigurationDescription;
+
+  /// Settings section title for the authenticated Weave profile
+  ///
+  /// In en, this message translates to:
+  /// **'Weave profile'**
+  String get profileSectionTitle;
+
+  /// Settings description for the profile card
+  ///
+  /// In en, this message translates to:
+  /// **'This profile comes from the Weave backend identity facade and is shared by product modules.'**
+  String get profileSectionDescription;
+
+  /// Profile card error message
+  ///
+  /// In en, this message translates to:
+  /// **'The Weave profile could not be loaded right now.'**
+  String get profileLoadFailure;
+
+  /// Profile card message when there is no authenticated session
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to view your Weave profile.'**
+  String get profileSignedOutMessage;
+
+  /// Profile display name field label
+  ///
+  /// In en, this message translates to:
+  /// **'Display name'**
+  String get profileDisplayNameLabel;
+
+  /// Profile username field label
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get profileUsernameLabel;
+
+  /// Profile email field label
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get profileEmailLabel;
+
+  /// Profile email verification field label
+  ///
+  /// In en, this message translates to:
+  /// **'Email verified'**
+  String get profileEmailVerifiedLabel;
+
+  /// Yes value for verified email
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get profileEmailVerifiedYes;
+
+  /// No value for unverified email
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get profileEmailVerifiedNo;
+
+  /// Profile locale field label
+  ///
+  /// In en, this message translates to:
+  /// **'Locale'**
+  String get profileLocaleLabel;
+
+  /// Profile timezone field label
+  ///
+  /// In en, this message translates to:
+  /// **'Timezone'**
+  String get profileTimezoneLabel;
+
+  /// Profile roles field label
+  ///
+  /// In en, this message translates to:
+  /// **'Roles'**
+  String get profileRolesLabel;
+
+  /// Profile groups field label
+  ///
+  /// In en, this message translates to:
+  /// **'Groups'**
+  String get profileGroupsLabel;
+
+  /// Message explaining why profile editing is not yet enabled
+  ///
+  /// In en, this message translates to:
+  /// **'Profile editing is prepared in the app, but saving changes is blocked until the backend exposes PATCH /api/profile.'**
+  String get profileEditingBlockedMessage;
+
+  /// Row label for calendar readiness in the workspace readiness summary
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar'**
+  String get settingsWorkspaceCalendarLabel;
+
+  /// Button label for opening the create calendar event form
+  ///
+  /// In en, this message translates to:
+  /// **'Create event'**
+  String get calendarCreateButton;
+
+  /// Dialog title for creating a calendar event
+  ///
+  /// In en, this message translates to:
+  /// **'Create calendar event'**
+  String get calendarCreateDialogTitle;
+
+  /// Dialog title for editing a calendar event
+  ///
+  /// In en, this message translates to:
+  /// **'Edit calendar event'**
+  String get calendarEditDialogTitle;
+
+  /// Calendar event title field label
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get calendarTitleFieldLabel;
+
+  /// Calendar event description field label
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get calendarDescriptionFieldLabel;
+
+  /// Calendar event location field label
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get calendarLocationFieldLabel;
+
+  /// Validation message when a calendar event title is missing
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an event title.'**
+  String get calendarTitleRequired;
+
+  /// Button label for closing the calendar create dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get calendarCancelButton;
+
+  /// Button label for saving a calendar event
+  ///
+  /// In en, this message translates to:
+  /// **'Save event'**
+  String get calendarSaveButton;
+
+  /// Tooltip for deleting a calendar event
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {title}'**
+  String calendarDeleteEventTooltip(String title);
+
+  /// Tooltip for editing a calendar event
+  ///
+  /// In en, this message translates to:
+  /// **'Edit {title}'**
+  String calendarEditEventTooltip(String title);
+
+  /// Semantic label for a calendar event row
+  ///
+  /// In en, this message translates to:
+  /// **'{title}, starts {startsAt}, ends {endsAt}'**
+  String calendarEventSemantic(String title, String startsAt, String endsAt);
+
+  /// Snackbar message after a calendar event is created
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar event created.'**
+  String get calendarCreateSuccess;
+
+  /// Snackbar message after a calendar event is updated
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar event updated.'**
+  String get calendarUpdateSuccess;
+
+  /// Snackbar message after a calendar event is deleted
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar event deleted.'**
+  String get calendarDeleteSuccess;
+
+  /// Snackbar message when a calendar operation fails
+  ///
+  /// In en, this message translates to:
+  /// **'The calendar could not save that change right now.'**
+  String get calendarOperationFailure;
 }
 
 class _AppLocalizationsDelegate

@@ -33,4 +33,36 @@ class CalendarNotifier extends _$CalendarNotifier {
     final repository = ref.watch(calendarRepositoryProvider);
     return repository.loadEvents();
   }
+
+  Future<void> createEvent(CalendarEventDraft draft) async {
+    final repository = ref.read(calendarRepositoryProvider);
+    state = const AsyncLoading<List<CalendarEvent>>();
+    state = await AsyncValue.guard(() async {
+      await repository.createEvent(draft);
+      return repository.loadEvents();
+    });
+  }
+
+  Future<void> updateEvent(String id, CalendarEventDraft draft) async {
+    final repository = ref.read(calendarRepositoryProvider);
+    state = const AsyncLoading<List<CalendarEvent>>();
+    state = await AsyncValue.guard(() async {
+      await repository.updateEvent(id, draft);
+      return repository.loadEvents();
+    });
+  }
+
+  Future<void> deleteEvent(String id) async {
+    final repository = ref.read(calendarRepositoryProvider);
+    final previousEvents = state.asData?.value;
+    if (previousEvents != null) {
+      state = AsyncData(
+        previousEvents.where((event) => event.id != id).toList(growable: false),
+      );
+    }
+    state = await AsyncValue.guard(() async {
+      await repository.deleteEvent(id);
+      return repository.loadEvents();
+    });
+  }
 }

@@ -24,6 +24,7 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -372,6 +373,7 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 FakeChatSecurityRepository(),
               ),
+              userProfileProvider.overrideWith((ref) async => null),
               filesRepositoryProvider.overrideWithValue(filesRepository),
               weaveApiClientProvider.overrideWithValue(
                 const _StaticWeaveApiClient(
@@ -474,6 +476,7 @@ void main() {
             chatSecurityRepositoryProvider.overrideWithValue(
               FakeChatSecurityRepository(),
             ),
+            userProfileProvider.overrideWith((ref) async => null),
             filesRepositoryProvider.overrideWithValue(filesRepository),
             weaveApiClientProvider.overrideWithValue(
               const _StaticWeaveApiClient(
@@ -557,6 +560,7 @@ void main() {
               chatSecurityRepositoryProvider.overrideWithValue(
                 FakeChatSecurityRepository(),
               ),
+              userProfileProvider.overrideWith((ref) async => null),
               filesRepositoryProvider.overrideWithValue(filesRepository),
               weaveApiClientProvider.overrideWithValue(
                 const _StaticWeaveApiClient(
