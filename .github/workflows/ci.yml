@@ -67,10 +67,12 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze --fatal-infos
       - run: flutter test
+      - name: Run dummy live-stack contract checks offline
+        run: WEAVE_TEST_USERNAME=dummy WEAVE_TEST_PASSWORD=dummy make integration-test
 
   integration-test:
     name: Live Stack Integration Test
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     concurrency:
       group: weave-live-stack-self-hosted
       cancel-in-progress: false
