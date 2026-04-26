@@ -43,9 +43,11 @@ void main() {
   HttpOverrides.global = TestHttpOverrides();
 
   final liveConfig = TestConfig.fromEnvironment();
-  final skipReason = liveConfig.hasCredentials
+  final liveSkipReason = liveConfig.hasLiveCredentials
       ? false
-      : 'Requires WEAVE_TEST_USERNAME and WEAVE_TEST_PASSWORD dart-defines.';
+      : liveConfig.usesDummyCredentials
+      ? 'Dummy credentials run the offline contract checks only.'
+      : 'Requires real WEAVE_TEST_USERNAME and WEAVE_TEST_PASSWORD dart-defines.';
 
   late TestConfig config;
   late http.Client httpClient;
@@ -61,6 +63,58 @@ void main() {
     httpClient.close();
   });
 
+  group('offline contract checks', () {
+    test(
+      'dummy credentials are accepted only for offline contract mode',
+      () {
+        expect(liveConfig.hasCredentials, isTrue);
+        expect(liveConfig.usesDummyCredentials, isTrue);
+        expect(liveConfig.hasLiveCredentials, isFalse);
+        expect(liveConfig.requireCredentials, throwsStateError);
+      },
+      skip: liveConfig.usesDummyCredentials
+          ? false
+          : 'Requires dummy credentials.',
+    );
+
+    test('canonical backend API paths do not duplicate the /api prefix', () {
+      expect(
+        liveConfig
+            .copyWith(
+              backendApiBaseUrl: Uri.parse('https://api.weave.local/api'),
+            )
+            .apiUri('/api/me')
+            .toString(),
+        'https://api.weave.local/api/me',
+      );
+    });
+
+    test(
+      'shell readiness contract can be exercised without live auth',
+      () async {
+        final session = AuthSession(
+          issuer: liveConfig.issuerUrl,
+          clientId: liveConfig.clientId,
+          accessToken: 'offline-contract-token',
+          refreshToken: 'offline-refresh-token',
+          idToken: 'offline-id-token',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          tokenType: 'Bearer',
+          scopes: const ['openid', 'profile', 'email', 'weave:workspace'],
+        );
+        final container = _createAppContainer(
+          config: liveConfig,
+          session: session,
+        );
+        addTearDown(container.dispose);
+
+        final bootstrap = await container.read(appBootstrapProvider.future);
+
+        expect(bootstrap.phase, BootstrapPhase.ready);
+      },
+    );
+  });
+
   test('setup -> sign-in -> shell ready', () async {
     final session = await authHelper.signInForAppSession(config);
     final container = _createAppContainer(config: config, session: session);
@@ -70,7 +124,7 @@ void main() {
 
     expect(session.accessToken, isNotEmpty);
     expect(bootstrap.phase, BootstrapPhase.ready);
-  }, skip: skipReason);
+  }, skip: liveSkipReason);
 
   test('settings/config change -> targeted invalidation fires', () async {
     final session = await authHelper.signInForAppSession(config);
@@ -127,13 +181,13 @@ void main() {
       ),
       isNull,
     );
-  }, skip: skipReason);
+  }, skip: liveSkipReason);
 
-  test('authenticated GET /api/v1/me returns expected claims', () async {
+  test('authenticated GET /api/me returns expected claims', () async {
     final accessToken = await authHelper.signIn(config);
 
     final response = await httpClient.get(
-      config.apiUri('/api/v1/me'),
+      config.apiUri('/api/me'),
       headers: <String, String>{
         'Accept': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -146,14 +200,14 @@ void main() {
     expect((payload['sub'] as String).trim(), isNotEmpty);
     expect(payload['email'], isA<String>());
     expect((payload['email'] as String).trim(), isNotEmpty);
-  }, skip: skipReason);
+  }, skip: liveSkipReason);
 
-  test('authenticated GET /api/v1/workspace/capabilities returns expected '
+  test('authenticated GET /api/workspace/capabilities returns expected '
       'structure', () async {
     final accessToken = await authHelper.signIn(config);
 
     final response = await httpClient.get(
-      config.apiUri('/api/v1/workspace/capabilities'),
+      config.apiUri('/api/workspace/capabilities'),
       headers: <String, String>{
         'Accept': 'application/json',
         'Authorization': 'Bearer $accessToken',
@@ -177,7 +231,7 @@ void main() {
         expect(payload[key], isA<Map>(), reason: 'Missing "$key".');
       }
     }
-  }, skip: skipReason);
+  }, skip: liveSkipReason);
 
   test(
     'backend unavailable -> backend client surfaces unreachable failure',
@@ -204,7 +258,7 @@ void main() {
         contains('Unable to reach the Weave backend right now.'),
       );
     },
-    skip: skipReason,
+    skip: liveSkipReason,
   );
 }
 

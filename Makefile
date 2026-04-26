@@ -42,5 +42,9 @@ integration-test:
 	if [ "$$run_app_e2e" = "false" ]; then \
 	  exit 0; \
 	fi; \
+	if [ "$${WEAVE_TEST_USERNAME}" = dummy ] || [ "$${WEAVE_TEST_PASSWORD}" = dummy ]; then \
+	  echo "Dummy credentials: offline live-stack contract checks completed; skipping real live E2E."; \
+	  exit 0; \
+	fi; \
 	flutter test integration_test/live_stack_app_e2e_test.dart -d "$$test_device" \
 	  --dart-define-from-file="$$dart_defines_file"

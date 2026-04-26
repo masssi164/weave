@@ -111,6 +111,20 @@ jobs:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
 
+      - name: Ensure local Weave hostnames resolve on the runner
+        run: |
+          set -euo pipefail
+          hosts_line='127.0.0.1 weave.local api.weave.local auth.weave.local keycloak.weave.local files.weave.local nextcloud.weave.local matrix.weave.local'
+          if ! grep -Fq "$hosts_line" /etc/hosts; then
+            if [ -w /etc/hosts ]; then
+              printf '%s\n' "$hosts_line" >> /etc/hosts
+            elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+              printf '%s\n' "$hosts_line" | sudo tee -a /etc/hosts >/dev/null
+            else
+              echo "::warning::Cannot update /etc/hosts without write access or passwordless sudo; assuming runner DNS already resolves Weave hostnames."
+            fi
+          fi
+
       - name: Verify stack readiness before Flutter work
         working-directory: weave-infra/weave-workspace
         run: bash ./operator-check.sh
@@ -119,14 +133,6 @@ jobs:
         run: |
           CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
           security add-trusted-cert -d -r trustRoot -k "$HOME/Library/Keychains/login.keychain-db" "$CA_FILE" || true
-
-      - name: Ensure local Weave hostnames resolve on the runner
-        run: |
-          set -euo pipefail
-          hosts_line='127.0.0.1 keycloak.weave.local nextcloud.weave.local matrix.weave.local api.weave.local'
-          if ! grep -Fq "$hosts_line" /etc/hosts; then
-            printf '%s\n' "$hosts_line" | sudo tee -a /etc/hosts >/dev/null
-          fi
 
       - name: Install Flutter dependencies
         working-directory: weave

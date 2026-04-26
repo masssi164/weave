@@ -72,18 +72,23 @@ class TestConfig {
   }
 
   Uri apiUri(String path) {
-    final pathSegments = path
+    final basePathSegments = backendApiBaseUrl.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    final requestPathSegments = path
         .split('/')
         .where((segment) => segment.isNotEmpty)
         .toList(growable: false);
+    final normalizedRequestPathSegments =
+        basePathSegments.isNotEmpty &&
+            basePathSegments.last == 'api' &&
+            requestPathSegments.isNotEmpty &&
+            requestPathSegments.first == 'api'
+        ? requestPathSegments.skip(1)
+        : requestPathSegments;
 
     return backendApiBaseUrl.replace(
-      pathSegments: [
-        ...backendApiBaseUrl.pathSegments.where(
-          (segment) => segment.isNotEmpty,
-        ),
-        ...pathSegments,
-      ],
+      pathSegments: [...basePathSegments, ...normalizedRequestPathSegments],
     );
   }
 
@@ -96,11 +101,20 @@ class TestConfig {
   bool get hasCredentials =>
       username.trim().isNotEmpty && password.trim().isNotEmpty;
 
+  bool get usesDummyCredentials =>
+      _isDummyValue(username) || _isDummyValue(password);
+
+  bool get hasLiveCredentials => hasCredentials && !usesDummyCredentials;
+
   void requireCredentials() {
     final missing = <String>[
       if (username.trim().isEmpty) 'WEAVE_TEST_USERNAME',
       if (password.trim().isEmpty) 'WEAVE_TEST_PASSWORD',
     ];
+
+    if (usesDummyCredentials) {
+      missing.add('real non-dummy WEAVE_TEST_USERNAME/WEAVE_TEST_PASSWORD');
+    }
 
     if (missing.isNotEmpty) {
       throw StateError(
@@ -108,6 +122,10 @@ class TestConfig {
         '${missing.join(', ')}.',
       );
     }
+  }
+
+  static bool _isDummyValue(String value) {
+    return value.trim().toLowerCase() == 'dummy';
   }
 
   static Uri _parseUrl(String value, {required String variableName}) {
