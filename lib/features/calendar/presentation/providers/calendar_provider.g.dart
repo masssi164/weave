@@ -9,46 +9,53 @@ part of 'calendar_provider.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 
-@ProviderFor(calDavClient)
-final calDavClientProvider = CalDavClientProvider._();
+@ProviderFor(calendarFacadeClient)
+final calendarFacadeClientProvider = CalendarFacadeClientProvider._();
 
-final class CalDavClientProvider
-    extends $FunctionalProvider<CalDavClient, CalDavClient, CalDavClient>
-    with $Provider<CalDavClient> {
-  CalDavClientProvider._()
+final class CalendarFacadeClientProvider
+    extends
+        $FunctionalProvider<
+          CalendarFacadeClient,
+          CalendarFacadeClient,
+          CalendarFacadeClient
+        >
+    with $Provider<CalendarFacadeClient> {
+  CalendarFacadeClientProvider._()
     : super(
         from: null,
         argument: null,
         retry: null,
-        name: r'calDavClientProvider',
+        name: r'calendarFacadeClientProvider',
         isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
 
   @override
-  String debugGetCreateSourceHash() => _$calDavClientHash();
+  String debugGetCreateSourceHash() => _$calendarFacadeClientHash();
 
   @$internal
   @override
-  $ProviderElement<CalDavClient> $createElement($ProviderPointer pointer) =>
-      $ProviderElement(pointer);
+  $ProviderElement<CalendarFacadeClient> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
 
   @override
-  CalDavClient create(Ref ref) {
-    return calDavClient(ref);
+  CalendarFacadeClient create(Ref ref) {
+    return calendarFacadeClient(ref);
   }
 
   /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(CalDavClient value) {
+  Override overrideWithValue(CalendarFacadeClient value) {
     return $ProviderOverride(
       origin: this,
-      providerOverride: $SyncValueProvider<CalDavClient>(value),
+      providerOverride: $SyncValueProvider<CalendarFacadeClient>(value),
     );
   }
 }
 
-String _$calDavClientHash() => r'962ad8cc88b0a849e1d18cd1917c814dec6dfe6f';
+String _$calendarFacadeClientHash() =>
+    r'f1f923661276ce71b02dc5223e9557d09219d95b';
 
 @ProviderFor(calendarRepository)
 final calendarRepositoryProvider = CalendarRepositoryProvider._();
@@ -96,7 +103,7 @@ final class CalendarRepositoryProvider
 }
 
 String _$calendarRepositoryHash() =>
-    r'59521acab9f18ab5b82d10a1c4ab1768dac972cb';
+    r'94d351d7eded9adf8096a8ba3f544767731c5871';
 
 @ProviderFor(CalendarNotifier)
 final calendarProvider = CalendarNotifierProvider._();
