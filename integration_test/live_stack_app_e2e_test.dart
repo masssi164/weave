@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -81,6 +82,8 @@ void main() {
         ),
       );
 
+      _resetKeyboardTestState();
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -99,6 +102,7 @@ void main() {
       );
 
       await _pumpUntilSettled(tester);
+      _resetKeyboardTestState();
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(WeaveApp)),
@@ -121,9 +125,11 @@ void main() {
       );
 
       await tester.tap(find.widgetWithText(AccessibleButton, 'Anmelden').first);
+      _resetKeyboardTestState();
       await tester.pump();
 
       container.read(chatProvider.notifier).connect();
+      _resetKeyboardTestState();
       await tester.pump();
 
       await _waitFor(
@@ -187,6 +193,7 @@ void main() {
       );
 
       await container.read(filesProvider.notifier).connect();
+      _resetKeyboardTestState();
       await tester.pump();
 
       await _waitFor(
@@ -297,6 +304,7 @@ void main() {
         );
       }
 
+      _resetKeyboardTestState();
       expect(matrixConnected, isTrue);
       expect(deliveredMessage, isNotEmpty);
       expect(filesFacadeConnected, isTrue);
@@ -308,8 +316,21 @@ void main() {
 
 Future<void> _pumpUntilSettled(WidgetTester tester) async {
   for (var i = 0; i < 20; i++) {
+    _resetKeyboardTestState();
     await tester.pump(const Duration(milliseconds: 200));
   }
+}
+
+void _resetKeyboardTestState() {
+  // The self-hosted macOS runner can deliver a stray synthesized Meta key-up
+  // after a long live-stack run. Keep Flutter's debug keyboard state hermetic
+  // so an unrelated host key event cannot fail the product smoke assertions.
+  // ignore: invalid_use_of_visible_for_testing_member, deprecated_member_use
+  RawKeyboard.instance.clearKeysPressed();
+  // ignore: invalid_use_of_visible_for_testing_member
+  HardwareKeyboard.instance.clearState();
+  // ignore: invalid_use_of_visible_for_testing_member, deprecated_member_use
+  ServicesBinding.instance.keyEventManager.clearState();
 }
 
 Future<void> _waitFor(
@@ -321,6 +342,7 @@ Future<void> _waitFor(
 }) async {
   final end = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(end)) {
+    _resetKeyboardTestState();
     await tester.pump(const Duration(milliseconds: 250));
     if (predicate()) {
       return;
