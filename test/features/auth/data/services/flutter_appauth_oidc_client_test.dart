@@ -2,6 +2,7 @@ import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
+import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 
 class _FakeFlutterAppAuth extends FlutterAppAuth {
   AuthorizationTokenRequest? authorizationRequest;
@@ -65,6 +66,8 @@ void main() {
         expect(appAuth.authorizationRequest?.allowInsecureConnections, isTrue);
         expect(appAuth.tokenRequest?.allowInsecureConnections, isTrue);
         expect(appAuth.endSessionRequest?.allowInsecureConnections, isTrue);
+        expect(appAuth.authorizationRequest?.scopes, oidcDefaultScopes);
+        expect(appAuth.tokenRequest?.scopes, oidcDefaultScopes);
       },
     );
 

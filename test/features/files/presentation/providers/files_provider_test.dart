@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
+import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
+import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -19,12 +24,19 @@ class _FakeFilesRepository implements FilesRepository {
     required this.connectHandler,
     required this.disconnectHandler,
     required this.listDirectoryHandler,
+    this.uploadFileHandler,
   });
 
   final Future<FilesConnectionState> Function() restoreConnectionHandler;
   final Future<FilesConnectionState> Function() connectHandler;
   final Future<void> Function() disconnectHandler;
   final Future<DirectoryListing> Function(String path) listDirectoryHandler;
+  final Future<void> Function(
+    String directoryPath,
+    FileUploadRequest request,
+    FileUploadProgressCallback? onProgress,
+  )?
+  uploadFileHandler;
 
   @override
   Future<FilesConnectionState> connect() => connectHandler();
@@ -37,8 +49,27 @@ class _FakeFilesRepository implements FilesRepository {
       listDirectoryHandler(path);
 
   @override
+  Future<void> uploadFile(
+    String directoryPath,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  }) {
+    return uploadFileHandler?.call(directoryPath, request, onProgress) ??
+        Future<void>.value();
+  }
+
+  @override
   Future<FilesConnectionState> restoreConnection() =>
       restoreConnectionHandler();
+}
+
+class _FakeFilesImportPicker implements FilesImportPicker {
+  _FakeFilesImportPicker(this.request);
+
+  final FileUploadRequest? request;
+
+  @override
+  Future<FileUploadRequest?> pickFile() async => request;
 }
 
 class _FakeServerConfigurationRepository
@@ -62,7 +93,7 @@ void main() {
     test('restores the saved session and loads the root directory', () async {
       final repository = _FakeFilesRepository(
         restoreConnectionHandler: () async => FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
           accountLabel: 'alice',
         ),
         connectHandler: () async => throw UnimplementedError(),
@@ -105,7 +136,7 @@ void main() {
       () async {
         final repository = _FakeFilesRepository(
           restoreConnectionHandler: () async => FilesConnectionState.connected(
-            baseUrl: Uri.parse('https://nextcloud.home.internal'),
+            baseUrl: Uri.parse('https://files.home.internal'),
             accountLabel: 'alice',
           ),
           connectHandler: () async => throw UnimplementedError(),
@@ -149,16 +180,16 @@ void main() {
         final repository = _FakeFilesRepository(
           restoreConnectionHandler: () async => connected
               ? FilesConnectionState.connected(
-                  baseUrl: Uri.parse('https://nextcloud.home.internal'),
+                  baseUrl: Uri.parse('https://files.home.internal'),
                   accountLabel: 'alice',
                 )
               : FilesConnectionState.disconnected(
-                  baseUrl: Uri.parse('https://nextcloud.home.internal'),
+                  baseUrl: Uri.parse('https://files.home.internal'),
                 ),
           connectHandler: () async {
             connected = true;
             return FilesConnectionState.connected(
-              baseUrl: Uri.parse('https://nextcloud.home.internal'),
+              baseUrl: Uri.parse('https://files.home.internal'),
               accountLabel: 'alice',
             );
           },
@@ -201,6 +232,79 @@ void main() {
           state.directoryFailure?.type,
           FilesFailureType.invalidCredentials,
         );
+        expect(state.isBusy, isFalse);
+      },
+    );
+
+    test(
+      'uploads a picked file, reports completion, and refreshes the folder',
+      () async {
+        var uploadedDirectoryPath = '';
+        var uploadedFileName = '';
+        var uploadComplete = false;
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (path) async {
+            return DirectoryListing(
+              path: path,
+              entries: uploadComplete
+                  ? const [
+                      FileEntry(
+                        id: 'upload-1',
+                        name: 'brief.txt',
+                        path: '/brief.txt',
+                        isDirectory: false,
+                        sizeInBytes: 4,
+                      ),
+                    ]
+                  : const [],
+            );
+          },
+          uploadFileHandler: (directoryPath, request, onProgress) async {
+            uploadedDirectoryPath = directoryPath;
+            uploadedFileName = request.fileName;
+            onProgress?.call(2, request.sizeInBytes);
+            onProgress?.call(request.sizeInBytes, request.sizeInBytes);
+            uploadComplete = true;
+          },
+        );
+        final picker = _FakeFilesImportPicker(
+          FileUploadRequest(
+            fileName: 'brief.txt',
+            sizeInBytes: 4,
+            byteStream: Stream<List<int>>.fromIterable(const [
+              [1, 2],
+              [3, 4],
+            ]),
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            filesImportPickerProvider.overrideWithValue(picker),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(filesProvider.future);
+        await container.read(filesProvider.notifier).pickAndUpload();
+        final state = container.read(filesProvider).requireValue;
+
+        expect(uploadedDirectoryPath, '/');
+        expect(uploadedFileName, 'brief.txt');
+        expect(state.uploadStatus.phase, FilesUploadPhase.completed);
+        expect(state.uploadStatus.fileName, 'brief.txt');
+        expect(state.uploadStatus.progressFraction, 1);
+        expect(state.directoryListing?.entries.single.name, 'brief.txt');
         expect(state.isBusy, isFalse);
       },
     );

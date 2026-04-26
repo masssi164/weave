@@ -29,7 +29,7 @@ void main() {
 
       final listing = await client.listDirectory(
         NextcloudSession.appPassword(
-          baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+          baseUrl: Uri.parse('https://files.home.internal/'),
           loginName: 'alice@example.com',
           userId: 'alice',
           appPassword: 'app-password',
@@ -55,7 +55,7 @@ void main() {
 
       final listing = await client.listDirectory(
         NextcloudSession.oidcBearer(
-          baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+          baseUrl: Uri.parse('https://files.home.internal/'),
           userId: 'alice',
           bearerToken: 'oidc-access-token',
         ),
@@ -96,7 +96,7 @@ void main() {
       await expectLater(
         client.listDirectory(
           NextcloudSession.appPassword(
-            baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+            baseUrl: Uri.parse('https://files.home.internal/'),
             loginName: 'alice@example.com',
             userId: 'alice',
             appPassword: 'app-password',
@@ -126,7 +126,7 @@ void main() {
         await expectLater(
           client.listDirectory(
             NextcloudSession.appPassword(
-              baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+              baseUrl: Uri.parse('https://files.home.internal/'),
               loginName: 'alice@example.com',
               userId: 'alice',
               appPassword: 'app-password',

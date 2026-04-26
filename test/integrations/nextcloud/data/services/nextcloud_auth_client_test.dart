@@ -38,13 +38,13 @@ void main() {
         );
 
         final session = await authClient.createBearerSession(
-          configuredBaseUrl: Uri.parse('https://nextcloud.home.internal'),
+          configuredBaseUrl: Uri.parse('https://files.home.internal'),
           bearerToken: 'oidc-id-token',
           accountLabelHint: 'Alice Example',
         );
 
         expect(session.usesOidcBearer, isTrue);
-        expect(session.baseUrl, Uri.parse('https://nextcloud.home.internal/'));
+        expect(session.baseUrl, Uri.parse('https://files.home.internal/'));
         expect(session.userId, 'alice');
         expect(session.accountLabel, 'Alice Example');
         expect(session.bearerToken, 'oidc-id-token');
@@ -95,9 +95,9 @@ void main() {
               jsonEncode({
                 'poll': {
                   'token': 'poll-token',
-                  'endpoint': 'https://nextcloud.home.internal/login/v2/poll',
+                  'endpoint': 'https://files.home.internal/login/v2/poll',
                 },
-                'login': 'https://nextcloud.home.internal/login/v2/flow/abc',
+                'login': 'https://files.home.internal/login/v2/flow/abc',
               }),
               200,
             );
@@ -106,7 +106,7 @@ void main() {
           if (request.url.path.endsWith('/login/v2/poll')) {
             return http.Response(
               jsonEncode({
-                'server': 'https://nextcloud.home.internal',
+                'server': 'https://files.home.internal',
                 'loginName': 'alice@example.com',
                 'appPassword': 'app-password',
               }),
@@ -137,15 +137,15 @@ void main() {
         );
 
         final session = await authClient.connect(
-          Uri.parse('https://nextcloud.home.internal'),
+          Uri.parse('https://files.home.internal'),
         );
 
         expect(
           launcher.launchedUri,
-          Uri.parse('https://nextcloud.home.internal/login/v2/flow/abc'),
+          Uri.parse('https://files.home.internal/login/v2/flow/abc'),
         );
         expect(session.usesAppPassword, isTrue);
-        expect(session.baseUrl, Uri.parse('https://nextcloud.home.internal/'));
+        expect(session.baseUrl, Uri.parse('https://files.home.internal/'));
         expect(session.loginName, 'alice@example.com');
         expect(session.userId, 'alice');
         expect(session.appPassword, 'app-password');
@@ -161,9 +161,9 @@ void main() {
               jsonEncode({
                 'poll': {
                   'token': 'poll-token',
-                  'endpoint': 'https://nextcloud.home.internal/login/v2/poll',
+                  'endpoint': 'https://files.home.internal/login/v2/poll',
                 },
-                'login': 'https://nextcloud.home.internal/login/v2/flow/abc',
+                'login': 'https://files.home.internal/login/v2/flow/abc',
               }),
               200,
             );
@@ -172,7 +172,7 @@ void main() {
           if (request.url.path.endsWith('/login/v2/poll')) {
             return http.Response(
               jsonEncode({
-                'server': 'https://other-nextcloud.home.internal',
+                'server': 'https://other-files.home.internal',
                 'loginName': 'alice@example.com',
                 'appPassword': 'app-password',
               }),
@@ -192,7 +192,7 @@ void main() {
         );
 
         await expectLater(
-          authClient.connect(Uri.parse('https://nextcloud.home.internal')),
+          authClient.connect(Uri.parse('https://files.home.internal')),
           throwsA(
             isA<NextcloudFailure>().having(
               (failure) => failure.type,

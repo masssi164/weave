@@ -183,13 +183,13 @@ void main() {
     late DefaultNextcloudConnectionService service;
 
     final bearerSession = NextcloudSession.oidcBearer(
-      baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+      baseUrl: Uri.parse('https://files.home.internal/'),
       userId: 'alice',
       accountLabel: 'alice',
       bearerToken: 'id-token',
     );
     final appPasswordSession = NextcloudSession.appPassword(
-      baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+      baseUrl: Uri.parse('https://files.home.internal/'),
       loginName: 'alice@example.com',
       userId: 'alice',
       appPassword: 'app-password',
@@ -201,9 +201,7 @@ void main() {
       davAccessValidator = _FakeNextcloudDavAccessValidator();
       sessionRepository = _FakeNextcloudSessionRepository();
       configurationRepository = _FakeServerConfigurationRepository(
-        buildTestConfiguration(
-          nextcloudBaseUrl: 'https://nextcloud.home.internal',
-        ),
+        buildTestConfiguration(nextcloudBaseUrl: 'https://files.home.internal'),
       );
       service = DefaultNextcloudConnectionService(
         authClient: authClient,
@@ -220,7 +218,7 @@ void main() {
         final state = await service.restoreConnection();
 
         expect(state.status, NextcloudConnectionStatus.disconnected);
-        expect(state.baseUrl, Uri.parse('https://nextcloud.home.internal'));
+        expect(state.baseUrl, Uri.parse('https://files.home.internal'));
       },
     );
 
@@ -389,7 +387,7 @@ void main() {
       () async {
         sessionRepository.session = appPasswordSession;
         configurationRepository.configuration = buildTestConfiguration(
-          nextcloudBaseUrl: 'https://other-nextcloud.home.internal',
+          nextcloudBaseUrl: 'https://other-files.home.internal',
         );
 
         final state = await service.restoreConnection();

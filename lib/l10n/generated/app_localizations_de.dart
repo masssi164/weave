@@ -241,6 +241,50 @@ class AppLocalizationsDe extends AppLocalizations {
       'Aktuellen Ordner aktualisieren';
 
   @override
+  String get filesUploadButton => 'Hochladen';
+
+  @override
+  String get filesUploadCurrentFolderSemantic =>
+      'Datei in den aktuellen Ordner hochladen';
+
+  @override
+  String get filesUploadPickingMessage => 'Datei zum Hochladen auswählen…';
+
+  @override
+  String get filesUploadProgressUnknownMessage => 'Datei wird hochgeladen…';
+
+  @override
+  String filesUploadProgressIndeterminateMessage(String fileName) {
+    return '$fileName wird hochgeladen…';
+  }
+
+  @override
+  String filesUploadProgressMessage(String fileName, int percent) {
+    return '$fileName wird hochgeladen: $percent%';
+  }
+
+  @override
+  String filesUploadProgressSemantic(String fileName, int percent) {
+    return 'Upload-Fortschritt für $fileName: $percent Prozent';
+  }
+
+  @override
+  String get filesUploadCompletedUnknownMessage => 'Upload abgeschlossen.';
+
+  @override
+  String filesUploadCompletedMessage(String fileName) {
+    return '$fileName hochgeladen.';
+  }
+
+  @override
+  String get filesUploadFailedUnknownMessage => 'Upload fehlgeschlagen.';
+
+  @override
+  String filesUploadFailedMessage(String fileName) {
+    return 'Upload für $fileName fehlgeschlagen.';
+  }
+
+  @override
   String filesFolderSemantic(String name) {
     return '$name, Ordner';
   }

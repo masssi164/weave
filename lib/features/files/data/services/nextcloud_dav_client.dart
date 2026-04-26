@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/integrations/nextcloud/data/services/nextcloud_auth_headers.dart';
 import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.dart';
 import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
@@ -113,6 +116,59 @@ class NextcloudDavClient {
     });
 
     return DirectoryListing(path: normalizedPath, entries: entries);
+  }
+
+  Future<void> uploadFile(
+    NextcloudSession session, {
+    required String directoryPath,
+    required String fileName,
+    required int sizeInBytes,
+    required Stream<List<int>> byteStream,
+    FileUploadProgressCallback? onProgress,
+  }) async {
+    _ensureSupportedSession(session);
+    final safeFileName = _sanitizeFileName(fileName);
+    final uri = _buildFileUri(session, directoryPath, safeFileName);
+    final request = http.StreamedRequest('PUT', uri)
+      ..headers.addAll({
+        ...buildNextcloudAuthHeaders(session),
+        'Content-Type': 'application/octet-stream',
+      })
+      ..contentLength = sizeInBytes;
+
+    onProgress?.call(0, sizeInBytes);
+    final bodyFuture = request.sink
+        .addStream(_trackUploadProgress(byteStream, sizeInBytes, onProgress))
+        .whenComplete(request.sink.close);
+
+    late http.StreamedResponse response;
+    try {
+      response = await _httpClient.send(request);
+      await bodyFuture;
+    } on NextcloudFailure {
+      rethrow;
+    } catch (error) {
+      throw NextcloudFailure.unknown(
+        'Unable to upload the file to Nextcloud.',
+        cause: error,
+      );
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw const NextcloudFailure.invalidCredentials(
+        'The saved Nextcloud credentials are no longer valid.',
+      );
+    }
+
+    if (response.statusCode != 200 &&
+        response.statusCode != 201 &&
+        response.statusCode != 204) {
+      throw NextcloudFailure.protocol(
+        'Nextcloud returned an unexpected WebDAV upload status (${response.statusCode}).',
+      );
+    }
+
+    onProgress?.call(sizeInBytes, sizeInBytes);
   }
 
   void _ensureSupportedSession(NextcloudSession session) {
@@ -231,6 +287,34 @@ class NextcloudDavClient {
     return fallbackId;
   }
 
+  String _sanitizeFileName(String fileName) {
+    final trimmed = fileName.trim();
+    if (trimmed.isEmpty || trimmed == '.' || trimmed == '..') {
+      throw const NextcloudFailure.configuration(
+        'Choose a file with a valid name before uploading.',
+      );
+    }
+    if (trimmed.contains('/') || trimmed.contains('\\')) {
+      throw const NextcloudFailure.configuration(
+        'Choose a file name without path separators before uploading.',
+      );
+    }
+    return trimmed;
+  }
+
+  Stream<List<int>> _trackUploadProgress(
+    Stream<List<int>> byteStream,
+    int totalBytes,
+    FileUploadProgressCallback? onProgress,
+  ) async* {
+    var uploadedBytes = 0;
+    await for (final chunk in byteStream) {
+      uploadedBytes += chunk.length;
+      onProgress?.call(uploadedBytes.clamp(0, totalBytes), totalBytes);
+      yield chunk;
+    }
+  }
+
   String _normalizePath(String path) {
     final trimmed = path.trim();
     if (trimmed.isEmpty || trimmed == '/') {
@@ -245,6 +329,22 @@ class NextcloudDavClient {
   }
 
   Uri _buildDirectoryUri(NextcloudSession session, String path) {
+    return _buildDavUri(session, path);
+  }
+
+  Uri _buildFileUri(
+    NextcloudSession session,
+    String directoryPath,
+    String fileName,
+  ) {
+    final normalizedDirectoryPath = _normalizePath(directoryPath);
+    final filePath = normalizedDirectoryPath == '/'
+        ? '/$fileName'
+        : '$normalizedDirectoryPath/$fileName';
+    return _buildDavUri(session, filePath);
+  }
+
+  Uri _buildDavUri(NextcloudSession session, String path) {
     final normalizedBaseUrl = normalizeNextcloudBaseUrl(session.baseUrl);
     final encodedUserId = Uri.encodeComponent(session.userId);
     final encodedSegments = _normalizePath(path)

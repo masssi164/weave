@@ -27,6 +27,7 @@ import 'package:weave/features/chat/presentation/providers/chat_repository_provi
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
@@ -112,7 +113,7 @@ void main() {
         expect(find.text('Review Service Endpoints'), findsOneWidget);
         expect(find.text('https://matrix.weave.local'), findsWidgets);
         expect(find.text('https://files.weave.local'), findsWidgets);
-        expect(find.text('https://weave.local/api'), findsWidgets);
+        expect(find.text('https://api.weave.local/api'), findsWidgets);
 
         await tester.tap(find.text('Finish'));
         await tester.pumpAndSettle();
@@ -378,6 +379,15 @@ class _ScenarioFilesRepository implements FilesRepository {
       ),
       _ => const DirectoryListing(path: '/', entries: <FileEntry>[]),
     };
+  }
+
+  @override
+  Future<void> uploadFile(
+    String directoryPath,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  }) async {
+    onProgress?.call(request.sizeInBytes, request.sizeInBytes);
   }
 
   @override

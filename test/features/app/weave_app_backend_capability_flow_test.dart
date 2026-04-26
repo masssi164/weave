@@ -11,6 +11,7 @@ import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
@@ -80,6 +81,13 @@ class _FakeFilesRepository implements FilesRepository {
   Future<DirectoryListing> listDirectory(String path) async {
     return DirectoryListing(path: path, entries: const []);
   }
+
+  @override
+  Future<void> uploadFile(
+    String directoryPath,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  }) async {}
 
   @override
   Future<FilesConnectionState> restoreConnection() async => connectionState;
@@ -196,7 +204,7 @@ void main() {
       expect(weaveApiClient.callCount, 1);
       expect(
         weaveApiClient.lastBaseUrl,
-        Uri.parse('https://home.internal/api'),
+        Uri.parse('https://api.home.internal/api'),
       );
       expect(weaveApiClient.lastAccessToken, 'backend-boundary-token');
 

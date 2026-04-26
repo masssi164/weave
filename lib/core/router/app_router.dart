@@ -5,6 +5,8 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
+import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
@@ -73,6 +75,19 @@ GoRouter appRouter(Ref ref) {
               GoRoute(
                 path: AppRoutes.chat,
                 builder: (context, state) => const ChatScreen(),
+                routes: [
+                  GoRoute(
+                    path: AppRoutes.chatRoomRelative,
+                    builder: (context, state) {
+                      final conversation = state.extra;
+                      if (conversation is ChatConversation) {
+                        return ChatRoomScreen(conversation: conversation);
+                      }
+
+                      return const ChatScreen();
+                    },
+                  ),
+                ],
               ),
             ],
           ),

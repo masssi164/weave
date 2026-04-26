@@ -31,7 +31,7 @@ integration-test:
 	if [ "$$caller_WEAVE_MATRIX_HOMESERVER_URL_set" = x ] && [ -n "$$caller_WEAVE_MATRIX_HOMESERVER_URL" ]; then WEAVE_MATRIX_HOMESERVER_URL="$$caller_WEAVE_MATRIX_HOMESERVER_URL"; fi; \
 	if [ "$$caller_WEAVE_TEST_USERNAME_set" = x ] && [ -n "$$caller_WEAVE_TEST_USERNAME" ]; then WEAVE_TEST_USERNAME="$$caller_WEAVE_TEST_USERNAME"; fi; \
 	if [ "$$caller_WEAVE_TEST_PASSWORD_set" = x ] && [ -n "$$caller_WEAVE_TEST_PASSWORD" ]; then WEAVE_TEST_PASSWORD="$$caller_WEAVE_TEST_PASSWORD"; fi; \
-	WEAVE_BASE_URL="$${WEAVE_BASE_URL:-https://weave.local/api}"; \
+	WEAVE_BASE_URL="$${WEAVE_BASE_URL:-https://api.weave.local/api}"; \
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://auth.weave.local/realms/weave}"; \
 	WEAVE_OIDC_CLIENT_ID="$${WEAVE_OIDC_CLIENT_ID:-weave-app}"; \
 	WEAVE_NEXTCLOUD_BASE_URL="$${WEAVE_NEXTCLOUD_BASE_URL:-$${WEAVE_NEXTCLOUD_URL:-}}"; \
