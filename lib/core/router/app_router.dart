@@ -5,6 +5,7 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
+import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
@@ -33,9 +34,7 @@ GoRouter appRouter(Ref ref) {
           state.matchedLocation == AppRoutes.welcome ||
           state.matchedLocation == AppRoutes.setup;
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
-      final onHiddenReleaseOneRoute =
-          state.matchedLocation == AppRoutes.calendar ||
-          state.matchedLocation == AppRoutes.deck;
+      final onHiddenReleaseOneRoute = state.matchedLocation == AppRoutes.deck;
 
       if (onHiddenReleaseOneRoute) {
         return AppRoutes.chat;
@@ -96,6 +95,14 @@ GoRouter appRouter(Ref ref) {
               GoRoute(
                 path: AppRoutes.files,
                 builder: (context, state) => const FilesScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.calendar,
+                builder: (context, state) => const CalendarScreen(),
               ),
             ],
           ),

@@ -279,69 +279,6 @@ class CalendarFacadeClient {
   }
 }
 
-class CalendarEventDraft {
-  const CalendarEventDraft({
-    required this.title,
-    required this.startsAt,
-    required this.endsAt,
-    required this.timezone,
-    this.description,
-    this.location,
-    this.allDay = false,
-  });
-
-  final String title;
-  final String? description;
-  final DateTime startsAt;
-  final DateTime endsAt;
-  final String timezone;
-  final String? location;
-  final bool allDay;
-
-  Map<String, Object?> toJson() => {
-    'title': title,
-    'description': description,
-    'startsAt': startsAt.toUtc().toIso8601String(),
-    'endsAt': endsAt.toUtc().toIso8601String(),
-    'timezone': timezone,
-    'location': location,
-    'allDay': allDay,
-  };
-}
-
-class CalendarEventPatch {
-  const CalendarEventPatch({
-    this.title,
-    this.description,
-    this.startsAt,
-    this.endsAt,
-    this.timezone,
-    this.location,
-    this.allDay,
-    this.etag,
-  });
-
-  final String? title;
-  final String? description;
-  final DateTime? startsAt;
-  final DateTime? endsAt;
-  final String? timezone;
-  final String? location;
-  final bool? allDay;
-  final String? etag;
-
-  Map<String, Object?> toJson() => {
-    if (title != null) 'title': title,
-    if (description != null) 'description': description,
-    if (startsAt != null) 'startsAt': startsAt!.toUtc().toIso8601String(),
-    if (endsAt != null) 'endsAt': endsAt!.toUtc().toIso8601String(),
-    if (timezone != null) 'timezone': timezone,
-    if (location != null) 'location': location,
-    if (allDay != null) 'allDay': allDay,
-    if (etag != null) 'etag': etag,
-  };
-}
-
 class _CalendarFacadeContext {
   const _CalendarFacadeContext({
     required this.baseUrl,

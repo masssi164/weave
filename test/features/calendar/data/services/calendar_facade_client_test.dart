@@ -8,6 +8,7 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/calendar/data/services/calendar_facade_client.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 
@@ -151,8 +152,8 @@ void main() {
         await facade.createEvent(
           CalendarEventDraft(
             title: 'Planning',
-            startsAt: DateTime.utc(2026, 4, 26, 9),
-            endsAt: DateTime.utc(2026, 4, 26, 10),
+            startTime: DateTime.utc(2026, 4, 26, 9),
+            endTime: DateTime.utc(2026, 4, 26, 10),
             timezone: 'Europe/Berlin',
           ),
         );

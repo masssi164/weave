@@ -15,6 +15,7 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -189,6 +190,7 @@ void main() {
                 ),
               ),
             ),
+            userProfileProvider.overrideWith((ref) async => null),
             weaveApiClientProvider.overrideWithValue(weaveApiClient),
           ],
           child: const WeaveApp(),
@@ -230,7 +232,7 @@ void main() {
       );
       expect(
         find.text('Connection: Connected', findRichText: true),
-        findsNWidgets(2),
+        findsNWidgets(3),
       );
     },
   );
