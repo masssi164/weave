@@ -1,5 +1,6 @@
 import 'package:weave/features/files/data/services/nextcloud_dav_client.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
@@ -56,6 +57,40 @@ class NextcloudFilesRepository implements FilesRepository {
 
     try {
       return await _client.listDirectory(liveSession, path);
+    } on NextcloudFailure catch (failure) {
+      if (failure.type == NextcloudFailureType.invalidCredentials) {
+        try {
+          await _connectionService.invalidateSession(liveSession);
+        } on NextcloudFailure catch (clearFailure) {
+          throw _mapFailure(clearFailure);
+        }
+      }
+      throw _mapFailure(failure);
+    }
+  }
+
+  @override
+  Future<void> uploadFile(
+    String directoryPath,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  }) async {
+    late NextcloudSession liveSession;
+    try {
+      liveSession = await _connectionService.requireLiveSession();
+    } on NextcloudFailure catch (failure) {
+      throw _mapFailure(failure);
+    }
+
+    try {
+      await _client.uploadFile(
+        liveSession,
+        directoryPath: directoryPath,
+        fileName: request.fileName,
+        sizeInBytes: request.sizeInBytes,
+        byteStream: request.byteStream,
+        onProgress: onProgress,
+      );
     } on NextcloudFailure catch (failure) {
       if (failure.type == NextcloudFailureType.invalidCredentials) {
         try {

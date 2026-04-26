@@ -18,7 +18,7 @@ void main() {
       'saveSession persists app-password fallback sessions in secure storage',
       () async {
         final session = NextcloudSession.appPassword(
-          baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+          baseUrl: Uri.parse('https://files.home.internal/'),
           loginName: 'alice@example.com',
           userId: 'alice',
           appPassword: 'app-password',
@@ -36,7 +36,7 @@ void main() {
 
     test('saveSession does not persist ephemeral bearer tokens', () async {
       final session = NextcloudSession.oidcBearer(
-        baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+        baseUrl: Uri.parse('https://files.home.internal/'),
         userId: 'alice',
         accountLabel: 'Alice Example',
         bearerToken: 'oidc-access-token',
@@ -59,7 +59,7 @@ void main() {
       'readSession restores a previously saved app-password session',
       () async {
         final session = NextcloudSession.appPassword(
-          baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+          baseUrl: Uri.parse('https://files.home.internal/'),
           loginName: 'alice@example.com',
           userId: 'alice',
           appPassword: 'app-password',
@@ -79,7 +79,7 @@ void main() {
     test('readSession restores legacy stored app-password data', () async {
       await secureStore.write(
         nextcloudSessionStorageKey,
-        '{"baseUrl":"https://nextcloud.home.internal/","loginName":"alice@example.com","userId":"alice","appPassword":"app-password"}',
+        '{"baseUrl":"https://files.home.internal/","loginName":"alice@example.com","userId":"alice","appPassword":"app-password"}',
       );
 
       final restored = await repository.readSession();

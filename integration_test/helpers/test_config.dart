@@ -17,7 +17,7 @@ class TestConfig {
     final baseUrl = _parseUrl(
       const String.fromEnvironment(
         'WEAVE_BASE_URL',
-        defaultValue: 'https://weave.local/api',
+        defaultValue: 'https://api.weave.local/api',
       ),
       variableName: 'WEAVE_BASE_URL',
     );

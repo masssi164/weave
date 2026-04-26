@@ -127,7 +127,7 @@ void main() {
       expect(find.text('Review Service Endpoints'), findsOneWidget);
       expect(find.text('https://matrix.home.internal'), findsWidgets);
       expect(find.text('https://files.home.internal'), findsWidgets);
-      expect(find.text('https://home.internal/api'), findsWidgets);
+      expect(find.text('https://api.home.internal/api'), findsWidgets);
       expect(find.text('Finish'), findsOneWidget);
     });
 
@@ -156,7 +156,7 @@ void main() {
       final raw = preferencesStore.rawString(serverConfigurationStorageKey);
       final json = jsonDecode(raw!) as Map<String, dynamic>;
       expect(json['oidcClientId'], 'weave-app');
-      expect(json['backendApiBaseUrl'], 'https://home.internal/api');
+      expect(json['backendApiBaseUrl'], 'https://api.home.internal/api');
     });
 
     testWidgets('goes back to provider step from services step', (

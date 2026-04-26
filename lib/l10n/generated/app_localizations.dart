@@ -482,6 +482,72 @@ abstract class AppLocalizations {
   /// **'Refresh the current folder'**
   String get filesRefreshCurrentFolderSemantic;
 
+  /// Button label for uploading a file to the current folder
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get filesUploadButton;
+
+  /// Semantic label for the action that uploads a file to the current folder
+  ///
+  /// In en, this message translates to:
+  /// **'Upload a file to the current folder'**
+  String get filesUploadCurrentFolderSemantic;
+
+  /// Status shown while the native file picker is open
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a file to upload…'**
+  String get filesUploadPickingMessage;
+
+  /// Status shown while uploading when no filename is available
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading file…'**
+  String get filesUploadProgressUnknownMessage;
+
+  /// Status shown while uploading when total progress is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading {fileName}…'**
+  String filesUploadProgressIndeterminateMessage(String fileName);
+
+  /// Status shown while a file upload is in progress
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading {fileName}: {percent}%'**
+  String filesUploadProgressMessage(String fileName, int percent);
+
+  /// Semantic label for file upload progress
+  ///
+  /// In en, this message translates to:
+  /// **'Upload progress for {fileName}: {percent} percent'**
+  String filesUploadProgressSemantic(String fileName, int percent);
+
+  /// Status shown after an upload completes when no filename is available
+  ///
+  /// In en, this message translates to:
+  /// **'Upload complete.'**
+  String get filesUploadCompletedUnknownMessage;
+
+  /// Status shown after a file upload completes
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded {fileName}.'**
+  String filesUploadCompletedMessage(String fileName);
+
+  /// Status shown after an upload fails when no filename is available
+  ///
+  /// In en, this message translates to:
+  /// **'Upload failed.'**
+  String get filesUploadFailedUnknownMessage;
+
+  /// Status shown after a file upload fails
+  ///
+  /// In en, this message translates to:
+  /// **'Upload failed for {fileName}.'**
+  String filesUploadFailedMessage(String fileName);
+
   /// Semantic label for a folder row in the Files list
   ///
   /// In en, this message translates to:

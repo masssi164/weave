@@ -216,6 +216,60 @@
   "filesRefreshCurrentFolderSemantic": "Refresh the current folder",
   "@filesRefreshCurrentFolderSemantic": { "description": "Semantic label for the action that refreshes the current Nextcloud directory" },
 
+  "filesUploadButton": "Upload",
+  "@filesUploadButton": { "description": "Button label for uploading a file to the current folder" },
+
+  "filesUploadCurrentFolderSemantic": "Upload a file to the current folder",
+  "@filesUploadCurrentFolderSemantic": { "description": "Semantic label for the action that uploads a file to the current folder" },
+
+  "filesUploadPickingMessage": "Choose a file to upload…",
+  "@filesUploadPickingMessage": { "description": "Status shown while the native file picker is open" },
+
+  "filesUploadProgressUnknownMessage": "Uploading file…",
+  "@filesUploadProgressUnknownMessage": { "description": "Status shown while uploading when no filename is available" },
+
+  "filesUploadProgressIndeterminateMessage": "Uploading {fileName}…",
+  "@filesUploadProgressIndeterminateMessage": {
+    "description": "Status shown while uploading when total progress is unavailable",
+    "placeholders": { "fileName": { "type": "String" } }
+  },
+
+  "filesUploadProgressMessage": "Uploading {fileName}: {percent}%",
+  "@filesUploadProgressMessage": {
+    "description": "Status shown while a file upload is in progress",
+    "placeholders": {
+      "fileName": { "type": "String" },
+      "percent": { "type": "int" }
+    }
+  },
+
+  "filesUploadProgressSemantic": "Upload progress for {fileName}: {percent} percent",
+  "@filesUploadProgressSemantic": {
+    "description": "Semantic label for file upload progress",
+    "placeholders": {
+      "fileName": { "type": "String" },
+      "percent": { "type": "int" }
+    }
+  },
+
+  "filesUploadCompletedUnknownMessage": "Upload complete.",
+  "@filesUploadCompletedUnknownMessage": { "description": "Status shown after an upload completes when no filename is available" },
+
+  "filesUploadCompletedMessage": "Uploaded {fileName}.",
+  "@filesUploadCompletedMessage": {
+    "description": "Status shown after a file upload completes",
+    "placeholders": { "fileName": { "type": "String" } }
+  },
+
+  "filesUploadFailedUnknownMessage": "Upload failed.",
+  "@filesUploadFailedUnknownMessage": { "description": "Status shown after an upload fails when no filename is available" },
+
+  "filesUploadFailedMessage": "Upload failed for {fileName}.",
+  "@filesUploadFailedMessage": {
+    "description": "Status shown after a file upload fails",
+    "placeholders": { "fileName": { "type": "String" } }
+  },
+
   "filesFolderSemantic": "{name}, folder",
   "@filesFolderSemantic": {
     "description": "Semantic label for a folder row in the Files list",

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
@@ -79,13 +81,21 @@ class ChatScreen extends ConsumerWidget {
               itemBuilder: (context, index) => _ConversationTile(
                 conversation: state.conversations[index],
                 onTap: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => ChatRoomScreen(
-                        conversation: state.conversations[index],
+                  final conversation = state.conversations[index];
+                  final router = GoRouter.maybeOf(context);
+                  if (router != null) {
+                    await context.push(
+                      AppRoutes.chatRoom(conversation.id),
+                      extra: conversation,
+                    );
+                  } else {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (context) =>
+                            ChatRoomScreen(conversation: conversation),
                       ),
-                    ),
-                  );
+                    );
+                  }
                   await ref.read(chatProvider.notifier).retry();
                 },
               ),

@@ -1,4 +1,5 @@
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 
 abstract interface class FilesRepository {
@@ -9,4 +10,10 @@ abstract interface class FilesRepository {
   Future<void> disconnect();
 
   Future<DirectoryListing> listDirectory(String path);
+
+  Future<void> uploadFile(
+    String directoryPath,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  });
 }

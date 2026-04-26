@@ -47,13 +47,13 @@ void main() {
       );
 
       final snapshot = await client.fetchWorkspaceCapabilities(
-        baseUrl: Uri.parse('https://home.internal/api'),
+        baseUrl: Uri.parse('https://api.home.internal/api'),
         accessToken: 'token-123',
       );
 
       expect(
         capturedRequest.url.toString(),
-        'https://home.internal/api/v1/workspace/capabilities',
+        'https://api.home.internal/api/v1/workspace/capabilities',
       );
       expect(capturedRequest.headers['Accept'], 'application/json');
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
@@ -115,13 +115,13 @@ void main() {
         );
 
         await client.fetchWorkspaceCapabilities(
-          baseUrl: Uri.parse('https://weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.local/api'),
           accessToken: 'token-123',
         );
 
         expect(
           capturedRequest.url.toString(),
-          'https://weave.local/api/v1/workspace/capabilities',
+          'https://api.weave.local/api/v1/workspace/capabilities',
         );
       },
     );
@@ -140,7 +140,7 @@ void main() {
 
           await expectLater(
             () => client.fetchWorkspaceCapabilities(
-              baseUrl: Uri.parse('https://home.internal/api'),
+              baseUrl: Uri.parse('https://api.home.internal/api'),
               accessToken: 'token-123',
             ),
             throwsA(
@@ -164,7 +164,7 @@ void main() {
 
       await expectLater(
         () => client.fetchWorkspaceCapabilities(
-          baseUrl: Uri.parse('https://home.internal/api'),
+          baseUrl: Uri.parse('https://api.home.internal/api'),
           accessToken: 'token-123',
         ),
         throwsA(isA<AppFailure>()),

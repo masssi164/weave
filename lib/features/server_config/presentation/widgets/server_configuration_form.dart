@@ -260,7 +260,7 @@ class _ServerConfigurationFormState
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(
             labelText: l10n.serverConfigurationBackendApiLabel,
-            hintText: 'https://home.internal/api',
+            hintText: 'https://api.home.internal/api',
             helperText: formState.derivedBackendApiBaseUrl.isEmpty
                 ? null
                 : l10n.serverConfigurationDerivedHint(

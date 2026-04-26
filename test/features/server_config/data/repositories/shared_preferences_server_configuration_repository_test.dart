@@ -92,7 +92,7 @@ void main() {
 
         expect(
           loaded?.serviceEndpoints.backendApiBaseUrl.toString(),
-          'https://home.internal/api',
+          'https://api.home.internal/api',
         );
       },
     );

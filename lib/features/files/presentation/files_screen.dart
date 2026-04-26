@@ -74,6 +74,16 @@ class FilesScreen extends ConsumerWidget {
           sliver: SliverToBoxAdapter(child: _DirectoryToolbar(state: state)),
         ),
       );
+      if (state.uploadStatus.phase != FilesUploadPhase.idle) {
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            sliver: SliverToBoxAdapter(
+              child: _UploadStatusCard(uploadStatus: state.uploadStatus),
+            ),
+          ),
+        );
+      }
     }
 
     slivers.add(_buildContentSliver(context, ref, l10n, state));
@@ -232,9 +242,94 @@ class _DirectoryToolbar extends ConsumerWidget {
               semanticLabel: l10n.filesRefreshCurrentFolderSemantic,
               child: Text(l10n.filesRefreshButton),
             ),
+            AccessibleButton(
+              onPressed: state.isBusy
+                  ? null
+                  : () {
+                      ref.read(filesProvider.notifier).pickAndUpload();
+                    },
+              semanticLabel: l10n.filesUploadCurrentFolderSemantic,
+              child: Text(l10n.filesUploadButton),
+            ),
           ],
         ),
       ],
+    );
+  }
+}
+
+class _UploadStatusCard extends StatelessWidget {
+  const _UploadStatusCard({required this.uploadStatus});
+
+  final FilesUploadStatus uploadStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final fileName = uploadStatus.fileName;
+    final progressFraction = uploadStatus.progressFraction;
+    final percent = progressFraction == null
+        ? 0
+        : (progressFraction * 100).round().clamp(0, 100);
+    final message = switch (uploadStatus.phase) {
+      FilesUploadPhase.idle => '',
+      FilesUploadPhase.picking => l10n.filesUploadPickingMessage,
+      FilesUploadPhase.uploading =>
+        fileName == null
+            ? l10n.filesUploadProgressUnknownMessage
+            : progressFraction == null
+            ? l10n.filesUploadProgressIndeterminateMessage(fileName)
+            : l10n.filesUploadProgressMessage(fileName, percent),
+      FilesUploadPhase.completed =>
+        fileName == null
+            ? l10n.filesUploadCompletedUnknownMessage
+            : l10n.filesUploadCompletedMessage(fileName),
+      FilesUploadPhase.failed =>
+        uploadStatus.failure?.message ??
+            (fileName == null
+                ? l10n.filesUploadFailedUnknownMessage
+                : l10n.filesUploadFailedMessage(fileName)),
+    };
+    final icon = switch (uploadStatus.phase) {
+      FilesUploadPhase.completed => Icons.check_circle_outline,
+      FilesUploadPhase.failed => Icons.error_outline,
+      _ => Icons.cloud_upload_outlined,
+    };
+    final semanticLabel = switch (uploadStatus.phase) {
+      FilesUploadPhase.uploading when fileName != null =>
+        l10n.filesUploadProgressSemantic(fileName, percent),
+      _ => message,
+    };
+
+    return Semantics(
+      liveRegion: uploadStatus.phase != FilesUploadPhase.idle,
+      label: semanticLabel,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  ExcludeSemantics(child: Icon(icon)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(message, style: theme.textTheme.bodyMedium),
+                  ),
+                ],
+              ),
+              if (uploadStatus.phase == FilesUploadPhase.uploading) ...[
+                const SizedBox(height: 12),
+                ExcludeSemantics(
+                  child: LinearProgressIndicator(value: progressFraction),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

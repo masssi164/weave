@@ -64,11 +64,11 @@ Derivation rule:
 - derive:
   - `https://matrix.<base-domain>`
   - `https://files.<base-domain>`
-  - `https://<base-domain>/api`
+  - `https://api.<base-domain>/api`
 
 Example:
 
-- `https://auth.home.internal` becomes `https://matrix.home.internal`, `https://files.home.internal`, and `https://home.internal/api`
+- `https://auth.home.internal` becomes `https://matrix.home.internal`, `https://files.home.internal`, and `https://api.home.internal/api`
 
 This is intentionally simple, explicit, and easy to change later. It is a convenience default, not a hard rule. Users can edit the derived values during setup and in Settings.
 

@@ -20,7 +20,7 @@ void main() {
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
-        'https://home.internal/api',
+        'https://api.home.internal/api',
       );
     });
 
@@ -36,7 +36,10 @@ void main() {
         endpoints.nextcloudBaseUrl.toString(),
         'https://files.example.com',
       );
-      expect(endpoints.backendApiBaseUrl.toString(), 'https://example.com/api');
+      expect(
+        endpoints.backendApiBaseUrl.toString(),
+        'https://api.example.com/api',
+      );
     });
 
     test(
@@ -57,7 +60,7 @@ void main() {
         );
         expect(
           endpoints.backendApiBaseUrl.toString(),
-          'https://workspace.example.com/api',
+          'https://api.workspace.example.com/api',
         );
       },
     );
@@ -76,7 +79,7 @@ void main() {
       );
       expect(
         endpoints.backendApiBaseUrl.toString(),
-        'http://home.internal/api',
+        'http://api.home.internal/api',
       );
     });
 

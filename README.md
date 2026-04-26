@@ -47,7 +47,7 @@ For the default homelab convention, Weave assumes:
 - OIDC issuer / auth provider: `https://auth.home.internal`
 - Matrix homeserver: `https://matrix.home.internal`
 - Canonical Nextcloud URL: `https://files.home.internal`
-- Backend API base URL: `https://home.internal/api`
+- Backend API base URL: `https://api.home.internal/api`
 
 ## Architecture
 Weave follows a feature-first clean architecture layout:
@@ -133,9 +133,9 @@ Integration tests require a live local Weave stack, including the backend API an
 
 The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env` and mirrors them to `/tmp/weave-infra/weave-workspace/.generated/bootstrap.env` for the self-hosted GitHub runner path. `make integration-test` sources the repo-local file first, then falls back to the `/tmp` mirror. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere.
 
-Expected local hostnames include `weave.local`, `auth.weave.local`, `matrix.weave.local`, and `files.weave.local`.
+Expected local hostnames include `weave.local`, `api.weave.local`, `auth.weave.local`, `matrix.weave.local`, and `files.weave.local`.
 
-The live Nextcloud E2E helper currently follows the real Nextcloud OIDC/login-flow HTML pages so the MVP stack can prove the existing fallback path end to end. Treat that as an honest compatibility smoke, not the target product contract: longer term, Weave should prefer deterministic backend/API contracts for product files flows over brittle Flutter-side HTML scraping.
+Files and calendar product flows must use Weave/backend protocol contracts or documented WebDAV/CalDAV/OCS access. Tests must not depend on parsing or scraping Nextcloud HTML pages.
 
 Run against the default local stack:
 
@@ -156,7 +156,7 @@ The GitHub Actions live-stack paths run on a dedicated `self-hosted`, `macOS`, `
 
 Supported overrides:
 
-- `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://weave.local/api`
+- `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://api.weave.local/api`
 - `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://auth.weave.local/realms/weave`
 - `WEAVE_OIDC_CLIENT_ID`: app OIDC client ID, defaulting to `weave-app`
 - `WEAVE_NEXTCLOUD_BASE_URL`: canonical Nextcloud URL, defaulting to `files.<workspace-host>` (legacy `WEAVE_NEXTCLOUD_URL` is also accepted)

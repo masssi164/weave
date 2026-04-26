@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
@@ -36,6 +37,13 @@ class _FakeFilesRepository implements FilesRepository {
   }
 
   @override
+  Future<void> uploadFile(
+    String directoryPath,
+    FileUploadRequest request, {
+    FileUploadProgressCallback? onProgress,
+  }) async {}
+
+  @override
   Future<FilesConnectionState> restoreConnection() async => connectionState;
 }
 
@@ -62,7 +70,7 @@ void main() {
     ) async {
       final repository = _FakeFilesRepository(
         connectionState: FilesConnectionState.disconnected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
         ),
       );
 
@@ -92,7 +100,7 @@ void main() {
     ) async {
       final repository = _FakeFilesRepository(
         connectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
           accountLabel: 'alice',
         ),
         listings: const {
@@ -191,7 +199,7 @@ void main() {
     ) async {
       final repository = _FakeFilesRepository(
         connectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
           accountLabel: 'alice',
         ),
         listings: const {
@@ -277,7 +285,7 @@ void main() {
     testWidgets('meets androidTapTargetGuideline', (tester) async {
       final repository = _FakeFilesRepository(
         connectionState: FilesConnectionState.disconnected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
         ),
       );
 
@@ -301,7 +309,7 @@ void main() {
     testWidgets('meets labeledTapTargetGuideline', (tester) async {
       final repository = _FakeFilesRepository(
         connectionState: FilesConnectionState.disconnected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
         ),
       );
 

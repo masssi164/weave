@@ -119,7 +119,7 @@ void main() {
     late NextcloudFilesRepository repository;
 
     final liveSession = NextcloudSession.oidcBearer(
-      baseUrl: Uri.parse('https://nextcloud.home.internal/'),
+      baseUrl: Uri.parse('https://files.home.internal/'),
       userId: 'alice',
       accountLabel: 'Alice',
       bearerToken: 'live-token',
@@ -139,11 +139,11 @@ void main() {
     setUp(() {
       connectionService = _FakeNextcloudConnectionService()
         ..restoreState = NextcloudConnectionState.connected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
           accountLabel: 'Alice',
         )
         ..connectState = NextcloudConnectionState.connected(
-          baseUrl: Uri.parse('https://nextcloud.home.internal'),
+          baseUrl: Uri.parse('https://files.home.internal'),
           accountLabel: 'Alice',
         )
         ..liveSession = liveSession;
@@ -160,7 +160,7 @@ void main() {
         final state = await repository.restoreConnection();
 
         expect(state.status, FilesConnectionStatus.connected);
-        expect(state.baseUrl, Uri.parse('https://nextcloud.home.internal'));
+        expect(state.baseUrl, Uri.parse('https://files.home.internal'));
         expect(state.accountLabel, 'Alice');
         expect(connectionService.restoreCalls, 1);
       },

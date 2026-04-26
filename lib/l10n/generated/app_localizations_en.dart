@@ -239,6 +239,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filesRefreshCurrentFolderSemantic => 'Refresh the current folder';
 
   @override
+  String get filesUploadButton => 'Upload';
+
+  @override
+  String get filesUploadCurrentFolderSemantic =>
+      'Upload a file to the current folder';
+
+  @override
+  String get filesUploadPickingMessage => 'Choose a file to upload…';
+
+  @override
+  String get filesUploadProgressUnknownMessage => 'Uploading file…';
+
+  @override
+  String filesUploadProgressIndeterminateMessage(String fileName) {
+    return 'Uploading $fileName…';
+  }
+
+  @override
+  String filesUploadProgressMessage(String fileName, int percent) {
+    return 'Uploading $fileName: $percent%';
+  }
+
+  @override
+  String filesUploadProgressSemantic(String fileName, int percent) {
+    return 'Upload progress for $fileName: $percent percent';
+  }
+
+  @override
+  String get filesUploadCompletedUnknownMessage => 'Upload complete.';
+
+  @override
+  String filesUploadCompletedMessage(String fileName) {
+    return 'Uploaded $fileName.';
+  }
+
+  @override
+  String get filesUploadFailedUnknownMessage => 'Upload failed.';
+
+  @override
+  String filesUploadFailedMessage(String fileName) {
+    return 'Upload failed for $fileName.';
+  }
+
+  @override
   String filesFolderSemantic(String name) {
     return '$name, folder';
   }
