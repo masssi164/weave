@@ -55,7 +55,7 @@ final class CalendarFacadeClientProvider
 }
 
 String _$calendarFacadeClientHash() =>
-    r'f1f923661276ce71b02dc5223e9557d09219d95b';
+    r'afaed17dbe52673ec80727500a033f2346e2f6db';
 
 @ProviderFor(calendarRepository)
 final calendarRepositoryProvider = CalendarRepositoryProvider._();
@@ -103,7 +103,7 @@ final class CalendarRepositoryProvider
 }
 
 String _$calendarRepositoryHash() =>
-    r'94d351d7eded9adf8096a8ba3f544767731c5871';
+    r'7114198967e26af320220ef18cd4b95dab8ceb7f';
 
 @ProviderFor(CalendarNotifier)
 final calendarProvider = CalendarNotifierProvider._();

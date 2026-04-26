@@ -1,9 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
@@ -15,15 +15,16 @@ import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
+import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/entities/service_endpoints.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
-import 'package:weave/integrations/nextcloud/data/services/nextcloud_auth_headers.dart';
-import 'package:weave/integrations/nextcloud/presentation/providers/nextcloud_provider.dart';
+
 import 'package:weave/main.dart';
 
 import 'helpers/live_oidc_test_driver.dart';
@@ -40,33 +41,32 @@ void main() {
 
   late TestConfig config;
   late LiveOidcTestDriver liveOidcDriver;
-  late http.Client nextcloudHttpClient;
-  late Directory matrixSupportDirectory;
-  late SdkMatrixClientFactory liveMatrixClientFactory;
+  Directory? matrixSupportDirectory;
+  SdkMatrixClientFactory? liveMatrixClientFactory;
 
   setUp(() async {
     config = TestConfig.fromEnvironment();
     config.requireCredentials();
     liveOidcDriver = LiveOidcTestDriver(config: config);
-    nextcloudHttpClient = createTrustedTestHttpClient();
-    matrixSupportDirectory = await Directory.systemTemp.createTemp(
+    final supportDirectory = await Directory.systemTemp.createTemp(
       'weave-live-e2e-matrix-',
     );
+    matrixSupportDirectory = supportDirectory;
     liveMatrixClientFactory = SdkMatrixClientFactory(
-      appSupportDirectoryProvider: () async => matrixSupportDirectory,
+      appSupportDirectoryProvider: () async => supportDirectory,
     );
   });
 
   tearDown(() async {
-    nextcloudHttpClient.close();
-    await liveMatrixClientFactory.dispose();
-    if (await matrixSupportDirectory.exists()) {
-      await matrixSupportDirectory.delete(recursive: true);
+    await liveMatrixClientFactory?.dispose();
+    final supportDirectory = matrixSupportDirectory;
+    if (supportDirectory != null && await supportDirectory.exists()) {
+      await supportDirectory.delete(recursive: true);
     }
   });
 
   testWidgets(
-    'real live-stack sign-in, Matrix connect, and Nextcloud browse',
+    'real live-stack sign-in, Matrix connect, and backend files browse',
     (tester) async {
       final serverConfig = ServerConfiguration(
         providerType: OidcProviderType.keycloak,
@@ -91,10 +91,8 @@ void main() {
             oidcClientProvider.overrideWithValue(liveOidcDriver),
             matrixAuthBrowserProvider.overrideWithValue(liveOidcDriver),
             matrixClientFactoryProvider.overrideWithValue(
-              liveMatrixClientFactory,
+              liveMatrixClientFactory!,
             ),
-            nextcloudHttpClientProvider.overrideWithValue(nextcloudHttpClient),
-            nextcloudLoginLauncherProvider.overrideWithValue(liveOidcDriver),
           ],
           child: const WeaveApp(),
         ),
@@ -180,7 +178,7 @@ void main() {
         'matchedMessages=${deliveredMessage.length}',
       );
 
-      // Keep the Matrix outcome visible while still validating the Nextcloud path.
+      // Keep the Matrix outcome visible while still validating the backend files path.
       // ignore: avoid_print
       print(
         'MATRIX_RESULT phase=${chatState.phase} '
@@ -205,7 +203,8 @@ void main() {
           return state.connectionState.isConnected &&
               state.directoryListing != null;
         },
-        reason: 'Nextcloud should connect and return a real directory listing.',
+        reason:
+            'Backend files facade should connect and return a real directory listing.',
         timeout: const Duration(minutes: 1),
         diagnostics: () {
           final asyncState = container.read(filesProvider);
@@ -221,37 +220,31 @@ void main() {
               'filesMessage=${state.connectionState.message} '
               'directoryFailure=${state.directoryFailure?.message} '
               'directoryFailureCause=${state.directoryFailure?.cause} '
-              'configuredNextcloudBaseUrl=${config.nextcloudBaseUrl} '
+              'configuredBackendApiBaseUrl=${config.backendApiBaseUrl} '
               'hasListing=${state.directoryListing != null}';
         },
       );
 
       final filesState = container.read(filesProvider).requireValue;
-      final nextcloudConnected =
+      final filesFacadeConnected =
           filesState.connectionState.isConnected &&
           filesState.directoryListing != null;
 
-      final nextcloudSession = await container
-          .read(nextcloudConnectionServiceProvider)
-          .requireLiveSession();
       final seededFileName =
           'weave-live-e2e-${DateTime.now().millisecondsSinceEpoch}.txt';
-      final seededFileUri = nextcloudSession.baseUrl.resolve(
-        'remote.php/dav/files/${Uri.encodeComponent(nextcloudSession.userId)}/$seededFileName',
+      final seededFileBody = utf8.encode(
+        'weave live e2e ${DateTime.now().toUtc().toIso8601String()}',
       );
-      final putResponse = await nextcloudHttpClient.put(
-        seededFileUri,
-        headers: <String, String>{
-          ...buildNextcloudAuthHeaders(nextcloudSession),
-          HttpHeaders.contentTypeHeader: 'text/plain; charset=utf-8',
-        },
-        body: 'weave live e2e ${DateTime.now().toUtc().toIso8601String()}',
-      );
-      expect(
-        putResponse.statusCode,
-        anyOf(201, 204),
-        reason: 'Nextcloud WebDAV upload should succeed for the live session.',
-      );
+      await container
+          .read(filesRepositoryProvider)
+          .uploadFile(
+            '/',
+            FileUploadRequest(
+              fileName: seededFileName,
+              sizeInBytes: seededFileBody.length,
+              byteStream: Stream<List<int>>.value(seededFileBody),
+            ),
+          );
 
       await container.read(filesProvider.notifier).refresh();
       await _waitFor(
@@ -266,7 +259,7 @@ void main() {
               listing.entries.any((entry) => entry.name == seededFileName);
         },
         reason:
-            'Files view should show the file uploaded to the live Nextcloud WebDAV path.',
+            'Files view should show the file uploaded through the backend files facade.',
         timeout: const Duration(minutes: 1),
       );
 
@@ -283,7 +276,7 @@ void main() {
       );
 
       if (!matrixConnected ||
-          !nextcloudConnected ||
+          !filesFacadeConnected ||
           deliveredMessage.isEmpty ||
           matchedFiles.isEmpty) {
         fail(
@@ -295,18 +288,18 @@ void main() {
           'matrixCause=${chatState.failure?.cause} '
           'chatRoomId=$roomId '
           'chatMatchedMessages=${deliveredMessage.length} '
-          'nextcloudConnected=$nextcloudConnected '
-          'nextcloudStatus=${filesState.connectionState.status} '
-          'nextcloudMessage=${filesState.connectionState.message} '
-          'nextcloudEntries=${refreshedFilesState.directoryListing?.entries.length} '
-          'nextcloudMatchedFiles=${matchedFiles.length} '
+          'filesFacadeConnected=$filesFacadeConnected '
+          'filesFacadeStatus=${filesState.connectionState.status} '
+          'filesFacadeMessage=${filesState.connectionState.message} '
+          'filesFacadeEntries=${refreshedFilesState.directoryListing?.entries.length} '
+          'filesFacadeMatchedFiles=${matchedFiles.length} '
           'seededFileName=$seededFileName',
         );
       }
 
       expect(matrixConnected, isTrue);
       expect(deliveredMessage, isNotEmpty);
-      expect(nextcloudConnected, isTrue);
+      expect(filesFacadeConnected, isTrue);
       expect(matchedFiles, isNotEmpty);
     },
     semanticsEnabled: false,
