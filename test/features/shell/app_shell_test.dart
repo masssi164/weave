@@ -6,8 +6,12 @@ import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
+import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -57,6 +61,24 @@ class _FakeOidcClient implements OidcClient {
   }
 }
 
+class _EmptyCalendarRepository implements CalendarRepository {
+  @override
+  Future<CalendarEvent> createEvent(CalendarEventDraft draft) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteEvent(String id) async {}
+
+  @override
+  Future<List<CalendarEvent>> loadEvents() async => const <CalendarEvent>[];
+
+  @override
+  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) {
+    throw UnimplementedError();
+  }
+}
+
 void main() {
   group('AppShell', () {
     ProviderScope buildApp() {
@@ -79,6 +101,10 @@ void main() {
           chatSecurityRepositoryProvider.overrideWithValue(
             FakeChatSecurityRepository(),
           ),
+          userProfileProvider.overrideWith((ref) async => null),
+          calendarRepositoryProvider.overrideWithValue(
+            _EmptyCalendarRepository(),
+          ),
         ],
         child: const WeaveApp(),
       );
@@ -93,9 +119,21 @@ void main() {
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
       expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.calendar_today_outlined), findsNothing);
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
+    });
+
+    testWidgets('navigates to calendar from the bottom navigation bar', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.calendar_today_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No events yet'), findsOneWidget);
     });
 
     testWidgets('navigates to settings from the bottom navigation bar', (
