@@ -197,8 +197,8 @@ void main() {
 
     expect(response.statusCode, 200, reason: response.body);
     final payload = _decodeObject(response.body);
-    expect(payload['sub'], isA<String>());
-    expect((payload['sub'] as String).trim(), isNotEmpty);
+    expect(payload['userId'], isA<String>());
+    expect((payload['userId'] as String).trim(), isNotEmpty);
     expect(payload['email'], isA<String>());
     expect((payload['email'] as String).trim(), isNotEmpty);
   }, skip: liveSkipReason);
