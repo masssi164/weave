@@ -79,6 +79,10 @@
   "@bootstrapLoadingLabel": { "description": "Message shown while bootstrap state is resolving" },
   "bootstrapLoadingHint": "Checking your workspace services and getting the shell ready.",
   "@bootstrapLoadingHint": { "description": "Supporting copy shown while the workspace bootstrap state is resolving" },
+  "shellErrorTitle": "We could not get Weave ready",
+  "@shellErrorTitle": { "description": "Friendly error-state title shown when the app shell cannot finish bootstrap" },
+  "shellErrorGuidance": "Try again. If this keeps happening, check that your workspace services are reachable.",
+  "@shellErrorGuidance": { "description": "Friendly recovery guidance shown when app shell bootstrap fails" },
 
   "emptyStateLabel": "Nothing here yet",
   "@emptyStateLabel": { "description": "Message shown when a list has no items" },
@@ -783,6 +787,11 @@
 
   "chatEmptyMessage": "No conversations yet",
   "@chatEmptyMessage": { "description": "Empty state message for the chat screen" },
+  "chatEmptyGuidance": "Workspace rooms and direct messages will appear here when chat is ready.",
+  "@chatEmptyGuidance": { "description": "Guidance shown below the chat empty-state title" },
+
+  "chatErrorTitle": "Chat is not available right now",
+  "@chatErrorTitle": { "description": "Friendly error-state title shown when the chat list cannot load" },
 
   "chatConversationNoPreview": "No recent messages",
   "@chatConversationNoPreview": { "description": "Fallback preview text for a conversation without a recent event" },
@@ -865,6 +874,18 @@
 
   "filesEmptyMessage": "No files yet",
   "@filesEmptyMessage": { "description": "Empty state message for the files screen" },
+  "filesEmptyGuidance": "Upload a file or create a folder when you are ready to add workspace files.",
+  "@filesEmptyGuidance": { "description": "Guidance shown below the files empty-state title" },
+  "filesDisconnectedTitle": "Files are not connected",
+  "@filesDisconnectedTitle": { "description": "Friendly empty-state title shown when files require a connection" },
+  "filesSetupNeededTitle": "Files need setup",
+  "@filesSetupNeededTitle": { "description": "Friendly empty-state title shown when files are misconfigured" },
+  "filesSessionExpiredTitle": "Files need to reconnect",
+  "@filesSessionExpiredTitle": { "description": "Friendly error-state title shown when the files session is invalid" },
+  "filesLoadErrorTitle": "Files could not be loaded",
+  "@filesLoadErrorTitle": { "description": "Friendly error-state title shown when files fail to load" },
+  "filesErrorGuidance": "Try again. If this keeps happening, check the workspace files status in setup or diagnostics.",
+  "@filesErrorGuidance": { "description": "Friendly recovery guidance shown when files fail before detailed state is available" },
 
   "calendarEmptyMessage": "No events yet",
   "@calendarEmptyMessage": { "description": "Empty state message for the calendar screen" },

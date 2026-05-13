@@ -248,6 +248,18 @@ abstract class AppLocalizations {
   /// **'Checking your workspace services and getting the shell ready.'**
   String get bootstrapLoadingHint;
 
+  /// Friendly error-state title shown when the app shell cannot finish bootstrap
+  ///
+  /// In en, this message translates to:
+  /// **'We could not get Weave ready'**
+  String get shellErrorTitle;
+
+  /// Friendly recovery guidance shown when app shell bootstrap fails
+  ///
+  /// In en, this message translates to:
+  /// **'Try again. If this keeps happening, check that your workspace services are reachable.'**
+  String get shellErrorGuidance;
+
   /// Message shown when a list has no items
   ///
   /// In en, this message translates to:
@@ -1628,6 +1640,18 @@ abstract class AppLocalizations {
   /// **'No conversations yet'**
   String get chatEmptyMessage;
 
+  /// Guidance shown below the chat empty-state title
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace rooms and direct messages will appear here when chat is ready.'**
+  String get chatEmptyGuidance;
+
+  /// Friendly error-state title shown when the chat list cannot load
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is not available right now'**
+  String get chatErrorTitle;
+
   /// Fallback preview text for a conversation without a recent event
   ///
   /// In en, this message translates to:
@@ -1807,6 +1831,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No files yet'**
   String get filesEmptyMessage;
+
+  /// Guidance shown below the files empty-state title
+  ///
+  /// In en, this message translates to:
+  /// **'Upload a file or create a folder when you are ready to add workspace files.'**
+  String get filesEmptyGuidance;
+
+  /// Friendly empty-state title shown when files require a connection
+  ///
+  /// In en, this message translates to:
+  /// **'Files are not connected'**
+  String get filesDisconnectedTitle;
+
+  /// Friendly empty-state title shown when files are misconfigured
+  ///
+  /// In en, this message translates to:
+  /// **'Files need setup'**
+  String get filesSetupNeededTitle;
+
+  /// Friendly error-state title shown when the files session is invalid
+  ///
+  /// In en, this message translates to:
+  /// **'Files need to reconnect'**
+  String get filesSessionExpiredTitle;
+
+  /// Friendly error-state title shown when files fail to load
+  ///
+  /// In en, this message translates to:
+  /// **'Files could not be loaded'**
+  String get filesLoadErrorTitle;
+
+  /// Friendly recovery guidance shown when files fail before detailed state is available
+  ///
+  /// In en, this message translates to:
+  /// **'Try again. If this keeps happening, check the workspace files status in setup or diagnostics.'**
+  String get filesErrorGuidance;
 
   /// Empty state message for the calendar screen
   ///

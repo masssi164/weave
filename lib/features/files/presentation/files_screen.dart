@@ -35,7 +35,8 @@ class FilesScreen extends ConsumerWidget {
           AsyncError() => <Widget>[
             _fillStateSliver(
               child: ErrorState(
-                message: l10n.errorStateLabel,
+                message: l10n.filesLoadErrorTitle,
+                guidance: l10n.filesErrorGuidance,
                 retryLabel: l10n.retryButton,
                 onRetry: () {
                   ref.invalidate(filesProvider);
@@ -113,14 +114,16 @@ class FilesScreen extends ConsumerWidget {
       case FilesConnectionStatus.misconfigured:
         return _fillStateSliver(
           child: EmptyState(
-            message: connectionState.message ?? l10n.filesMisconfiguredMessage,
+            message: l10n.filesSetupNeededTitle,
+            guidance: connectionState.message ?? l10n.filesMisconfiguredMessage,
             icon: Icons.settings_outlined,
           ),
         );
       case FilesConnectionStatus.disconnected:
         return _fillStateSliver(
           child: EmptyState(
-            message:
+            message: l10n.filesDisconnectedTitle,
+            guidance:
                 state.directoryFailure?.message ??
                 l10n.filesDisconnectedMessage,
             icon: Icons.cloud_off_outlined,
@@ -135,7 +138,9 @@ class FilesScreen extends ConsumerWidget {
       case FilesConnectionStatus.invalid:
         return _fillStateSliver(
           child: ErrorState(
-            message: connectionState.message ?? l10n.filesInvalidSessionMessage,
+            message: l10n.filesSessionExpiredTitle,
+            guidance:
+                connectionState.message ?? l10n.filesInvalidSessionMessage,
             retryLabel: l10n.filesReconnectButton,
             onRetry: state.isBusy
                 ? null
@@ -157,7 +162,8 @@ class FilesScreen extends ConsumerWidget {
         if (state.directoryFailure != null) {
           return _fillStateSliver(
             child: ErrorState(
-              message: state.directoryFailure!.message,
+              message: l10n.filesLoadErrorTitle,
+              guidance: state.directoryFailure!.message,
               retryLabel: l10n.retryButton,
               onRetry: state.isBusy
                   ? null
@@ -172,6 +178,7 @@ class FilesScreen extends ConsumerWidget {
           return _fillStateSliver(
             child: EmptyState(
               message: l10n.filesEmptyMessage,
+              guidance: l10n.filesEmptyGuidance,
               icon: Icons.folder_outlined,
               actionLabel: l10n.filesRefreshButton,
               onAction: state.isBusy
@@ -206,7 +213,7 @@ class FilesScreen extends ConsumerWidget {
   Widget _fillStateSliver({required Widget child}) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      sliver: SliverFillRemaining(hasScrollBody: false, child: child),
+      sliver: SliverFillRemaining(hasScrollBody: true, child: child),
     );
   }
 }

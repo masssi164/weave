@@ -357,6 +357,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No conversations yet'), findsOneWidget);
+      expect(
+        find.text(
+          'Workspace rooms and direct messages will appear here when chat is ready.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('shows the Matrix security banner when attention is needed', (
@@ -414,6 +420,12 @@ void main() {
     testWidgets('shows recency badges and keeps the newest room first', (
       tester,
     ) async {
+      final now = DateTime.now();
+      final yesterdayAtNoon = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(const Duration(days: 1)).add(const Duration(hours: 12));
       final repository = FakeChatRepository(
         loadConversationsHandler: () async => <ChatConversation>[
           ChatConversation(
@@ -421,9 +433,7 @@ void main() {
             title: 'Newest room',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Fresh update',
-            lastActivityAt: DateTime.now().subtract(
-              const Duration(minutes: 10),
-            ),
+            lastActivityAt: now.subtract(const Duration(minutes: 10)),
             unreadCount: 0,
             isInvite: false,
             isDirectMessage: false,
@@ -433,9 +443,7 @@ void main() {
             title: 'Older room',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Yesterday update',
-            lastActivityAt: DateTime.now().subtract(
-              const Duration(days: 1, hours: 1),
-            ),
+            lastActivityAt: yesterdayAtNoon,
             unreadCount: 0,
             isInvite: false,
             isDirectMessage: false,

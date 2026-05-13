@@ -31,7 +31,8 @@ class BootstrapGate extends StatelessWidget {
                   icon: Icons.hub_outlined,
                 )
               : ErrorState(
-                  message: failure!.message,
+                  message: l10n.shellErrorTitle,
+                  guidance: '${l10n.shellErrorGuidance}\n${failure!.message}',
                   retryLabel: l10n.retryButton,
                   onRetry: onRetry,
                 ),
