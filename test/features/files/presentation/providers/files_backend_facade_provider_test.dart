@@ -240,6 +240,52 @@ void main() {
     });
 
     test(
+      'maps backend quota/storage upload failures to friendly files errors',
+      () async {
+        final client = _RecordingStreamClient((request) async {
+          await request.finalize().drain<void>();
+          return http.StreamedResponse(
+            Stream<List<int>>.value(
+              utf8.encode(
+                jsonEncode({
+                  'message':
+                      'There is not enough storage available to upload this file.',
+                }),
+              ),
+            ),
+            507,
+          );
+        });
+
+        await expectLater(
+          repository(client).uploadFile(
+            '/',
+            FileUploadRequest(
+              fileName: 'brief.txt',
+              sizeInBytes: 4,
+              byteStream: Stream<List<int>>.fromIterable(const [
+                [1, 2, 3, 4],
+              ]),
+            ),
+          ),
+          throwsA(
+            isA<FilesFailure>()
+                .having(
+                  (failure) => failure.type,
+                  'type',
+                  FilesFailureType.storage,
+                )
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  'There is not enough storage available to upload this file.',
+                ),
+          ),
+        );
+      },
+    );
+
+    test(
       'maps backend auth rejection without falling back to direct Nextcloud',
       () async {
         final client = MockClient(
