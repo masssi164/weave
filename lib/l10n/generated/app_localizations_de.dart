@@ -125,6 +125,114 @@ class AppLocalizationsDe extends AppLocalizations {
   String get semanticWeaveLogo => 'Weave-Logo';
 
   @override
+  String get firstRunAppBarTitle => 'Erststart-Status';
+
+  @override
+  String get firstRunLoadingLabel => 'Weave-Arbeitsbereich wird geprüft…';
+
+  @override
+  String get firstRunLoadingHint =>
+      'Profil, Rolle und Modulbereitschaft werden vom Weave-Backend geladen.';
+
+  @override
+  String get firstRunLoadFailure =>
+      'Der Erststart-Status konnte nicht vom Weave-Backend geladen werden.';
+
+  @override
+  String get firstRunSignedOutMessage =>
+      'Melde dich an, um deinen Weave-Erststart-Status zu sehen.';
+
+  @override
+  String get firstRunReadyTitle => 'Dein Weave-Arbeitsbereich ist bereit';
+
+  @override
+  String get firstRunNeedsAttentionTitle =>
+      'Dein Weave-Arbeitsbereich wird vorbereitet';
+
+  @override
+  String get firstRunDescription =>
+      'Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Matrix- oder Nextcloud-Zugangsdaten sind nicht nötig.';
+
+  @override
+  String get firstRunIdentitySectionTitle => 'Deine Weave-Identität';
+
+  @override
+  String get firstRunIdentitySectionDescription =>
+      'Dieses Profil und diese Rolle kommen nach SSO aus dem Weave-Backend-Vertrag.';
+
+  @override
+  String get firstRunDisplayNameLabel => 'Name';
+
+  @override
+  String get firstRunUsernameLabel => 'Benutzername';
+
+  @override
+  String get firstRunEmailLabel => 'E-Mail';
+
+  @override
+  String get firstRunRoleLabel => 'Rolle';
+
+  @override
+  String get firstRunInviteStatusLabel => 'Einladung';
+
+  @override
+  String get firstRunModuleSectionTitle => 'Modulbereitschaft';
+
+  @override
+  String get firstRunProfileModuleTitle => 'Profil';
+
+  @override
+  String get firstRunChatModuleTitle => 'Chat';
+
+  @override
+  String get firstRunFilesModuleTitle => 'Dateien';
+
+  @override
+  String get firstRunCalendarModuleTitle => 'Kalender';
+
+  @override
+  String get firstRunStateReady => 'Bereit';
+
+  @override
+  String get firstRunStatePending => 'Ausstehend';
+
+  @override
+  String get firstRunStateUnavailable => 'Nicht verfügbar';
+
+  @override
+  String get firstRunStateDegraded => 'Eingeschränkt';
+
+  @override
+  String get firstRunStateActionNeeded => 'Aktion erforderlich';
+
+  @override
+  String get firstRunNextStepsTitle => 'Nächste Schritte';
+
+  @override
+  String get firstRunRefreshButton => 'Status aktualisieren';
+
+  @override
+  String get firstRunContinueButton => 'Weiter zum Chat';
+
+  @override
+  String get chatProvisioningReadyTitle => 'Chat ist bereit';
+
+  @override
+  String get chatProvisioningPendingTitle =>
+      'Chaträume werden noch vorbereitet';
+
+  @override
+  String get chatProvisioningDegradedTitle =>
+      'Chat ist eingeschränkt verfügbar';
+
+  @override
+  String get chatProvisioningActionNeededTitle =>
+      'Chat-Einrichtung benötigt Admin-Hilfe';
+
+  @override
+  String get chatProvisioningRetryButton => 'Status erneut prüfen';
+
+  @override
   String get chatScreenTitle => 'Chat';
 
   @override

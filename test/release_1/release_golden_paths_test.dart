@@ -32,6 +32,8 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -72,6 +74,9 @@ void main() {
             chatRepositoryProvider.overrideWithValue(_ScenarioChatRepository()),
             chatSecurityRepositoryProvider.overrideWithValue(
               _SignedOutChatSecurityRepository(),
+            ),
+            firstRunStatusProvider.overrideWith(
+              (ref) async => _releaseFirstRunStatus(),
             ),
             workspaceConnectionStateProvider.overrideWithValue(
               _workspaceConnectionState(),
@@ -131,6 +136,7 @@ void main() {
           container.read(appBootstrapProvider).requireValue.phase,
           BootstrapPhase.ready,
         );
+        await _continueFirstRunIfPresent(tester);
         expect(find.text('Release Room'), findsOneWidget);
 
         await tester.tap(find.text('Release Room'));
@@ -143,7 +149,7 @@ void main() {
 
         expect(find.text('Looks shippable'), findsOneWidget);
 
-        await tester.tap(find.text('Files').last);
+        await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
         expect(find.text('Connect Nextcloud'), findsWidgets);
@@ -163,7 +169,7 @@ void main() {
         await tester.tap(find.text('Up'));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Settings').last);
+        await tester.tap(_navigationDestination('Settings'));
         await tester.pumpAndSettle();
 
         expect(find.text('Sign Out'), findsWidgets);
@@ -179,8 +185,9 @@ void main() {
 
         await tester.tap(find.widgetWithText(AccessibleButton, 'Sign In'));
         await tester.pumpAndSettle();
+        await _continueFirstRunIfPresent(tester);
 
-        await tester.tap(find.text('Settings').last);
+        await tester.tap(_navigationDestination('Settings'));
         await tester.pumpAndSettle();
         final settingsScrollViewAfterReauth = find.byType(Scrollable).last;
         await tester.scrollUntilVisible(
@@ -194,8 +201,9 @@ void main() {
         );
         await tester.tap(find.widgetWithText(AccessibleButton, 'Save Changes'));
         await tester.pumpAndSettle();
+        await _continueFirstRunIfPresent(tester);
 
-        await tester.tap(find.text('Files').last);
+        await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
         expect(find.text('https://files-alt.weave.local'), findsOneWidget);
@@ -218,6 +226,70 @@ void main() {
 Finder _textFieldWithLabel(String label) {
   return find.byWidgetPredicate(
     (widget) => widget is TextField && widget.decoration?.labelText == label,
+  );
+}
+
+Finder _navigationDestination(String label) {
+  return find.widgetWithText(NavigationDestination, label);
+}
+
+Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
+  final continueButton = find.text('Continue to chat');
+  if (continueButton.evaluate().isEmpty) {
+    return;
+  }
+
+  await tester.ensureVisible(continueButton);
+  await tester.pumpAndSettle();
+  await tester.tap(continueButton);
+  await tester.pumpAndSettle();
+}
+
+FirstRunStatus _releaseFirstRunStatus() {
+  const profile = FirstRunProfileStatus(
+    status: 'ready',
+    missing: <String>[],
+    message: 'The Weave profile has the required first-run identity fields.',
+  );
+
+  const moduleReady = FirstRunModuleStatus(
+    state: FirstRunProvisioningState.ready,
+    message: 'Provisioning is ready for this user.',
+  );
+
+  return const FirstRunStatus(
+    identity: FirstRunIdentity(
+      userId: 'release-user',
+      username: 'alex',
+      email: 'alex@example.test',
+      emailVerified: true,
+      displayName: 'Alex Doe',
+      locale: 'en',
+      timezone: 'Europe/Berlin',
+      roles: <String>['member'],
+      groups: <String>['workspace-default'],
+    ),
+    invite: FirstRunInviteStatus(
+      status: 'active',
+      message: 'The invite has been accepted and the account is active.',
+    ),
+    access: FirstRunAccess(
+      primaryRole: 'member',
+      roles: <String>['member'],
+      groups: <String>['workspace-default'],
+      canAdministerWorkspace: false,
+      canInviteUsers: false,
+      canUseWorkspaceModules: true,
+    ),
+    profile: profile,
+    moduleProvisioning: FirstRunModuleProvisioning(
+      identity: moduleReady,
+      profile: moduleReady,
+      matrix: moduleReady,
+      nextcloud: moduleReady,
+    ),
+    firstRunComplete: true,
+    actions: <String>[],
   );
 }
 

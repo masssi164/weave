@@ -11,6 +11,7 @@ import 'package:weave/features/calendar/domain/repositories/calendar_repository.
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -20,6 +21,7 @@ import 'package:weave/main.dart';
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_chat_security_repository.dart';
+import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -102,6 +104,9 @@ void main() {
             FakeChatSecurityRepository(),
           ),
           userProfileProvider.overrideWith((ref) async => null),
+          firstRunStatusProvider.overrideWith(
+            (ref) async => buildTestFirstRunStatus(),
+          ),
           calendarRepositoryProvider.overrideWithValue(
             _EmptyCalendarRepository(),
           ),
@@ -110,11 +115,16 @@ void main() {
       );
     }
 
+    Future<void> pumpReadyShell(WidgetTester tester) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+      await _continueFirstRunIfPresent(tester);
+    }
+
     testWidgets('renders the Release 1 bottom navigation destinations', (
       tester,
     ) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+      await pumpReadyShell(tester);
 
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
@@ -127,8 +137,7 @@ void main() {
     testWidgets('navigates to calendar from the bottom navigation bar', (
       tester,
     ) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+      await pumpReadyShell(tester);
 
       await tester.tap(find.byIcon(Icons.calendar_today_outlined));
       await tester.pumpAndSettle();
@@ -139,8 +148,7 @@ void main() {
     testWidgets('navigates to settings from the bottom navigation bar', (
       tester,
     ) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
+      await pumpReadyShell(tester);
 
       await tester.tap(find.byIcon(Icons.settings_outlined));
       await tester.pumpAndSettle();
@@ -148,4 +156,16 @@ void main() {
       expect(find.text('Server Configuration'), findsOneWidget);
     });
   });
+}
+
+Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
+  final continueButton = find.text('Continue to chat');
+  if (continueButton.evaluate().isEmpty) {
+    return;
+  }
+
+  await tester.ensureVisible(continueButton);
+  await tester.pumpAndSettle();
+  await tester.tap(continueButton);
+  await tester.pumpAndSettle();
 }

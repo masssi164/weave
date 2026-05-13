@@ -32,7 +32,7 @@ class AuthFlowController extends Notifier<AuthFlowState> {
   @override
   AuthFlowState build() => const AuthFlowState.idle();
 
-  Future<void> signIn() async {
+  Future<bool> signIn() async {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
@@ -41,8 +41,10 @@ class AuthFlowController extends Notifier<AuthFlowState> {
           .call(isInteractiveSignInSupported: _isSupportedPlatform);
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
+      return true;
     } on AuthFailure catch (failure) {
       state = state.copyWith(isBusy: false, failure: failure);
+      return false;
     } catch (error) {
       state = state.copyWith(
         isBusy: false,
@@ -51,6 +53,7 @@ class AuthFlowController extends Notifier<AuthFlowState> {
           cause: error,
         ),
       );
+      return false;
     }
   }
 

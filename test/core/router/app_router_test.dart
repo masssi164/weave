@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
@@ -13,7 +14,9 @@ import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
-import 'package:weave/features/chat/presentation/chat_screen.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
+import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -23,6 +26,7 @@ import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
+import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
 
@@ -87,8 +91,9 @@ void main() {
     ProviderContainer createContainer({
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,
+      FirstRunStatus? firstRunStatus,
     }) {
-      return ProviderContainer.test(
+      final container = ProviderContainer.test(
         overrides: [
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) => _FakeServerConfigurationRepository(
@@ -100,12 +105,16 @@ void main() {
           ),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+          firstRunStatusProvider.overrideWith(
+            (ref) async => firstRunStatus ?? buildTestFirstRunStatus(),
+          ),
           userProfileProvider.overrideWith((ref) async => null),
           calendarRepositoryProvider.overrideWithValue(
             _EmptyCalendarRepository(),
           ),
         ],
       );
+      return container;
     }
 
     testWidgets('shows welcome flow when no saved configuration exists', (
@@ -144,7 +153,7 @@ void main() {
       expect(find.byType(SignInScreen), findsOneWidget);
     });
 
-    testWidgets('redirects onboarding routes to chat when ready', (
+    testWidgets('redirects authenticated ready users to the shell', (
       tester,
     ) async {
       final secureStore = InMemorySecureStore();
@@ -166,10 +175,49 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      container.read(appRouterProvider).go(AppRoutes.welcome);
+      expect(find.byType(FirstRunScreen), findsNothing);
+      expect(find.byType(NavigationBar), findsOneWidget);
+    });
+
+    testWidgets('redirects pending first-run users to status guidance', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+        firstRunStatus: buildTestFirstRunStatus(
+          firstRunComplete: false,
+          matrix: const FirstRunModuleStatus(
+            state: FirstRunProvisioningState.pending,
+            message: 'Matrix chat provisioning is pending.',
+            action: 'Wait briefly, then refresh status.',
+          ),
+        ),
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.byType(ChatScreen), findsOneWidget);
+      container.read(appRouterProvider).go(AppRoutes.calendar);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FirstRunScreen), findsOneWidget);
+      expect(
+        find.text('Your Weave workspace is being prepared'),
+        findsOneWidget,
+      );
+      expect(find.text('Wait briefly, then refresh status.'), findsOneWidget);
     });
 
     testWidgets('opens the calendar route when ready', (tester) async {

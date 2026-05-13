@@ -10,6 +10,8 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
+import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
@@ -29,11 +31,12 @@ GoRouter appRouter(Ref ref) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: AppRoutes.welcome,
-    redirect: (context, state) {
+    redirect: (context, state) async {
       final onOnboarding =
           state.matchedLocation == AppRoutes.welcome ||
           state.matchedLocation == AppRoutes.setup;
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
+      final onFirstRun = state.matchedLocation == AppRoutes.firstRun;
       final onHiddenReleaseOneRoute = state.matchedLocation == AppRoutes.deck;
 
       if (onHiddenReleaseOneRoute) {
@@ -49,7 +52,22 @@ GoRouter appRouter(Ref ref) {
         case BootstrapPhase.needsSignIn:
           return onSignIn ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
-          return onOnboarding || onSignIn ? AppRoutes.chat : null;
+          try {
+            final status = await ref.read(firstRunStatusProvider.future);
+            final needsFirstRunStatus =
+                status == null || !status.firstRunComplete;
+            if (needsFirstRunStatus) {
+              return onFirstRun ? null : AppRoutes.firstRun;
+            }
+
+            if (onOnboarding || onSignIn) {
+              return AppRoutes.chat;
+            }
+
+            return null;
+          } catch (_) {
+            return onFirstRun ? null : AppRoutes.firstRun;
+          }
       }
     },
     routes: [
@@ -64,6 +82,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.signIn,
         builder: (context, state) => const SignInScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.firstRun,
+        builder: (context, state) => const FirstRunScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
