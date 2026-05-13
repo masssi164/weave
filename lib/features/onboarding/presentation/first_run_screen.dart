@@ -171,12 +171,7 @@ class _FirstRunStatusView extends ConsumerWidget {
                   ),
                   if (status.firstRunComplete)
                     AccessibleButton(
-                      onPressed: () {
-                        ref
-                            .read(firstRunAcknowledgedProvider.notifier)
-                            .acknowledge();
-                        context.go(AppRoutes.chat);
-                      },
+                      onPressed: () => context.go(AppRoutes.chat),
                       semanticLabel: l10n.firstRunContinueButton,
                       child: Text(l10n.firstRunContinueButton),
                     ),

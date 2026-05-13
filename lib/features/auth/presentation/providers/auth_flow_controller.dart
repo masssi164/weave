@@ -5,7 +5,6 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/presentation/providers/app_application_providers.dart';
 import 'package:weave/features/auth/domain/entities/auth_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
-import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 
@@ -37,7 +36,6 @@ class AuthFlowController extends Notifier<AuthFlowState> {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      ref.read(firstRunAcknowledgedProvider.notifier).reset();
       await ref
           .read(signInWithOidcProvider)
           .call(isInteractiveSignInSupported: _isSupportedPlatform);
@@ -60,7 +58,6 @@ class AuthFlowController extends Notifier<AuthFlowState> {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      ref.read(firstRunAcknowledgedProvider.notifier).reset();
       await ref.read(signOutWorkspaceProvider).call();
       await ref.read(appBootstrapProvider.notifier).retry();
       state = state.copyWith(isBusy: false, clearFailure: true);
@@ -124,7 +121,6 @@ class AuthFlowController extends Notifier<AuthFlowState> {
     state = state.copyWith(isBusy: true, clearFailure: true);
 
     try {
-      ref.read(firstRunAcknowledgedProvider.notifier).reset();
       await ref.read(restartWorkspaceSetupProvider).call();
       ref.invalidate(savedServerConfigurationProvider);
       await ref.read(appBootstrapProvider.notifier).retry();

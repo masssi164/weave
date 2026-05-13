@@ -92,7 +92,6 @@ void main() {
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,
       FirstRunStatus? firstRunStatus,
-      bool firstRunAcknowledged = false,
     }) {
       final container = ProviderContainer.test(
         overrides: [
@@ -115,9 +114,6 @@ void main() {
           ),
         ],
       );
-      if (firstRunAcknowledged) {
-        container.read(firstRunAcknowledgedProvider.notifier).acknowledge();
-      }
       return container;
     }
 
@@ -157,7 +153,7 @@ void main() {
       expect(find.byType(SignInScreen), findsOneWidget);
     });
 
-    testWidgets('redirects acknowledged ready users to the shell', (
+    testWidgets('redirects authenticated ready users to the shell', (
       tester,
     ) async {
       final secureStore = InMemorySecureStore();
@@ -168,7 +164,6 @@ void main() {
       final container = createContainer(
         configuration: buildTestConfiguration(),
         secureStore: secureStore,
-        firstRunAcknowledged: true,
       );
       addTearDown(container.dispose);
 
@@ -234,7 +229,6 @@ void main() {
       final container = createContainer(
         configuration: buildTestConfiguration(),
         secureStore: secureStore,
-        firstRunAcknowledged: true,
       );
       addTearDown(container.dispose);
 

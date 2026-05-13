@@ -26,23 +26,3 @@ final firstRunStatusProvider = FutureProvider<FirstRunStatus?>((ref) async {
   ref.watch(weaveAuthenticatedSessionProvider);
   return ref.watch(firstRunStatusRepositoryProvider).loadStatus();
 });
-
-class FirstRunAcknowledgementController extends Notifier<bool> {
-  @override
-  bool build() => false;
-
-  void acknowledge() {
-    state = true;
-  }
-
-  void reset() {
-    state = false;
-  }
-}
-
-/// Tracks whether the current app session has already reviewed the first-run
-/// status screen.
-final firstRunAcknowledgedProvider =
-    NotifierProvider<FirstRunAcknowledgementController, bool>(
-      FirstRunAcknowledgementController.new,
-    );

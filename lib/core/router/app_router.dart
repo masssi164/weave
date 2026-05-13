@@ -60,13 +60,6 @@ GoRouter appRouter(Ref ref) {
               return onFirstRun ? null : AppRoutes.firstRun;
             }
 
-            final needsFirstRunAcknowledgement = !ref.read(
-              firstRunAcknowledgedProvider,
-            );
-            if (needsFirstRunAcknowledgement) {
-              return onFirstRun ? null : AppRoutes.firstRun;
-            }
-
             if (onOnboarding || onSignIn || onFirstRun) {
               return AppRoutes.chat;
             }
