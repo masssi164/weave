@@ -9,8 +9,13 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
+import 'package:weave/features/calendar/presentation/calendar_screen.dart';
+import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -59,6 +64,24 @@ class _FakeOidcClient implements OidcClient {
   }
 }
 
+class _EmptyCalendarRepository implements CalendarRepository {
+  @override
+  Future<CalendarEvent> createEvent(CalendarEventDraft draft) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteEvent(String id) async {}
+
+  @override
+  Future<List<CalendarEvent>> loadEvents() async => const <CalendarEvent>[];
+
+  @override
+  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) {
+    throw UnimplementedError();
+  }
+}
+
 void main() {
   group('AppRouter', () {
     ProviderContainer createContainer({
@@ -77,6 +100,10 @@ void main() {
           ),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+          userProfileProvider.overrideWith((ref) async => null),
+          calendarRepositoryProvider.overrideWithValue(
+            _EmptyCalendarRepository(),
+          ),
         ],
       );
     }
@@ -145,9 +172,7 @@ void main() {
       expect(find.byType(ChatScreen), findsOneWidget);
     });
 
-    testWidgets('redirects hidden release-one routes back to chat when ready', (
-      tester,
-    ) async {
+    testWidgets('opens the calendar route when ready', (tester) async {
       final secureStore = InMemorySecureStore();
       await secureStore.write(
         authSessionStorageKey,
@@ -170,7 +195,7 @@ void main() {
       container.read(appRouterProvider).go(AppRoutes.calendar);
       await tester.pumpAndSettle();
 
-      expect(find.byType(ChatScreen), findsOneWidget);
+      expect(find.byType(CalendarScreen), findsOneWidget);
     });
 
     testWidgets('redirects shell routes back to welcome when setup is needed', (
