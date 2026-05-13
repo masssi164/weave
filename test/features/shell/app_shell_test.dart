@@ -9,8 +9,15 @@ import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
+import 'package:weave/features/chat/domain/entities/chat_message.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_entry.dart';
+import 'package:weave/features/files/domain/entities/files_connection_state.dart';
+import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -21,6 +28,7 @@ import 'package:weave/main.dart';
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
 import '../../helpers/fake_chat_security_repository.dart';
+import '../../helpers/fake_files_repository.dart';
 import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
@@ -83,7 +91,10 @@ class _EmptyCalendarRepository implements CalendarRepository {
 
 void main() {
   group('AppShell', () {
-    ProviderScope buildApp() {
+    ProviderScope buildApp({
+      FakeChatRepository? chatRepository,
+      FakeFilesRepository? filesRepository,
+    }) {
       final secureStore = InMemorySecureStore({
         authSessionStorageKey: AuthSessionDto.fromSession(
           buildTestAuthSession(),
@@ -99,7 +110,9 @@ void main() {
           ),
           secureStoreProvider.overrideWithValue(secureStore),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
-          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+          chatRepositoryProvider.overrideWithValue(
+            chatRepository ?? FakeChatRepository(),
+          ),
           chatSecurityRepositoryProvider.overrideWithValue(
             FakeChatSecurityRepository(),
           ),
@@ -110,13 +123,28 @@ void main() {
           calendarRepositoryProvider.overrideWithValue(
             _EmptyCalendarRepository(),
           ),
+          filesRepositoryProvider.overrideWithValue(
+            filesRepository ??
+                FakeFilesRepository(
+                  connectionState: const FilesConnectionState.disconnected(),
+                ),
+          ),
         ],
         child: const WeaveApp(),
       );
     }
 
-    Future<void> pumpReadyShell(WidgetTester tester) async {
-      await tester.pumpWidget(buildApp());
+    Future<void> pumpReadyShell(
+      WidgetTester tester, {
+      FakeChatRepository? chatRepository,
+      FakeFilesRepository? filesRepository,
+    }) async {
+      await tester.pumpWidget(
+        buildApp(
+          chatRepository: chatRepository,
+          filesRepository: filesRepository,
+        ),
+      );
       await tester.pumpAndSettle();
       await _continueFirstRunIfPresent(tester);
     }
@@ -154,6 +182,144 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Server Configuration'), findsOneWidget);
+    });
+
+    testWidgets('shows recent room and file quick links in the shell', (
+      tester,
+    ) async {
+      final chatRepository = FakeChatRepository(
+        loadConversationsHandler: () async => [
+          ChatConversation(
+            id: '!general:weave.local',
+            title: 'General',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Standup notes are ready',
+            lastActivityAt: DateTime.now().subtract(const Duration(minutes: 5)),
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+        ],
+      );
+      final filesRepository = FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accountLabel: 'Weave files',
+        ),
+        listings: {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'Roadmap.md',
+                path: '/Planning/Roadmap.md',
+                isDirectory: false,
+                modifiedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+              ),
+            ],
+          ),
+        },
+      );
+
+      await pumpReadyShell(
+        tester,
+        chatRepository: chatRepository,
+        filesRepository: filesRepository,
+      );
+
+      expect(find.text('Recent activity'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'General'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Roadmap.md'), findsOneWidget);
+    });
+
+    testWidgets('opens a recent room quick link with the app route', (
+      tester,
+    ) async {
+      final conversation = ChatConversation(
+        id: '!general:weave.local',
+        title: 'General',
+        previewType: ChatConversationPreviewType.text,
+        previewText: 'Standup notes are ready',
+        lastActivityAt: DateTime.now().subtract(const Duration(minutes: 5)),
+        unreadCount: 0,
+        isInvite: false,
+        isDirectMessage: false,
+      );
+      final chatRepository = FakeChatRepository(
+        loadConversationsHandler: () async => [conversation],
+        loadRoomTimelineHandler: (roomId) async => ChatRoomTimeline(
+          roomId: roomId,
+          roomTitle: 'General',
+          isInvite: false,
+          canSendMessages: true,
+          messages: [
+            ChatMessage(
+              id: 'message-1',
+              senderId: '@alice:weave.local',
+              senderDisplayName: 'Alice',
+              sentAt: DateTime.now().subtract(const Duration(minutes: 5)),
+              isMine: false,
+              deliveryState: ChatMessageDeliveryState.sent,
+              contentType: ChatMessageContentType.text,
+              text: 'Standup notes are ready',
+            ),
+          ],
+        ),
+      );
+
+      await pumpReadyShell(tester, chatRepository: chatRepository);
+
+      await tester.tap(find.widgetWithText(ActionChip, 'General'));
+      await tester.pumpAndSettle();
+
+      expect(chatRepository.loadRoomTimelineCalls, 1);
+    });
+
+    testWidgets('opens a recent file quick link at its folder context', (
+      tester,
+    ) async {
+      final filesRepository = FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accountLabel: 'Weave files',
+        ),
+        listings: {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'Roadmap.md',
+                path: '/Planning/Roadmap.md',
+                isDirectory: false,
+                modifiedAt: DateTime.now().subtract(const Duration(minutes: 3)),
+              ),
+            ],
+          ),
+          '/Planning': const DirectoryListing(
+            path: '/Planning',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'Roadmap.md',
+                path: '/Planning/Roadmap.md',
+                isDirectory: false,
+              ),
+            ],
+          ),
+        },
+      );
+
+      await pumpReadyShell(tester, filesRepository: filesRepository);
+
+      final roadmapChip = find.widgetWithText(ActionChip, 'Roadmap.md');
+      await tester.ensureVisible(roadmapChip);
+      await tester.tap(roadmapChip);
+      await tester.pumpAndSettle();
+
+      expect(filesRepository.requestedPaths, contains('/Planning'));
+      expect(find.text('/Planning'), findsWidgets);
     });
   });
 }

@@ -10,6 +10,8 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
+import 'package:weave/features/files/domain/entities/files_connection_state.dart';
+import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
@@ -26,6 +28,7 @@ import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
 import '../../helpers/fake_chat_repository.dart';
+import '../../helpers/fake_files_repository.dart';
 import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/in_memory_stores.dart';
 import '../../helpers/server_config_test_data.dart';
@@ -105,6 +108,11 @@ void main() {
           ),
           oidcClientProvider.overrideWithValue(_FakeOidcClient()),
           chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+          filesRepositoryProvider.overrideWithValue(
+            FakeFilesRepository(
+              connectionState: const FilesConnectionState.disconnected(),
+            ),
+          ),
           firstRunStatusProvider.overrideWith(
             (ref) async => firstRunStatus ?? buildTestFirstRunStatus(),
           ),
