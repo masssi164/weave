@@ -131,7 +131,7 @@ Accessibility is a hard requirement, not a follow-up:
 ## Running Integration Tests
 Integration tests require a live local Weave stack, including the backend API and Keycloak OIDC provider. Start the stack from the `weave-infra` setup first, with local hostnames resolving to the stack and the local CA trusted by the machine or simulator running the tests.
 
-The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env` and mirrors them to `/tmp/weave-infra/weave-workspace/.generated/bootstrap.env` for the self-hosted GitHub runner path. `make integration-test` sources the repo-local file first, then falls back to the `/tmp` mirror. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere.
+The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env`. The Make targets source that repo-local file by default. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere; there is no implicit global `/tmp` fallback.
 
 Expected canonical local hostnames include `api.weave.local`, `auth.weave.local`, `matrix.weave.local`, and `files.weave.local`.
 
@@ -146,7 +146,7 @@ make integration-test
 
 That target is intentionally manual and expensive: it runs the non-UI contract checks in `test/live_stack_contract_test.dart` headlessly first, then launches the macOS app once for `integration_test/live_stack_app_e2e_test.dart`. Keeping the first file off-device avoids an unnecessary extra app build and launch cycle.
 
-Use `make offline-contract-test` for the lightweight automatic/offline contract gate. Use `make integration-contract-test` when a live stack is already available but you do not want to launch the app target.
+Use `make offline-contract-test` for the lightweight automatic/offline contract gate. It is explicitly offline via `WEAVE_OFFLINE_CONTRACT_ONLY=true` and does not use fake credentials. Use `make integration-contract-test` when a live stack and real `WEAVE_TEST_USERNAME`/`WEAVE_TEST_PASSWORD` are available but you do not want to launch the app target.
 
 Run against a different infra checkout:
 

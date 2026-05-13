@@ -11,6 +11,7 @@ class TestConfig {
     required this.matrixHomeserverUrl,
     required this.nextcloudBaseUrl,
     required this.backendApiBaseUrl,
+    required this.offlineContractOnly,
   });
 
   factory TestConfig.fromEnvironment() {
@@ -41,6 +42,11 @@ class TestConfig {
       matrixHomeserverUrl: _serviceUri(baseUrl, host: 'matrix.$workspaceHost'),
       nextcloudBaseUrl: _serviceUri(baseUrl, host: 'files.$workspaceHost'),
       backendApiBaseUrl: baseUrl,
+      offlineContractOnly:
+          const String.fromEnvironment(
+            'WEAVE_OFFLINE_CONTRACT_ONLY',
+          ).trim().toLowerCase() ==
+          'true',
     );
   }
 
@@ -52,6 +58,7 @@ class TestConfig {
   final Uri matrixHomeserverUrl;
   final Uri nextcloudBaseUrl;
   final Uri backendApiBaseUrl;
+  final bool offlineContractOnly;
 
   TestConfig copyWith({
     Uri? baseUrl,
@@ -62,6 +69,7 @@ class TestConfig {
     Uri? matrixHomeserverUrl,
     Uri? nextcloudBaseUrl,
     Uri? backendApiBaseUrl,
+    bool? offlineContractOnly,
   }) {
     return TestConfig(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -72,6 +80,7 @@ class TestConfig {
       matrixHomeserverUrl: matrixHomeserverUrl ?? this.matrixHomeserverUrl,
       nextcloudBaseUrl: nextcloudBaseUrl ?? this.nextcloudBaseUrl,
       backendApiBaseUrl: backendApiBaseUrl ?? this.backendApiBaseUrl,
+      offlineContractOnly: offlineContractOnly ?? this.offlineContractOnly,
     );
   }
 
@@ -105,10 +114,7 @@ class TestConfig {
   bool get hasCredentials =>
       username.trim().isNotEmpty && password.trim().isNotEmpty;
 
-  bool get usesDummyCredentials =>
-      _isDummyValue(username) || _isDummyValue(password);
-
-  bool get hasLiveCredentials => hasCredentials && !usesDummyCredentials;
+  bool get hasLiveCredentials => hasCredentials && !offlineContractOnly;
 
   void requireCredentials() {
     final missing = <String>[
@@ -116,20 +122,12 @@ class TestConfig {
       if (password.trim().isEmpty) 'WEAVE_TEST_PASSWORD',
     ];
 
-    if (usesDummyCredentials) {
-      missing.add('real non-dummy WEAVE_TEST_USERNAME/WEAVE_TEST_PASSWORD');
-    }
-
     if (missing.isNotEmpty) {
       throw StateError(
         'Missing integration test credential dart-define(s): '
         '${missing.join(', ')}.',
       );
     }
-  }
-
-  static bool _isDummyValue(String value) {
-    return value.trim().toLowerCase() == 'dummy';
   }
 
   static Uri _parseUrl(String value, {required String variableName}) {

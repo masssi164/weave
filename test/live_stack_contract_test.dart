@@ -43,10 +43,10 @@ void main() {
   HttpOverrides.global = TestHttpOverrides();
 
   final liveConfig = TestConfig.fromEnvironment();
-  final liveSkipReason = liveConfig.hasLiveCredentials
+  final liveSkipReason = liveConfig.offlineContractOnly
+      ? 'Offline contract mode does not run live auth/API checks.'
+      : liveConfig.hasLiveCredentials
       ? false
-      : liveConfig.usesDummyCredentials
-      ? 'Dummy credentials run the offline contract checks only.'
       : 'Requires real WEAVE_TEST_USERNAME and WEAVE_TEST_PASSWORD dart-defines.';
 
   late TestConfig config;
@@ -65,16 +65,16 @@ void main() {
 
   group('offline contract checks', () {
     test(
-      'dummy credentials are accepted only for offline contract mode',
+      'offline contract mode is explicit and does not require live credentials',
       () {
-        expect(liveConfig.hasCredentials, isTrue);
-        expect(liveConfig.usesDummyCredentials, isTrue);
+        expect(liveConfig.offlineContractOnly, isTrue);
+        expect(liveConfig.hasCredentials, isFalse);
         expect(liveConfig.hasLiveCredentials, isFalse);
         expect(liveConfig.requireCredentials, throwsStateError);
       },
-      skip: liveConfig.usesDummyCredentials
+      skip: liveConfig.offlineContractOnly
           ? false
-          : 'Requires dummy credentials.',
+          : 'Requires WEAVE_OFFLINE_CONTRACT_ONLY=true.',
     );
 
     test('canonical backend API paths do not duplicate the /api prefix', () {
