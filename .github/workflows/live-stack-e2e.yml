@@ -15,6 +15,10 @@ on:
         description: "Git ref to use for weave-infra"
         required: false
         default: "main"
+      power_storage_confirmation:
+        description: "Type I_HAVE_SOLAR_STORAGE_BUDGET to confirm the self-hosted runner has enough power/storage budget for expensive live E2E"
+        required: true
+        default: ""
   workflow_call:
     inputs:
       weave_backend_image:
@@ -44,6 +48,7 @@ concurrency:
 jobs:
   live-stack-e2e:
     name: Bootstrap Stack And Run App E2E
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.power_storage_confirmation == 'I_HAVE_SOLAR_STORAGE_BUDGET'
     runs-on:
       - self-hosted
       - macOS
@@ -79,6 +84,8 @@ jobs:
       TF_VAR_nextcloud_host_port: '48083'
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'true'
+      WEAVE_REMOVE_VOLUMES: 'true'
+      WEAVE_CONFIRM_REMOVE_VOLUMES: weave-delete-local-data
       WEAVE_INTEGRATION_TEST_DEVICE: macos
 
     defaults:
