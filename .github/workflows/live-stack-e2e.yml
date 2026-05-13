@@ -3,22 +3,17 @@ name: Live Stack E2E
 on:
   workflow_dispatch:
     inputs:
+      confirm_power_budget_ok:
+        description: "Manual gate: confirm solar/storage/power budget is acceptable for self-hosted live-stack E2E"
+        required: true
+        type: boolean
+        default: false
       weave_backend_image:
         description: "Backend image to boot inside the infra stack"
         required: false
         default: "ghcr.io/masssi164/weave-backend:latest"
       weave_infra_ref:
         description: "Git ref to use for weave-infra"
-        required: false
-        default: "main"
-  workflow_call:
-    inputs:
-      weave_backend_image:
-        type: string
-        required: false
-        default: "ghcr.io/masssi164/weave-backend:latest"
-      weave_infra_ref:
-        type: string
         required: false
         default: "main"
 
@@ -32,7 +27,8 @@ concurrency:
 
 jobs:
   live-stack-e2e:
-    name: Bootstrap Stack And Run App E2E
+    name: Manual Bootstrap Stack And Run App E2E
+    if: ${{ inputs.confirm_power_budget_ok == true }}
     runs-on:
       - self-hosted
       - macOS
@@ -40,8 +36,8 @@ jobs:
       - weave-live
     timeout-minutes: 75
     env:
-      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'ghcr.io/masssi164/weave-backend:latest' }}
-      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
+      WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image }}
+      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref }}
       TF_VAR_create_test_user: 'true'
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
@@ -52,6 +48,7 @@ jobs:
       TF_VAR_backend_host_port: '48084'
       WEAVE_RUNNER_HYGIENE: 'true'
       WEAVE_REMOVE_VOLUMES: 'true'
+      WEAVE_CONFIRM_REMOVE_VOLUMES: weave-delete-local-data
       WEAVE_INTEGRATION_TEST_DEVICE: macos
 
     defaults:
@@ -59,6 +56,11 @@ jobs:
         shell: bash
 
     steps:
+      - name: Confirm manual power/storage gate
+        run: |
+          echo "Manual self-hosted E2E gate accepted by workflow dispatcher."
+          echo "Optional future improvement: query Home Assistant solar/storage sensors before this point; no HA secrets are assumed here."
+
       - name: Check out weave
         uses: actions/checkout@v4
         with:
@@ -114,7 +116,7 @@ jobs:
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
           set -euo pipefail
-          hosts_line='127.0.0.1 weave.local api.weave.local auth.weave.local keycloak.weave.local files.weave.local nextcloud.weave.local matrix.weave.local'
+          hosts_line='127.0.0.1 weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local'
           if ! grep -Fq "$hosts_line" /etc/hosts; then
             if [ -w /etc/hosts ]; then
               printf '%s\n' "$hosts_line" >> /etc/hosts
@@ -166,3 +168,12 @@ jobs:
         if: always()
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
+
+  skipped-without-confirmation:
+    name: Require Manual Power/Storage Confirmation
+    if: ${{ inputs.confirm_power_budget_ok != true }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Live Stack E2E is manual-only and was not started. Re-run with confirm_power_budget_ok=true when solar/storage budget is acceptable."
+          exit 1

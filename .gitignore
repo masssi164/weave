@@ -47,3 +47,11 @@ app.*.map.json
 
 # AI Agent Skills
 .dart_skills/
+# Local assistant state
+.openclaw/
+memory/
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md

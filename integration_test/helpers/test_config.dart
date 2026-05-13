@@ -14,12 +14,16 @@ class TestConfig {
   });
 
   factory TestConfig.fromEnvironment() {
+    final apiBaseUrl = const String.fromEnvironment('WEAVE_API_BASE_URL');
+    final legacyBaseUrl = const String.fromEnvironment(
+      'WEAVE_BASE_URL',
+      defaultValue: 'https://api.weave.local/api',
+    );
     final baseUrl = _parseUrl(
-      const String.fromEnvironment(
-        'WEAVE_BASE_URL',
-        defaultValue: 'https://api.weave.local',
-      ),
-      variableName: 'WEAVE_BASE_URL',
+      apiBaseUrl.trim().isNotEmpty ? apiBaseUrl : legacyBaseUrl,
+      variableName: apiBaseUrl.trim().isNotEmpty
+          ? 'WEAVE_API_BASE_URL'
+          : 'WEAVE_BASE_URL',
     );
     final workspaceHost = _workspaceHost(baseUrl.host);
     final issuerUrl = _issuerUrl(baseUrl, workspaceHost);
@@ -35,7 +39,7 @@ class TestConfig {
       issuerUrl: issuerUrl,
       clientId: clientId,
       matrixHomeserverUrl: _serviceUri(baseUrl, host: 'matrix.$workspaceHost'),
-      nextcloudBaseUrl: _serviceUri(baseUrl, host: 'nextcloud.$workspaceHost'),
+      nextcloudBaseUrl: _serviceUri(baseUrl, host: 'files.$workspaceHost'),
       backendApiBaseUrl: baseUrl,
     );
   }
@@ -166,7 +170,7 @@ class TestConfig {
 
     return _serviceUri(
       baseUrl,
-      host: 'keycloak.$workspaceHost',
+      host: 'auth.$workspaceHost',
       pathSegments: const <String>['realms', 'weave'],
     );
   }
@@ -178,7 +182,9 @@ class TestConfig {
         (serviceLabel == 'api' ||
             serviceLabel == 'weave' ||
             serviceLabel == 'auth' ||
-            serviceLabel == 'keycloak')) {
+            serviceLabel == 'keycloak' ||
+            serviceLabel == 'files' ||
+            serviceLabel == 'matrix')) {
       return labels.skip(1).join('.');
     }
 

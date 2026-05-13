@@ -133,7 +133,7 @@ Integration tests require a live local Weave stack, including the backend API an
 
 The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env` and mirrors them to `/tmp/weave-infra/weave-workspace/.generated/bootstrap.env` for the self-hosted GitHub runner path. `make integration-test` sources the repo-local file first, then falls back to the `/tmp` mirror. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere.
 
-Expected local hostnames include `api.weave.local`, `keycloak.weave.local`, `matrix.weave.local`, and `nextcloud.weave.local`.
+Expected canonical local hostnames include `api.weave.local`, `auth.weave.local`, `matrix.weave.local`, and `files.weave.local`.
 
 Run against the default local stack:
 
@@ -144,9 +144,9 @@ cd ../../weave
 make integration-test
 ```
 
-That target runs the non-UI contract checks in `test/live_stack_contract_test.dart` headlessly first, then launches the macOS app once for `integration_test/live_stack_app_e2e_test.dart`. Keeping the first file off-device avoids an unnecessary extra app build and launch cycle in CI.
+That target is intentionally manual and expensive: it runs the non-UI contract checks in `test/live_stack_contract_test.dart` headlessly first, then launches the macOS app once for `integration_test/live_stack_app_e2e_test.dart`. Keeping the first file off-device avoids an unnecessary extra app build and launch cycle.
 
-Set `WEAVE_RUN_APP_E2E=false` when you only want the headless contract leg, for example on GitHub-hosted Linux runners that cannot launch the macOS app target.
+Use `make offline-contract-test` for the lightweight automatic/offline contract gate. Use `make integration-contract-test` when a live stack is already available but you do not want to launch the app target.
 
 Run against a different infra checkout:
 
@@ -154,12 +154,13 @@ Run against a different infra checkout:
 WEAVE_BOOTSTRAP_ENV=../weave-inf/weave-workspace/.generated/bootstrap.env make integration-test
 ```
 
-The GitHub Actions live-stack job now runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. That runner only needs the local stack bootstrapped once on the same machine because the workflow reads the mirrored `/tmp/weave-infra/.../bootstrap.env` file.
+The GitHub Actions live-stack job is manual-only through `workflow_dispatch` and runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner. It requires the dispatcher to confirm the solar/storage/power budget before the stack starts. A future optional Home Assistant preflight can query local battery/solar sensors before this point, but the repository does not assume or require HA secrets.
 
 Supported overrides:
 
-- `WEAVE_BASE_URL`: base URL for the Weave backend API, defaulting to `https://api.weave.local`
-- `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://keycloak.weave.local/realms/weave`
+- `WEAVE_API_BASE_URL`: canonical base URL for the Weave backend API, defaulting to `https://api.weave.local/api`
+- `WEAVE_BASE_URL`: legacy-compatible alias for `WEAVE_API_BASE_URL`
+- `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://auth.weave.local/realms/weave`
 - `WEAVE_OIDC_CLIENT_ID`: app OIDC client ID, defaulting to `weave-app`
 - `WEAVE_TEST_USERNAME`: username for the test account used in the browser-grade PKCE login flow
 - `WEAVE_TEST_PASSWORD`: password for the test account used in the browser-grade PKCE login flow
