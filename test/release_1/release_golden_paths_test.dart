@@ -137,9 +137,10 @@ void main() {
           BootstrapPhase.ready,
         );
         await _continueFirstRunIfPresent(tester);
-        expect(find.text('Release Room'), findsOneWidget);
+        final releaseRoomTile = find.widgetWithText(ListTile, 'Release Room');
+        expect(releaseRoomTile, findsWidgets);
 
-        await tester.tap(find.text('Release Room'));
+        await tester.tap(releaseRoomTile.first);
         await tester.pumpAndSettle();
 
         expect(find.text('Golden path ready'), findsOneWidget);
@@ -156,15 +157,15 @@ void main() {
         await tester.tap(find.text('Connect Nextcloud').first);
         await tester.pumpAndSettle();
 
-        expect(find.text('Documents'), findsOneWidget);
-        expect(find.text('Readme.md'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'Readme.md'), findsOneWidget);
 
-        await tester.tap(find.text('Documents'));
+        await tester.tap(find.widgetWithText(ListTile, 'Documents'));
         await tester.pumpAndSettle();
 
         expect(find.text('/Documents'), findsOneWidget);
-        expect(find.text('Plans'), findsOneWidget);
-        expect(find.text('spec.pdf'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'Plans'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'spec.pdf'), findsOneWidget);
 
         await tester.tap(find.text('Up'));
         await tester.pumpAndSettle();
@@ -216,7 +217,7 @@ void main() {
         await tester.tap(find.text('Connect Nextcloud').first);
         await tester.pumpAndSettle();
 
-        expect(find.text('Documents'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
         expect(filesRepository.connectCalls, 2);
       },
     );

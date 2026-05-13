@@ -99,6 +99,90 @@ class AppLocalizationsDe extends AppLocalizations {
       'Versuche es erneut. Wenn das weiterhin passiert, prüfe, ob deine Arbeitsbereichsdienste erreichbar sind.';
 
   @override
+  String get shellRecentActivityTitle => 'Letzte Aktivität';
+
+  @override
+  String get shellRecentActivityDescription =>
+      'Schnellzugriff auf aktuelle Räume und Dateiänderungen.';
+
+  @override
+  String get shellRecentActivitySemanticLabel =>
+      'Schnellzugriffe für letzte Aktivität';
+
+  @override
+  String get shellRecentRoomsTitle => 'Räume';
+
+  @override
+  String get shellRecentFilesTitle => 'Dateien';
+
+  @override
+  String get shellRecentRoomsLoading => 'Aktuelle Räume werden geladen…';
+
+  @override
+  String get shellRecentRoomsEmpty => 'Noch keine aktuellen Räume.';
+
+  @override
+  String get shellRecentRoomsUnavailable =>
+      'Aktuelle Räume sind verfügbar, sobald Chat verbunden ist.';
+
+  @override
+  String get shellRecentFilesLoading =>
+      'Aktuelle Dateiänderungen werden geladen…';
+
+  @override
+  String get shellRecentFilesEmpty => 'Noch keine aktuellen Dateiänderungen.';
+
+  @override
+  String get shellRecentFilesError =>
+      'Aktuelle Dateiänderungen konnten nicht geladen werden.';
+
+  @override
+  String get shellRecentFilesUnavailable =>
+      'Aktuelle Dateien sind verfügbar, sobald Dateien verbunden sind.';
+
+  @override
+  String get shellRecentActivityUnknownRecency => 'aktuell';
+
+  @override
+  String get shellRecentActivityNow => 'jetzt';
+
+  @override
+  String shellRecentActivityMinutesAgo(int minutes) {
+    return 'vor $minutes Min.';
+  }
+
+  @override
+  String get shellRecentActivityToday => 'heute';
+
+  @override
+  String get shellRecentActivityYesterday => 'gestern';
+
+  @override
+  String shellRecentRoomItemSemantic(
+    String roomName,
+    String preview,
+    String recency,
+  ) {
+    return 'Raum $roomName öffnen. Letzte Aktivität: $preview. $recency.';
+  }
+
+  @override
+  String shellRecentFileItemSemantic(
+    String itemType,
+    String itemName,
+    String path,
+    String recency,
+  ) {
+    return '$itemType $itemName in $path öffnen. Geändert $recency.';
+  }
+
+  @override
+  String get shellRecentFileFolderType => 'Ordner';
+
+  @override
+  String get shellRecentFileFileType => 'Datei';
+
+  @override
   String get emptyStateLabel => 'Noch nichts hier';
 
   @override

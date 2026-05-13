@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:weave/features/shell/presentation/shell_recent_activity.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The main application shell rendered by [StatefulShellRoute].
@@ -18,7 +19,12 @@ class AppShell extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      body: navigationShell,
+      body: Column(
+        children: [
+          const ShellRecentActivity(),
+          Expanded(child: navigationShell),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) => navigationShell.goBranch(

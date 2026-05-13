@@ -116,7 +116,9 @@ GoRouter appRouter(Ref ref) {
             routes: [
               GoRoute(
                 path: AppRoutes.files,
-                builder: (context, state) => const FilesScreen(),
+                builder: (context, state) => FilesScreen(
+                  initialPath: state.uri.queryParameters['path'] ?? '/',
+                ),
               ),
             ],
           ),

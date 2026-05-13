@@ -260,6 +260,141 @@ abstract class AppLocalizations {
   /// **'Try again. If this keeps happening, check that your workspace services are reachable.'**
   String get shellErrorGuidance;
 
+  /// Title for the compact recent activity card in the app shell
+  ///
+  /// In en, this message translates to:
+  /// **'Recent activity'**
+  String get shellRecentActivityTitle;
+
+  /// Description for the recent activity card in the app shell
+  ///
+  /// In en, this message translates to:
+  /// **'Quick links to recent rooms and file changes.'**
+  String get shellRecentActivityDescription;
+
+  /// Semantic label for the recent activity card
+  ///
+  /// In en, this message translates to:
+  /// **'Recent activity quick links'**
+  String get shellRecentActivitySemanticLabel;
+
+  /// Section title for recent room quick links in the app shell
+  ///
+  /// In en, this message translates to:
+  /// **'Rooms'**
+  String get shellRecentRoomsTitle;
+
+  /// Section title for recent file quick links in the app shell
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get shellRecentFilesTitle;
+
+  /// Loading label for recent room quick links
+  ///
+  /// In en, this message translates to:
+  /// **'Loading recent rooms…'**
+  String get shellRecentRoomsLoading;
+
+  /// Empty state for recent room quick links
+  ///
+  /// In en, this message translates to:
+  /// **'No recent rooms yet.'**
+  String get shellRecentRoomsEmpty;
+
+  /// Unavailable/error state for recent room quick links
+  ///
+  /// In en, this message translates to:
+  /// **'Recent rooms are unavailable until chat is connected.'**
+  String get shellRecentRoomsUnavailable;
+
+  /// Loading label for recent file quick links
+  ///
+  /// In en, this message translates to:
+  /// **'Loading recent file changes…'**
+  String get shellRecentFilesLoading;
+
+  /// Empty state for recent file quick links
+  ///
+  /// In en, this message translates to:
+  /// **'No recent file changes yet.'**
+  String get shellRecentFilesEmpty;
+
+  /// Error state for recent file quick links
+  ///
+  /// In en, this message translates to:
+  /// **'Recent file changes could not be loaded.'**
+  String get shellRecentFilesError;
+
+  /// Unavailable state for recent file quick links
+  ///
+  /// In en, this message translates to:
+  /// **'Recent files are unavailable until files are connected.'**
+  String get shellRecentFilesUnavailable;
+
+  /// Fallback recency hint for activity items without a timestamp
+  ///
+  /// In en, this message translates to:
+  /// **'recent'**
+  String get shellRecentActivityUnknownRecency;
+
+  /// Recency hint for activity that just happened
+  ///
+  /// In en, this message translates to:
+  /// **'now'**
+  String get shellRecentActivityNow;
+
+  /// Recency hint for activity from the past hour
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes}m ago'**
+  String shellRecentActivityMinutesAgo(int minutes);
+
+  /// Recency hint for activity from today
+  ///
+  /// In en, this message translates to:
+  /// **'today'**
+  String get shellRecentActivityToday;
+
+  /// Recency hint for activity from yesterday
+  ///
+  /// In en, this message translates to:
+  /// **'yesterday'**
+  String get shellRecentActivityYesterday;
+
+  /// Semantic label for a recent room quick link
+  ///
+  /// In en, this message translates to:
+  /// **'Open room {roomName}. Latest activity: {preview}. {recency}.'**
+  String shellRecentRoomItemSemantic(
+    String roomName,
+    String preview,
+    String recency,
+  );
+
+  /// Semantic label for a recent file quick link
+  ///
+  /// In en, this message translates to:
+  /// **'Open {itemType} {itemName} in {path}. Changed {recency}.'**
+  String shellRecentFileItemSemantic(
+    String itemType,
+    String itemName,
+    String path,
+    String recency,
+  );
+
+  /// File activity type label for folders
+  ///
+  /// In en, this message translates to:
+  /// **'folder'**
+  String get shellRecentFileFolderType;
+
+  /// File activity type label for files
+  ///
+  /// In en, this message translates to:
+  /// **'file'**
+  String get shellRecentFileFileType;
+
   /// Message shown when a list has no items
   ///
   /// In en, this message translates to:

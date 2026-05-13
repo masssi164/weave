@@ -11,13 +11,31 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
-class FilesScreen extends ConsumerWidget {
-  const FilesScreen({super.key});
+class FilesScreen extends ConsumerStatefulWidget {
+  const FilesScreen({super.key, this.initialPath = '/'});
+
+  final String initialPath;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FilesScreen> createState() => _FilesScreenState();
+}
+
+class _FilesScreenState extends ConsumerState<FilesScreen> {
+  String? _requestedInitialPath;
+
+  @override
+  void didUpdateWidget(covariant FilesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialPath != widget.initialPath) {
+      _requestedInitialPath = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final asyncFiles = ref.watch(filesProvider);
+    _syncInitialPath(asyncFiles);
 
     return CustomScrollView(
       slivers: [
@@ -53,6 +71,42 @@ class FilesScreen extends ConsumerWidget {
         },
       ],
     );
+  }
+
+  void _syncInitialPath(AsyncValue<FilesViewState> asyncFiles) {
+    final targetPath = _normalizeInitialPath(widget.initialPath);
+    if (targetPath == '/' || _requestedInitialPath == targetPath) {
+      return;
+    }
+
+    final state = switch (asyncFiles) {
+      AsyncData(:final value) => value,
+      _ => null,
+    };
+    if (state == null ||
+        state.isBusy ||
+        state.connectionState.status != FilesConnectionStatus.connected ||
+        state.currentPath == targetPath) {
+      return;
+    }
+
+    _requestedInitialPath = targetPath;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      ref.read(filesProvider.notifier).openDirectory(targetPath);
+    });
+  }
+
+  String _normalizeInitialPath(String path) {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty || trimmed == '/') {
+      return '/';
+    }
+
+    final normalized = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    return normalized.replaceAll(RegExp(r'/+'), '/');
   }
 
   List<Widget> _buildStateSlivers(

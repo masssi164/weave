@@ -98,6 +98,88 @@ class AppLocalizationsEn extends AppLocalizations {
       'Try again. If this keeps happening, check that your workspace services are reachable.';
 
   @override
+  String get shellRecentActivityTitle => 'Recent activity';
+
+  @override
+  String get shellRecentActivityDescription =>
+      'Quick links to recent rooms and file changes.';
+
+  @override
+  String get shellRecentActivitySemanticLabel => 'Recent activity quick links';
+
+  @override
+  String get shellRecentRoomsTitle => 'Rooms';
+
+  @override
+  String get shellRecentFilesTitle => 'Files';
+
+  @override
+  String get shellRecentRoomsLoading => 'Loading recent rooms…';
+
+  @override
+  String get shellRecentRoomsEmpty => 'No recent rooms yet.';
+
+  @override
+  String get shellRecentRoomsUnavailable =>
+      'Recent rooms are unavailable until chat is connected.';
+
+  @override
+  String get shellRecentFilesLoading => 'Loading recent file changes…';
+
+  @override
+  String get shellRecentFilesEmpty => 'No recent file changes yet.';
+
+  @override
+  String get shellRecentFilesError =>
+      'Recent file changes could not be loaded.';
+
+  @override
+  String get shellRecentFilesUnavailable =>
+      'Recent files are unavailable until files are connected.';
+
+  @override
+  String get shellRecentActivityUnknownRecency => 'recent';
+
+  @override
+  String get shellRecentActivityNow => 'now';
+
+  @override
+  String shellRecentActivityMinutesAgo(int minutes) {
+    return '${minutes}m ago';
+  }
+
+  @override
+  String get shellRecentActivityToday => 'today';
+
+  @override
+  String get shellRecentActivityYesterday => 'yesterday';
+
+  @override
+  String shellRecentRoomItemSemantic(
+    String roomName,
+    String preview,
+    String recency,
+  ) {
+    return 'Open room $roomName. Latest activity: $preview. $recency.';
+  }
+
+  @override
+  String shellRecentFileItemSemantic(
+    String itemType,
+    String itemName,
+    String path,
+    String recency,
+  ) {
+    return 'Open $itemType $itemName in $path. Changed $recency.';
+  }
+
+  @override
+  String get shellRecentFileFolderType => 'folder';
+
+  @override
+  String get shellRecentFileFileType => 'file';
+
+  @override
   String get emptyStateLabel => 'Nothing here yet';
 
   @override

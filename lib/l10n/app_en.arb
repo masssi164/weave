@@ -84,6 +84,69 @@
   "shellErrorGuidance": "Try again. If this keeps happening, check that your workspace services are reachable.",
   "@shellErrorGuidance": { "description": "Friendly recovery guidance shown when app shell bootstrap fails" },
 
+  "shellRecentActivityTitle": "Recent activity",
+  "@shellRecentActivityTitle": { "description": "Title for the compact recent activity card in the app shell" },
+  "shellRecentActivityDescription": "Quick links to recent rooms and file changes.",
+  "@shellRecentActivityDescription": { "description": "Description for the recent activity card in the app shell" },
+  "shellRecentActivitySemanticLabel": "Recent activity quick links",
+  "@shellRecentActivitySemanticLabel": { "description": "Semantic label for the recent activity card" },
+  "shellRecentRoomsTitle": "Rooms",
+  "@shellRecentRoomsTitle": { "description": "Section title for recent room quick links in the app shell" },
+  "shellRecentFilesTitle": "Files",
+  "@shellRecentFilesTitle": { "description": "Section title for recent file quick links in the app shell" },
+  "shellRecentRoomsLoading": "Loading recent rooms…",
+  "@shellRecentRoomsLoading": { "description": "Loading label for recent room quick links" },
+  "shellRecentRoomsEmpty": "No recent rooms yet.",
+  "@shellRecentRoomsEmpty": { "description": "Empty state for recent room quick links" },
+  "shellRecentRoomsUnavailable": "Recent rooms are unavailable until chat is connected.",
+  "@shellRecentRoomsUnavailable": { "description": "Unavailable/error state for recent room quick links" },
+  "shellRecentFilesLoading": "Loading recent file changes…",
+  "@shellRecentFilesLoading": { "description": "Loading label for recent file quick links" },
+  "shellRecentFilesEmpty": "No recent file changes yet.",
+  "@shellRecentFilesEmpty": { "description": "Empty state for recent file quick links" },
+  "shellRecentFilesError": "Recent file changes could not be loaded.",
+  "@shellRecentFilesError": { "description": "Error state for recent file quick links" },
+  "shellRecentFilesUnavailable": "Recent files are unavailable until files are connected.",
+  "@shellRecentFilesUnavailable": { "description": "Unavailable state for recent file quick links" },
+  "shellRecentActivityUnknownRecency": "recent",
+  "@shellRecentActivityUnknownRecency": { "description": "Fallback recency hint for activity items without a timestamp" },
+  "shellRecentActivityNow": "now",
+  "@shellRecentActivityNow": { "description": "Recency hint for activity that just happened" },
+  "shellRecentActivityMinutesAgo": "{minutes}m ago",
+  "@shellRecentActivityMinutesAgo": {
+    "description": "Recency hint for activity from the past hour",
+    "placeholders": {
+      "minutes": { "type": "int" }
+    }
+  },
+  "shellRecentActivityToday": "today",
+  "@shellRecentActivityToday": { "description": "Recency hint for activity from today" },
+  "shellRecentActivityYesterday": "yesterday",
+  "@shellRecentActivityYesterday": { "description": "Recency hint for activity from yesterday" },
+  "shellRecentRoomItemSemantic": "Open room {roomName}. Latest activity: {preview}. {recency}.",
+  "@shellRecentRoomItemSemantic": {
+    "description": "Semantic label for a recent room quick link",
+    "placeholders": {
+      "roomName": { "type": "String" },
+      "preview": { "type": "String" },
+      "recency": { "type": "String" }
+    }
+  },
+  "shellRecentFileItemSemantic": "Open {itemType} {itemName} in {path}. Changed {recency}.",
+  "@shellRecentFileItemSemantic": {
+    "description": "Semantic label for a recent file quick link",
+    "placeholders": {
+      "itemType": { "type": "String" },
+      "itemName": { "type": "String" },
+      "path": { "type": "String" },
+      "recency": { "type": "String" }
+    }
+  },
+  "shellRecentFileFolderType": "folder",
+  "@shellRecentFileFolderType": { "description": "File activity type label for folders" },
+  "shellRecentFileFileType": "file",
+  "@shellRecentFileFileType": { "description": "File activity type label for files" },
+
   "emptyStateLabel": "Nothing here yet",
   "@emptyStateLabel": { "description": "Message shown when a list has no items" },
 

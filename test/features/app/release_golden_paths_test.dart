@@ -431,7 +431,7 @@ void main() {
         await _continueFirstRunIfPresent(tester);
 
         expect(chatRepository.connectCalls, 1);
-        expect(find.text('Weave Core'), findsOneWidget);
+        expect(find.text('Weave Core'), findsWidgets);
 
         await tester.tap(find.byIcon(Icons.folder_outlined));
         await tester.pumpAndSettle();
@@ -442,7 +442,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(filesRepository.connectCalls, 1);
-        expect(find.text('Projects'), findsOneWidget);
+        expect(find.text('Projects'), findsWidgets);
 
         await tester.drag(
           find.byType(CustomScrollView).last,
@@ -450,19 +450,19 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Projects'));
+        await tester.tap(find.text('Projects').last);
         await tester.pumpAndSettle();
 
         expect(
           filesRepository.listedPaths,
           containsAllInOrder(<String>['/', '/Projects']),
         );
-        expect(find.text('roadmap.md'), findsOneWidget);
+        expect(find.widgetWithText(ListTile, 'roadmap.md'), findsOneWidget);
 
         await tester.tap(find.text('Chat'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Weave Core'), findsOneWidget);
+        expect(find.text('Weave Core'), findsWidgets);
         expect(find.text('Golden path looks healthy.'), findsOneWidget);
       },
     );
