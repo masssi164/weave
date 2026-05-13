@@ -483,6 +483,24 @@
   "settingsBrandSectionDescription": "Weave Release 1 focuses on messaging, files, and the server connection that holds them together.",
   "@settingsBrandSectionDescription": { "description": "Subtle branded copy shown in the settings header card" },
 
+  "settingsShellModulesTitle": "Shell modules",
+  "@settingsShellModulesTitle": { "description": "Section title for user-configurable shell module visibility" },
+
+  "settingsShellModulesDescription": "Choose which workspace shell modules stay visible. Navigation remains available even when a module is hidden.",
+  "@settingsShellModulesDescription": { "description": "Description for shell module visibility settings" },
+
+  "settingsShellRecentActivityToggleTitle": "Recent activity quick links",
+  "@settingsShellRecentActivityToggleTitle": { "description": "Switch title for the recent activity shell module visibility preference" },
+
+  "settingsShellRecentActivityToggleDescription": "Show recent rooms and file changes above the bottom navigation.",
+  "@settingsShellRecentActivityToggleDescription": { "description": "Switch description for the recent activity shell module visibility preference" },
+
+  "settingsShellModulesLoading": "Loading shell module preferences…",
+  "@settingsShellModulesLoading": { "description": "Loading state for shell module visibility settings" },
+
+  "settingsShellModulesError": "Shell module preferences could not be saved. Try changing the setting again.",
+  "@settingsShellModulesError": { "description": "Error shown when shell module preferences cannot load or save" },
+
   "chatSecuritySectionTitle": "Matrix security",
   "@chatSecuritySectionTitle": { "description": "Section title for Matrix security status and actions in settings" },
 

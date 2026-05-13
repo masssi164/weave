@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
@@ -23,6 +24,7 @@ import 'package:weave/features/profile/presentation/providers/user_profile_provi
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/features/shell/data/repositories/shared_preferences_shell_module_preferences_repository.dart';
 import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
@@ -94,6 +96,7 @@ void main() {
     ProviderScope buildApp({
       FakeChatRepository? chatRepository,
       FakeFilesRepository? filesRepository,
+      InMemoryPreferencesStore? preferencesStore,
     }) {
       final secureStore = InMemorySecureStore({
         authSessionStorageKey: AuthSessionDto.fromSession(
@@ -103,6 +106,9 @@ void main() {
 
       return ProviderScope(
         overrides: [
+          preferencesStoreProvider.overrideWith(
+            (ref) => preferencesStore ?? InMemoryPreferencesStore(),
+          ),
           serverConfigurationRepositoryProvider.overrideWith(
             (ref) => _FakeServerConfigurationRepository(
               configuration: buildTestConfiguration(),
@@ -138,11 +144,13 @@ void main() {
       WidgetTester tester, {
       FakeChatRepository? chatRepository,
       FakeFilesRepository? filesRepository,
+      InMemoryPreferencesStore? preferencesStore,
     }) async {
       await tester.pumpWidget(
         buildApp(
           chatRepository: chatRepository,
           filesRepository: filesRepository,
+          preferencesStore: preferencesStore,
         ),
       );
       await tester.pumpAndSettle();
@@ -161,6 +169,23 @@ void main() {
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
     });
+
+    testWidgets(
+      'hides recent activity when shell module preferences disable it',
+      (tester) async {
+        final preferencesStore = InMemoryPreferencesStore({
+          shellModulePreferencesStorageKey:
+              '{"hiddenModules":["recentActivity"]}',
+        });
+
+        await pumpReadyShell(tester, preferencesStore: preferencesStore);
+
+        expect(find.text('Recent activity'), findsNothing);
+        expect(find.byType(NavigationBar), findsOneWidget);
+        expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
+        expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      },
+    );
 
     testWidgets('navigates to calendar from the bottom navigation bar', (
       tester,

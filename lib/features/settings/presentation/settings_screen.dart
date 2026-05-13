@@ -17,6 +17,8 @@ import 'package:weave/features/profile/presentation/widgets/profile_summary_card
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
+import 'package:weave/features/shell/domain/entities/shell_module.dart';
+import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -50,6 +52,8 @@ class SettingsScreen extends ConsumerWidget {
                   const ProfileSummaryCard(),
                   const SizedBox(height: 32),
                   const _WorkspaceReadinessCard(),
+                  const SizedBox(height: 32),
+                  const _ShellModuleVisibilitySettingsSection(),
                   const SizedBox(height: 32),
                   Text(
                     l10n.settingsServerConfigurationTitle,
@@ -117,6 +121,74 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ShellModuleVisibilitySettingsSection extends ConsumerWidget {
+  const _ShellModuleVisibilitySettingsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final preferences = ref.watch(shellModulePreferencesProvider);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.settingsShellModulesTitle,
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.settingsShellModulesDescription,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            switch (preferences) {
+              AsyncData(value: final value) => SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l10n.settingsShellRecentActivityToggleTitle),
+                subtitle: Text(
+                  l10n.settingsShellRecentActivityToggleDescription,
+                ),
+                value: value.isVisible(ShellModule.recentActivity),
+                onChanged: (isVisible) => ref
+                    .read(shellModulePreferencesProvider.notifier)
+                    .setModuleVisibility(
+                      module: ShellModule.recentActivity,
+                      isVisible: isVisible,
+                    ),
+              ),
+              AsyncError() => ErrorState(
+                message: l10n.settingsShellModulesError,
+                retryLabel: l10n.retryButton,
+                onRetry: () => ref.invalidate(shellModulePreferencesProvider),
+              ),
+              _ => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  l10n.settingsShellModulesLoading,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+            },
+          ],
+        ),
+      ),
     );
   }
 }
