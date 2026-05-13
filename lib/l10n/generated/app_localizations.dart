@@ -1940,8 +1940,62 @@ abstract class AppLocalizations {
   /// Dialog body shown before a chat message is archived
   ///
   /// In en, this message translates to:
-  /// **'This hides the message from your main timeline on this device until archived messages get their own review view.'**
+  /// **'This hides the message from your main timeline on this device. You can review or restore it from Archived messages.'**
   String get chatRoomArchiveDialogMessage;
+
+  /// App bar action that opens the archived messages review view
+  ///
+  /// In en, this message translates to:
+  /// **'Review archived messages'**
+  String get chatRoomArchivedMessagesAction;
+
+  /// Action that returns from archived messages to the active room timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Back to active timeline'**
+  String get chatRoomActiveTimelineAction;
+
+  /// Heading shown above the archived messages review view
+  ///
+  /// In en, this message translates to:
+  /// **'Archived messages'**
+  String get chatRoomArchivedReviewTitle;
+
+  /// Description shown above the archived messages review view
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {Archived messages from this room appear here, separate from the active timeline.} =1 {1 archived message is shown separately from the active timeline.} other {{count} archived messages are shown separately from the active timeline.}}'**
+  String chatRoomArchivedReviewDescription(int count);
+
+  /// Empty state shown when the archived messages review view has no messages
+  ///
+  /// In en, this message translates to:
+  /// **'No archived messages yet.'**
+  String get chatRoomArchivedReviewEmptyMessage;
+
+  /// Label shown on messages in the archived messages review view
+  ///
+  /// In en, this message translates to:
+  /// **'Archived'**
+  String get chatRoomArchivedMessageLabel;
+
+  /// Action label for restoring an archived message to the active room timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Restore to timeline'**
+  String get chatRoomRestoreAction;
+
+  /// Snackbar confirmation after restoring an archived message
+  ///
+  /// In en, this message translates to:
+  /// **'Message restored to the active timeline.'**
+  String get chatRoomRestoreSuccessMessage;
+
+  /// Snackbar error shown when restoring an archived message fails
+  ///
+  /// In en, this message translates to:
+  /// **'This message could not be restored right now.'**
+  String get chatRoomRestoreFailureMessage;
 
   /// Snackbar confirmation after archiving a message
   ///

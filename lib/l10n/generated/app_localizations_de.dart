@@ -1109,7 +1109,49 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatRoomArchiveDialogMessage =>
-      'Dadurch wird die Nachricht auf diesem Gerät aus deiner Hauptzeitleiste ausgeblendet, bis archivierte Nachrichten eine eigene Ansicht bekommen.';
+      'Dadurch wird die Nachricht auf diesem Gerät aus deiner Hauptzeitleiste ausgeblendet. Du kannst sie unter Archivierte Nachrichten prüfen oder wiederherstellen.';
+
+  @override
+  String get chatRoomArchivedMessagesAction => 'Archivierte Nachrichten prüfen';
+
+  @override
+  String get chatRoomActiveTimelineAction => 'Zurück zur aktiven Zeitleiste';
+
+  @override
+  String get chatRoomArchivedReviewTitle => 'Archivierte Nachrichten';
+
+  @override
+  String chatRoomArchivedReviewDescription(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count archivierte Nachrichten werden getrennt von der aktiven Zeitleiste angezeigt.',
+      one:
+          '1 archivierte Nachricht wird getrennt von der aktiven Zeitleiste angezeigt.',
+      zero:
+          'Archivierte Nachrichten aus diesem Raum erscheinen hier getrennt von der aktiven Zeitleiste.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatRoomArchivedReviewEmptyMessage =>
+      'Noch keine archivierten Nachrichten.';
+
+  @override
+  String get chatRoomArchivedMessageLabel => 'Archiviert';
+
+  @override
+  String get chatRoomRestoreAction => 'In Zeitleiste wiederherstellen';
+
+  @override
+  String get chatRoomRestoreSuccessMessage =>
+      'Nachricht in der aktiven Zeitleiste wiederhergestellt.';
+
+  @override
+  String get chatRoomRestoreFailureMessage =>
+      'Diese Nachricht konnte gerade nicht wiederhergestellt werden.';
 
   @override
   String get chatRoomArchiveSuccessMessage => 'Nachricht archiviert.';
