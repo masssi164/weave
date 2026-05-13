@@ -147,14 +147,10 @@ class SignInScreen extends ConsumerWidget {
                           onPressed: authState.isBusy
                               ? null
                               : () async {
-                                  await ref
+                                  final signedIn = await ref
                                       .read(authFlowControllerProvider.notifier)
                                       .signIn();
-                                  if (context.mounted &&
-                                      ref
-                                              .read(authFlowControllerProvider)
-                                              .failure ==
-                                          null) {
+                                  if (signedIn && context.mounted) {
                                     context.go(AppRoutes.firstRun);
                                   }
                                 },
