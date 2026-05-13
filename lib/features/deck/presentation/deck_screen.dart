@@ -19,7 +19,6 @@ class DeckScreen extends ConsumerWidget {
       slivers: [
         SliverAppBar.large(title: Text(l10n.deckScreenTitle)),
         SliverFillRemaining(
-          hasScrollBody: false,
           child: asyncBoards.when(
             loading: () => LoadingState(message: l10n.loadingLabel),
             error: (error, _) => ErrorState(

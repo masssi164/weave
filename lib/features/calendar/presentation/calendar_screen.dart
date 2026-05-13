@@ -32,7 +32,6 @@ class CalendarScreen extends ConsumerWidget {
               child: LoadingState(message: l10n.loadingLabel),
             ),
             error: (error, _) => SliverFillRemaining(
-              hasScrollBody: false,
               child: ErrorState(
                 message: l10n.errorStateLabel,
                 retryLabel: l10n.retryButton,
@@ -41,7 +40,6 @@ class CalendarScreen extends ConsumerWidget {
             ),
             data: (events) => events.isEmpty
                 ? SliverFillRemaining(
-                    hasScrollBody: false,
                     child: EmptyState(
                       message: l10n.calendarEmptyMessage,
                       icon: Icons.calendar_today_outlined,
