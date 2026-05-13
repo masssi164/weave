@@ -11,15 +11,20 @@ class TestConfig {
     required this.matrixHomeserverUrl,
     required this.nextcloudBaseUrl,
     required this.backendApiBaseUrl,
+    required this.offlineContractOnly,
   });
 
   factory TestConfig.fromEnvironment() {
+    const apiBaseUrl = String.fromEnvironment('WEAVE_API_BASE_URL');
+    const legacyBaseUrl = String.fromEnvironment(
+      'WEAVE_BASE_URL',
+      defaultValue: 'https://api.weave.local/api',
+    );
     final baseUrl = _parseUrl(
-      const String.fromEnvironment(
-        'WEAVE_BASE_URL',
-        defaultValue: 'https://api.weave.local/api',
-      ),
-      variableName: 'WEAVE_BASE_URL',
+      apiBaseUrl.trim().isNotEmpty ? apiBaseUrl : legacyBaseUrl,
+      variableName: apiBaseUrl.trim().isNotEmpty
+          ? 'WEAVE_API_BASE_URL'
+          : 'WEAVE_BASE_URL',
     );
     final workspaceHost = _workspaceHost(baseUrl.host);
     final issuerUrl = _issuerUrl(baseUrl, workspaceHost);
@@ -37,6 +42,11 @@ class TestConfig {
       matrixHomeserverUrl: _matrixHomeserverUrl(baseUrl, workspaceHost),
       nextcloudBaseUrl: _nextcloudBaseUrl(baseUrl, workspaceHost),
       backendApiBaseUrl: baseUrl,
+      offlineContractOnly:
+          const String.fromEnvironment(
+            'WEAVE_OFFLINE_CONTRACT_ONLY',
+          ).trim().toLowerCase() ==
+          'true',
     );
   }
 
@@ -48,6 +58,7 @@ class TestConfig {
   final Uri matrixHomeserverUrl;
   final Uri nextcloudBaseUrl;
   final Uri backendApiBaseUrl;
+  final bool offlineContractOnly;
 
   TestConfig copyWith({
     Uri? baseUrl,
@@ -58,6 +69,7 @@ class TestConfig {
     Uri? matrixHomeserverUrl,
     Uri? nextcloudBaseUrl,
     Uri? backendApiBaseUrl,
+    bool? offlineContractOnly,
   }) {
     return TestConfig(
       baseUrl: baseUrl ?? this.baseUrl,
@@ -68,6 +80,7 @@ class TestConfig {
       matrixHomeserverUrl: matrixHomeserverUrl ?? this.matrixHomeserverUrl,
       nextcloudBaseUrl: nextcloudBaseUrl ?? this.nextcloudBaseUrl,
       backendApiBaseUrl: backendApiBaseUrl ?? this.backendApiBaseUrl,
+      offlineContractOnly: offlineContractOnly ?? this.offlineContractOnly,
     );
   }
 
@@ -91,6 +104,11 @@ class TestConfig {
       port: backendApiBaseUrl.scheme == 'https' ? 1 : 9,
     );
   }
+
+  bool get hasCredentials =>
+      username.trim().isNotEmpty && password.trim().isNotEmpty;
+
+  bool get hasLiveCredentials => hasCredentials && !offlineContractOnly;
 
   void requireCredentials() {
     final missing = <String>[
@@ -196,7 +214,9 @@ class TestConfig {
         (serviceLabel == 'api' ||
             serviceLabel == 'weave' ||
             serviceLabel == 'auth' ||
-            serviceLabel == 'keycloak')) {
+            serviceLabel == 'keycloak' ||
+            serviceLabel == 'files' ||
+            serviceLabel == 'matrix')) {
       return labels.skip(1).join('.');
     }
 
