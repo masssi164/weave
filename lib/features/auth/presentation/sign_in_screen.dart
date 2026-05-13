@@ -146,9 +146,18 @@ class SignInScreen extends ConsumerWidget {
                         AccessibleButton(
                           onPressed: authState.isBusy
                               ? null
-                              : () => ref
-                                    .read(authFlowControllerProvider.notifier)
-                                    .signIn(),
+                              : () async {
+                                  await ref
+                                      .read(authFlowControllerProvider.notifier)
+                                      .signIn();
+                                  if (context.mounted &&
+                                      ref
+                                              .read(authFlowControllerProvider)
+                                              .failure ==
+                                          null) {
+                                    context.go(AppRoutes.firstRun);
+                                  }
+                                },
                           semanticLabel: l10n.signInButton,
                           child: Text(
                             authState.isBusy

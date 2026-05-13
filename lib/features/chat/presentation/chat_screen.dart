@@ -11,6 +11,8 @@ import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_provider.dart';
 import 'package:weave/features/chat/presentation/widgets/chat_security_banner.dart';
+import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The Chat feature screen.
@@ -25,6 +27,11 @@ class ChatScreen extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
     final securityState = ref.watch(chatSecurityProvider);
+    final firstRunStatus = ref.watch(firstRunStatusProvider);
+    final matrixProvisioning = switch (firstRunStatus) {
+      AsyncData(value: final status) => status?.moduleProvisioning.matrix,
+      _ => null,
+    };
     final security = securityState.security;
     final showSecurityBanner =
         security != null &&
@@ -39,6 +46,19 @@ class ChatScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             sliver: SliverToBoxAdapter(
               child: ChatSecurityBanner(security: security),
+            ),
+          ),
+        if (matrixProvisioning != null && !matrixProvisioning.isReady)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: _ChatProvisioningNotice(
+                status: matrixProvisioning,
+                onRefresh: () {
+                  ref.invalidate(firstRunStatusProvider);
+                  ref.read(chatProvider.notifier).retry();
+                },
+              ),
             ),
           ),
         switch (state.phase) {
@@ -104,6 +124,98 @@ class ChatScreen extends ConsumerWidget {
           ),
         },
       ],
+    );
+  }
+}
+
+class _ChatProvisioningNotice extends StatelessWidget {
+  const _ChatProvisioningNotice({
+    required this.status,
+    required this.onRefresh,
+  });
+
+  final FirstRunModuleStatus status;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final title = switch (status.state) {
+      FirstRunProvisioningState.pending => l10n.chatProvisioningPendingTitle,
+      FirstRunProvisioningState.degraded => l10n.chatProvisioningDegradedTitle,
+      FirstRunProvisioningState.notConfigured ||
+      FirstRunProvisioningState.failed =>
+        l10n.chatProvisioningActionNeededTitle,
+      FirstRunProvisioningState.ready => l10n.chatProvisioningReadyTitle,
+    };
+
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label:
+          '$title. ${status.message}${status.action == null ? '' : '. ${status.action}'}',
+      child: ExcludeSemantics(
+        child: Card(
+          elevation: 0,
+          color: theme.colorScheme.secondaryContainer,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: theme.colorScheme.secondary),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: theme.colorScheme.onSecondaryContainer,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onSecondaryContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  status.message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSecondaryContainer,
+                  ),
+                ),
+                if (status.action != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    status.action!,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSecondaryContainer,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: TextButton.icon(
+                    onPressed: onRefresh,
+                    icon: const Icon(Icons.refresh),
+                    label: Text(l10n.chatProvisioningRetryButton),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

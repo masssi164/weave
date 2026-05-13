@@ -314,6 +314,204 @@ abstract class AppLocalizations {
   /// **'Weave logo'**
   String get semanticWeaveLogo;
 
+  /// No description provided for @firstRunAppBarTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'First-run status'**
+  String get firstRunAppBarTitle;
+
+  /// No description provided for @firstRunLoadingLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking your Weave workspace…'**
+  String get firstRunLoadingLabel;
+
+  /// No description provided for @firstRunLoadingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading your profile, role, and module readiness from the Weave backend.'**
+  String get firstRunLoadingHint;
+
+  /// No description provided for @firstRunLoadFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'We could not load your first-run status from the Weave backend.'**
+  String get firstRunLoadFailure;
+
+  /// No description provided for @firstRunSignedOutMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to view your Weave first-run status.'**
+  String get firstRunSignedOutMessage;
+
+  /// No description provided for @firstRunReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Weave workspace is ready'**
+  String get firstRunReadyTitle;
+
+  /// No description provided for @firstRunNeedsAttentionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Weave workspace is being prepared'**
+  String get firstRunNeedsAttentionTitle;
+
+  /// No description provided for @firstRunDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Matrix or Nextcloud credentials are needed.'**
+  String get firstRunDescription;
+
+  /// No description provided for @firstRunIdentitySectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Weave identity'**
+  String get firstRunIdentitySectionTitle;
+
+  /// No description provided for @firstRunIdentitySectionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This profile and role come from the Weave backend contract after SSO.'**
+  String get firstRunIdentitySectionDescription;
+
+  /// No description provided for @firstRunDisplayNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get firstRunDisplayNameLabel;
+
+  /// No description provided for @firstRunUsernameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get firstRunUsernameLabel;
+
+  /// No description provided for @firstRunEmailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get firstRunEmailLabel;
+
+  /// No description provided for @firstRunRoleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Role'**
+  String get firstRunRoleLabel;
+
+  /// No description provided for @firstRunInviteStatusLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Invite'**
+  String get firstRunInviteStatusLabel;
+
+  /// No description provided for @firstRunModuleSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Module readiness'**
+  String get firstRunModuleSectionTitle;
+
+  /// No description provided for @firstRunProfileModuleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get firstRunProfileModuleTitle;
+
+  /// No description provided for @firstRunChatModuleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get firstRunChatModuleTitle;
+
+  /// No description provided for @firstRunFilesModuleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get firstRunFilesModuleTitle;
+
+  /// No description provided for @firstRunCalendarModuleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar'**
+  String get firstRunCalendarModuleTitle;
+
+  /// No description provided for @firstRunStateReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get firstRunStateReady;
+
+  /// No description provided for @firstRunStatePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending'**
+  String get firstRunStatePending;
+
+  /// No description provided for @firstRunStateUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get firstRunStateUnavailable;
+
+  /// No description provided for @firstRunStateDegraded.
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded'**
+  String get firstRunStateDegraded;
+
+  /// No description provided for @firstRunStateActionNeeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Action needed'**
+  String get firstRunStateActionNeeded;
+
+  /// No description provided for @firstRunNextStepsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Next steps'**
+  String get firstRunNextStepsTitle;
+
+  /// No description provided for @firstRunRefreshButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh status'**
+  String get firstRunRefreshButton;
+
+  /// No description provided for @firstRunContinueButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue to chat'**
+  String get firstRunContinueButton;
+
+  /// No description provided for @chatProvisioningReadyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is ready'**
+  String get chatProvisioningReadyTitle;
+
+  /// No description provided for @chatProvisioningPendingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat rooms are still being prepared'**
+  String get chatProvisioningPendingTitle;
+
+  /// No description provided for @chatProvisioningDegradedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is available with degraded setup'**
+  String get chatProvisioningDegradedTitle;
+
+  /// No description provided for @chatProvisioningActionNeededTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat setup needs admin attention'**
+  String get chatProvisioningActionNeededTitle;
+
+  /// No description provided for @chatProvisioningRetryButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry status'**
+  String get chatProvisioningRetryButton;
+
   /// Title for the chat screen app bar
   ///
   /// In en, this message translates to:
