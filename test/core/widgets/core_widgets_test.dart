@@ -40,12 +40,13 @@ void main() {
   });
 
   group('EmptyState', () {
-    testWidgets('displays message and icon', (tester) async {
+    testWidgets('displays shared empty chrome with guidance', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
             body: EmptyState(
               message: 'Nothing here',
+              guidance: 'Add something when you are ready.',
               icon: Icons.inbox_outlined,
             ),
           ),
@@ -53,6 +54,8 @@ void main() {
       );
 
       expect(find.text('Nothing here'), findsOneWidget);
+      expect(find.text('Add something when you are ready.'), findsOneWidget);
+      expect(find.byType(Card), findsOneWidget);
       expect(find.byIcon(Icons.inbox_outlined), findsOneWidget);
     });
 
@@ -89,14 +92,21 @@ void main() {
   });
 
   group('ErrorState', () {
-    testWidgets('displays error message', (tester) async {
+    testWidgets('displays shared error chrome with guidance', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(body: ErrorState(message: 'Something went wrong')),
+          home: Scaffold(
+            body: ErrorState(
+              message: 'Something went wrong',
+              guidance: 'Try again in a moment.',
+            ),
+          ),
         ),
       );
 
       expect(find.text('Something went wrong'), findsOneWidget);
+      expect(find.text('Try again in a moment.'), findsOneWidget);
+      expect(find.byType(Card), findsOneWidget);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
     });
 

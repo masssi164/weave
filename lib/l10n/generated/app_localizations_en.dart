@@ -91,6 +91,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Checking your workspace services and getting the shell ready.';
 
   @override
+  String get shellErrorTitle => 'We could not get Weave ready';
+
+  @override
+  String get shellErrorGuidance =>
+      'Try again. If this keeps happening, check that your workspace services are reachable.';
+
+  @override
   String get emptyStateLabel => 'Nothing here yet';
 
   @override
@@ -911,6 +918,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatEmptyMessage => 'No conversations yet';
 
   @override
+  String get chatEmptyGuidance =>
+      'Workspace rooms and direct messages will appear here when chat is ready.';
+
+  @override
+  String get chatErrorTitle => 'Chat is not available right now';
+
+  @override
   String get chatConversationNoPreview => 'No recent messages';
 
   @override
@@ -1012,6 +1026,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesEmptyMessage => 'No files yet';
+
+  @override
+  String get filesEmptyGuidance =>
+      'Upload a file or create a folder when you are ready to add workspace files.';
+
+  @override
+  String get filesDisconnectedTitle => 'Files are not connected';
+
+  @override
+  String get filesSetupNeededTitle => 'Files need setup';
+
+  @override
+  String get filesSessionExpiredTitle => 'Files need to reconnect';
+
+  @override
+  String get filesLoadErrorTitle => 'Files could not be loaded';
+
+  @override
+  String get filesErrorGuidance =>
+      'Try again. If this keeps happening, check the workspace files status in setup or diagnostics.';
 
   @override
   String get calendarEmptyMessage => 'No events yet';

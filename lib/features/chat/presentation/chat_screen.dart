@@ -79,15 +79,16 @@ class ChatScreen extends ConsumerWidget {
             ),
           ),
           ChatViewPhase.empty => SliverFillRemaining(
-            hasScrollBody: false,
+            hasScrollBody: true,
             child: EmptyState(
               message: l10n.chatEmptyMessage,
+              guidance: l10n.chatEmptyGuidance,
               icon: Icons.chat_bubble_outline,
             ),
           ),
           ChatViewPhase.error ||
           ChatViewPhase.unsupported => SliverFillRemaining(
-            hasScrollBody: false,
+            hasScrollBody: true,
             child: _ChatErrorState(
               failure: state.failure!,
               onRetry: () => ref.read(chatProvider.notifier).retry(),
@@ -241,7 +242,8 @@ class _ChatErrorState extends StatelessWidget {
     final hasAction = failure.type != ChatFailureType.unsupportedPlatform;
 
     return ErrorState(
-      message: failure.message,
+      message: l10n.chatErrorTitle,
+      guidance: failure.message,
       retryLabel: hasAction
           ? (usesConnectAction ? l10n.chatConnectButton : l10n.retryButton)
           : null,

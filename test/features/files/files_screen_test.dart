@@ -147,10 +147,45 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Connect Nextcloud'), findsNWidgets(2));
+      expect(find.text('Files are not connected'), findsOneWidget);
       expect(
         find.text('Connect Nextcloud to browse your files.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('shows shared guidance when a connected folder is empty', (
+      tester,
+    ) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('No files yet'), findsOneWidget);
+      expect(
+        find.text(
+          'Upload a file or create a folder when you are ready to add workspace files.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Refresh'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('renders directory contents and allows folder navigation', (

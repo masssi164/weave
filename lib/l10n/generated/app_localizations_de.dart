@@ -92,6 +92,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'Arbeitsbereichsdienste werden geprüft und die Shell vorbereitet.';
 
   @override
+  String get shellErrorTitle => 'Weave konnte nicht vorbereitet werden';
+
+  @override
+  String get shellErrorGuidance =>
+      'Versuche es erneut. Wenn das weiterhin passiert, prüfe, ob deine Arbeitsbereichsdienste erreichbar sind.';
+
+  @override
   String get emptyStateLabel => 'Noch nichts hier';
 
   @override
@@ -924,6 +931,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatEmptyMessage => 'Noch keine Unterhaltungen';
 
   @override
+  String get chatEmptyGuidance =>
+      'Arbeitsbereichsräume und Direktnachrichten erscheinen hier, sobald Chat bereit ist.';
+
+  @override
+  String get chatErrorTitle => 'Chat ist gerade nicht verfügbar';
+
+  @override
   String get chatConversationNoPreview => 'Keine aktuellen Nachrichten';
 
   @override
@@ -1026,6 +1040,26 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesEmptyMessage => 'Noch keine Dateien';
+
+  @override
+  String get filesEmptyGuidance =>
+      'Lade eine Datei hoch oder erstelle einen Ordner, wenn du Arbeitsbereichsdateien hinzufügen möchtest.';
+
+  @override
+  String get filesDisconnectedTitle => 'Dateien sind nicht verbunden';
+
+  @override
+  String get filesSetupNeededTitle => 'Dateien müssen eingerichtet werden';
+
+  @override
+  String get filesSessionExpiredTitle => 'Dateien müssen neu verbunden werden';
+
+  @override
+  String get filesLoadErrorTitle => 'Dateien konnten nicht geladen werden';
+
+  @override
+  String get filesErrorGuidance =>
+      'Versuche es erneut. Wenn das weiterhin passiert, prüfe den Dateien-Status in Einrichtung oder Diagnose.';
 
   @override
   String get calendarEmptyMessage => 'Noch keine Termine';

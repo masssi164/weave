@@ -357,6 +357,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('No conversations yet'), findsOneWidget);
+      expect(
+        find.text(
+          'Workspace rooms and direct messages will appear here when chat is ready.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('shows the Matrix security banner when attention is needed', (
