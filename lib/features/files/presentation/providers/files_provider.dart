@@ -3,6 +3,7 @@ import 'package:weave/features/app/domain/entities/integration_invalidation.dart
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
@@ -12,6 +13,15 @@ import 'package:weave/features/files/presentation/providers/files_repository_pro
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 
 enum FilesUploadPhase { idle, picking, uploading, completed, failed }
+
+enum FilesEntryActionPhase {
+  idle,
+  creatingFolder,
+  createdFolder,
+  deletingEntry,
+  deletedEntry,
+  failed,
+}
 
 class FilesUploadStatus {
   const FilesUploadStatus({
@@ -44,12 +54,27 @@ class FilesUploadStatus {
   }
 }
 
+class FilesEntryActionStatus {
+  const FilesEntryActionStatus({
+    required this.phase,
+    this.entryName,
+    this.failure,
+  });
+
+  const FilesEntryActionStatus.idle() : this(phase: FilesEntryActionPhase.idle);
+
+  final FilesEntryActionPhase phase;
+  final String? entryName;
+  final FilesFailure? failure;
+}
+
 class FilesViewState {
   const FilesViewState({
     required this.connectionState,
     this.directoryListing,
     this.directoryFailure,
     this.uploadStatus = const FilesUploadStatus.idle(),
+    this.entryActionStatus = const FilesEntryActionStatus.idle(),
     this.isBusy = false,
   });
 
@@ -57,6 +82,7 @@ class FilesViewState {
   final DirectoryListing? directoryListing;
   final FilesFailure? directoryFailure;
   final FilesUploadStatus uploadStatus;
+  final FilesEntryActionStatus entryActionStatus;
   final bool isBusy;
 
   String get currentPath => directoryListing?.path ?? '/';
@@ -66,10 +92,12 @@ class FilesViewState {
     DirectoryListing? directoryListing,
     FilesFailure? directoryFailure,
     FilesUploadStatus? uploadStatus,
+    FilesEntryActionStatus? entryActionStatus,
     bool? isBusy,
     bool clearDirectoryListing = false,
     bool clearDirectoryFailure = false,
     bool clearUploadStatus = false,
+    bool clearEntryActionStatus = false,
   }) {
     return FilesViewState(
       connectionState: connectionState ?? this.connectionState,
@@ -82,6 +110,9 @@ class FilesViewState {
       uploadStatus: clearUploadStatus
           ? const FilesUploadStatus.idle()
           : (uploadStatus ?? this.uploadStatus),
+      entryActionStatus: clearEntryActionStatus
+          ? const FilesEntryActionStatus.idle()
+          : (entryActionStatus ?? this.entryActionStatus),
       isBusy: isBusy ?? this.isBusy,
     );
   }
@@ -302,6 +333,169 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
   }
 
+  Future<void> createFolder(String rawName) async {
+    final current = _currentStateOrNull();
+    if (current == null || current.isBusy) {
+      return;
+    }
+
+    final folderName = rawName.trim();
+    if (folderName.isEmpty) {
+      state = AsyncData(
+        current.copyWith(
+          entryActionStatus: const FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            failure: FilesFailure.configuration(
+              'Enter a folder name before creating it.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final mutationRepository = _mutationRepositoryOrNull();
+    if (mutationRepository == null) {
+      state = AsyncData(
+        current.copyWith(
+          entryActionStatus: const FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            failure: FilesFailure.unsupportedPlatform(
+              'Folder creation is unavailable for this files connection.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final directoryPath = current.currentPath;
+    state = AsyncData(
+      current.copyWith(
+        isBusy: true,
+        entryActionStatus: FilesEntryActionStatus(
+          phase: FilesEntryActionPhase.creatingFolder,
+          entryName: folderName,
+        ),
+        clearDirectoryFailure: true,
+      ),
+    );
+
+    try {
+      await mutationRepository.createFolder(
+        parentPath: directoryPath,
+        name: folderName,
+      );
+      final listing = await _repository.listDirectory(directoryPath);
+      final latest = _currentStateOrNull() ?? current;
+      state = AsyncData(
+        latest.copyWith(
+          directoryListing: listing,
+          isBusy: false,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.createdFolder,
+            entryName: folderName,
+          ),
+          clearDirectoryFailure: true,
+        ),
+      );
+    } on FilesFailure catch (failure) {
+      final latest = _currentStateOrNull() ?? current;
+      state = AsyncData(
+        latest.copyWith(
+          connectionState: _connectionStateForFailure(
+            latest.connectionState,
+            failure,
+          ),
+          directoryFailure: failure.type == FilesFailureType.invalidCredentials
+              ? failure
+              : latest.directoryFailure,
+          isBusy: false,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: folderName,
+            failure: failure,
+          ),
+          clearDirectoryListing:
+              failure.type == FilesFailureType.invalidCredentials,
+        ),
+      );
+    }
+  }
+
+  Future<void> deleteEntry(FileEntry entry) async {
+    final current = _currentStateOrNull();
+    if (current == null || current.isBusy) {
+      return;
+    }
+
+    final mutationRepository = _mutationRepositoryOrNull();
+    if (mutationRepository == null) {
+      state = AsyncData(
+        current.copyWith(
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: entry.name,
+            failure: const FilesFailure.unsupportedPlatform(
+              'Delete is unavailable for this files connection.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final directoryPath = current.currentPath;
+    state = AsyncData(
+      current.copyWith(
+        isBusy: true,
+        entryActionStatus: FilesEntryActionStatus(
+          phase: FilesEntryActionPhase.deletingEntry,
+          entryName: entry.name,
+        ),
+        clearDirectoryFailure: true,
+      ),
+    );
+
+    try {
+      await mutationRepository.deleteEntry(entry);
+      final listing = await _repository.listDirectory(directoryPath);
+      final latest = _currentStateOrNull() ?? current;
+      state = AsyncData(
+        latest.copyWith(
+          directoryListing: listing,
+          isBusy: false,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.deletedEntry,
+            entryName: entry.name,
+          ),
+          clearDirectoryFailure: true,
+        ),
+      );
+    } on FilesFailure catch (failure) {
+      final latest = _currentStateOrNull() ?? current;
+      state = AsyncData(
+        latest.copyWith(
+          connectionState: _connectionStateForFailure(
+            latest.connectionState,
+            failure,
+          ),
+          directoryFailure: failure.type == FilesFailureType.invalidCredentials
+              ? failure
+              : latest.directoryFailure,
+          isBusy: false,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: entry.name,
+            failure: failure,
+          ),
+          clearDirectoryListing:
+              failure.type == FilesFailureType.invalidCredentials,
+        ),
+      );
+    }
+  }
+
   Future<void> _loadDirectory(String path) async {
     final current = _currentStateOrNull();
     if (current != null) {
@@ -371,6 +565,14 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   FilesRepository get _repository => ref.read(filesRepositoryProvider);
+
+  FilesEntryMutationRepository? _mutationRepositoryOrNull() {
+    final repository = _repository;
+    if (repository is FilesEntryMutationRepository) {
+      return repository as FilesEntryMutationRepository;
+    }
+    return null;
+  }
 
   FilesImportPicker get _importPicker => ref.read(filesImportPickerProvider);
 

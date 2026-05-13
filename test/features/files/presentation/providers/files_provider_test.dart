@@ -18,13 +18,16 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 
 import '../../../../helpers/server_config_test_data.dart';
 
-class _FakeFilesRepository implements FilesRepository {
+class _FakeFilesRepository
+    implements FilesRepository, FilesEntryMutationRepository {
   _FakeFilesRepository({
     required this.restoreConnectionHandler,
     required this.connectHandler,
     required this.disconnectHandler,
     required this.listDirectoryHandler,
     this.uploadFileHandler,
+    this.createFolderHandler,
+    this.deleteEntryHandler,
   });
 
   final Future<FilesConnectionState> Function() restoreConnectionHandler;
@@ -37,6 +40,9 @@ class _FakeFilesRepository implements FilesRepository {
     FileUploadProgressCallback? onProgress,
   )?
   uploadFileHandler;
+  final Future<FileEntry> Function(String parentPath, String name)?
+  createFolderHandler;
+  final Future<void> Function(FileEntry entry)? deleteEntryHandler;
 
   @override
   Future<FilesConnectionState> connect() => connectHandler();
@@ -56,6 +62,30 @@ class _FakeFilesRepository implements FilesRepository {
   }) {
     return uploadFileHandler?.call(directoryPath, request, onProgress) ??
         Future<void>.value();
+  }
+
+  @override
+  Future<FileEntry> createFolder({
+    required String parentPath,
+    required String name,
+  }) {
+    final handler = createFolderHandler;
+    if (handler != null) {
+      return handler(parentPath, name);
+    }
+    return Future<FileEntry>.value(
+      FileEntry(
+        id: '$parentPath/$name',
+        name: name,
+        path: parentPath == '/' ? '/$name' : '$parentPath/$name',
+        isDirectory: true,
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteEntry(FileEntry entry) async {
+    await deleteEntryHandler?.call(entry);
   }
 
   @override
@@ -308,5 +338,118 @@ void main() {
         expect(state.isBusy, isFalse);
       },
     );
+
+    test('creates a folder and refreshes the current directory', () async {
+      var createdParentPath = '';
+      var createdName = '';
+      var creationComplete = false;
+      final repository = _FakeFilesRepository(
+        restoreConnectionHandler: () async => FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        connectHandler: () async => throw UnimplementedError(),
+        disconnectHandler: () async {},
+        listDirectoryHandler: (path) async {
+          return DirectoryListing(
+            path: path,
+            entries: creationComplete
+                ? const [
+                    FileEntry(
+                      id: 'folder-1',
+                      name: 'Plans',
+                      path: '/Plans',
+                      isDirectory: true,
+                    ),
+                  ]
+                : const [],
+          );
+        },
+        createFolderHandler: (parentPath, name) async {
+          createdParentPath = parentPath;
+          createdName = name;
+          creationComplete = true;
+          return FileEntry(
+            id: 'folder-1',
+            name: name,
+            path: '/$name',
+            isDirectory: true,
+          );
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          filesRepositoryProvider.overrideWithValue(repository),
+          serverConfigurationRepositoryProvider.overrideWith(
+            (ref) =>
+                _FakeServerConfigurationRepository(buildTestConfiguration()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(filesProvider.future);
+      await container.read(filesProvider.notifier).createFolder(' Plans ');
+      final state = container.read(filesProvider).requireValue;
+
+      expect(createdParentPath, '/');
+      expect(createdName, 'Plans');
+      expect(
+        state.entryActionStatus.phase,
+        FilesEntryActionPhase.createdFolder,
+      );
+      expect(state.entryActionStatus.entryName, 'Plans');
+      expect(state.directoryListing?.entries.single.name, 'Plans');
+      expect(state.isBusy, isFalse);
+    });
+
+    test('deletes an entry and refreshes the current directory', () async {
+      FileEntry? deletedEntry;
+      var deletionComplete = false;
+      const fileEntry = FileEntry(
+        id: 'file-1',
+        name: 'old.txt',
+        path: '/old.txt',
+        isDirectory: false,
+      );
+      final repository = _FakeFilesRepository(
+        restoreConnectionHandler: () async => FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        connectHandler: () async => throw UnimplementedError(),
+        disconnectHandler: () async {},
+        listDirectoryHandler: (path) async {
+          return DirectoryListing(
+            path: path,
+            entries: deletionComplete ? const [] : const [fileEntry],
+          );
+        },
+        deleteEntryHandler: (entry) async {
+          deletedEntry = entry;
+          deletionComplete = true;
+        },
+      );
+      final container = ProviderContainer(
+        overrides: [
+          filesRepositoryProvider.overrideWithValue(repository),
+          serverConfigurationRepositoryProvider.overrideWith(
+            (ref) =>
+                _FakeServerConfigurationRepository(buildTestConfiguration()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(filesProvider.future);
+      await container.read(filesProvider.notifier).deleteEntry(fileEntry);
+      final state = container.read(filesProvider).requireValue;
+
+      expect(deletedEntry, fileEntry);
+      expect(state.entryActionStatus.phase, FilesEntryActionPhase.deletedEntry);
+      expect(state.entryActionStatus.entryName, 'old.txt');
+      expect(state.directoryListing?.entries, isEmpty);
+      expect(state.isBusy, isFalse);
+    });
   });
 }

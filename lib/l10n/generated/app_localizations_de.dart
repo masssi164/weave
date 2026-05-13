@@ -248,6 +248,80 @@ class AppLocalizationsDe extends AppLocalizations {
       'Datei in den aktuellen Ordner hochladen';
 
   @override
+  String get filesCreateFolderButton => 'Neuer Ordner';
+
+  @override
+  String get filesCreateFolderCurrentFolderSemantic =>
+      'Ordner im aktuellen Ordner erstellen';
+
+  @override
+  String get filesCreateFolderDialogTitle => 'Ordner erstellen';
+
+  @override
+  String get filesCreateFolderNameLabel => 'Ordnername';
+
+  @override
+  String get filesCreateFolderNameHint => 'z. B. Projektdokumente';
+
+  @override
+  String get filesCreateFolderConfirmButton => 'Erstellen';
+
+  @override
+  String get filesCancelButton => 'Abbrechen';
+
+  @override
+  String get filesDeleteButton => 'Löschen';
+
+  @override
+  String filesDeleteEntrySemantic(String name) {
+    return '$name löschen';
+  }
+
+  @override
+  String filesDeleteEntryDialogTitle(String name) {
+    return '$name löschen?';
+  }
+
+  @override
+  String get filesDeleteEntryDialogMessage =>
+      'Dadurch wird es aus Weave-Dateien für alle mit Zugriff entfernt. Dies kann nicht rückgängig gemacht werden.';
+
+  @override
+  String get filesCreateFolderProgressUnknownMessage => 'Ordner wird erstellt…';
+
+  @override
+  String filesCreateFolderProgressMessage(String folderName) {
+    return 'Ordner $folderName wird erstellt…';
+  }
+
+  @override
+  String get filesCreateFolderCompletedUnknownMessage => 'Ordner erstellt.';
+
+  @override
+  String filesCreateFolderCompletedMessage(String folderName) {
+    return 'Ordner $folderName erstellt.';
+  }
+
+  @override
+  String get filesDeleteProgressUnknownMessage => 'Element wird gelöscht…';
+
+  @override
+  String filesDeleteProgressMessage(String name) {
+    return '$name wird gelöscht…';
+  }
+
+  @override
+  String get filesDeleteCompletedUnknownMessage => 'Element gelöscht.';
+
+  @override
+  String filesDeleteCompletedMessage(String name) {
+    return '$name gelöscht.';
+  }
+
+  @override
+  String get filesEntryActionFailedMessage => 'Dateiaktion fehlgeschlagen.';
+
+  @override
   String get filesUploadPickingMessage => 'Datei zum Hochladen auswählen…';
 
   @override

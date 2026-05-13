@@ -494,6 +494,126 @@ abstract class AppLocalizations {
   /// **'Upload a file to the current folder'**
   String get filesUploadCurrentFolderSemantic;
 
+  /// Button label for creating a folder in the current files directory
+  ///
+  /// In en, this message translates to:
+  /// **'New folder'**
+  String get filesCreateFolderButton;
+
+  /// Semantic label for the action that creates a folder in the current directory
+  ///
+  /// In en, this message translates to:
+  /// **'Create a folder in the current folder'**
+  String get filesCreateFolderCurrentFolderSemantic;
+
+  /// Title for the create-folder dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Create folder'**
+  String get filesCreateFolderDialogTitle;
+
+  /// Input label for a new folder name
+  ///
+  /// In en, this message translates to:
+  /// **'Folder name'**
+  String get filesCreateFolderNameLabel;
+
+  /// Input hint for a new folder name
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. Project docs'**
+  String get filesCreateFolderNameHint;
+
+  /// Button label to confirm folder creation
+  ///
+  /// In en, this message translates to:
+  /// **'Create'**
+  String get filesCreateFolderConfirmButton;
+
+  /// Button label to cancel a files action
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get filesCancelButton;
+
+  /// Button label to confirm deletion of a file or folder
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get filesDeleteButton;
+
+  /// Semantic label for deleting a file or folder
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {name}'**
+  String filesDeleteEntrySemantic(String name);
+
+  /// Title for the delete confirmation dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {name}?'**
+  String filesDeleteEntryDialogTitle(String name);
+
+  /// Warning shown before deleting a file or folder
+  ///
+  /// In en, this message translates to:
+  /// **'This removes it from Weave files for everyone with access. This cannot be undone.'**
+  String get filesDeleteEntryDialogMessage;
+
+  /// Status shown while creating a folder when no name is available
+  ///
+  /// In en, this message translates to:
+  /// **'Creating folder…'**
+  String get filesCreateFolderProgressUnknownMessage;
+
+  /// Status shown while creating a folder
+  ///
+  /// In en, this message translates to:
+  /// **'Creating folder {folderName}…'**
+  String filesCreateFolderProgressMessage(String folderName);
+
+  /// Status shown after creating a folder when no name is available
+  ///
+  /// In en, this message translates to:
+  /// **'Folder created.'**
+  String get filesCreateFolderCompletedUnknownMessage;
+
+  /// Status shown after creating a folder
+  ///
+  /// In en, this message translates to:
+  /// **'Created folder {folderName}.'**
+  String filesCreateFolderCompletedMessage(String folderName);
+
+  /// Status shown while deleting a file or folder when no name is available
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting item…'**
+  String get filesDeleteProgressUnknownMessage;
+
+  /// Status shown while deleting a file or folder
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting {name}…'**
+  String filesDeleteProgressMessage(String name);
+
+  /// Status shown after deleting a file or folder when no name is available
+  ///
+  /// In en, this message translates to:
+  /// **'Item deleted.'**
+  String get filesDeleteCompletedUnknownMessage;
+
+  /// Status shown after deleting a file or folder
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted {name}.'**
+  String filesDeleteCompletedMessage(String name);
+
+  /// Fallback status shown when a file operation fails
+  ///
+  /// In en, this message translates to:
+  /// **'File action failed.'**
+  String get filesEntryActionFailedMessage;
+
   /// Status shown while the native file picker is open
   ///
   /// In en, this message translates to:
