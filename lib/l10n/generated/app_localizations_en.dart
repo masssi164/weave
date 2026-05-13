@@ -577,6 +577,28 @@ class AppLocalizationsEn extends AppLocalizations {
       'Weave Release 1 focuses on messaging, files, and the server connection that holds them together.';
 
   @override
+  String get settingsShellModulesTitle => 'Shell modules';
+
+  @override
+  String get settingsShellModulesDescription =>
+      'Choose which workspace shell modules stay visible. Navigation remains available even when a module is hidden.';
+
+  @override
+  String get settingsShellRecentActivityToggleTitle =>
+      'Recent activity quick links';
+
+  @override
+  String get settingsShellRecentActivityToggleDescription =>
+      'Show recent rooms and file changes above the bottom navigation.';
+
+  @override
+  String get settingsShellModulesLoading => 'Loading shell module preferences…';
+
+  @override
+  String get settingsShellModulesError =>
+      'Shell module preferences could not be saved. Try changing the setting again.';
+
+  @override
   String get chatSecuritySectionTitle => 'Matrix security';
 
   @override

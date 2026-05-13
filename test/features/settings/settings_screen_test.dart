@@ -17,6 +17,7 @@ import 'package:weave/features/profile/presentation/providers/user_profile_provi
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
+import 'package:weave/features/shell/data/repositories/shared_preferences_shell_module_preferences_repository.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -247,6 +248,63 @@ void main() {
       expect(find.text('https://backend.custom.internal'), findsWidgets);
     });
 
+    testWidgets('persists shell module visibility changes', (tester) async {
+      final store = InMemoryPreferencesStore(buildStoredConfiguration());
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => store),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          userProfileProvider.overrideWith((ref) async => null),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Shell modules'), findsOneWidget);
+      final recentActivityToggle = find.text('Recent activity quick links');
+      expect(recentActivityToggle, findsOneWidget);
+
+      await tester.ensureVisible(recentActivityToggle);
+      await tester.pumpAndSettle();
+      await tester.tap(recentActivityToggle);
+      await tester.pumpAndSettle();
+
+      expect(
+        store.rawString(shellModulePreferencesStorageKey),
+        '{"hiddenModules":["recentActivity"]}',
+      );
+
+      await tester.tap(recentActivityToggle);
+      await tester.pumpAndSettle();
+
+      expect(
+        store.rawString(shellModulePreferencesStorageKey),
+        '{"hiddenModules":[]}',
+      );
+    });
+
     testWidgets(
       'workspace readiness retry rebuilds bootstrap after an async error',
       (tester) async {
@@ -255,6 +313,9 @@ void main() {
           overrides: [
             savedServerConfigurationProvider.overrideWith(
               (ref) async => buildTestConfiguration(),
+            ),
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(),
             ),
             appBootstrapProvider.overrideWith(() => bootstrap),
             matrixIntegrationConnectionProvider.overrideWith(

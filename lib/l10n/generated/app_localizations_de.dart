@@ -581,6 +581,29 @@ class AppLocalizationsDe extends AppLocalizations {
       'Weave bringt Nachrichten, Dateien und Kalender in einem Workspace zusammen, während auf diesem Bildschirm die Serververbindung dahinter verwaltet wird.';
 
   @override
+  String get settingsShellModulesTitle => 'Shell-Module';
+
+  @override
+  String get settingsShellModulesDescription =>
+      'Wähle, welche Workspace-Shell-Module sichtbar bleiben. Die Navigation bleibt verfügbar, auch wenn ein Modul ausgeblendet ist.';
+
+  @override
+  String get settingsShellRecentActivityToggleTitle =>
+      'Schnellzugriffe für letzte Aktivität';
+
+  @override
+  String get settingsShellRecentActivityToggleDescription =>
+      'Zeigt aktuelle Räume und Dateiänderungen oberhalb der unteren Navigation an.';
+
+  @override
+  String get settingsShellModulesLoading =>
+      'Shell-Modul-Einstellungen werden geladen…';
+
+  @override
+  String get settingsShellModulesError =>
+      'Shell-Modul-Einstellungen konnten nicht gespeichert werden. Versuche, die Einstellung erneut zu ändern.';
+
+  @override
   String get chatSecuritySectionTitle => 'Matrix-Sicherheit';
 
   @override

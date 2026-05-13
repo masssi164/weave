@@ -1049,6 +1049,42 @@ abstract class AppLocalizations {
   /// **'Weave Release 1 focuses on messaging, files, and the server connection that holds them together.'**
   String get settingsBrandSectionDescription;
 
+  /// Section title for user-configurable shell module visibility
+  ///
+  /// In en, this message translates to:
+  /// **'Shell modules'**
+  String get settingsShellModulesTitle;
+
+  /// Description for shell module visibility settings
+  ///
+  /// In en, this message translates to:
+  /// **'Choose which workspace shell modules stay visible. Navigation remains available even when a module is hidden.'**
+  String get settingsShellModulesDescription;
+
+  /// Switch title for the recent activity shell module visibility preference
+  ///
+  /// In en, this message translates to:
+  /// **'Recent activity quick links'**
+  String get settingsShellRecentActivityToggleTitle;
+
+  /// Switch description for the recent activity shell module visibility preference
+  ///
+  /// In en, this message translates to:
+  /// **'Show recent rooms and file changes above the bottom navigation.'**
+  String get settingsShellRecentActivityToggleDescription;
+
+  /// Loading state for shell module visibility settings
+  ///
+  /// In en, this message translates to:
+  /// **'Loading shell module preferences…'**
+  String get settingsShellModulesLoading;
+
+  /// Error shown when shell module preferences cannot load or save
+  ///
+  /// In en, this message translates to:
+  /// **'Shell module preferences could not be saved. Try changing the setting again.'**
+  String get settingsShellModulesError;
+
   /// Section title for Matrix security status and actions in settings
   ///
   /// In en, this message translates to:
