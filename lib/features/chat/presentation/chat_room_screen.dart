@@ -30,6 +30,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   bool _loading = true;
   bool _sending = false;
   bool _archiving = false;
+  bool _showingArchivedMessages = false;
   _PendingOutgoingMessage? _pendingMessage;
 
   @override
@@ -206,22 +207,92 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
+  Future<void> _restoreArchivedMessage(ChatMessage message) async {
+    if (_archiving) {
+      return;
+    }
+
+    final l10n = AppLocalizations.of(context);
+    setState(() {
+      _archiving = true;
+      _failure = null;
+    });
+
+    try {
+      await ref
+          .read(archivedMessageStoreProvider)
+          .restoreMessage(
+            roomId: widget.conversation.id,
+            messageId: message.id,
+          );
+      if (!mounted) return;
+      setState(() {
+        _archivedMessageIds = {..._archivedMessageIds}..remove(message.id);
+        if (_archivedMessageIds.isEmpty) {
+          _showingArchivedMessages = false;
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.chatRoomRestoreSuccessMessage)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.chatRoomRestoreFailureMessage)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _archiving = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final timeline = _timeline;
-    final visibleMessages = timeline == null
+    final activeMessages = timeline == null
         ? const <ChatMessage>[]
         : timeline.messages
               .where((message) => !_archivedMessageIds.contains(message.id))
               .toList(growable: false);
+    final archivedMessages = timeline == null
+        ? const <ChatMessage>[]
+        : timeline.messages
+              .where((message) => _archivedMessageIds.contains(message.id))
+              .toList(growable: false);
+    final visibleMessages = _showingArchivedMessages
+        ? archivedMessages
+        : activeMessages;
+    final displayPendingMessage = _showingArchivedMessages
+        ? null
+        : _pendingMessage;
     final roomTitle = timeline?.roomTitle ?? widget.conversation.title;
-    final canSend = timeline?.canSendMessages ?? !widget.conversation.isInvite;
+    final canSend =
+        !_showingArchivedMessages &&
+        (timeline?.canSendMessages ?? !widget.conversation.isInvite);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(roomTitle),
         actions: [
+          IconButton(
+            onPressed: _loading
+                ? null
+                : () => setState(() {
+                    _showingArchivedMessages = !_showingArchivedMessages;
+                  }),
+            icon: Icon(
+              _showingArchivedMessages
+                  ? Icons.forum_outlined
+                  : Icons.archive_outlined,
+            ),
+            tooltip: _showingArchivedMessages
+                ? l10n.chatRoomActiveTimelineAction
+                : l10n.chatRoomArchivedMessagesAction,
+          ),
           IconButton(
             onPressed: _loading ? null : _loadTimeline,
             icon: const Icon(Icons.refresh),
@@ -241,14 +312,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 ),
               ],
             ),
-          if (_pendingMessage?.failure case final failure?)
+          if (_showingArchivedMessages && !_loading)
+            _ArchivedMessagesNotice(
+              archivedCount: archivedMessages.length,
+              onShowActiveTimeline: () => setState(() {
+                _showingArchivedMessages = false;
+              }),
+            ),
+          if (displayPendingMessage?.failure case final failure?)
             MaterialBanner(
               content: Text(failure.message),
               actions: [
                 TextButton(
                   onPressed: _sending
                       ? null
-                      : () => _sendMessage(retryingMessage: _pendingMessage),
+                      : () => _sendMessage(
+                          retryingMessage: displayPendingMessage,
+                        ),
                   child: Text(l10n.chatRoomRetrySendAction),
                 ),
               ],
@@ -261,7 +341,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 onRetry: _loadTimeline,
               ),
               (false, final timeline?, _)
-                  when visibleMessages.isEmpty && _pendingMessage == null =>
+                  when visibleMessages.isEmpty &&
+                      displayPendingMessage == null =>
                 RefreshIndicator(
                   onRefresh: _loadTimeline,
                   child: ListView(
@@ -271,10 +352,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                         height: MediaQuery.sizeOf(context).height * 0.5,
                         child: Center(
                           child: EmptyState(
-                            message: timeline.messages.isEmpty
+                            message: _showingArchivedMessages
+                                ? l10n.chatRoomArchivedReviewEmptyMessage
+                                : timeline.messages.isEmpty
                                 ? l10n.chatRoomEmptyMessage
                                 : l10n.chatRoomArchivedEmptyMessage,
-                            icon: Icons.chat_bubble_outline,
+                            icon: _showingArchivedMessages
+                                ? Icons.archive_outlined
+                                : Icons.chat_bubble_outline,
                           ),
                         ),
                       ),
@@ -288,19 +373,20 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                   itemCount:
                       visibleMessages.length +
-                      (_pendingMessage == null ? 0 : 1),
+                      (displayPendingMessage == null ? 0 : 1),
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 8),
                   itemBuilder: (context, index) {
-                    if (_pendingMessage != null && index == 0) {
+                    if (displayPendingMessage != null && index == 0) {
                       return _MessageBubble(
-                        message: _pendingMessage!.toChatMessage(context),
+                        message: displayPendingMessage.toChatMessage(context),
                         onRetry:
-                            _pendingMessage!.deliveryState ==
+                            displayPendingMessage.deliveryState ==
                                     ChatMessageDeliveryState.failed &&
                                 !_sending
-                            ? () =>
-                                  _sendMessage(retryingMessage: _pendingMessage)
+                            ? () => _sendMessage(
+                                retryingMessage: displayPendingMessage,
+                              )
                             : null,
                       );
                     }
@@ -308,13 +394,17 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     final messageIndex =
                         visibleMessages.length -
                         1 -
-                        (index - (_pendingMessage == null ? 0 : 1));
+                        (index - (displayPendingMessage == null ? 0 : 1));
                     final message = visibleMessages[messageIndex];
                     return _MessageBubble(
                       message: message,
-                      onArchive: _archiving
+                      archived: _showingArchivedMessages,
+                      onArchive: _archiving || _showingArchivedMessages
                           ? null
                           : () => _archiveMessage(message),
+                      onRestore: _archiving || !_showingArchivedMessages
+                          ? null
+                          : () => _restoreArchivedMessage(message),
                     );
                   },
                 ),
@@ -322,61 +412,125 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
               _ => const SizedBox.shrink(),
             },
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _composerController,
-                      minLines: 1,
-                      maxLines: 4,
-                      enabled: canSend && !_sending,
-                      decoration: InputDecoration(
-                        hintText: canSend
-                            ? l10n.chatRoomComposerHint
-                            : l10n.chatRoomComposerDisabledHint,
+          if (_showingArchivedMessages)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: OutlinedButton.icon(
+                  onPressed: () => setState(() {
+                    _showingArchivedMessages = false;
+                  }),
+                  icon: const Icon(Icons.forum_outlined),
+                  label: Text(l10n.chatRoomActiveTimelineAction),
+                ),
+              ),
+            )
+          else
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _composerController,
+                        minLines: 1,
+                        maxLines: 4,
+                        enabled: canSend && !_sending,
+                        decoration: InputDecoration(
+                          hintText: canSend
+                              ? l10n.chatRoomComposerHint
+                              : l10n.chatRoomComposerDisabledHint,
+                        ),
+                        onSubmitted: (_) => _sendMessage(),
                       ),
-                      onSubmitted: (_) => _sendMessage(),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: canSend && !_sending ? _sendMessage : null,
-                    child: Text(
-                      _sending
-                          ? l10n.chatRoomSendingButton
-                          : l10n.chatRoomSendButton,
+                    const SizedBox(width: 12),
+                    FilledButton(
+                      onPressed: canSend && !_sending ? _sendMessage : null,
+                      child: Text(
+                        _sending
+                            ? l10n.chatRoomSendingButton
+                            : l10n.chatRoomSendButton,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
   }
 }
 
+class _ArchivedMessagesNotice extends StatelessWidget {
+  const _ArchivedMessagesNotice({
+    required this.archivedCount,
+    required this.onShowActiveTimeline,
+  });
+
+  final int archivedCount;
+  final VoidCallback onShowActiveTimeline;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return MaterialBanner(
+      leading: const Icon(Icons.archive_outlined),
+      content: Semantics(
+        container: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.chatRoomArchivedReviewTitle,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            Text(l10n.chatRoomArchivedReviewDescription(archivedCount)),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: onShowActiveTimeline,
+          child: Text(l10n.chatRoomActiveTimelineAction),
+        ),
+      ],
+    );
+  }
+}
+
 class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message, this.onArchive, this.onRetry});
+  const _MessageBubble({
+    required this.message,
+    this.archived = false,
+    this.onArchive,
+    this.onRestore,
+    this.onRetry,
+  });
 
   final ChatMessage message;
+  final bool archived;
   final VoidCallback? onArchive;
+  final VoidCallback? onRestore;
   final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final bubbleColor = message.isMine
+    final bubbleColor = archived
+        ? theme.colorScheme.tertiaryContainer
+        : message.isMine
         ? theme.colorScheme.primaryContainer
         : theme.colorScheme.surfaceContainerHighest;
-    final foregroundColor = message.isMine
+    final foregroundColor = archived
+        ? theme.colorScheme.onTertiaryContainer
+        : message.isMine
         ? theme.colorScheme.onPrimaryContainer
         : theme.colorScheme.onSurface;
     final body = switch (message.contentType) {
@@ -399,6 +553,7 @@ class _MessageBubble extends StatelessWidget {
           container: true,
           label: [
             message.senderDisplayName,
+            if (archived) l10n.chatRoomArchivedMessageLabel,
             body,
             MaterialLocalizations.of(
               context,
@@ -410,7 +565,9 @@ class _MessageBubble extends StatelessWidget {
               decoration: BoxDecoration(
                 color: bubbleColor,
                 borderRadius: BorderRadius.circular(18),
-                border: message.deliveryState == ChatMessageDeliveryState.failed
+                border: archived
+                    ? Border.all(color: theme.colorScheme.tertiary)
+                    : message.deliveryState == ChatMessageDeliveryState.failed
                     ? Border.all(color: theme.colorScheme.error)
                     : null,
               ),
@@ -437,7 +594,7 @@ class _MessageBubble extends StatelessWidget {
                             icon: const Icon(Icons.refresh),
                             color: foregroundColor.withValues(alpha: 0.85),
                           )
-                        else
+                        else if (onArchive != null || onRestore != null)
                           PopupMenuButton<_MessageAction>(
                             tooltip: AppLocalizations.of(
                               context,
@@ -445,18 +602,29 @@ class _MessageBubble extends StatelessWidget {
                             onSelected: (value) {
                               if (value == _MessageAction.archive) {
                                 onArchive?.call();
+                              } else if (value == _MessageAction.restore) {
+                                onRestore?.call();
                               }
                             },
                             itemBuilder: (context) => [
-                              PopupMenuItem<_MessageAction>(
-                                value: _MessageAction.archive,
-                                enabled: onArchive != null,
-                                child: Text(
-                                  AppLocalizations.of(
-                                    context,
-                                  ).chatRoomArchiveAction,
+                              if (onArchive != null)
+                                PopupMenuItem<_MessageAction>(
+                                  value: _MessageAction.archive,
+                                  child: Text(
+                                    AppLocalizations.of(
+                                      context,
+                                    ).chatRoomArchiveAction,
+                                  ),
                                 ),
-                              ),
+                              if (onRestore != null)
+                                PopupMenuItem<_MessageAction>(
+                                  value: _MessageAction.restore,
+                                  child: Text(
+                                    AppLocalizations.of(
+                                      context,
+                                    ).chatRoomRestoreAction,
+                                  ),
+                                ),
                             ],
                             icon: Icon(
                               Icons.more_vert,
@@ -472,6 +640,19 @@ class _MessageBubble extends StatelessWidget {
                         color: foregroundColor,
                       ),
                     ),
+                    if (archived) ...[
+                      const SizedBox(height: 6),
+                      Semantics(
+                        label: l10n.chatRoomArchivedMessageLabel,
+                        child: ExcludeSemantics(
+                          child: Chip(
+                            avatar: const Icon(Icons.archive_outlined),
+                            label: Text(l10n.chatRoomArchivedMessageLabel),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -561,4 +742,4 @@ class _PendingOutgoingMessage {
   }
 }
 
-enum _MessageAction { archive }
+enum _MessageAction { archive, restore }

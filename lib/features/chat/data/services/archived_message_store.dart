@@ -30,6 +30,27 @@ class ArchivedMessageStore {
   }) async {
     final archivedIds = await loadArchivedMessageIds(roomId);
     archivedIds.add(messageId);
+    await _saveArchivedMessageIds(roomId, archivedIds);
+  }
+
+  Future<void> restoreMessage({
+    required String roomId,
+    required String messageId,
+  }) async {
+    final archivedIds = await loadArchivedMessageIds(roomId);
+    archivedIds.remove(messageId);
+    await _saveArchivedMessageIds(roomId, archivedIds);
+  }
+
+  Future<void> _saveArchivedMessageIds(
+    String roomId,
+    Set<String> archivedIds,
+  ) async {
+    if (archivedIds.isEmpty) {
+      await _store.remove(_storageKey(roomId));
+      return;
+    }
+
     await _store.setString(
       _storageKey(roomId),
       jsonEncode(archivedIds.toList()..sort()),

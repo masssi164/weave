@@ -254,4 +254,48 @@ void main() {
       contains(r'$one'),
     );
   });
+
+  testWidgets('reviews and restores archived messages from a distinct view', (
+    tester,
+  ) async {
+    final store = InMemoryPreferencesStore();
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(),
+    );
+    final storageKey =
+        '${ArchivedMessageStore.storageKeyPrefix}${conversation.id}';
+    await store.setString(storageKey, r'["$one"]');
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository, store: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hey there'), findsNothing);
+    expect(
+      find.text('Archived messages are hidden from this timeline.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Review archived messages'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Archived messages'), findsOneWidget);
+    expect(find.text('Hey there'), findsOneWidget);
+    expect(find.text('Archived'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Restore to timeline'));
+    await tester.pumpAndSettle();
+
+    expect(store.rawString(storageKey), isNull);
+    expect(find.text('Archived messages'), findsNothing);
+    expect(find.text('Hey there'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+  });
 }

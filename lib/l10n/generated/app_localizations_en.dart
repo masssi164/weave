@@ -1093,7 +1093,47 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatRoomArchiveDialogMessage =>
-      'This hides the message from your main timeline on this device until archived messages get their own review view.';
+      'This hides the message from your main timeline on this device. You can review or restore it from Archived messages.';
+
+  @override
+  String get chatRoomArchivedMessagesAction => 'Review archived messages';
+
+  @override
+  String get chatRoomActiveTimelineAction => 'Back to active timeline';
+
+  @override
+  String get chatRoomArchivedReviewTitle => 'Archived messages';
+
+  @override
+  String chatRoomArchivedReviewDescription(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count archived messages are shown separately from the active timeline.',
+      one: '1 archived message is shown separately from the active timeline.',
+      zero:
+          'Archived messages from this room appear here, separate from the active timeline.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatRoomArchivedReviewEmptyMessage => 'No archived messages yet.';
+
+  @override
+  String get chatRoomArchivedMessageLabel => 'Archived';
+
+  @override
+  String get chatRoomRestoreAction => 'Restore to timeline';
+
+  @override
+  String get chatRoomRestoreSuccessMessage =>
+      'Message restored to the active timeline.';
+
+  @override
+  String get chatRoomRestoreFailureMessage =>
+      'This message could not be restored right now.';
 
   @override
   String get chatRoomArchiveSuccessMessage => 'Message archived.';
