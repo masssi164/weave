@@ -431,6 +431,135 @@ void main() {
       );
     });
 
+    testWidgets('shows accessible in-progress upload feedback', (tester) async {
+      final uploadCompleter = Completer<void>();
+      var uploadComplete = false;
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        listDirectoryHandler: (path) async {
+          return DirectoryListing(
+            path: '/',
+            entries: uploadComplete
+                ? const [
+                    FileEntry(
+                      id: 'file-1',
+                      name: 'brief.txt',
+                      path: '/brief.txt',
+                      isDirectory: false,
+                      sizeInBytes: 4,
+                    ),
+                  ]
+                : const [],
+          );
+        },
+        uploadFileHandler: (_, request, onProgress) async {
+          onProgress?.call(2, request.sizeInBytes);
+          await uploadCompleter.future;
+          uploadComplete = true;
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            filesImportPickerProvider.overrideWithValue(
+              _FakeFilesImportPicker(
+                FileUploadRequest(
+                  fileName: 'brief.txt',
+                  sizeInBytes: 4,
+                  byteStream: Stream<List<int>>.fromIterable(const [
+                    [1, 2],
+                    [3, 4],
+                  ]),
+                ),
+              ),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Upload'));
+      await tester.pump();
+
+      expect(find.text('Uploading brief.txt: 50%'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Upload progress for brief.txt: 50 percent'),
+        findsOneWidget,
+      );
+
+      uploadCompleter.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Uploaded brief.txt.'), findsOneWidget);
+      expect(find.text('brief.txt'), findsOneWidget);
+    });
+
+    testWidgets(
+      'announces indeterminate upload progress without a misleading percent',
+      (tester) async {
+        final uploadCompleter = Completer<void>();
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
+          ),
+          uploadFileHandler: (_, _, _) async {
+            await uploadCompleter.future;
+          },
+        );
+
+        await tester.pumpWidget(
+          createTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              filesImportPickerProvider.overrideWithValue(
+                _FakeFilesImportPicker(
+                  const FileUploadRequest(
+                    fileName: 'brief.txt',
+                    sizeInBytes: 0,
+                    byteStream: Stream<List<int>>.empty(),
+                  ),
+                ),
+              ),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Upload'));
+        await tester.pump();
+
+        expect(find.text('Uploading brief.txt…'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel('Upload progress for brief.txt: 0 percent'),
+          findsNothing,
+        );
+        expect(
+          find.bySemanticsLabel('Uploading brief.txt…'),
+          findsAtLeastNWidgets(1),
+        );
+
+        uploadCompleter.complete();
+        await tester.pumpAndSettle();
+      },
+    );
+
     testWidgets('cancelled file picker leaves no upload status behind', (
       tester,
     ) async {

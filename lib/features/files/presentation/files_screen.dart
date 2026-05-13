@@ -401,7 +401,8 @@ class _UploadStatusCard extends StatelessWidget {
       _ => Icons.cloud_upload_outlined,
     };
     final semanticLabel = switch (uploadStatus.phase) {
-      FilesUploadPhase.uploading when fileName != null =>
+      FilesUploadPhase.uploading
+          when fileName != null && progressFraction != null =>
         l10n.filesUploadProgressSemantic(fileName, percent),
       _ => message,
     };
