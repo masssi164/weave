@@ -267,6 +267,13 @@ class BackendFilesRepository
         cause: response.statusCode,
       );
     }
+    if (response.statusCode == 413 || response.statusCode == 507) {
+      throw FilesFailure.storage(
+        message ??
+            'There is not enough storage available to complete this file operation.',
+        cause: response.statusCode,
+      );
+    }
     if (response.statusCode == 503) {
       throw FilesFailure.configuration(
         message ?? 'The Weave backend files facade is unavailable.',

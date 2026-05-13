@@ -7,6 +7,7 @@ import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
+import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
@@ -393,6 +394,118 @@ void main() {
         find.bySemanticsLabel('Uploaded brief.txt.'),
         findsAtLeastNWidgets(1),
       );
+    });
+
+    testWidgets('cancelled file picker leaves no upload status behind', (
+      tester,
+    ) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        listings: const {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'existing.txt',
+                path: '/existing.txt',
+                isDirectory: false,
+                sizeInBytes: 8,
+              ),
+            ],
+          ),
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            filesImportPickerProvider.overrideWithValue(
+              _FakeFilesImportPicker(null),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Upload'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('existing.txt'), findsOneWidget);
+      expect(find.text('Upload failed.'), findsNothing);
+      expect(find.text('Choose a file to upload…'), findsNothing);
+      expect(repository.requestedPaths, ['/']);
+    });
+
+    testWidgets('shows a friendly accessible upload failure', (tester) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        listings: const {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'existing.txt',
+                path: '/existing.txt',
+                isDirectory: false,
+                sizeInBytes: 8,
+              ),
+            ],
+          ),
+        },
+        uploadFileHandler: (_, _, _) async {
+          throw const FilesFailure.storage(
+            'There is not enough storage available to upload this file.',
+          );
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            filesImportPickerProvider.overrideWithValue(
+              _FakeFilesImportPicker(
+                FileUploadRequest(
+                  fileName: 'brief.txt',
+                  sizeInBytes: 4,
+                  byteStream: Stream<List<int>>.fromIterable(const [
+                    [1, 2, 3, 4],
+                  ]),
+                ),
+              ),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Upload'));
+      await tester.pumpAndSettle();
+
+      const message =
+          'There is not enough storage available to upload this file.';
+      expect(find.text(message), findsOneWidget);
+      expect(find.bySemanticsLabel(message), findsAtLeastNWidgets(1));
+      expect(repository.requestedPaths, ['/']);
     });
 
     testWidgets('creates a folder and refreshes the current directory', (

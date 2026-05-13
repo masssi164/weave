@@ -339,6 +339,136 @@ void main() {
       },
     );
 
+    test(
+      'cancelled upload picker leaves the current directory unchanged',
+      () async {
+        var uploadAttempts = 0;
+        var listCalls = 0;
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (path) async {
+            listCalls += 1;
+            return const DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'existing-1',
+                  name: 'existing.txt',
+                  path: '/existing.txt',
+                  isDirectory: false,
+                  sizeInBytes: 8,
+                ),
+              ],
+            );
+          },
+          uploadFileHandler: (_, _, _) async {
+            uploadAttempts += 1;
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            filesImportPickerProvider.overrideWithValue(
+              _FakeFilesImportPicker(null),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final initialState = await container.read(filesProvider.future);
+        await container.read(filesProvider.notifier).pickAndUpload();
+        final state = container.read(filesProvider).requireValue;
+
+        expect(uploadAttempts, 0);
+        expect(listCalls, 1);
+        expect(state.uploadStatus.phase, FilesUploadPhase.idle);
+        expect(state.directoryListing, same(initialState.directoryListing));
+        expect(state.directoryListing?.entries.single.name, 'existing.txt');
+        expect(state.directoryFailure, isNull);
+        expect(state.isBusy, isFalse);
+      },
+    );
+
+    test(
+      'failed upload keeps the directory and shows a friendly failure',
+      () async {
+        var listCalls = 0;
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (path) async {
+            listCalls += 1;
+            return const DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'existing-1',
+                  name: 'existing.txt',
+                  path: '/existing.txt',
+                  isDirectory: false,
+                  sizeInBytes: 8,
+                ),
+              ],
+            );
+          },
+          uploadFileHandler: (_, _, _) async {
+            throw const FilesFailure.storage(
+              'There is not enough storage available to upload this file.',
+            );
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            filesImportPickerProvider.overrideWithValue(
+              _FakeFilesImportPicker(
+                FileUploadRequest(
+                  fileName: 'brief.txt',
+                  sizeInBytes: 4,
+                  byteStream: Stream<List<int>>.fromIterable(const [
+                    [1, 2, 3, 4],
+                  ]),
+                ),
+              ),
+            ),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(filesProvider.future);
+        await container.read(filesProvider.notifier).pickAndUpload();
+        final state = container.read(filesProvider).requireValue;
+
+        expect(listCalls, 1);
+        expect(state.uploadStatus.phase, FilesUploadPhase.failed);
+        expect(state.uploadStatus.fileName, 'brief.txt');
+        expect(
+          state.uploadStatus.failure?.message,
+          'There is not enough storage available to upload this file.',
+        );
+        expect(state.directoryListing?.entries.single.name, 'existing.txt');
+        expect(state.directoryFailure, isNull);
+        expect(state.isBusy, isFalse);
+      },
+    );
+
     test('creates a folder and refreshes the current directory', () async {
       var createdParentPath = '';
       var createdName = '';
