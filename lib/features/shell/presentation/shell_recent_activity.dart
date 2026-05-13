@@ -396,6 +396,7 @@ class _ActivityChip extends StatelessWidget {
     return Semantics(
       button: true,
       label: semanticLabel,
+      onTap: onPressed,
       child: ExcludeSemantics(
         child: ActionChip(
           visualDensity: VisualDensity.compact,

@@ -231,6 +231,21 @@ void main() {
       expect(find.text('Recent activity'), findsOneWidget);
       expect(find.widgetWithText(ActionChip, 'General'), findsOneWidget);
       expect(find.widgetWithText(ActionChip, 'Roadmap.md'), findsOneWidget);
+
+      expect(
+        find.ancestor(
+          of: find.widgetWithText(ActionChip, 'General'),
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics &&
+                (widget.properties.label?.contains('Open room General') ??
+                    false) &&
+                (widget.properties.label?.contains('Standup notes are ready') ??
+                    false),
+          ),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('opens a recent room quick link with the app route', (
