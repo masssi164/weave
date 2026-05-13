@@ -18,12 +18,15 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 import '../../helpers/server_config_test_data.dart';
 import '../../helpers/test_app.dart';
 
-class _FakeFilesRepository implements FilesRepository {
+class _FakeFilesRepository
+    implements FilesRepository, FilesEntryMutationRepository {
   _FakeFilesRepository({
     required this.connectionState,
     this.listings = const <String, DirectoryListing>{},
     this.listDirectoryHandler,
     this.uploadFileHandler,
+    this.createFolderHandler,
+    this.deleteEntryHandler,
   });
 
   final FilesConnectionState connectionState;
@@ -35,6 +38,9 @@ class _FakeFilesRepository implements FilesRepository {
     FileUploadProgressCallback? onProgress,
   )?
   uploadFileHandler;
+  final Future<FileEntry> Function(String parentPath, String name)?
+  createFolderHandler;
+  final Future<void> Function(FileEntry entry)? deleteEntryHandler;
   final List<String> requestedPaths = <String>[];
 
   @override
@@ -60,6 +66,30 @@ class _FakeFilesRepository implements FilesRepository {
     FileUploadProgressCallback? onProgress,
   }) async {
     await uploadFileHandler?.call(directoryPath, request, onProgress);
+  }
+
+  @override
+  Future<FileEntry> createFolder({
+    required String parentPath,
+    required String name,
+  }) {
+    final handler = createFolderHandler;
+    if (handler != null) {
+      return handler(parentPath, name);
+    }
+    return Future<FileEntry>.value(
+      FileEntry(
+        id: '$parentPath/$name',
+        name: name,
+        path: parentPath == '/' ? '/$name' : '$parentPath/$name',
+        isDirectory: true,
+      ),
+    );
+  }
+
+  @override
+  Future<void> deleteEntry(FileEntry entry) async {
+    await deleteEntryHandler?.call(entry);
   }
 
   @override
@@ -190,21 +220,11 @@ void main() {
 
       expect(find.text('Documents'), findsAtLeastNWidgets(1));
 
-      await tester.tap(
-        find.ancestor(
-          of: find.text('Documents').first,
-          matching: find.byType(InkWell),
-        ),
-      );
+      await tester.tap(find.widgetWithText(ListTile, 'Documents'));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.ancestor(
-          of: find.text('Reports').first,
-          matching: find.byType(InkWell),
-        ),
-      );
+      await tester.tap(find.widgetWithText(ListTile, 'Reports'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Documents').last);
+      await tester.tap(find.widgetWithText(ActionChip, 'Documents'));
       await tester.pumpAndSettle();
 
       expect(
@@ -215,6 +235,11 @@ void main() {
           '/Documents/Reports',
           '/Documents',
         ]),
+      );
+      await tester.scrollUntilVisible(
+        find.text('Notes.txt'),
+        100,
+        scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Notes.txt'), findsOneWidget);
       expect(find.text('1 folder • 1 file'), findsOneWidget);
@@ -281,19 +306,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(
-        find.ancestor(
-          of: find.text('Documents').first,
-          matching: find.byType(InkWell),
-        ),
-      );
+      await tester.tap(find.widgetWithText(ListTile, 'Documents'));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.ancestor(
-          of: find.text('Reports').first,
-          matching: find.byType(InkWell),
-        ),
-      );
+      await tester.tap(find.widgetWithText(ListTile, 'Reports'));
       await tester.pumpAndSettle();
 
       final reportsChip = tester.widget<ActionChip>(
@@ -376,6 +391,133 @@ void main() {
       expect(find.text('brief.txt'), findsOneWidget);
       expect(
         find.bySemanticsLabel('Uploaded brief.txt.'),
+        findsAtLeastNWidgets(1),
+      );
+    });
+
+    testWidgets('creates a folder and refreshes the current directory', (
+      tester,
+    ) async {
+      var createdFolderName = '';
+      var createdParentPath = '';
+      var creationComplete = false;
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        listDirectoryHandler: (path) async {
+          return DirectoryListing(
+            path: '/',
+            entries: creationComplete
+                ? const [
+                    FileEntry(
+                      id: 'folder-1',
+                      name: 'Plans',
+                      path: '/Plans',
+                      isDirectory: true,
+                    ),
+                  ]
+                : const [],
+          );
+        },
+        createFolderHandler: (parentPath, name) async {
+          createdParentPath = parentPath;
+          createdFolderName = name;
+          creationComplete = true;
+          return FileEntry(
+            id: 'folder-1',
+            name: name,
+            path: '/$name',
+            isDirectory: true,
+          );
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('New folder'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Plans');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create'));
+      await tester.pumpAndSettle();
+
+      expect(createdParentPath, '/');
+      expect(createdFolderName, 'Plans');
+      expect(find.text('Created folder Plans.'), findsOneWidget);
+      expect(find.text('Plans'), findsAtLeastNWidgets(1));
+      expect(
+        find.bySemanticsLabel('Created folder Plans.'),
+        findsAtLeastNWidgets(1),
+      );
+    });
+
+    testWidgets('confirms deletion, removes the entry, and shows feedback', (
+      tester,
+    ) async {
+      FileEntry? deletedEntry;
+      var deletionComplete = false;
+      const fileEntry = FileEntry(
+        id: 'file-1',
+        name: 'old.txt',
+        path: '/old.txt',
+        isDirectory: false,
+      );
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        listDirectoryHandler: (path) async {
+          return DirectoryListing(
+            path: '/',
+            entries: deletionComplete ? const [] : const [fileEntry],
+          );
+        },
+        deleteEntryHandler: (entry) async {
+          deletedEntry = entry;
+          deletionComplete = true;
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Delete old.txt'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete old.txt?'), findsOneWidget);
+      await tester.tap(find.text('Delete').last);
+      await tester.pumpAndSettle();
+
+      expect(deletedEntry, fileEntry);
+      expect(find.text('Deleted old.txt.'), findsOneWidget);
+      expect(find.text('old.txt'), findsNothing);
+      expect(
+        find.bySemanticsLabel('Deleted old.txt.'),
         findsAtLeastNWidgets(1),
       );
     });

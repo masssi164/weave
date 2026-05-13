@@ -1,5 +1,6 @@
 import 'package:weave/features/files/data/services/nextcloud_dav_client.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
@@ -9,7 +10,8 @@ import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_failure.d
 import 'package:weave/integrations/nextcloud/domain/entities/nextcloud_session.dart';
 import 'package:weave/integrations/nextcloud/domain/services/nextcloud_connection_service.dart';
 
-class NextcloudFilesRepository implements FilesRepository {
+class NextcloudFilesRepository
+    implements FilesRepository, FilesEntryMutationRepository {
   const NextcloudFilesRepository({
     required NextcloudConnectionService connectionService,
     required NextcloudDavClient client,
@@ -103,6 +105,64 @@ class NextcloudFilesRepository implements FilesRepository {
     }
   }
 
+  @override
+  Future<FileEntry> createFolder({
+    required String parentPath,
+    required String name,
+  }) async {
+    late NextcloudSession liveSession;
+    try {
+      liveSession = await _connectionService.requireLiveSession();
+    } on NextcloudFailure catch (failure) {
+      throw _mapFailure(failure);
+    }
+
+    try {
+      await _client.createFolder(
+        liveSession,
+        parentPath: parentPath,
+        name: name,
+      );
+      final normalizedParent = _normalizePath(parentPath);
+      final path = normalizedParent == '/'
+          ? '/$name'
+          : '$normalizedParent/$name';
+      return FileEntry(id: path, name: name, path: path, isDirectory: true);
+    } on NextcloudFailure catch (failure) {
+      if (failure.type == NextcloudFailureType.invalidCredentials) {
+        try {
+          await _connectionService.invalidateSession(liveSession);
+        } on NextcloudFailure catch (clearFailure) {
+          throw _mapFailure(clearFailure);
+        }
+      }
+      throw _mapFailure(failure);
+    }
+  }
+
+  @override
+  Future<void> deleteEntry(FileEntry entry) async {
+    late NextcloudSession liveSession;
+    try {
+      liveSession = await _connectionService.requireLiveSession();
+    } on NextcloudFailure catch (failure) {
+      throw _mapFailure(failure);
+    }
+
+    try {
+      await _client.deletePath(liveSession, entry.path);
+    } on NextcloudFailure catch (failure) {
+      if (failure.type == NextcloudFailureType.invalidCredentials) {
+        try {
+          await _connectionService.invalidateSession(liveSession);
+        } on NextcloudFailure catch (clearFailure) {
+          throw _mapFailure(clearFailure);
+        }
+      }
+      throw _mapFailure(failure);
+    }
+  }
+
   FilesConnectionState _mapConnectionState(NextcloudConnectionState state) {
     return switch (state.status) {
       NextcloudConnectionStatus.misconfigured =>
@@ -155,5 +215,17 @@ class NextcloudFilesRepository implements FilesRepository {
         cause: failure.cause,
       ),
     };
+  }
+
+  String _normalizePath(String path) {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty || trimmed == '/') {
+      return '/';
+    }
+    var normalized = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    if (normalized.length > 1 && normalized.endsWith('/')) {
+      normalized = normalized.substring(0, normalized.length - 1);
+    }
+    return normalized;
   }
 }

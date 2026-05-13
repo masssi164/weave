@@ -84,6 +84,18 @@ class FilesScreen extends ConsumerWidget {
           ),
         );
       }
+      if (state.entryActionStatus.phase != FilesEntryActionPhase.idle) {
+        slivers.add(
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            sliver: SliverToBoxAdapter(
+              child: _EntryActionStatusCard(
+                actionStatus: state.entryActionStatus,
+              ),
+            ),
+          ),
+        );
+      }
     }
 
     slivers.add(_buildContentSliver(context, ref, l10n, state));
@@ -243,6 +255,23 @@ class _DirectoryToolbar extends ConsumerWidget {
               child: Text(l10n.filesRefreshButton),
             ),
             AccessibleButton(
+              outlined: true,
+              onPressed: state.isBusy
+                  ? null
+                  : () async {
+                      final folderName = await showDialog<String>(
+                        context: context,
+                        builder: (context) => const _CreateFolderDialog(),
+                      );
+                      if (folderName == null) {
+                        return;
+                      }
+                      ref.read(filesProvider.notifier).createFolder(folderName);
+                    },
+              semanticLabel: l10n.filesCreateFolderCurrentFolderSemantic,
+              child: Text(l10n.filesCreateFolderButton),
+            ),
+            AccessibleButton(
               onPressed: state.isBusy
                   ? null
                   : () {
@@ -254,6 +283,74 @@ class _DirectoryToolbar extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _EntryActionStatusCard extends StatelessWidget {
+  const _EntryActionStatusCard({required this.actionStatus});
+
+  final FilesEntryActionStatus actionStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final entryName = actionStatus.entryName;
+    final message = switch (actionStatus.phase) {
+      FilesEntryActionPhase.idle => '',
+      FilesEntryActionPhase.creatingFolder =>
+        entryName == null
+            ? l10n.filesCreateFolderProgressUnknownMessage
+            : l10n.filesCreateFolderProgressMessage(entryName),
+      FilesEntryActionPhase.createdFolder =>
+        entryName == null
+            ? l10n.filesCreateFolderCompletedUnknownMessage
+            : l10n.filesCreateFolderCompletedMessage(entryName),
+      FilesEntryActionPhase.deletingEntry =>
+        entryName == null
+            ? l10n.filesDeleteProgressUnknownMessage
+            : l10n.filesDeleteProgressMessage(entryName),
+      FilesEntryActionPhase.deletedEntry =>
+        entryName == null
+            ? l10n.filesDeleteCompletedUnknownMessage
+            : l10n.filesDeleteCompletedMessage(entryName),
+      FilesEntryActionPhase.failed =>
+        actionStatus.failure?.message ?? l10n.filesEntryActionFailedMessage,
+    };
+    final icon = switch (actionStatus.phase) {
+      FilesEntryActionPhase.createdFolder => Icons.check_circle_outline,
+      FilesEntryActionPhase.deletedEntry => Icons.check_circle_outline,
+      FilesEntryActionPhase.failed => Icons.error_outline,
+      FilesEntryActionPhase.idle => Icons.info_outline,
+      _ => Icons.sync_outlined,
+    };
+
+    return Semantics(
+      liveRegion: actionStatus.phase != FilesEntryActionPhase.idle,
+      label: message,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              ExcludeSemantics(child: Icon(icon)),
+              const SizedBox(width: 12),
+              Expanded(child: Text(message, style: theme.textTheme.bodyMedium)),
+              if (actionStatus.phase == FilesEntryActionPhase.creatingFolder ||
+                  actionStatus.phase == FilesEntryActionPhase.deletingEntry)
+                const Padding(
+                  padding: EdgeInsetsDirectional.only(start: 12),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -529,6 +626,106 @@ class _ConnectionCard extends ConsumerWidget {
   }
 }
 
+class _CreateFolderDialog extends StatefulWidget {
+  const _CreateFolderDialog();
+
+  @override
+  State<_CreateFolderDialog> createState() => _CreateFolderDialogState();
+}
+
+class _CreateFolderDialogState extends State<_CreateFolderDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_onChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onChanged() {
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final name = _controller.text.trim();
+
+    return AlertDialog(
+      title: Text(l10n.filesCreateFolderDialogTitle),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: InputDecoration(
+          labelText: l10n.filesCreateFolderNameLabel,
+          hintText: l10n.filesCreateFolderNameHint,
+        ),
+        onSubmitted: name.isEmpty
+            ? null
+            : (_) {
+                Navigator.of(context).pop(name);
+              },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: Text(l10n.filesCancelButton),
+        ),
+        FilledButton(
+          onPressed: name.isEmpty
+              ? null
+              : () {
+                  Navigator.of(context).pop(name);
+                },
+          child: Text(l10n.filesCreateFolderConfirmButton),
+        ),
+      ],
+    );
+  }
+}
+
+class _DeleteEntryDialog extends StatelessWidget {
+  const _DeleteEntryDialog({required this.entry});
+
+  final FileEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return AlertDialog(
+      title: Text(l10n.filesDeleteEntryDialogTitle(entry.name)),
+      content: Text(l10n.filesDeleteEntryDialogMessage),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop(false);
+          },
+          child: Text(l10n.filesCancelButton),
+        ),
+        FilledButton.tonalIcon(
+          onPressed: () {
+            Navigator.of(context).pop(true);
+          },
+          icon: const Icon(Icons.delete_outline),
+          label: Text(l10n.filesDeleteButton),
+        ),
+      ],
+    );
+  }
+}
+
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
@@ -541,36 +738,51 @@ class _FileEntryTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final subtitle = _subtitle(context, entry);
     final l10n = AppLocalizations.of(context);
-    return MergeSemantics(
-      child: Semantics(
-        container: true,
-        button: entry.isDirectory,
-        label: entry.isDirectory
-            ? l10n.filesFolderSemantic(entry.name)
-            : l10n.filesFileSemantic(entry.name),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 4,
-            vertical: 4,
+    return Semantics(
+      container: true,
+      button: entry.isDirectory,
+      label: entry.isDirectory
+          ? l10n.filesFolderSemantic(entry.name)
+          : l10n.filesFileSemantic(entry.name),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        leading: ExcludeSemantics(
+          child: Icon(
+            entry.isDirectory
+                ? Icons.folder_outlined
+                : Icons.insert_drive_file_outlined,
           ),
-          leading: ExcludeSemantics(
-            child: Icon(
-              entry.isDirectory
-                  ? Icons.folder_outlined
-                  : Icons.insert_drive_file_outlined,
-            ),
-          ),
-          title: Text(entry.name),
-          subtitle: subtitle == null ? null : Text(subtitle),
-          trailing: entry.isDirectory
-              ? const ExcludeSemantics(child: Icon(Icons.chevron_right))
-              : null,
-          onTap: !entry.isDirectory || isBusy
-              ? null
-              : () {
-                  ref.read(filesProvider.notifier).openDirectory(entry.path);
-                },
         ),
+        title: Text(entry.name),
+        subtitle: subtitle == null ? null : Text(subtitle),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: l10n.filesDeleteEntrySemantic(entry.name),
+              onPressed: isBusy
+                  ? null
+                  : () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (context) => _DeleteEntryDialog(entry: entry),
+                      );
+                      if (confirmed != true) {
+                        return;
+                      }
+                      ref.read(filesProvider.notifier).deleteEntry(entry);
+                    },
+              icon: const Icon(Icons.delete_outline),
+            ),
+            if (entry.isDirectory)
+              const ExcludeSemantics(child: Icon(Icons.chevron_right)),
+          ],
+        ),
+        onTap: !entry.isDirectory || isBusy
+            ? null
+            : () {
+                ref.read(filesProvider.notifier).openDirectory(entry.path);
+              },
       ),
     );
   }

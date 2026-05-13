@@ -246,6 +246,80 @@ class AppLocalizationsEn extends AppLocalizations {
       'Upload a file to the current folder';
 
   @override
+  String get filesCreateFolderButton => 'New folder';
+
+  @override
+  String get filesCreateFolderCurrentFolderSemantic =>
+      'Create a folder in the current folder';
+
+  @override
+  String get filesCreateFolderDialogTitle => 'Create folder';
+
+  @override
+  String get filesCreateFolderNameLabel => 'Folder name';
+
+  @override
+  String get filesCreateFolderNameHint => 'e.g. Project docs';
+
+  @override
+  String get filesCreateFolderConfirmButton => 'Create';
+
+  @override
+  String get filesCancelButton => 'Cancel';
+
+  @override
+  String get filesDeleteButton => 'Delete';
+
+  @override
+  String filesDeleteEntrySemantic(String name) {
+    return 'Delete $name';
+  }
+
+  @override
+  String filesDeleteEntryDialogTitle(String name) {
+    return 'Delete $name?';
+  }
+
+  @override
+  String get filesDeleteEntryDialogMessage =>
+      'This removes it from Weave files for everyone with access. This cannot be undone.';
+
+  @override
+  String get filesCreateFolderProgressUnknownMessage => 'Creating folder…';
+
+  @override
+  String filesCreateFolderProgressMessage(String folderName) {
+    return 'Creating folder $folderName…';
+  }
+
+  @override
+  String get filesCreateFolderCompletedUnknownMessage => 'Folder created.';
+
+  @override
+  String filesCreateFolderCompletedMessage(String folderName) {
+    return 'Created folder $folderName.';
+  }
+
+  @override
+  String get filesDeleteProgressUnknownMessage => 'Deleting item…';
+
+  @override
+  String filesDeleteProgressMessage(String name) {
+    return 'Deleting $name…';
+  }
+
+  @override
+  String get filesDeleteCompletedUnknownMessage => 'Item deleted.';
+
+  @override
+  String filesDeleteCompletedMessage(String name) {
+    return 'Deleted $name.';
+  }
+
+  @override
+  String get filesEntryActionFailedMessage => 'File action failed.';
+
+  @override
   String get filesUploadPickingMessage => 'Choose a file to upload…';
 
   @override

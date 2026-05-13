@@ -222,6 +222,84 @@
   "filesUploadCurrentFolderSemantic": "Upload a file to the current folder",
   "@filesUploadCurrentFolderSemantic": { "description": "Semantic label for the action that uploads a file to the current folder" },
 
+  "filesCreateFolderButton": "New folder",
+  "@filesCreateFolderButton": { "description": "Button label for creating a folder in the current files directory" },
+
+  "filesCreateFolderCurrentFolderSemantic": "Create a folder in the current folder",
+  "@filesCreateFolderCurrentFolderSemantic": { "description": "Semantic label for the action that creates a folder in the current directory" },
+
+  "filesCreateFolderDialogTitle": "Create folder",
+  "@filesCreateFolderDialogTitle": { "description": "Title for the create-folder dialog" },
+
+  "filesCreateFolderNameLabel": "Folder name",
+  "@filesCreateFolderNameLabel": { "description": "Input label for a new folder name" },
+
+  "filesCreateFolderNameHint": "e.g. Project docs",
+  "@filesCreateFolderNameHint": { "description": "Input hint for a new folder name" },
+
+  "filesCreateFolderConfirmButton": "Create",
+  "@filesCreateFolderConfirmButton": { "description": "Button label to confirm folder creation" },
+
+  "filesCancelButton": "Cancel",
+  "@filesCancelButton": { "description": "Button label to cancel a files action" },
+
+  "filesDeleteButton": "Delete",
+  "@filesDeleteButton": { "description": "Button label to confirm deletion of a file or folder" },
+
+  "filesDeleteEntrySemantic": "Delete {name}",
+  "@filesDeleteEntrySemantic": {
+    "description": "Semantic label for deleting a file or folder",
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "filesDeleteEntryDialogTitle": "Delete {name}?",
+  "@filesDeleteEntryDialogTitle": {
+    "description": "Title for the delete confirmation dialog",
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "filesDeleteEntryDialogMessage": "This removes it from Weave files for everyone with access. This cannot be undone.",
+  "@filesDeleteEntryDialogMessage": { "description": "Warning shown before deleting a file or folder" },
+
+  "filesCreateFolderProgressUnknownMessage": "Creating folder…",
+  "@filesCreateFolderProgressUnknownMessage": { "description": "Status shown while creating a folder when no name is available" },
+
+  "filesCreateFolderProgressMessage": "Creating folder {folderName}…",
+  "@filesCreateFolderProgressMessage": {
+    "description": "Status shown while creating a folder",
+    "placeholders": { "folderName": { "type": "String" } }
+  },
+
+  "filesCreateFolderCompletedUnknownMessage": "Folder created.",
+  "@filesCreateFolderCompletedUnknownMessage": { "description": "Status shown after creating a folder when no name is available" },
+
+  "filesCreateFolderCompletedMessage": "Created folder {folderName}.",
+  "@filesCreateFolderCompletedMessage": {
+    "description": "Status shown after creating a folder",
+    "placeholders": { "folderName": { "type": "String" } }
+  },
+
+  "filesDeleteProgressUnknownMessage": "Deleting item…",
+  "@filesDeleteProgressUnknownMessage": { "description": "Status shown while deleting a file or folder when no name is available" },
+
+  "filesDeleteProgressMessage": "Deleting {name}…",
+  "@filesDeleteProgressMessage": {
+    "description": "Status shown while deleting a file or folder",
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "filesDeleteCompletedUnknownMessage": "Item deleted.",
+  "@filesDeleteCompletedUnknownMessage": { "description": "Status shown after deleting a file or folder when no name is available" },
+
+  "filesDeleteCompletedMessage": "Deleted {name}.",
+  "@filesDeleteCompletedMessage": {
+    "description": "Status shown after deleting a file or folder",
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "filesEntryActionFailedMessage": "File action failed.",
+  "@filesEntryActionFailedMessage": { "description": "Fallback status shown when a file operation fails" },
+
   "filesUploadPickingMessage": "Choose a file to upload…",
   "@filesUploadPickingMessage": { "description": "Status shown while the native file picker is open" },
 

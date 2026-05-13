@@ -17,7 +17,8 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 ///
 /// Flutter owns the product UI and calls `weave-backend` only. The backend owns
 /// all direct Nextcloud WebDAV/OCS access for the MVP files path.
-class BackendFilesRepository implements FilesRepository {
+class BackendFilesRepository
+    implements FilesRepository, FilesEntryMutationRepository {
   const BackendFilesRepository({
     required http.Client httpClient,
     required ServerConfigurationRepository serverConfigurationRepository,
@@ -135,6 +136,7 @@ class BackendFilesRepository implements FilesRepository {
     onProgress?.call(request.sizeInBytes, request.sizeInBytes);
   }
 
+  @override
   Future<FileEntry> createFolder({
     required String parentPath,
     required String name,
@@ -175,6 +177,9 @@ class BackendFilesRepository implements FilesRepository {
     );
     _ensureSuccess(response, successCodes: const {200, 204});
   }
+
+  @override
+  Future<void> deleteEntry(FileEntry entry) => delete(entry.id);
 
   Future<_BackendFilesContext> _requireContext() async {
     final configuration = await _serverConfigurationRepository

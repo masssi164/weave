@@ -171,6 +171,75 @@ class NextcloudDavClient {
     onProgress?.call(sizeInBytes, sizeInBytes);
   }
 
+  Future<void> createFolder(
+    NextcloudSession session, {
+    required String parentPath,
+    required String name,
+  }) async {
+    _ensureSupportedSession(session);
+    final safeFolderName = _sanitizeFileName(name);
+    final uri = _buildFileUri(session, parentPath, safeFolderName);
+    final request = http.Request('MKCOL', uri)
+      ..headers.addAll(buildNextcloudAuthHeaders(session));
+
+    late http.StreamedResponse response;
+    try {
+      response = await _httpClient.send(request);
+    } on NextcloudFailure {
+      rethrow;
+    } catch (error) {
+      throw NextcloudFailure.unknown(
+        'Unable to create the Nextcloud folder.',
+        cause: error,
+      );
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw const NextcloudFailure.invalidCredentials(
+        'The saved Nextcloud credentials are no longer valid.',
+      );
+    }
+
+    if (response.statusCode != 201) {
+      throw NextcloudFailure.protocol(
+        'Nextcloud returned an unexpected WebDAV folder status (${response.statusCode}).',
+      );
+    }
+  }
+
+  Future<void> deletePath(NextcloudSession session, String path) async {
+    _ensureSupportedSession(session);
+    final uri = _buildDavUri(session, path);
+    final request = http.Request('DELETE', uri)
+      ..headers.addAll(buildNextcloudAuthHeaders(session));
+
+    late http.StreamedResponse response;
+    try {
+      response = await _httpClient.send(request);
+    } on NextcloudFailure {
+      rethrow;
+    } catch (error) {
+      throw NextcloudFailure.unknown(
+        'Unable to delete the Nextcloud file or folder.',
+        cause: error,
+      );
+    }
+
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      throw const NextcloudFailure.invalidCredentials(
+        'The saved Nextcloud credentials are no longer valid.',
+      );
+    }
+
+    if (response.statusCode != 200 &&
+        response.statusCode != 202 &&
+        response.statusCode != 204) {
+      throw NextcloudFailure.protocol(
+        'Nextcloud returned an unexpected WebDAV delete status (${response.statusCode}).',
+      );
+    }
+  }
+
   void _ensureSupportedSession(NextcloudSession session) {
     final scheme = session.baseUrl.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') {
