@@ -6,7 +6,12 @@ import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
 
 import 'test_config.dart';
 
-const _integrationTestScopes = oidcDefaultScopes;
+const _integrationTestScopes = <String>[
+  'openid',
+  'profile',
+  'email',
+  oidcWorkspaceScope,
+];
 
 class TestAuthTokens {
   const TestAuthTokens({
