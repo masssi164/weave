@@ -113,7 +113,7 @@ Current repository-first stub boundaries:
 - `chat` -> `ChatRepository` + `MatrixClient`
 - `integrations/nextcloud` -> `NextcloudConnectionService` + `NextcloudAuthClient` + `NextcloudSessionRepository` + shared providers
 - `files` -> `FilesRepository` + `NextcloudDavClient`
-- `calendar` -> `CalendarRepository` + `CalDavClient`
+- `calendar` -> `CalendarRepository` + backend `CalendarFacadeClient` (no direct Flutter-to-CalDAV product path)
 - `deck` / future `tasks_boards` -> exploratory board repository/client boundaries; future work should use a provider-neutral Weave model with adapters
 
 Presentation depends on repository contracts and Riverpod providers only. It does not own storage or protocol logic.
@@ -160,6 +160,12 @@ Nextcloud is now split into:
 - `features/files/` for DAV directory browsing, file-entry mapping, and file-facing presentation/state
 
 This keeps the current Files UX intact while making the same Nextcloud platform layer reusable for future Calendar or provider-adapter board work without importing `features/files/`.
+
+## Calendar backend facade scope
+
+Calendar remains hidden from the Release 1 shell, but its prepared Flutter surface is wired through the Weave backend product facade rather than direct CalDAV. The backend currently exposes the first safe slice as `scope.type = "workspace"`: a shared Weave workspace calendar owned/provisioned through the backend actor. The frontend parses that scope metadata and labels the surface as a workspace calendar so it does not imply private per-user calendar access.
+
+Private user calendars stay out of the product path until the cross-repo access model is specified and implemented (for example through explicit provisioning/sharing or delegated-token behavior). Frontend code must continue to fail through the backend facade and must not add a direct private-user CalDAV fallback.
 
 ## Onboarding and settings
 Onboarding setup and Settings share:

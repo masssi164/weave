@@ -109,7 +109,7 @@ String _$calendarRepositoryHash() =>
 final calendarProvider = CalendarNotifierProvider._();
 
 final class CalendarNotifierProvider
-    extends $AsyncNotifierProvider<CalendarNotifier, List<CalendarEvent>> {
+    extends $AsyncNotifierProvider<CalendarNotifier, CalendarEventList> {
   CalendarNotifierProvider._()
     : super(
         from: null,
@@ -129,20 +129,20 @@ final class CalendarNotifierProvider
   CalendarNotifier create() => CalendarNotifier();
 }
 
-String _$calendarNotifierHash() => r'585c2aa0318fe37ec8f33256d1d9e3ba10df871b';
+String _$calendarNotifierHash() => r'd019ac3247543c39dc76dd552259e82227c7fe02';
 
-abstract class _$CalendarNotifier extends $AsyncNotifier<List<CalendarEvent>> {
-  FutureOr<List<CalendarEvent>> build();
+abstract class _$CalendarNotifier extends $AsyncNotifier<CalendarEventList> {
+  FutureOr<CalendarEventList> build();
   @$mustCallSuper
   @override
   void runBuild() {
     final ref =
-        this.ref as $Ref<AsyncValue<List<CalendarEvent>>, List<CalendarEvent>>;
+        this.ref as $Ref<AsyncValue<CalendarEventList>, CalendarEventList>;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<AsyncValue<List<CalendarEvent>>, List<CalendarEvent>>,
-              AsyncValue<List<CalendarEvent>>,
+              AnyNotifier<AsyncValue<CalendarEventList>, CalendarEventList>,
+              AsyncValue<CalendarEventList>,
               Object?,
               Object?
             >;

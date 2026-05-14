@@ -25,7 +25,7 @@ class CalendarFacadeClient {
   final ServerConfigurationRepository _serverConfigurationRepository;
   final AuthSessionRepository _authSessionRepository;
 
-  Future<List<CalendarEvent>> listEvents({DateTime? from, DateTime? to}) async {
+  Future<CalendarEventList> listEvents({DateTime? from, DateTime? to}) async {
     final context = await _requireContext();
     final query = <String, String>{
       if (from != null) 'from': from.toUtc().toIso8601String(),
@@ -50,10 +50,12 @@ class CalendarFacadeClient {
         'The Weave backend returned an invalid calendar payload.',
       );
     }
-    return rawEvents
+    final scope = _decodeScope(payload['scope']);
+    final events = rawEvents
         .whereType<Map<String, dynamic>>()
-        .map(_decodeEvent)
+        .map((event) => _decodeEvent(event, defaultScope: scope))
         .toList(growable: false);
+    return CalendarEventList(scope: scope, events: events);
   }
 
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
@@ -171,7 +173,10 @@ class CalendarFacadeClient {
     );
   }
 
-  CalendarEvent _decodeEvent(Map<String, dynamic> json) {
+  CalendarEvent _decodeEvent(
+    Map<String, dynamic> json, {
+    CalendarScope defaultScope = CalendarScope.workspace,
+  }) {
     return CalendarEvent(
       id: _readString(json, 'id'),
       title: _readString(json, 'title'),
@@ -182,7 +187,33 @@ class CalendarFacadeClient {
       location: _readNullableString(json, 'location'),
       allDay: json['allDay'] == true,
       etag: _readNullableString(json, 'etag'),
+      scope: _decodeScope(json['scope'], defaultScope: defaultScope),
     );
+  }
+
+  CalendarScope _decodeScope(
+    Object? rawScope, {
+    CalendarScope defaultScope = CalendarScope.workspace,
+  }) {
+    if (rawScope is! Map<String, dynamic>) {
+      return defaultScope;
+    }
+
+    final rawType = rawScope['type'];
+    final type = rawType is String ? rawType.trim() : '';
+    if (type.isEmpty) {
+      return defaultScope;
+    }
+
+    final rawLabel = rawScope['label'];
+    final label = rawLabel is String && rawLabel.trim().isNotEmpty
+        ? rawLabel.trim()
+        : switch (type) {
+            'workspace' => CalendarScope.workspace.label,
+            _ => type,
+          };
+
+    return CalendarScope(type: type, label: label);
   }
 
   Map<String, dynamic> _decodeObject(String body) {

@@ -29,7 +29,7 @@ Release 1 is intentionally narrow and honest. The current user-facing app shell 
 - **Files** — a Weave files experience backed by the product backend and Nextcloud/WebDAV/OCS contracts.
 - **Settings and OIDC sign-in** — setup, authentication, stored server configuration, and account/session controls.
 
-Calendar, tasks/boards, Slack/Teams interop, migration tooling, connector SDKs, and Weaver PA are future product areas unless a feature is explicitly marked as enabled. Calendar and exploratory Deck/boards code may exist in the repository while those surfaces are under construction, but they are not Release 1 promises. The future tasks/boards direction is a Weave-owned accessible model with provider adapters, not a product dependency on Nextcloud Deck.
+Calendar, tasks/boards, Slack/Teams interop, migration tooling, connector SDKs, and Weaver PA are future product areas unless a feature is explicitly marked as enabled. Calendar and exploratory Deck/boards code may exist in the repository while those surfaces are under construction, but they are not Release 1 promises. Prepared Calendar code consumes the Weave backend facade and labels the current backend-provided `workspace` scope honestly; it is not a private per-user calendar surface until the access model is specified and implemented. The future tasks/boards direction is a Weave-owned accessible model with provider adapters, not a product dependency on Nextcloud Deck.
 
 ## Product screenshots
 
