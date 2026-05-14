@@ -125,6 +125,8 @@ Initial event types:
 
 Event handling must document ordering, idempotency, redaction/privacy, replay behavior, and conflict resolution before powering notifications or recent activity.
 
+Implementation seed: `lib/features/boards/domain/entities/board_activity_event.dart` and the board activity normalizers under `lib/features/boards/data/services/` define the app-layer provider-neutral envelope and sample mappers for static preview fixtures plus external-provider-shaped events. They are deliberately post-Release-1 scaffolding and do **not** claim a live Vikunja, OpenProject, Deck, or gateway integration.
+
 ## Spike sequencing
 
 1. Use the Vikunja spike to validate API/auth/sync fit against this contract.
