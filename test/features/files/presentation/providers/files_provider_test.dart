@@ -1,14 +1,18 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
+import 'package:weave/features/files/data/services/file_picker_files_export_saver.dart';
 import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
+import 'package:weave/features/files/domain/services/files_export_saver.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
@@ -19,7 +23,10 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 import '../../../../helpers/server_config_test_data.dart';
 
 class _FakeFilesRepository
-    implements FilesRepository, FilesEntryMutationRepository {
+    implements
+        FilesRepository,
+        FilesEntryMutationRepository,
+        FilesExportRepository {
   _FakeFilesRepository({
     required this.restoreConnectionHandler,
     required this.connectHandler,
@@ -28,6 +35,7 @@ class _FakeFilesRepository
     this.uploadFileHandler,
     this.createFolderHandler,
     this.deleteEntryHandler,
+    this.downloadFileHandler,
   });
 
   final Future<FilesConnectionState> Function() restoreConnectionHandler;
@@ -43,6 +51,7 @@ class _FakeFilesRepository
   final Future<FileEntry> Function(String parentPath, String name)?
   createFolderHandler;
   final Future<void> Function(FileEntry entry)? deleteEntryHandler;
+  final Future<FileDownload> Function(FileEntry entry)? downloadFileHandler;
 
   @override
   Future<FilesConnectionState> connect() => connectHandler();
@@ -89,6 +98,17 @@ class _FakeFilesRepository
   }
 
   @override
+  Future<FileDownload> downloadFile(FileEntry entry) {
+    final handler = downloadFileHandler;
+    if (handler != null) {
+      return handler(entry);
+    }
+    return Future<FileDownload>.value(
+      FileDownload(fileName: entry.name, bytes: Uint8List(0)),
+    );
+  }
+
+  @override
   Future<FilesConnectionState> restoreConnection() =>
       restoreConnectionHandler();
 }
@@ -100,6 +120,23 @@ class _FakeFilesImportPicker implements FilesImportPicker {
 
   @override
   Future<FileUploadRequest?> pickFile() async => request;
+}
+
+class _FakeFilesExportSaver implements FilesExportSaver {
+  _FakeFilesExportSaver(this.destination);
+
+  final String? destination;
+  FileDownload? savedDownload;
+
+  @override
+  Future<FilesExportResult?> save(FileDownload download) async {
+    savedDownload = download;
+    final target = destination;
+    if (target == null) {
+      return null;
+    }
+    return FilesExportResult(fileName: download.fileName, destination: target);
+  }
 }
 
 class _FakeServerConfigurationRepository
@@ -579,6 +616,59 @@ void main() {
       expect(state.entryActionStatus.phase, FilesEntryActionPhase.deletedEntry);
       expect(state.entryActionStatus.entryName, 'old.txt');
       expect(state.directoryListing?.entries, isEmpty);
+      expect(state.isBusy, isFalse);
+    });
+
+    test('exports a file through the backend and native saver', () async {
+      const fileEntry = FileEntry(
+        id: 'file-1',
+        name: 'brief.txt',
+        path: '/brief.txt',
+        isDirectory: false,
+      );
+      FileEntry? downloadedEntry;
+      final repository = _FakeFilesRepository(
+        restoreConnectionHandler: () async => FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        connectHandler: () async => throw UnimplementedError(),
+        disconnectHandler: () async {},
+        listDirectoryHandler: (path) async =>
+            const DirectoryListing(path: '/', entries: [fileEntry]),
+        downloadFileHandler: (entry) async {
+          downloadedEntry = entry;
+          return FileDownload(
+            fileName: entry.name,
+            bytes: Uint8List.fromList(<int>[1, 2, 3]),
+          );
+        },
+      );
+      final saver = _FakeFilesExportSaver('/Users/alice/brief.txt');
+      final container = ProviderContainer(
+        overrides: [
+          filesRepositoryProvider.overrideWithValue(repository),
+          filesExportSaverProvider.overrideWithValue(saver),
+          serverConfigurationRepositoryProvider.overrideWith(
+            (ref) =>
+                _FakeServerConfigurationRepository(buildTestConfiguration()),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(filesProvider.future);
+      await container.read(filesProvider.notifier).exportEntry(fileEntry);
+      final state = container.read(filesProvider).requireValue;
+
+      expect(downloadedEntry, fileEntry);
+      expect(saver.savedDownload?.bytes, <int>[1, 2, 3]);
+      expect(
+        state.entryActionStatus.phase,
+        FilesEntryActionPhase.exportedEntry,
+      );
+      expect(state.entryActionStatus.entryName, 'brief.txt');
+      expect(state.entryActionStatus.destination, '/Users/alice/brief.txt');
       expect(state.isBusy, isFalse);
     });
   });

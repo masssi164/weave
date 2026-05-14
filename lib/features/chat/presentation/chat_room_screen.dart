@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
@@ -32,18 +33,65 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
   bool _archiving = false;
   bool _showingArchivedMessages = false;
   _PendingOutgoingMessage? _pendingMessage;
+  Timer? _draftSaveDebounce;
+  bool _isRestoringDraft = false;
+  bool _draftRestored = false;
 
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(_loadTimeline);
+    _composerController.addListener(_onComposerChanged);
+    Future<void>.microtask(() async {
+      await _restoreDraft();
+      await _loadTimeline();
+    });
   }
 
   @override
   void dispose() {
-    _composerController.dispose();
+    _draftSaveDebounce?.cancel();
+    _composerController
+      ..removeListener(_onComposerChanged)
+      ..dispose();
     super.dispose();
   }
+
+  Future<void> _restoreDraft() async {
+    _isRestoringDraft = true;
+    try {
+      final draft = await ref
+          .read(preferencesStoreProvider)
+          .getString(_draftKey);
+      if (!mounted || draft == null || draft.trim().isEmpty) {
+        return;
+      }
+      _composerController.text = draft;
+      setState(() {
+        _draftRestored = true;
+      });
+    } finally {
+      _isRestoringDraft = false;
+    }
+  }
+
+  void _onComposerChanged() {
+    if (_isRestoringDraft) {
+      return;
+    }
+    _draftSaveDebounce?.cancel();
+    _draftSaveDebounce = Timer(const Duration(milliseconds: 300), () async {
+      final text = _composerController.text;
+      final store = ref.read(preferencesStoreProvider);
+      if (text.trim().isEmpty) {
+        await store.remove(_draftKey);
+      } else {
+        await store.setString(_draftKey, text);
+      }
+    });
+  }
+
+  String get _draftKey =>
+      'chat.roomDraft.v1.${Uri.encodeComponent(widget.conversation.id)}';
 
   Future<void> _loadTimeline() async {
     setState(() {
@@ -110,6 +158,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           .read(chatRepositoryProvider)
           .sendMessage(roomId: widget.conversation.id, message: message);
       _composerController.clear();
+      await ref.read(preferencesStoreProvider).remove(_draftKey);
       await _loadTimeline();
       if (!mounted) return;
       setState(() {
@@ -309,6 +358,19 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                 TextButton(
                   onPressed: _loadTimeline,
                   child: Text(l10n.retryButton),
+                ),
+              ],
+            ),
+          if (_draftRestored && !_loading)
+            MaterialBanner(
+              leading: const Icon(Icons.edit_note_outlined),
+              content: Text(l10n.chatRoomDraftRestoredMessage),
+              actions: [
+                TextButton(
+                  onPressed: () => setState(() {
+                    _draftRestored = false;
+                  }),
+                  child: Text(l10n.semanticCloseButton),
                 ),
               ],
             ),

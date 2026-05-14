@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
@@ -54,6 +55,10 @@ class SettingsScreen extends ConsumerWidget {
                   const _WorkspaceReadinessCard(),
                   const SizedBox(height: 32),
                   const _ShellModuleVisibilitySettingsSection(),
+                  if (FeatureFlags.hasPostReleaseSurfaces) ...[
+                    const SizedBox(height: 32),
+                    const _FeaturePreviewSurfacesSection(),
+                  ],
                   const SizedBox(height: 32),
                   Text(
                     l10n.settingsServerConfigurationTitle,
@@ -159,19 +164,16 @@ class _ShellModuleVisibilitySettingsSection extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             switch (preferences) {
-              AsyncData(value: final value) => SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.settingsShellRecentActivityToggleTitle),
-                subtitle: Text(
-                  l10n.settingsShellRecentActivityToggleDescription,
-                ),
-                value: value.isVisible(ShellModule.recentActivity),
-                onChanged: (isVisible) => ref
-                    .read(shellModulePreferencesProvider.notifier)
-                    .setModuleVisibility(
-                      module: ShellModule.recentActivity,
-                      isVisible: isVisible,
+              AsyncData(value: final value) => Column(
+                children: [
+                  for (final module in value.orderedModules)
+                    _ShellModulePreferenceTile(
+                      module: module,
+                      isVisible: value.isVisible(module),
+                      isFirst: value.orderedModules.first == module,
+                      isLast: value.orderedModules.last == module,
                     ),
+                ],
               ),
               AsyncError() => ErrorState(
                 message: l10n.settingsShellModulesError,
@@ -188,6 +190,167 @@ class _ShellModuleVisibilitySettingsSection extends ConsumerWidget {
             },
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ShellModulePreferenceTile extends ConsumerWidget {
+  const _ShellModulePreferenceTile({
+    required this.module,
+    required this.isVisible,
+    required this.isFirst,
+    required this.isLast,
+  });
+
+  final ShellModule module;
+  final bool isVisible;
+  final bool isFirst;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final title = _title(l10n);
+    final description = _description(l10n);
+
+    return MergeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: Text(title),
+                subtitle: Text(description),
+                value: isVisible,
+                onChanged: (visible) => ref
+                    .read(shellModulePreferencesProvider.notifier)
+                    .setModuleVisibility(module: module, isVisible: visible),
+              ),
+            ),
+            IconButton(
+              tooltip: l10n.settingsShellMoveModuleUp(title),
+              onPressed: isFirst
+                  ? null
+                  : () => ref
+                        .read(shellModulePreferencesProvider.notifier)
+                        .moveModule(module: module, delta: -1),
+              icon: const Icon(Icons.arrow_upward),
+            ),
+            IconButton(
+              tooltip: l10n.settingsShellMoveModuleDown(title),
+              onPressed: isLast
+                  ? null
+                  : () => ref
+                        .read(shellModulePreferencesProvider.notifier)
+                        .moveModule(module: module, delta: 1),
+              icon: const Icon(Icons.arrow_downward),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _title(AppLocalizations l10n) {
+    return switch (module) {
+      ShellModule.workspaceStatus =>
+        l10n.settingsShellWorkspaceStatusToggleTitle,
+      ShellModule.recentActivity => l10n.settingsShellRecentActivityToggleTitle,
+    };
+  }
+
+  String _description(AppLocalizations l10n) {
+    return switch (module) {
+      ShellModule.workspaceStatus =>
+        l10n.settingsShellWorkspaceStatusToggleDescription,
+      ShellModule.recentActivity =>
+        l10n.settingsShellRecentActivityToggleDescription,
+    };
+  }
+}
+
+class _FeaturePreviewSurfacesSection extends StatelessWidget {
+  const _FeaturePreviewSurfacesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.settingsPreviewSurfacesTitle,
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.settingsPreviewSurfacesDescription,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (FeatureFlags.guestPortal)
+              _PreviewSurfaceTile(
+                icon: Icons.badge_outlined,
+                title: l10n.settingsGuestPortalPreviewTitle,
+                description: l10n.settingsGuestPortalPreviewDescription,
+              ),
+            if (FeatureFlags.interopAdmin)
+              _PreviewSurfaceTile(
+                icon: Icons.sync_alt_outlined,
+                title: l10n.settingsInteropAdminPreviewTitle,
+                description: l10n.settingsInteropAdminPreviewDescription,
+              ),
+            if (FeatureFlags.migrationDryRun)
+              _PreviewSurfaceTile(
+                icon: Icons.fact_check_outlined,
+                title: l10n.settingsMigrationDryRunPreviewTitle,
+                description: l10n.settingsMigrationDryRunPreviewDescription,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewSurfaceTile extends StatelessWidget {
+  const _PreviewSurfaceTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: ExcludeSemantics(child: Icon(icon)),
+      title: Text(title),
+      subtitle: Text(description),
+      trailing: Chip(
+        label: Text(AppLocalizations.of(context).firstRunStateUnavailable),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
     );
   }

@@ -23,53 +23,56 @@ class LoadingState extends StatelessWidget {
     final theme = Theme.of(context);
     final semanticsLabel = [message, if (hint != null) hint!].join('. ');
 
-    return Center(
-      child: Semantics(
-        liveRegion: true,
-        label: semanticsLabel,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: ExcludeSemantics(
-                        child: Icon(
-                          icon,
-                          size: 28,
-                          color: theme.colorScheme.onSecondaryContainer,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+      child: Center(
+        child: Semantics(
+          liveRegion: true,
+          label: semanticsLabel,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: ExcludeSemantics(
+                          child: Icon(
+                            icon,
+                            size: 28,
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 20),
-                  Text(
-                    message,
-                    style: theme.textTheme.titleMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  if (hint != null) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 20),
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 20),
                     Text(
-                      hint!,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                      message,
+                      style: theme.textTheme.titleMedium,
                       textAlign: TextAlign.center,
                     ),
+                    if (hint != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        hint!,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

@@ -63,7 +63,7 @@ class ChatScreen extends ConsumerWidget {
           ),
         switch (state.phase) {
           ChatViewPhase.loading => SliverFillRemaining(
-            hasScrollBody: false,
+            hasScrollBody: true,
             child: LoadingState(
               message: l10n.chatLoadingLabel,
               hint: l10n.chatLoadingHint,
@@ -71,7 +71,7 @@ class ChatScreen extends ConsumerWidget {
             ),
           ),
           ChatViewPhase.connecting => SliverFillRemaining(
-            hasScrollBody: false,
+            hasScrollBody: true,
             child: LoadingState(
               message: l10n.chatConnectingLabel,
               hint: l10n.chatConnectingHint,

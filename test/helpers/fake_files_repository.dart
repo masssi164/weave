@@ -1,11 +1,17 @@
+import 'dart:typed_data';
+
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 
 class FakeFilesRepository
-    implements FilesRepository, FilesEntryMutationRepository {
+    implements
+        FilesRepository,
+        FilesEntryMutationRepository,
+        FilesExportRepository {
   FakeFilesRepository({
     required this.connectionState,
     this.listings = const <String, DirectoryListing>{},
@@ -13,6 +19,7 @@ class FakeFilesRepository
     this.uploadFileHandler,
     this.createFolderHandler,
     this.deleteEntryHandler,
+    this.downloadFileHandler,
   });
 
   final FilesConnectionState connectionState;
@@ -27,6 +34,7 @@ class FakeFilesRepository
   final Future<FileEntry> Function(String parentPath, String name)?
   createFolderHandler;
   final Future<void> Function(FileEntry entry)? deleteEntryHandler;
+  final Future<FileDownload> Function(FileEntry entry)? downloadFileHandler;
   final List<String> requestedPaths = <String>[];
 
   @override
@@ -76,6 +84,18 @@ class FakeFilesRepository
   @override
   Future<void> deleteEntry(FileEntry entry) async {
     await deleteEntryHandler?.call(entry);
+  }
+
+  @override
+  Future<FileDownload> downloadFile(FileEntry entry) async {
+    final handler = downloadFileHandler;
+    if (handler != null) {
+      return handler(entry);
+    }
+    return FileDownload(
+      fileName: entry.name,
+      bytes: Uint8List.fromList(<int>[1, 2, 3]),
+    );
   }
 
   @override

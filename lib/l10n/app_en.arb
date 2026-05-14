@@ -349,6 +349,36 @@
   "filesDeleteButton": "Delete",
   "@filesDeleteButton": { "description": "Button label to confirm deletion of a file or folder" },
 
+  "filesExportEntrySemantic": "Export {name} to native files",
+  "@filesExportEntrySemantic": {
+    "description": "Tooltip/semantic label for exporting a file to native platform file surfaces",
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "filesExportProgressMessage": "Exporting {name}…",
+  "@filesExportProgressMessage": {
+    "description": "Status message while a file is exported",
+    "placeholders": { "name": { "type": "String" } }
+  },
+
+  "filesExportProgressUnknownMessage": "Exporting file…",
+  "@filesExportProgressUnknownMessage": { "description": "Status message while an unnamed file is exported" },
+
+  "filesExportCompletedMessage": "Exported {name} to {destination}.",
+  "@filesExportCompletedMessage": {
+    "description": "Status message after a file is exported to a native file surface",
+    "placeholders": {
+      "name": { "type": "String" },
+      "destination": { "type": "String" }
+    }
+  },
+
+  "filesExportCompletedUnknownMessage": "Exported file to native files.",
+  "@filesExportCompletedUnknownMessage": { "description": "Status message after an unnamed file is exported" },
+
+  "filesExportUserVisibleFallback": "a user-visible files location",
+  "@filesExportUserVisibleFallback": { "description": "Fallback destination label when the platform does not expose an export path" },
+
   "filesDeleteEntrySemantic": "Delete {name}",
   "@filesDeleteEntrySemantic": {
     "description": "Semantic label for deleting a file or folder",
@@ -488,6 +518,25 @@
 
   "settingsShellModulesDescription": "Choose which workspace shell modules stay visible. Navigation remains available even when a module is hidden.",
   "@settingsShellModulesDescription": { "description": "Description for shell module visibility settings" },
+
+
+  "settingsShellWorkspaceStatusToggleTitle": "Workspace status summary",
+  "@settingsShellWorkspaceStatusToggleTitle": { "description": "Switch title for the workspace status shell module visibility preference" },
+
+  "settingsShellWorkspaceStatusToggleDescription": "Show service readiness and recovery shortcuts above the bottom navigation.",
+  "@settingsShellWorkspaceStatusToggleDescription": { "description": "Switch description for the workspace status shell module visibility preference" },
+
+  "settingsShellMoveModuleUp": "Move {moduleName} up",
+  "@settingsShellMoveModuleUp": {
+    "description": "Tooltip for moving a shell module earlier in the shell order",
+    "placeholders": { "moduleName": { "type": "String" } }
+  },
+
+  "settingsShellMoveModuleDown": "Move {moduleName} down",
+  "@settingsShellMoveModuleDown": {
+    "description": "Tooltip for moving a shell module later in the shell order",
+    "placeholders": { "moduleName": { "type": "String" } }
+  },
 
   "settingsShellRecentActivityToggleTitle": "Recent activity quick links",
   "@settingsShellRecentActivityToggleTitle": { "description": "Switch title for the recent activity shell module visibility preference" },
@@ -749,6 +798,30 @@
     }
   },
 
+  "settingsPreviewSurfacesTitle": "Preview surfaces",
+  "@settingsPreviewSurfacesTitle": { "description": "Settings section title for feature-flagged post-release product surfaces" },
+
+  "settingsPreviewSurfacesDescription": "These surfaces stay hidden by default for Release 1. They only show honest shell states until the backend contracts are available.",
+  "@settingsPreviewSurfacesDescription": { "description": "Description for feature-flagged post-release surfaces" },
+
+  "settingsGuestPortalPreviewTitle": "Guest Portal",
+  "@settingsGuestPortalPreviewTitle": { "description": "Feature-flagged Guest Portal preview title" },
+
+  "settingsGuestPortalPreviewDescription": "Guest invitations and constrained access will appear here without exposing member-only affordances.",
+  "@settingsGuestPortalPreviewDescription": { "description": "Feature-flagged Guest Portal preview description" },
+
+  "settingsInteropAdminPreviewTitle": "External connections admin status",
+  "@settingsInteropAdminPreviewTitle": { "description": "Feature-flagged interop admin status preview title" },
+
+  "settingsInteropAdminPreviewDescription": "External provider status will explain data movement and consent; provider secrets are never collected in this client.",
+  "@settingsInteropAdminPreviewDescription": { "description": "Feature-flagged interop admin preview description" },
+
+  "settingsMigrationDryRunPreviewTitle": "Migration dry-run report",
+  "@settingsMigrationDryRunPreviewTitle": { "description": "Feature-flagged migration dry-run preview title" },
+
+  "settingsMigrationDryRunPreviewDescription": "Admins will be able to review inventory, risks, scopes, and mappings before any import starts.",
+  "@settingsMigrationDryRunPreviewDescription": { "description": "Feature-flagged migration dry-run preview description" },
+
   "settingsServerConfigurationTitle": "Server Configuration",
   "@settingsServerConfigurationTitle": { "description": "Section title for server configuration in settings" },
 
@@ -914,6 +987,9 @@
 
   "chatRoomEmptyMessage": "No messages yet",
   "@chatRoomEmptyMessage": { "description": "Empty state message for a room without timeline events" },
+
+  "chatRoomDraftRestoredMessage": "Draft restored from this device.",
+  "@chatRoomDraftRestoredMessage": { "description": "Banner shown when a local unsent chat draft is restored" },
 
   "chatRoomComposerHint": "Write a message",
   "@chatRoomComposerHint": { "description": "Hint text for the room composer when sending is allowed" },

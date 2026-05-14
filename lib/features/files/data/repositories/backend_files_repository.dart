@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
@@ -18,7 +20,10 @@ import 'package:weave/features/server_config/domain/repositories/server_configur
 /// Flutter owns the product UI and calls `weave-backend` only. The backend owns
 /// all direct Nextcloud WebDAV/OCS access for the MVP files path.
 class BackendFilesRepository
-    implements FilesRepository, FilesEntryMutationRepository {
+    implements
+        FilesRepository,
+        FilesEntryMutationRepository,
+        FilesExportRepository {
   const BackendFilesRepository({
     required http.Client httpClient,
     required ServerConfigurationRepository serverConfigurationRepository,
@@ -164,6 +169,48 @@ class BackendFilesRepository
       fallbackMessage: 'Unable to prepare the file download.',
     );
     _ensureSuccess(response, successCodes: const {200, 204});
+  }
+
+  @override
+  Future<FileDownload> downloadFile(FileEntry entry) async {
+    if (entry.isDirectory) {
+      throw const FilesFailure.configuration(
+        'Folders cannot be exported as a single file yet.',
+      );
+    }
+
+    final context = await _requireContext();
+    final response = await _send(
+      () => _httpClient.get(
+        _apiUri(context.baseUrl, ['api', 'files', entry.id, 'download']),
+        headers: {'Authorization': 'Bearer ${context.accessToken}'},
+      ),
+      fallbackMessage: 'Unable to download the file through the Weave backend.',
+    );
+    _ensureSuccess(response, successCodes: const {200});
+    return FileDownload(
+      fileName: _downloadFileName(response.headers) ?? entry.name,
+      bytes: Uint8List.fromList(response.bodyBytes),
+    );
+  }
+
+  String? _downloadFileName(Map<String, String> headers) {
+    final disposition = headers['content-disposition'];
+    if (disposition == null) {
+      return null;
+    }
+    final filenameStar = RegExp(
+      r"filename\*=UTF-8''([^;]+)",
+      caseSensitive: false,
+    ).firstMatch(disposition);
+    if (filenameStar != null) {
+      return Uri.decodeComponent(filenameStar.group(1)!);
+    }
+    final filename = RegExp(
+      r'filename="?([^";]+)"?',
+      caseSensitive: false,
+    ).firstMatch(disposition);
+    return filename?.group(1);
   }
 
   Future<void> delete(String id) async {

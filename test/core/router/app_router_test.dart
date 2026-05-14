@@ -9,6 +9,10 @@ import 'package:weave/features/auth/data/repositories/oidc_auth_session_reposito
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
@@ -47,6 +51,55 @@ class _FakeServerConfigurationRepository
   Future<void> saveConfiguration(ServerConfiguration configuration) async {
     this.configuration = configuration;
   }
+}
+
+AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
+  return const AsyncData(
+    WorkspaceConnectionState(
+      appAuth: IntegrationConnectionState(
+        integration: WorkspaceIntegration.appAuth,
+        status: IntegrationConnectionStatus.connected,
+      ),
+      matrix: IntegrationConnectionState(
+        integration: WorkspaceIntegration.matrix,
+        status: IntegrationConnectionStatus.connected,
+      ),
+      nextcloud: IntegrationConnectionState(
+        integration: WorkspaceIntegration.nextcloud,
+        status: IntegrationConnectionStatus.connected,
+      ),
+    ),
+  );
+}
+
+AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
+  return const AsyncData(
+    WorkspaceCapabilitySnapshot(
+      shellAccess: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.shellAccess,
+        readiness: WorkspaceCapabilityReadiness.ready,
+        connectionStatus: IntegrationConnectionStatus.connected,
+      ),
+      chat: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.chat,
+        readiness: WorkspaceCapabilityReadiness.ready,
+        connectionStatus: IntegrationConnectionStatus.connected,
+      ),
+      files: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.files,
+        readiness: WorkspaceCapabilityReadiness.ready,
+        connectionStatus: IntegrationConnectionStatus.connected,
+      ),
+      calendar: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.calendar,
+        readiness: WorkspaceCapabilityReadiness.unavailable,
+      ),
+      boards: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.boards,
+        readiness: WorkspaceCapabilityReadiness.unavailable,
+      ),
+    ),
+  );
 }
 
 class _FakeOidcClient implements OidcClient {
@@ -95,6 +148,12 @@ void main() {
             (ref) async => firstRunStatus ?? buildTestFirstRunStatus(),
           ),
           userProfileProvider.overrideWith((ref) async => null),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
         ],
       );
       return container;

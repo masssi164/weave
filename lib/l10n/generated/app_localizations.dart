@@ -887,6 +887,42 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get filesDeleteButton;
 
+  /// Tooltip/semantic label for exporting a file to native platform file surfaces
+  ///
+  /// In en, this message translates to:
+  /// **'Export {name} to native files'**
+  String filesExportEntrySemantic(String name);
+
+  /// Status message while a file is exported
+  ///
+  /// In en, this message translates to:
+  /// **'Exporting {name}…'**
+  String filesExportProgressMessage(String name);
+
+  /// Status message while an unnamed file is exported
+  ///
+  /// In en, this message translates to:
+  /// **'Exporting file…'**
+  String get filesExportProgressUnknownMessage;
+
+  /// Status message after a file is exported to a native file surface
+  ///
+  /// In en, this message translates to:
+  /// **'Exported {name} to {destination}.'**
+  String filesExportCompletedMessage(String name, String destination);
+
+  /// Status message after an unnamed file is exported
+  ///
+  /// In en, this message translates to:
+  /// **'Exported file to native files.'**
+  String get filesExportCompletedUnknownMessage;
+
+  /// Fallback destination label when the platform does not expose an export path
+  ///
+  /// In en, this message translates to:
+  /// **'a user-visible files location'**
+  String get filesExportUserVisibleFallback;
+
   /// Semantic label for deleting a file or folder
   ///
   /// In en, this message translates to:
@@ -1060,6 +1096,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose which workspace shell modules stay visible. Navigation remains available even when a module is hidden.'**
   String get settingsShellModulesDescription;
+
+  /// Switch title for the workspace status shell module visibility preference
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace status summary'**
+  String get settingsShellWorkspaceStatusToggleTitle;
+
+  /// Switch description for the workspace status shell module visibility preference
+  ///
+  /// In en, this message translates to:
+  /// **'Show service readiness and recovery shortcuts above the bottom navigation.'**
+  String get settingsShellWorkspaceStatusToggleDescription;
+
+  /// Tooltip for moving a shell module earlier in the shell order
+  ///
+  /// In en, this message translates to:
+  /// **'Move {moduleName} up'**
+  String settingsShellMoveModuleUp(String moduleName);
+
+  /// Tooltip for moving a shell module later in the shell order
+  ///
+  /// In en, this message translates to:
+  /// **'Move {moduleName} down'**
+  String settingsShellMoveModuleDown(String moduleName);
 
   /// Switch title for the recent activity shell module visibility preference
   ///
@@ -1571,6 +1631,54 @@ abstract class AppLocalizations {
   /// **'Security numbers {value}'**
   String chatSecurityNumbersSummaryLabel(String value);
 
+  /// Settings section title for feature-flagged post-release product surfaces
+  ///
+  /// In en, this message translates to:
+  /// **'Preview surfaces'**
+  String get settingsPreviewSurfacesTitle;
+
+  /// Description for feature-flagged post-release surfaces
+  ///
+  /// In en, this message translates to:
+  /// **'These surfaces stay hidden by default for Release 1. They only show honest shell states until the backend contracts are available.'**
+  String get settingsPreviewSurfacesDescription;
+
+  /// Feature-flagged Guest Portal preview title
+  ///
+  /// In en, this message translates to:
+  /// **'Guest Portal'**
+  String get settingsGuestPortalPreviewTitle;
+
+  /// Feature-flagged Guest Portal preview description
+  ///
+  /// In en, this message translates to:
+  /// **'Guest invitations and constrained access will appear here without exposing member-only affordances.'**
+  String get settingsGuestPortalPreviewDescription;
+
+  /// Feature-flagged interop admin status preview title
+  ///
+  /// In en, this message translates to:
+  /// **'External connections admin status'**
+  String get settingsInteropAdminPreviewTitle;
+
+  /// Feature-flagged interop admin preview description
+  ///
+  /// In en, this message translates to:
+  /// **'External provider status will explain data movement and consent; provider secrets are never collected in this client.'**
+  String get settingsInteropAdminPreviewDescription;
+
+  /// Feature-flagged migration dry-run preview title
+  ///
+  /// In en, this message translates to:
+  /// **'Migration dry-run report'**
+  String get settingsMigrationDryRunPreviewTitle;
+
+  /// Feature-flagged migration dry-run preview description
+  ///
+  /// In en, this message translates to:
+  /// **'Admins will be able to review inventory, risks, scopes, and mappings before any import starts.'**
+  String get settingsMigrationDryRunPreviewDescription;
+
   /// Section title for server configuration in settings
   ///
   /// In en, this message translates to:
@@ -1894,6 +2002,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No messages yet'**
   String get chatRoomEmptyMessage;
+
+  /// Banner shown when a local unsent chat draft is restored
+  ///
+  /// In en, this message translates to:
+  /// **'Draft restored from this device.'**
+  String get chatRoomDraftRestoredMessage;
 
   /// Hint text for the room composer when sending is allowed
   ///

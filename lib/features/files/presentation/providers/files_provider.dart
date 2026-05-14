@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
+import 'package:weave/features/files/data/services/file_picker_files_export_saver.dart';
 import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
@@ -8,6 +9,7 @@ import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
+import 'package:weave/features/files/domain/services/files_export_saver.dart';
 import 'package:weave/features/files/domain/services/files_import_picker.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
@@ -20,6 +22,8 @@ enum FilesEntryActionPhase {
   createdFolder,
   deletingEntry,
   deletedEntry,
+  exportingEntry,
+  exportedEntry,
   failed,
 }
 
@@ -59,6 +63,7 @@ class FilesEntryActionStatus {
     required this.phase,
     this.entryName,
     this.failure,
+    this.destination,
   });
 
   const FilesEntryActionStatus.idle() : this(phase: FilesEntryActionPhase.idle);
@@ -66,6 +71,7 @@ class FilesEntryActionStatus {
   final FilesEntryActionPhase phase;
   final String? entryName;
   final FilesFailure? failure;
+  final String? destination;
 }
 
 class FilesViewState {
@@ -496,6 +502,95 @@ class FilesController extends AsyncNotifier<FilesViewState> {
     }
   }
 
+  Future<void> exportEntry(FileEntry entry) async {
+    final current = _currentStateOrNull();
+    if (current == null || current.isBusy) {
+      return;
+    }
+
+    if (entry.isDirectory) {
+      state = AsyncData(
+        current.copyWith(
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: entry.name,
+            failure: const FilesFailure.configuration(
+              'Folders cannot be exported as a single file yet.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final exportRepository = _exportRepositoryOrNull();
+    if (exportRepository == null) {
+      state = AsyncData(
+        current.copyWith(
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: entry.name,
+            failure: const FilesFailure.unsupportedPlatform(
+              'File export is unavailable for this files connection.',
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    state = AsyncData(
+      current.copyWith(
+        isBusy: true,
+        entryActionStatus: FilesEntryActionStatus(
+          phase: FilesEntryActionPhase.exportingEntry,
+          entryName: entry.name,
+        ),
+        clearDirectoryFailure: true,
+      ),
+    );
+
+    try {
+      final download = await exportRepository.downloadFile(entry);
+      final result = await _exportSaver.save(download);
+      final latest = _currentStateOrNull() ?? current;
+      state = AsyncData(
+        latest.copyWith(
+          isBusy: false,
+          entryActionStatus: result == null
+              ? const FilesEntryActionStatus.idle()
+              : FilesEntryActionStatus(
+                  phase: FilesEntryActionPhase.exportedEntry,
+                  entryName: result.fileName,
+                  destination: result.destination,
+                ),
+          clearDirectoryFailure: true,
+        ),
+      );
+    } on FilesFailure catch (failure) {
+      final latest = _currentStateOrNull() ?? current;
+      state = AsyncData(
+        latest.copyWith(
+          connectionState: _connectionStateForFailure(
+            latest.connectionState,
+            failure,
+          ),
+          directoryFailure: failure.type == FilesFailureType.invalidCredentials
+              ? failure
+              : latest.directoryFailure,
+          isBusy: false,
+          entryActionStatus: FilesEntryActionStatus(
+            phase: FilesEntryActionPhase.failed,
+            entryName: entry.name,
+            failure: failure,
+          ),
+          clearDirectoryListing:
+              failure.type == FilesFailureType.invalidCredentials,
+        ),
+      );
+    }
+  }
+
   Future<void> _loadDirectory(String path) async {
     final current = _currentStateOrNull();
     if (current != null) {
@@ -566,6 +661,14 @@ class FilesController extends AsyncNotifier<FilesViewState> {
 
   FilesRepository get _repository => ref.read(filesRepositoryProvider);
 
+  FilesExportRepository? _exportRepositoryOrNull() {
+    final repository = _repository;
+    if (repository is FilesExportRepository) {
+      return repository as FilesExportRepository;
+    }
+    return null;
+  }
+
   FilesEntryMutationRepository? _mutationRepositoryOrNull() {
     final repository = _repository;
     if (repository is FilesEntryMutationRepository) {
@@ -575,6 +678,8 @@ class FilesController extends AsyncNotifier<FilesViewState> {
   }
 
   FilesImportPicker get _importPicker => ref.read(filesImportPickerProvider);
+
+  FilesExportSaver get _exportSaver => ref.read(filesExportSaverProvider);
 
   FilesViewState? _currentStateOrNull() {
     return state.hasValue ? state.requireValue : null;

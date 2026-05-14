@@ -1,4 +1,5 @@
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
+import 'package:weave/features/files/domain/entities/file_download.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
@@ -17,6 +18,10 @@ abstract interface class FilesRepository {
     FileUploadRequest request, {
     FileUploadProgressCallback? onProgress,
   });
+}
+
+abstract interface class FilesExportRepository {
+  Future<FileDownload> downloadFile(FileEntry entry);
 }
 
 abstract interface class FilesEntryMutationRepository {

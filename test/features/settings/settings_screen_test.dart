@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
@@ -155,6 +156,9 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Workspace Readiness'), findsOneWidget);
+      expect(FeatureFlags.hasPostReleaseSurfaces, isFalse);
+      expect(find.text('Preview surfaces'), findsNothing);
+      expect(find.text('Guest Portal'), findsNothing);
       expect(
         find.text(
           'Shell access is ready, but one or more services still need attention.',
@@ -293,7 +297,7 @@ void main() {
 
       expect(
         store.rawString(shellModulePreferencesStorageKey),
-        '{"hiddenModules":["recentActivity"]}',
+        '{"hiddenModules":["workspaceStatus","recentActivity"],"moduleOrder":["workspaceStatus","recentActivity"]}',
       );
 
       await tester.tap(recentActivityToggle);
@@ -301,7 +305,17 @@ void main() {
 
       expect(
         store.rawString(shellModulePreferencesStorageKey),
-        '{"hiddenModules":[]}',
+        '{"hiddenModules":["workspaceStatus"],"moduleOrder":["workspaceStatus","recentActivity"]}',
+      );
+
+      await tester.ensureVisible(find.text('Workspace status summary'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Move Workspace status summary down'));
+      await tester.pumpAndSettle();
+
+      expect(
+        store.rawString(shellModulePreferencesStorageKey),
+        '{"hiddenModules":["workspaceStatus"],"moduleOrder":["recentActivity","workspaceStatus"]}',
       );
     });
 

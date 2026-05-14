@@ -27,12 +27,24 @@ class ShellModulePreferencesController
   }) async {
     final previous = state.asData?.value ?? const ShellModulePreferences();
     final next = previous.setVisibility(module: module, isVisible: isVisible);
+    await _save(next);
+  }
 
-    state = AsyncData(next);
+  Future<void> moveModule({
+    required ShellModule module,
+    required int delta,
+  }) async {
+    final previous = state.asData?.value ?? const ShellModulePreferences();
+    final next = previous.moveModule(module: module, delta: delta);
+    await _save(next);
+  }
+
+  Future<void> _save(ShellModulePreferences preferences) async {
+    state = AsyncData(preferences);
     try {
       await ref
           .read(shellModulePreferencesRepositoryProvider)
-          .savePreferences(next);
+          .savePreferences(preferences);
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
     }

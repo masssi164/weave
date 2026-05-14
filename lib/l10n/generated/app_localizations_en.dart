@@ -468,6 +468,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filesDeleteButton => 'Delete';
 
   @override
+  String filesExportEntrySemantic(String name) {
+    return 'Export $name to native files';
+  }
+
+  @override
+  String filesExportProgressMessage(String name) {
+    return 'Exporting $name…';
+  }
+
+  @override
+  String get filesExportProgressUnknownMessage => 'Exporting file…';
+
+  @override
+  String filesExportCompletedMessage(String name, String destination) {
+    return 'Exported $name to $destination.';
+  }
+
+  @override
+  String get filesExportCompletedUnknownMessage =>
+      'Exported file to native files.';
+
+  @override
+  String get filesExportUserVisibleFallback => 'a user-visible files location';
+
+  @override
   String filesDeleteEntrySemantic(String name) {
     return 'Delete $name';
   }
@@ -582,6 +607,24 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsShellModulesDescription =>
       'Choose which workspace shell modules stay visible. Navigation remains available even when a module is hidden.';
+
+  @override
+  String get settingsShellWorkspaceStatusToggleTitle =>
+      'Workspace status summary';
+
+  @override
+  String get settingsShellWorkspaceStatusToggleDescription =>
+      'Show service readiness and recovery shortcuts above the bottom navigation.';
+
+  @override
+  String settingsShellMoveModuleUp(String moduleName) {
+    return 'Move $moduleName up';
+  }
+
+  @override
+  String settingsShellMoveModuleDown(String moduleName) {
+    return 'Move $moduleName down';
+  }
 
   @override
   String get settingsShellRecentActivityToggleTitle =>
@@ -885,6 +928,35 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get settingsPreviewSurfacesTitle => 'Preview surfaces';
+
+  @override
+  String get settingsPreviewSurfacesDescription =>
+      'These surfaces stay hidden by default for Release 1. They only show honest shell states until the backend contracts are available.';
+
+  @override
+  String get settingsGuestPortalPreviewTitle => 'Guest Portal';
+
+  @override
+  String get settingsGuestPortalPreviewDescription =>
+      'Guest invitations and constrained access will appear here without exposing member-only affordances.';
+
+  @override
+  String get settingsInteropAdminPreviewTitle =>
+      'External connections admin status';
+
+  @override
+  String get settingsInteropAdminPreviewDescription =>
+      'External provider status will explain data movement and consent; provider secrets are never collected in this client.';
+
+  @override
+  String get settingsMigrationDryRunPreviewTitle => 'Migration dry-run report';
+
+  @override
+  String get settingsMigrationDryRunPreviewDescription =>
+      'Admins will be able to review inventory, risks, scopes, and mappings before any import starts.';
+
+  @override
   String get settingsServerConfigurationTitle => 'Server Configuration';
 
   @override
@@ -1072,6 +1144,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatRoomEmptyMessage => 'No messages yet';
+
+  @override
+  String get chatRoomDraftRestoredMessage => 'Draft restored from this device.';
 
   @override
   String get chatRoomComposerHint => 'Write a message';
