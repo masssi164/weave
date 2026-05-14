@@ -1389,6 +1389,65 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get calendarClientSetupTitle => 'Use Calendar in other apps';
+
+  @override
+  String get calendarClientSetupDescription =>
+      'Release 2 can hand native clients secret-free setup details. Weave still owns the product calendar UI.';
+
+  @override
+  String get calendarClientSetupIconSemantic => 'External calendar setup';
+
+  @override
+  String get calendarClientSetupLoading => 'Loading setup options…';
+
+  @override
+  String get calendarClientSetupUnavailable =>
+      'Calendar setup options are unavailable right now.';
+
+  @override
+  String get calendarClientSetupUsernameLabel => 'Username';
+
+  @override
+  String get calendarClientSetupDiscoveryUrlLabel => 'CalDAV discovery URL';
+
+  @override
+  String get calendarClientSetupPrincipalUrlLabel => 'Principal URL';
+
+  @override
+  String get calendarClientSetupCredentialPolicyTitle => 'Credential safety';
+
+  @override
+  String get calendarClientSetupPlatformsTitle => 'Platform setup';
+
+  @override
+  String get calendarClientSetupAvailableStatus => 'available';
+
+  @override
+  String get calendarClientSetupPlannedStatus => 'planned';
+
+  @override
+  String get calendarClientSetupPlannedFallback =>
+      'This setup path is planned for Release 2.';
+
+  @override
+  String calendarClientSetupOptionTitle(
+    String platform,
+    String method,
+    String status,
+  ) {
+    return '$platform via $method: $status';
+  }
+
+  @override
+  String calendarClientSetupCopyTooltip(String label) {
+    return 'Copy $label';
+  }
+
+  @override
+  String get calendarClientSetupCopied => 'Calendar setup value copied.';
+
+  @override
   String get calendarCreateButton => 'Create event';
 
   @override

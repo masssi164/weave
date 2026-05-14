@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
@@ -42,15 +43,22 @@ class CalendarScreen extends ConsumerWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
               sliver: SliverList.separated(
                 itemCount: calendar.events.isEmpty
-                    ? 2
-                    : calendar.events.length + 1,
+                    ? 3
+                    : calendar.events.length + 2,
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: 12),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return _CalendarScopeBanner(scope: calendar.scope);
                   }
+                  if (calendar.events.isNotEmpty &&
+                      index == calendar.events.length + 1) {
+                    return const _CalendarClientSetupCard();
+                  }
                   if (calendar.events.isEmpty) {
+                    if (index == 1) {
+                      return const _CalendarClientSetupCard();
+                    }
                     return SizedBox(
                       height: 320,
                       child: EmptyState(
@@ -125,6 +133,250 @@ class CalendarScreen extends ConsumerWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _CalendarClientSetupCard extends ConsumerWidget {
+  const _CalendarClientSetupCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final setup = ref.watch(calendarClientSetupProvider);
+
+    return Semantics(
+      container: true,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.surfaceContainerLow,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.install_mobile_outlined,
+                    color: theme.colorScheme.primary,
+                    semanticLabel: l10n.calendarClientSetupIconSemantic,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.calendarClientSetupTitle,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.calendarClientSetupDescription,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              switch (setup) {
+                AsyncData(value: final value) => _CalendarClientSetupDetails(
+                  setup: value,
+                ),
+                AsyncError() => ErrorState(
+                  message: l10n.calendarClientSetupUnavailable,
+                  retryLabel: l10n.retryButton,
+                  onRetry: () => ref.invalidate(calendarClientSetupProvider),
+                ),
+                _ => Text(
+                  l10n.calendarClientSetupLoading,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              },
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CalendarClientSetupDetails extends StatelessWidget {
+  const _CalendarClientSetupDetails({required this.setup});
+
+  final CalendarClientSetup setup;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SetupValueRow(
+          label: l10n.calendarClientSetupUsernameLabel,
+          value: setup.username,
+          copyValue: setup.username,
+        ),
+        _SetupValueRow(
+          label: l10n.calendarClientSetupDiscoveryUrlLabel,
+          value: setup.endpoints.caldavDiscoveryUrl,
+          copyValue: setup.endpoints.caldavDiscoveryUrl,
+        ),
+        _SetupValueRow(
+          label: l10n.calendarClientSetupPrincipalUrlLabel,
+          value: setup.endpoints.principalUrl,
+          copyValue: setup.endpoints.principalUrl,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          l10n.calendarClientSetupCredentialPolicyTitle,
+          style: theme.textTheme.labelLarge,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          setup.credentialPolicy,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          l10n.calendarClientSetupPlatformsTitle,
+          style: theme.textTheme.labelLarge,
+        ),
+        const SizedBox(height: 8),
+        ...setup.options.map((option) => _SetupOptionTile(option: option)),
+      ],
+    );
+  }
+}
+
+class _SetupValueRow extends StatelessWidget {
+  const _SetupValueRow({
+    required this.label,
+    required this.value,
+    required this.copyValue,
+  });
+
+  final String label;
+  final String value;
+  final String copyValue;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.textTheme.labelLarge),
+                const SizedBox(height: 2),
+                SelectableText(
+                  value,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: l10n.calendarClientSetupCopyTooltip(label),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: copyValue));
+              if (!context.mounted) {
+                return;
+              }
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(l10n.calendarClientSetupCopied)),
+              );
+            },
+            icon: const Icon(Icons.copy_outlined),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SetupOptionTile extends StatelessWidget {
+  const _SetupOptionTile({required this.option});
+
+  final CalendarClientSetupOption option;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final status = option.available
+        ? l10n.calendarClientSetupAvailableStatus
+        : l10n.calendarClientSetupPlannedStatus;
+    final reason = option.available
+        ? option.actionUrl
+        : option.unavailableReason ?? l10n.calendarClientSetupPlannedFallback;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: MergeSemantics(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              option.available
+                  ? Icons.check_circle_outline
+                  : Icons.lock_clock_outlined,
+              color: option.available
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.calendarClientSetupOptionTitle(
+                      option.platform,
+                      option.method,
+                      status,
+                    ),
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  if (reason != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      reason,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

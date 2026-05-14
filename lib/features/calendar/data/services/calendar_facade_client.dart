@@ -58,6 +58,45 @@ class CalendarFacadeClient {
     return CalendarEventList(scope: scope, events: events);
   }
 
+  Future<CalendarClientSetup> clientSetup() async {
+    final context = await _requireContext();
+    final response = await _send(
+      () => _httpClient.get(
+        _apiUri(context.baseUrl, const ['api', 'calendar', 'client-setup']),
+        headers: _jsonHeaders(context.accessToken),
+      ),
+      fallbackMessage:
+          'Unable to load calendar setup metadata from the Weave backend.',
+    );
+    _ensureSuccess(response, successCodes: const {200});
+    final payload = _decodeObject(response.body);
+    final endpoints = _decodeObjectValue(
+      payload['endpoints'],
+      'calendar setup endpoints',
+    );
+    final rawOptions = payload['options'];
+    if (rawOptions is! List) {
+      throw const AppFailure.unknown(
+        'The Weave backend returned calendar setup data without options.',
+      );
+    }
+
+    return CalendarClientSetup(
+      scope: _decodeScope(payload['scope']),
+      username: _readString(payload, 'username'),
+      endpoints: CalendarExternalEndpoints(
+        serverUrl: _readString(endpoints, 'serverUrl'),
+        caldavDiscoveryUrl: _readString(endpoints, 'caldavDiscoveryUrl'),
+        principalUrl: _readString(endpoints, 'principalUrl'),
+      ),
+      credentialPolicy: _readString(payload, 'credentialPolicy'),
+      options: rawOptions
+          .whereType<Map<String, dynamic>>()
+          .map(_decodeSetupOption)
+          .toList(growable: false),
+    );
+  }
+
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
     final context = await _requireContext();
     final response = await _send(
@@ -216,6 +255,20 @@ class CalendarFacadeClient {
     return CalendarScope(type: type, label: label);
   }
 
+  CalendarClientSetupOption _decodeSetupOption(Map<String, dynamic> json) {
+    final rawGuidance = json['guidance'];
+    return CalendarClientSetupOption(
+      platform: _readString(json, 'platform'),
+      method: _readString(json, 'method'),
+      available: json['available'] == true,
+      actionUrl: _readNullableString(json, 'actionUrl'),
+      unavailableReason: _readNullableString(json, 'unavailableReason'),
+      guidance: rawGuidance is List
+          ? rawGuidance.whereType<String>().toList(growable: false)
+          : const [],
+    );
+  }
+
   Map<String, dynamic> _decodeObject(String body) {
     try {
       final payload = jsonDecode(body);
@@ -228,6 +281,13 @@ class CalendarFacadeClient {
     throw const AppFailure.unknown(
       'The Weave backend returned an invalid calendar payload.',
     );
+  }
+
+  Map<String, dynamic> _decodeObjectValue(Object? value, String label) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    throw AppFailure.unknown('The Weave backend returned invalid $label.');
   }
 
   String? _errorMessage(String body) {
