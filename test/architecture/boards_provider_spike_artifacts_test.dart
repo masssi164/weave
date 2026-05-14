@@ -16,19 +16,25 @@ void main() {
     expect(artifacts, contains('/api/v3/work_packages'));
     expect(artifacts, contains('/boards/{boardId}/stacks'));
     expect(artifacts, contains('TaskBoardEventNormalizer'));
-    expect(artifacts, contains('No live instance, credentials, or provider secrets'));
+    expect(
+      artifacts,
+      contains('No live instance, credentials, or provider secrets'),
+    );
     expect(artifacts, contains('hidden and disabled for Release 1'));
   });
 
-  test('provider artifacts preserve accessible non-drag board contract', () async {
-    final artifacts = await File(
-      'docs/research/boards-provider-spike-artifacts.md',
-    ).readAsString();
+  test(
+    'provider artifacts preserve accessible non-drag board contract',
+    () async {
+      final artifacts = await File(
+        'docs/research/boards-provider-spike-artifacts.md',
+      ).readAsString();
 
-    expect(artifacts, contains('No task movement requires drag-and-drop'));
-    expect(artifacts, contains('Screen readers get deterministic'));
-    expect(artifacts, contains('Text at 200%'));
-    expect(artifacts, contains('reorder'));
-    expect(artifacts, contains('/tasks/{id}/position'));
-  });
+      expect(artifacts, contains('No task movement requires drag-and-drop'));
+      expect(artifacts, contains('Screen readers get deterministic'));
+      expect(artifacts, contains('Text at 200%'));
+      expect(artifacts, contains('reorder'));
+      expect(artifacts, contains('/tasks/{id}/position'));
+    },
+  );
 }
