@@ -25,6 +25,7 @@ import 'package:weave/features/files/presentation/providers/files_provider.dart'
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -148,6 +149,23 @@ void main() {
       container.read(chatProvider.notifier).connect();
       _resetKeyboardTestState();
       await tester.pump();
+
+      await _waitFor(
+        tester,
+        () {
+          final session = container
+              .read(weaveAuthenticatedSessionProvider)
+              .asData
+              ?.value;
+          return session != null && session.accessToken.isNotEmpty;
+        },
+        reason: 'The backend session should be restorable after live sign-in.',
+        timeout: const Duration(seconds: 30),
+        diagnostics: () {
+          final session = container.read(weaveAuthenticatedSessionProvider);
+          return 'weaveAuthenticatedSession=$session';
+        },
+      );
 
       final profileRepository = container.read(userProfileRepositoryProvider);
       final originalProfile = await profileRepository.loadProfile();
