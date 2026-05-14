@@ -8,13 +8,11 @@ class BackendUserProfileRepository implements UserProfileRepository {
   const BackendUserProfileRepository({
     required BackendProfileClient client,
     required Future<WeaveAuthenticatedSession?> Function() sessionResolver,
-    this.profileEditingSupported = false,
   }) : _client = client,
        _sessionResolver = sessionResolver;
 
   final BackendProfileClient _client;
   final Future<WeaveAuthenticatedSession?> Function() _sessionResolver;
-  final bool profileEditingSupported;
 
   @override
   Future<UserProfile?> loadProfile() async {
@@ -34,11 +32,6 @@ class BackendUserProfileRepository implements UserProfileRepository {
     if (session == null) {
       throw const AppFailure.unknown(
         'Sign in before editing the Weave profile.',
-      );
-    }
-    if (!profileEditingSupported) {
-      throw const AppFailure.unknown(
-        'Profile editing is waiting for backend PATCH /api/profile support.',
       );
     }
     return _client.updateProfile(

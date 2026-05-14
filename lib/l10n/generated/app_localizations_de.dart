@@ -1395,6 +1395,36 @@ class AppLocalizationsDe extends AppLocalizations {
       'Profilbearbeitung ist in der App vorbereitet, aber Speichern ist blockiert, bis das Backend PATCH /api/profile bereitstellt.';
 
   @override
+  String get profileEditSectionTitle => 'Profil bearbeiten';
+
+  @override
+  String get profileEditSectionDescription =>
+      'Speichere Änderungen über die Weave-Backend-Profilfassade, damit alle Produktmodule dasselbe Profil verwenden.';
+
+  @override
+  String get profileDisplayNameHelper =>
+      'Wird Workspace-Mitgliedern in Weave-Oberflächen angezeigt.';
+
+  @override
+  String get profileLocaleHelper => 'Nutze einen Sprachcode wie en oder de.';
+
+  @override
+  String get profileTimezoneHelper =>
+      'Nutze eine IANA-Zeitzone wie Europe/Berlin.';
+
+  @override
+  String get profileEditRequiredFieldError => 'Dieses Feld ist erforderlich.';
+
+  @override
+  String get profileEditSaveButton => 'Profil speichern';
+
+  @override
+  String get profileEditSavingButton => 'Profil wird gespeichert…';
+
+  @override
+  String get profileEditSavedMessage => 'Profil gespeichert.';
+
+  @override
   String get settingsWorkspaceCalendarLabel => 'Kalender';
 
   @override

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/features/profile/data/services/backend_profile_client.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
 
 class _RecordingHttpClient extends http.BaseClient {
   _RecordingHttpClient(this._handler);
@@ -54,6 +55,50 @@ void main() {
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(profile.displayName, 'Alice Example');
       expect(profile.roles, ['member']);
+    });
+
+    test('patches /api/profile through the backend profile facade', () async {
+      late http.BaseRequest capturedRequest;
+      final client = BackendProfileClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          expect(request, isA<http.Request>());
+          expect(
+            jsonDecode((request as http.Request).body),
+            containsPair('displayName', 'Alice Updated'),
+          );
+          return _jsonResponse({
+            'userId': 'user-123',
+            'username': 'alice',
+            'email': 'alice@example.test',
+            'emailVerified': true,
+            'displayName': 'Alice Updated',
+            'locale': 'de',
+            'timezone': 'Europe/Berlin',
+            'roles': ['member'],
+            'groups': ['workspace-default'],
+          });
+        }),
+      );
+
+      final profile = await client.updateProfile(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+        update: const UserProfileUpdate(
+          displayName: 'Alice Updated',
+          locale: 'de',
+          timezone: 'Europe/Berlin',
+        ),
+      );
+
+      expect(capturedRequest.method, 'PATCH');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.weave.local/api/profile',
+      );
+      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+      expect(profile.displayName, 'Alice Updated');
+      expect(profile.locale, 'de');
     });
   });
 }
