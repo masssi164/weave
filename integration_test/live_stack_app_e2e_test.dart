@@ -12,6 +12,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
+import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
@@ -143,8 +144,18 @@ void main() {
       );
 
       await tester.tap(find.widgetWithText(AccessibleButton, 'Anmelden').first);
+      final signInSucceeded = await container
+          .read(authFlowControllerProvider.notifier)
+          .signIn();
       _resetKeyboardTestState();
       await tester.pump();
+      if (!signInSucceeded) {
+        final authFlowState = container.read(authFlowControllerProvider);
+        fail(
+          'live_e2e_result authSignedIn=false '
+          'authFailure=${authFlowState.failure}',
+        );
+      }
 
       container.read(chatProvider.notifier).connect();
       _resetKeyboardTestState();
