@@ -208,8 +208,6 @@ def render(screen: Screen) -> str:
   <rect x="104" y="212" width="1096" height="150" rx="34" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
   {line(screen.hero, 144, 270, size=42, weight=900, fill="#0f172a")}
   {multiline(screen.subhero, 144, 316, width=880, size=26, fill="#475569", line_height=34)}
-  <rect x="1228" y="248" width="104" height="56" rx="20" fill="#0e7490"/>
-  {line("AA", 1257, 286, size=25, weight=900, fill="#ffffff")}
   {metrics}
   {cards}
   <rect x="1012" y="96" width="300" height="54" rx="20" fill="#0f172a"/>

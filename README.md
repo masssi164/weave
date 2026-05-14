@@ -35,13 +35,25 @@ Calendar, Deck, Slack/Teams interop, migration tooling, connector SDKs, and Weav
 
 The images below are deterministic Release 1 marketing screenshots generated from `tool/generate_marketing_screenshots.py`. They are checked into `docs/assets/marketing/` so the README is useful without downloading CI artifacts, and each image has descriptive alt text rather than relying on image-only documentation.
 
-| Setup | Chat | Files |
-| --- | --- | --- |
-| <img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing a guided workspace setup path and canonical local service URLs." width="280"> | <img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room screenshot showing the Release Room, message history, and a send message action." width="280"> | <img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files screenshot showing the Documents folder with folders, files, and accessible file actions." width="280"> |
+### Setup
 
-| Endpoint review | Settings |
-| --- | --- |
-| <img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review screenshot listing Matrix, files, and backend service URLs before finishing setup." width="280"> | <img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="280"> |
+<img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing a guided workspace setup path and canonical local service URLs." width="560">
+
+### Endpoint review
+
+<img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review screenshot listing Matrix, files, and backend service URLs before finishing setup." width="560">
+
+### Chat
+
+<img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room screenshot showing the Release Room, message history, and a send message action." width="560">
+
+### Files
+
+<img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files screenshot showing the Documents folder with folders, files, and accessible file actions." width="560">
+
+### Settings
+
+<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">
 
 ## Product architecture
 
