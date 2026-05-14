@@ -90,6 +90,8 @@ Today, Nextcloud auth, session persistence, login-flow handling, bearer fallback
 
 See [docs/architecture.md](docs/architecture.md) for the detailed design notes.
 
+Post-Release-1 external collaboration strategy is tracked in [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md). It keeps Weave as the secure primary platform while Slack, Teams, guest access, migration tooling, and future connectors attach through controlled backend-owned interop boundaries.
+
 ## Release 1 boundary
 The first public release only presents Chat, Files, and Settings in the main app shell.
 

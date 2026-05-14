@@ -90,6 +90,10 @@ Current failure types:
 - `validation`
 - `unknown`
 
+## External collaboration and interop
+
+Slack, Teams, guest collaboration, migration tooling, and future connectors must attach through backend-owned Interop Gateway boundaries rather than provider-specific Flutter transport logic. See [Interop Gateway and External Collaboration](interop-gateway-and-external-collaboration.md). This direction is post-Release-1 and must remain feature-flagged/off by default until explicitly promoted.
+
 ## Feature and integration layering
 Each feature follows the same three layers:
 
