@@ -135,6 +135,26 @@ SCREENS: tuple[Screen, ...] = (
         ),
         status="Save Changes",
     ),
+
+    Screen(
+        file_name="06-calendar-workspace-preview.svg",
+        title="Weave workspace calendar preview screen",
+        description="The hidden Calendar preview labels the first backend-provided scope as a shared workspace calendar, not a private user calendar.",
+        active_nav="Preview",
+        hero="Workspace calendar preview",
+        subhero="Calendar is hidden from Release 1 navigation while the first safe slice uses the backend facade and clearly labels shared workspace scope.",
+        metrics=(
+            Metric("Scope", "Workspace calendar"),
+            Metric("Facade", "/api/calendar/events"),
+            Metric("Release", "Hidden preview"),
+        ),
+        cards=(
+            ("👥", "Shared by the workspace", "Events belong to the backend-provisioned workspace calendar for this first slice."),
+            ("✓", "Create and edit events", "The Flutter surface talks to Weave backend, which owns CalDAV credentials and errors."),
+            ("🔒", "Private calendars blocked", "Per-user calendars stay disabled until issue #52 defines sharing or delegation."),
+        ),
+        status="Preview only",
+    ),
 )
 
 

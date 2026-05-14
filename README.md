@@ -51,6 +51,14 @@ A first look at the Release 1 experience: guided setup, chat, files, and workspa
 
 [<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">](docs/assets/marketing/05-settings.svg)
 
+### Hidden preview: workspace calendar
+
+Calendar is not a Release 1 navigation promise yet. The checked-in preview screenshot is included only to document the current in-progress shape: a Weave-owned workspace-calendar surface backed by the backend facade, with private per-user calendars still blocked on the documented access model.
+
+[<img src="docs/assets/marketing/06-calendar-workspace-preview.svg" alt="Weave calendar preview screenshot showing a workspace calendar scope label, backend facade contract, and private calendar blocker." width="560">](docs/assets/marketing/06-calendar-workspace-preview.svg)
+
+Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing.
+
 ## Product architecture
 
 Weave is the Flutter client in a three-repository product system:
