@@ -2399,11 +2399,65 @@ abstract class AppLocalizations {
   /// **'Groups'**
   String get profileGroupsLabel;
 
-  /// Message explaining why profile editing is not yet enabled
+  /// Deprecated message explaining why profile editing was not yet enabled
   ///
   /// In en, this message translates to:
   /// **'Profile editing is prepared in the app, but saving changes is blocked until the backend exposes PATCH /api/profile.'**
   String get profileEditingBlockedMessage;
+
+  /// Title for the editable profile form
+  ///
+  /// In en, this message translates to:
+  /// **'Edit profile'**
+  String get profileEditSectionTitle;
+
+  /// Description for the editable profile form
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes through the Weave backend profile facade so every product module sees the same profile.'**
+  String get profileEditSectionDescription;
+
+  /// Helper text for the profile display name field
+  ///
+  /// In en, this message translates to:
+  /// **'Shown to workspace members in Weave surfaces.'**
+  String get profileDisplayNameHelper;
+
+  /// Helper text for the profile locale field
+  ///
+  /// In en, this message translates to:
+  /// **'Use a locale code such as en or de.'**
+  String get profileLocaleHelper;
+
+  /// Helper text for the profile timezone field
+  ///
+  /// In en, this message translates to:
+  /// **'Use an IANA timezone such as Europe/Berlin.'**
+  String get profileTimezoneHelper;
+
+  /// Validation error for empty editable profile fields
+  ///
+  /// In en, this message translates to:
+  /// **'This field is required.'**
+  String get profileEditRequiredFieldError;
+
+  /// Button label for saving profile edits
+  ///
+  /// In en, this message translates to:
+  /// **'Save profile'**
+  String get profileEditSaveButton;
+
+  /// Busy button label while saving profile edits
+  ///
+  /// In en, this message translates to:
+  /// **'Saving profile…'**
+  String get profileEditSavingButton;
+
+  /// Live-region success message after saving profile edits
+  ///
+  /// In en, this message translates to:
+  /// **'Profile saved.'**
+  String get profileEditSavedMessage;
 
   /// Row label for calendar readiness in the workspace readiness summary
   ///

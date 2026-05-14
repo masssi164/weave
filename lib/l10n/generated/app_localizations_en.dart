@@ -1374,6 +1374,36 @@ class AppLocalizationsEn extends AppLocalizations {
       'Profile editing is prepared in the app, but saving changes is blocked until the backend exposes PATCH /api/profile.';
 
   @override
+  String get profileEditSectionTitle => 'Edit profile';
+
+  @override
+  String get profileEditSectionDescription =>
+      'Save changes through the Weave backend profile facade so every product module sees the same profile.';
+
+  @override
+  String get profileDisplayNameHelper =>
+      'Shown to workspace members in Weave surfaces.';
+
+  @override
+  String get profileLocaleHelper => 'Use a locale code such as en or de.';
+
+  @override
+  String get profileTimezoneHelper =>
+      'Use an IANA timezone such as Europe/Berlin.';
+
+  @override
+  String get profileEditRequiredFieldError => 'This field is required.';
+
+  @override
+  String get profileEditSaveButton => 'Save profile';
+
+  @override
+  String get profileEditSavingButton => 'Saving profile…';
+
+  @override
+  String get profileEditSavedMessage => 'Profile saved.';
+
+  @override
   String get settingsWorkspaceCalendarLabel => 'Calendar';
 
   @override

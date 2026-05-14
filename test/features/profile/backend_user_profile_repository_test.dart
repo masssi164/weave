@@ -1,37 +1,75 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/profile/data/repositories/backend_user_profile_repository.dart';
 import 'package:weave/features/profile/data/services/backend_profile_client.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
+class _RecordingHttpClient extends http.BaseClient {
+  _RecordingHttpClient(this._handler);
+
+  final Future<http.StreamedResponse> Function(http.BaseRequest request)
+  _handler;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    return _handler(request);
+  }
+}
+
+http.StreamedResponse _jsonResponse(Map<String, Object?> json) {
+  return http.StreamedResponse(
+    Stream.value(utf8.encode(jsonEncode(json))),
+    200,
+    headers: {'content-type': 'application/json'},
+  );
+}
+
 void main() {
   group('BackendUserProfileRepository', () {
-    test(
-      'keeps profile editing blocked until the backend exposes PATCH /api/profile',
-      () async {
-        final repository = BackendUserProfileRepository(
-          client: BackendProfileClient(httpClient: http.Client()),
-          sessionResolver: () async => WeaveAuthenticatedSession(
-            apiBaseUrl: Uri.parse('https://api.weave.local/api'),
-            accessToken: 'token-123',
-          ),
-        );
+    test('saves profile edits through PATCH /api/profile', () async {
+      late http.BaseRequest capturedRequest;
+      final repository = BackendUserProfileRepository(
+        client: BackendProfileClient(
+          httpClient: _RecordingHttpClient((request) async {
+            capturedRequest = request;
+            return _jsonResponse({
+              'userId': 'user-123',
+              'username': 'alice',
+              'email': 'alice@example.test',
+              'emailVerified': true,
+              'displayName': 'Alice Updated',
+              'locale': 'de',
+              'timezone': 'Europe/Berlin',
+              'roles': ['member'],
+              'groups': ['workspace-default'],
+            });
+          }),
+        ),
+        sessionResolver: () async => WeaveAuthenticatedSession(
+          apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        ),
+      );
 
-        await expectLater(
-          () => repository.updateProfile(
-            const UserProfileUpdate(displayName: 'Alice Example'),
-          ),
-          throwsA(
-            isA<AppFailure>().having(
-              (failure) => failure.message,
-              'message',
-              contains('PATCH /api/profile'),
-            ),
-          ),
-        );
-      },
-    );
+      final profile = await repository.updateProfile(
+        const UserProfileUpdate(
+          displayName: 'Alice Updated',
+          locale: 'de',
+          timezone: 'Europe/Berlin',
+        ),
+      );
+
+      expect(capturedRequest.method, 'PATCH');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.weave.local/api/profile',
+      );
+      expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+      expect(profile.displayName, 'Alice Updated');
+      expect(profile.locale, 'de');
+    });
   });
 }

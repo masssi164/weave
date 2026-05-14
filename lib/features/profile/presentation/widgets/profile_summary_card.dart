@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/features/profile/presentation/providers/profile_edit_controller.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -103,17 +105,162 @@ class _ProfileDetails extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Semantics(
-          liveRegion: true,
-          child: Text(
-            l10n.profileEditingBlockedMessage,
+        _ProfileEditForm(profile: profile),
+      ],
+    );
+  }
+}
+
+class _ProfileEditForm extends ConsumerStatefulWidget {
+  const _ProfileEditForm({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  ConsumerState<_ProfileEditForm> createState() => _ProfileEditFormState();
+}
+
+class _ProfileEditFormState extends ConsumerState<_ProfileEditForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _displayNameController;
+  late final TextEditingController _localeController;
+  late final TextEditingController _timezoneController;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayNameController = TextEditingController(
+      text: widget.profile.displayName,
+    );
+    _localeController = TextEditingController(text: widget.profile.locale);
+    _timezoneController = TextEditingController(text: widget.profile.timezone);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProfileEditForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile.userId != widget.profile.userId) {
+      _displayNameController.text = widget.profile.displayName;
+      _localeController.text = widget.profile.locale;
+      _timezoneController.text = widget.profile.timezone;
+    }
+  }
+
+  @override
+  void dispose() {
+    _displayNameController.dispose();
+    _localeController.dispose();
+    _timezoneController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final editState = ref.watch(profileEditControllerProvider);
+    final message =
+        editState.failure?.message ??
+        (editState.savedSuccessfully ? l10n.profileEditSavedMessage : null);
+    final messageColor = editState.failure == null
+        ? theme.colorScheme.primary
+        : theme.colorScheme.error;
+
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.profileEditSectionTitle,
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.profileEditSectionDescription,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _displayNameController,
+            enabled: !editState.isSaving,
+            decoration: InputDecoration(
+              labelText: l10n.profileDisplayNameLabel,
+              helperText: l10n.profileDisplayNameHelper,
+            ),
+            textInputAction: TextInputAction.next,
+            validator: (value) =>
+                _required(value) ? null : l10n.profileEditRequiredFieldError,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _localeController,
+            enabled: !editState.isSaving,
+            decoration: InputDecoration(
+              labelText: l10n.profileLocaleLabel,
+              helperText: l10n.profileLocaleHelper,
+            ),
+            textInputAction: TextInputAction.next,
+            validator: (value) =>
+                _required(value) ? null : l10n.profileEditRequiredFieldError,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _timezoneController,
+            enabled: !editState.isSaving,
+            decoration: InputDecoration(
+              labelText: l10n.profileTimezoneLabel,
+              helperText: l10n.profileTimezoneHelper,
+            ),
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submit(),
+            validator: (value) =>
+                _required(value) ? null : l10n.profileEditRequiredFieldError,
+          ),
+          const SizedBox(height: 16),
+          AccessibleButton(
+            onPressed: editState.isSaving ? null : _submit,
+            semanticLabel: l10n.profileEditSaveButton,
+            child: Text(
+              editState.isSaving
+                  ? l10n.profileEditSavingButton
+                  : l10n.profileEditSaveButton,
+            ),
+          ),
+          if (message != null) ...[
+            const SizedBox(height: 12),
+            Semantics(
+              liveRegion: true,
+              child: Text(
+                message,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: messageColor,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
+  }
+
+  bool _required(String? value) => value != null && value.trim().isNotEmpty;
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    ref
+        .read(profileEditControllerProvider.notifier)
+        .save(
+          UserProfileUpdate(
+            displayName: _displayNameController.text.trim(),
+            locale: _localeController.text.trim(),
+            timezone: _timezoneController.text.trim(),
+          ),
+        );
   }
 }
 
