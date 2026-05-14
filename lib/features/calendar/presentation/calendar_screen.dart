@@ -240,16 +240,11 @@ class _CalendarClientSetupDetails extends StatelessWidget {
           copyValue: setup.endpoints.principalUrl,
         ),
         const SizedBox(height: 12),
-        Text(
-          l10n.calendarClientSetupCredentialPolicyTitle,
-          style: theme.textTheme.labelLarge,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          setup.credentialPolicy,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
+        _SetupAccessModelSummary(accessModel: setup.accessModel),
+        const SizedBox(height: 12),
+        _SetupCredentialReadinessSummary(
+          credentialPolicy: setup.credentialPolicy,
+          readiness: setup.credentialReadiness,
         ),
         const SizedBox(height: 12),
         Text(
@@ -259,6 +254,139 @@ class _CalendarClientSetupDetails extends StatelessWidget {
         const SizedBox(height: 8),
         ...setup.options.map((option) => _SetupOptionTile(option: option)),
       ],
+    );
+  }
+}
+
+class _SetupAccessModelSummary extends StatelessWidget {
+  const _SetupAccessModelSummary({required this.accessModel});
+
+  final CalendarAccessModel accessModel;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final privateCalendarStatus = accessModel.privateUserCalendarsAvailable
+        ? l10n.calendarClientSetupPrivateCalendarsAvailable
+        : l10n.calendarClientSetupPrivateCalendarsBlocked;
+
+    return MergeSemantics(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.calendarClientSetupAccessModelTitle,
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            privateCalendarStatus,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            accessModel.privateUserCalendarsReason,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            l10n.calendarClientSetupExternalCredentialModel(
+              accessModel.externalClientCredentialModel,
+            ),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          ...accessModel.notes.map(
+            (note) => Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                note,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SetupCredentialReadinessSummary extends StatelessWidget {
+  const _SetupCredentialReadinessSummary({
+    required this.credentialPolicy,
+    required this.readiness,
+  });
+
+  final String credentialPolicy;
+  final CalendarCredentialReadiness readiness;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final safeCredentialBoundary = readiness.backendActorCredentialsExposed
+        ? l10n.calendarClientSetupCredentialsUnsafe
+        : l10n.calendarClientSetupCredentialsSafe;
+    final blockers = <String>[
+      if (!readiness.appleProfileSigned)
+        l10n.calendarClientSetupAppleProfileBlocked,
+      if (!readiness.readOnlySubscriptionTokensAvailable)
+        l10n.calendarClientSetupSubscriptionsBlocked,
+      ...readiness.blockers,
+    ];
+
+    return MergeSemantics(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.calendarClientSetupCredentialReadinessTitle,
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.calendarClientSetupCredentialReadinessStatus(readiness.status),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            safeCredentialBoundary,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: readiness.backendActorCredentialsExposed
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            credentialPolicy,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          ...blockers.map(
+            (blocker) => Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                blocker,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

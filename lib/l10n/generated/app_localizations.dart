@@ -2537,6 +2537,66 @@ abstract class AppLocalizations {
   /// **'Credential safety'**
   String get calendarClientSetupCredentialPolicyTitle;
 
+  /// Heading for the calendar external client access model
+  ///
+  /// In en, this message translates to:
+  /// **'Access model'**
+  String get calendarClientSetupAccessModelTitle;
+
+  /// Status text when private user calendars are available
+  ///
+  /// In en, this message translates to:
+  /// **'Private user calendars available'**
+  String get calendarClientSetupPrivateCalendarsAvailable;
+
+  /// Status text when private user calendars are blocked
+  ///
+  /// In en, this message translates to:
+  /// **'Private user calendars blocked'**
+  String get calendarClientSetupPrivateCalendarsBlocked;
+
+  /// Calendar external credential model label
+  ///
+  /// In en, this message translates to:
+  /// **'External credential model: {model}'**
+  String calendarClientSetupExternalCredentialModel(String model);
+
+  /// Heading for calendar credential readiness details
+  ///
+  /// In en, this message translates to:
+  /// **'Credential readiness'**
+  String get calendarClientSetupCredentialReadinessTitle;
+
+  /// Calendar credential readiness status
+  ///
+  /// In en, this message translates to:
+  /// **'Status: {status}'**
+  String calendarClientSetupCredentialReadinessStatus(String status);
+
+  /// Blocked state explanation for Apple calendar profiles
+  ///
+  /// In en, this message translates to:
+  /// **'Apple profiles stay disabled until profiles are signed and safe credentials exist.'**
+  String get calendarClientSetupAppleProfileBlocked;
+
+  /// Blocked state explanation for calendar subscriptions
+  ///
+  /// In en, this message translates to:
+  /// **'Webcal/ICS subscriptions stay disabled until revocable read-only tokens exist.'**
+  String get calendarClientSetupSubscriptionsBlocked;
+
+  /// Safe credential boundary statement for calendar client setup
+  ///
+  /// In en, this message translates to:
+  /// **'Backend actor credentials are not exposed to client setup artifacts.'**
+  String get calendarClientSetupCredentialsSafe;
+
+  /// Unsafe credential boundary warning for calendar client setup
+  ///
+  /// In en, this message translates to:
+  /// **'Setup is blocked because backend actor credentials would be exposed.'**
+  String get calendarClientSetupCredentialsUnsafe;
+
   /// Heading for external calendar platform setup options
   ///
   /// In en, this message translates to:

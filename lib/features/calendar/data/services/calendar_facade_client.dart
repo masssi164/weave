@@ -90,6 +90,10 @@ class CalendarFacadeClient {
         principalUrl: _readString(endpoints, 'principalUrl'),
       ),
       credentialPolicy: _readString(payload, 'credentialPolicy'),
+      accessModel: _decodeAccessModel(payload['accessModel']),
+      credentialReadiness: _decodeCredentialReadiness(
+        payload['credentialReadiness'],
+      ),
       options: rawOptions
           .whereType<Map<String, dynamic>>()
           .map(_decodeSetupOption)
@@ -255,6 +259,50 @@ class CalendarFacadeClient {
     return CalendarScope(type: type, label: label);
   }
 
+  CalendarAccessModel _decodeAccessModel(Object? rawAccessModel) {
+    if (rawAccessModel is! Map<String, dynamic>) {
+      return CalendarAccessModel.workspaceBlockedPrivateCalendars;
+    }
+
+    return CalendarAccessModel(
+      type: _readString(rawAccessModel, 'type'),
+      productScope: _readString(rawAccessModel, 'productScope'),
+      privateUserCalendarsAvailable:
+          rawAccessModel['privateUserCalendarsAvailable'] == true,
+      privateUserCalendarsReason: _readString(
+        rawAccessModel,
+        'privateUserCalendarsReason',
+      ),
+      externalClientCredentialModel: _readString(
+        rawAccessModel,
+        'externalClientCredentialModel',
+      ),
+      notes: _readStringList(rawAccessModel['notes']),
+    );
+  }
+
+  CalendarCredentialReadiness _decodeCredentialReadiness(
+    Object? rawCredentialReadiness,
+  ) {
+    if (rawCredentialReadiness is! Map<String, dynamic>) {
+      return CalendarCredentialReadiness.blockedUntilRevocableCredentials;
+    }
+
+    return CalendarCredentialReadiness(
+      status: _readString(rawCredentialReadiness, 'status'),
+      appleProfileSigned: rawCredentialReadiness['appleProfileSigned'] == true,
+      appleProfilePasswordIncluded:
+          rawCredentialReadiness['appleProfilePasswordIncluded'] == true,
+      revocableCredentialsAvailable:
+          rawCredentialReadiness['revocableCredentialsAvailable'] == true,
+      readOnlySubscriptionTokensAvailable:
+          rawCredentialReadiness['readOnlySubscriptionTokensAvailable'] == true,
+      backendActorCredentialsExposed:
+          rawCredentialReadiness['backendActorCredentialsExposed'] == true,
+      blockers: _readStringList(rawCredentialReadiness['blockers']),
+    );
+  }
+
   CalendarClientSetupOption _decodeSetupOption(Map<String, dynamic> json) {
     final rawGuidance = json['guidance'];
     return CalendarClientSetupOption(
@@ -263,10 +311,14 @@ class CalendarFacadeClient {
       available: json['available'] == true,
       actionUrl: _readNullableString(json, 'actionUrl'),
       unavailableReason: _readNullableString(json, 'unavailableReason'),
-      guidance: rawGuidance is List
-          ? rawGuidance.whereType<String>().toList(growable: false)
-          : const [],
+      guidance: _readStringList(rawGuidance),
     );
+  }
+
+  List<String> _readStringList(Object? value) {
+    return value is List
+        ? value.whereType<String>().toList(growable: false)
+        : const [];
   }
 
   Map<String, dynamic> _decodeObject(String body) {
