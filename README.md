@@ -1,20 +1,60 @@
 # Weave
 
-Weave is an accessibility-first Flutter client for self-hosted collaboration stacks. It is being built around a repository-first, feature-first architecture so future protocol integrations can land behind stable domain boundaries instead of leaking transport logic into presentation code.
+<p align="center">
+  <img src="assets/images/weave_logo.png" alt="Weave logo: a woven blue and teal product mark" width="320">
+</p>
 
-## Vision
-Weave aims to unify the core mobile workflows for self-hosted environments.
+<p align="center">
+  <a href="https://github.com/masssi164/weave/actions/workflows/ci.yml"><img src="https://github.com/masssi164/weave/actions/workflows/ci.yml/badge.svg" alt="CI workflow status"></a>
+  <a href="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml"><img src="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml/badge.svg" alt="Live Stack E2E workflow status"></a>
+</p>
 
-Release 1 is intentionally narrower:
+Weave is an accessibility-first collaboration client for teams that want modern work tools without giving up data sovereignty. It brings chat, files, identity, and workspace settings into one Flutter app backed by self-hosted services such as Matrix, Nextcloud, Keycloak, and the Weave backend.
 
-- identity through OIDC providers such as Authentik and Keycloak
-- communication through Matrix
-- files through Nextcloud-backed services
+The goal is simple: give teams and organizations a humane migration path away from closed team suites while keeping the product experience cohesive, professional, and understandable for admins and end users.
 
-Calendar and Deck remain future product areas, not Release 1 promises.
+## Why Weave
 
-## Current foundation
-The app now starts through an explicit bootstrap phase before the router is built. Startup resolves into one of:
+- **Accessibility built into the core** — critical flows are designed around large touch targets, semantic labels, keyboard/screen-reader behavior, and clear error states. Formal accessibility claims should stay tied to documented audits and evidence.
+- **Data-sovereign collaboration** — Matrix and Nextcloud provide open protocol/data foundations behind a Weave-owned user experience.
+- **One product, not separate islands** — sign-in, profile, navigation, diagnostics, chat, files, and settings are designed to feel like one workspace.
+- **Migration-friendly** — Slack and Microsoft Teams interop are planned as controlled backend-owned migration and bridge paths, not as client-side shortcuts.
+- **Built for future personal agents** — the long-term direction includes Weaver PA: an OpenClaw-style per-user agent runtime with organization-governed skills, connectors, and group-chat agents. This is future scope, not part of Release 1.
+
+## Release 1 scope
+
+Release 1 is intentionally narrow and honest. The current user-facing app shell presents:
+
+- **Chat** — a custom Weave Matrix client surface for workspace communication.
+- **Files** — a Weave files experience backed by the product backend and Nextcloud/WebDAV/OCS contracts.
+- **Settings and OIDC sign-in** — setup, authentication, stored server configuration, and account/session controls.
+
+Calendar, Deck, Slack/Teams interop, migration tooling, connector SDKs, and Weaver PA are future product areas unless a feature is explicitly marked as enabled. Calendar and Deck code may exist in the repository while those surfaces are under construction, but they are not Release 1 promises.
+
+## Product architecture
+
+Weave is the Flutter client in a three-repository product system:
+
+| Repository | Owns |
+| --- | --- |
+| [`weave`](https://github.com/masssi164/weave) | Flutter mobile/desktop client, app shell, custom chat/files/settings UX, accessibility, and client-side tests. |
+| [`weave-backend`](https://github.com/masssi164/weave-backend) | Spring Boot product API/BFF, auth validation, profile facade, files/calendar facades, readiness, and backend contracts. |
+| [`weave-infra`](https://github.com/masssi164/weave-infra) | Local/dev stack, Caddy routing, Keycloak, Matrix/Synapse/MAS, Nextcloud, Terraform, Docker orchestration, smoke/E2E environment. |
+| `specs/` (workspace sibling) | Binding cross-repo product and architecture contracts when this repository is checked out in the full workspace. |
+
+The Weave product should feel like one collaboration platform even though sovereign modules sit behind it:
+
+- **Keycloak** is the identity authority.
+- **Weave backend** is the product-facing API/BFF after sign-in.
+- **Matrix** provides chat protocol and storage.
+- **Nextcloud** provides files and future calendar data foundations.
+- **Caddy** exposes the local/dev HTTPS gateway.
+
+For the detailed Flutter architecture, see [docs/architecture.md](docs/architecture.md). For the post-Release-1 interop direction, see [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md).
+
+## Current client foundation
+
+The app starts through an explicit bootstrap phase before the router is built. Startup resolves into one of:
 
 - `loading`
 - `needsSetup`
@@ -22,34 +62,34 @@ The app now starts through an explicit bootstrap phase before the router is buil
 - `ready`
 - `error`
 
-That means routing no longer depends on a temporary default that flips later from storage.
-
-Setup and Settings now share one persisted server configuration model:
+Setup and Settings share one persisted server configuration model:
 
 - OIDC provider type
 - OIDC issuer URL
-- Infra-managed OIDC app client ID: `weave-app`
+- infra-managed OIDC app client ID, defaulting to `weave-app`
 - Matrix homeserver URL
-- Nextcloud base URL
-- Backend API base URL
+- Nextcloud/files base URL
+- backend API base URL
 
-Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host using a homelab-friendly rule, but the user can override those values during setup and later in Settings.
+App OIDC redirect handling is aligned to the infrastructure contract:
 
-App OIDC redirect handling is aligned to the infrastructure SSOT:
-
-- Sign-in redirect URI: `com.massimotter.weave:/oauthredirect`
-- Logout redirect URI: `com.massimotter.weave:/logout`
+- sign-in redirect URI: `com.massimotter.weave:/oauthredirect`
+- logout redirect URI: `com.massimotter.weave:/logout`
 
 For local development stacks, Weave accepts `http://` issuer and service URLs in addition to `https://`.
 
-For the default homelab convention, Weave assumes:
+Default local/dev surfaces are:
 
-- OIDC issuer / auth provider: `https://auth.home.internal`
-- Matrix homeserver: `https://matrix.home.internal`
-- Canonical Nextcloud URL: `https://files.home.internal`
-- Backend API base URL: `https://api.home.internal/api`
+| Surface | URL |
+| --- | --- |
+| Product shell/admin entry | `https://weave.local` |
+| Backend API/BFF | `https://api.weave.local/api` |
+| Auth | `https://auth.weave.local` |
+| Matrix | `https://matrix.weave.local` |
+| Raw Nextcloud/admin/protocol fallback | `https://files.weave.local` |
 
-## Architecture
+## Code layout
+
 Weave follows a feature-first clean architecture layout:
 
 ```text
@@ -61,13 +101,10 @@ lib/
 │   ├── router/       # go_router setup and route constants
 │   ├── theme/
 │   └── widgets/
-├── integrations/
-│   └── nextcloud/    # Shared Nextcloud auth/session/platform boundary
+├── integrations/     # Shared external-service/platform boundaries
 └── features/
     ├── auth/
-    ├── calendar/
     ├── chat/
-    ├── deck/
     ├── files/
     ├── onboarding/
     ├── server_config/
@@ -76,68 +113,53 @@ lib/
 
 Inside each feature:
 
-- `presentation/` contains screens, widgets, and Riverpod UI state
-- `domain/` contains entities and repository contracts
-- `data/` contains repository implementations, persistence adapters, DTOs, and protocol/service clients
+- `presentation/` contains screens, widgets, and Riverpod UI state.
+- `domain/` contains entities and repository contracts.
+- `data/` contains repository implementations, persistence adapters, DTOs, and protocol/service clients.
 
-Inside each shared integration:
+Shared integrations use the same layering under `lib/integrations/<integration>/` when multiple features need the same protocol or platform boundary.
 
-- `presentation/` contains reusable Riverpod providers and composition for the integration stack
-- `domain/` contains shared entities, failures, and service/repository contracts
-- `data/` contains persistence, protocol clients, and integration-level orchestration
+## Accessibility baseline
 
-Today, Nextcloud auth, session persistence, login-flow handling, bearer fallback, and connection lifecycle live under `lib/integrations/nextcloud/`, while `features/files/` stays focused on DAV directory browsing and file-domain mapping.
+Accessibility is a release requirement, not polish:
 
-See [docs/architecture.md](docs/architecture.md) for the detailed design notes.
-
-Post-Release-1 external collaboration strategy is tracked in [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md). It keeps Weave as the secure primary platform while Slack, Teams, guest access, migration tooling, and future connectors attach through controlled backend-owned interop boundaries.
-
-## Release 1 boundary
-The first public release only presents Chat, Files, and Settings in the main app shell.
-
-Calendar and Deck code may still exist behind the scenes while those features are under construction, but they are not presented as release-ready surfaces.
-
-## Matrix Chat
-Chat is the first real post-auth product slice in the app shell:
-
-- app-level OIDC auth still only controls bootstrap and shell access
-- Matrix protocol auth is handled separately inside `features/chat/`
-- chat restores its own Matrix session from the SDK database when available
-- legacy-only homeservers without Matrix OAuth metadata currently fail with a clear unsupported message instead of falling back to password login
-
-The current Matrix security foundation also includes:
-
-- chat-owned E2EE bootstrap state, device/account trust state, key backup state, and encrypted-room readiness mapping
-- first-device crypto identity setup through secret storage, cross-signing, and online key backup
-- recovery reconnect for devices that know the account but have lost local crypto secrets
-- self-verification via SAS emoji/numbers, including the Matrix SDK `askSSSS` path where verification must be continued with a recovery key or passphrase
-
-This is intentionally still a security foundation, not full encrypted timeline/send-receive chat. The current product surface focuses on secure session setup, trust health, and recovery without leaking raw Matrix crypto types into presentation code.
-
-## Accessibility
-Accessibility is a hard requirement, not a follow-up:
-
-- interactive targets must be at least `48x48`
-- icon-only affordances must expose semantics labels
-- complex layouts must keep a predictable reading order
-- setup, settings, shell navigation, and shared states must remain screen-reader friendly during refactors
+- interactive targets must be at least `48x48` logical pixels;
+- icon-only actions must expose semantics labels;
+- complex layouts must keep a predictable reading order;
+- setup, sign-in, shell navigation, chat, files, settings, and error states must remain screen-reader friendly;
+- user-facing failures should be plain-language and actionable.
 
 ## Development
+
 ### Prerequisites
+
 - [Flutter SDK](https://docs.flutter.dev/get-started/install)
+- A local Weave stack from [`weave-infra`](https://github.com/masssi164/weave-infra) for live integration and E2E tests
 
 ### Run locally
-1. `flutter pub get`
-2. `flutter run`
 
-## Running Integration Tests
+```sh
+flutter pub get
+flutter run
+```
+
+### Lightweight validation
+
+```sh
+flutter pub get
+flutter gen-l10n
+dart run build_runner build --delete-conflicting-outputs
+dart format --output=none --set-exit-if-changed .
+flutter analyze --fatal-infos
+flutter test
+make offline-contract-test
+```
+
+## Live stack and integration tests
+
 Integration tests require a live local Weave stack, including the backend API and Keycloak OIDC provider. Start the stack from the `weave-infra` setup first, with local hostnames resolving to the stack and the local CA trusted by the machine or simulator running the tests.
 
 The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env`. The Make targets source that repo-local file by default. Use `WEAVE_BOOTSTRAP_ENV` when your infra checkout lives elsewhere; there is no implicit global `/tmp` fallback.
-
-Expected local hostnames include `weave.local`, `api.weave.local`, `auth.weave.local`, `matrix.weave.local`, and `files.weave.local`.
-
-Files and calendar product flows must use Weave/backend protocol contracts or documented WebDAV/CalDAV/OCS access. Tests must not depend on parsing or scraping Nextcloud HTML pages.
 
 Run against the default local stack:
 
@@ -148,15 +170,19 @@ cd ../../weave
 make integration-test
 ```
 
-`make offline-contract-test` is the lightweight automatic/no-network contract gate. It sets `WEAVE_OFFLINE_CONTRACT_ONLY=true` and does not use fake credentials. `make integration-contract-test` requires a live stack and real `WEAVE_TEST_USERNAME`/`WEAVE_TEST_PASSWORD`, but does not launch the app. `make integration-app-e2e`/`make integration-test` are the expensive app-level live E2E targets and should only be run manually when the runner/power/storage budget is acceptable.
-
 Run against a different infra checkout:
 
 ```sh
 WEAVE_BOOTSTRAP_ENV=../weave-infra/weave-workspace/.generated/bootstrap.env make integration-test
 ```
 
-The GitHub Actions live-stack path runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner and is manual-only through `workflow_dispatch`/explicit reuse. Dispatch requires confirmation that the runner has enough power, storage, and maintenance budget. A future optional Home Assistant preflight can query local battery/solar sensors before stack startup, but the repository does not assume or require HA secrets.
+The GitHub Actions live-stack path runs on a dedicated `self-hosted`, `macOS`, `ARM64`, `weave-live` runner and is manual-only through `workflow_dispatch` or explicit workflow reuse. Dispatch requires confirmation that the runner has enough power, storage, and maintenance budget.
+
+Useful test targets:
+
+- `make offline-contract-test` — lightweight automatic/no-network contract gate.
+- `make integration-contract-test` — live-stack contract check requiring real test credentials.
+- `make integration-app-e2e` / `make integration-test` — expensive app-level live E2E targets for manual runs.
 
 Supported overrides:
 
@@ -164,18 +190,11 @@ Supported overrides:
 - `WEAVE_BASE_URL`: legacy-compatible alias for `WEAVE_API_BASE_URL`
 - `WEAVE_OIDC_ISSUER_URL`: OIDC issuer URL, defaulting to `https://auth.weave.local/realms/weave`
 - `WEAVE_OIDC_CLIENT_ID`: app OIDC client ID, defaulting to `weave-app`
-- `WEAVE_NEXTCLOUD_BASE_URL`: canonical Nextcloud URL, defaulting to `files.<workspace-host>` (legacy `WEAVE_NEXTCLOUD_URL` is also accepted)
-- `WEAVE_MATRIX_HOMESERVER_URL`: Matrix homeserver URL, defaulting to `matrix.<workspace-host>` (legacy `WEAVE_MATRIX_URL` is also accepted)
+- `WEAVE_NEXTCLOUD_BASE_URL`: canonical Nextcloud URL, defaulting to `files.<workspace-host>`; legacy `WEAVE_NEXTCLOUD_URL` is also accepted
+- `WEAVE_MATRIX_HOMESERVER_URL`: Matrix homeserver URL, defaulting to `matrix.<workspace-host>`; legacy `WEAVE_MATRIX_URL` is also accepted
 - `WEAVE_TEST_USERNAME`: username for the test account
 - `WEAVE_TEST_PASSWORD`: password for the test account
 
-### Validation
-Run the full validation suite before opening a change:
+## Status and roadmap honesty
 
-1. `flutter pub get`
-2. `flutter gen-l10n`
-3. `dart run build_runner build --delete-conflicting-outputs`
-4. `dart format --output=none --set-exit-if-changed .`
-5. `flutter analyze --fatal-infos`
-6. `flutter test`
-7. `make offline-contract-test`
+Weave is under active development. Release 1 focuses on making the core client shell and live-stack journey reliable before expanding the product surface. The roadmap is ambitious, but README claims should stay tied to implemented or explicitly future-scoped capabilities.
