@@ -29,7 +29,7 @@ Release 1 is intentionally narrow and honest. The current user-facing app shell 
 - **Files** — a Weave files experience backed by the product backend and Nextcloud/WebDAV/OCS contracts.
 - **Settings and OIDC sign-in** — setup, authentication, stored server configuration, and account/session controls.
 
-Calendar, Deck, Slack/Teams interop, migration tooling, connector SDKs, and Weaver PA are future product areas unless a feature is explicitly marked as enabled. Calendar and Deck code may exist in the repository while those surfaces are under construction, but they are not Release 1 promises.
+Calendar, tasks/boards, Slack/Teams interop, migration tooling, connector SDKs, and Weaver PA are future product areas unless a feature is explicitly marked as enabled. Calendar and exploratory Deck/boards code may exist in the repository while those surfaces are under construction, but they are not Release 1 promises. The future tasks/boards direction is a Weave-owned accessible model with provider adapters, not a product dependency on Nextcloud Deck.
 
 ## Product architecture
 
@@ -50,7 +50,7 @@ The Weave product should feel like one collaboration platform even though sovere
 - **Nextcloud** provides files and future calendar data foundations.
 - **Caddy** exposes the local/dev HTTPS gateway.
 
-For the detailed Flutter architecture, see [docs/architecture.md](docs/architecture.md). For the post-Release-1 interop direction, see [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md).
+For the detailed Flutter architecture, see [docs/architecture.md](docs/architecture.md). For the post-Release-1 interop direction, see [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md). For future boards/tasks provider research, see [docs/research/boards-task-module-provider-strategy.md](docs/research/boards-task-module-provider-strategy.md).
 
 ## Current client foundation
 

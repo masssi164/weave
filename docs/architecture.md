@@ -42,7 +42,7 @@ Shell destinations:
 - Chat
 - Files
 - Calendar (future, not part of Release 1 navigation)
-- Deck (future, not part of Release 1 navigation)
+- Tasks/Boards (future, not part of Release 1 navigation; provider-neutral Weave model, not a Nextcloud Deck product dependency)
 - Settings
 
 ## Shared server configuration
@@ -94,6 +94,10 @@ Current failure types:
 
 Slack, Teams, guest collaboration, migration tooling, and future connectors must attach through backend-owned Interop Gateway boundaries rather than provider-specific Flutter transport logic. See [Interop Gateway and External Collaboration](interop-gateway-and-external-collaboration.md). This direction is post-Release-1 and must remain feature-flagged/off by default until explicitly promoted.
 
+## Future tasks and boards
+
+Tasks/boards are post-Release-1. The planning recommendation is to build a Weave-owned, accessibility-first board/task model with provider adapters rather than exposing Nextcloud Deck or any other upstream tool as the product model. See [Boards and Tasks Provider Strategy](research/boards-task-module-provider-strategy.md).
+
 ## Feature and integration layering
 Each feature follows the same three layers:
 
@@ -110,7 +114,7 @@ Current repository-first stub boundaries:
 - `integrations/nextcloud` -> `NextcloudConnectionService` + `NextcloudAuthClient` + `NextcloudSessionRepository` + shared providers
 - `files` -> `FilesRepository` + `NextcloudDavClient`
 - `calendar` -> `CalendarRepository` + `CalDavClient`
-- `deck` -> `DeckRepository` + `DeckClient`
+- `deck` / future `tasks_boards` -> exploratory board repository/client boundaries; future work should use a provider-neutral Weave model with adapters
 
 Presentation depends on repository contracts and Riverpod providers only. It does not own storage or protocol logic.
 
@@ -155,7 +159,7 @@ Nextcloud is now split into:
 - `integrations/nextcloud/` for shared auth, session, account validation, login-flow handling, revoke policy, provider wiring, and connection lifecycle orchestration
 - `features/files/` for DAV directory browsing, file-entry mapping, and file-facing presentation/state
 
-This keeps the current Files UX intact while making the same Nextcloud platform layer reusable for future Calendar or Deck work without importing `features/files/`.
+This keeps the current Files UX intact while making the same Nextcloud platform layer reusable for future Calendar or provider-adapter board work without importing `features/files/`.
 
 ## Onboarding and settings
 Onboarding setup and Settings share:
