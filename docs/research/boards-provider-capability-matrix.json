@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "status": "post-release-1-spike-contract",
+  "date": "2026-05-14",
+  "adapter_contract": {
+    "required_domain_concepts": [
+      "workspace_project",
+      "board",
+      "column_list_status",
+      "task_card",
+      "label_tag",
+      "comment_activity",
+      "attachment_link",
+      "provider_sync_metadata"
+    ],
+    "support_safe_errors": [
+      "unauthorized",
+      "forbidden",
+      "not_found",
+      "conflict",
+      "rate_limited",
+      "offline",
+      "validation",
+      "provider_unavailable",
+      "unknown"
+    ],
+    "required_capability_keys": [
+      "projects_boards",
+      "columns",
+      "tasks_cards",
+      "comments",
+      "labels",
+      "due_dates",
+      "attachments",
+      "auth_api_tokens",
+      "pagination",
+      "incremental_sync",
+      "webhook_events",
+      "export_portability",
+      "non_drag_ui_baseline",
+      "provider_neutral_mapping",
+      "backend_adapter_required"
+    ],
+    "allowed_capability_values": [
+      "native",
+      "partial",
+      "gap",
+      "not_applicable",
+      "benchmark"
+    ],
+    "flutter_boundary": "Flutter may consume provider-neutral DTOs, capability flags, and hidden preview fixtures only; provider auth, pagination, sync, and error translation belong behind a backend or connector adapter."
+  },
+  "providers": [
+    {
+      "id": "vikunja",
+      "name": "Vikunja",
+      "issue": 119,
+      "result": "closes",
+      "role": "first strategic task-engine adapter candidate",
+      "recommendation": "first_candidate",
+      "acceptance_summary": "API/auth/sync/export findings are documented and mapped to a provider-neutral adapter contract; Vikunja remains the first implementation candidate behind a backend adapter.",
+      "capabilities": {
+        "projects_boards": "native",
+        "columns": "native",
+        "tasks_cards": "native",
+        "comments": "native",
+        "labels": "native",
+        "due_dates": "native",
+        "attachments": "native",
+        "auth_api_tokens": "native",
+        "pagination": "native",
+        "incremental_sync": "partial",
+        "webhook_events": "native",
+        "export_portability": "native",
+        "non_drag_ui_baseline": "partial",
+        "provider_neutral_mapping": "native",
+        "backend_adapter_required": "native"
+      },
+      "gaps": [
+        {
+          "category": "accessibility",
+          "summary": "Weave must own keyboard/screen-reader task movement instead of inheriting Vikunja UI behavior."
+        },
+        {
+          "category": "sync_event",
+          "summary": "Webhook payload, ordering, retry, and replay semantics still need runtime verification."
+        },
+        {
+          "category": "licensing_deployment",
+          "summary": "AGPL-3.0-or-later and self-hosted service operations require explicit deployment documentation."
+        }
+      ],
+      "source_urls": [
+        "https://vikunja.io/docs/api-documentation/",
+        "https://try.vikunja.io/api/v1/docs.json",
+        "https://vikunja.io/docs/installing/",
+        "https://github.com/go-vikunja/vikunja"
+      ]
+    },
+    {
+      "id": "openproject",
+      "name": "OpenProject",
+      "issue": 120,
+      "result": "closes",
+      "role": "accessibility and mature-workflow benchmark",
+      "recommendation": "benchmark_only",
+      "acceptance_summary": "Benchmark requirements cover keyboard-only use, screen-reader structure, non-color status, non-drag movement alternatives, focus, text scaling, and mature work-package concepts.",
+      "capabilities": {
+        "projects_boards": "native",
+        "columns": "native",
+        "tasks_cards": "native",
+        "comments": "native",
+        "labels": "partial",
+        "due_dates": "native",
+        "attachments": "native",
+        "auth_api_tokens": "partial",
+        "pagination": "partial",
+        "incremental_sync": "partial",
+        "webhook_events": "gap",
+        "export_portability": "partial",
+        "non_drag_ui_baseline": "benchmark",
+        "provider_neutral_mapping": "partial",
+        "backend_adapter_required": "native"
+      },
+      "gaps": [
+        {
+          "category": "accessibility",
+          "summary": "OpenProject board docs emphasize drag-and-drop for card movement; Weave must provide explicit non-drag commands."
+        },
+        {
+          "category": "product_model",
+          "summary": "Work packages, action boards, workflows, hierarchy, time, and custom fields are richer than Weave's first board/task slice."
+        },
+        {
+          "category": "provider_priority",
+          "summary": "Use as benchmark now; open a provider spike only if mature project-management workflows become product scope."
+        }
+      ],
+      "source_urls": [
+        "https://www.openproject.org/docs/development/accessibility-checklist/",
+        "https://www.openproject.org/docs/getting-started/boards-introduction/",
+        "https://www.openproject.org/docs/user-guide/agile-boards/",
+        "https://www.openproject.org/docs/api/",
+        "https://www.openproject.org/docs/api/endpoints/work-packages/"
+      ]
+    },
+    {
+      "id": "nextcloud-deck",
+      "name": "Nextcloud Deck",
+      "issue": 121,
+      "result": "closes",
+      "role": "low-friction bridge adapter, fallback, or import path",
+      "recommendation": "bridge_adapter",
+      "acceptance_summary": "API/auth/sync/accessibility/product gaps are categorized; Deck is suitable as a bridge/import path but not as the Release 1 or normal Weave product model.",
+      "capabilities": {
+        "projects_boards": "native",
+        "columns": "native",
+        "tasks_cards": "native",
+        "comments": "native",
+        "labels": "native",
+        "due_dates": "native",
+        "attachments": "native",
+        "auth_api_tokens": "partial",
+        "pagination": "partial",
+        "incremental_sync": "partial",
+        "webhook_events": "gap",
+        "export_portability": "partial",
+        "non_drag_ui_baseline": "gap",
+        "provider_neutral_mapping": "partial",
+        "backend_adapter_required": "native"
+      },
+      "gaps": [
+        {
+          "category": "api",
+          "summary": "Deck vocabulary and endpoint shape are board/stack/card-specific and need adapter translation."
+        },
+        {
+          "category": "sync_event",
+          "summary": "Docs show ETag and If-Modified-Since polling support, not a provider push-event contract."
+        },
+        {
+          "category": "accessibility",
+          "summary": "Deck should not define Weave UI interactions; future UI must be provider-neutral and non-drag operable."
+        },
+        {
+          "category": "product_model",
+          "summary": "Bridge only: do not name the Weave module Deck or couple Release 1 navigation to Deck."
+        }
+      ],
+      "source_urls": [
+        "https://deck.readthedocs.io/en/latest/API/",
+        "https://deck.readthedocs.io/en/latest/User_documentation_en/",
+        "https://github.com/nextcloud/deck/blob/main/docs/API.md"
+      ]
+    }
+  ]
+}

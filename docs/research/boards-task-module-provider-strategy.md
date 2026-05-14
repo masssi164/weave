@@ -44,6 +44,8 @@ See [Boards and Tasks Domain Contract](boards-task-domain-contract.md) and [Boar
 2. **OpenProject accessibility benchmark** — use OpenProject as the accessibility and mature-workflow comparison point, not necessarily the first embedded provider.
 3. **Nextcloud Deck bridge spike** — evaluate as a low-friction bridge because Nextcloud is already in the Weave stack, but keep it behind the provider-adapter boundary and do not let Deck define the product model.
 
+See [Boards Provider Spikes: Vikunja, OpenProject, Nextcloud Deck](boards-provider-spikes-119-121.md) and the machine-readable [provider capability matrix](boards-provider-capability-matrix.json) for the issue #119/#120/#121 findings and adapter capability contract.
+
 ### Defer or avoid as strategic base
 
 - **Focalboard / Mattermost Boards** — defer; not a strong strategic base for Weave's standalone accessibility-first module direction.
