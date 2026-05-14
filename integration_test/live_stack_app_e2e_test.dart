@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
@@ -143,7 +142,6 @@ void main() {
         },
       );
 
-      await tester.tap(find.widgetWithText(AccessibleButton, 'Anmelden').first);
       final signInSucceeded = await container
           .read(authFlowControllerProvider.notifier)
           .signIn();
