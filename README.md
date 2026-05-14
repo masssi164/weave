@@ -11,11 +11,11 @@
 
 Weave is an accessibility-first collaboration client for teams that want modern work tools without giving up data sovereignty. It brings chat, files, identity, and workspace settings into one Flutter app backed by self-hosted services such as Matrix, Nextcloud, Keycloak, and the Weave backend.
 
-The goal is simple: give startups a humane migration path away from closed team suites while keeping the product experience cohesive, professional, and understandable for admins and end users.
+The goal is simple: give teams and organizations a humane migration path away from closed team suites while keeping the product experience cohesive, professional, and understandable for admins and end users.
 
 ## Why Weave
 
-- **Accessible by default** — critical flows target WCAG 2.1 AA, including touch targets, semantic labels, keyboard/screen-reader behavior, and clear error states.
+- **Accessibility built into the core** — critical flows are designed around large touch targets, semantic labels, keyboard/screen-reader behavior, and clear error states. Formal accessibility claims should stay tied to documented audits and evidence.
 - **Data-sovereign collaboration** — Matrix and Nextcloud provide open protocol/data foundations behind a Weave-owned user experience.
 - **One product, not separate islands** — sign-in, profile, navigation, diagnostics, chat, files, and settings are designed to feel like one workspace.
 - **Migration-friendly** — Slack and Microsoft Teams interop are planned as controlled backend-owned migration and bridge paths, not as client-side shortcuts.
