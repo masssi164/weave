@@ -24,17 +24,15 @@ class SharedPreferencesShellModulePreferencesRepository
 
     try {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      final hidden = decoded['hiddenModules'];
-      if (hidden is! List) {
-        return const ShellModulePreferences();
-      }
-
       return ShellModulePreferences(
-        hiddenModules: hidden
-            .whereType<String>()
-            .map(ShellModule.fromStorageKey)
-            .whereType<ShellModule>()
-            .toSet(),
+        hiddenModules: _readModules(
+          decoded['hiddenModules'],
+          fallback: ShellModulePreferences.defaultHiddenModules,
+        ).toSet(),
+        moduleOrder: _readModules(
+          decoded['moduleOrder'],
+          fallback: ShellModule.values,
+        ),
       );
     } on FormatException {
       return const ShellModulePreferences();
@@ -49,8 +47,26 @@ class SharedPreferencesShellModulePreferencesRepository
       'hiddenModules': preferences.hiddenModules
           .map((module) => module.storageKey)
           .toList(growable: false),
+      'moduleOrder': preferences.orderedModules
+          .map((module) => module.storageKey)
+          .toList(growable: false),
     });
 
     return _store.setString(shellModulePreferencesStorageKey, encoded);
+  }
+
+  List<ShellModule> _readModules(
+    Object? raw, {
+    required Iterable<ShellModule> fallback,
+  }) {
+    if (raw is! List) {
+      return fallback.toList(growable: false);
+    }
+
+    return raw
+        .whereType<String>()
+        .map(ShellModule.fromStorageKey)
+        .whereType<ShellModule>()
+        .toList(growable: false);
   }
 }

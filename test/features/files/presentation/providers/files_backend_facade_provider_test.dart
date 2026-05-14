@@ -9,6 +9,7 @@ import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
 import 'package:weave/features/auth/domain/entities/auth_state.dart';
 import 'package:weave/features/auth/domain/repositories/auth_session_repository.dart';
 import 'package:weave/features/files/data/repositories/backend_files_repository.dart';
+import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/domain/entities/files_failure.dart';
@@ -190,6 +191,16 @@ void main() {
               200,
             );
           }
+          if (request.method == 'GET') {
+            return http.Response.bytes(
+              const [1, 2, 3],
+              200,
+              headers: {
+                'content-disposition':
+                    "attachment; filename*=UTF-8''readme%20export.md",
+              },
+            );
+          }
           return http.Response('', 204);
         });
         final backendRepository = repository(client);
@@ -199,11 +210,22 @@ void main() {
           name: 'Design',
         );
         await backendRepository.prepareDownload('files:/Team/readme.md');
+        final download = await backendRepository.downloadFile(
+          const FileEntry(
+            id: 'files:/Team/readme.md',
+            name: 'readme.md',
+            path: '/Team/readme.md',
+            isDirectory: false,
+          ),
+        );
         await backendRepository.delete('files:/Team/old.md');
 
         expect(folder.path, '/Team/Design');
+        expect(download.fileName, 'readme export.md');
+        expect(download.bytes, <int>[1, 2, 3]);
         expect(requests.map((request) => '${request.method} ${request.url}'), [
           'POST https://api.home.internal/api/files/folders',
+          'GET https://api.home.internal/api/files/files:%2FTeam%2Freadme.md/download',
           'GET https://api.home.internal/api/files/files:%2FTeam%2Freadme.md/download',
           'DELETE https://api.home.internal/api/files/files:%2FTeam%2Fold.md',
         ]);

@@ -376,12 +376,24 @@ class _EntryActionStatusCard extends StatelessWidget {
         entryName == null
             ? l10n.filesDeleteCompletedUnknownMessage
             : l10n.filesDeleteCompletedMessage(entryName),
+      FilesEntryActionPhase.exportingEntry =>
+        entryName == null
+            ? l10n.filesExportProgressUnknownMessage
+            : l10n.filesExportProgressMessage(entryName),
+      FilesEntryActionPhase.exportedEntry =>
+        entryName == null
+            ? l10n.filesExportCompletedUnknownMessage
+            : l10n.filesExportCompletedMessage(
+                entryName,
+                actionStatus.destination ?? l10n.filesExportUserVisibleFallback,
+              ),
       FilesEntryActionPhase.failed =>
         actionStatus.failure?.message ?? l10n.filesEntryActionFailedMessage,
     };
     final icon = switch (actionStatus.phase) {
       FilesEntryActionPhase.createdFolder => Icons.check_circle_outline,
       FilesEntryActionPhase.deletedEntry => Icons.check_circle_outline,
+      FilesEntryActionPhase.exportedEntry => Icons.check_circle_outline,
       FilesEntryActionPhase.failed => Icons.error_outline,
       FilesEntryActionPhase.idle => Icons.info_outline,
       _ => Icons.sync_outlined,
@@ -399,7 +411,8 @@ class _EntryActionStatusCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(child: Text(message, style: theme.textTheme.bodyMedium)),
               if (actionStatus.phase == FilesEntryActionPhase.creatingFolder ||
-                  actionStatus.phase == FilesEntryActionPhase.deletingEntry)
+                  actionStatus.phase == FilesEntryActionPhase.deletingEntry ||
+                  actionStatus.phase == FilesEntryActionPhase.exportingEntry)
                 const Padding(
                   padding: EdgeInsetsDirectional.only(start: 12),
                   child: SizedBox(
@@ -820,6 +833,16 @@ class _FileEntryTile extends ConsumerWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (!entry.isDirectory)
+              IconButton(
+                tooltip: l10n.filesExportEntrySemantic(entry.name),
+                onPressed: isBusy
+                    ? null
+                    : () {
+                        ref.read(filesProvider.notifier).exportEntry(entry);
+                      },
+                icon: const Icon(Icons.file_download_outlined),
+              ),
             IconButton(
               tooltip: l10n.filesDeleteEntrySemantic(entry.name),
               onPressed: isBusy

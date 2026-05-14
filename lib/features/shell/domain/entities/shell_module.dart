@@ -1,4 +1,5 @@
 enum ShellModule {
+  workspaceStatus('workspaceStatus'),
   recentActivity('recentActivity');
 
   const ShellModule(this.storageKey);

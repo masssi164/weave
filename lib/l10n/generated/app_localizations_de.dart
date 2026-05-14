@@ -472,6 +472,32 @@ class AppLocalizationsDe extends AppLocalizations {
   String get filesDeleteButton => 'Löschen';
 
   @override
+  String filesExportEntrySemantic(String name) {
+    return '$name in native Dateien exportieren';
+  }
+
+  @override
+  String filesExportProgressMessage(String name) {
+    return '$name wird exportiert…';
+  }
+
+  @override
+  String get filesExportProgressUnknownMessage => 'Datei wird exportiert…';
+
+  @override
+  String filesExportCompletedMessage(String name, String destination) {
+    return '$name wurde nach $destination exportiert.';
+  }
+
+  @override
+  String get filesExportCompletedUnknownMessage =>
+      'Datei wurde in native Dateien exportiert.';
+
+  @override
+  String get filesExportUserVisibleFallback =>
+      'einen benutzersichtbaren Dateien-Ort';
+
+  @override
   String filesDeleteEntrySemantic(String name) {
     return '$name löschen';
   }
@@ -586,6 +612,24 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get settingsShellModulesDescription =>
       'Wähle, welche Workspace-Shell-Module sichtbar bleiben. Die Navigation bleibt verfügbar, auch wenn ein Modul ausgeblendet ist.';
+
+  @override
+  String get settingsShellWorkspaceStatusToggleTitle =>
+      'Workspace-Statusübersicht';
+
+  @override
+  String get settingsShellWorkspaceStatusToggleDescription =>
+      'Zeigt Dienstbereitschaft und Wiederherstellungsabkürzungen oberhalb der unteren Navigation an.';
+
+  @override
+  String settingsShellMoveModuleUp(String moduleName) {
+    return '$moduleName nach oben verschieben';
+  }
+
+  @override
+  String settingsShellMoveModuleDown(String moduleName) {
+    return '$moduleName nach unten verschieben';
+  }
 
   @override
   String get settingsShellRecentActivityToggleTitle =>
@@ -900,6 +944,36 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get settingsPreviewSurfacesTitle => 'Vorschau-Oberflächen';
+
+  @override
+  String get settingsPreviewSurfacesDescription =>
+      'Diese Bereiche bleiben für Release 1 standardmäßig verborgen. Sie zeigen nur ehrliche Shell-Zustände, bis die Backend-Verträge verfügbar sind.';
+
+  @override
+  String get settingsGuestPortalPreviewTitle => 'Gastportal';
+
+  @override
+  String get settingsGuestPortalPreviewDescription =>
+      'Gasteinladungen und eingeschränkter Zugriff erscheinen hier, ohne Mitgliederfunktionen offenzulegen.';
+
+  @override
+  String get settingsInteropAdminPreviewTitle =>
+      'Adminstatus für externe Verbindungen';
+
+  @override
+  String get settingsInteropAdminPreviewDescription =>
+      'Der Status externer Anbieter erklärt Datenbewegung und Einwilligung; Anbieter-Secrets werden in diesem Client nie erfasst.';
+
+  @override
+  String get settingsMigrationDryRunPreviewTitle =>
+      'Migrationsbericht als Trockenlauf';
+
+  @override
+  String get settingsMigrationDryRunPreviewDescription =>
+      'Admins können Inventar, Risiken, Berechtigungsbereiche und Zuordnungen prüfen, bevor ein Import startet.';
+
+  @override
   String get settingsServerConfigurationTitle => 'Serverkonfiguration';
 
   @override
@@ -1089,6 +1163,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatRoomEmptyMessage => 'Noch keine Nachrichten';
+
+  @override
+  String get chatRoomDraftRestoredMessage =>
+      'Entwurf von diesem Gerät wiederhergestellt.';
 
   @override
   String get chatRoomComposerHint => 'Nachricht schreiben';

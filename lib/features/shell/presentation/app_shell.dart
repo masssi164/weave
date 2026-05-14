@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
 import 'package:weave/features/shell/presentation/shell_recent_activity.dart';
+import 'package:weave/features/shell/presentation/shell_workspace_status.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The main application shell rendered by [StatefulShellRoute].
@@ -21,14 +22,29 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final modulePreferences = ref.watch(shellModulePreferencesProvider);
-    final showRecentActivity =
-        modulePreferences.asData?.value.isVisible(ShellModule.recentActivity) ??
-        true;
+    final modules =
+        modulePreferences.asData?.value.orderedModules ?? ShellModule.values;
+    final visibleModules = modules
+        .where(
+          (module) => modulePreferences.asData?.value.isVisible(module) ?? true,
+        )
+        .toList(growable: false);
+
+    final showLandingModules =
+        navigationShell.currentIndex == 0 && visibleModules.isNotEmpty;
 
     return Scaffold(
       body: Column(
         children: [
-          if (showRecentActivity) const ShellRecentActivity(),
+          if (showLandingModules)
+            SizedBox(
+              height: 128,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: visibleModules.map(_buildModule).toList(),
+                ),
+              ),
+            ),
           Expanded(child: navigationShell),
         ],
       ),
@@ -75,5 +91,12 @@ class AppShell extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildModule(ShellModule module) {
+    return switch (module) {
+      ShellModule.workspaceStatus => const ShellWorkspaceStatus(),
+      ShellModule.recentActivity => const ShellRecentActivity(),
+    };
   }
 }

@@ -128,6 +128,27 @@ void main() {
     expect(find.text('Reply sent'), findsOneWidget);
   });
 
+  testWidgets('restores a local unsent draft for the room', (tester) async {
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(),
+    );
+    final store = InMemoryPreferencesStore({
+      'chat.roomDraft.v1.${Uri.encodeComponent(conversation.id)}':
+          'Remember the release notes',
+    });
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository, store: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Draft restored from this device.'), findsOneWidget);
+    expect(find.text('Remember the release notes'), findsOneWidget);
+  });
+
   testWidgets('shows retryable failures in the room', (tester) async {
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async => throw const ChatFailure.protocol(
