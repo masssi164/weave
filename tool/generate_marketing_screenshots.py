@@ -136,6 +136,7 @@ SCREENS: tuple[Screen, ...] = (
         status="Save Changes",
     ),
 
+
     Screen(
         file_name="06-calendar-workspace-preview.svg",
         title="Weave workspace calendar preview screen",
@@ -152,6 +153,25 @@ SCREENS: tuple[Screen, ...] = (
             ("👥", "Shared by the workspace", "Events belong to the backend-provisioned workspace calendar for this first slice."),
             ("✓", "Create and edit events", "The Flutter surface talks to Weave backend, which owns CalDAV credentials and errors."),
             ("🔒", "Private calendars blocked", "Per-user calendars stay disabled until issue #52 defines sharing or delegation."),
+        ),
+        status="Preview only",
+    ),
+    Screen(
+        file_name="07-boards-preview.svg",
+        title="Weave future boards preview screen",
+        description="A clearly labelled future boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.",
+        active_nav="Preview",
+        hero="Boards/tasks preview · future scope",
+        subhero="A Weave-owned board model for future provider adapters. Hidden from Release 1 and not connected to Vikunja, Deck, or another provider yet.",
+        metrics=(
+            Metric("Release", "Post-Release-1"),
+            Metric("Model", "Provider-neutral Weave boards"),
+            Metric("Movement", "Menu actions; no drag required"),
+        ),
+        cards=(
+            ("⌨", "Keyboard path", "Move to another column, mark done, or mark blocked without pointer-only drag-and-drop."),
+            ("🔌", "Adapter later", "Vikunja is the first planned provider spike behind backend-owned contracts."),
+            ("♿", "Screen-reader copy", "Columns, statuses, due dates, and priority use text labels, not color alone."),
         ),
         status="Preview only",
     ),

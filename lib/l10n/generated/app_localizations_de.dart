@@ -76,7 +76,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get navCalendar => 'Kalender';
 
   @override
-  String get navDeck => 'Deck';
+  String get navDeck => 'Boards-Vorschau';
 
   @override
   String get navSettings => 'Einstellungen';
@@ -207,7 +207,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get semanticCalendarIcon => 'Kalendertermine';
 
   @override
-  String get semanticDeckIcon => 'Deck-Boards';
+  String get semanticDeckIcon => 'Zukünftige Boards-Vorschau';
 
   @override
   String get semanticSettingsIcon => 'App-Einstellungen';
@@ -571,7 +571,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get calendarScreenTitle => 'Kalender';
 
   @override
-  String get deckScreenTitle => 'Deck';
+  String get deckScreenTitle => 'Boards-Vorschau';
 
   @override
   String get settingsScreenTitle => 'Einstellungen';
@@ -1214,7 +1214,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get calendarEmptyMessage => 'Noch keine Termine';
 
   @override
-  String get deckEmptyMessage => 'Noch keine Boards';
+  String get deckEmptyMessage => 'Noch keine Boards in dieser Zukunftsvorschau';
 
   @override
   String get deviceLanguageLabel => 'Gerätesprache';
@@ -1463,4 +1463,166 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get calendarOperationFailure =>
       'Der Kalender konnte diese Änderung gerade nicht speichern.';
+
+  @override
+  String get boardsPreviewScreenTitle => 'Boards-Vorschau';
+
+  @override
+  String get boardsPreviewIconSemantic => 'Zukünftige Boards-Vorschau';
+
+  @override
+  String get boardsPreviewBoundaryTitle =>
+      'Zukünftige Boards-/Aufgaben-Vorschau';
+
+  @override
+  String get boardsPreviewBoundaryDescription =>
+      'Diese Designvorschau zeigt das geplante Weave-eigene Board-Modell und barrierefreie Alternativen zum Verschieben von Aufgaben. Sie ist in der Release-1-Navigation ausgeblendet und noch nicht mit Vikunja, Deck oder einem anderen Anbieter verbunden.';
+
+  @override
+  String get boardsPreviewBoundarySemantic =>
+      'Zukünftige Boards-/Aufgaben-Vorschau. In der Release-1-Navigation ausgeblendet. Anbieterneutrales Weave-Modell mit Tastatur- und Screenreader-Alternativen; noch kein Anbieter verbunden.';
+
+  @override
+  String get boardsPreviewPostReleaseChip => 'Nach Release 1';
+
+  @override
+  String get boardsPreviewProviderNeutralChip => 'Anbieterneutrales Modell';
+
+  @override
+  String get boardsPreviewKeyboardChip => 'Kein Ziehen nötig';
+
+  @override
+  String boardsPreviewColumnCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Spalten',
+      one: '1 Spalte',
+      zero: 'Keine Spalten',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String boardsPreviewTaskCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Aufgaben',
+      one: '1 Aufgabe',
+      zero: 'Keine Aufgaben',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get boardsPreviewNonDragMovement =>
+      'Verschieben per Menü statt nur Drag-and-drop';
+
+  @override
+  String boardsPreviewBoardSemantic(
+    String boardName,
+    int columnCount,
+    int taskCount,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      columnCount,
+      locale: localeName,
+      other: '$columnCount Spalten',
+      one: '1 Spalte',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      taskCount,
+      locale: localeName,
+      other: '$taskCount Aufgaben',
+      one: '1 Aufgabe',
+    );
+    return 'Board $boardName, $_temp0, $_temp1.';
+  }
+
+  @override
+  String boardsPreviewColumnSemantic(
+    String columnName,
+    String status,
+    int taskCount,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      taskCount,
+      locale: localeName,
+      other: '$taskCount Aufgaben',
+      one: '1 Aufgabe',
+    );
+    return 'Spalte $columnName, Status $status, $_temp0.';
+  }
+
+  @override
+  String boardsPreviewColumnTaskSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Aufgaben in dieser Spalte',
+      one: '1 Aufgabe in dieser Spalte',
+      zero: 'Keine Aufgaben in dieser Spalte',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String boardsPreviewColumnWipSummary(int count, int limit) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Aufgaben',
+      one: '1 Aufgabe',
+      zero: 'Keine Aufgaben',
+    );
+    return '$_temp0 · WIP-Limit $limit';
+  }
+
+  @override
+  String boardsPreviewTaskSemantic(
+    String taskTitle,
+    String columnName,
+    String status,
+    String assignee,
+    String due,
+    String priority,
+  ) {
+    return 'Aufgabe $taskTitle. Spalte $columnName. Status $status. Zuständig $assignee. Fällig $due. Priorität $priority.';
+  }
+
+  @override
+  String boardsPreviewTaskActionsTooltip(String taskTitle) {
+    return 'Aufgabenaktionen für $taskTitle';
+  }
+
+  @override
+  String get boardsPreviewMoveTaskAction => 'In eine andere Spalte verschieben';
+
+  @override
+  String get boardsPreviewMarkDoneAction => 'Als erledigt markieren';
+
+  @override
+  String get boardsPreviewBlockTaskAction => 'Als blockiert markieren';
+
+  @override
+  String get boardsPreviewActionPreviewOnly =>
+      'Nur Vorschau — keine Aufgabe wurde geändert.';
+
+  @override
+  String get boardsPreviewStatusNotStarted => 'Nicht begonnen';
+
+  @override
+  String get boardsPreviewStatusInProgress => 'In Arbeit';
+
+  @override
+  String get boardsPreviewStatusBlocked => 'Blockiert';
+
+  @override
+  String get boardsPreviewStatusDone => 'Erledigt';
+
+  @override
+  String boardsPreviewStatusSemantic(String status) {
+    return 'Status: $status';
+  }
 }

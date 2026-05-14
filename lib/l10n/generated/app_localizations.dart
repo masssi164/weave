@@ -218,10 +218,10 @@ abstract class AppLocalizations {
   /// **'Calendar'**
   String get navCalendar;
 
-  /// Label for the Deck navigation destination
+  /// Label for the hidden legacy Deck route, now provider-neutral boards preview
   ///
   /// In en, this message translates to:
-  /// **'Deck'**
+  /// **'Boards preview'**
   String get navDeck;
 
   /// Label for the Settings navigation destination
@@ -443,10 +443,10 @@ abstract class AppLocalizations {
   /// **'Calendar events'**
   String get semanticCalendarIcon;
 
-  /// Semantic label for the deck icon
+  /// Semantic label for the hidden future boards preview icon
   ///
   /// In en, this message translates to:
-  /// **'Deck boards'**
+  /// **'Future boards preview'**
   String get semanticDeckIcon;
 
   /// Semantic label for the settings icon
@@ -1031,10 +1031,10 @@ abstract class AppLocalizations {
   /// **'Calendar'**
   String get calendarScreenTitle;
 
-  /// Title for the deck screen app bar
+  /// Compatibility title for the hidden legacy Deck route
   ///
   /// In en, this message translates to:
-  /// **'Deck'**
+  /// **'Boards preview'**
   String get deckScreenTitle;
 
   /// Title for the settings screen app bar
@@ -2099,10 +2099,10 @@ abstract class AppLocalizations {
   /// **'No events yet'**
   String get calendarEmptyMessage;
 
-  /// Empty state message for the deck screen
+  /// Legacy hidden Deck empty state message retained for compatibility
   ///
   /// In en, this message translates to:
-  /// **'No boards yet'**
+  /// **'No boards in this future preview yet'**
   String get deckEmptyMessage;
 
   /// Label for the detected device language display
@@ -2524,6 +2524,177 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The calendar could not save that change right now.'**
   String get calendarOperationFailure;
+
+  /// Title for the hidden future boards/tasks preview screen
+  ///
+  /// In en, this message translates to:
+  /// **'Boards preview'**
+  String get boardsPreviewScreenTitle;
+
+  /// Semantic label for the boards preview icon
+  ///
+  /// In en, this message translates to:
+  /// **'Future boards preview'**
+  String get boardsPreviewIconSemantic;
+
+  /// Title for the banner that marks boards/tasks as future scope
+  ///
+  /// In en, this message translates to:
+  /// **'Future boards/tasks preview'**
+  String get boardsPreviewBoundaryTitle;
+
+  /// Description explaining that boards/tasks are future scope and not provider-connected
+  ///
+  /// In en, this message translates to:
+  /// **'This design preview shows the intended Weave-owned board model and accessible task movement alternatives. It is hidden from Release 1 navigation and is not connected to Vikunja, Deck, or another provider yet.'**
+  String get boardsPreviewBoundaryDescription;
+
+  /// Semantic summary for the future-scope boundary banner
+  ///
+  /// In en, this message translates to:
+  /// **'Future boards/tasks preview. Hidden from Release 1 navigation. Provider-neutral Weave model with keyboard and screen-reader alternatives; no provider is connected yet.'**
+  String get boardsPreviewBoundarySemantic;
+
+  /// Chip label stating boards/tasks are after Release 1
+  ///
+  /// In en, this message translates to:
+  /// **'Post-Release-1'**
+  String get boardsPreviewPostReleaseChip;
+
+  /// Chip label stating the boards model is provider-neutral
+  ///
+  /// In en, this message translates to:
+  /// **'Provider-neutral model'**
+  String get boardsPreviewProviderNeutralChip;
+
+  /// Chip label stating board operations have non-drag alternatives
+  ///
+  /// In en, this message translates to:
+  /// **'No drag required'**
+  String get boardsPreviewKeyboardChip;
+
+  /// Number of preview board columns
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No columns} one{1 column} other{{count} columns}}'**
+  String boardsPreviewColumnCount(int count);
+
+  /// Number of preview tasks
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No tasks} one{1 task} other{{count} tasks}}'**
+  String boardsPreviewTaskCount(int count);
+
+  /// Summary chip for accessible non-drag movement
+  ///
+  /// In en, this message translates to:
+  /// **'Move menu instead of drag-only'**
+  String get boardsPreviewNonDragMovement;
+
+  /// Semantic label for the board preview summary
+  ///
+  /// In en, this message translates to:
+  /// **'Board {boardName}, {columnCount, plural, one{1 column} other{{columnCount} columns}}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.'**
+  String boardsPreviewBoardSemantic(
+    String boardName,
+    int columnCount,
+    int taskCount,
+  );
+
+  /// Semantic label for a board column
+  ///
+  /// In en, this message translates to:
+  /// **'Column {columnName}, status {status}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.'**
+  String boardsPreviewColumnSemantic(
+    String columnName,
+    String status,
+    int taskCount,
+  );
+
+  /// Visible task count summary for a column
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No tasks in this column} one{1 task in this column} other{{count} tasks in this column}}'**
+  String boardsPreviewColumnTaskSummary(int count);
+
+  /// Visible task count and WIP limit summary for a column
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No tasks} one{1 task} other{{count} tasks}} · WIP limit {limit}'**
+  String boardsPreviewColumnWipSummary(int count, int limit);
+
+  /// Semantic label for a board task card
+  ///
+  /// In en, this message translates to:
+  /// **'Task {taskTitle}. Column {columnName}. Status {status}. Assignee {assignee}. Due {due}. Priority {priority}.'**
+  String boardsPreviewTaskSemantic(
+    String taskTitle,
+    String columnName,
+    String status,
+    String assignee,
+    String due,
+    String priority,
+  );
+
+  /// Tooltip for the task action menu
+  ///
+  /// In en, this message translates to:
+  /// **'Task actions for {taskTitle}'**
+  String boardsPreviewTaskActionsTooltip(String taskTitle);
+
+  /// Preview task action for non-drag column movement
+  ///
+  /// In en, this message translates to:
+  /// **'Move to another column'**
+  String get boardsPreviewMoveTaskAction;
+
+  /// Preview task action for marking a task done
+  ///
+  /// In en, this message translates to:
+  /// **'Mark done'**
+  String get boardsPreviewMarkDoneAction;
+
+  /// Preview task action for marking a task blocked
+  ///
+  /// In en, this message translates to:
+  /// **'Mark blocked'**
+  String get boardsPreviewBlockTaskAction;
+
+  /// Snackbar shown when a preview task action is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Preview only — no task was changed.'**
+  String get boardsPreviewActionPreviewOnly;
+
+  /// Board task status label
+  ///
+  /// In en, this message translates to:
+  /// **'Not started'**
+  String get boardsPreviewStatusNotStarted;
+
+  /// Board task status label
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get boardsPreviewStatusInProgress;
+
+  /// Board task status label
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get boardsPreviewStatusBlocked;
+
+  /// Board task status label
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get boardsPreviewStatusDone;
+
+  /// Semantic label for task/column status pills
+  ///
+  /// In en, this message translates to:
+  /// **'Status: {status}'**
+  String boardsPreviewStatusSemantic(String status);
 }
 
 class _AppLocalizationsDelegate
