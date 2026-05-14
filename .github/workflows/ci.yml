@@ -4,6 +4,15 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      capture_marketing_screenshots:
+        description: "Regenerate deterministic README/marketing screenshots and upload them as a workflow artifact"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 permissions:
   contents: read
@@ -23,4 +32,15 @@ jobs:
       - run: dart format --output=none --set-exit-if-changed .
       - run: flutter analyze --fatal-infos
       - run: flutter test
+      - name: Verify generated marketing screenshots
+        run: |
+          make marketing-screenshots
+          git diff --exit-code -- docs/assets/marketing
+      - name: Upload marketing screenshots
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_marketing_screenshots == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: weave-marketing-screenshots
+          path: docs/assets/marketing
+          if-no-files-found: error
       - run: make offline-contract-test
