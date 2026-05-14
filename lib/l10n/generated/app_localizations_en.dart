@@ -1691,4 +1691,59 @@ class AppLocalizationsEn extends AppLocalizations {
   String boardsPreviewStatusSemantic(String status) {
     return 'Status: $status';
   }
+
+  @override
+  String get shellWorkspaceOverviewTitle => 'Workspace overview';
+
+  @override
+  String get shellWorkspaceOverviewDescription =>
+      'Jump back into core workspace areas or reorder these modules in Settings.';
+
+  @override
+  String get shellWorkspaceOverviewSemanticLabel =>
+      'Workspace overview quick links';
+
+  @override
+  String get shellWorkspaceOverviewOpenChat => 'Open Chat';
+
+  @override
+  String get shellWorkspaceOverviewOpenFiles => 'Open Files';
+
+  @override
+  String get shellWorkspaceOverviewOpenSettings => 'Open Settings';
+
+  @override
+  String get settingsShellWorkspaceOverviewTitle => 'Workspace overview';
+
+  @override
+  String get settingsShellWorkspaceOverviewDescription =>
+      'Quick links for Chat, Files, and Settings on the workspace shell.';
+
+  @override
+  String settingsShellMoveModuleUp(String moduleName) {
+    return 'Move $moduleName up';
+  }
+
+  @override
+  String settingsShellMoveModuleDown(String moduleName) {
+    return 'Move $moduleName down';
+  }
+
+  @override
+  String get chatRefreshButton => 'Refresh conversations';
+
+  @override
+  String get filesNativeVisibilityPrivateTitle => 'Private workspace storage';
+
+  @override
+  String get filesNativeVisibilityPrivateDescription =>
+      'Files stay in the Weave workspace until you explicitly export or save them to a device-visible location.';
+
+  @override
+  String get filesNativeVisibilityConnectedTitle =>
+      'Exports use native file surfaces';
+
+  @override
+  String get filesNativeVisibilityConnectedDescription =>
+      'Uploaded workspace files remain shared in Weave; exported or saved copies should appear in the platform file surface, such as the iOS Files app, when that flow is available.';
 }

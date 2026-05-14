@@ -16,6 +16,7 @@ import 'package:weave/features/chat/presentation/providers/chat_security_reposit
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/settings/presentation/post_release_feature_flags.dart';
 import 'package:weave/features/settings/presentation/settings_screen.dart';
 import 'package:weave/features/shell/data/repositories/shared_preferences_shell_module_preferences_repository.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
@@ -293,7 +294,7 @@ void main() {
 
       expect(
         store.rawString(shellModulePreferencesStorageKey),
-        '{"hiddenModules":["recentActivity"]}',
+        '{"hiddenModules":["recentActivity"],"moduleOrder":["workspaceOverview","recentActivity"]}',
       );
 
       await tester.tap(recentActivityToggle);
@@ -301,7 +302,150 @@ void main() {
 
       expect(
         store.rawString(shellModulePreferencesStorageKey),
-        '{"hiddenModules":[]}',
+        '{"hiddenModules":[],"moduleOrder":["workspaceOverview","recentActivity"]}',
+      );
+    });
+
+    testWidgets('persists shell module reorder changes', (tester) async {
+      final store = InMemoryPreferencesStore(buildStoredConfiguration());
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => store),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          userProfileProvider.overrideWith((ref) async => null),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final moveDown = find.byTooltip('Move Workspace overview down');
+      await tester.ensureVisible(moveDown);
+      await tester.pumpAndSettle();
+      await tester.tap(moveDown);
+      await tester.pumpAndSettle();
+
+      expect(
+        store.rawString(shellModulePreferencesStorageKey),
+        '{"hiddenModules":[],"moduleOrder":["recentActivity","workspaceOverview"]}',
+      );
+    });
+
+    testWidgets('keeps post-release admin shells hidden unless enabled', (
+      tester,
+    ) async {
+      final store = InMemoryPreferencesStore(buildStoredConfiguration());
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => store),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          userProfileProvider.overrideWith((ref) async => null),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Post-release workspace shells'), findsNothing);
+      expect(find.text('Guest Portal'), findsNothing);
+    });
+
+    testWidgets('shows enabled post-release shells with safe status copy', (
+      tester,
+    ) async {
+      final store = InMemoryPreferencesStore(buildStoredConfiguration());
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => store),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          userProfileProvider.overrideWith((ref) async => null),
+          postReleaseFeatureFlagsProvider.overrideWithValue(
+            const PostReleaseFeatureFlags(
+              guestPortal: true,
+              interopStatus: true,
+              migrationDryRun: true,
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Post-release workspace shells'), findsOneWidget);
+      expect(find.text('Guest Portal'), findsOneWidget);
+      expect(find.text('External connections'), findsOneWidget);
+      expect(find.text('Migration dry-run report'), findsOneWidget);
+      expect(
+        find.textContaining('Provider secrets are never collected'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('No import starts from this preview'),
+        findsOneWidget,
       );
     });
 

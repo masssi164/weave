@@ -139,11 +139,10 @@ void main() {
       await pumpReadyShell(tester);
 
       expect(find.byType(NavigationBar), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
-      expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+      expect(find.byType(NavigationDestination), findsNWidgets(3));
       expect(find.byIcon(Icons.calendar_today_outlined), findsNothing);
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
+      expect(find.text('Workspace overview'), findsOneWidget);
     });
 
     testWidgets(
@@ -157,6 +156,7 @@ void main() {
         await pumpReadyShell(tester, preferencesStore: preferencesStore);
 
         expect(find.text('Recent activity'), findsNothing);
+        expect(find.text('Workspace overview'), findsOneWidget);
         expect(find.byType(NavigationBar), findsOneWidget);
         expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
         expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
@@ -168,10 +168,23 @@ void main() {
     ) async {
       await pumpReadyShell(tester);
 
-      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.tap(find.widgetWithText(NavigationDestination, 'Settings'));
       await tester.pumpAndSettle();
 
       expect(find.text('Server Configuration'), findsOneWidget);
+    });
+
+    testWidgets('applies persisted shell module order', (tester) async {
+      final preferencesStore = InMemoryPreferencesStore({
+        shellModulePreferencesStorageKey:
+            '{"hiddenModules":[],"moduleOrder":["recentActivity","workspaceOverview"]}',
+      });
+
+      await pumpReadyShell(tester, preferencesStore: preferencesStore);
+
+      final recentTop = tester.getTopLeft(find.text('Recent activity')).dy;
+      final overviewTop = tester.getTopLeft(find.text('Workspace overview')).dy;
+      expect(recentTop, lessThan(overviewTop));
     });
 
     testWidgets('shows recent room and file quick links in the shell', (

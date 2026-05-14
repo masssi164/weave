@@ -14,10 +14,12 @@ import 'package:weave/features/app/presentation/providers/workspace_connection_p
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/chat/presentation/widgets/chat_security_settings_section.dart';
 import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
+import 'package:weave/features/settings/presentation/post_release_admin_shells_section.dart';
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
+import 'package:weave/features/shell/domain/entities/shell_module_preferences.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -52,6 +54,8 @@ class SettingsScreen extends ConsumerWidget {
                   const ProfileSummaryCard(),
                   const SizedBox(height: 32),
                   const _WorkspaceReadinessCard(),
+                  const SizedBox(height: 32),
+                  const PostReleaseAdminShellsSection(),
                   const SizedBox(height: 32),
                   const _ShellModuleVisibilitySettingsSection(),
                   const SizedBox(height: 32),
@@ -159,19 +163,8 @@ class _ShellModuleVisibilitySettingsSection extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             switch (preferences) {
-              AsyncData(value: final value) => SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: Text(l10n.settingsShellRecentActivityToggleTitle),
-                subtitle: Text(
-                  l10n.settingsShellRecentActivityToggleDescription,
-                ),
-                value: value.isVisible(ShellModule.recentActivity),
-                onChanged: (isVisible) => ref
-                    .read(shellModulePreferencesProvider.notifier)
-                    .setModuleVisibility(
-                      module: ShellModule.recentActivity,
-                      isVisible: isVisible,
-                    ),
+              AsyncData(value: final value) => _ShellModuleOrderList(
+                preferences: value,
               ),
               AsyncError() => ErrorState(
                 message: l10n.settingsShellModulesError,
@@ -190,6 +183,112 @@ class _ShellModuleVisibilitySettingsSection extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+class _ShellModuleOrderList extends ConsumerWidget {
+  const _ShellModuleOrderList({required this.preferences});
+
+  final ShellModulePreferences preferences;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final modules = preferences.orderedModules;
+    return Column(
+      children: [
+        for (var index = 0; index < modules.length; index++)
+          _ShellModuleOrderTile(
+            module: modules[index],
+            isVisible: preferences.isVisible(modules[index]),
+            canMoveUp: index > 0,
+            canMoveDown: index < modules.length - 1,
+          ),
+      ],
+    );
+  }
+}
+
+class _ShellModuleOrderTile extends ConsumerWidget {
+  const _ShellModuleOrderTile({
+    required this.module,
+    required this.isVisible,
+    required this.canMoveUp,
+    required this.canMoveDown,
+  });
+
+  final ShellModule module;
+  final bool isVisible;
+  final bool canMoveUp;
+  final bool canMoveDown;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final title = _moduleTitle(l10n, module);
+    final description = _moduleDescription(l10n, module);
+
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(top: 12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: Text(title),
+                subtitle: Text(description),
+                value: isVisible,
+                onChanged: (nextValue) => ref
+                    .read(shellModulePreferencesProvider.notifier)
+                    .setModuleVisibility(module: module, isVisible: nextValue),
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: l10n.settingsShellMoveModuleUp(title),
+                  onPressed: canMoveUp
+                      ? () => ref
+                            .read(shellModulePreferencesProvider.notifier)
+                            .moveModule(module: module, delta: -1)
+                      : null,
+                  icon: const Icon(Icons.keyboard_arrow_up),
+                ),
+                IconButton(
+                  tooltip: l10n.settingsShellMoveModuleDown(title),
+                  onPressed: canMoveDown
+                      ? () => ref
+                            .read(shellModulePreferencesProvider.notifier)
+                            .moveModule(module: module, delta: 1)
+                      : null,
+                  icon: const Icon(Icons.keyboard_arrow_down),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _moduleTitle(AppLocalizations l10n, ShellModule module) {
+    return switch (module) {
+      ShellModule.workspaceOverview => l10n.settingsShellWorkspaceOverviewTitle,
+      ShellModule.recentActivity => l10n.settingsShellRecentActivityToggleTitle,
+    };
+  }
+
+  String _moduleDescription(AppLocalizations l10n, ShellModule module) {
+    return switch (module) {
+      ShellModule.workspaceOverview =>
+        l10n.settingsShellWorkspaceOverviewDescription,
+      ShellModule.recentActivity =>
+        l10n.settingsShellRecentActivityToggleDescription,
+    };
   }
 }
 

@@ -67,6 +67,35 @@ void main() {
       expect(find.text('Loading conversations…'), findsOneWidget);
     });
 
+    testWidgets('refresh action reloads conversations', (tester) async {
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async => const <ChatConversation>[],
+      );
+      final securityRepository = buildSecurityRepository();
+
+      await tester.pumpWidget(
+        createTestApp(
+          const ChatScreen(),
+          overrides: [
+            chatRepositoryProvider.overrideWithValue(repository),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              securityRepository,
+            ),
+            firstRunStatusProvider.overrideWith((ref) async => null),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byTooltip('Refresh conversations'), findsOneWidget);
+      expect(repository.loadConversationsCalls, 1);
+
+      await tester.tap(find.byTooltip('Refresh conversations'));
+      await tester.pumpAndSettle();
+
+      expect(repository.loadConversationsCalls, 2);
+    });
+
     testWidgets('auto-connects when no Matrix session is available', (
       tester,
     ) async {

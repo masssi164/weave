@@ -25,16 +25,22 @@ class SharedPreferencesShellModulePreferencesRepository
     try {
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
       final hidden = decoded['hiddenModules'];
-      if (hidden is! List) {
+      final order = decoded['moduleOrder'];
+      if (hidden is! List && order is! List) {
         return const ShellModulePreferences();
       }
 
       return ShellModulePreferences(
-        hiddenModules: hidden
+        hiddenModules: (hidden is List ? hidden : const <Object?>[])
             .whereType<String>()
             .map(ShellModule.fromStorageKey)
             .whereType<ShellModule>()
             .toSet(),
+        moduleOrder: (order is List ? order : const <Object?>[])
+            .whereType<String>()
+            .map(ShellModule.fromStorageKey)
+            .whereType<ShellModule>()
+            .toList(growable: false),
       );
     } on FormatException {
       return const ShellModulePreferences();
@@ -47,6 +53,9 @@ class SharedPreferencesShellModulePreferencesRepository
   Future<void> savePreferences(ShellModulePreferences preferences) {
     final encoded = jsonEncode({
       'hiddenModules': preferences.hiddenModules
+          .map((module) => module.storageKey)
+          .toList(growable: false),
+      'moduleOrder': preferences.orderedModules
           .map((module) => module.storageKey)
           .toList(growable: false),
     });

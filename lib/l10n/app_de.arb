@@ -459,6 +459,22 @@
   "boardsPreviewStatusInProgress": "In Arbeit",
   "boardsPreviewStatusBlocked": "Blockiert",
   "boardsPreviewStatusDone": "Erledigt",
-  "boardsPreviewStatusSemantic": "Status: {status}"
+  "boardsPreviewStatusSemantic": "Status: {status}",
+  "shellWorkspaceOverviewTitle": "Arbeitsbereich-Übersicht",
+  "shellWorkspaceOverviewDescription": "Springe zurück in zentrale Bereiche oder sortiere diese Module in den Einstellungen neu.",
+  "shellWorkspaceOverviewSemanticLabel": "Schnellzugriffe der Arbeitsbereich-Übersicht",
+  "shellWorkspaceOverviewOpenChat": "Chat öffnen",
+  "shellWorkspaceOverviewOpenFiles": "Dateien öffnen",
+  "shellWorkspaceOverviewOpenSettings": "Einstellungen öffnen",
+  "settingsShellWorkspaceOverviewTitle": "Arbeitsbereich-Übersicht",
+  "settingsShellWorkspaceOverviewDescription": "Schnellzugriffe für Chat, Dateien und Einstellungen in der Arbeitsbereich-Shell.",
+  "settingsShellMoveModuleUp": "{moduleName} nach oben verschieben",
+  "settingsShellMoveModuleDown": "{moduleName} nach unten verschieben",
+  "chatRefreshButton": "Unterhaltungen aktualisieren",
+  "filesNativeVisibilityPrivateTitle": "Privater Arbeitsbereich-Speicher",
+  "filesNativeVisibilityPrivateDescription": "Dateien bleiben im Weave-Arbeitsbereich, bis du sie ausdrücklich exportierst oder an einem gerätesichtbaren Ort speicherst.",
+  "filesNativeVisibilityConnectedTitle": "Exporte nutzen native Dateioberflächen",
+  "filesNativeVisibilityConnectedDescription": "Hochgeladene Arbeitsbereich-Dateien bleiben in Weave geteilt; exportierte oder gespeicherte Kopien sollen in der Dateioberfläche der Plattform erscheinen, zum Beispiel in der iOS-Dateien-App, sobald dieser Ablauf verfügbar ist."
+
 
 }

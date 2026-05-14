@@ -2849,6 +2849,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Status: {status}'**
   String boardsPreviewStatusSemantic(String status);
+
+  /// Title for the configurable workspace overview shell module
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace overview'**
+  String get shellWorkspaceOverviewTitle;
+
+  /// Description for the workspace overview shell module
+  ///
+  /// In en, this message translates to:
+  /// **'Jump back into core workspace areas or reorder these modules in Settings.'**
+  String get shellWorkspaceOverviewDescription;
+
+  /// Semantic label for the workspace overview shell module
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace overview quick links'**
+  String get shellWorkspaceOverviewSemanticLabel;
+
+  /// Tooltip for opening Chat from the workspace overview module
+  ///
+  /// In en, this message translates to:
+  /// **'Open Chat'**
+  String get shellWorkspaceOverviewOpenChat;
+
+  /// Tooltip for opening Files from the workspace overview module
+  ///
+  /// In en, this message translates to:
+  /// **'Open Files'**
+  String get shellWorkspaceOverviewOpenFiles;
+
+  /// Tooltip for opening Settings from the workspace overview module
+  ///
+  /// In en, this message translates to:
+  /// **'Open Settings'**
+  String get shellWorkspaceOverviewOpenSettings;
+
+  /// Settings label for the workspace overview shell module
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace overview'**
+  String get settingsShellWorkspaceOverviewTitle;
+
+  /// Settings description for the workspace overview shell module
+  ///
+  /// In en, this message translates to:
+  /// **'Quick links for Chat, Files, and Settings on the workspace shell.'**
+  String get settingsShellWorkspaceOverviewDescription;
+
+  /// Tooltip for moving a shell module earlier in the shell order
+  ///
+  /// In en, this message translates to:
+  /// **'Move {moduleName} up'**
+  String settingsShellMoveModuleUp(String moduleName);
+
+  /// Tooltip for moving a shell module later in the shell order
+  ///
+  /// In en, this message translates to:
+  /// **'Move {moduleName} down'**
+  String settingsShellMoveModuleDown(String moduleName);
+
+  /// Tooltip for refreshing the Chat conversation list
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh conversations'**
+  String get chatRefreshButton;
+
+  /// Title explaining default files storage visibility
+  ///
+  /// In en, this message translates to:
+  /// **'Private workspace storage'**
+  String get filesNativeVisibilityPrivateTitle;
+
+  /// Description explaining private file storage
+  ///
+  /// In en, this message translates to:
+  /// **'Files stay in the Weave workspace until you explicitly export or save them to a device-visible location.'**
+  String get filesNativeVisibilityPrivateDescription;
+
+  /// Title explaining native exported file visibility
+  ///
+  /// In en, this message translates to:
+  /// **'Exports use native file surfaces'**
+  String get filesNativeVisibilityConnectedTitle;
+
+  /// Description explaining native exported file visibility
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded workspace files remain shared in Weave; exported or saved copies should appear in the platform file surface, such as the iOS Files app, when that flow is available.'**
+  String get filesNativeVisibilityConnectedDescription;
 }
 
 class _AppLocalizationsDelegate

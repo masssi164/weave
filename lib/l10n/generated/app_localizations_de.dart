@@ -1716,4 +1716,60 @@ class AppLocalizationsDe extends AppLocalizations {
   String boardsPreviewStatusSemantic(String status) {
     return 'Status: $status';
   }
+
+  @override
+  String get shellWorkspaceOverviewTitle => 'Arbeitsbereich-Übersicht';
+
+  @override
+  String get shellWorkspaceOverviewDescription =>
+      'Springe zurück in zentrale Bereiche oder sortiere diese Module in den Einstellungen neu.';
+
+  @override
+  String get shellWorkspaceOverviewSemanticLabel =>
+      'Schnellzugriffe der Arbeitsbereich-Übersicht';
+
+  @override
+  String get shellWorkspaceOverviewOpenChat => 'Chat öffnen';
+
+  @override
+  String get shellWorkspaceOverviewOpenFiles => 'Dateien öffnen';
+
+  @override
+  String get shellWorkspaceOverviewOpenSettings => 'Einstellungen öffnen';
+
+  @override
+  String get settingsShellWorkspaceOverviewTitle => 'Arbeitsbereich-Übersicht';
+
+  @override
+  String get settingsShellWorkspaceOverviewDescription =>
+      'Schnellzugriffe für Chat, Dateien und Einstellungen in der Arbeitsbereich-Shell.';
+
+  @override
+  String settingsShellMoveModuleUp(String moduleName) {
+    return '$moduleName nach oben verschieben';
+  }
+
+  @override
+  String settingsShellMoveModuleDown(String moduleName) {
+    return '$moduleName nach unten verschieben';
+  }
+
+  @override
+  String get chatRefreshButton => 'Unterhaltungen aktualisieren';
+
+  @override
+  String get filesNativeVisibilityPrivateTitle =>
+      'Privater Arbeitsbereich-Speicher';
+
+  @override
+  String get filesNativeVisibilityPrivateDescription =>
+      'Dateien bleiben im Weave-Arbeitsbereich, bis du sie ausdrücklich exportierst oder an einem gerätesichtbaren Ort speicherst.';
+
+  @override
+  String get filesNativeVisibilityConnectedTitle =>
+      'Exporte nutzen native Dateioberflächen';
+
+  @override
+  String get filesNativeVisibilityConnectedDescription =>
+      'Hochgeladene Arbeitsbereich-Dateien bleiben in Weave geteilt; exportierte oder gespeicherte Kopien sollen in der Dateioberfläche der Plattform erscheinen, zum Beispiel in der iOS-Dateien-App, sobald dieser Ablauf verfügbar ist.';
 }

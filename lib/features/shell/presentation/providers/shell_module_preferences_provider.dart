@@ -27,7 +27,19 @@ class ShellModulePreferencesController
   }) async {
     final previous = state.asData?.value ?? const ShellModulePreferences();
     final next = previous.setVisibility(module: module, isVisible: isVisible);
+    await _persist(next);
+  }
 
+  Future<void> moveModule({
+    required ShellModule module,
+    required int delta,
+  }) async {
+    final previous = state.asData?.value ?? const ShellModulePreferences();
+    final next = previous.moveModule(module: module, delta: delta);
+    await _persist(next);
+  }
+
+  Future<void> _persist(ShellModulePreferences next) async {
     state = AsyncData(next);
     try {
       await ref

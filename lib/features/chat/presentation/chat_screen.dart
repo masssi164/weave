@@ -40,7 +40,16 @@ class ChatScreen extends ConsumerWidget {
 
     return CustomScrollView(
       slivers: [
-        SliverAppBar.large(title: Text(l10n.chatScreenTitle)),
+        SliverAppBar.large(
+          title: Text(l10n.chatScreenTitle),
+          actions: [
+            IconButton(
+              tooltip: l10n.chatRefreshButton,
+              onPressed: () => ref.read(chatProvider.notifier).retry(),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
         if (showSecurityBanner)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),

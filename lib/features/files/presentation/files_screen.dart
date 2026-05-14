@@ -626,6 +626,14 @@ class _ConnectionCard extends ConsumerWidget {
       FilesConnectionStatus.disconnected => l10n.filesConnectionDisconnected,
       FilesConnectionStatus.misconfigured => l10n.filesConnectionMisconfigured,
     };
+    final nativeVisibilityTitle =
+        connectionState.status == FilesConnectionStatus.connected
+        ? l10n.filesNativeVisibilityConnectedTitle
+        : l10n.filesNativeVisibilityPrivateTitle;
+    final nativeVisibilityDescription =
+        connectionState.status == FilesConnectionStatus.connected
+        ? l10n.filesNativeVisibilityConnectedDescription
+        : l10n.filesNativeVisibilityPrivateDescription;
 
     return Card(
       child: Padding(
@@ -633,7 +641,27 @@ class _ConnectionCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(l10n.filesNextcloudTitle, style: theme.textTheme.titleMedium),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    l10n.filesNextcloudTitle,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                Tooltip(
+                  message: nativeVisibilityDescription,
+                  child: Semantics(
+                    label:
+                        '$nativeVisibilityTitle. $nativeVisibilityDescription',
+                    child: Icon(
+                      Icons.info_outline,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             Text(description, style: theme.textTheme.bodyMedium),
             if (connectionState.baseUrl != null) ...[

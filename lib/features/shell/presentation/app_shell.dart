@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
+import 'package:weave/features/shell/domain/entities/shell_module_preferences.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
 import 'package:weave/features/shell/presentation/shell_recent_activity.dart';
+import 'package:weave/features/shell/presentation/shell_workspace_overview.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The main application shell rendered by [StatefulShellRoute].
@@ -21,15 +23,25 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final modulePreferences = ref.watch(shellModulePreferencesProvider);
-    final showRecentActivity =
-        modulePreferences.asData?.value.isVisible(ShellModule.recentActivity) ??
-        true;
+    final visibleModules =
+        modulePreferences.asData?.value.visibleModules ??
+        const ShellModulePreferences().visibleModules;
 
     return Scaffold(
-      body: Column(
+      body: Stack(
         children: [
-          if (showRecentActivity) const ShellRecentActivity(),
-          Expanded(child: navigationShell),
+          Positioned.fill(child: navigationShell),
+          if (visibleModules.isNotEmpty)
+            Align(
+              alignment: Alignment.topCenter,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final module in visibleModules)
+                    _ShellModuleHost(module: module),
+                ],
+              ),
+            ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -75,5 +87,19 @@ class AppShell extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+class _ShellModuleHost extends StatelessWidget {
+  const _ShellModuleHost({required this.module});
+
+  final ShellModule module;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (module) {
+      ShellModule.workspaceOverview => const ShellWorkspaceOverview(),
+      ShellModule.recentActivity => const ShellRecentActivity(),
+    };
   }
 }
