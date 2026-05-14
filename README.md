@@ -33,33 +33,21 @@ Calendar, tasks/boards, Slack/Teams interop, migration tooling, connector SDKs, 
 
 ## Product screenshots
 
-The images below are deterministic Release 1 marketing screenshots generated from `tool/generate_marketing_screenshots.py`. They are checked into `docs/assets/marketing/` so the README is useful without downloading CI artifacts, and each image has descriptive alt text rather than relying on image-only documentation.
+A first look at the Release 1 experience: guided setup, chat, files, and workspace settings in one self-hosted product shell. The screenshots are generated from checked-in SVG assets, so the README stays reviewable and reproducible without turning documentation into image-only content.
 
-Screenshot links:
-
-- [Setup screenshot](docs/assets/marketing/01-setup-start.svg)
-- [Endpoint review screenshot](docs/assets/marketing/02-review-service-endpoints.svg)
-- [Chat screenshot](docs/assets/marketing/03-chat-room.svg)
-- [Files screenshot](docs/assets/marketing/04-files-documents.svg)
-- [Settings screenshot](docs/assets/marketing/05-settings.svg)
-
-### Setup
+### Setup and service review
 
 [<img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing a guided workspace setup path and canonical local service URLs." width="560">](docs/assets/marketing/01-setup-start.svg)
 
-### Endpoint review
-
 [<img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review screenshot listing Matrix, files, and backend service URLs before finishing setup." width="560">](docs/assets/marketing/02-review-service-endpoints.svg)
 
-### Chat
+### Daily collaboration
 
 [<img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room screenshot showing the Release Room, message history, and a send message action." width="560">](docs/assets/marketing/03-chat-room.svg)
 
-### Files
-
 [<img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files screenshot showing the Documents folder with folders, files, and accessible file actions." width="560">](docs/assets/marketing/04-files-documents.svg)
 
-### Settings
+### Workspace settings
 
 [<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">](docs/assets/marketing/05-settings.svg)
 
