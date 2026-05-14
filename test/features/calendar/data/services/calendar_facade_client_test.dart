@@ -164,6 +164,74 @@ void main() {
       },
     );
 
+    test('loads secret-free external calendar client setup metadata', () async {
+      late http.Request capturedRequest;
+      final facade = client(
+        MockClient((request) async {
+          capturedRequest = request;
+          return http.Response(
+            jsonEncode({
+              'scope': {
+                'type': 'workspace',
+                'label': 'Weave workspace calendar',
+              },
+              'username': 'user-123',
+              'endpoints': {
+                'serverUrl': 'https://files.weave.local',
+                'caldavDiscoveryUrl':
+                    'https://files.weave.local/remote.php/dav',
+                'principalUrl':
+                    'https://files.weave.local/remote.php/dav/principals/users/user-123/',
+              },
+              'credentialPolicy':
+                  'The backend never returns Nextcloud passwords, app passwords, bearer tokens, or static profile secrets.',
+              'options': [
+                {
+                  'platform': 'apple',
+                  'method': 'mobileconfig',
+                  'available': false,
+                  'unavailableReason':
+                      'Signed .mobileconfig generation is not implemented yet.',
+                  'guidance': ['Do not embed permanent passwords.'],
+                },
+                {
+                  'platform': 'android',
+                  'method': 'davx5',
+                  'available': true,
+                  'actionUrl': 'davx5://files.weave.local/remote.php/dav',
+                  'guidance': ['Use DAVx5 for two-way sync.'],
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final setup = await facade.clientSetup();
+
+      expect(capturedRequest.method, 'GET');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.home.internal/api/calendar/client-setup',
+      );
+      expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
+      expect(setup.scope.type, 'workspace');
+      expect(setup.username, 'user-123');
+      expect(setup.endpoints.serverUrl, 'https://files.weave.local');
+      expect(
+        setup.endpoints.principalUrl,
+        'https://files.weave.local/remote.php/dav/principals/users/user-123/',
+      );
+      expect(setup.credentialPolicy, contains('never returns'));
+      expect(setup.options.first.platform, 'apple');
+      expect(setup.options.first.available, isFalse);
+      expect(
+        setup.options.last.actionUrl,
+        'davx5://files.weave.local/remote.php/dav',
+      );
+    });
+
     test(
       'creates, updates, and deletes events through backend endpoints',
       () async {

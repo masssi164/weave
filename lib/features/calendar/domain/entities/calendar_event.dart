@@ -30,6 +30,52 @@ class CalendarEventList {
   final List<CalendarEvent> events;
 }
 
+class CalendarExternalEndpoints {
+  const CalendarExternalEndpoints({
+    required this.serverUrl,
+    required this.caldavDiscoveryUrl,
+    required this.principalUrl,
+  });
+
+  final String serverUrl;
+  final String caldavDiscoveryUrl;
+  final String principalUrl;
+}
+
+class CalendarClientSetupOption {
+  const CalendarClientSetupOption({
+    required this.platform,
+    required this.method,
+    required this.available,
+    this.actionUrl,
+    this.unavailableReason,
+    this.guidance = const [],
+  });
+
+  final String platform;
+  final String method;
+  final bool available;
+  final String? actionUrl;
+  final String? unavailableReason;
+  final List<String> guidance;
+}
+
+class CalendarClientSetup {
+  const CalendarClientSetup({
+    required this.scope,
+    required this.username,
+    required this.endpoints,
+    required this.credentialPolicy,
+    required this.options,
+  });
+
+  final CalendarScope scope;
+  final String username;
+  final CalendarExternalEndpoints endpoints;
+  final String credentialPolicy;
+  final List<CalendarClientSetupOption> options;
+}
+
 class CalendarEvent {
   const CalendarEvent({
     required this.id,

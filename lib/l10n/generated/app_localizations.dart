@@ -2429,6 +2429,106 @@ abstract class AppLocalizations {
   /// **'Events are shown from {scopeLabel}.'**
   String calendarGenericScopeDescription(String scopeLabel);
 
+  /// Title for the external calendar client setup card
+  ///
+  /// In en, this message translates to:
+  /// **'Use Calendar in other apps'**
+  String get calendarClientSetupTitle;
+
+  /// Description for the external calendar client setup card
+  ///
+  /// In en, this message translates to:
+  /// **'Release 2 can hand native clients secret-free setup details. Weave still owns the product calendar UI.'**
+  String get calendarClientSetupDescription;
+
+  /// Semantic label for the external calendar setup icon
+  ///
+  /// In en, this message translates to:
+  /// **'External calendar setup'**
+  String get calendarClientSetupIconSemantic;
+
+  /// Loading message for external calendar setup options
+  ///
+  /// In en, this message translates to:
+  /// **'Loading setup options…'**
+  String get calendarClientSetupLoading;
+
+  /// Error message when external calendar setup options cannot be loaded
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar setup options are unavailable right now.'**
+  String get calendarClientSetupUnavailable;
+
+  /// Label for the external CalDAV username
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get calendarClientSetupUsernameLabel;
+
+  /// Label for the CalDAV discovery URL
+  ///
+  /// In en, this message translates to:
+  /// **'CalDAV discovery URL'**
+  String get calendarClientSetupDiscoveryUrlLabel;
+
+  /// Label for the CalDAV principal URL
+  ///
+  /// In en, this message translates to:
+  /// **'Principal URL'**
+  String get calendarClientSetupPrincipalUrlLabel;
+
+  /// Heading for the external calendar credential safety policy
+  ///
+  /// In en, this message translates to:
+  /// **'Credential safety'**
+  String get calendarClientSetupCredentialPolicyTitle;
+
+  /// Heading for external calendar platform setup options
+  ///
+  /// In en, this message translates to:
+  /// **'Platform setup'**
+  String get calendarClientSetupPlatformsTitle;
+
+  /// Status label for an available external calendar setup option
+  ///
+  /// In en, this message translates to:
+  /// **'available'**
+  String get calendarClientSetupAvailableStatus;
+
+  /// Status label for a planned external calendar setup option
+  ///
+  /// In en, this message translates to:
+  /// **'planned'**
+  String get calendarClientSetupPlannedStatus;
+
+  /// Fallback explanation for a planned external calendar setup option
+  ///
+  /// In en, this message translates to:
+  /// **'This setup path is planned for Release 2.'**
+  String get calendarClientSetupPlannedFallback;
+
+  /// External calendar setup option summary
+  ///
+  /// In en, this message translates to:
+  /// **'{platform} via {method}: {status}'**
+  String calendarClientSetupOptionTitle(
+    String platform,
+    String method,
+    String status,
+  );
+
+  /// Tooltip for copying an external calendar setup value
+  ///
+  /// In en, this message translates to:
+  /// **'Copy {label}'**
+  String calendarClientSetupCopyTooltip(String label);
+
+  /// Snackbar after copying an external calendar setup value
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar setup value copied.'**
+  String get calendarClientSetupCopied;
+
   /// Button label for opening the create calendar event form
   ///
   /// In en, this message translates to:

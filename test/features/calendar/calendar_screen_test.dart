@@ -23,6 +23,35 @@ class _FakeCalendarRepository implements CalendarRepository {
   );
 
   @override
+  Future<CalendarClientSetup>
+  loadClientSetup() async => const CalendarClientSetup(
+    scope: CalendarScope.workspace,
+    username: 'user-123',
+    endpoints: CalendarExternalEndpoints(
+      serverUrl: 'https://files.weave.local',
+      caldavDiscoveryUrl: 'https://files.weave.local/remote.php/dav',
+      principalUrl:
+          'https://files.weave.local/remote.php/dav/principals/users/user-123/',
+    ),
+    credentialPolicy:
+        'The backend never returns passwords, app passwords, or bearer tokens.',
+    options: [
+      CalendarClientSetupOption(
+        platform: 'apple',
+        method: 'mobileconfig',
+        available: false,
+        unavailableReason: 'Signed profiles are not implemented yet.',
+      ),
+      CalendarClientSetupOption(
+        platform: 'android',
+        method: 'davx5',
+        available: true,
+        actionUrl: 'davx5://files.weave.local/remote.php/dav',
+      ),
+    ],
+  );
+
+  @override
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
     createdDrafts.add(draft);
     final event = CalendarEvent(
@@ -97,6 +126,14 @@ void main() {
 
       expect(find.text('Planning'), findsOneWidget);
       expect(find.text('Workspace calendar'), findsOneWidget);
+      expect(find.text('Use Calendar in other apps'), findsOneWidget);
+      expect(find.text('CalDAV discovery URL'), findsOneWidget);
+      expect(
+        find.text('https://files.weave.local/remote.php/dav'),
+        findsOneWidget,
+      );
+      expect(find.text('android via davx5: available'), findsOneWidget);
+      expect(find.text('apple via mobileconfig: planned'), findsOneWidget);
       expect(
         find.textContaining('shared Weave workspace calendar'),
         findsOneWidget,

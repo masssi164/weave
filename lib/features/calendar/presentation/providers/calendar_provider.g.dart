@@ -105,6 +105,48 @@ final class CalendarRepositoryProvider
 String _$calendarRepositoryHash() =>
     r'7114198967e26af320220ef18cd4b95dab8ceb7f';
 
+@ProviderFor(calendarClientSetup)
+final calendarClientSetupProvider = CalendarClientSetupProvider._();
+
+final class CalendarClientSetupProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<CalendarClientSetup>,
+          CalendarClientSetup,
+          FutureOr<CalendarClientSetup>
+        >
+    with
+        $FutureModifier<CalendarClientSetup>,
+        $FutureProvider<CalendarClientSetup> {
+  CalendarClientSetupProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'calendarClientSetupProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$calendarClientSetupHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<CalendarClientSetup> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<CalendarClientSetup> create(Ref ref) {
+    return calendarClientSetup(ref);
+  }
+}
+
+String _$calendarClientSetupHash() =>
+    r'cfa2310a5679c86ccef7cfbaf2936cb61c814578';
+
 @ProviderFor(CalendarNotifier)
 final calendarProvider = CalendarNotifierProvider._();
 

@@ -27,6 +27,12 @@ CalendarRepository calendarRepository(Ref ref) {
 }
 
 @riverpod
+Future<CalendarClientSetup> calendarClientSetup(Ref ref) {
+  final repository = ref.watch(calendarRepositoryProvider);
+  return repository.loadClientSetup();
+}
+
+@riverpod
 class CalendarNotifier extends _$CalendarNotifier {
   @override
   Future<CalendarEventList> build() async {
