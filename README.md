@@ -55,11 +55,11 @@ A first look at the Release 1 experience: guided setup, chat, files, and workspa
 
 These checked-in preview screenshots document in-progress shapes only. They are not part of the Release 1 product screenshot set and must stay clearly labelled as hidden previews or post-Release-1 future scope.
 
-### Hidden preview: workspace calendar
+### Hidden preview: Release 2 calendar setup readiness
 
-Calendar is not a Release 1 navigation promise yet. The checked-in preview screenshot is included only to document the current in-progress shape: a Weave-owned workspace-calendar surface backed by the backend facade, with private per-user calendars still blocked on the documented access model.
+Calendar is not a Release 1 navigation promise yet. The checked-in preview screenshot documents the Release 2 preparation shape: a Weave-owned workspace-calendar surface backed by the backend facade, explicit access-model copy, private user calendars blocked until provisioning is tested, and external client setup blocked until signed profiles plus revocable read-only tokens exist.
 
-[<img src="docs/assets/marketing/06-calendar-workspace-preview.svg" alt="Weave calendar preview screenshot showing a workspace calendar scope label, backend facade contract, and private calendar blocker." width="560">](docs/assets/marketing/06-calendar-workspace-preview.svg)
+[<img src="docs/assets/marketing/06-calendar-setup-readiness-preview.svg" alt="Weave calendar setup readiness preview showing workspace calendar scope, private calendars blocked, credential status blocked_until_revocable_credentials, and Apple/Webcal setup disabled until safe credentials exist." width="560">](docs/assets/marketing/06-calendar-setup-readiness-preview.svg)
 
 ### Future preview: boards/tasks
 
@@ -201,7 +201,7 @@ Marketing/README screenshots are deterministic SVG assets generated from a small
 make marketing-screenshots
 ```
 
-The command regenerates the Release 1 setup, endpoint review, chat, files, and settings images plus clearly labelled preview/future images in `docs/assets/marketing/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
+The command regenerates the Release 1 setup, endpoint review, chat, files, and settings images plus clearly labelled preview/future images, including the Release 2 calendar setup-readiness preview, in `docs/assets/marketing/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
 
 When adding selected images to the README or docs, keep nearby prose and descriptive `alt` text so the documentation is not image-only.
 
