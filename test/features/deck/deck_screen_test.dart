@@ -5,9 +5,14 @@ import '../../helpers/test_app.dart';
 
 void main() {
   group('DeckScreen', () {
-    testWidgets('renders without errors', (tester) async {
+    testWidgets('renders the hidden provider-neutral boards preview', (
+      tester,
+    ) async {
       await tester.pumpWidget(createTestApp(const DeckScreen()));
       await tester.pumpAndSettle();
+
+      expect(find.text('Future boards/tasks preview'), findsOneWidget);
+      expect(find.text('Provider-neutral model'), findsOneWidget);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {

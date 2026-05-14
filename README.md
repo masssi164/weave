@@ -51,11 +51,21 @@ A first look at the Release 1 experience: guided setup, chat, files, and workspa
 
 [<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">](docs/assets/marketing/05-settings.svg)
 
+## Future previews (not Release 1)
+
+These checked-in preview screenshots document in-progress shapes only. They are not part of the Release 1 product screenshot set and must stay clearly labelled as hidden previews or post-Release-1 future scope.
+
 ### Hidden preview: workspace calendar
 
 Calendar is not a Release 1 navigation promise yet. The checked-in preview screenshot is included only to document the current in-progress shape: a Weave-owned workspace-calendar surface backed by the backend facade, with private per-user calendars still blocked on the documented access model.
 
 [<img src="docs/assets/marketing/06-calendar-workspace-preview.svg" alt="Weave calendar preview screenshot showing a workspace calendar scope label, backend facade contract, and private calendar blocker." width="560">](docs/assets/marketing/06-calendar-workspace-preview.svg)
+
+### Future preview: boards/tasks
+
+Boards/tasks are shown only as a clearly labelled design preview for the post-Release-1 direction. This preview is not part of the Release 1 product screenshot set, uses Weave-owned provider-neutral language, includes keyboard and screen-reader alternatives to drag-and-drop, and does not claim a live Vikunja, Deck, or other provider integration.
+
+[<img src="docs/assets/marketing/07-boards-preview.svg" alt="Future Weave boards preview screenshot labelled post-Release-1 and not Release 1, showing provider-neutral task columns and non-drag movement actions." width="560">](docs/assets/marketing/07-boards-preview.svg)
 
 Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing.
 
@@ -191,7 +201,7 @@ Marketing/README screenshots are deterministic SVG assets generated from a small
 make marketing-screenshots
 ```
 
-The command regenerates the setup, endpoint review, chat, files, and settings images in `docs/assets/marketing/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
+The command regenerates the Release 1 setup, endpoint review, chat, files, and settings images plus clearly labelled preview/future images in `docs/assets/marketing/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
 
 When adding selected images to the README or docs, keep nearby prose and descriptive `alt` text so the documentation is not image-only.
 

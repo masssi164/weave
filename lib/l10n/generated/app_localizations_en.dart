@@ -75,7 +75,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navCalendar => 'Calendar';
 
   @override
-  String get navDeck => 'Deck';
+  String get navDeck => 'Boards preview';
 
   @override
   String get navSettings => 'Settings';
@@ -204,7 +204,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get semanticCalendarIcon => 'Calendar events';
 
   @override
-  String get semanticDeckIcon => 'Deck boards';
+  String get semanticDeckIcon => 'Future boards preview';
 
   @override
   String get semanticSettingsIcon => 'Application settings';
@@ -567,7 +567,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendarScreenTitle => 'Calendar';
 
   @override
-  String get deckScreenTitle => 'Deck';
+  String get deckScreenTitle => 'Boards preview';
 
   @override
   String get settingsScreenTitle => 'Settings';
@@ -1195,7 +1195,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendarEmptyMessage => 'No events yet';
 
   @override
-  String get deckEmptyMessage => 'No boards yet';
+  String get deckEmptyMessage => 'No boards in this future preview yet';
 
   @override
   String get deviceLanguageLabel => 'Device Language';
@@ -1442,4 +1442,164 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get calendarOperationFailure =>
       'The calendar could not save that change right now.';
+
+  @override
+  String get boardsPreviewScreenTitle => 'Boards preview';
+
+  @override
+  String get boardsPreviewIconSemantic => 'Future boards preview';
+
+  @override
+  String get boardsPreviewBoundaryTitle => 'Future boards/tasks preview';
+
+  @override
+  String get boardsPreviewBoundaryDescription =>
+      'This design preview shows the intended Weave-owned board model and accessible task movement alternatives. It is hidden from Release 1 navigation and is not connected to Vikunja, Deck, or another provider yet.';
+
+  @override
+  String get boardsPreviewBoundarySemantic =>
+      'Future boards/tasks preview. Hidden from Release 1 navigation. Provider-neutral Weave model with keyboard and screen-reader alternatives; no provider is connected yet.';
+
+  @override
+  String get boardsPreviewPostReleaseChip => 'Post-Release-1';
+
+  @override
+  String get boardsPreviewProviderNeutralChip => 'Provider-neutral model';
+
+  @override
+  String get boardsPreviewKeyboardChip => 'No drag required';
+
+  @override
+  String boardsPreviewColumnCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count columns',
+      one: '1 column',
+      zero: 'No columns',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String boardsPreviewTaskCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tasks',
+      one: '1 task',
+      zero: 'No tasks',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get boardsPreviewNonDragMovement => 'Move menu instead of drag-only';
+
+  @override
+  String boardsPreviewBoardSemantic(
+    String boardName,
+    int columnCount,
+    int taskCount,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      columnCount,
+      locale: localeName,
+      other: '$columnCount columns',
+      one: '1 column',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      taskCount,
+      locale: localeName,
+      other: '$taskCount tasks',
+      one: '1 task',
+    );
+    return 'Board $boardName, $_temp0, $_temp1.';
+  }
+
+  @override
+  String boardsPreviewColumnSemantic(
+    String columnName,
+    String status,
+    int taskCount,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      taskCount,
+      locale: localeName,
+      other: '$taskCount tasks',
+      one: '1 task',
+    );
+    return 'Column $columnName, status $status, $_temp0.';
+  }
+
+  @override
+  String boardsPreviewColumnTaskSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tasks in this column',
+      one: '1 task in this column',
+      zero: 'No tasks in this column',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String boardsPreviewColumnWipSummary(int count, int limit) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count tasks',
+      one: '1 task',
+      zero: 'No tasks',
+    );
+    return '$_temp0 · WIP limit $limit';
+  }
+
+  @override
+  String boardsPreviewTaskSemantic(
+    String taskTitle,
+    String columnName,
+    String status,
+    String assignee,
+    String due,
+    String priority,
+  ) {
+    return 'Task $taskTitle. Column $columnName. Status $status. Assignee $assignee. Due $due. Priority $priority.';
+  }
+
+  @override
+  String boardsPreviewTaskActionsTooltip(String taskTitle) {
+    return 'Task actions for $taskTitle';
+  }
+
+  @override
+  String get boardsPreviewMoveTaskAction => 'Move to another column';
+
+  @override
+  String get boardsPreviewMarkDoneAction => 'Mark done';
+
+  @override
+  String get boardsPreviewBlockTaskAction => 'Mark blocked';
+
+  @override
+  String get boardsPreviewActionPreviewOnly =>
+      'Preview only — no task was changed.';
+
+  @override
+  String get boardsPreviewStatusNotStarted => 'Not started';
+
+  @override
+  String get boardsPreviewStatusInProgress => 'In progress';
+
+  @override
+  String get boardsPreviewStatusBlocked => 'Blocked';
+
+  @override
+  String get boardsPreviewStatusDone => 'Done';
+
+  @override
+  String boardsPreviewStatusSemantic(String status) {
+    return 'Status: $status';
+  }
 }
