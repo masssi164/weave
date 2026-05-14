@@ -15,7 +15,7 @@ class CalendarScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final asyncEvents = ref.watch(calendarProvider);
+    final asyncCalendar = ref.watch(calendarProvider);
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -26,7 +26,7 @@ class CalendarScreen extends ConsumerWidget {
       body: CustomScrollView(
         slivers: [
           SliverAppBar.large(title: Text(l10n.calendarScreenTitle)),
-          asyncEvents.when(
+          asyncCalendar.when(
             loading: () => SliverFillRemaining(
               hasScrollBody: false,
               child: LoadingState(message: l10n.loadingLabel),
@@ -38,31 +38,37 @@ class CalendarScreen extends ConsumerWidget {
                 onRetry: () => ref.invalidate(calendarProvider),
               ),
             ),
-            data: (events) => events.isEmpty
-                ? SliverFillRemaining(
-                    child: EmptyState(
-                      message: l10n.calendarEmptyMessage,
-                      icon: Icons.calendar_today_outlined,
-                    ),
-                  )
-                : SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                    sliver: SliverList.separated(
-                      itemCount: events.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 12),
-                      itemBuilder: (context, index) => _CalendarEventCard(
-                        event: events[index],
-                        onEdit: () => _showEventDialog(
-                          context,
-                          ref,
-                          event: events[index],
-                        ),
-                        onDelete: () =>
-                            _deleteEvent(context, ref, events[index]),
+            data: (calendar) => SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+              sliver: SliverList.separated(
+                itemCount: calendar.events.isEmpty
+                    ? 2
+                    : calendar.events.length + 1,
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _CalendarScopeBanner(scope: calendar.scope);
+                  }
+                  if (calendar.events.isEmpty) {
+                    return SizedBox(
+                      height: 320,
+                      child: EmptyState(
+                        message: l10n.calendarEmptyMessage,
+                        icon: Icons.calendar_today_outlined,
                       ),
-                    ),
-                  ),
+                    );
+                  }
+
+                  final event = calendar.events[index - 1];
+                  return _CalendarEventCard(
+                    event: event,
+                    onEdit: () => _showEventDialog(context, ref, event: event),
+                    onDelete: () => _deleteEvent(context, ref, event),
+                  );
+                },
+              ),
+            ),
           ),
         ],
       ),
@@ -119,6 +125,66 @@ class CalendarScreen extends ConsumerWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _CalendarScopeBanner extends StatelessWidget {
+  const _CalendarScopeBanner({required this.scope});
+
+  final CalendarScope scope;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final isWorkspace = scope.isWorkspace;
+    final title = isWorkspace ? l10n.calendarWorkspaceScopeTitle : scope.label;
+    final description = isWorkspace
+        ? l10n.calendarWorkspaceScopeDescription
+        : l10n.calendarGenericScopeDescription(scope.label);
+
+    return Semantics(
+      container: true,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.secondaryContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.groups_2_outlined,
+                color: theme.colorScheme.onSecondaryContainer,
+                semanticLabel: l10n.semanticCalendarIcon,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSecondaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -2411,6 +2411,24 @@ abstract class AppLocalizations {
   /// **'Calendar'**
   String get settingsWorkspaceCalendarLabel;
 
+  /// Title for the workspace-scoped calendar banner
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace calendar'**
+  String get calendarWorkspaceScopeTitle;
+
+  /// Description explaining that the current calendar surface is workspace-scoped rather than private-user scoped
+  ///
+  /// In en, this message translates to:
+  /// **'This first Calendar slice uses the shared Weave workspace calendar. Private user calendars stay unavailable until the access model is implemented.'**
+  String get calendarWorkspaceScopeDescription;
+
+  /// Description for non-workspace calendar scope metadata returned by the backend
+  ///
+  /// In en, this message translates to:
+  /// **'Events are shown from {scopeLabel}.'**
+  String calendarGenericScopeDescription(String scopeLabel);
+
   /// Button label for opening the create calendar event form
   ///
   /// In en, this message translates to:

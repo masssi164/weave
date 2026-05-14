@@ -9,7 +9,7 @@ class BackendCalendarRepository implements CalendarRepository {
   final CalendarFacadeClient _client;
 
   @override
-  Future<List<CalendarEvent>> loadEvents() {
+  Future<CalendarEventList> loadEvents() {
     return _client.listEvents();
   }
 

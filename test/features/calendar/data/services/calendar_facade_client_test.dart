@@ -89,9 +89,13 @@ void main() {
           capturedRequest = request;
           return http.Response(
             jsonEncode({
+              'scope': {
+                'type': 'workspace',
+                'label': 'Weave workspace calendar',
+              },
               'events': [
                 {
-                  'id': 'calendar:personal:1',
+                  'id': 'calendar:workspace:1',
                   'title': 'Planning',
                   'description': 'Roadmap',
                   'startsAt': '2026-04-26T09:00:00Z',
@@ -100,6 +104,10 @@ void main() {
                   'location': 'Office',
                   'allDay': false,
                   'etag': 'abc',
+                  'scope': {
+                    'type': 'workspace',
+                    'label': 'Weave workspace calendar',
+                  },
                 },
               ],
             }),
@@ -119,11 +127,42 @@ void main() {
         'https://api.home.internal/api/calendar/events?from=2026-04-26T00%3A00%3A00.000Z&to=2026-04-27T00%3A00%3A00.000Z',
       );
       expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
-      expect(events, hasLength(1));
-      expect(events.single.title, 'Planning');
-      expect(events.single.timezone, 'Europe/Berlin');
-      expect(events.single.etag, 'abc');
+      expect(events.scope.type, 'workspace');
+      expect(events.scope.label, 'Weave workspace calendar');
+      expect(events.events, hasLength(1));
+      expect(events.events.single.title, 'Planning');
+      expect(events.events.single.timezone, 'Europe/Berlin');
+      expect(events.events.single.etag, 'abc');
+      expect(events.events.single.scope.type, 'workspace');
     });
+
+    test(
+      'defaults older calendar facade payloads to workspace scope',
+      () async {
+        final facade = client(
+          MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'events': [
+                  {
+                    'id': 'calendar:workspace:1',
+                    'title': 'Planning',
+                    'startsAt': '2026-04-26T09:00:00Z',
+                    'endsAt': '2026-04-26T10:00:00Z',
+                  },
+                ],
+              }),
+              200,
+            ),
+          ),
+        );
+
+        final events = await facade.listEvents();
+
+        expect(events.scope, CalendarScope.workspace);
+        expect(events.events.single.scope, CalendarScope.workspace);
+      },
+    );
 
     test(
       'creates, updates, and deletes events through backend endpoints',
@@ -137,12 +176,16 @@ void main() {
             }
             return http.Response(
               jsonEncode({
-                'id': 'calendar:personal:1',
+                'id': 'calendar:workspace:1',
                 'title': 'Planning',
                 'startsAt': '2026-04-26T09:00:00Z',
                 'endsAt': '2026-04-26T10:00:00Z',
                 'timezone': 'Europe/Berlin',
                 'allDay': false,
+                'scope': {
+                  'type': 'workspace',
+                  'label': 'Weave workspace calendar',
+                },
               }),
               200,
             );
@@ -158,18 +201,18 @@ void main() {
           ),
         );
         await facade.updateEvent(
-          id: 'calendar:personal:1',
+          id: 'calendar:workspace:1',
           patch: const CalendarEventPatch(
             title: 'Updated Planning',
             etag: 'abc',
           ),
         );
-        await facade.deleteEvent('calendar:personal:1');
+        await facade.deleteEvent('calendar:workspace:1');
 
         expect(requests.map((request) => '${request.method} ${request.url}'), [
           'POST https://api.home.internal/api/calendar/events',
-          'PATCH https://api.home.internal/api/calendar/events/calendar:personal:1',
-          'DELETE https://api.home.internal/api/calendar/events/calendar:personal:1',
+          'PATCH https://api.home.internal/api/calendar/events/calendar:workspace:1',
+          'DELETE https://api.home.internal/api/calendar/events/calendar:workspace:1',
         ]);
         expect(jsonDecode(requests.first.body)['timezone'], 'Europe/Berlin');
         expect(jsonDecode(requests[1].body), {

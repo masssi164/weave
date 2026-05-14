@@ -29,14 +29,14 @@ CalendarRepository calendarRepository(Ref ref) {
 @riverpod
 class CalendarNotifier extends _$CalendarNotifier {
   @override
-  Future<List<CalendarEvent>> build() async {
+  Future<CalendarEventList> build() async {
     final repository = ref.watch(calendarRepositoryProvider);
     return repository.loadEvents();
   }
 
   Future<void> createEvent(CalendarEventDraft draft) async {
     final repository = ref.read(calendarRepositoryProvider);
-    state = const AsyncLoading<List<CalendarEvent>>();
+    state = const AsyncLoading<CalendarEventList>();
     state = await AsyncValue.guard(() async {
       await repository.createEvent(draft);
       return repository.loadEvents();
@@ -45,7 +45,7 @@ class CalendarNotifier extends _$CalendarNotifier {
 
   Future<void> updateEvent(String id, CalendarEventDraft draft) async {
     final repository = ref.read(calendarRepositoryProvider);
-    state = const AsyncLoading<List<CalendarEvent>>();
+    state = const AsyncLoading<CalendarEventList>();
     state = await AsyncValue.guard(() async {
       await repository.updateEvent(id, draft);
       return repository.loadEvents();
@@ -54,10 +54,15 @@ class CalendarNotifier extends _$CalendarNotifier {
 
   Future<void> deleteEvent(String id) async {
     final repository = ref.read(calendarRepositoryProvider);
-    final previousEvents = state.asData?.value;
-    if (previousEvents != null) {
+    final previousState = state.asData?.value;
+    if (previousState != null) {
       state = AsyncData(
-        previousEvents.where((event) => event.id != id).toList(growable: false),
+        CalendarEventList(
+          scope: previousState.scope,
+          events: previousState.events
+              .where((event) => event.id != id)
+              .toList(growable: false),
+        ),
       );
     }
     state = await AsyncValue.guard(() async {

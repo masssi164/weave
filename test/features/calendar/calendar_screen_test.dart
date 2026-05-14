@@ -17,8 +17,10 @@ class _FakeCalendarRepository implements CalendarRepository {
   final List<String> deletedIds = [];
 
   @override
-  Future<List<CalendarEvent>> loadEvents() async =>
-      List<CalendarEvent>.of(events);
+  Future<CalendarEventList> loadEvents() async => CalendarEventList(
+    scope: CalendarScope.workspace,
+    events: List<CalendarEvent>.of(events),
+  );
 
   @override
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
@@ -94,6 +96,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Planning'), findsOneWidget);
+      expect(find.text('Workspace calendar'), findsOneWidget);
+      expect(
+        find.textContaining('shared Weave workspace calendar'),
+        findsOneWidget,
+      );
       expect(find.text('Sprint planning'), findsOneWidget);
       expect(find.text('Office'), findsOneWidget);
       expect(

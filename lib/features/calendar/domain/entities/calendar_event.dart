@@ -1,3 +1,35 @@
+class CalendarScope {
+  const CalendarScope({required this.type, required this.label});
+
+  static const workspace = CalendarScope(
+    type: 'workspace',
+    label: 'Weave workspace calendar',
+  );
+
+  final String type;
+  final String label;
+
+  bool get isWorkspace => type == workspace.type;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CalendarScope && other.type == type && other.label == label;
+
+  @override
+  int get hashCode => Object.hash(type, label);
+}
+
+class CalendarEventList {
+  const CalendarEventList({
+    this.scope = CalendarScope.workspace,
+    this.events = const [],
+  });
+
+  final CalendarScope scope;
+  final List<CalendarEvent> events;
+}
+
 class CalendarEvent {
   const CalendarEvent({
     required this.id,
@@ -9,6 +41,7 @@ class CalendarEvent {
     this.location,
     this.allDay = false,
     this.etag,
+    this.scope = CalendarScope.workspace,
   });
 
   final String id;
@@ -20,6 +53,7 @@ class CalendarEvent {
   final String? location;
   final bool allDay;
   final String? etag;
+  final CalendarScope scope;
 }
 
 class CalendarEventDraft {

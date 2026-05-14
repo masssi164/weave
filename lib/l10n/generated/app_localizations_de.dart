@@ -1398,6 +1398,18 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsWorkspaceCalendarLabel => 'Kalender';
 
   @override
+  String get calendarWorkspaceScopeTitle => 'Arbeitsbereichskalender';
+
+  @override
+  String get calendarWorkspaceScopeDescription =>
+      'Dieser erste Kalender-Schnitt nutzt den gemeinsamen Weave-Arbeitsbereichskalender. Private Nutzerkalender bleiben deaktiviert, bis das Zugriffsmodell umgesetzt ist.';
+
+  @override
+  String calendarGenericScopeDescription(String scopeLabel) {
+    return 'Termine werden aus $scopeLabel angezeigt.';
+  }
+
+  @override
   String get calendarCreateButton => 'Termin erstellen';
 
   @override

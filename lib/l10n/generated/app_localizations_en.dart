@@ -1377,6 +1377,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsWorkspaceCalendarLabel => 'Calendar';
 
   @override
+  String get calendarWorkspaceScopeTitle => 'Workspace calendar';
+
+  @override
+  String get calendarWorkspaceScopeDescription =>
+      'This first Calendar slice uses the shared Weave workspace calendar. Private user calendars stay unavailable until the access model is implemented.';
+
+  @override
+  String calendarGenericScopeDescription(String scopeLabel) {
+    return 'Events are shown from $scopeLabel.';
+  }
+
+  @override
   String get calendarCreateButton => 'Create event';
 
   @override
