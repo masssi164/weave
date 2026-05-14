@@ -34,7 +34,7 @@ Use provider-neutral domain concepts first:
 
 The accessible UI must provide non-drag controls for moving cards, deterministic reading/focus order, visible focus, text scaling tolerance, status not communicated by color alone, and screen-reader-readable updates for creates, moves, errors, and sync conflicts.
 
-See [Boards and Tasks Domain Contract](boards-task-domain-contract.md) for the next planning slice: provider-neutral entities, adapter capabilities, support-safe errors, accessibility requirements, normalized events, and acceptance criteria before implementation.
+See [Boards and Tasks Domain Contract](boards-task-domain-contract.md) and [Boards Provider Spike Artifacts](boards-provider-spike-artifacts.md) for the next planning slice: provider-neutral entities, adapter capabilities, support-safe errors, accessibility requirements, normalized events, and acceptance criteria before implementation.
 
 ## Provider research outcome
 
