@@ -1471,6 +1471,47 @@ class AppLocalizationsDe extends AppLocalizations {
       'Zugangsdaten-Sicherheit';
 
   @override
+  String get calendarClientSetupAccessModelTitle => 'Zugriffsmodell';
+
+  @override
+  String get calendarClientSetupPrivateCalendarsAvailable =>
+      'Private Benutzerkalender verfügbar';
+
+  @override
+  String get calendarClientSetupPrivateCalendarsBlocked =>
+      'Private Benutzerkalender blockiert';
+
+  @override
+  String calendarClientSetupExternalCredentialModel(String model) {
+    return 'Externes Zugangsdatenmodell: $model';
+  }
+
+  @override
+  String get calendarClientSetupCredentialReadinessTitle =>
+      'Bereitschaft der Zugangsdaten';
+
+  @override
+  String calendarClientSetupCredentialReadinessStatus(String status) {
+    return 'Status: $status';
+  }
+
+  @override
+  String get calendarClientSetupAppleProfileBlocked =>
+      'Apple-Profile bleiben deaktiviert, bis Profile signiert sind und sichere Zugangsdaten existieren.';
+
+  @override
+  String get calendarClientSetupSubscriptionsBlocked =>
+      'Webcal/ICS-Abos bleiben deaktiviert, bis widerrufbare Read-only-Tokens existieren.';
+
+  @override
+  String get calendarClientSetupCredentialsSafe =>
+      'Backend-Actor-Zugangsdaten werden nicht in Client-Einrichtungsdaten offengelegt.';
+
+  @override
+  String get calendarClientSetupCredentialsUnsafe =>
+      'Die Einrichtung ist blockiert, weil Backend-Actor-Zugangsdaten offengelegt würden.';
+
+  @override
   String get calendarClientSetupPlatformsTitle => 'Plattform-Einrichtung';
 
   @override

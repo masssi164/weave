@@ -1448,6 +1448,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendarClientSetupCredentialPolicyTitle => 'Credential safety';
 
   @override
+  String get calendarClientSetupAccessModelTitle => 'Access model';
+
+  @override
+  String get calendarClientSetupPrivateCalendarsAvailable =>
+      'Private user calendars available';
+
+  @override
+  String get calendarClientSetupPrivateCalendarsBlocked =>
+      'Private user calendars blocked';
+
+  @override
+  String calendarClientSetupExternalCredentialModel(String model) {
+    return 'External credential model: $model';
+  }
+
+  @override
+  String get calendarClientSetupCredentialReadinessTitle =>
+      'Credential readiness';
+
+  @override
+  String calendarClientSetupCredentialReadinessStatus(String status) {
+    return 'Status: $status';
+  }
+
+  @override
+  String get calendarClientSetupAppleProfileBlocked =>
+      'Apple profiles stay disabled until profiles are signed and safe credentials exist.';
+
+  @override
+  String get calendarClientSetupSubscriptionsBlocked =>
+      'Webcal/ICS subscriptions stay disabled until revocable read-only tokens exist.';
+
+  @override
+  String get calendarClientSetupCredentialsSafe =>
+      'Backend actor credentials are not exposed to client setup artifacts.';
+
+  @override
+  String get calendarClientSetupCredentialsUnsafe =>
+      'Setup is blocked because backend actor credentials would be exposed.';
+
+  @override
   String get calendarClientSetupPlatformsTitle => 'Platform setup';
 
   @override

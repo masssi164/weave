@@ -17,7 +17,7 @@ void main() {
       expect(productScreenshots, contains('05-settings.svg'));
       expect(
         productScreenshots,
-        isNot(contains('06-calendar-workspace-preview.svg')),
+        isNot(contains('06-calendar-setup-readiness-preview.svg')),
       );
       expect(productScreenshots, isNot(contains('07-boards-preview.svg')));
       expect(productScreenshots.toLowerCase(), isNot(contains('calendar')));
@@ -33,7 +33,7 @@ void main() {
       '## Future previews (not Release 1)',
     );
 
-    expect(previewSection, contains('06-calendar-workspace-preview.svg'));
+    expect(previewSection, contains('06-calendar-setup-readiness-preview.svg'));
     expect(previewSection, contains('07-boards-preview.svg'));
     expect(previewSection.toLowerCase(), contains('preview'));
     expect(previewSection.toLowerCase(), contains('not part of the release 1'));

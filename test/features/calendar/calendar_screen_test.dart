@@ -35,6 +35,25 @@ class _FakeCalendarRepository implements CalendarRepository {
     ),
     credentialPolicy:
         'The backend never returns passwords, app passwords, or bearer tokens.',
+    accessModel: CalendarAccessModel(
+      type: 'workspace-calendar',
+      productScope: 'workspace',
+      privateUserCalendarsAvailable: false,
+      privateUserCalendarsReason:
+          'Private calendars need reviewed provisioning before they are shown.',
+      externalClientCredentialModel:
+          'nextcloud-login-flow-or-revocable-app-password',
+      notes: ['Workspace calendar setup only.'],
+    ),
+    credentialReadiness: CalendarCredentialReadiness(
+      status: 'blocked_until_revocable_credentials',
+      appleProfileSigned: false,
+      appleProfilePasswordIncluded: false,
+      revocableCredentialsAvailable: false,
+      readOnlySubscriptionTokensAvailable: false,
+      backendActorCredentialsExposed: false,
+      blockers: ['Apple profiles are unsigned.'],
+    ),
     options: [
       CalendarClientSetupOption(
         platform: 'apple',
@@ -134,6 +153,18 @@ void main() {
       );
       expect(find.text('android via davx5: available'), findsOneWidget);
       expect(find.text('apple via mobileconfig: planned'), findsOneWidget);
+      expect(find.text('Private user calendars blocked'), findsOneWidget);
+      expect(find.text('Workspace calendar setup only.'), findsOneWidget);
+      expect(
+        find.text('Status: blocked_until_revocable_credentials'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Backend actor credentials are not exposed to client setup artifacts.',
+        ),
+        findsOneWidget,
+      );
       expect(
         find.textContaining('shared Weave workspace calendar'),
         findsOneWidget,

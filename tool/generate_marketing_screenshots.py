@@ -138,21 +138,21 @@ SCREENS: tuple[Screen, ...] = (
 
 
     Screen(
-        file_name="06-calendar-workspace-preview.svg",
-        title="Weave workspace calendar preview screen",
-        description="The hidden Calendar preview labels the first backend-provided scope as a shared workspace calendar, not a private user calendar.",
+        file_name="06-calendar-setup-readiness-preview.svg",
+        title="Weave calendar setup readiness preview screen",
+        description="The hidden Calendar preview shows Release 2 preparation copy for access-model and external credential-readiness states.",
         active_nav="Preview",
-        hero="Workspace calendar preview",
-        subhero="Calendar is hidden from Release 1 navigation while the first safe slice uses the backend facade and clearly labels shared workspace scope.",
+        hero="Calendar setup readiness preview",
+        subhero="Release 2 preparation stays honest: workspace scope is labelled, private calendars are blocked, and external client setup is disabled until safe credentials exist.",
         metrics=(
             Metric("Scope", "Workspace calendar"),
-            Metric("Facade", "/api/calendar/events"),
-            Metric("Release", "Hidden preview"),
+            Metric("Access", "Private calendars blocked"),
+            Metric("Credentials", "blocked_until_revocable_credentials"),
         ),
         cards=(
-            ("👥", "Shared by the workspace", "Events belong to the backend-provisioned workspace calendar for this first slice."),
-            ("✓", "Create and edit events", "The Flutter surface talks to Weave backend, which owns CalDAV credentials and errors."),
-            ("🔒", "Private calendars blocked", "Per-user calendars stay disabled until issue #52 defines sharing or delegation."),
+            ("👥", "Access model", "Workspace calendar metadata is visible; private user calendars wait for tested provisioning."),
+            ("🔐", "Credential readiness", "Backend actor credentials are not exposed to generated setup artifacts."),
+            ("🚫", "External setup blocked", "Apple profiles and Webcal/ICS subscriptions stay off until signed profiles and revocable read-only tokens exist."),
         ),
         status="Preview only",
     ),

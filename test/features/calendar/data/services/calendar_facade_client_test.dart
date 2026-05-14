@@ -175,6 +175,25 @@ void main() {
                 'type': 'workspace',
                 'label': 'Weave workspace calendar',
               },
+              'accessModel': {
+                'type': 'workspace-calendar',
+                'productScope': 'workspace',
+                'privateUserCalendarsAvailable': false,
+                'privateUserCalendarsReason':
+                    'Private user calendars require a reviewed access model.',
+                'externalClientCredentialModel':
+                    'nextcloud-login-flow-or-revocable-app-password',
+                'notes': ['Workspace calendar setup only.'],
+              },
+              'credentialReadiness': {
+                'status': 'blocked_until_revocable_credentials',
+                'appleProfileSigned': false,
+                'appleProfilePasswordIncluded': false,
+                'revocableCredentialsAvailable': false,
+                'readOnlySubscriptionTokensAvailable': false,
+                'backendActorCredentialsExposed': false,
+                'blockers': ['Apple profiles are unsigned.'],
+              },
               'username': 'user-123',
               'endpoints': {
                 'serverUrl': 'https://files.weave.local',
@@ -218,6 +237,17 @@ void main() {
       expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
       expect(setup.scope.type, 'workspace');
       expect(setup.username, 'user-123');
+      expect(setup.accessModel.privateUserCalendarsAvailable, isFalse);
+      expect(
+        setup.accessModel.externalClientCredentialModel,
+        'nextcloud-login-flow-or-revocable-app-password',
+      );
+      expect(setup.credentialReadiness.appleProfileSigned, isFalse);
+      expect(setup.credentialReadiness.backendActorCredentialsExposed, isFalse);
+      expect(
+        setup.credentialReadiness.blockers,
+        contains('Apple profiles are unsigned.'),
+      );
       expect(setup.endpoints.serverUrl, 'https://files.weave.local');
       expect(
         setup.endpoints.principalUrl,

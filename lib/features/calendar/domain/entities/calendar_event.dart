@@ -42,6 +42,62 @@ class CalendarExternalEndpoints {
   final String principalUrl;
 }
 
+class CalendarAccessModel {
+  const CalendarAccessModel({
+    required this.type,
+    required this.productScope,
+    required this.privateUserCalendarsAvailable,
+    required this.privateUserCalendarsReason,
+    required this.externalClientCredentialModel,
+    this.notes = const [],
+  });
+
+  static const workspaceBlockedPrivateCalendars = CalendarAccessModel(
+    type: 'workspace-calendar',
+    productScope: 'workspace',
+    privateUserCalendarsAvailable: false,
+    privateUserCalendarsReason:
+        'Private user calendars are not available until provisioning is tested.',
+    externalClientCredentialModel: 'secret-free-setup-metadata',
+  );
+
+  final String type;
+  final String productScope;
+  final bool privateUserCalendarsAvailable;
+  final String privateUserCalendarsReason;
+  final String externalClientCredentialModel;
+  final List<String> notes;
+}
+
+class CalendarCredentialReadiness {
+  const CalendarCredentialReadiness({
+    required this.status,
+    required this.appleProfileSigned,
+    required this.appleProfilePasswordIncluded,
+    required this.revocableCredentialsAvailable,
+    required this.readOnlySubscriptionTokensAvailable,
+    required this.backendActorCredentialsExposed,
+    this.blockers = const [],
+  });
+
+  static const blockedUntilRevocableCredentials = CalendarCredentialReadiness(
+    status: 'blocked_until_revocable_credentials',
+    appleProfileSigned: false,
+    appleProfilePasswordIncluded: false,
+    revocableCredentialsAvailable: false,
+    readOnlySubscriptionTokensAvailable: false,
+    backendActorCredentialsExposed: false,
+  );
+
+  final String status;
+  final bool appleProfileSigned;
+  final bool appleProfilePasswordIncluded;
+  final bool revocableCredentialsAvailable;
+  final bool readOnlySubscriptionTokensAvailable;
+  final bool backendActorCredentialsExposed;
+  final List<String> blockers;
+}
+
 class CalendarClientSetupOption {
   const CalendarClientSetupOption({
     required this.platform,
@@ -67,12 +123,17 @@ class CalendarClientSetup {
     required this.endpoints,
     required this.credentialPolicy,
     required this.options,
+    this.accessModel = CalendarAccessModel.workspaceBlockedPrivateCalendars,
+    this.credentialReadiness =
+        CalendarCredentialReadiness.blockedUntilRevocableCredentials,
   });
 
   final CalendarScope scope;
   final String username;
   final CalendarExternalEndpoints endpoints;
   final String credentialPolicy;
+  final CalendarAccessModel accessModel;
+  final CalendarCredentialReadiness credentialReadiness;
   final List<CalendarClientSetupOption> options;
 }
 
