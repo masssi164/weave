@@ -1,4 +1,4 @@
-.PHONY: offline-contract-test integration-contract-test integration-app-e2e integration-test
+.PHONY: offline-contract-test integration-contract-test integration-app-e2e integration-test marketing-screenshots
 
 offline-contract-test:
 	@WEAVE_OFFLINE_CONTRACT_ONLY=true \
@@ -99,3 +99,6 @@ integration-app-e2e:
 	  --dart-define-from-file="$$dart_defines_file"
 
 integration-test: integration-app-e2e
+
+marketing-screenshots:
+	@python3 tool/generate_marketing_screenshots.py

@@ -31,6 +31,30 @@ Release 1 is intentionally narrow and honest. The current user-facing app shell 
 
 Calendar, tasks/boards, Slack/Teams interop, migration tooling, connector SDKs, and Weaver PA are future product areas unless a feature is explicitly marked as enabled. Calendar and exploratory Deck/boards code may exist in the repository while those surfaces are under construction, but they are not Release 1 promises. The future tasks/boards direction is a Weave-owned accessible model with provider adapters, not a product dependency on Nextcloud Deck.
 
+## Product screenshots
+
+The images below are deterministic Release 1 marketing screenshots generated from `tool/generate_marketing_screenshots.py`. They are checked into `docs/assets/marketing/` so the README is useful without downloading CI artifacts, and each image has descriptive alt text rather than relying on image-only documentation.
+
+### Setup
+
+<img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing a guided workspace setup path and canonical local service URLs." width="560">
+
+### Endpoint review
+
+<img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review screenshot listing Matrix, files, and backend service URLs before finishing setup." width="560">
+
+### Chat
+
+<img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room screenshot showing the Release Room, message history, and a send message action." width="560">
+
+### Files
+
+<img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files screenshot showing the Documents folder with folders, files, and accessible file actions." width="560">
+
+### Settings
+
+<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">
+
 ## Product architecture
 
 Weave is the Flutter client in a three-repository product system:
@@ -154,6 +178,18 @@ flutter analyze --fatal-infos
 flutter test
 make offline-contract-test
 ```
+
+### Marketing screenshots
+
+Marketing/README screenshots are deterministic SVG assets generated from a small checked-in script, not pixel-perfect goldens. This keeps normal PR validation focused on behavior while still making docs imagery reproducible and reviewable.
+
+```sh
+make marketing-screenshots
+```
+
+The command regenerates the setup, endpoint review, chat, files, and settings images in `docs/assets/marketing/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
+
+When adding selected images to the README or docs, keep nearby prose and descriptive `alt` text so the documentation is not image-only.
 
 ## Live stack and integration tests
 
