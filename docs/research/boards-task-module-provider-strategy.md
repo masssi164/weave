@@ -55,6 +55,8 @@ See [Boards and Tasks Domain Contract](boards-task-domain-contract.md) for the n
 
 Future provider work should include a provider-neutral event normalizer before broad UI investment. It should map provider-specific changes into Weave events such as task created, task moved, assignment changed, comment added, due date changed, task completed, and sync/conflict detected. This keeps notifications, recent activity, audit/support diagnostics, and future agent workflows independent from one provider.
 
+The source-backed spike findings and tested adapter/event-normalizer prototype are documented in [Boards connector spikes: Vikunja, OpenProject, Nextcloud Deck](provider-spikes/boards-connectors-spikes.md).
+
 ## Open follow-up issues
 
 Create or keep issues for:

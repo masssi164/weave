@@ -139,6 +139,10 @@ Event handling must document ordering, idempotency, redaction/privacy, replay be
 - Backend/API contracts include capability discovery, support-safe errors, pagination, sync metadata, and normalized events.
 - Accessibility test/audit strategy covers keyboard-only, screen reader, non-drag movement, visible focus, non-color status, and text scaling.
 
+## Evidence artifacts
+
+- [Boards connector spikes: Vikunja, OpenProject, Nextcloud Deck](provider-spikes/boards-connectors-spikes.md) captures source-backed findings and the tested adapter/event-normalizer prototype for issues #119, #120, #121, and #123.
+
 ## Related issues
 
 - [#119 provider-vikunja-spike](https://github.com/masssi164/weave/issues/119)
