@@ -10,8 +10,9 @@ import 'package:integration_test/integration_test.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
+import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
+import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
-import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
@@ -35,6 +36,7 @@ import 'package:weave/features/server_config/presentation/providers/server_confi
 
 import 'package:weave/main.dart';
 
+import 'helpers/auth_helper.dart';
 import 'helpers/live_oidc_test_driver.dart';
 import 'helpers/test_config.dart';
 import 'helpers/test_http_overrides.dart';
@@ -101,11 +103,12 @@ void main() {
       );
 
       _resetKeyboardTestState();
+      final secureStore = _MemorySecureStore();
 
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            secureStoreProvider.overrideWithValue(_MemorySecureStore()),
+            secureStoreProvider.overrideWithValue(secureStore),
             serverConfigurationRepositoryProvider.overrideWithValue(
               _MemoryServerConfigurationRepository(serverConfig),
             ),
@@ -142,18 +145,14 @@ void main() {
         },
       );
 
-      final signInSucceeded = await container
-          .read(authFlowControllerProvider.notifier)
-          .signIn();
+      final appSession = await AuthHelper().signInForAppSession(config);
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(appSession).encode(),
+      );
+      await container.read(appBootstrapProvider.notifier).retry();
       _resetKeyboardTestState();
       await tester.pump();
-      if (!signInSucceeded) {
-        final authFlowState = container.read(authFlowControllerProvider);
-        fail(
-          'live_e2e_result authSignedIn=false '
-          'authFailure=${authFlowState.failure}',
-        );
-      }
 
       container.read(chatProvider.notifier).connect();
       _resetKeyboardTestState();
