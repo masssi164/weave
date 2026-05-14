@@ -167,6 +167,27 @@ void main() {
         expect(find.widgetWithText(ListTile, 'Plans'), findsOneWidget);
         expect(find.widgetWithText(ListTile, 'spec.pdf'), findsOneWidget);
 
+        await tester.tap(find.text('New folder'));
+        await tester.pumpAndSettle();
+        await tester.enterText(_textFieldWithLabel('Folder name'), 'Archive');
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Create'));
+        await tester.pumpAndSettle();
+
+        expect(find.widgetWithText(ListTile, 'Archive'), findsOneWidget);
+        expect(find.text('Created folder Archive.'), findsOneWidget);
+        expect(filesRepository.createdFolders, contains('/Documents/Archive'));
+
+        await tester.tap(find.byTooltip('Delete spec.pdf'));
+        await tester.pumpAndSettle();
+        expect(find.text('Delete spec.pdf?'), findsOneWidget);
+        await tester.tap(find.text('Delete').last);
+        await tester.pumpAndSettle();
+
+        expect(find.widgetWithText(ListTile, 'spec.pdf'), findsNothing);
+        expect(find.text('Deleted spec.pdf.'), findsOneWidget);
+        expect(filesRepository.deletedEntries, contains('spec'));
+
         await tester.tap(find.text('Up'));
         await tester.pumpAndSettle();
 
@@ -408,13 +429,20 @@ class _ScenarioAuthSessionRepository implements AuthSessionRepository {
   }
 }
 
-class _ScenarioFilesRepository implements FilesRepository {
+class _ScenarioFilesRepository
+    implements FilesRepository, FilesEntryMutationRepository {
   _ScenarioFilesRepository(this._serverConfigurationRepository);
 
   final _MemoryServerConfigurationRepository _serverConfigurationRepository;
+  final Map<String, List<FileEntry>> _entriesByPath = <String, List<FileEntry>>{
+    '/': List<FileEntry>.of(_rootEntries),
+    '/Documents': List<FileEntry>.of(_documentsEntries),
+  };
   bool _connected = false;
   int connectCalls = 0;
   int disconnectCalls = 0;
+  final List<String> createdFolders = <String>[];
+  final List<String> deletedEntries = <String>[];
 
   Uri get lastConfiguredBaseUrl =>
       _serverConfigurationRepository
@@ -444,14 +472,12 @@ class _ScenarioFilesRepository implements FilesRepository {
       );
     }
 
-    return switch (path) {
-      '/' => const DirectoryListing(path: '/', entries: _rootEntries),
-      '/Documents' => const DirectoryListing(
-        path: '/Documents',
-        entries: _documentsEntries,
+    return DirectoryListing(
+      path: path,
+      entries: List<FileEntry>.unmodifiable(
+        _entriesByPath[path] ?? const <FileEntry>[],
       ),
-      _ => const DirectoryListing(path: '/', entries: <FileEntry>[]),
-    };
+    );
   }
 
   @override
@@ -464,7 +490,46 @@ class _ScenarioFilesRepository implements FilesRepository {
   }
 
   @override
+  Future<FileEntry> createFolder({
+    required String parentPath,
+    required String name,
+  }) async {
+    final normalizedParent = parentPath == '/' ? '' : parentPath;
+    final path = '$normalizedParent/$name';
+    final entry = FileEntry(
+      id: path,
+      name: name,
+      path: path,
+      isDirectory: true,
+    );
+    createdFolders.add(path);
+    _entriesByPath.putIfAbsent(parentPath, () => <FileEntry>[]).add(entry);
+    _entriesByPath[path] = <FileEntry>[];
+    return entry;
+  }
+
+  @override
+  Future<void> deleteEntry(FileEntry entry) async {
+    deletedEntries.add(entry.id);
+    final parentPath = _parentPath(entry.path);
+    _entriesByPath[parentPath]?.removeWhere(
+      (candidate) => candidate.id == entry.id,
+    );
+    if (entry.isDirectory) {
+      _entriesByPath.remove(entry.path);
+    }
+  }
+
+  @override
   Future<FilesConnectionState> restoreConnection() async => _connectionState();
+
+  String _parentPath(String path) {
+    final lastSlash = path.lastIndexOf('/');
+    if (lastSlash <= 0) {
+      return '/';
+    }
+    return path.substring(0, lastSlash);
+  }
 
   FilesConnectionState _connectionState() {
     return _connected

@@ -7,9 +7,6 @@ import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/auth/data/services/oidc_client.dart';
-import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
-import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
-import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
@@ -73,24 +70,6 @@ class _FakeOidcClient implements OidcClient {
   }
 }
 
-class _EmptyCalendarRepository implements CalendarRepository {
-  @override
-  Future<CalendarEvent> createEvent(CalendarEventDraft draft) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> deleteEvent(String id) async {}
-
-  @override
-  Future<List<CalendarEvent>> loadEvents() async => const <CalendarEvent>[];
-
-  @override
-  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) {
-    throw UnimplementedError();
-  }
-}
-
 void main() {
   group('AppShell', () {
     ProviderScope buildApp({
@@ -125,9 +104,6 @@ void main() {
           userProfileProvider.overrideWith((ref) async => null),
           firstRunStatusProvider.overrideWith(
             (ref) async => buildTestFirstRunStatus(),
-          ),
-          calendarRepositoryProvider.overrideWithValue(
-            _EmptyCalendarRepository(),
           ),
           filesRepositoryProvider.overrideWithValue(
             filesRepository ??
@@ -165,7 +141,7 @@ void main() {
       expect(find.byType(NavigationBar), findsOneWidget);
       expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
       expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.calendar_today_outlined), findsNothing);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
     });
@@ -186,17 +162,6 @@ void main() {
         expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       },
     );
-
-    testWidgets('navigates to calendar from the bottom navigation bar', (
-      tester,
-    ) async {
-      await pumpReadyShell(tester);
-
-      await tester.tap(find.byIcon(Icons.calendar_today_outlined));
-      await tester.pumpAndSettle();
-
-      expect(find.text('No events yet'), findsOneWidget);
-    });
 
     testWidgets('navigates to settings from the bottom navigation bar', (
       tester,

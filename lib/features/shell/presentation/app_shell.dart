@@ -63,17 +63,6 @@ class AppShell extends ConsumerWidget {
           ),
           NavigationDestination(
             icon: Icon(
-              Icons.calendar_today_outlined,
-              semanticLabel: l10n.semanticCalendarIcon,
-            ),
-            selectedIcon: Icon(
-              Icons.calendar_today,
-              semanticLabel: l10n.semanticCalendarIcon,
-            ),
-            label: l10n.navCalendar,
-          ),
-          NavigationDestination(
-            icon: Icon(
               Icons.settings_outlined,
               semanticLabel: l10n.semanticSettingsIcon,
             ),

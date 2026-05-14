@@ -12,10 +12,6 @@ import 'package:weave/features/chat/presentation/providers/chat_repository_provi
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
-import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
-import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
-import 'package:weave/features/calendar/presentation/calendar_screen.dart';
-import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
@@ -71,24 +67,6 @@ class _FakeOidcClient implements OidcClient {
   }
 }
 
-class _EmptyCalendarRepository implements CalendarRepository {
-  @override
-  Future<CalendarEvent> createEvent(CalendarEventDraft draft) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<void> deleteEvent(String id) async {}
-
-  @override
-  Future<List<CalendarEvent>> loadEvents() async => const <CalendarEvent>[];
-
-  @override
-  Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft) {
-    throw UnimplementedError();
-  }
-}
-
 void main() {
   group('AppRouter', () {
     ProviderContainer createContainer({
@@ -117,9 +95,6 @@ void main() {
             (ref) async => firstRunStatus ?? buildTestFirstRunStatus(),
           ),
           userProfileProvider.overrideWith((ref) async => null),
-          calendarRepositoryProvider.overrideWithValue(
-            _EmptyCalendarRepository(),
-          ),
         ],
       );
       return container;
@@ -228,7 +203,9 @@ void main() {
       expect(find.text('Wait briefly, then refresh status.'), findsOneWidget);
     });
 
-    testWidgets('opens the calendar route when ready', (tester) async {
+    testWidgets('redirects the hidden calendar route back to chat when ready', (
+      tester,
+    ) async {
       final secureStore = InMemorySecureStore();
       await secureStore.write(
         authSessionStorageKey,
@@ -251,7 +228,15 @@ void main() {
       container.read(appRouterProvider).go(AppRoutes.calendar);
       await tester.pumpAndSettle();
 
-      expect(find.byType(CalendarScreen), findsOneWidget);
+      expect(
+        container
+            .read(appRouterProvider)
+            .routeInformationProvider
+            .value
+            .uri
+            .path,
+        AppRoutes.chat,
+      );
     });
 
     testWidgets('redirects shell routes back to welcome when setup is needed', (
