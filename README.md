@@ -82,7 +82,7 @@ The Weave product should feel like one collaboration platform even though sovere
 - **Nextcloud** provides files and future calendar data foundations.
 - **Caddy** exposes the local/dev HTTPS gateway.
 
-For the detailed Flutter architecture, see [docs/architecture.md](docs/architecture.md). For the post-Release-1 interop direction, see [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md). For future boards/tasks provider research, see [docs/research/boards-task-module-provider-strategy.md](docs/research/boards-task-module-provider-strategy.md).
+For the detailed Flutter architecture, see [docs/architecture.md](docs/architecture.md). For the post-Release-1 interop direction, see [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md). For future boards/tasks provider research, see [docs/research/boards-task-module-provider-strategy.md](docs/research/boards-task-module-provider-strategy.md) and [docs/research/boards-task-domain-contract.md](docs/research/boards-task-domain-contract.md).
 
 ## Current client foundation
 

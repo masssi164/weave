@@ -96,7 +96,7 @@ Slack, Teams, guest collaboration, migration tooling, and future connectors must
 
 ## Future tasks and boards
 
-Tasks/boards are post-Release-1. The planning recommendation is to build a Weave-owned, accessibility-first board/task model with provider adapters rather than exposing Nextcloud Deck or any other upstream tool as the product model. See [Boards and Tasks Provider Strategy](research/boards-task-module-provider-strategy.md).
+Tasks/boards are post-Release-1. The planning recommendation is to build a Weave-owned, accessibility-first board/task model with provider adapters rather than exposing Nextcloud Deck or any other upstream tool as the product model. See [Boards and Tasks Provider Strategy](research/boards-task-module-provider-strategy.md) and [Boards and Tasks Domain Contract](research/boards-task-domain-contract.md).
 
 ## Feature and integration layering
 Each feature follows the same three layers:
