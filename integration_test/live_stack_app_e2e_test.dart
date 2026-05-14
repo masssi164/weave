@@ -12,14 +12,19 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
+import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_client_registration.dart';
 import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
@@ -79,7 +84,7 @@ void main() {
   });
 
   testWidgets(
-    'real live-stack sign-in, Matrix connect, and backend files browse',
+    'real live-stack sign-in, Matrix connect, profile, files, and calendar facades',
     (tester) async {
       final serverConfig = ServerConfiguration(
         providerType: OidcProviderType.keycloak,
@@ -143,6 +148,60 @@ void main() {
       container.read(chatProvider.notifier).connect();
       _resetKeyboardTestState();
       await tester.pump();
+
+      final profileRepository = container.read(userProfileRepositoryProvider);
+      final originalProfile = await profileRepository.loadProfile();
+      if (originalProfile == null) {
+        fail(
+          'live_e2e_result authSignedIn=true profileLoaded=false '
+          'profileUpdated=false reason=backend-profile-facade-returned-null',
+        );
+      }
+      final liveE2eSuffix = DateTime.now().millisecondsSinceEpoch;
+      final liveDisplayName = 'Weave Live E2E $liveE2eSuffix';
+      var profileRestored = false;
+      addTearDown(() async {
+        if (!profileRestored) {
+          try {
+            await profileRepository.updateProfile(
+              UserProfileUpdate(
+                displayName: originalProfile.displayName,
+                locale: originalProfile.locale,
+                timezone: originalProfile.timezone,
+              ),
+            );
+          } catch (_) {
+            // The main assertion prints profile evidence; teardown should not
+            // mask the original live-stack failure signal.
+          }
+        }
+      });
+      final updatedProfile = await profileRepository.updateProfile(
+        UserProfileUpdate(
+          displayName: liveDisplayName,
+          locale: originalProfile.locale,
+          timezone: originalProfile.timezone,
+        ),
+      );
+      final reloadedProfile = await profileRepository.loadProfile();
+      final profileUpdated =
+          updatedProfile.displayName == liveDisplayName &&
+          reloadedProfile?.displayName == liveDisplayName;
+      // ignore: avoid_print
+      print(
+        'PROFILE_RESULT userId=${updatedProfile.userId} '
+        'username=${updatedProfile.username} '
+        'updated=$profileUpdated '
+        'displayName=${updatedProfile.displayName}',
+      );
+      await profileRepository.updateProfile(
+        UserProfileUpdate(
+          displayName: originalProfile.displayName,
+          locale: originalProfile.locale,
+          timezone: originalProfile.timezone,
+        ),
+      );
+      profileRestored = true;
 
       await _waitFor(
         tester,
@@ -254,16 +313,15 @@ void main() {
       final seededFileBody = utf8.encode(
         'weave live e2e ${DateTime.now().toUtc().toIso8601String()}',
       );
-      await container
-          .read(filesRepositoryProvider)
-          .uploadFile(
-            '/',
-            FileUploadRequest(
-              fileName: seededFileName,
-              sizeInBytes: seededFileBody.length,
-              byteStream: Stream<List<int>>.value(seededFileBody),
-            ),
-          );
+      final filesRepository = container.read(filesRepositoryProvider);
+      await filesRepository.uploadFile(
+        '/',
+        FileUploadRequest(
+          fileName: seededFileName,
+          sizeInBytes: seededFileBody.length,
+          byteStream: Stream<List<int>>.value(seededFileBody),
+        ),
+      );
 
       await container.read(filesProvider.notifier).refresh();
       await _waitFor(
@@ -286,21 +344,71 @@ void main() {
       final matchedFiles = refreshedFilesState.directoryListing!.entries
           .where((entry) => entry.name == seededFileName)
           .toList(growable: false);
+      final uploadedFile = matchedFiles.firstOrNull;
+      final fileDownload = uploadedFile == null
+          ? null
+          : await (filesRepository as FilesExportRepository).downloadFile(
+              uploadedFile,
+            );
+      final fileDownloadMatched =
+          fileDownload?.fileName == seededFileName &&
+          fileDownload != null &&
+          utf8.decode(fileDownload.bytes) == utf8.decode(seededFileBody);
+      if (uploadedFile != null) {
+        await (filesRepository as FilesEntryMutationRepository).deleteEntry(
+          uploadedFile,
+        );
+      }
       // ignore: avoid_print
       print(
         'FILES_RESULT path=${refreshedFilesState.directoryListing!.path} '
         'entries=${refreshedFilesState.directoryListing!.entries.length} '
         'matchedFiles=${matchedFiles.length} '
+        'downloadMatched=$fileDownloadMatched '
         'fileName=$seededFileName',
       );
 
+      final calendarRepository = container.read(calendarRepositoryProvider);
+      final calendarTitle = 'Weave live E2E $liveE2eSuffix';
+      final calendarStart = DateTime.now().toUtc().add(const Duration(days: 1));
+      final calendarDraft = CalendarEventDraft(
+        title: calendarTitle,
+        description: 'Created by the Release 1 live-stack E2E gate.',
+        startTime: calendarStart,
+        endTime: calendarStart.add(const Duration(minutes: 30)),
+        timezone: 'UTC',
+      );
+      final createdEvent = await calendarRepository.createEvent(calendarDraft);
+      final loadedCalendar = await calendarRepository.loadEvents();
+      final calendarCreatedAndRead = loadedCalendar.events.any(
+        (event) => event.id == createdEvent.id && event.title == calendarTitle,
+      );
+      await calendarRepository.deleteEvent(createdEvent.id);
+      final calendarAfterDelete = await calendarRepository.loadEvents();
+      final calendarDeleted = calendarAfterDelete.events.every(
+        (event) => event.id != createdEvent.id,
+      );
+      // ignore: avoid_print
+      print(
+        'CALENDAR_RESULT eventId=${createdEvent.id} '
+        'scope=${loadedCalendar.scope.type} '
+        'createdAndRead=$calendarCreatedAndRead '
+        'deleted=$calendarDeleted',
+      );
+
       if (!matrixConnected ||
+          !profileUpdated ||
           !filesFacadeConnected ||
           deliveredMessage.isEmpty ||
-          matchedFiles.isEmpty) {
+          matchedFiles.isEmpty ||
+          !fileDownloadMatched ||
+          !calendarCreatedAndRead ||
+          !calendarDeleted) {
         fail(
           'live_e2e_result '
           'authSignedIn=true '
+          'profileLoaded=true '
+          'profileUpdated=$profileUpdated '
           'matrixConnected=$matrixConnected '
           'matrixPhase=${chatState.phase} '
           'matrixFailure=${chatState.failure} '
@@ -312,15 +420,23 @@ void main() {
           'filesFacadeMessage=${filesState.connectionState.message} '
           'filesFacadeEntries=${refreshedFilesState.directoryListing?.entries.length} '
           'filesFacadeMatchedFiles=${matchedFiles.length} '
-          'seededFileName=$seededFileName',
+          'filesDownloadMatched=$fileDownloadMatched '
+          'seededFileName=$seededFileName '
+          'calendarCreatedAndRead=$calendarCreatedAndRead '
+          'calendarDeleted=$calendarDeleted '
+          'calendarEventId=${createdEvent.id}',
         );
       }
 
       _resetKeyboardTestState();
+      expect(profileUpdated, isTrue);
       expect(matrixConnected, isTrue);
       expect(deliveredMessage, isNotEmpty);
       expect(filesFacadeConnected, isTrue);
       expect(matchedFiles, isNotEmpty);
+      expect(fileDownloadMatched, isTrue);
+      expect(calendarCreatedAndRead, isTrue);
+      expect(calendarDeleted, isTrue);
     },
     semanticsEnabled: false,
   );
