@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/boards/presentation/boards_preview_screen.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
 import '../../helpers/test_app.dart';
 
@@ -10,7 +11,12 @@ void main() {
       tester,
     ) async {
       _setCompactPreviewSurface(tester);
-      await tester.pumpWidget(createTestApp(const BoardsPreviewScreen()));
+      await tester.pumpWidget(
+        createTestApp(
+          const BoardsPreviewScreen(),
+          overrides: _staticPreviewOverrides,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Boards preview'), findsWidgets);
@@ -26,7 +32,12 @@ void main() {
       tester,
     ) async {
       _setCompactPreviewSurface(tester);
-      await tester.pumpWidget(createTestApp(const BoardsPreviewScreen()));
+      await tester.pumpWidget(
+        createTestApp(
+          const BoardsPreviewScreen(),
+          overrides: _staticPreviewOverrides,
+        ),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.byIcon(Icons.more_vert).first);
@@ -46,7 +57,12 @@ void main() {
       tester,
     ) async {
       _setCompactPreviewSurface(tester);
-      await tester.pumpWidget(createTestApp(const BoardsPreviewScreen()));
+      await tester.pumpWidget(
+        createTestApp(
+          const BoardsPreviewScreen(),
+          overrides: _staticPreviewOverrides,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(
@@ -79,7 +95,12 @@ void main() {
 
     testWidgets('meets tap-target accessibility guidelines', (tester) async {
       _setCompactPreviewSurface(tester);
-      await tester.pumpWidget(createTestApp(const BoardsPreviewScreen()));
+      await tester.pumpWidget(
+        createTestApp(
+          const BoardsPreviewScreen(),
+          overrides: _staticPreviewOverrides,
+        ),
+      );
       await tester.pumpAndSettle();
 
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
@@ -96,7 +117,12 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-      await tester.pumpWidget(createTestApp(const BoardsPreviewScreen()));
+      await tester.pumpWidget(
+        createTestApp(
+          const BoardsPreviewScreen(),
+          overrides: _staticPreviewOverrides,
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Future boards/tasks preview'), findsOneWidget);
@@ -109,6 +135,10 @@ void main() {
     });
   });
 }
+
+final _staticPreviewOverrides = [
+  weaveAuthenticatedSessionProvider.overrideWith((ref) async => null),
+];
 
 void _setCompactPreviewSurface(WidgetTester tester) {
   tester.view.devicePixelRatio = 1;
