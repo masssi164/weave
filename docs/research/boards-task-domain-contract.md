@@ -139,6 +139,10 @@ Event handling must document ordering, idempotency, redaction/privacy, replay be
 - Backend/API contracts include capability discovery, support-safe errors, pagination, sync metadata, and normalized events.
 - Accessibility test/audit strategy covers keyboard-only, screen reader, non-drag movement, visible focus, non-color status, and text scaling.
 
+## Concrete spike artifacts
+
+Provider feasibility output, API endpoint evidence, accessibility benchmark checklist, bridge/import notes, and event-normalizer examples are tracked in [Boards Provider Spike Artifacts](boards-provider-spike-artifacts.md).
+
 ## Related issues
 
 - [#119 provider-vikunja-spike](https://github.com/masssi164/weave/issues/119)
