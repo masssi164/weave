@@ -71,6 +71,8 @@ Provider capability examples:
 | `checklists` | Provider supports subtasks/checklists that can be mapped without data loss. |
 | `custom_fields` | Provider supports extra fields that need a reviewed Weave mapping. |
 
+The current provider spike fixture lives in [Boards Provider Capability Matrix](boards-provider-capability-matrix.json). Keep it machine-readable and update its static contract test whenever a provider adapter changes capability semantics.
+
 ## Accessibility contract
 
 The future board UI must be usable without pointer-only drag-and-drop:
