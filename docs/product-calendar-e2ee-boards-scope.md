@@ -25,7 +25,7 @@ Calendar is not a private personal-calendar ingestion feature. The product model
    - Boards/Tasks can reference calendar dates and channel meetings.
    - Calendar entries may expose related board/task IDs through backend product metadata, not provider-specific Flutter transport.
 
-The first implementation may still expose a single backend `workspace` scope while the API grows, but copy, tests, and specs must describe it as the first scope in a workspace/team/channel hierarchy rather than as a private-user calendar stepping stone.
+The first implementation may still expose a single backend `workspace` scope while the API grows, but copy, tests, and specs must describe it as the first scope in a workspace/team/channel hierarchy rather than as a private-personal calendar stepping stone.
 
 ## Explicitly out of scope: private personal calendars
 

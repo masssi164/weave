@@ -1,4 +1,4 @@
-/// Provider-neutral activity emitted by future boards/tasks adapters.
+/// Provider-neutral activity emitted by feature-gated boards/tasks adapters.
 ///
 /// This is an app-layer contract only: it normalizes preview fixtures and
 /// external-provider-shaped samples without claiming that a live provider is

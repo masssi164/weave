@@ -19,7 +19,7 @@ The goal is simple: give teams and organizations a humane migration path away fr
 - **Data-sovereign collaboration** — Matrix and Nextcloud provide open protocol/data foundations behind a Weave-owned user experience.
 - **One product, not separate islands** — sign-in, profile, navigation, diagnostics, chat, files, and settings are designed to feel like one workspace.
 - **Migration-friendly** — Slack and Microsoft Teams interop are planned as controlled backend-owned migration and bridge paths, not as client-side shortcuts.
-- **Built for future personal agents** — the long-term direction includes Weaver PA: an OpenClaw-style per-user agent runtime with organization-governed skills, connectors, and group-chat agents. This is future scope, not part of the current Release 2 product track.
+- **Built for later personal agents** — the long-term direction includes Weaver PA: an OpenClaw-style per-user agent runtime with organization-governed skills, connectors, and group-chat agents. This is later scope, not part of the current active product track.
 
 ## Product maturity track
 
@@ -37,7 +37,7 @@ Weave still does **not** claim a complete Teams/Slack replacement, public connec
 
 ## Product screenshots
 
-A first look at the Release 2 product-maturity experience: guided setup, dependable chat, explorer-grade files, and workspace settings in one self-hosted product shell. The screenshots are generated from checked-in SVG assets, so the README stays reviewable and reproducible without turning documentation into image-only content.
+A first look at the active product-maturity experience: guided setup, dependable chat, explorer-grade files, and workspace settings in one self-hosted product shell. The screenshots are generated from checked-in SVG assets, so the README stays reviewable and reproducible without turning documentation into image-only content.
 
 ### Setup and service review
 

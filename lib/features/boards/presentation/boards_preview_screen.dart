@@ -101,7 +101,7 @@ class _PreviewBoundaryBanner extends StatelessWidget {
                       children: [
                         _InfoChip(
                           icon: Icons.flag_outlined,
-                          label: l10n.boardsPreviewPostReleaseChip,
+                          label: l10n.boardsPreviewActivePreviewChip,
                         ),
                         _InfoChip(
                           icon: Icons.hub_outlined,

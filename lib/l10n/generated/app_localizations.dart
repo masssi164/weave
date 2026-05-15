@@ -1673,13 +1673,13 @@ abstract class AppLocalizations {
   /// **'Security numbers {value}'**
   String chatSecurityNumbersSummaryLabel(String value);
 
-  /// Settings section title for feature-flagged post-release product surfaces
+  /// Settings section title for feature-flagged feature-gated product surfaces
   ///
   /// In en, this message translates to:
   /// **'Preview surfaces'**
   String get settingsPreviewSurfacesTitle;
 
-  /// Description for feature-flagged post-release surfaces
+  /// Description for feature-flagged feature-gated surfaces
   ///
   /// In en, this message translates to:
   /// **'These feature-gated surfaces stay honest about what is active, blocked, or still waiting for backend contracts.'**
@@ -2627,7 +2627,7 @@ abstract class AppLocalizations {
   /// **'Workspace calendar'**
   String get calendarWorkspaceScopeTitle;
 
-  /// Description explaining that the current calendar surface is workspace-scoped rather than private-user scoped
+  /// Description explaining that the current calendar surface is workspace-scoped rather than private-personal scoped
   ///
   /// In en, this message translates to:
   /// **'This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.'**
@@ -2648,7 +2648,7 @@ abstract class AppLocalizations {
   /// Description for the external calendar client setup card
   ///
   /// In en, this message translates to:
-  /// **'Release 2 can hand native clients secret-free setup details. Weave still owns the product calendar UI.'**
+  /// **'Weave can hand native clients secret-free setup details. Weave still owns the product calendar UI.'**
   String get calendarClientSetupDescription;
 
   /// Semantic label for the external calendar setup icon
@@ -2723,13 +2723,13 @@ abstract class AppLocalizations {
   /// **'Access model'**
   String get calendarClientSetupAccessModelTitle;
 
-  /// Status text when private user calendars are available
+  /// Status text when private personal calendars are available
   ///
   /// In en, this message translates to:
   /// **'Private personal calendars out of scope'**
   String get calendarClientSetupPrivateCalendarsAvailable;
 
-  /// Status text when private user calendars are blocked
+  /// Status text when private personal calendars are blocked
   ///
   /// In en, this message translates to:
   /// **'Private personal calendars out of scope'**
@@ -2798,7 +2798,7 @@ abstract class AppLocalizations {
   /// Fallback explanation for a planned external calendar setup option
   ///
   /// In en, this message translates to:
-  /// **'This setup path is planned for Release 2.'**
+  /// **'This setup path is feature-gated until revocation, provisioning, and platform profile tests are complete.'**
   String get calendarClientSetupPlannedFallback;
 
   /// External calendar setup option summary
@@ -3007,7 +3007,7 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'Active preview'**
-  String get boardsPreviewPostReleaseChip;
+  String get boardsPreviewActivePreviewChip;
 
   /// Chip label stating the boards model is provider-neutral
   ///

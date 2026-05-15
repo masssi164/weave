@@ -1521,7 +1521,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarClientSetupDescription =>
-      'Release 2 can hand native clients secret-free setup details. Weave still owns the product calendar UI.';
+      'Weave can hand native clients secret-free setup details. Weave still owns the product calendar UI.';
 
   @override
   String get calendarClientSetupIconSemantic => 'External calendar setup';
@@ -1612,7 +1612,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarClientSetupPlannedFallback =>
-      'This setup path is planned for Release 2.';
+      'This setup path is feature-gated until revocation, provisioning, and platform profile tests are complete.';
 
   @override
   String calendarClientSetupOptionTitle(
@@ -1734,7 +1734,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Active boards/tasks preview. Feature-gated provider-neutral Weave model with keyboard and screen-reader alternatives; no live provider is connected yet.';
 
   @override
-  String get boardsPreviewPostReleaseChip => 'Active preview';
+  String get boardsPreviewActivePreviewChip => 'Active preview';
 
   @override
   String get boardsPreviewProviderNeutralChip => 'Provider-neutral model';

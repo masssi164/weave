@@ -133,7 +133,7 @@ void main() {
       await _continueFirstRunIfPresent(tester);
     }
 
-    testWidgets('renders the Release 1 bottom navigation destinations', (
+    testWidgets('renders the core bottom navigation destinations', (
       tester,
     ) async {
       await pumpReadyShell(tester);

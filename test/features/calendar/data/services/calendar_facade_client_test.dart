@@ -246,7 +246,7 @@ void main() {
                 'productScope': 'workspace',
                 'privateUserCalendarsAvailable': false,
                 'privateUserCalendarsReason':
-                    'Private user calendars require a reviewed access model.',
+                    'Private personal calendars require a reviewed access model.',
                 'externalClientCredentialModel':
                     'nextcloud-login-flow-or-revocable-app-password',
                 'notes': ['Workspace calendar setup only.'],
