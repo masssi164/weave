@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
-  <title id="title">Weave future boards preview screen</title>
+  <title id="title">Weave boards active preview screen</title>
   <desc id="desc">A clearly labelled feature-gated boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
@@ -35,23 +35,23 @@
 
   <rect x="104" y="212" width="1096" height="150" rx="34" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
   <text x="144" y="270" font-size="42" font-weight="900" fill="#0f172a">Boards/tasks preview · active scope</text>
-  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">A Weave-owned board model for future provider adapters. Hidden from</text>
-<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">the current release and not connected to Vikunja, Deck, or another</text>
-<text x="144" y="384" font-size="26" font-weight="400" fill="#475569">provider yet.</text>
+  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">A Weave-owned board model behind the backend facade. The live gate</text>
+<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">validates provider-neutral create, move, and complete actions</text>
+<text x="144" y="384" font-size="26" font-weight="400" fill="#475569">without drag-and-drop.</text>
 
     <rect x="104" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="132" y="444" font-size="21" font-weight="700" fill="#0369a1">Release</text>
-    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">Future track</text>
+    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">active-feature-gated-preview</text>
 
 
     <rect x="480" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
-    <text x="508" y="444" font-size="21" font-weight="700" fill="#0369a1">Model</text>
-    <text x="508" y="480" font-size="20" font-weight="400" fill="#0f172a">Provider-neutral Weave boards</text>
+    <text x="508" y="444" font-size="21" font-weight="700" fill="#0369a1">Source</text>
+    <text x="508" y="480" font-size="20" font-weight="400" fill="#0f172a">local-preview-backend-facade</text>
 
 
     <rect x="856" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="884" y="444" font-size="21" font-weight="700" fill="#0369a1">Movement</text>
-    <text x="884" y="480" font-size="20" font-weight="400" fill="#0f172a">Menu actions; no drag required</text>
+    <text x="884" y="480" font-size="20" font-weight="400" fill="#0f172a">Non-drag actions validated</text>
 
 
     <rect x="104" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
@@ -67,11 +67,11 @@
     <rect x="480" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
     <circle cx="534" cy="624" r="28" fill="#ecfeff" stroke="#67e8f9" stroke-width="2"/>
     <text x="522" y="634" font-size="26" font-weight="800" fill="#0e7490">🔌</text>
-    <text x="576" y="631" font-size="24" font-weight="800" fill="#0f172a">Adapter later</text>
-    <text x="512" y="678" font-size="22" font-weight="400" fill="#475569">Vikunja is the first</text>
-<text x="512" y="708" font-size="22" font-weight="400" fill="#475569">planned provider spike</text>
-<text x="512" y="738" font-size="22" font-weight="400" fill="#475569">behind backend-owned</text>
-<text x="512" y="768" font-size="22" font-weight="400" fill="#475569">contracts.</text>
+    <text x="576" y="631" font-size="24" font-weight="800" fill="#0f172a">Provider boundary</text>
+    <text x="512" y="678" font-size="22" font-weight="400" fill="#475569">The app talks to Weave</text>
+<text x="512" y="708" font-size="22" font-weight="400" fill="#475569">backend DTOs; no secret-</text>
+<text x="512" y="738" font-size="22" font-weight="400" fill="#475569">bearing provider client</text>
+<text x="512" y="768" font-size="22" font-weight="400" fill="#475569">is exposed.</text>
 
 
     <rect x="856" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
@@ -84,5 +84,5 @@
 <text x="888" y="768" font-size="22" font-weight="400" fill="#475569">alone.</text>
 
   <rect x="1012" y="96" width="300" height="54" rx="20" fill="#0f172a"/>
-  <text x="1042" y="132" font-size="22" font-weight="800" fill="#ffffff">Preview only</text>
+  <text x="1042" y="132" font-size="22" font-weight="800" fill="#ffffff">Active preview</text>
 </svg>

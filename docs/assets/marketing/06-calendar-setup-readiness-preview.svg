@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
   <title id="title">Weave calendar setup readiness preview screen</title>
-  <desc id="desc">The guarded Calendar preview shows active workspace/team/channel readiness copy for access-model and external credential-readiness states.</desc>
+  <desc id="desc">The guarded Calendar preview shows active workspace/team/channel readiness copy for the Teams-like shared scheduling path.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#eff6ff"/>
@@ -34,14 +34,14 @@
     <text x="704" y="153" font-size="22" font-weight="700" fill="#475569">Settings</text>
 
   <rect x="104" y="212" width="1096" height="150" rx="34" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
-  <text x="144" y="270" font-size="42" font-weight="900" fill="#0f172a">Calendar setup readiness preview</text>
-  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">The shared Calendar preview stays honest: workspace scope is</text>
-<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">labelled as the first Teams-like calendar scope, while team/channel</text>
-<text x="144" y="384" font-size="26" font-weight="400" fill="#475569">calendars and meeting threads remain the next gated slices.</text>
+  <text x="144" y="270" font-size="42" font-weight="900" fill="#0f172a">Calendar channel schedule preview</text>
+  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">The shared Calendar path is Teams-like: workspace, team, and</text>
+<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">channel scopes are visible; channel event CRUD is validated through</text>
+<text x="144" y="384" font-size="26" font-weight="400" fill="#475569">the backend Calendar facade.</text>
 
     <rect x="104" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="132" y="444" font-size="21" font-weight="700" fill="#0369a1">Scope</text>
-    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">Workspace calendar</text>
+    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">Workspace · team · channel</text>
 
 
     <rect x="480" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
@@ -50,9 +50,9 @@
 
 
     <rect x="856" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
-    <text x="884" y="444" font-size="21" font-weight="700" fill="#0369a1">Credentials</text>
-    <text x="884" y="480" font-size="20" font-weight="400" fill="#0f172a">blocked_until_revocable_credent</text>
-<text x="884" y="507" font-size="20" font-weight="400" fill="#0f172a">ials</text>
+    <text x="884" y="444" font-size="21" font-weight="700" fill="#0369a1">Live proof</text>
+    <text x="884" y="480" font-size="20" font-weight="400" fill="#0f172a">Channel event</text>
+<text x="884" y="507" font-size="20" font-weight="400" fill="#0f172a">create/read/update/delete</text>
 
 
     <rect x="104" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
@@ -78,14 +78,14 @@
 
     <rect x="856" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
     <circle cx="910" cy="624" r="28" fill="#ecfeff" stroke="#67e8f9" stroke-width="2"/>
-    <text x="898" y="634" font-size="26" font-weight="800" fill="#0e7490">🚫</text>
-    <text x="952" y="631" font-size="24" font-weight="800" fill="#0f172a">External setup blocked</text>
-    <text x="888" y="678" font-size="22" font-weight="400" fill="#475569">Apple profiles and</text>
-<text x="888" y="708" font-size="22" font-weight="400" fill="#475569">Webcal/ICS subscriptions</text>
-<text x="888" y="738" font-size="22" font-weight="400" fill="#475569">stay off until signed</text>
-<text x="888" y="768" font-size="22" font-weight="400" fill="#475569">profiles and revocable</text>
-<text x="888" y="798" font-size="22" font-weight="400" fill="#475569">read-only tokens exist.</text>
+    <text x="898" y="634" font-size="26" font-weight="800" fill="#0e7490">#</text>
+    <text x="952" y="631" font-size="24" font-weight="800" fill="#0f172a">Channel context</text>
+    <text x="888" y="678" font-size="22" font-weight="400" fill="#475569">Events carry channel</text>
+<text x="888" y="708" font-size="22" font-weight="400" fill="#475569">scope metadata so</text>
+<text x="888" y="738" font-size="22" font-weight="400" fill="#475569">meeting-thread context</text>
+<text x="888" y="768" font-size="22" font-weight="400" fill="#475569">can attach without raw</text>
+<text x="888" y="798" font-size="22" font-weight="400" fill="#475569">CalDAV concepts.</text>
 
   <rect x="1012" y="96" width="300" height="54" rx="20" fill="#0f172a"/>
-  <text x="1042" y="132" font-size="22" font-weight="800" fill="#ffffff">Preview only</text>
+  <text x="1042" y="132" font-size="22" font-weight="800" fill="#ffffff">Active preview</text>
 </svg>
