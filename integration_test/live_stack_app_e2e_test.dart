@@ -321,6 +321,7 @@ void main() {
         federated: false,
       );
       final encryptedRoom = matrixClient.getRoomById(encryptedRoomId);
+      await _waitForMatrixRoomEncrypted(matrixClient, encryptedRoomId);
       final encryptedMessage =
           'live-e2ee message ${DateTime.now().toUtc().toIso8601String()}';
       await chatRepository.sendMessage(
@@ -837,6 +838,26 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 }
 
 String _jsonString(Object? value) => value is String ? value : '';
+
+Future<void> _waitForMatrixRoomEncrypted(
+  sdk.Client matrixClient,
+  String roomId, {
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  final end = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(end)) {
+    await matrixClient.oneShotSync();
+    if (matrixClient.getRoomById(roomId)?.encrypted == true) {
+      return;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+  }
+
+  fail(
+    'Timed out waiting for Matrix room encryption state before sending: '
+    'roomId=$roomId',
+  );
+}
 
 Future<List<Map<String, dynamic>>> _waitForEncryptedWireEvents({
   required http.Client httpClient,
