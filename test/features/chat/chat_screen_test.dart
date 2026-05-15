@@ -12,6 +12,7 @@ import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
+import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -472,6 +473,79 @@ void main() {
         tester.getTopLeft(find.text('Newest room')).dy,
         lessThan(tester.getTopLeft(find.text('Older room')).dy),
       );
+    });
+
+    testWidgets('keeps the last room list visible when a manual refresh fails', (
+      tester,
+    ) async {
+      var shouldFailRefresh = false;
+      final repository = FakeChatRepository(
+        loadConversationsHandler: () async {
+          if (shouldFailRefresh) {
+            throw const ChatFailure.protocol('Matrix sync timed out.');
+          }
+
+          return const <ChatConversation>[
+            ChatConversation(
+              id: '!project:home.internal',
+              title: 'Project',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Latest update',
+              unreadCount: 1,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
+        },
+      );
+      final securityRepository = buildSecurityRepository();
+      final container = ProviderContainer.test(
+        overrides: [
+          chatRepositoryProvider.overrideWithValue(repository),
+          chatSecurityRepositoryProvider.overrideWithValue(securityRepository),
+          firstRunStatusProvider.overrideWith((ref) async => null),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: ChatScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Project'), findsOneWidget);
+      expect(find.text('Showing last known rooms'), findsNothing);
+
+      shouldFailRefresh = true;
+      await container.read(chatProvider.notifier).retry();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Project'), findsOneWidget);
+      expect(find.text('Latest update'), findsOneWidget);
+      expect(find.text('Showing last known rooms'), findsOneWidget);
+      expect(
+        find.text(
+          'We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Matrix sync timed out.'), findsOneWidget);
+      expect(find.text('Refresh rooms'), findsOneWidget);
+
+      shouldFailRefresh = false;
+      await tester.tap(find.text('Refresh rooms'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Project'), findsOneWidget);
+      expect(find.text('Showing last known rooms'), findsNothing);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {

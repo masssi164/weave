@@ -61,6 +61,25 @@ class ChatScreen extends ConsumerWidget {
               ),
             ),
           ),
+        if (state.staleFailure != null)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: _ChatStaleNotice(
+                failure: state.staleFailure!,
+                onRefresh: () => ref.read(chatProvider.notifier).retry(),
+              ),
+            ),
+          ),
+        if (state.isRefreshing)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: LinearProgressIndicator(
+                semanticsLabel: l10n.chatRefreshingRoomsLabel,
+              ),
+            ),
+          ),
         switch (state.phase) {
           ChatViewPhase.loading => SliverFillRemaining(
             hasScrollBody: true,
@@ -125,6 +144,81 @@ class ChatScreen extends ConsumerWidget {
           ),
         },
       ],
+    );
+  }
+}
+
+class _ChatStaleNotice extends StatelessWidget {
+  const _ChatStaleNotice({required this.failure, required this.onRefresh});
+
+  final ChatFailure failure;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.tertiaryContainer,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: theme.colorScheme.tertiary),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.wifi_off_outlined,
+                    color: theme.colorScheme.onTertiaryContainer,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.chatStaleRoomsTitle,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onTertiaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.chatStaleRoomsGuidance,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onTertiaryContainer,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                failure.message,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onTertiaryContainer,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton.icon(
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.chatStaleRoomsRetryButton),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

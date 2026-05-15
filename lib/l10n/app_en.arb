@@ -232,6 +232,15 @@
   "chatConnectButton": "Connect Matrix",
   "@chatConnectButton": { "description": "Button label to start or retry Matrix sign-in" },
 
+  "chatRefreshingRoomsLabel": "Refreshing chat rooms",
+  "@chatRefreshingRoomsLabel": { "description": "Accessibility label for the progress indicator shown while the existing chat room list is refreshing" },
+  "chatStaleRoomsTitle": "Showing last known rooms",
+  "@chatStaleRoomsTitle": { "description": "Title for a chat notice shown when refresh failed but cached conversations remain visible" },
+  "chatStaleRoomsGuidance": "We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.",
+  "@chatStaleRoomsGuidance": { "description": "Guidance for a chat notice shown when refresh failed but cached conversations remain visible" },
+  "chatStaleRoomsRetryButton": "Refresh rooms",
+  "@chatStaleRoomsRetryButton": { "description": "Button label for retrying a stale chat room list refresh" },
+
   "filesScreenTitle": "Files",
   "@filesScreenTitle": { "description": "Title for the files screen app bar" },
   "filesLoadingLabel": "Loading files…",

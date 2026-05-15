@@ -695,6 +695,30 @@ abstract class AppLocalizations {
   /// **'Connect Matrix'**
   String get chatConnectButton;
 
+  /// Accessibility label for the progress indicator shown while the existing chat room list is refreshing
+  ///
+  /// In en, this message translates to:
+  /// **'Refreshing chat rooms'**
+  String get chatRefreshingRoomsLabel;
+
+  /// Title for a chat notice shown when refresh failed but cached conversations remain visible
+  ///
+  /// In en, this message translates to:
+  /// **'Showing last known rooms'**
+  String get chatStaleRoomsTitle;
+
+  /// Guidance for a chat notice shown when refresh failed but cached conversations remain visible
+  ///
+  /// In en, this message translates to:
+  /// **'We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.'**
+  String get chatStaleRoomsGuidance;
+
+  /// Button label for retrying a stale chat room list refresh
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh rooms'**
+  String get chatStaleRoomsRetryButton;
+
   /// Title for the files screen app bar
   ///
   /// In en, this message translates to:
