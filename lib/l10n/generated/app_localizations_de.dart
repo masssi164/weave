@@ -1545,7 +1545,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get calendarClientSetupDescription =>
-      'Release 2 kann nativen Clients geheime-freie Einrichtungsdaten übergeben. Die Weave-Kalenderoberfläche bleibt der Produktweg.';
+      'Weave kann nativen Clients geheime-freie Einrichtungsdaten übergeben. Die Weave-Kalenderoberfläche bleibt der Produktweg.';
 
   @override
   String get calendarClientSetupIconSemantic => 'Externe Kalendereinrichtung';
@@ -1639,7 +1639,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get calendarClientSetupPlannedFallback =>
-      'Dieser Einrichtungsweg ist für Release 2 geplant.';
+      'Dieser Einrichtungsweg ist per Feature-Flag geschützt, bis Widerruf, Provisionierung und Plattformprofil-Tests abgeschlossen sind.';
 
   @override
   String calendarClientSetupOptionTitle(
@@ -1762,7 +1762,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Zukünftige Boards-/Aufgaben-Vorschau. In der Release-1-Navigation ausgeblendet. Anbieterneutrales Weave-Modell mit Tastatur- und Screenreader-Alternativen; noch kein Anbieter verbunden.';
 
   @override
-  String get boardsPreviewPostReleaseChip => 'Aktive Vorschau';
+  String get boardsPreviewActivePreviewChip => 'Aktive Vorschau';
 
   @override
   String get boardsPreviewProviderNeutralChip => 'Anbieterneutrales Modell';

@@ -17,13 +17,13 @@ void main() {
           '''
 {
   "preview": true,
-  "releaseStatus": "post-release-hidden-preview",
+  "releaseStatus": "active-feature-gated-preview",
   "source": "local-preview-backend-facade",
   "boards": [
     {
       "id": "board-1",
       "name": "Launch board",
-      "description": "Backend-fed hidden preview",
+      "description": "Backend-fed feature-gated preview",
       "columns": [
         {"id": "todo", "name": "To do", "semanticStatus": "not_started"},
         {"id": "doing", "name": "Doing", "semanticStatus": "in_progress", "wipLimit": 3},

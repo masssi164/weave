@@ -48,7 +48,7 @@
       "not_applicable",
       "benchmark"
     ],
-    "flutter_boundary": "Flutter may consume provider-neutral DTOs, capability flags, and hidden preview fixtures only; provider auth, pagination, sync, and error translation belong behind a backend or connector adapter."
+    "flutter_boundary": "Flutter may consume provider-neutral DTOs, capability flags, and feature-gated preview fixtures only; provider auth, pagination, sync, and error translation belong behind a backend or connector adapter."
   },
   "providers": [
     {

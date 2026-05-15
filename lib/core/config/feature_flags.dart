@@ -5,6 +5,6 @@ abstract final class FeatureFlags {
     'WEAVE_MIGRATION_DRY_RUN',
   );
 
-  static const hasPostReleaseSurfaces =
+  static const hasFeatureGatedSurfaces =
       guestPortal || interopAdmin || migrationDryRun;
 }

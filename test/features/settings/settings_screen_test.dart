@@ -156,7 +156,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Workspace Readiness'), findsOneWidget);
-      expect(FeatureFlags.hasPostReleaseSurfaces, isFalse);
+      expect(FeatureFlags.hasFeatureGatedSurfaces, isFalse);
       expect(find.text('Preview surfaces'), findsNothing);
       expect(find.text('Guest Portal'), findsNothing);
       expect(

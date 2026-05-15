@@ -59,7 +59,7 @@ class SettingsScreen extends ConsumerWidget {
                   const _WorkspaceReadinessCard(),
                   const SizedBox(height: 32),
                   const _ShellModuleVisibilitySettingsSection(),
-                  if (FeatureFlags.hasPostReleaseSurfaces) ...[
+                  if (FeatureFlags.hasFeatureGatedSurfaces) ...[
                     const SizedBox(height: 32),
                     const _FeaturePreviewSurfacesSection(),
                   ],

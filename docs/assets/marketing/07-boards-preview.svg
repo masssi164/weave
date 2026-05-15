@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
   <title id="title">Weave future boards preview screen</title>
-  <desc id="desc">A clearly labelled future boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.</desc>
+  <desc id="desc">A clearly labelled feature-gated boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#eff6ff"/>

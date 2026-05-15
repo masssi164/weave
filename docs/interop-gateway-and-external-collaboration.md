@@ -2,9 +2,9 @@
 
 ## Status
 
-This is a post-Release-1 product direction. It must not block the Release 1 gate for the core Weave app, backend, and local/self-hosted stack.
+This is a feature-gated product direction. It must not block the core validation gate for the Weave app, backend, and local/self-hosted stack.
 
-Interop work is release-compatible only when it is behind explicit feature flags and defaults to off. Release 1 validation must remain green without Slack, Teams, third-party SaaS credentials, or external admin consent.
+Interop work is release-compatible only when it is behind explicit feature flags and defaults to off. core validation must remain green without Slack, Teams, third-party SaaS credentials, or external admin consent.
 
 ## Strategic direction
 
@@ -26,9 +26,9 @@ Product promise:
 
 ## Recommended sequence
 
-1. Protect Release 1.
+1. Protect core validation.
    - Keep interop disabled by default.
-   - Keep Release 1 E2E independent of external SaaS availability.
+   - Keep core E2E independent of external SaaS availability.
    - Keep release blockers focused on setup, sign-in, chat, files, calendar decisions, diagnostics, backup/restore, and accessibility.
 
 2. Build the Interop Gateway foundation.
@@ -153,7 +153,7 @@ Minimum viable slice:
 - The bridge prevents message loops and duplicates.
 - Degraded/rate-limited state is visible in admin status.
 - Disconnect revokes or invalidates the connection and stops delivery.
-- Release 1 still passes with the Slack bridge disabled.
+- Core validation still passes with the Slack bridge disabled.
 
 Explicit Slack non-goals for the first slice:
 
@@ -220,7 +220,7 @@ Later import jobs must be:
 An interop slice is mergeable only when:
 
 - it is behind a feature flag and disabled by default unless explicitly promoted;
-- core Release 1 tests remain green without external provider credentials;
+- core core tests remain green without external provider credentials;
 - provider webhooks validate signatures;
 - token storage and support-bundle redaction are covered;
 - loop prevention and idempotency are tested;

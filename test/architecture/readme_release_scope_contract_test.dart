@@ -4,12 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'README Product screenshots describe the Release 2 maturity track honestly',
+    'README Product screenshots describe the active maturity track honestly',
     () async {
       final readme = await File('README.md').readAsString();
       final productScreenshots = _section(readme, '## Product screenshots');
 
-      expect(productScreenshots, contains('Release 2 product-maturity'));
+      expect(productScreenshots, contains('active product-maturity'));
       expect(productScreenshots, contains('01-setup-start.svg'));
       expect(productScreenshots, contains('02-review-service-endpoints.svg'));
       expect(productScreenshots, contains('03-chat-room.svg'));

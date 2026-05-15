@@ -2,7 +2,7 @@
 """Generate deterministic README/marketing screenshots for Weave.
 
 The assets intentionally use SVG so they are small, reviewable, and stable in CI.
-They mirror the Release 2 product-maturity app states without relying on live-stack or
+They mirror the active product-maturity app states without relying on live-stack or
 pixel-golden Flutter rendering, which keeps core E2E validation isolated from
 marketing artifact generation.
 """
@@ -46,7 +46,7 @@ SCREENS: tuple[Screen, ...] = (
         description="A Weave welcome screen invites an admin to configure the self-hosted workspace.",
         active_nav="Setup",
         hero="Set up your Weave workspace",
-        subhero="Connect identity, chat, files, and backend services through one guided Release 2 setup path.",
+        subhero="Connect identity, chat, files, and backend services through one guided guided setup path.",
         metrics=(
             Metric("API", "https://api.weave.local/api"),
             Metric("Auth", "https://auth.weave.local"),
@@ -65,7 +65,7 @@ SCREENS: tuple[Screen, ...] = (
         description="The setup review lists canonical local service endpoints before finishing configuration.",
         active_nav="Setup",
         hero="Review Service Endpoints",
-        subhero="Release 2 keeps raw services behind clear product boundaries and explicit local URLs.",
+        subhero="Weave keeps raw services behind clear product boundaries and explicit local URLs.",
         metrics=(
             Metric("Matrix", "https://matrix.weave.local"),
             Metric("Files", "https://files.weave.local"),
@@ -140,7 +140,7 @@ SCREENS: tuple[Screen, ...] = (
     Screen(
         file_name="06-calendar-setup-readiness-preview.svg",
         title="Weave calendar setup readiness preview screen",
-        description="The guarded Calendar preview shows Release 2 preparation copy for access-model and external credential-readiness states.",
+        description="The guarded Calendar preview shows active workspace/team/channel readiness copy for access-model and external credential-readiness states.",
         active_nav="Preview",
         hero="Calendar setup readiness preview",
         subhero="The shared Calendar preview stays honest: workspace scope is labelled as the first Teams-like calendar scope, while team/channel calendars and meeting threads remain the next gated slices.",
@@ -150,7 +150,7 @@ SCREENS: tuple[Screen, ...] = (
             Metric("Credentials", "blocked_until_revocable_credentials"),
         ),
         cards=(
-            ("👥", "Access model", "Workspace calendar metadata is visible; private user calendars wait for tested provisioning."),
+            ("👥", "Access model", "Workspace/team/channel scope metadata is visible; private personal calendars stay out of the core path."),
             ("🔐", "Credential readiness", "Backend actor credentials are not exposed to generated setup artifacts."),
             ("🚫", "External setup blocked", "Apple profiles and Webcal/ICS subscriptions stay off until signed profiles and revocable read-only tokens exist."),
         ),
@@ -159,7 +159,7 @@ SCREENS: tuple[Screen, ...] = (
     Screen(
         file_name="07-boards-preview.svg",
         title="Weave future boards preview screen",
-        description="A clearly labelled future boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.",
+        description="A clearly labelled feature-gated boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.",
         active_nav="Preview",
         hero="Boards/tasks preview · active scope",
         subhero="A Weave-owned board model for future provider adapters. Hidden from the current release and not connected to Vikunja, Deck, or another provider yet.",
