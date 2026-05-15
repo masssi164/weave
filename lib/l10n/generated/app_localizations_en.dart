@@ -1511,6 +1511,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'Calendar setup options are unavailable right now.';
 
   @override
+  String get calendarCapabilityLoading => 'Checking Calendar availability…';
+
+  @override
+  String get calendarCapabilityError =>
+      'Calendar availability could not be checked right now.';
+
+  @override
+  String get calendarUnavailableTitle => 'Calendar is unavailable';
+
+  @override
+  String calendarUnavailableDescription(String readiness) {
+    return 'Backend readiness is $readiness. Event changes stay disabled until the Weave backend reports Calendar ready.';
+  }
+
+  @override
   String get calendarClientSetupUsernameLabel => 'Username';
 
   @override

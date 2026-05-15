@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/calendar_screen.dart';
@@ -12,16 +15,20 @@ class _FakeCalendarRepository implements CalendarRepository {
     : events = List<CalendarEvent>.of(events);
 
   final List<CalendarEvent> events;
+  int loadCount = 0;
   final List<String> readIds = [];
   final List<CalendarEventDraft> createdDrafts = [];
   final List<(String, CalendarEventDraft)> updatedDrafts = [];
   final List<String> deletedIds = [];
 
   @override
-  Future<CalendarEventList> loadEvents() async => CalendarEventList(
-    scope: CalendarScope.workspace,
-    events: List<CalendarEvent>.of(events),
-  );
+  Future<CalendarEventList> loadEvents() async {
+    loadCount += 1;
+    return CalendarEventList(
+      scope: CalendarScope.workspace,
+      events: List<CalendarEvent>.of(events),
+    );
+  }
 
   @override
   Future<CalendarClientSetup>
@@ -119,11 +126,117 @@ class _FakeCalendarRepository implements CalendarRepository {
   }
 }
 
+const _readyCapabilities = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.unavailable,
+  ),
+);
+
+const _unavailableCapabilities = WorkspaceCapabilitySnapshot(
+  shellAccess: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  chat: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  files: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  calendar: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.unavailable,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: WorkspaceCapabilityReadiness.unavailable,
+  ),
+);
+
+List<dynamic> _calendarOverrides(
+  _FakeCalendarRepository repository, {
+  WorkspaceCapabilitySnapshot capabilities = _readyCapabilities,
+}) {
+  return [
+    calendarRepositoryProvider.overrideWithValue(repository),
+    workspaceCapabilitySnapshotProvider.overrideWithValue(
+      AsyncData(capabilities),
+    ),
+  ];
+}
+
+List<dynamic> _calendarCapabilityOverrides({
+  WorkspaceCapabilitySnapshot capabilities = _readyCapabilities,
+}) {
+  return [
+    workspaceCapabilitySnapshotProvider.overrideWithValue(
+      AsyncData(capabilities),
+    ),
+  ];
+}
+
 void main() {
   group('CalendarScreen', () {
     testWidgets('renders without errors', (tester) async {
-      await tester.pumpWidget(createTestApp(const CalendarScreen()));
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: _calendarCapabilityOverrides(),
+        ),
+      );
       await tester.pumpAndSettle();
+    });
+
+    testWidgets('keeps Calendar disabled when backend reports unavailable', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository([
+        CalendarEvent(
+          id: 'planning',
+          title: 'Planning',
+          startTime: DateTime.utc(2026, 4, 27, 9),
+          endTime: DateTime.utc(2026, 4, 27, 10),
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: _calendarOverrides(
+            repository,
+            capabilities: _unavailableCapabilities,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Calendar is unavailable'), findsOneWidget);
+      expect(
+        find.textContaining('Backend readiness is unavailable'),
+        findsOneWidget,
+      );
+      expect(find.text('Create event'), findsNothing);
+      expect(find.text('Planning'), findsNothing);
+      expect(repository.loadCount, 0);
     });
 
     testWidgets('shows backend facade calendar events accessibly', (
@@ -145,7 +258,7 @@ void main() {
       await tester.pumpWidget(
         createTestApp(
           const CalendarScreen(),
-          overrides: [calendarRepositoryProvider.overrideWithValue(repository)],
+          overrides: _calendarOverrides(repository),
         ),
       );
       await tester.pumpAndSettle();
@@ -203,7 +316,7 @@ void main() {
       await tester.pumpWidget(
         createTestApp(
           const CalendarScreen(),
-          overrides: [calendarRepositoryProvider.overrideWithValue(repository)],
+          overrides: _calendarOverrides(repository),
         ),
       );
       await tester.pumpAndSettle();
@@ -232,7 +345,7 @@ void main() {
       await tester.pumpWidget(
         createTestApp(
           const CalendarScreen(),
-          overrides: [calendarRepositoryProvider.overrideWithValue(repository)],
+          overrides: _calendarOverrides(repository),
         ),
       );
       await tester.pumpAndSettle();
@@ -251,6 +364,29 @@ void main() {
 
       expect(repository.deletedIds.single, 'created-1');
       expect(find.text('Customer demo'), findsNothing);
+    });
+
+    testWidgets('keeps invalid event drafts in the accessible form', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository();
+
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: _calendarOverrides(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save event'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Enter an event title.'), findsOneWidget);
+      expect(repository.createdDrafts, isEmpty);
+      expect(find.byType(AlertDialog), findsOneWidget);
     });
 
     testWidgets('edits events through the backend facade repository', (
@@ -272,7 +408,7 @@ void main() {
       await tester.pumpWidget(
         createTestApp(
           const CalendarScreen(),
-          overrides: [calendarRepositoryProvider.overrideWithValue(repository)],
+          overrides: _calendarOverrides(repository),
         ),
       );
       await tester.pumpAndSettle();
@@ -290,14 +426,24 @@ void main() {
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {
-      await tester.pumpWidget(createTestApp(const CalendarScreen()));
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: _calendarCapabilityOverrides(),
+        ),
+      );
       await tester.pumpAndSettle();
 
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
     });
 
     testWidgets('meets labeledTapTargetGuideline', (tester) async {
-      await tester.pumpWidget(createTestApp(const CalendarScreen()));
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: _calendarCapabilityOverrides(),
+        ),
+      );
       await tester.pumpAndSettle();
 
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));

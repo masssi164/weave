@@ -1536,6 +1536,22 @@ class AppLocalizationsDe extends AppLocalizations {
       'Kalender-Einrichtungsoptionen sind gerade nicht verfügbar.';
 
   @override
+  String get calendarCapabilityLoading =>
+      'Kalender-Verfügbarkeit wird geprüft…';
+
+  @override
+  String get calendarCapabilityError =>
+      'Die Kalender-Verfügbarkeit kann gerade nicht geprüft werden.';
+
+  @override
+  String get calendarUnavailableTitle => 'Kalender ist nicht verfügbar';
+
+  @override
+  String calendarUnavailableDescription(String readiness) {
+    return 'Die Backend-Bereitschaft ist $readiness. Terminänderungen bleiben deaktiviert, bis das Weave-Backend den Kalender als bereit meldet.';
+  }
+
+  @override
   String get calendarClientSetupUsernameLabel => 'Benutzername';
 
   @override

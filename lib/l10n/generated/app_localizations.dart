@@ -2627,6 +2627,30 @@ abstract class AppLocalizations {
   /// **'Calendar setup options are unavailable right now.'**
   String get calendarClientSetupUnavailable;
 
+  /// Loading message while checking whether the backend reports Calendar as available
+  ///
+  /// In en, this message translates to:
+  /// **'Checking Calendar availability…'**
+  String get calendarCapabilityLoading;
+
+  /// Error shown when Calendar capability status cannot be loaded
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar availability could not be checked right now.'**
+  String get calendarCapabilityError;
+
+  /// Title for the Calendar module unavailable state
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar is unavailable'**
+  String get calendarUnavailableTitle;
+
+  /// Description for the Calendar module unavailable state
+  ///
+  /// In en, this message translates to:
+  /// **'Backend readiness is {readiness}. Event changes stay disabled until the Weave backend reports Calendar ready.'**
+  String calendarUnavailableDescription(String readiness);
+
   /// Label for the external CalDAV username
   ///
   /// In en, this message translates to:
