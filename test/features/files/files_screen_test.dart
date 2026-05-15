@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/a11y/semantic_button.dart';
 import 'package:weave/features/files/data/services/file_picker_files_import_picker.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
@@ -282,6 +283,76 @@ void main() {
       expect(find.text('Up'), findsOneWidget);
       expect(find.text('Root'), findsOneWidget);
     });
+
+    testWidgets(
+      'keeps the last known directory visible after refresh failure',
+      (tester) async {
+        var listCalls = 0;
+        final repository = _FakeFilesRepository(
+          connectionState: FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
+          ),
+          listDirectoryHandler: (path) async {
+            listCalls += 1;
+            if (listCalls > 1) {
+              throw const FilesFailure.protocol(
+                'Files could not be refreshed while offline.',
+              );
+            }
+            return const DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'file-1',
+                  name: 'Roadmap.pdf',
+                  path: '/Roadmap.pdf',
+                  isDirectory: false,
+                  sizeInBytes: 2048,
+                ),
+              ],
+            );
+          },
+        );
+
+        await tester.pumpWidget(
+          createTestApp(
+            const FilesScreen(),
+            overrides: [
+              filesRepositoryProvider.overrideWithValue(repository),
+              serverConfigurationRepositoryProvider.overrideWith(
+                (ref) => _FakeServerConfigurationRepository(
+                  buildTestConfiguration(),
+                ),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Roadmap.pdf'), findsOneWidget);
+
+        await tester.tap(
+          find.widgetWithText(AccessibleButton, 'Refresh').first,
+        );
+        await tester.pumpAndSettle();
+
+        expect(listCalls, 2);
+        expect(find.text('Showing last known folder'), findsOneWidget);
+        expect(
+          find.text('Files could not be refreshed while offline.'),
+          findsOneWidget,
+        );
+        await tester.scrollUntilVisible(
+          find.text('Roadmap.pdf'),
+          100,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.text('Roadmap.pdf'), findsOneWidget);
+        expect(find.text('2.0 KB'), findsOneWidget);
+        expect(find.text('Refresh folder'), findsOneWidget);
+      },
+    );
 
     testWidgets('marks the current breadcrumb and lets users jump back home', (
       tester,

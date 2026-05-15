@@ -737,6 +737,24 @@ abstract class AppLocalizations {
   /// **'Refreshing the current folder and checking what changed.'**
   String get filesLoadingHint;
 
+  /// Title for a Files notice shown when refresh failed but the previous directory listing remains visible
+  ///
+  /// In en, this message translates to:
+  /// **'Showing last known folder'**
+  String get filesStaleDirectoryTitle;
+
+  /// Guidance for a Files notice shown when refresh failed but cached folder contents remain visible
+  ///
+  /// In en, this message translates to:
+  /// **'We could not refresh Files just now. The last folder listing stays visible so you can keep your place and retry when the connection is back.'**
+  String get filesStaleDirectoryGuidance;
+
+  /// Button label for retrying a stale Files directory refresh
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh folder'**
+  String get filesStaleDirectoryRetryButton;
+
   /// Section title for the Nextcloud files connection card
   ///
   /// In en, this message translates to:

@@ -367,6 +367,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der aktuelle Ordner wird aktualisiert und auf Änderungen geprüft.';
 
   @override
+  String get filesStaleDirectoryTitle => 'Letzten bekannten Ordner anzeigen';
+
+  @override
+  String get filesStaleDirectoryGuidance =>
+      'Weave konnte Dateien gerade nicht aktualisieren. Die letzte Ordnerliste bleibt sichtbar, damit du deinen Platz behältst und es erneut versuchen kannst, sobald die Verbindung wieder da ist.';
+
+  @override
+  String get filesStaleDirectoryRetryButton => 'Ordner aktualisieren';
+
+  @override
   String get filesNextcloudTitle => 'Nextcloud';
 
   @override
