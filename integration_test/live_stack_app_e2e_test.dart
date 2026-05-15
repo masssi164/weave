@@ -328,17 +328,15 @@ void main() {
         message: encryptedMessage,
       );
       await matrixClient.oneShotSync();
-      final rawEncryptedTimeline = await encryptedRoom?.getTimeline(limit: 50);
-      final encryptedWireEvents =
-          rawEncryptedTimeline?.events
-              .where(
-                (event) =>
-                    event.type == sdk.EventTypes.Encrypted ||
-                    event.originalSource?.type == sdk.EventTypes.Encrypted,
-              )
-              .toList(growable: false) ??
-          const <sdk.Event>[];
-      rawEncryptedTimeline?.cancelSubscriptions();
+      final matrixWireHttpClient = createTrustedTestHttpClient();
+      addTearDown(matrixWireHttpClient.close);
+      final encryptedWireEvents = await _waitForEncryptedWireEvents(
+        httpClient: matrixWireHttpClient,
+        homeserver: config.matrixHomeserverUrl,
+        roomId: encryptedRoomId,
+        accessToken: matrixClient.accessToken,
+        plaintextMessage: encryptedMessage,
+      );
       final encryptedTimeline = await chatRepository.loadRoomTimeline(
         encryptedRoomId,
       );
@@ -839,6 +837,74 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 }
 
 String _jsonString(Object? value) => value is String ? value : '';
+
+Future<List<Map<String, dynamic>>> _waitForEncryptedWireEvents({
+  required http.Client httpClient,
+  required Uri homeserver,
+  required String roomId,
+  required String? accessToken,
+  required String plaintextMessage,
+  Duration timeout = const Duration(seconds: 45),
+}) async {
+  if (accessToken == null || accessToken.isEmpty) {
+    fail('Matrix live E2E cannot inspect wire events without a Matrix token.');
+  }
+
+  final end = DateTime.now().add(timeout);
+  var lastSummary = 'not requested yet';
+  while (DateTime.now().isBefore(end)) {
+    final response = await httpClient.get(
+      homeserver.replace(
+        path:
+            '/_matrix/client/v3/rooms/${Uri.encodeComponent(roomId)}/messages',
+        queryParameters: <String, String>{'dir': 'b', 'limit': '50'},
+      ),
+      headers: <String, String>{
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final decoded = jsonDecode(response.body);
+      final wireEvents = _jsonListOfMaps(
+        decoded is Map<String, dynamic> ? decoded['chunk'] : null,
+      );
+      final plaintextWireEvents = wireEvents
+          .where((event) {
+            final content = _jsonMap(event['content']);
+            return event['type'] == sdk.EventTypes.Message &&
+                content['body'] == plaintextMessage;
+          })
+          .toList(growable: false);
+      if (plaintextWireEvents.isNotEmpty) {
+        fail(
+          'Encrypted Matrix room leaked the live E2E plaintext message on the wire: '
+          'roomId=$roomId plaintextEvents=${plaintextWireEvents.length}',
+        );
+      }
+
+      final encryptedWireEvents = wireEvents
+          .where((event) => event['type'] == sdk.EventTypes.Encrypted)
+          .toList(growable: false);
+      if (encryptedWireEvents.isNotEmpty) {
+        return encryptedWireEvents;
+      }
+      lastSummary =
+          'status=${response.statusCode} events=${wireEvents.length} '
+          'encryptedEvents=0';
+    } else {
+      lastSummary = 'status=${response.statusCode} body=${response.body}';
+    }
+
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
+
+  fail(
+    'Timed out waiting for Matrix encrypted wire events in room $roomId. '
+    'Last Matrix /messages result: $lastSummary',
+  );
+}
 
 Future<void> _waitFor(
   WidgetTester tester,
