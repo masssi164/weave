@@ -815,10 +815,9 @@ class _FileEntryTile extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     return Semantics(
       container: true,
+      explicitChildNodes: true,
       button: entry.isDirectory,
-      label: entry.isDirectory
-          ? l10n.filesFolderSemantic(entry.name)
-          : l10n.filesFileSemantic(entry.name),
+      label: _semanticLabel(l10n, entry, subtitle),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
         leading: ExcludeSemantics(
@@ -870,6 +869,20 @@ class _FileEntryTile extends ConsumerWidget {
               },
       ),
     );
+  }
+
+  String _semanticLabel(
+    AppLocalizations l10n,
+    FileEntry entry,
+    String? subtitle,
+  ) {
+    final baseLabel = entry.isDirectory
+        ? l10n.filesFolderSemantic(entry.name)
+        : l10n.filesFileSemantic(entry.name);
+    if (subtitle == null || subtitle.trim().isEmpty) {
+      return baseLabel;
+    }
+    return '$baseLabel. $subtitle';
   }
 
   String? _subtitle(BuildContext context, FileEntry entry) {
