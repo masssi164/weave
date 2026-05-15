@@ -406,9 +406,35 @@ void main() {
       );
       final createdEvent = await calendarRepository.createEvent(calendarDraft);
       final loadedCalendar = await calendarRepository.loadEvents();
-      final calendarCreatedAndRead = loadedCalendar.events.any(
-        (event) => event.id == createdEvent.id && event.title == calendarTitle,
+      final readCreatedEvent = await calendarRepository.readEvent(
+        createdEvent.id,
       );
+      final calendarCreatedAndRead =
+          loadedCalendar.events.any(
+            (event) =>
+                event.id == createdEvent.id && event.title == calendarTitle,
+          ) &&
+          readCreatedEvent.id == createdEvent.id &&
+          readCreatedEvent.title == calendarTitle;
+      final updatedCalendarTitle = '$calendarTitle updated';
+      final updatedEvent = await calendarRepository.updateEvent(
+        createdEvent.id,
+        CalendarEventDraft(
+          title: updatedCalendarTitle,
+          description: 'Updated by the live-stack Calendar CRUD E2E gate.',
+          startTime: calendarStart.add(const Duration(hours: 1)),
+          endTime: calendarStart.add(const Duration(hours: 1, minutes: 45)),
+          timezone: 'UTC',
+        ),
+      );
+      final readUpdatedEvent = await calendarRepository.readEvent(
+        createdEvent.id,
+      );
+      final calendarUpdatedAndRead =
+          updatedEvent.id == createdEvent.id &&
+          updatedEvent.title == updatedCalendarTitle &&
+          readUpdatedEvent.id == createdEvent.id &&
+          readUpdatedEvent.title == updatedCalendarTitle;
       await calendarRepository.deleteEvent(createdEvent.id);
       final calendarAfterDelete = await calendarRepository.loadEvents();
       final calendarDeleted = calendarAfterDelete.events.every(
@@ -419,6 +445,7 @@ void main() {
         'CALENDAR_RESULT eventId=${createdEvent.id} '
         'scope=${loadedCalendar.scope.type} '
         'createdAndRead=$calendarCreatedAndRead '
+        'updatedAndRead=$calendarUpdatedAndRead '
         'deleted=$calendarDeleted',
       );
 
@@ -429,6 +456,7 @@ void main() {
           matchedFiles.isEmpty ||
           !fileDownloadMatched ||
           !calendarCreatedAndRead ||
+          !calendarUpdatedAndRead ||
           !calendarDeleted) {
         fail(
           'live_e2e_result '
@@ -449,6 +477,7 @@ void main() {
           'filesDownloadMatched=$fileDownloadMatched '
           'seededFileName=$seededFileName '
           'calendarCreatedAndRead=$calendarCreatedAndRead '
+          'calendarUpdatedAndRead=$calendarUpdatedAndRead '
           'calendarDeleted=$calendarDeleted '
           'calendarEventId=${createdEvent.id}',
         );
@@ -462,6 +491,7 @@ void main() {
       expect(matchedFiles, isNotEmpty);
       expect(fileDownloadMatched, isTrue);
       expect(calendarCreatedAndRead, isTrue);
+      expect(calendarUpdatedAndRead, isTrue);
       expect(calendarDeleted, isTrue);
     },
     semanticsEnabled: false,
