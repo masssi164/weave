@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
   <title id="title">Weave calendar setup readiness preview screen</title>
-  <desc id="desc">The hidden Calendar preview shows Release 2 preparation copy for access-model and external credential-readiness states.</desc>
+  <desc id="desc">The guarded Calendar preview shows Release 2 preparation copy for access-model and external credential-readiness states.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#eff6ff"/>

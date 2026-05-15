@@ -36,12 +36,12 @@
   <rect x="104" y="212" width="1096" height="150" rx="34" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
   <text x="144" y="270" font-size="42" font-weight="900" fill="#0f172a">Boards/tasks preview · future scope</text>
   <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">A Weave-owned board model for future provider adapters. Hidden from</text>
-<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">Release 1 and not connected to Vikunja, Deck, or another provider</text>
-<text x="144" y="384" font-size="26" font-weight="400" fill="#475569">yet.</text>
+<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">the current release and not connected to Vikunja, Deck, or another</text>
+<text x="144" y="384" font-size="26" font-weight="400" fill="#475569">provider yet.</text>
 
     <rect x="104" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="132" y="444" font-size="21" font-weight="700" fill="#0369a1">Release</text>
-    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">Post-Release-1</text>
+    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">Future track</text>
 
 
     <rect x="480" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
