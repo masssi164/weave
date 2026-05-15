@@ -1,23 +1,66 @@
 class CalendarScope {
-  const CalendarScope({required this.type, required this.label});
+  const CalendarScope({
+    this.id = 'workspace',
+    required this.type,
+    required this.label,
+    this.workspaceId = 'workspace',
+    this.teamId,
+    this.channelId,
+    this.accessModel = 'shared-workspace-calendar',
+    this.capabilities = const [],
+  });
 
   static const workspace = CalendarScope(
+    id: 'workspace',
     type: 'workspace',
     label: 'Weave workspace calendar',
+    accessModel: 'shared-workspace-calendar',
   );
 
+  final String id;
   final String type;
   final String label;
+  final String workspaceId;
+  final String? teamId;
+  final String? channelId;
+  final String accessModel;
+  final List<String> capabilities;
 
   bool get isWorkspace => type == workspace.type;
+  bool get isTeam => type == 'team';
+  bool get isChannel => type == 'channel';
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'type': type,
+    'label': label,
+    'workspaceId': workspaceId,
+    if (teamId != null) 'teamId': teamId,
+    if (channelId != null) 'channelId': channelId,
+    'accessModel': accessModel,
+    'capabilities': capabilities,
+  };
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is CalendarScope && other.type == type && other.label == label;
+      other is CalendarScope &&
+          other.id == id &&
+          other.type == type &&
+          other.label == label &&
+          other.workspaceId == workspaceId &&
+          other.teamId == teamId &&
+          other.channelId == channelId;
 
   @override
-  int get hashCode => Object.hash(type, label);
+  int get hashCode =>
+      Object.hash(id, type, label, workspaceId, teamId, channelId);
+}
+
+class CalendarScopeList {
+  const CalendarScopeList({this.scopes = const [CalendarScope.workspace]});
+
+  final List<CalendarScope> scopes;
 }
 
 class CalendarEventList {
@@ -172,6 +215,7 @@ class CalendarEventDraft {
     this.description,
     this.location,
     this.allDay = false,
+    this.scope = CalendarScope.workspace,
   });
 
   final String title;
@@ -181,6 +225,7 @@ class CalendarEventDraft {
   final String timezone;
   final String? location;
   final bool allDay;
+  final CalendarScope scope;
 
   CalendarEventPatch toPatch({String? etag}) {
     return CalendarEventPatch(
@@ -192,6 +237,7 @@ class CalendarEventDraft {
       location: location,
       allDay: allDay,
       etag: etag,
+      scope: scope,
     );
   }
 
@@ -203,6 +249,7 @@ class CalendarEventDraft {
     'timezone': timezone,
     'location': location,
     'allDay': allDay,
+    'scope': scope.toJson(),
   };
 }
 
@@ -216,6 +263,7 @@ class CalendarEventPatch {
     this.location,
     this.allDay,
     this.etag,
+    this.scope,
   });
 
   final String? title;
@@ -226,6 +274,7 @@ class CalendarEventPatch {
   final String? location;
   final bool? allDay;
   final String? etag;
+  final CalendarScope? scope;
 
   Map<String, Object?> toJson() => {
     if (title != null) 'title': title,
@@ -236,5 +285,6 @@ class CalendarEventPatch {
     if (location != null) 'location': location,
     if (allDay != null) 'allDay': allDay,
     if (etag != null) 'etag': etag,
+    if (scope != null) 'scope': scope!.toJson(),
   };
 }

@@ -22,10 +22,32 @@ class _FakeCalendarRepository implements CalendarRepository {
   final List<String> deletedIds = [];
 
   @override
-  Future<CalendarEventList> loadEvents() async {
+  Future<CalendarScopeList> loadScopes() async => const CalendarScopeList(
+    scopes: [
+      CalendarScope.workspace,
+      CalendarScope(
+        id: 'team:engineering',
+        type: 'team',
+        label: 'Engineering team calendar',
+        teamId: 'engineering',
+        accessModel: 'shared-team-calendar',
+      ),
+      CalendarScope(
+        id: 'channel:engineering-general',
+        type: 'channel',
+        label: 'Engineering / general channel calendar',
+        teamId: 'engineering',
+        channelId: 'engineering-general',
+        accessModel: 'shared-channel-calendar',
+      ),
+    ],
+  );
+
+  @override
+  Future<CalendarEventList> loadEvents({CalendarScope? scope}) async {
     loadCount += 1;
     return CalendarEventList(
-      scope: CalendarScope.workspace,
+      scope: scope ?? CalendarScope.workspace,
       events: List<CalendarEvent>.of(events),
     );
   }
@@ -265,6 +287,24 @@ void main() {
 
       expect(find.text('Planning'), findsOneWidget);
       expect(find.text('Workspace calendar'), findsOneWidget);
+      expect(
+        find.textContaining('private personal calendars are out of scope'),
+        findsOneWidget,
+      );
+      expect(find.text('Engineering team calendar'), findsOneWidget);
+      expect(
+        find.text('Engineering / general channel calendar'),
+        findsOneWidget,
+      );
+      expect(find.text('Sprint planning'), findsOneWidget);
+      expect(find.text('Office'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(RegExp(r'Planning, starts')),
+        findsOneWidget,
+      );
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -360));
+      await tester.pumpAndSettle();
       expect(find.text('Use Calendar in other apps'), findsOneWidget);
       expect(find.text('CalDAV discovery URL'), findsOneWidget);
       expect(
@@ -273,7 +313,12 @@ void main() {
       );
       expect(find.text('android via davx5: available'), findsOneWidget);
       expect(find.text('apple via mobileconfig: planned'), findsOneWidget);
-      expect(find.text('Private user calendars blocked'), findsOneWidget);
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -240));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Private personal calendars out of scope'),
+        findsOneWidget,
+      );
       expect(find.text('Workspace calendar setup only.'), findsOneWidget);
       expect(
         find.text('Status: blocked_until_revocable_credentials'),
@@ -286,13 +331,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('shared Weave workspace calendar'),
-        findsOneWidget,
-      );
-      expect(find.text('Sprint planning'), findsOneWidget);
-      expect(find.text('Office'), findsOneWidget);
-      expect(
-        find.bySemanticsLabel(RegExp(r'Planning, starts')),
+        find.textContaining('External credential model: nextcloud-login-flow'),
         findsOneWidget,
       );
     });
@@ -321,6 +360,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('View Planning'));
       await tester.pumpAndSettle();
 
@@ -334,7 +375,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Calendar scope'), findsOneWidget);
-      expect(find.text('Weave workspace calendar'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Weave workspace calendar'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('creates and deletes events through the repository', (
@@ -359,6 +406,8 @@ void main() {
       expect(repository.createdDrafts.single.title, 'Customer demo');
       expect(find.text('Customer demo'), findsOneWidget);
 
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Delete Customer demo'));
       await tester.pumpAndSettle();
 
@@ -413,6 +462,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -180));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Edit Planning'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField).first, 'Roadmap');

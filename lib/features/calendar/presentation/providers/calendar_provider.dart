@@ -27,6 +27,22 @@ CalendarRepository calendarRepository(Ref ref) {
 }
 
 @riverpod
+class SelectedCalendarScope extends _$SelectedCalendarScope {
+  @override
+  CalendarScope build() => CalendarScope.workspace;
+
+  void select(CalendarScope scope) {
+    state = scope;
+  }
+}
+
+@riverpod
+Future<CalendarScopeList> calendarScopes(Ref ref) {
+  final repository = ref.watch(calendarRepositoryProvider);
+  return repository.loadScopes();
+}
+
+@riverpod
 Future<CalendarClientSetup> calendarClientSetup(Ref ref) {
   final repository = ref.watch(calendarRepositoryProvider);
   return repository.loadClientSetup();
@@ -43,7 +59,8 @@ class CalendarNotifier extends _$CalendarNotifier {
   @override
   Future<CalendarEventList> build() async {
     final repository = ref.watch(calendarRepositoryProvider);
-    return repository.loadEvents();
+    final selectedScope = ref.watch(selectedCalendarScopeProvider);
+    return repository.loadEvents(scope: selectedScope);
   }
 
   Future<void> createEvent(CalendarEventDraft draft) async {
@@ -51,7 +68,9 @@ class CalendarNotifier extends _$CalendarNotifier {
     state = const AsyncLoading<CalendarEventList>();
     state = await AsyncValue.guard(() async {
       await repository.createEvent(draft);
-      return repository.loadEvents();
+      return repository.loadEvents(
+        scope: ref.read(selectedCalendarScopeProvider),
+      );
     });
   }
 
@@ -60,7 +79,9 @@ class CalendarNotifier extends _$CalendarNotifier {
     state = const AsyncLoading<CalendarEventList>();
     state = await AsyncValue.guard(() async {
       await repository.updateEvent(id, draft);
-      return repository.loadEvents();
+      return repository.loadEvents(
+        scope: ref.read(selectedCalendarScopeProvider),
+      );
     });
   }
 
@@ -79,7 +100,9 @@ class CalendarNotifier extends _$CalendarNotifier {
     }
     state = await AsyncValue.guard(() async {
       await repository.deleteEvent(id);
-      return repository.loadEvents();
+      return repository.loadEvents(
+        scope: ref.read(selectedCalendarScopeProvider),
+      );
     });
   }
 }
