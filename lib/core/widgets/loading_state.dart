@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:weave/core/widgets/state_panel.dart';
 
 /// A shared loading-state placeholder with a calm, accessible presentation.
 class LoadingState extends StatelessWidget {
@@ -7,6 +8,7 @@ class LoadingState extends StatelessWidget {
     required this.message,
     this.hint,
     this.icon = Icons.hourglass_top_rounded,
+    this.semanticLabel,
   });
 
   /// Localised loading message, e.g. `AppLocalizations.of(context).loadingLabel`.
@@ -18,66 +20,17 @@ class LoadingState extends StatelessWidget {
   /// Decorative icon shown above the loading copy.
   final IconData icon;
 
+  /// Optional full screen-reader label for the live loading region.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final semanticsLabel = [message, if (hint != null) hint!].join('. ');
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-      child: Center(
-        child: Semantics(
-          liveRegion: true,
-          label: semanticsLabel,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: ExcludeSemantics(
-                          child: Icon(
-                            icon,
-                            size: 28,
-                            color: theme.colorScheme.onSecondaryContainer,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 20),
-                    Text(
-                      message,
-                      style: theme.textTheme.titleMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    if (hint != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        hint!,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return StatePanel(
+      variant: StatePanelVariant.loading,
+      message: message,
+      guidance: hint,
+      icon: icon,
+      semanticLabel: semanticLabel,
     );
   }
 }

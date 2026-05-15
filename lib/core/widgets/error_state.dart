@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/core/widgets/state_panel.dart';
 
 /// A shared error-state placeholder with friendly guidance and recovery.
 ///
@@ -13,6 +13,7 @@ class ErrorState extends StatelessWidget {
     this.guidance,
     this.retryLabel,
     this.onRetry,
+    this.semanticLabel,
   });
 
   /// Localised user-facing error title.
@@ -27,86 +28,18 @@ class ErrorState extends StatelessWidget {
   /// Callback when the user taps the retry button.
   final VoidCallback? onRetry;
 
+  /// Optional full screen-reader label for the live error-state region.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final minHeight = constraints.maxHeight.isFinite
-            ? (constraints.maxHeight - 32)
-                  .clamp(0.0, double.infinity)
-                  .toDouble()
-            : 0.0;
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: minHeight),
-            child: Center(
-              child: Semantics(
-                container: true,
-                liveRegion: true,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.errorContainer,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: ExcludeSemantics(
-                                child: Icon(
-                                  Icons.error_outline,
-                                  size: 28,
-                                  color: theme.colorScheme.onErrorContainer,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Semantics(
-                            header: true,
-                            child: Text(
-                              message,
-                              style: theme.textTheme.titleMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          if (guidance != null) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              guidance!,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                          if (onRetry != null && retryLabel != null) ...[
-                            const SizedBox(height: 24),
-                            AccessibleButton(
-                              onPressed: onRetry,
-                              semanticLabel: retryLabel!,
-                              child: Text(retryLabel!),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return StatePanel(
+      variant: StatePanelVariant.error,
+      message: message,
+      guidance: guidance,
+      actionLabel: retryLabel,
+      onAction: onRetry,
+      semanticLabel: semanticLabel,
     );
   }
 }

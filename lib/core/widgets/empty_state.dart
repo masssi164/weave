@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:weave/core/widgets/state_panel.dart';
 
 /// A shared empty-state placeholder with calm, screen-reader-friendly chrome.
 ///
@@ -13,6 +14,7 @@ class EmptyState extends StatelessWidget {
     this.icon = Icons.inbox_outlined,
     this.actionLabel,
     this.onAction,
+    this.semanticLabel,
   });
 
   /// Localised empty-state title, e.g. `No conversations yet`.
@@ -31,88 +33,20 @@ class EmptyState extends StatelessWidget {
   /// Callback for the optional CTA.
   final VoidCallback? onAction;
 
+  /// Optional full screen-reader label for the live empty-state region.
+  final String? semanticLabel;
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final minHeight = constraints.maxHeight.isFinite
-            ? (constraints.maxHeight - 32)
-                  .clamp(0.0, double.infinity)
-                  .toDouble()
-            : 0.0;
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: minHeight),
-            child: Center(
-              child: Semantics(
-                container: true,
-                liveRegion: true,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 360),
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: ExcludeSemantics(
-                                child: Icon(
-                                  icon,
-                                  size: 28,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          Semantics(
-                            header: true,
-                            child: Text(
-                              message,
-                              style: theme.textTheme.titleMedium,
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          if (guidance != null) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              guidance!,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                          if (actionLabel != null && onAction != null) ...[
-                            const SizedBox(height: 24),
-                            FilledButton.tonal(
-                              onPressed: onAction,
-                              style: FilledButton.styleFrom(
-                                minimumSize: const Size(48, 48),
-                              ),
-                              child: Text(actionLabel!),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    return StatePanel(
+      variant: StatePanelVariant.empty,
+      message: message,
+      guidance: guidance,
+      icon: icon,
+      actionLabel: actionLabel,
+      onAction: onAction,
+      semanticLabel: semanticLabel,
+      outlinedAction: true,
     );
   }
 }

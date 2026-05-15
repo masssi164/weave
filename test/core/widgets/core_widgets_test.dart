@@ -1,10 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
+import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/core/widgets/state_panel.dart';
 
 void main() {
+  group('StatePanel', () {
+    testWidgets('supports success recovery states through the shared path', (
+      tester,
+    ) async {
+      var acknowledged = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatePanel(
+              variant: StatePanelVariant.success,
+              message: 'Upload complete',
+              guidance: 'The file is ready for your team.',
+              actionLabel: 'Done',
+              onAction: () => acknowledged = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Upload complete. The file is ready for your team. Action: Done',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Done'));
+      expect(acknowledged, isTrue);
+    });
+  });
+
   group('LoadingState', () {
     testWidgets('displays shared loading chrome and supporting hint', (
       tester,
@@ -26,6 +59,29 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.byType(Card), findsOneWidget);
       expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Loading. Checking for changes.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('accepts an explicit screen-reader label', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: LoadingState(
+              message: 'Loading…',
+              hint: 'Checking for changes.',
+              semanticLabel: 'Files are loading. You can keep waiting.',
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.bySemanticsLabel('Files are loading. You can keep waiting.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('meets labeledTapTargetGuideline', (tester) async {
@@ -57,6 +113,12 @@ void main() {
       expect(find.text('Add something when you are ready.'), findsOneWidget);
       expect(find.byType(Card), findsOneWidget);
       expect(find.byIcon(Icons.inbox_outlined), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Nothing here. Add something when you are ready.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders CTA when actionLabel and onAction are provided', (
@@ -76,6 +138,8 @@ void main() {
       );
 
       expect(find.text('Add'), findsOneWidget);
+      expect(find.bySemanticsLabel('Empty. Action: Add'), findsOneWidget);
+      expect(find.bySemanticsLabel('Add'), findsOneWidget);
       await tester.tap(find.text('Add'));
       expect(tapped, isTrue);
     });
@@ -108,6 +172,10 @@ void main() {
       expect(find.text('Try again in a moment.'), findsOneWidget);
       expect(find.byType(Card), findsOneWidget);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Something went wrong. Try again in a moment.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders retry button when onRetry is provided', (
@@ -127,6 +195,8 @@ void main() {
       );
 
       expect(find.text('Retry'), findsOneWidget);
+      expect(find.bySemanticsLabel('Error. Action: Retry'), findsOneWidget);
+      expect(find.bySemanticsLabel('Retry'), findsOneWidget);
       await tester.tap(find.text('Retry'));
       expect(retried, isTrue);
     });
