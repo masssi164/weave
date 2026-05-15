@@ -45,7 +45,7 @@
 
     <rect x="480" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="508" y="444" font-size="21" font-weight="700" fill="#0369a1">Encryption</text>
-    <text x="508" y="480" font-size="20" font-weight="400" fill="#0f172a">MVP non-E2EE, clearly labeled</text>
+    <text x="508" y="480" font-size="20" font-weight="400" fill="#0f172a">E2EE deferred, clearly labeled</text>
 
 
     <rect x="856" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>

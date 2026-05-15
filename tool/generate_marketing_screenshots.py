@@ -2,7 +2,7 @@
 """Generate deterministic README/marketing screenshots for Weave.
 
 The assets intentionally use SVG so they are small, reviewable, and stable in CI.
-They mirror the Release 1 golden-path app states without relying on live-stack or
+They mirror the Release 2 product-maturity app states without relying on live-stack or
 pixel-golden Flutter rendering, which keeps core E2E validation isolated from
 marketing artifact generation.
 """
@@ -46,7 +46,7 @@ SCREENS: tuple[Screen, ...] = (
         description="A Weave welcome screen invites an admin to configure the self-hosted workspace.",
         active_nav="Setup",
         hero="Set up your Weave workspace",
-        subhero="Connect identity, chat, files, and backend services through one guided Release 1 setup path.",
+        subhero="Connect identity, chat, files, and backend services through one guided Release 2 setup path.",
         metrics=(
             Metric("API", "https://api.weave.local/api"),
             Metric("Auth", "https://auth.weave.local"),
@@ -65,7 +65,7 @@ SCREENS: tuple[Screen, ...] = (
         description="The setup review lists canonical local service endpoints before finishing configuration.",
         active_nav="Setup",
         hero="Review Service Endpoints",
-        subhero="Release 1 keeps raw services behind clear product boundaries and explicit local URLs.",
+        subhero="Release 2 keeps raw services behind clear product boundaries and explicit local URLs.",
         metrics=(
             Metric("Matrix", "https://matrix.weave.local"),
             Metric("Files", "https://files.weave.local"),
@@ -87,7 +87,7 @@ SCREENS: tuple[Screen, ...] = (
         subhero="Custom Matrix chat surface with room list, readable message history, and a clear composer.",
         metrics=(
             Metric("Room", "#release-room"),
-            Metric("Encryption", "MVP non-E2EE, clearly labeled"),
+            Metric("Encryption", "E2EE deferred, clearly labeled"),
             Metric("State", "Connected"),
         ),
         cards=(
@@ -140,7 +140,7 @@ SCREENS: tuple[Screen, ...] = (
     Screen(
         file_name="06-calendar-setup-readiness-preview.svg",
         title="Weave calendar setup readiness preview screen",
-        description="The hidden Calendar preview shows Release 2 preparation copy for access-model and external credential-readiness states.",
+        description="The guarded Calendar preview shows Release 2 preparation copy for access-model and external credential-readiness states.",
         active_nav="Preview",
         hero="Calendar setup readiness preview",
         subhero="Release 2 preparation stays honest: workspace scope is labelled, private calendars are blocked, and external client setup is disabled until safe credentials exist.",
@@ -162,9 +162,9 @@ SCREENS: tuple[Screen, ...] = (
         description="A clearly labelled future boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.",
         active_nav="Preview",
         hero="Boards/tasks preview · future scope",
-        subhero="A Weave-owned board model for future provider adapters. Hidden from Release 1 and not connected to Vikunja, Deck, or another provider yet.",
+        subhero="A Weave-owned board model for future provider adapters. Hidden from the current release and not connected to Vikunja, Deck, or another provider yet.",
         metrics=(
-            Metric("Release", "Post-Release-1"),
+            Metric("Release", "Future track"),
             Metric("Model", "Provider-neutral Weave boards"),
             Metric("Movement", "Menu actions; no drag required"),
         ),
