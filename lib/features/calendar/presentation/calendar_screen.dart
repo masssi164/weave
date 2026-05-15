@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
@@ -16,70 +18,103 @@ class CalendarScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final asyncCalendar = ref.watch(calendarProvider);
+    final capability = ref.watch(workspaceCapabilitySnapshotProvider);
+    final calendarReady =
+        capability.hasValue && capability.requireValue.calendar.isReady;
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showEventDialog(context, ref),
-        icon: const Icon(Icons.add),
-        label: Text(l10n.calendarCreateButton),
-      ),
+      floatingActionButton: calendarReady
+          ? FloatingActionButton.extended(
+              onPressed: () => _showEventDialog(context, ref),
+              icon: const Icon(Icons.add),
+              label: Text(l10n.calendarCreateButton),
+            )
+          : null,
       body: CustomScrollView(
         slivers: [
           SliverAppBar.large(title: Text(l10n.calendarScreenTitle)),
-          asyncCalendar.when(
-            loading: () => SliverFillRemaining(
+          switch (capability) {
+            AsyncData(value: final snapshot) when snapshot.calendar.isReady =>
+              _buildCalendarEventsSliver(context, ref, l10n),
+            AsyncData(value: final snapshot) => SliverFillRemaining(
               hasScrollBody: false,
-              child: LoadingState(message: l10n.loadingLabel),
+              child: _CalendarUnavailableState(
+                readiness: snapshot.calendar.readiness,
+              ),
             ),
-            error: (error, _) => SliverFillRemaining(
+            AsyncError() => SliverFillRemaining(
+              hasScrollBody: false,
               child: ErrorState(
-                message: l10n.errorStateLabel,
+                message: l10n.calendarCapabilityError,
                 retryLabel: l10n.retryButton,
-                onRetry: () => ref.invalidate(calendarProvider),
+                onRetry: () =>
+                    ref.invalidate(workspaceCapabilitySnapshotProvider),
               ),
             ),
-            data: (calendar) => SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              sliver: SliverList.separated(
-                itemCount: calendar.events.isEmpty
-                    ? 3
-                    : calendar.events.length + 2,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return _CalendarScopeBanner(scope: calendar.scope);
-                  }
-                  if (calendar.events.isNotEmpty &&
-                      index == calendar.events.length + 1) {
-                    return const _CalendarClientSetupCard();
-                  }
-                  if (calendar.events.isEmpty) {
-                    if (index == 1) {
-                      return const _CalendarClientSetupCard();
-                    }
-                    return SizedBox(
-                      height: 320,
-                      child: EmptyState(
-                        message: l10n.calendarEmptyMessage,
-                        icon: Icons.calendar_today_outlined,
-                      ),
-                    );
-                  }
-
-                  final event = calendar.events[index - 1];
-                  return _CalendarEventCard(
-                    event: event,
-                    onOpen: () => _showEventDetails(context, ref, event),
-                    onEdit: () => _showEventDialog(context, ref, event: event),
-                    onDelete: () => _deleteEvent(context, ref, event),
-                  );
-                },
-              ),
+            _ => SliverFillRemaining(
+              hasScrollBody: false,
+              child: LoadingState(message: l10n.calendarCapabilityLoading),
             ),
-          ),
+          },
         ],
+      ),
+    );
+  }
+
+  Widget _buildCalendarEventsSliver(
+    BuildContext context,
+    WidgetRef ref,
+    AppLocalizations l10n,
+  ) {
+    final asyncCalendar = ref.watch(calendarProvider);
+
+    return asyncCalendar.when(
+      loading: () => SliverFillRemaining(
+        hasScrollBody: false,
+        child: LoadingState(message: l10n.loadingLabel),
+      ),
+      error: (error, _) => SliverFillRemaining(
+        child: ErrorState(
+          message: l10n.errorStateLabel,
+          retryLabel: l10n.retryButton,
+          onRetry: () => ref.invalidate(calendarProvider),
+        ),
+      ),
+      data: (calendar) => SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+        sliver: SliverList.separated(
+          itemCount: calendar.events.isEmpty ? 3 : calendar.events.length + 2,
+          separatorBuilder: (context, index) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return _CalendarScopeBanner(scope: calendar.scope);
+            }
+            if (calendar.events.isNotEmpty &&
+                index == calendar.events.length + 1) {
+              return const _CalendarClientSetupCard();
+            }
+            if (calendar.events.isEmpty) {
+              if (index == 1) {
+                return const _CalendarClientSetupCard();
+              }
+              return SizedBox(
+                height: 320,
+                child: EmptyState(
+                  message: l10n.calendarEmptyMessage,
+                  icon: Icons.calendar_today_outlined,
+                ),
+              );
+            }
+
+            final event = calendar.events[index - 1];
+            return _CalendarEventCard(
+              event: event,
+              onOpen: () => _showEventDetails(context, ref, event),
+              onEdit: () => _showEventDialog(context, ref, event: event),
+              onDelete: () => _deleteEvent(context, ref, event),
+            );
+          },
+        ),
       ),
     );
   }
@@ -151,6 +186,66 @@ class CalendarScreen extends ConsumerWidget {
     }
     await _showEventDialog(context, ref, event: freshEvent);
   }
+}
+
+class _CalendarUnavailableState extends StatelessWidget {
+  const _CalendarUnavailableState({required this.readiness});
+
+  final WorkspaceCapabilityReadiness readiness;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final readinessLabel = _calendarReadinessLabel(readiness);
+
+    return Center(
+      child: Semantics(
+        container: true,
+        liveRegion: true,
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.event_busy_outlined,
+                  size: 56,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  semanticLabel: l10n.semanticCalendarIcon,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  l10n.calendarUnavailableTitle,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l10n.calendarUnavailableDescription(readinessLabel),
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _calendarReadinessLabel(WorkspaceCapabilityReadiness readiness) {
+  return switch (readiness) {
+    WorkspaceCapabilityReadiness.ready => 'ready',
+    WorkspaceCapabilityReadiness.degraded => 'degraded',
+    WorkspaceCapabilityReadiness.blocked => 'blocked',
+    WorkspaceCapabilityReadiness.unavailable => 'unavailable',
+  };
 }
 
 class _CalendarClientSetupCard extends ConsumerWidget {
