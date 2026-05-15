@@ -207,6 +207,19 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.liveRegion == true &&
+            widget.child is Text &&
+            ((widget.child! as Text).data?.contains(
+                  'Message could not be sent',
+                ) ??
+                false),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Retry send'), findsOneWidget);
 
     await tester.tap(find.text('Retry send').first);

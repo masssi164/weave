@@ -383,7 +383,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             ),
           if (displayPendingMessage?.failure case final failure?)
             MaterialBanner(
-              content: Text(failure.message),
+              content: Semantics(
+                container: true,
+                liveRegion: true,
+                child: Text(failure.message),
+              ),
               actions: [
                 TextButton(
                   onPressed: _sending
