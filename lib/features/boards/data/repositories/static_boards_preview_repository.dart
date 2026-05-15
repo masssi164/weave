@@ -11,7 +11,7 @@ class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
     id: 'release-readiness-preview',
     name: 'Release readiness board',
     description:
-        'A provider-neutral Weave preview for future task planning. It is not wired to a provider and is not part of Release 1.',
+        'A provider-neutral Weave active preview for task planning. It is not wired to a live provider yet.',
     columns: [
       BoardColumnPreview(
         id: 'todo',
@@ -36,7 +36,7 @@ class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
                 'Map Vikunja projects, tasks, labels, comments, and errors into the Weave board model.',
             status: BoardTaskStatus.notStarted,
             assigneeLabel: 'Platform',
-            dueLabel: 'After Release 1',
+            dueLabel: 'Active preview',
             labels: ['Provider adapter', 'Spike'],
             priorityLabel: 'Medium priority',
           ),
@@ -86,9 +86,9 @@ class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
         tasks: [
           BoardTaskPreview(
             id: 'release-boundary',
-            title: 'Release 1 boundary documented',
+            title: 'Active scope documented',
             description:
-                'README and specs state that boards/tasks are future scope unless explicitly enabled later.',
+                'README and specs state that boards/tasks are active scope behind explicit provider and accessibility gates.',
             status: BoardTaskStatus.done,
             assigneeLabel: 'Documentation',
             dueLabel: 'Complete',

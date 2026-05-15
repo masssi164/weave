@@ -1,14 +1,14 @@
 # Boards and Tasks Domain Contract
 
-Status: planning contract for post-Release-1 work  
-Date: 2026-05-14  
+Status: active-scope planning contract
+Date: 2026-05-14
 Scope: future Weave tasks/boards module, provider-neutral domain model, adapter boundaries, accessibility and event contracts
 
 ## Decision
 
 Future tasks/boards work must start from a Weave-owned domain model and accessibility contract. Provider APIs such as Vikunja, OpenProject, or Nextcloud Deck may inform adapters, but they must not define Flutter presentation models, navigation labels, or the user-facing product contract.
 
-This work is **post-Release-1**. It must stay disabled or hidden until a later spec and implementation issue explicitly promote it into the product surface.
+This work is active Weave scope behind feature gates. It must stay disabled or hidden from normal navigation until spec, backend facade, accessibility, and provider readiness issues explicitly promote it into the product surface.
 
 ## Goals
 
@@ -19,7 +19,7 @@ This work is **post-Release-1**. It must stay disabled or hidden until a later s
 
 ## Non-goals
 
-- Do not ship tasks/boards in Release 1.
+- Do not ship tasks/boards without the active-scope gates in this contract.
 - Do not expose Nextcloud Deck, Vikunja, OpenProject, or another upstream UI as the normal Weave product surface.
 - Do not add provider-specific Flutter transport logic before the backend/adapter boundary is reviewed.
 - Do not require drag-and-drop as the only way to organize work.
@@ -125,7 +125,7 @@ Initial event types:
 
 Event handling must document ordering, idempotency, redaction/privacy, replay behavior, and conflict resolution before powering notifications or recent activity.
 
-Implementation seed: `lib/features/boards/domain/entities/board_activity_event.dart` and the board activity normalizers under `lib/features/boards/data/services/` define the app-layer provider-neutral envelope and sample mappers for static preview fixtures plus external-provider-shaped events. They are deliberately post-Release-1 scaffolding and do **not** claim a live Vikunja, OpenProject, Deck, or gateway integration.
+Implementation seed: `lib/features/boards/domain/entities/board_activity_event.dart` and the board activity normalizers under `lib/features/boards/data/services/` define the app-layer provider-neutral envelope and sample mappers for static preview fixtures plus external-provider-shaped events. They are deliberately active-preview scaffolding and do **not** claim a live Vikunja, OpenProject, Deck, or gateway integration.
 
 ## Spike sequencing
 
@@ -137,7 +137,7 @@ Implementation seed: `lib/features/boards/domain/entities/board_activity_event.d
 
 ## Acceptance criteria before implementation
 
-- A binding workspace spec exists for tasks/boards and references the post-Release-1 boundary.
+- A binding workspace spec exists for tasks/boards and references the active-preview boundary.
 - Provider spikes map their findings to the Weave concepts in this document.
 - Flutter presentation models and tests use provider-neutral names.
 - Backend/API contracts include capability discovery, support-safe errors, pagination, sync metadata, and normalized events.

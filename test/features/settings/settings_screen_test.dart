@@ -151,7 +151,7 @@ void main() {
       expect(find.byType(WeaveLogo), findsOneWidget);
       expect(
         find.text(
-          'Weave Release 1 focuses on messaging, files, and the server connection that holds them together.',
+          'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.',
         ),
         findsOneWidget,
       );

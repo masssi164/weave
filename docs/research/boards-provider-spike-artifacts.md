@@ -1,12 +1,12 @@
 # Boards Provider Spike Artifacts
 
-Status: concrete spike output for post-Release-1 provider work  
-Date: 2026-05-14  
+Status: concrete spike output for active-preview provider work
+Date: 2026-05-14
 Scope: Issues [#119](https://github.com/masssi164/weave/issues/119), [#120](https://github.com/masssi164/weave/issues/120), [#121](https://github.com/masssi164/weave/issues/121), [#123](https://github.com/masssi164/weave/issues/123)
 
 ## Guardrails
 
-- Boards/tasks stay hidden and disabled for Release 1.
+- Boards/tasks stay feature-gated until provider contracts are ready.
 - Flutter remains provider-neutral: no Vikunja, OpenProject, or Deck transport/client code belongs in presentation state.
 - Backend/adapter boundaries own provider auth, sync, error mapping, normalized activity events, and provider references.
 - No live instance, credentials, or provider secrets were used for this spike. Findings are based on public API/user/developer documentation fetched on 2026-05-14.
@@ -129,4 +129,4 @@ Initial normalized event examples now covered by backend tests:
 - Deck polling label change -> `label.changed` with deterministic fallback idempotency.
 - Provider conflict -> `sync.conflict_detected` with support-safe redaction of tokens, secrets, authorization headers, raw messages, and provider URLs.
 
-The normalizer is not wired to notifications, webhooks, audit streams, or Release 1 runtime routes.
+The normalizer is not wired to notifications, webhooks, audit streams, or enabled runtime routes.

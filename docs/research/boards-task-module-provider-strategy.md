@@ -1,14 +1,14 @@
 # Boards and Tasks Provider Strategy
 
-Status: planning recommendation for post-Release-1 work  
-Date: 2026-05-14  
+Status: active-scope planning recommendation
+Date: 2026-05-14
 Scope: future Weave tasks/boards module, provider research, accessibility baseline
 
 ## Decision
 
 Weave should define its own accessibility-first Tasks/Boards product model and UI, then connect external engines through provider adapters. The product surface must not be named or shaped around a single upstream tool such as Nextcloud Deck.
 
-This module is **not Release 1 scope**. Release 1 stays focused on the app shell, sign-in/setup, chat, files, settings, and the explicitly enabled module contracts. Existing Deck/boards code is exploratory scaffolding unless a later issue/PR promotes it behind a reviewed feature flag.
+Boards/tasks are active Weave scope behind reviewed feature flags. Existing Deck/boards code is active-preview scaffolding until backend facade, provider, accessibility, and E2E gates promote it into normal navigation.
 
 ## Rationale
 

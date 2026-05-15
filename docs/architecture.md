@@ -41,8 +41,8 @@ Shell destinations:
 
 - Chat
 - Files
-- Calendar (future, not part of Release 1 navigation)
-- Tasks/Boards (future, not part of Release 1 navigation; provider-neutral Weave model, not a Nextcloud Deck product dependency)
+- Calendar (feature-gated active scope; Teams-like workspace/team/channel calendar hierarchy)
+- Tasks/Boards (feature-gated active scope; provider-neutral Weave model, not a Nextcloud Deck product dependency)
 - Settings
 
 ## Shared server configuration
@@ -92,11 +92,11 @@ Current failure types:
 
 ## External collaboration and interop
 
-Slack, Teams, guest collaboration, migration tooling, and future connectors must attach through backend-owned Interop Gateway boundaries rather than provider-specific Flutter transport logic. See [Interop Gateway and External Collaboration](interop-gateway-and-external-collaboration.md). This direction is post-Release-1 and must remain feature-flagged/off by default until explicitly promoted.
+Slack, Teams, guest collaboration, migration tooling, and connectors must attach through backend-owned Interop Gateway boundaries rather than provider-specific Flutter transport logic. See [Interop Gateway and External Collaboration](interop-gateway-and-external-collaboration.md). Interop remains feature-flagged/off by default until explicitly promoted.
 
-## Future tasks and boards
+## Active tasks and boards scope
 
-Tasks/boards are post-Release-1. The planning recommendation is to build a Weave-owned, accessibility-first board/task model with provider adapters rather than exposing Nextcloud Deck or any other upstream tool as the product model. See [Boards and Tasks Provider Strategy](research/boards-task-module-provider-strategy.md) and [Boards and Tasks Domain Contract](research/boards-task-domain-contract.md).
+Tasks/boards are active Weave scope behind feature gates. Build a Weave-owned, accessibility-first board/task model with provider adapters rather than exposing Nextcloud Deck or any other upstream tool as the product model. See [Product scope: calendar hierarchy, Matrix E2EE, and Boards](product-calendar-e2ee-boards-scope.md), [Boards and Tasks Provider Strategy](research/boards-task-module-provider-strategy.md), and [Boards and Tasks Domain Contract](research/boards-task-domain-contract.md).
 
 ## Feature and integration layering
 Each feature follows the same three layers:
@@ -163,9 +163,9 @@ This keeps the current Files UX intact while making the same Nextcloud platform 
 
 ## Calendar backend facade scope
 
-Calendar remains hidden from the Release 1 shell, but its prepared Flutter surface is wired through the Weave backend product facade rather than direct CalDAV. The backend currently exposes the first safe slice as `scope.type = "workspace"`: a shared Weave workspace calendar owned/provisioned through the backend actor. The frontend parses that scope metadata and labels the surface as a workspace calendar so it does not imply private per-user calendar access.
+Calendar is active shared-scheduling scope and remains wired through the Weave backend product facade rather than direct CalDAV. The product model is Teams-like: workspace/org calendar, team calendars, and channel calendars/events/meeting threads. The backend currently exposes the first safe slice as `scope.type = "workspace"`: a shared Weave workspace calendar owned/provisioned through the backend actor. The frontend parses that scope metadata and labels the surface as the first shared workspace scope, not as a private-user calendar.
 
-Private user calendars stay out of the product path until the cross-repo access model is specified and implemented (for example through explicit provisioning/sharing or delegated-token behavior). Frontend code must continue to fail through the backend facade and must not add a direct private-user CalDAV fallback.
+Private personal calendars are out of scope for the current product path. Frontend code must continue to fail through the backend facade and must not add a direct private-user CalDAV fallback or secret-bearing client setup path.
 
 ## Onboarding and settings
 Onboarding setup and Settings share:

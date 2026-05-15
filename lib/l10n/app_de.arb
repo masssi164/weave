@@ -57,7 +57,7 @@
   "semanticChatIcon": "Chat-Nachrichten",
   "semanticFilesIcon": "Dateibrowser",
   "semanticCalendarIcon": "Kalendertermine",
-  "semanticDeckIcon": "Zukünftige Boards-Vorschau",
+  "semanticDeckIcon": "Boards-Vorschau",
   "semanticSettingsIcon": "App-Einstellungen",
   "semanticWeaveLogo": "Weave-Logo",
 
@@ -188,7 +188,7 @@
 
 
   "settingsPreviewSurfacesTitle": "Vorschau-Oberflächen",
-  "settingsPreviewSurfacesDescription": "Diese Bereiche bleiben für Release 1 standardmäßig verborgen. Sie zeigen nur ehrliche Shell-Zustände, bis die Backend-Verträge verfügbar sind.",
+  "settingsPreviewSurfacesDescription": "Diese feature-gegateten Bereiche bleiben ehrlich darüber, was aktiv, blockiert oder noch von Backend-Verträgen abhängig ist.",
   "settingsGuestPortalPreviewTitle": "Gastportal",
   "settingsGuestPortalPreviewDescription": "Gasteinladungen und eingeschränkter Zugriff erscheinen hier, ohne Mitgliederfunktionen offenzulegen.",
   "settingsInteropAdminPreviewTitle": "Adminstatus für externe Verbindungen",
@@ -502,11 +502,11 @@
   "calendarOperationFailure": "Der Kalender konnte diese Änderung gerade nicht speichern."
 ,
   "boardsPreviewScreenTitle": "Boards-Vorschau",
-  "boardsPreviewIconSemantic": "Zukünftige Boards-Vorschau",
+  "boardsPreviewIconSemantic": "Boards-Vorschau",
   "boardsPreviewBoundaryTitle": "Zukünftige Boards-/Aufgaben-Vorschau",
   "boardsPreviewBoundaryDescription": "Diese Designvorschau zeigt das geplante Weave-eigene Board-Modell und barrierefreie Alternativen zum Verschieben von Aufgaben. Sie ist in der Release-1-Navigation ausgeblendet und noch nicht mit Vikunja, Deck oder einem anderen Anbieter verbunden.",
   "boardsPreviewBoundarySemantic": "Zukünftige Boards-/Aufgaben-Vorschau. In der Release-1-Navigation ausgeblendet. Anbieterneutrales Weave-Modell mit Tastatur- und Screenreader-Alternativen; noch kein Anbieter verbunden.",
-  "boardsPreviewPostReleaseChip": "Nach Release 1",
+  "boardsPreviewPostReleaseChip": "Aktive Vorschau",
   "boardsPreviewProviderNeutralChip": "Anbieterneutrales Modell",
   "boardsPreviewKeyboardChip": "Kein Ziehen nötig",
   "boardsPreviewColumnCount": "{count, plural, =0{Keine Spalten} one{1 Spalte} other{{count} Spalten}}",

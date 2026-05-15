@@ -21,19 +21,19 @@ The goal is simple: give teams and organizations a humane migration path away fr
 - **Migration-friendly** — Slack and Microsoft Teams interop are planned as controlled backend-owned migration and bridge paths, not as client-side shortcuts.
 - **Built for future personal agents** — the long-term direction includes Weaver PA: an OpenClaw-style per-user agent runtime with organization-governed skills, connectors, and group-chat agents. This is future scope, not part of the current Release 2 product track.
 
-## Release 2 product maturity
+## Product maturity track
 
-Release 1 established the core self-hosted client shell. Release 2 is the product-maturity track: make the implemented collaboration surfaces feel dependable, accessible, and honest enough for everyday evaluation by a small team.
+Weave is past the old Release 1-only framing. The active product track is to make the collaboration surfaces dependable, accessible, and honest enough for everyday evaluation by a small team while keeping unfinished capabilities clearly feature-gated.
 
-Current Release 2 focus areas:
+Current focus areas:
 
-- **Dependable Chat** — a custom Weave Matrix client surface with accessible message states, explicit retry/recovery affordances, and no claims of E2EE until the later encryption milestone is implemented and validated.
+- **Dependable Chat + Matrix E2EE architecture** — a custom Weave Matrix client surface with accessible message states, explicit retry/recovery affordances, and native Matrix E2EE as active architecture scope. E2EE claims stay tied to real device, verification, key backup/recovery, and metadata-boundary validation.
 - **Explorer-grade Files** — a Weave files experience backed by the product backend and Nextcloud/WebDAV/OCS contracts, with clearer metadata, actions, and recovery states.
 - **Consistent recovery UX** — shared loading, empty, error, success, and retry patterns so setup, chat, files, settings, and preview surfaces do not end in cryptic dead states.
-- **Safe Calendar setup direction** — prepared Calendar code consumes the Weave backend facade and labels the current backend-provided `workspace` scope honestly. Private per-user calendar setup, Apple profiles, and external-client credentials stay blocked until the access model, revocation, and signing path are specified and implemented.
+- **Teams-like shared Calendar** — Calendar follows the collaboration hierarchy: workspace/org calendar, team calendars, and channel events/meeting threads. The current backend `workspace` scope is the first safe slice; private personal calendar ingestion is not a product goal.
 - **Settings and OIDC sign-in** — setup, authentication, stored server configuration, and account/session controls remain part of the daily product shell.
 
-Release 2 still does **not** claim a complete Teams/Slack replacement, Matrix E2EE, a public connector SDK, production Slack/Teams bridge, full private calendar provisioning, or Weaver PA. Those remain roadmap areas behind explicit contracts and feature flags. The future tasks/boards direction is a Weave-owned accessible model with provider adapters, not a product dependency on Nextcloud Deck.
+Weave still does **not** claim a complete Teams/Slack replacement, public connector SDK, production Slack/Teams bridge, private personal calendar provisioning, or Weaver PA. Matrix E2EE and Boards are active scope behind explicit contracts and feature flags; claims must remain tied to validated implementation state.
 
 ## Product screenshots
 
@@ -59,17 +59,17 @@ A first look at the Release 2 product-maturity experience: guided setup, dependa
 
 These checked-in preview screenshots document in-progress shapes only. They are not unconditional product promises and must stay clearly labelled when a surface is hidden, blocked, or future-scoped.
 
-### Guarded Release 2 preview: calendar setup readiness
+### Guarded active preview: Teams-like calendar
 
-The checked-in Calendar preview documents the safe Release 2 preparation shape: a Weave-owned workspace-calendar surface backed by the backend facade, explicit access-model copy, private user calendars blocked until provisioning is tested, and external client setup blocked until signed profiles plus revocable read-only tokens exist.
+The checked-in Calendar preview documents the first safe slice of the Teams-like calendar hierarchy: a Weave-owned workspace-calendar surface backed by the backend facade. The product direction is workspace/org, team, and channel calendars with meeting/event context; private personal calendar ingestion is out of scope.
 
-[<img src="docs/assets/marketing/06-calendar-setup-readiness-preview.svg" alt="Weave calendar setup readiness preview showing workspace calendar scope, private calendars blocked, credential status blocked_until_revocable_credentials, and Apple/Webcal setup disabled until safe credentials exist." width="560">](docs/assets/marketing/06-calendar-setup-readiness-preview.svg)
+[<img src="docs/assets/marketing/06-calendar-setup-readiness-preview.svg" alt="Weave calendar setup readiness preview showing the first workspace calendar scope in a Teams-like shared calendar hierarchy." width="560">](docs/assets/marketing/06-calendar-setup-readiness-preview.svg)
 
-### Future preview: boards/tasks
+### Active preview: boards/tasks
 
-Boards/tasks are shown only as a clearly labelled design preview for a later product track. This preview is not part of the current Release 2 product surface, uses Weave-owned provider-neutral language, includes keyboard and screen-reader alternatives to drag-and-drop, and does not claim a live Vikunja, Deck, or other provider integration.
+Boards/tasks are active Weave scope behind feature gates. The preview uses Weave-owned provider-neutral language, includes keyboard and screen-reader alternatives to drag-and-drop, and does not claim a live Vikunja, Deck, or other provider integration.
 
-[<img src="docs/assets/marketing/07-boards-preview.svg" alt="Future Weave boards preview screenshot labelled as future scope, showing provider-neutral task columns and non-drag movement actions." width="560">](docs/assets/marketing/07-boards-preview.svg)
+[<img src="docs/assets/marketing/07-boards-preview.svg" alt="Active Weave boards preview screenshot showing provider-neutral task columns and non-drag movement actions." width="560">](docs/assets/marketing/07-boards-preview.svg)
 
 Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing.
 
@@ -92,7 +92,7 @@ The Weave product should feel like one collaboration platform even though sovere
 - **Nextcloud** provides files and calendar data foundations behind product-owned Weave surfaces.
 - **Caddy** exposes the local/dev HTTPS gateway.
 
-For the detailed Flutter architecture, see [docs/architecture.md](docs/architecture.md). For the later interop direction, see [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md). For future boards/tasks provider research, see [docs/research/boards-task-module-provider-strategy.md](docs/research/boards-task-module-provider-strategy.md) and [docs/research/boards-task-domain-contract.md](docs/research/boards-task-domain-contract.md).
+For the detailed Flutter architecture, see [docs/architecture.md](docs/architecture.md). The binding active product scope for Teams-like Calendar, Matrix E2EE, and Boards is [docs/product-calendar-e2ee-boards-scope.md](docs/product-calendar-e2ee-boards-scope.md). For the later interop direction, see [docs/interop-gateway-and-external-collaboration.md](docs/interop-gateway-and-external-collaboration.md). For boards/tasks provider research, see [docs/research/boards-task-module-provider-strategy.md](docs/research/boards-task-module-provider-strategy.md) and [docs/research/boards-task-domain-contract.md](docs/research/boards-task-domain-contract.md).
 
 ## Current client foundation
 
@@ -206,7 +206,7 @@ Marketing/README screenshots are deterministic SVG assets generated from a small
 make marketing-screenshots
 ```
 
-The command regenerates the Release 2 setup, endpoint review, chat, files, and settings images plus clearly labelled guarded/future images, including the Calendar setup-readiness preview, in `docs/assets/marketing/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
+The command regenerates the product-maturity setup, endpoint review, chat, files, and settings images plus clearly labelled guarded/active-preview images, including the Calendar setup-readiness preview, in `docs/assets/marketing/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
 
 When adding selected images to the README or docs, keep nearby prose and descriptive `alt` text so the documentation is not image-only.
 
@@ -252,4 +252,4 @@ Supported overrides:
 
 ## Status and roadmap honesty
 
-Weave is under active development. Release 2 focuses on making the core client shell, chat, files, recovery states, and safe calendar setup direction feel product-ready before broadening the product surface. The roadmap is ambitious, but README claims should stay tied to implemented or explicitly future-scoped capabilities.
+Weave is under active development. The active product track focuses on making the core client shell, chat, files, recovery states, Teams-like calendar, Matrix E2EE architecture, and boards preview honest and product-ready behind clear gates before broadening the surface. The roadmap is ambitious, but README claims should stay tied to implemented or explicitly future-scoped capabilities.

@@ -1,7 +1,7 @@
 # Boards Provider Spikes: Vikunja, OpenProject, Nextcloud Deck
 
-Status: post-Release-1 spike artifacts  
-Date: 2026-05-14  
+Status: active-preview spike artifacts
+Date: 2026-05-14
 Scope: issues [#119](https://github.com/masssi164/weave/issues/119), [#120](https://github.com/masssi164/weave/issues/120), and [#121](https://github.com/masssi164/weave/issues/121)
 
 ## Decision matrix
@@ -125,7 +125,7 @@ Keep OpenProject benchmark-only for now. Open a later provider spike only if Wea
 
 ### Recommendation
 
-Deck is suitable as a low-friction bridge, fallback, or import path because it sits inside the existing Nextcloud stack. It should remain deferred until the provider-neutral model and backend adapter contract exist, and it must not define Release 1 navigation, module naming, or the normal Weave board UX.
+Deck is suitable as a low-friction bridge, fallback, or import path because it sits inside the existing Nextcloud stack. It should remain deferred until the provider-neutral model and backend adapter contract exist, and it must not define normal navigation, module naming, or the Weave board UX.
 
 ## Sources
 

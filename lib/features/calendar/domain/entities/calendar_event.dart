@@ -57,7 +57,7 @@ class CalendarAccessModel {
     productScope: 'workspace',
     privateUserCalendarsAvailable: false,
     privateUserCalendarsReason:
-        'Private user calendars are not available until provisioning is tested.',
+        'Private personal calendars are out of scope for Weave shared scheduling.',
     externalClientCredentialModel: 'secret-free-setup-metadata',
   );
 

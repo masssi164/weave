@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "post-release-1-spike-contract",
+  "status": "active-preview-spike-contract",
   "date": "2026-05-14",
   "adapter_contract": {
     "required_domain_concepts": [
@@ -151,7 +151,7 @@
       "result": "closes",
       "role": "low-friction bridge adapter, fallback, or import path",
       "recommendation": "bridge_adapter",
-      "acceptance_summary": "API/auth/sync/accessibility/product gaps are categorized; Deck is suitable as a bridge/import path but not as the Release 1 or normal Weave product model.",
+      "acceptance_summary": "API/auth/sync/accessibility/product gaps are categorized; Deck is suitable as a bridge/import path but not as the normal Weave product model.",
       "capabilities": {
         "projects_boards": "native",
         "columns": "native",
@@ -184,7 +184,7 @@
         },
         {
           "category": "product_model",
-          "summary": "Bridge only: do not name the Weave module Deck or couple Release 1 navigation to Deck."
+          "summary": "Bridge only: do not name the Weave module Deck or couple normal navigation to Deck."
         }
       ],
       "source_urls": [
