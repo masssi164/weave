@@ -4,12 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'README Product screenshots stay limited to Release 1 surfaces',
+    'README Product screenshots describe the Release 2 maturity track honestly',
     () async {
       final readme = await File('README.md').readAsString();
       final productScreenshots = _section(readme, '## Product screenshots');
 
-      expect(productScreenshots, contains('Release 1 experience'));
+      expect(productScreenshots, contains('Release 2 product-maturity'));
       expect(productScreenshots, contains('01-setup-start.svg'));
       expect(productScreenshots, contains('02-review-service-endpoints.svg'));
       expect(productScreenshots, contains('03-chat-room.svg'));
@@ -20,27 +20,39 @@ void main() {
         isNot(contains('06-calendar-setup-readiness-preview.svg')),
       );
       expect(productScreenshots, isNot(contains('07-boards-preview.svg')));
-      expect(productScreenshots.toLowerCase(), isNot(contains('calendar')));
-      expect(productScreenshots.toLowerCase(), isNot(contains('boards')));
-      expect(productScreenshots.toLowerCase(), isNot(contains('deck')));
     },
   );
 
-  test('README preview screenshots are explicitly non-Release-1', () async {
-    final readme = await File('README.md').readAsString();
-    final previewSection = _section(
-      readme,
-      '## Future previews (not Release 1)',
-    );
+  test(
+    'README preview screenshots keep future and blocked scope explicit',
+    () async {
+      final readme = await File('README.md').readAsString();
+      final calendarPreview = _subsection(
+        readme,
+        '### Guarded Release 2 preview: calendar setup readiness',
+      );
+      final boardsPreview = _subsection(
+        readme,
+        '### Future preview: boards/tasks',
+      );
 
-    expect(previewSection, contains('06-calendar-setup-readiness-preview.svg'));
-    expect(previewSection, contains('07-boards-preview.svg'));
-    expect(previewSection.toLowerCase(), contains('preview'));
-    expect(previewSection.toLowerCase(), contains('not part of the release 1'));
-    expect(previewSection, contains('hidden previews'));
-    expect(previewSection, contains('post-Release-1'));
-    expect(previewSection, contains('does not claim a live Vikunja'));
-  });
+      expect(
+        calendarPreview,
+        contains('06-calendar-setup-readiness-preview.svg'),
+      );
+      expect(calendarPreview.toLowerCase(), contains('preview'));
+      expect(calendarPreview.toLowerCase(), contains('private user calendars'));
+      expect(calendarPreview, contains('blocked until'));
+      expect(calendarPreview, contains('revocable read-only tokens'));
+
+      expect(boardsPreview, contains('07-boards-preview.svg'));
+      expect(boardsPreview.toLowerCase(), contains('preview'));
+      expect(boardsPreview, contains('not part of the current Release 2'));
+      expect(boardsPreview, contains('provider-neutral'));
+      expect(boardsPreview, contains('does not claim a live Vikunja'));
+      expect(boardsPreview, contains('Deck'));
+    },
+  );
 }
 
 String _section(String markdown, String heading) {
@@ -52,6 +64,24 @@ String _section(String markdown, String heading) {
   int? nextHeading;
   for (final match in RegExp(
     r'^## ',
+    multiLine: true,
+  ).allMatches(markdown, start + heading.length)) {
+    nextHeading = match.start;
+    break;
+  }
+
+  return markdown.substring(start, nextHeading ?? markdown.length);
+}
+
+String _subsection(String markdown, String heading) {
+  final start = markdown.indexOf(heading);
+  if (start == -1) {
+    fail('Missing README heading: $heading');
+  }
+
+  int? nextHeading;
+  for (final match in RegExp(
+    r'^### ',
     multiLine: true,
   ).allMatches(markdown, start + heading.length)) {
     nextHeading = match.start;

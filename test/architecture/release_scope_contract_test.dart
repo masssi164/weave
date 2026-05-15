@@ -35,7 +35,7 @@ void main() {
   );
 
   test(
-    'README screenshots show only implemented Release 1 product surfaces',
+    'README screenshots keep Release 2 product surfaces separate from guarded previews',
     () async {
       final readme = await File('README.md').readAsString();
       final screenshotSection = _section(readme, '## Product screenshots');
@@ -70,6 +70,14 @@ void main() {
       expect(lowerSection, isNot(contains('deck')));
       expect(lowerSection, isNot(contains('boards')));
       expect(lowerSection, isNot(contains('tasks')));
+
+      final guardedPreviewSection = _section(
+        readme,
+        '## Guarded previews and roadmap screenshots',
+      ).toLowerCase();
+      expect(guardedPreviewSection, contains('calendar setup readiness'));
+      expect(guardedPreviewSection, contains('future preview'));
+      expect(guardedPreviewSection, contains('does not claim a live vikunja'));
     },
   );
 }
