@@ -5,6 +5,8 @@ abstract interface class CalendarRepository {
 
   Future<CalendarClientSetup> loadClientSetup();
 
+  Future<CalendarEvent> readEvent(String id);
+
   Future<CalendarEvent> createEvent(CalendarEventDraft draft);
 
   Future<CalendarEvent> updateEvent(String id, CalendarEventDraft draft);

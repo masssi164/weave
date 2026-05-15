@@ -33,6 +33,12 @@ Future<CalendarClientSetup> calendarClientSetup(Ref ref) {
 }
 
 @riverpod
+Future<CalendarEvent> calendarEvent(Ref ref, String id) {
+  final repository = ref.watch(calendarRepositoryProvider);
+  return repository.readEvent(id);
+}
+
+@riverpod
 class CalendarNotifier extends _$CalendarNotifier {
   @override
   Future<CalendarEventList> build() async {

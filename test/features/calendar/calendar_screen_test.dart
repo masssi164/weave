@@ -12,6 +12,7 @@ class _FakeCalendarRepository implements CalendarRepository {
     : events = List<CalendarEvent>.of(events);
 
   final List<CalendarEvent> events;
+  final List<String> readIds = [];
   final List<CalendarEventDraft> createdDrafts = [];
   final List<(String, CalendarEventDraft)> updatedDrafts = [];
   final List<String> deletedIds = [];
@@ -69,6 +70,12 @@ class _FakeCalendarRepository implements CalendarRepository {
       ),
     ],
   );
+
+  @override
+  Future<CalendarEvent> readEvent(String id) async {
+    readIds.add(id);
+    return events.singleWhere((event) => event.id == id);
+  }
 
   @override
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
@@ -175,6 +182,46 @@ void main() {
         find.bySemanticsLabel(RegExp(r'Planning, starts')),
         findsOneWidget,
       );
+    });
+
+    testWidgets('opens event details through the backend read facade', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository([
+        CalendarEvent(
+          id: 'planning',
+          title: 'Planning',
+          description: 'Fetched event details',
+          location: 'Office',
+          startTime: DateTime.utc(2026, 4, 27, 9),
+          endTime: DateTime.utc(2026, 4, 27, 10),
+          timezone: 'Europe/Berlin',
+          allDay: false,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: [calendarRepositoryProvider.overrideWithValue(repository)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('View Planning'));
+      await tester.pumpAndSettle();
+
+      expect(repository.readIds, ['planning']);
+      expect(find.text('Calendar event details'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Fetched event details'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Calendar scope'), findsOneWidget);
+      expect(find.text('Weave workspace calendar'), findsOneWidget);
     });
 
     testWidgets('creates and deletes events through the repository', (

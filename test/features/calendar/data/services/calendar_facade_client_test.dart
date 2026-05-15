@@ -262,6 +262,43 @@ void main() {
       );
     });
 
+    test('reads event details through the backend calendar facade', () async {
+      late http.Request capturedRequest;
+      final facade = client(
+        MockClient((request) async {
+          capturedRequest = request;
+          return http.Response(
+            jsonEncode({
+              'id': 'calendar:workspace:1',
+              'title': 'Planning details',
+              'description': 'Fetched from backend read endpoint',
+              'startsAt': '2026-04-26T09:00:00Z',
+              'endsAt': '2026-04-26T10:00:00Z',
+              'timezone': 'Europe/Berlin',
+              'allDay': false,
+              'scope': {
+                'type': 'workspace',
+                'label': 'Weave workspace calendar',
+              },
+            }),
+            200,
+          );
+        }),
+      );
+
+      final event = await facade.readEvent('calendar:workspace:1');
+
+      expect(capturedRequest.method, 'GET');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.home.internal/api/calendar/events/calendar:workspace:1',
+      );
+      expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
+      expect(event.title, 'Planning details');
+      expect(event.description, 'Fetched from backend read endpoint');
+      expect(event.scope.type, 'workspace');
+    });
+
     test(
       'creates, updates, and deletes events through backend endpoints',
       () async {

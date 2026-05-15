@@ -2823,11 +2823,65 @@ abstract class AppLocalizations {
   /// **'Edit {title}'**
   String calendarEditEventTooltip(String title);
 
+  /// Tooltip for opening a calendar event detail view
+  ///
+  /// In en, this message translates to:
+  /// **'View {title}'**
+  String calendarViewEventTooltip(String title);
+
   /// Semantic label for a calendar event row
   ///
   /// In en, this message translates to:
   /// **'{title}, starts {startsAt}, ends {endsAt}'**
   String calendarEventSemantic(String title, String startsAt, String endsAt);
+
+  /// Title for the calendar event details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar event details'**
+  String get calendarDetailsDialogTitle;
+
+  /// Loading message while a calendar event is read from the backend
+  ///
+  /// In en, this message translates to:
+  /// **'Loading event details…'**
+  String get calendarDetailsLoading;
+
+  /// Error shown when reading a calendar event from the backend fails
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar event details are unavailable right now.'**
+  String get calendarDetailsError;
+
+  /// Label for the calendar event time range in the details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get calendarDetailsTimeLabel;
+
+  /// Label for the calendar scope in the event details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar scope'**
+  String get calendarDetailsScopeLabel;
+
+  /// Label for the calendar event location in the details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get calendarDetailsLocationLabel;
+
+  /// Label for the calendar event description in the details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Description'**
+  String get calendarDetailsDescriptionLabel;
+
+  /// Button label for closing the calendar details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get calendarCloseButton;
 
   /// Snackbar message after a calendar event is created
   ///
