@@ -361,6 +361,50 @@ void main() {
       expect(find.text('Documents'), findsAtLeastNWidgets(1));
     });
 
+    testWidgets('includes file metadata in row semantics', (tester) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        listings: const {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'Roadmap.pdf',
+                path: '/Roadmap.pdf',
+                isDirectory: false,
+                sizeInBytes: 2048,
+              ),
+            ],
+          ),
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Roadmap.pdf'), findsOneWidget);
+      expect(find.text('2.0 KB'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Roadmap.pdf, file. 2.0 KB'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('uploads a picked file with completion feedback', (
       tester,
     ) async {
