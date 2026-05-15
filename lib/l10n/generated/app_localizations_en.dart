@@ -364,6 +364,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Refreshing the current folder and checking what changed.';
 
   @override
+  String get filesStaleDirectoryTitle => 'Showing last known folder';
+
+  @override
+  String get filesStaleDirectoryGuidance =>
+      'We could not refresh Files just now. The last folder listing stays visible so you can keep your place and retry when the connection is back.';
+
+  @override
+  String get filesStaleDirectoryRetryButton => 'Refresh folder';
+
+  @override
   String get filesNextcloudTitle => 'Nextcloud';
 
   @override

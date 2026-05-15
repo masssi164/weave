@@ -248,6 +248,13 @@
   "filesLoadingHint": "Refreshing the current folder and checking what changed.",
   "@filesLoadingHint": { "description": "Supporting copy shown while the Files screen is loading the current directory" },
 
+  "filesStaleDirectoryTitle": "Showing last known folder",
+  "@filesStaleDirectoryTitle": {"description": "Title for a Files notice shown when refresh failed but the previous directory listing remains visible"},
+  "filesStaleDirectoryGuidance": "We could not refresh Files just now. The last folder listing stays visible so you can keep your place and retry when the connection is back.",
+  "@filesStaleDirectoryGuidance": {"description": "Guidance for a Files notice shown when refresh failed but cached folder contents remain visible"},
+  "filesStaleDirectoryRetryButton": "Refresh folder",
+  "@filesStaleDirectoryRetryButton": {"description": "Button label for retrying a stale Files directory refresh"},
+
   "filesNextcloudTitle": "Nextcloud",
   "@filesNextcloudTitle": { "description": "Section title for the Nextcloud files connection card" },
 

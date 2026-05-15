@@ -8,6 +8,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/files/domain/entities/directory_listing.dart';
 import 'package:weave/features/files/domain/entities/file_entry.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
+import 'package:weave/features/files/domain/entities/files_failure.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -213,11 +214,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             ),
           );
         }
-        if (state.directoryFailure != null) {
+        final listing = state.directoryListing;
+        final directoryFailure = state.directoryFailure;
+        if (directoryFailure != null && listing == null) {
           return _fillStateSliver(
             child: ErrorState(
               message: l10n.filesLoadErrorTitle,
-              guidance: state.directoryFailure!.message,
+              guidance: directoryFailure.message,
               retryLabel: l10n.retryButton,
               onRetry: state.isBusy
                   ? null
@@ -227,8 +230,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             ),
           );
         }
-        final listing = state.directoryListing;
-        if (listing == null || listing.entries.isEmpty) {
+        if (listing == null ||
+            (listing.entries.isEmpty && directoryFailure == null)) {
           return _fillStateSliver(
             child: EmptyState(
               message: l10n.filesEmptyMessage,
@@ -247,17 +250,32 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
           sliver: SliverList(
             delegate: SliverChildListDelegate.fixed([
+              if (directoryFailure != null) ...[
+                _StaleDirectoryNotice(
+                  failure: directoryFailure,
+                  onRefresh: state.isBusy
+                      ? null
+                      : () {
+                          ref.read(filesProvider.notifier).refresh();
+                        },
+                ),
+                const SizedBox(height: 12),
+              ],
               _DirectorySummary(listing: listing),
-              const SizedBox(height: 12),
-              ...List<Widget>.generate(listing.entries.length * 2 - 1, (index) {
-                if (index.isOdd) {
-                  return const Divider(height: 1);
-                }
+              if (listing.entries.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                ...List<Widget>.generate(listing.entries.length * 2 - 1, (
+                  index,
+                ) {
+                  if (index.isOdd) {
+                    return const Divider(height: 1);
+                  }
 
-                final entryIndex = index ~/ 2;
-                final entry = listing.entries[entryIndex];
-                return _FileEntryTile(entry: entry, isBusy: state.isBusy);
-              }),
+                  final entryIndex = index ~/ 2;
+                  final entry = listing.entries[entryIndex];
+                  return _FileEntryTile(entry: entry, isBusy: state.isBusy);
+                }),
+              ],
             ]),
           ),
         );
@@ -268,6 +286,82 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
       sliver: SliverFillRemaining(hasScrollBody: true, child: child),
+    );
+  }
+}
+
+class _StaleDirectoryNotice extends StatelessWidget {
+  const _StaleDirectoryNotice({required this.failure, required this.onRefresh});
+
+  final FilesFailure failure;
+  final VoidCallback? onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final failureMessage = failure.message;
+
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.tertiaryContainer,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: theme.colorScheme.tertiary),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.wifi_off_outlined,
+                    color: theme.colorScheme.onTertiaryContainer,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n.filesStaleDirectoryTitle,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onTertiaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.filesStaleDirectoryGuidance,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onTertiaryContainer,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                failureMessage,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onTertiaryContainer,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton.icon(
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.filesStaleDirectoryRetryButton),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

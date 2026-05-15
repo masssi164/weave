@@ -199,6 +199,64 @@ void main() {
     });
 
     test(
+      'manual refresh failure keeps the last known directory visible',
+      () async {
+        var listCalls = 0;
+        final repository = _FakeFilesRepository(
+          restoreConnectionHandler: () async => FilesConnectionState.connected(
+            baseUrl: Uri.parse('https://files.home.internal'),
+            accountLabel: 'alice',
+          ),
+          connectHandler: () async => throw UnimplementedError(),
+          disconnectHandler: () async {},
+          listDirectoryHandler: (path) async {
+            listCalls += 1;
+            if (listCalls > 1) {
+              throw const FilesFailure.protocol(
+                'Files could not be refreshed while offline.',
+              );
+            }
+            return const DirectoryListing(
+              path: '/',
+              entries: [
+                FileEntry(
+                  id: 'file-1',
+                  name: 'Roadmap.pdf',
+                  path: '/Roadmap.pdf',
+                  isDirectory: false,
+                  sizeInBytes: 2048,
+                ),
+              ],
+            );
+          },
+        );
+        final container = ProviderContainer(
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(filesProvider.future);
+        await container.read(filesProvider.notifier).refresh();
+        final state = container.read(filesProvider).requireValue;
+
+        expect(listCalls, 2);
+        expect(state.directoryListing?.entries.single.name, 'Roadmap.pdf');
+        expect(state.directoryFailure?.type, FilesFailureType.protocol);
+        expect(
+          state.directoryFailure?.message,
+          'Files could not be refreshed while offline.',
+        );
+        expect(state.isBusy, isFalse);
+      },
+    );
+
+    test(
       'marks the session invalid when restoring the root directory fails with invalid credentials',
       () async {
         final repository = _FakeFilesRepository(

@@ -109,6 +109,13 @@
   "filesScreenTitle": "Dateien",
   "filesLoadingLabel": "Dateien werden geladen…",
   "filesLoadingHint": "Der aktuelle Ordner wird aktualisiert und auf Änderungen geprüft.",
+  "filesStaleDirectoryTitle": "Letzten bekannten Ordner anzeigen",
+  "@filesStaleDirectoryTitle": {"description": "Title for a Files notice shown when refresh failed but the previous directory listing remains visible"},
+  "filesStaleDirectoryGuidance": "Weave konnte Dateien gerade nicht aktualisieren. Die letzte Ordnerliste bleibt sichtbar, damit du deinen Platz behältst und es erneut versuchen kannst, sobald die Verbindung wieder da ist.",
+  "@filesStaleDirectoryGuidance": {"description": "Guidance for a Files notice shown when refresh failed but cached folder contents remain visible"},
+  "filesStaleDirectoryRetryButton": "Ordner aktualisieren",
+  "@filesStaleDirectoryRetryButton": {"description": "Button label for retrying a stale Files directory refresh"},
+
   "filesNextcloudTitle": "Nextcloud",
   "filesConnectButton": "Nextcloud verbinden",
   "filesReconnectButton": "Nextcloud neu verbinden",
