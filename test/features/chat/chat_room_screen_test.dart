@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/features/chat/data/services/archived_message_store.dart';
@@ -174,6 +175,7 @@ void main() {
   testWidgets('keeps a failed outgoing message visible with retry actions', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     var sendAttempts = 0;
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async => buildTimeline(),
@@ -221,6 +223,12 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Retry send'), findsOneWidget);
+    _expectSemanticTapAction(
+      tester,
+      find.byTooltip('Retry send'),
+      label: 'Retry send',
+    );
+    semantics.dispose();
 
     await tester.tap(find.text('Retry send').first);
     await tester.pumpAndSettle();
@@ -256,6 +264,7 @@ void main() {
   });
 
   testWidgets('archives a message from the actions menu', (tester) async {
+    final semantics = tester.ensureSemantics();
     final store = InMemoryPreferencesStore();
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async => buildTimeline(),
@@ -268,6 +277,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    _expectSemanticTapAction(
+      tester,
+      find.byTooltip('Message actions'),
+      label: 'Message actions',
+    );
+    semantics.dispose();
 
     await tester.tap(find.byIcon(Icons.more_vert));
     await tester.pumpAndSettle();
@@ -332,4 +348,14 @@ void main() {
     expect(find.text('Hey there'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
   });
+}
+
+void _expectSemanticTapAction(
+  WidgetTester tester,
+  Finder finder, {
+  required String label,
+}) {
+  final data = tester.getSemantics(finder).getSemanticsData();
+  expect(data.label == label || data.tooltip == label, isTrue);
+  expect(data.hasAction(SemanticsAction.tap), isTrue);
 }

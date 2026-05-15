@@ -617,6 +617,7 @@ class _MessageBubble extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 420),
         child: Semantics(
           container: true,
+          explicitChildNodes: true,
           label: [
             message.senderDisplayName,
             if (archived) l10n.chatRoomArchivedMessageLabel,
@@ -626,26 +627,26 @@ class _MessageBubble extends StatelessWidget {
             ).formatTimeOfDay(TimeOfDay.fromDateTime(message.sentAt)),
             if (status != null) status,
           ].join('. '),
-          child: ExcludeSemantics(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: bubbleColor,
-                borderRadius: BorderRadius.circular(18),
-                border: archived
-                    ? Border.all(color: theme.colorScheme.tertiary)
-                    : message.deliveryState == ChatMessageDeliveryState.failed
-                    ? Border.all(color: theme.colorScheme.error)
-                    : null,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: bubbleColor,
+              borderRadius: BorderRadius.circular(18),
+              border: archived
+                  ? Border.all(color: theme.colorScheme.tertiary)
+                  : message.deliveryState == ChatMessageDeliveryState.failed
+                  ? Border.all(color: theme.colorScheme.error)
+                  : null,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: ExcludeSemantics(
                           child: Text(
                             message.senderDisplayName,
                             style: theme.textTheme.labelMedium?.copyWith(
@@ -653,74 +654,75 @@ class _MessageBubble extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (onRetry != null)
-                          IconButton(
-                            onPressed: onRetry,
-                            tooltip: l10n.chatRoomRetrySendAction,
-                            icon: const Icon(Icons.refresh),
+                      ),
+                      if (onRetry != null)
+                        IconButton(
+                          onPressed: onRetry,
+                          tooltip: l10n.chatRoomRetrySendAction,
+                          icon: const Icon(Icons.refresh),
+                          color: foregroundColor.withValues(alpha: 0.85),
+                        )
+                      else if (onArchive != null || onRestore != null)
+                        PopupMenuButton<_MessageAction>(
+                          tooltip: AppLocalizations.of(
+                            context,
+                          ).chatRoomMessageActionsLabel,
+                          onSelected: (value) {
+                            if (value == _MessageAction.archive) {
+                              onArchive?.call();
+                            } else if (value == _MessageAction.restore) {
+                              onRestore?.call();
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            if (onArchive != null)
+                              PopupMenuItem<_MessageAction>(
+                                value: _MessageAction.archive,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  ).chatRoomArchiveAction,
+                                ),
+                              ),
+                            if (onRestore != null)
+                              PopupMenuItem<_MessageAction>(
+                                value: _MessageAction.restore,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  ).chatRoomRestoreAction,
+                                ),
+                              ),
+                          ],
+                          icon: Icon(
+                            Icons.more_vert,
                             color: foregroundColor.withValues(alpha: 0.85),
-                          )
-                        else if (onArchive != null || onRestore != null)
-                          PopupMenuButton<_MessageAction>(
-                            tooltip: AppLocalizations.of(
-                              context,
-                            ).chatRoomMessageActionsLabel,
-                            onSelected: (value) {
-                              if (value == _MessageAction.archive) {
-                                onArchive?.call();
-                              } else if (value == _MessageAction.restore) {
-                                onRestore?.call();
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              if (onArchive != null)
-                                PopupMenuItem<_MessageAction>(
-                                  value: _MessageAction.archive,
-                                  child: Text(
-                                    AppLocalizations.of(
-                                      context,
-                                    ).chatRoomArchiveAction,
-                                  ),
-                                ),
-                              if (onRestore != null)
-                                PopupMenuItem<_MessageAction>(
-                                  value: _MessageAction.restore,
-                                  child: Text(
-                                    AppLocalizations.of(
-                                      context,
-                                    ).chatRoomRestoreAction,
-                                  ),
-                                ),
-                            ],
-                            icon: Icon(
-                              Icons.more_vert,
-                              color: foregroundColor.withValues(alpha: 0.85),
-                            ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ExcludeSemantics(
+                    child: Text(
                       body,
                       style: theme.textTheme.bodyLarge?.copyWith(
                         color: foregroundColor,
                       ),
                     ),
-                    if (archived) ...[
-                      const SizedBox(height: 6),
-                      Semantics(
-                        label: l10n.chatRoomArchivedMessageLabel,
-                        child: ExcludeSemantics(
-                          child: Chip(
-                            avatar: const Icon(Icons.archive_outlined),
-                            label: Text(l10n.chatRoomArchivedMessageLabel),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ),
-                      ),
-                    ],
+                  ),
+                  if (archived) ...[
                     const SizedBox(height: 6),
-                    Row(
+                    ExcludeSemantics(
+                      child: Chip(
+                        avatar: const Icon(Icons.archive_outlined),
+                        label: Text(l10n.chatRoomArchivedMessageLabel),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  ExcludeSemantics(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
@@ -746,8 +748,8 @@ class _MessageBubble extends StatelessWidget {
                         ],
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
