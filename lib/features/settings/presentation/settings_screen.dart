@@ -14,6 +14,10 @@ import 'package:weave/features/app/domain/entities/workspace_connection_state.da
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
 import 'package:weave/features/chat/presentation/widgets/chat_security_settings_section.dart';
+import 'package:weave/features/connectors/presentation/providers/connector_preview_provider.dart';
+import 'package:weave/features/connectors/presentation/widgets/connector_settings_preview_card.dart';
+import 'package:weave/features/guests/presentation/providers/guest_preview_provider.dart';
+import 'package:weave/features/guests/presentation/widgets/guest_access_preview_card.dart';
 import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
@@ -273,13 +277,15 @@ class _ShellModulePreferenceTile extends ConsumerWidget {
   }
 }
 
-class _FeaturePreviewSurfacesSection extends StatelessWidget {
+class _FeaturePreviewSurfacesSection extends ConsumerWidget {
   const _FeaturePreviewSurfacesSection();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final guestPreview = ref.watch(guestPreviewProvider);
+    final connectorPreview = ref.watch(connectorPreviewProvider);
     return Card(
       elevation: 0,
       color: theme.colorScheme.surfaceContainerLow,
@@ -304,18 +310,22 @@ class _FeaturePreviewSurfacesSection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            if (FeatureFlags.guestPortal)
-              _PreviewSurfaceTile(
-                icon: Icons.badge_outlined,
+            if (FeatureFlags.guestPortal) ...[
+              GuestAccessPreviewCard(
+                guests: guestPreview,
                 title: l10n.settingsGuestPortalPreviewTitle,
                 description: l10n.settingsGuestPortalPreviewDescription,
               ),
-            if (FeatureFlags.interopAdmin)
-              _PreviewSurfaceTile(
-                icon: Icons.sync_alt_outlined,
+              const SizedBox(height: 12),
+            ],
+            if (FeatureFlags.interopAdmin) ...[
+              ConnectorSettingsPreviewCard(
+                connectors: connectorPreview,
                 title: l10n.settingsInteropAdminPreviewTitle,
                 description: l10n.settingsInteropAdminPreviewDescription,
               ),
+              const SizedBox(height: 12),
+            ],
             if (FeatureFlags.migrationDryRun)
               _PreviewSurfaceTile(
                 icon: Icons.fact_check_outlined,
