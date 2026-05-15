@@ -30,7 +30,7 @@ Current focus areas:
 - **Dependable Chat + Matrix E2EE architecture** — a custom Weave Matrix client surface with accessible message states, explicit retry/recovery affordances, and native Matrix E2EE as active architecture scope. E2EE claims stay tied to real device, verification, key backup/recovery, and metadata-boundary validation.
 - **Explorer-grade Files** — a Weave files experience backed by the product backend and Nextcloud/WebDAV/OCS contracts, with clearer metadata, actions, and recovery states.
 - **Consistent recovery UX** — shared loading, empty, error, success, and retry patterns so setup, chat, files, settings, and preview surfaces do not end in cryptic dead states.
-- **Teams-like shared Calendar** — Calendar follows the collaboration hierarchy: workspace/org calendar, team calendars, and channel events/meeting threads. The current backend `workspace` scope is the first safe slice; private personal calendar ingestion is not a product goal.
+- **Teams-like shared Calendar** — Calendar follows the collaboration hierarchy: workspace/org calendar, team calendars, and channel events/meeting threads. The guarded live-stack path now validates shared scope metadata and channel event CRUD through the backend facade; private personal calendar ingestion is not a product goal.
 - **Settings and OIDC sign-in** — setup, authentication, stored server configuration, and account/session controls remain part of the daily product shell.
 
 Weave still does **not** claim a complete Teams/Slack replacement, public connector SDK, production Slack/Teams bridge, private personal calendar provisioning, or Weaver PA. Matrix E2EE and Boards are active scope behind explicit contracts and feature flags; claims must remain tied to validated implementation state.
@@ -61,9 +61,9 @@ These checked-in preview screenshots document in-progress shapes only. They are 
 
 ### Guarded active preview: Teams-like calendar
 
-The checked-in Calendar preview documents the first safe slice of the Teams-like calendar hierarchy: a Weave-owned workspace-calendar surface backed by the backend facade. The product direction is workspace/org, team, and channel calendars with meeting/event context; private personal calendar ingestion is out of scope.
+The checked-in Calendar setup readiness preview documents the guarded Teams-like calendar path: Weave-owned workspace/org, team, and channel calendars backed by the backend facade, with channel event create/read/update/delete covered by the live-stack gate. Meeting-thread attachment remains gated follow-up work, and private personal calendar ingestion is out of scope.
 
-[<img src="docs/assets/marketing/06-calendar-setup-readiness-preview.svg" alt="Weave calendar setup readiness preview showing the first workspace calendar scope in a Teams-like shared calendar hierarchy." width="560">](docs/assets/marketing/06-calendar-setup-readiness-preview.svg)
+[<img src="docs/assets/marketing/06-calendar-setup-readiness-preview.svg" alt="Weave calendar preview showing workspace, team, and channel scopes with channel event CRUD validated through the backend facade." width="560">](docs/assets/marketing/06-calendar-setup-readiness-preview.svg)
 
 ### Active preview: boards/tasks
 

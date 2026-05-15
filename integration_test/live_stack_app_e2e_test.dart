@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
@@ -18,8 +19,11 @@ import 'package:weave/features/calendar/presentation/providers/calendar_provider
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
+import 'package:weave/features/chat/domain/entities/chat_message.dart';
+import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
 import 'package:weave/features/files/presentation/providers/files_provider.dart';
@@ -289,6 +293,72 @@ void main() {
         'cause=${chatState.failure?.cause}',
       );
 
+      final chatSecurityRepository = container.read(
+        chatSecurityRepositoryProvider,
+      );
+      var e2eeSecurityState = await chatSecurityRepository.loadSecurityState(
+        refresh: true,
+      );
+      var e2eeBootstrapGeneratedRecoveryKey = false;
+      if (e2eeSecurityState.bootstrapState ==
+              ChatSecurityBootstrapState.notInitialized ||
+          e2eeSecurityState.bootstrapState ==
+              ChatSecurityBootstrapState.partiallyInitialized) {
+        final recoveryKey = await chatSecurityRepository.bootstrapSecurity();
+        e2eeBootstrapGeneratedRecoveryKey = recoveryKey.trim().isNotEmpty;
+        e2eeSecurityState = await chatSecurityRepository.loadSecurityState(
+          refresh: true,
+        );
+      }
+
+      final encryptedRoomName =
+          'weave-live-e2ee-${DateTime.now().millisecondsSinceEpoch}';
+      final encryptedRoomId = await matrixClient.createGroupChat(
+        groupName: encryptedRoomName,
+        enableEncryption: true,
+        waitForSync: true,
+        federated: false,
+      );
+      final encryptedRoom = matrixClient.getRoomById(encryptedRoomId);
+      final encryptedMessage =
+          'live-e2ee message ${DateTime.now().toUtc().toIso8601String()}';
+      await chatRepository.sendMessage(
+        roomId: encryptedRoomId,
+        message: encryptedMessage,
+      );
+      final encryptedTimeline = await chatRepository.loadRoomTimeline(
+        encryptedRoomId,
+      );
+      final encryptedTimelineMessages = encryptedTimeline.messages
+          .where(
+            (message) =>
+                message.contentType == ChatMessageContentType.encrypted,
+          )
+          .toList(growable: false);
+      final e2eeCryptoAvailable =
+          matrixClient.encryptionEnabled && matrixClient.encryption != null;
+      final e2eeRoomEncrypted = encryptedRoom?.encrypted == true;
+      final e2eeSecurityReady =
+          e2eeSecurityState.bootstrapState ==
+              ChatSecurityBootstrapState.ready &&
+          e2eeSecurityState.secretStorageReady &&
+          e2eeSecurityState.crossSigningReady;
+      final e2eeEncryptedEventObserved = encryptedTimelineMessages.isNotEmpty;
+      // ignore: avoid_print
+      print(
+        'E2EE_RESULT roomId=$encryptedRoomId roomName=$encryptedRoomName '
+        'cryptoAvailable=$e2eeCryptoAvailable '
+        'bootstrapState=${e2eeSecurityState.bootstrapState} '
+        'accountVerification=${e2eeSecurityState.accountVerificationState} '
+        'deviceVerification=${e2eeSecurityState.deviceVerificationState} '
+        'keyBackup=${e2eeSecurityState.keyBackupState} '
+        'secretStorageReady=${e2eeSecurityState.secretStorageReady} '
+        'crossSigningReady=${e2eeSecurityState.crossSigningReady} '
+        'bootstrapGeneratedRecoveryKey=$e2eeBootstrapGeneratedRecoveryKey '
+        'roomEncrypted=$e2eeRoomEncrypted '
+        'encryptedTimelineMessages=${encryptedTimelineMessages.length}',
+      );
+
       await container.read(filesProvider.notifier).connect();
       _resetKeyboardTestState();
       await tester.pump();
@@ -395,36 +465,70 @@ void main() {
       );
 
       final calendarRepository = container.read(calendarRepositoryProvider);
+      final calendarScopes = await calendarRepository.loadScopes();
+      final workspaceScopes = calendarScopes.scopes
+          .where((scope) => scope.isWorkspace)
+          .toList(growable: false);
+      final teamScopes = calendarScopes.scopes
+          .where((scope) => scope.isTeam && scope.teamId != null)
+          .toList(growable: false);
+      final channelScopes = calendarScopes.scopes
+          .where(
+            (scope) =>
+                scope.isChannel &&
+                scope.teamId != null &&
+                scope.channelId != null,
+          )
+          .toList(growable: false);
+      final calendarScopesReady =
+          workspaceScopes.isNotEmpty &&
+          teamScopes.isNotEmpty &&
+          channelScopes.isNotEmpty;
+      final channelScope = channelScopes.isNotEmpty
+          ? channelScopes.first
+          : CalendarScope.workspace;
       final calendarTitle = 'Weave live E2E $liveE2eSuffix';
       final calendarStart = DateTime.now().toUtc().add(const Duration(days: 1));
       final calendarDraft = CalendarEventDraft(
         title: calendarTitle,
-        description: 'Created by the Release 1 live-stack E2E gate.',
+        description:
+            'Created by the live-stack Teams-like channel calendar E2E gate.',
         startTime: calendarStart,
         endTime: calendarStart.add(const Duration(minutes: 30)),
         timezone: 'UTC',
+        scope: channelScope,
       );
       final createdEvent = await calendarRepository.createEvent(calendarDraft);
-      final loadedCalendar = await calendarRepository.loadEvents();
+      final loadedCalendar = await calendarRepository.loadEvents(
+        scope: channelScope,
+      );
       final readCreatedEvent = await calendarRepository.readEvent(
         createdEvent.id,
       );
       final calendarCreatedAndRead =
+          loadedCalendar.scope.isChannel &&
+          loadedCalendar.scope.teamId == channelScope.teamId &&
+          loadedCalendar.scope.channelId == channelScope.channelId &&
           loadedCalendar.events.any(
             (event) =>
-                event.id == createdEvent.id && event.title == calendarTitle,
+                event.id == createdEvent.id &&
+                event.title == calendarTitle &&
+                event.scope.isChannel,
           ) &&
           readCreatedEvent.id == createdEvent.id &&
-          readCreatedEvent.title == calendarTitle;
+          readCreatedEvent.title == calendarTitle &&
+          readCreatedEvent.scope.isChannel;
       final updatedCalendarTitle = '$calendarTitle updated';
       final updatedEvent = await calendarRepository.updateEvent(
         createdEvent.id,
         CalendarEventDraft(
           title: updatedCalendarTitle,
-          description: 'Updated by the live-stack Calendar CRUD E2E gate.',
+          description:
+              'Updated by the live-stack channel Calendar CRUD E2E gate.',
           startTime: calendarStart.add(const Duration(hours: 1)),
           endTime: calendarStart.add(const Duration(hours: 1, minutes: 45)),
           timezone: 'UTC',
+          scope: channelScope,
         ),
       );
       final readUpdatedEvent = await calendarRepository.readEvent(
@@ -433,31 +537,167 @@ void main() {
       final calendarUpdatedAndRead =
           updatedEvent.id == createdEvent.id &&
           updatedEvent.title == updatedCalendarTitle &&
+          updatedEvent.scope.isChannel &&
           readUpdatedEvent.id == createdEvent.id &&
-          readUpdatedEvent.title == updatedCalendarTitle;
+          readUpdatedEvent.title == updatedCalendarTitle &&
+          readUpdatedEvent.scope.isChannel;
       await calendarRepository.deleteEvent(createdEvent.id);
-      final calendarAfterDelete = await calendarRepository.loadEvents();
+      final calendarAfterDelete = await calendarRepository.loadEvents(
+        scope: channelScope,
+      );
       final calendarDeleted = calendarAfterDelete.events.every(
         (event) => event.id != createdEvent.id,
       );
       // ignore: avoid_print
       print(
         'CALENDAR_RESULT eventId=${createdEvent.id} '
+        'scopes=${calendarScopes.scopes.map((scope) => scope.type).join(',')} '
+        'workspaceScopes=${workspaceScopes.length} '
+        'teamScopes=${teamScopes.length} '
+        'channelScopes=${channelScopes.length} '
         'scope=${loadedCalendar.scope.type} '
+        'teamId=${loadedCalendar.scope.teamId} '
+        'channelId=${loadedCalendar.scope.channelId} '
         'createdAndRead=$calendarCreatedAndRead '
         'updatedAndRead=$calendarUpdatedAndRead '
         'deleted=$calendarDeleted',
       );
 
+      final liveHttpClient = createTrustedTestHttpClient();
+      addTearDown(liveHttpClient.close);
+      final boardsPreviewResponse = await liveHttpClient.get(
+        config.apiUri('/api/boards/preview'),
+        headers: <String, String>{
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ${appSession.accessToken}',
+        },
+      );
+      final boardsPreview = _decodeHttpJson(
+        boardsPreviewResponse,
+        operation: 'read boards preview',
+      );
+      final boards = _jsonListOfMaps(boardsPreview['boards']);
+      final tasksBefore = _jsonListOfMaps(boardsPreview['tasks']);
+      final board = boards.isNotEmpty ? boards.first : <String, dynamic>{};
+      final boardId = _jsonString(board['id']);
+      final columns = _jsonListOfMaps(board['columns']);
+      final todoColumn = columns.firstWhere(
+        (column) => column['semanticStatus'] == 'not_started',
+        orElse: () => columns.isNotEmpty ? columns.first : <String, dynamic>{},
+      );
+      final activeColumn = columns.firstWhere(
+        (column) => column['semanticStatus'] == 'in_progress',
+        orElse: () => columns.isNotEmpty ? columns.first : <String, dynamic>{},
+      );
+      final doneColumn = columns.firstWhere(
+        (column) => column['semanticStatus'] == 'done',
+        orElse: () => columns.isNotEmpty ? columns.last : <String, dynamic>{},
+      );
+      final createdBoardTaskResponse = await liveHttpClient.post(
+        config.apiUri('/api/boards/$boardId/tasks'),
+        headers: <String, String>{
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ${appSession.accessToken}',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(<String, Object>{
+          'columnId': _jsonString(todoColumn['id']),
+          'title': 'Live E2E non-drag task $liveE2eSuffix',
+          'description':
+              'Created through the provider-neutral backend Boards facade.',
+          'assigneeRefs': <String>['workspace:member'],
+          'labelRefs': <String>['e2e', 'a11y'],
+        }),
+      );
+      final createdBoardTask = _decodeHttpJson(
+        createdBoardTaskResponse,
+        operation: 'create boards task',
+      );
+      final taskId = _jsonString(createdBoardTask['id']);
+      final movedBoardTask = _decodeHttpJson(
+        await liveHttpClient.post(
+          config.apiUri('/api/boards/tasks/$taskId/move'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(<String, Object>{
+            'targetColumnId': _jsonString(activeColumn['id']),
+            'targetPosition': 0,
+          }),
+        ),
+        operation: 'move boards task',
+      );
+      final completedBoardTask = _decodeHttpJson(
+        await liveHttpClient.post(
+          config.apiUri('/api/boards/tasks/$taskId/complete'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+          },
+        ),
+        operation: 'complete boards task',
+      );
+      final boardsPreviewAfterMutation = _decodeHttpJson(
+        await liveHttpClient.get(
+          config.apiUri('/api/boards/preview'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+          },
+        ),
+        operation: 'read boards preview after mutation',
+      );
+      final boardsCapabilities = _jsonMap(boardsPreview['capabilities']);
+      final boardsTasksAfter = _jsonListOfMaps(
+        boardsPreviewAfterMutation['tasks'],
+      );
+      final boardsProviderNeutral =
+          boardsPreview['preview'] == true &&
+          boardsPreview['releaseStatus'] == 'active-feature-gated-preview' &&
+          boardsPreview['source'] == 'local-preview-backend-facade' &&
+          _jsonString(boardsCapabilities['provider']) == 'in-memory';
+      final boardsNonDragMutationWorked =
+          boardId == 'local-board-1' &&
+          _jsonString(movedBoardTask['columnId']) ==
+              _jsonString(activeColumn['id']) &&
+          _jsonString(completedBoardTask['columnId']) ==
+              _jsonString(doneColumn['id']) &&
+          _jsonString(completedBoardTask['status']) == 'completed' &&
+          boardsTasksAfter.any((task) => task['id'] == taskId);
+      // ignore: avoid_print
+      print(
+        'BOARDS_RESULT boardId=$boardId taskId=$taskId '
+        'provider=${boardsCapabilities['provider']} '
+        'releaseStatus=${boardsPreview['releaseStatus']} '
+        'preview=${boardsPreview['preview']} '
+        'columns=${columns.length} '
+        'tasksBefore=${tasksBefore.length} '
+        'tasksAfter=${boardsTasksAfter.length} '
+        'createdColumn=${createdBoardTask['columnId']} '
+        'movedColumn=${movedBoardTask['columnId']} '
+        'completedColumn=${completedBoardTask['columnId']} '
+        'completedStatus=${completedBoardTask['status']} '
+        'nonDragMutationWorked=$boardsNonDragMutationWorked',
+      );
+
       if (!matrixConnected ||
+          !e2eeCryptoAvailable ||
+          !e2eeSecurityReady ||
+          !e2eeRoomEncrypted ||
+          !e2eeEncryptedEventObserved ||
           !profileUpdated ||
           !filesFacadeConnected ||
           deliveredMessage.isEmpty ||
           matchedFiles.isEmpty ||
           !fileDownloadMatched ||
+          !calendarScopesReady ||
           !calendarCreatedAndRead ||
           !calendarUpdatedAndRead ||
-          !calendarDeleted) {
+          !calendarDeleted ||
+          !boardsProviderNeutral ||
+          !boardsNonDragMutationWorked) {
         fail(
           'live_e2e_result '
           'authSignedIn=true '
@@ -469,6 +709,11 @@ void main() {
           'matrixCause=${chatState.failure?.cause} '
           'chatRoomId=$roomId '
           'chatMatchedMessages=${deliveredMessage.length} '
+          'e2eeCryptoAvailable=$e2eeCryptoAvailable '
+          'e2eeSecurityReady=$e2eeSecurityReady '
+          'e2eeBootstrapState=${e2eeSecurityState.bootstrapState} '
+          'e2eeRoomEncrypted=$e2eeRoomEncrypted '
+          'e2eeEncryptedEvents=${encryptedTimelineMessages.length} '
           'filesFacadeConnected=$filesFacadeConnected '
           'filesFacadeStatus=${filesState.connectionState.status} '
           'filesFacadeMessage=${filesState.connectionState.message} '
@@ -476,10 +721,17 @@ void main() {
           'filesFacadeMatchedFiles=${matchedFiles.length} '
           'filesDownloadMatched=$fileDownloadMatched '
           'seededFileName=$seededFileName '
+          'calendarScopesReady=$calendarScopesReady '
+          'calendarScope=${loadedCalendar.scope.type} '
+          'calendarTeamId=${loadedCalendar.scope.teamId} '
+          'calendarChannelId=${loadedCalendar.scope.channelId} '
           'calendarCreatedAndRead=$calendarCreatedAndRead '
           'calendarUpdatedAndRead=$calendarUpdatedAndRead '
           'calendarDeleted=$calendarDeleted '
-          'calendarEventId=${createdEvent.id}',
+          'calendarEventId=${createdEvent.id} '
+          'boardsProviderNeutral=$boardsProviderNeutral '
+          'boardsNonDragMutationWorked=$boardsNonDragMutationWorked '
+          'boardsTaskId=$taskId',
         );
       }
 
@@ -487,12 +739,19 @@ void main() {
       expect(profileUpdated, isTrue);
       expect(matrixConnected, isTrue);
       expect(deliveredMessage, isNotEmpty);
+      expect(e2eeCryptoAvailable, isTrue);
+      expect(e2eeSecurityReady, isTrue);
+      expect(e2eeRoomEncrypted, isTrue);
+      expect(e2eeEncryptedEventObserved, isTrue);
       expect(filesFacadeConnected, isTrue);
       expect(matchedFiles, isNotEmpty);
       expect(fileDownloadMatched, isTrue);
+      expect(calendarScopesReady, isTrue);
       expect(calendarCreatedAndRead, isTrue);
       expect(calendarUpdatedAndRead, isTrue);
       expect(calendarDeleted, isTrue);
+      expect(boardsProviderNeutral, isTrue);
+      expect(boardsNonDragMutationWorked, isTrue);
     },
     semanticsEnabled: false,
   );
@@ -526,6 +785,45 @@ void _resetKeyboardTestState() {
   // ignore: invalid_use_of_visible_for_testing_member, deprecated_member_use
   ServicesBinding.instance.keyEventManager.clearState();
 }
+
+Map<String, dynamic> _decodeHttpJson(
+  http.Response response, {
+  required String operation,
+}) {
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    fail(
+      'Live stack failed to $operation: '
+      'status=${response.statusCode} body=${response.body}',
+    );
+  }
+  final decoded = jsonDecode(response.body);
+  if (decoded is! Map<String, dynamic>) {
+    fail('Live stack returned non-object JSON while trying to $operation.');
+  }
+  return decoded;
+}
+
+Map<String, dynamic> _jsonMap(Object? value) {
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.cast<String, dynamic>();
+  }
+  return <String, dynamic>{};
+}
+
+List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
+  if (value is! List) {
+    return const <Map<String, dynamic>>[];
+  }
+  return value
+      .whereType<Map>()
+      .map((item) => item.cast<String, dynamic>())
+      .toList(growable: false);
+}
+
+String _jsonString(Object? value) => value is String ? value : '';
 
 Future<void> _waitFor(
   WidgetTester tester,
