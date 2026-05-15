@@ -804,8 +804,6 @@ class _DeleteEntryDialog extends StatelessWidget {
 class _FileEntryTile extends ConsumerWidget {
   const _FileEntryTile({required this.entry, required this.isBusy});
 
-  static final DateFormat _modifiedDateTimeFormat = DateFormat.yMMMd().add_Hm();
-
   final FileEntry entry;
   final bool isBusy;
 
@@ -892,7 +890,12 @@ class _FileEntryTile extends ConsumerWidget {
 
     final parts = <String>[];
     if (entry.modifiedAt != null) {
-      parts.add(_modifiedDateTimeFormat.format(entry.modifiedAt!.toLocal()));
+      final localeName = Localizations.localeOf(context).toString();
+      parts.add(
+        DateFormat.yMMMd(
+          localeName,
+        ).add_Hm().format(entry.modifiedAt!.toLocal()),
+      );
     }
     if (entry.sizeInBytes != null) {
       parts.add(_formatSize(entry.sizeInBytes!));

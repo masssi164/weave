@@ -189,6 +189,64 @@ void main() {
       expect(find.text('Refresh'), findsAtLeastNWidgets(1));
     });
 
+    testWidgets('announces file row metadata and keeps row actions labeled', (
+      tester,
+    ) async {
+      final repository = _FakeFilesRepository(
+        connectionState: FilesConnectionState.connected(
+          baseUrl: Uri.parse('https://files.home.internal'),
+          accountLabel: 'alice',
+        ),
+        listings: {
+          '/': DirectoryListing(
+            path: '/',
+            entries: [
+              FileEntry(
+                id: 'file-1',
+                name: 'Roadmap.pdf',
+                path: '/Roadmap.pdf',
+                isDirectory: false,
+                modifiedAt: DateTime(2026, 5, 14, 10, 30),
+                sizeInBytes: 2048,
+              ),
+            ],
+          ),
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const FilesScreen(),
+          overrides: [
+            filesRepositoryProvider.overrideWithValue(repository),
+            serverConfigurationRepositoryProvider.overrideWith(
+              (ref) =>
+                  _FakeServerConfigurationRepository(buildTestConfiguration()),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Roadmap.pdf'), findsOneWidget);
+      expect(find.textContaining('May 14, 2026'), findsOneWidget);
+      expect(find.textContaining('2.0 KB'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              (widget.properties.label ?? '').contains('Roadmap.pdf, file') &&
+              (widget.properties.label ?? '').contains('2.0 KB'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byTooltip('Export Roadmap.pdf to native files'),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Delete Roadmap.pdf'), findsOneWidget);
+    });
+
     testWidgets('renders directory contents and allows folder navigation', (
       tester,
     ) async {
