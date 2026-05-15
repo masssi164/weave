@@ -10,12 +10,14 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:matrix/matrix.dart' as sdk;
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
@@ -523,9 +525,17 @@ void main() {
         timezone: 'UTC',
         scope: channelScope,
       );
-      final createdEvent = await calendarRepository.createEvent(calendarDraft);
-      final loadedCalendar = await calendarRepository.loadEvents(
+      final createdEvent = await _createCalendarEventWithReadAfterWrite(
+        tester,
+        calendarRepository,
+        calendarDraft,
+      );
+      final loadedCalendar = await _waitForCalendarEventInScope(
+        tester,
+        calendarRepository,
         scope: channelScope,
+        eventId: createdEvent.id,
+        title: calendarTitle,
       );
       final readCreatedEvent = await calendarRepository.readEvent(
         createdEvent.id,
@@ -567,8 +577,11 @@ void main() {
           readUpdatedEvent.title == updatedCalendarTitle &&
           readUpdatedEvent.scope.isChannel;
       await calendarRepository.deleteEvent(createdEvent.id);
-      final calendarAfterDelete = await calendarRepository.loadEvents(
+      final calendarAfterDelete = await _waitForCalendarEventDeleted(
+        tester,
+        calendarRepository,
         scope: channelScope,
+        eventId: createdEvent.id,
       );
       final calendarDeleted = calendarAfterDelete.events.every(
         (event) => event.id != createdEvent.id,
@@ -1002,6 +1015,110 @@ Future<ChatRoomTimeline> _waitForDecryptedEncryptedTimeline(
     'timelineTypes=${latestTimeline?.messages.map((message) => message.contentType).join(',')} '
     'lastError=$lastError',
   );
+}
+
+Future<CalendarEvent> _createCalendarEventWithReadAfterWrite(
+  WidgetTester tester,
+  CalendarRepository calendarRepository,
+  CalendarEventDraft draft,
+) async {
+  final end = DateTime.now().add(const Duration(minutes: 2));
+  Object? lastError;
+  while (DateTime.now().isBefore(end)) {
+    try {
+      final createdEvent = await calendarRepository.createEvent(draft);
+      final readEvent = await calendarRepository.readEvent(createdEvent.id);
+      if (readEvent.id == createdEvent.id && readEvent.title == draft.title) {
+        return createdEvent;
+      }
+      lastError = 'read_after_write_mismatch eventId=${createdEvent.id}';
+    } catch (error) {
+      lastError = error;
+      if (!_isRetryableCalendarConsistencyError(error)) {
+        rethrow;
+      }
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(seconds: 2));
+  }
+
+  fail(
+    'calendar_create_read_after_write_not_ready title=${draft.title} '
+    'scope=${draft.scope.type} teamId=${draft.scope.teamId} '
+    'channelId=${draft.scope.channelId} lastError=$lastError',
+  );
+}
+
+Future<CalendarEventList> _waitForCalendarEventInScope(
+  WidgetTester tester,
+  CalendarRepository calendarRepository, {
+  required CalendarScope scope,
+  required String eventId,
+  required String title,
+}) async {
+  final end = DateTime.now().add(const Duration(minutes: 1));
+  Object? lastError;
+  CalendarEventList? latestCalendar;
+  while (DateTime.now().isBefore(end)) {
+    try {
+      latestCalendar = await calendarRepository.loadEvents(scope: scope);
+      if (latestCalendar.events.any(
+        (event) => event.id == eventId && event.title == title,
+      )) {
+        return latestCalendar;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  fail(
+    'calendar_created_event_not_listed eventId=$eventId title=$title '
+    'scope=${scope.type} teamId=${scope.teamId} channelId=${scope.channelId} '
+    'visibleEvents=${latestCalendar?.events.length} lastError=$lastError',
+  );
+}
+
+Future<CalendarEventList> _waitForCalendarEventDeleted(
+  WidgetTester tester,
+  CalendarRepository calendarRepository, {
+  required CalendarScope scope,
+  required String eventId,
+}) async {
+  final end = DateTime.now().add(const Duration(minutes: 1));
+  Object? lastError;
+  CalendarEventList? latestCalendar;
+  while (DateTime.now().isBefore(end)) {
+    try {
+      latestCalendar = await calendarRepository.loadEvents(scope: scope);
+      if (latestCalendar.events.every((event) => event.id != eventId)) {
+        return latestCalendar;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  fail(
+    'calendar_deleted_event_still_listed eventId=$eventId '
+    'scope=${scope.type} teamId=${scope.teamId} channelId=${scope.channelId} '
+    'visibleEvents=${latestCalendar?.events.length} lastError=$lastError',
+  );
+}
+
+bool _isRetryableCalendarConsistencyError(Object error) {
+  if (error is! AppFailure) {
+    return false;
+  }
+  final message = error.message.toLowerCase();
+  return message.contains('not found') ||
+      message.contains('unavailable') ||
+      message.contains('timed out') ||
+      message.contains('timeout');
 }
 
 Future<void> _waitFor(
