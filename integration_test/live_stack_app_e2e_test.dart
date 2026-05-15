@@ -10,18 +10,21 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:matrix/matrix.dart' as sdk;
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
+import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
-import 'package:weave/features/chat/domain/entities/chat_message.dart';
+import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
+import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
@@ -320,43 +323,51 @@ void main() {
         waitForSync: true,
         federated: false,
       );
-      final encryptedRoom = matrixClient.getRoomById(encryptedRoomId);
+      final encryptedRoom = await _waitForEncryptedMatrixRoom(
+        tester,
+        matrixClient,
+        encryptedRoomId,
+      );
+      final encryptedWireEventsBefore = await _loadAuthoritativeWireEvents(
+        matrixClient,
+        encryptedRoomId,
+      );
+      final encryptedWireEventIdsBefore = encryptedWireEventsBefore
+          .map((event) => event.eventId)
+          .toSet();
       final encryptedMessage =
           'live-e2ee message ${DateTime.now().toUtc().toIso8601String()}';
       await chatRepository.sendMessage(
         roomId: encryptedRoomId,
         message: encryptedMessage,
       );
-      await matrixClient.oneShotSync();
-      final rawEncryptedTimeline = await encryptedRoom?.getTimeline(limit: 50);
-      final encryptedWireEvents =
-          rawEncryptedTimeline?.events
-              .where(
-                (event) =>
-                    event.type == sdk.EventTypes.Encrypted ||
-                    event.originalSource?.type == sdk.EventTypes.Encrypted,
-              )
-              .toList(growable: false) ??
-          const <sdk.Event>[];
-      rawEncryptedTimeline?.cancelSubscriptions();
-      final encryptedTimeline = await chatRepository.loadRoomTimeline(
+      final encryptedWireProof = await _waitForAuthoritativeEncryptedWireEvent(
+        tester,
+        matrixClient,
         encryptedRoomId,
+        previousEventIds: encryptedWireEventIdsBefore,
+        plaintext: encryptedMessage,
       );
-      final encryptedTimelineMessages = encryptedTimeline.messages
-          .where(
-            (message) =>
-                message.contentType == ChatMessageContentType.encrypted,
-          )
+      final encryptedTimeline = await _waitForDecryptedEncryptedTimeline(
+        tester,
+        chatRepository,
+        encryptedRoomId,
+        encryptedMessage,
+      );
+      final decryptedEncryptedMessages = encryptedTimeline.messages
+          .where((message) => message.text == encryptedMessage)
           .toList(growable: false);
       final e2eeCryptoAvailable =
           matrixClient.encryptionEnabled && matrixClient.encryption != null;
-      final e2eeRoomEncrypted = encryptedRoom?.encrypted == true;
+      final e2eeRoomEncrypted = encryptedRoom.encrypted;
       final e2eeSecurityReady =
           e2eeSecurityState.bootstrapState ==
               ChatSecurityBootstrapState.ready &&
           e2eeSecurityState.secretStorageReady &&
           e2eeSecurityState.crossSigningReady;
-      final e2eeEncryptedEventObserved = encryptedWireEvents.isNotEmpty;
+      final e2eeEncryptedEventObserved =
+          encryptedWireProof.newEncryptedEvents.isNotEmpty &&
+          !encryptedWireProof.plaintextLeaked;
       // ignore: avoid_print
       print(
         'E2EE_RESULT roomId=$encryptedRoomId roomName=$encryptedRoomName '
@@ -369,8 +380,10 @@ void main() {
         'crossSigningReady=${e2eeSecurityState.crossSigningReady} '
         'bootstrapGeneratedRecoveryKey=$e2eeBootstrapGeneratedRecoveryKey '
         'roomEncrypted=$e2eeRoomEncrypted '
-        'encryptedWireEvents=${encryptedWireEvents.length} '
-        'encryptedTimelineMessages=${encryptedTimelineMessages.length}',
+        'encryptedWireEvents=${encryptedWireProof.newEncryptedEvents.length} '
+        'encryptedWireEventIds=${encryptedWireProof.newEncryptedEvents.map((event) => event.eventId).join(',')} '
+        'encryptedWirePlaintextLeaked=${encryptedWireProof.plaintextLeaked} '
+        'encryptedTimelineMessages=${decryptedEncryptedMessages.length}',
       );
 
       await container.read(filesProvider.notifier).connect();
@@ -512,9 +525,17 @@ void main() {
         timezone: 'UTC',
         scope: channelScope,
       );
-      final createdEvent = await calendarRepository.createEvent(calendarDraft);
-      final loadedCalendar = await calendarRepository.loadEvents(
+      final createdEvent = await _createCalendarEventWithReadAfterWrite(
+        tester,
+        calendarRepository,
+        calendarDraft,
+      );
+      final loadedCalendar = await _waitForCalendarEventInScope(
+        tester,
+        calendarRepository,
         scope: channelScope,
+        eventId: createdEvent.id,
+        title: calendarTitle,
       );
       final readCreatedEvent = await calendarRepository.readEvent(
         createdEvent.id,
@@ -556,8 +577,11 @@ void main() {
           readUpdatedEvent.title == updatedCalendarTitle &&
           readUpdatedEvent.scope.isChannel;
       await calendarRepository.deleteEvent(createdEvent.id);
-      final calendarAfterDelete = await calendarRepository.loadEvents(
+      final calendarAfterDelete = await _waitForCalendarEventDeleted(
+        tester,
+        calendarRepository,
         scope: channelScope,
+        eventId: createdEvent.id,
       );
       final calendarDeleted = calendarAfterDelete.events.every(
         (event) => event.id != createdEvent.id,
@@ -727,8 +751,9 @@ void main() {
           'e2eeSecurityReady=$e2eeSecurityReady '
           'e2eeBootstrapState=${e2eeSecurityState.bootstrapState} '
           'e2eeRoomEncrypted=$e2eeRoomEncrypted '
-          'e2eeEncryptedWireEvents=${encryptedWireEvents.length} '
-          'e2eeEncryptedEvents=${encryptedTimelineMessages.length} '
+          'e2eeEncryptedWireEvents=${encryptedWireProof.newEncryptedEvents.length} '
+          'e2eeEncryptedEvents=${decryptedEncryptedMessages.length} '
+          'e2eeEncryptedWirePlaintextLeaked=${encryptedWireProof.plaintextLeaked} '
           'filesFacadeConnected=$filesFacadeConnected '
           'filesFacadeStatus=${filesState.connectionState.status} '
           'filesFacadeMessage=${filesState.connectionState.message} '
@@ -758,6 +783,7 @@ void main() {
       expect(e2eeSecurityReady, isTrue);
       expect(e2eeRoomEncrypted, isTrue);
       expect(e2eeEncryptedEventObserved, isTrue);
+      expect(decryptedEncryptedMessages, isNotEmpty);
       expect(filesFacadeConnected, isTrue);
       expect(matchedFiles, isNotEmpty);
       expect(fileDownloadMatched, isTrue);
@@ -839,6 +865,261 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 }
 
 String _jsonString(Object? value) => value is String ? value : '';
+
+class _EncryptedWireProof {
+  const _EncryptedWireProof({
+    required this.newEncryptedEvents,
+    required this.plaintextLeaked,
+  });
+
+  final List<sdk.MatrixEvent> newEncryptedEvents;
+  final bool plaintextLeaked;
+}
+
+Future<sdk.Room> _waitForEncryptedMatrixRoom(
+  WidgetTester tester,
+  sdk.Client client,
+  String roomId,
+) async {
+  final end = DateTime.now().add(const Duration(seconds: 45));
+  Object? lastError;
+  while (DateTime.now().isBefore(end)) {
+    try {
+      await client.oneShotSync(timeout: const Duration(seconds: 5));
+      final room = client.getRoomById(roomId);
+      if (room != null && room.encrypted) {
+        return room;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  final room = client.getRoomById(roomId);
+  fail(
+    'matrix_encrypted_room_not_ready roomId=$roomId '
+    'roomFound=${room != null} roomEncrypted=${room?.encrypted} '
+    'lastError=$lastError',
+  );
+}
+
+Future<List<sdk.MatrixEvent>> _loadAuthoritativeWireEvents(
+  sdk.Client client,
+  String roomId,
+) async {
+  final response = await client.getRoomEvents(
+    roomId,
+    sdk.Direction.b,
+    limit: 50,
+    filter: jsonEncode(<String, Object>{
+      'types': <String>[sdk.EventTypes.Encrypted],
+    }),
+  );
+  return response.chunk
+      .where(
+        (event) =>
+            event.type == sdk.EventTypes.Encrypted &&
+            _hasEncryptedMegolmPayload(event),
+      )
+      .toList(growable: false);
+}
+
+Future<_EncryptedWireProof> _waitForAuthoritativeEncryptedWireEvent(
+  WidgetTester tester,
+  sdk.Client client,
+  String roomId, {
+  required Set<String> previousEventIds,
+  required String plaintext,
+}) async {
+  final end = DateTime.now().add(const Duration(minutes: 2));
+  Object? lastError;
+  var observedEncryptedEvents = const <sdk.MatrixEvent>[];
+  while (DateTime.now().isBefore(end)) {
+    try {
+      await client.oneShotSync(timeout: const Duration(seconds: 5));
+      final encryptedEvents = await _loadAuthoritativeWireEvents(
+        client,
+        roomId,
+      );
+      observedEncryptedEvents = encryptedEvents;
+      final newEncryptedEvents = encryptedEvents
+          .where((event) => !previousEventIds.contains(event.eventId))
+          .toList(growable: false);
+      if (newEncryptedEvents.isNotEmpty) {
+        final plaintextLeaked = newEncryptedEvents.any(
+          (event) => jsonEncode(event.toJson()).contains(plaintext),
+        );
+        return _EncryptedWireProof(
+          newEncryptedEvents: newEncryptedEvents,
+          plaintextLeaked: plaintextLeaked,
+        );
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  fail(
+    'matrix_authoritative_encrypted_wire_event_missing roomId=$roomId '
+    'previousWireEvents=${previousEventIds.length} '
+    'observedEncryptedWireEvents=${observedEncryptedEvents.length} '
+    'observedEncryptedWireEventIds=${observedEncryptedEvents.map((event) => event.eventId).join(',')} '
+    'lastError=$lastError',
+  );
+}
+
+bool _hasEncryptedMegolmPayload(sdk.MatrixEvent event) {
+  final algorithm = event.content['algorithm'];
+  final ciphertext = event.content['ciphertext'];
+  final sessionId = event.content['session_id'];
+  final senderKey = event.content['sender_key'];
+  return algorithm is String &&
+      algorithm.trim().isNotEmpty &&
+      ciphertext is String &&
+      ciphertext.trim().isNotEmpty &&
+      sessionId is String &&
+      sessionId.trim().isNotEmpty &&
+      senderKey is String &&
+      senderKey.trim().isNotEmpty;
+}
+
+Future<ChatRoomTimeline> _waitForDecryptedEncryptedTimeline(
+  WidgetTester tester,
+  ChatRepository chatRepository,
+  String roomId,
+  String plaintext,
+) async {
+  final end = DateTime.now().add(const Duration(minutes: 2));
+  Object? lastError;
+  ChatRoomTimeline? latestTimeline;
+  while (DateTime.now().isBefore(end)) {
+    try {
+      latestTimeline = await chatRepository.loadRoomTimeline(roomId);
+      if (latestTimeline.messages.any((message) => message.text == plaintext)) {
+        return latestTimeline;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
+
+  fail(
+    'matrix_decrypted_encrypted_timeline_message_missing roomId=$roomId '
+    'timelineMessages=${latestTimeline?.messages.length} '
+    'timelineTypes=${latestTimeline?.messages.map((message) => message.contentType).join(',')} '
+    'lastError=$lastError',
+  );
+}
+
+Future<CalendarEvent> _createCalendarEventWithReadAfterWrite(
+  WidgetTester tester,
+  CalendarRepository calendarRepository,
+  CalendarEventDraft draft,
+) async {
+  final end = DateTime.now().add(const Duration(minutes: 2));
+  Object? lastError;
+  while (DateTime.now().isBefore(end)) {
+    try {
+      final createdEvent = await calendarRepository.createEvent(draft);
+      final readEvent = await calendarRepository.readEvent(createdEvent.id);
+      if (readEvent.id == createdEvent.id && readEvent.title == draft.title) {
+        return createdEvent;
+      }
+      lastError = 'read_after_write_mismatch eventId=${createdEvent.id}';
+    } catch (error) {
+      lastError = error;
+      if (!_isRetryableCalendarConsistencyError(error)) {
+        rethrow;
+      }
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(seconds: 2));
+  }
+
+  fail(
+    'calendar_create_read_after_write_not_ready title=${draft.title} '
+    'scope=${draft.scope.type} teamId=${draft.scope.teamId} '
+    'channelId=${draft.scope.channelId} lastError=$lastError',
+  );
+}
+
+Future<CalendarEventList> _waitForCalendarEventInScope(
+  WidgetTester tester,
+  CalendarRepository calendarRepository, {
+  required CalendarScope scope,
+  required String eventId,
+  required String title,
+}) async {
+  final end = DateTime.now().add(const Duration(minutes: 1));
+  Object? lastError;
+  CalendarEventList? latestCalendar;
+  while (DateTime.now().isBefore(end)) {
+    try {
+      latestCalendar = await calendarRepository.loadEvents(scope: scope);
+      if (latestCalendar.events.any(
+        (event) => event.id == eventId && event.title == title,
+      )) {
+        return latestCalendar;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  fail(
+    'calendar_created_event_not_listed eventId=$eventId title=$title '
+    'scope=${scope.type} teamId=${scope.teamId} channelId=${scope.channelId} '
+    'visibleEvents=${latestCalendar?.events.length} lastError=$lastError',
+  );
+}
+
+Future<CalendarEventList> _waitForCalendarEventDeleted(
+  WidgetTester tester,
+  CalendarRepository calendarRepository, {
+  required CalendarScope scope,
+  required String eventId,
+}) async {
+  final end = DateTime.now().add(const Duration(minutes: 1));
+  Object? lastError;
+  CalendarEventList? latestCalendar;
+  while (DateTime.now().isBefore(end)) {
+    try {
+      latestCalendar = await calendarRepository.loadEvents(scope: scope);
+      if (latestCalendar.events.every((event) => event.id != eventId)) {
+        return latestCalendar;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    _resetKeyboardTestState();
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  fail(
+    'calendar_deleted_event_still_listed eventId=$eventId '
+    'scope=${scope.type} teamId=${scope.teamId} channelId=${scope.channelId} '
+    'visibleEvents=${latestCalendar?.events.length} lastError=$lastError',
+  );
+}
+
+bool _isRetryableCalendarConsistencyError(Object error) {
+  if (error is! AppFailure) {
+    return false;
+  }
+  final message = error.message.toLowerCase();
+  return message.contains('not found') ||
+      message.contains('unavailable') ||
+      message.contains('timed out') ||
+      message.contains('timeout');
+}
 
 Future<void> _waitFor(
   WidgetTester tester,
