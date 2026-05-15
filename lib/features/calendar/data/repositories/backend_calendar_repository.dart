@@ -19,6 +19,11 @@ class BackendCalendarRepository implements CalendarRepository {
   }
 
   @override
+  Future<CalendarEvent> readEvent(String id) {
+    return _client.readEvent(id);
+  }
+
+  @override
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) {
     return _client.createEvent(draft);
   }

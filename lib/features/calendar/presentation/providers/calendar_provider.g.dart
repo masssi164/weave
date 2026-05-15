@@ -147,6 +147,81 @@ final class CalendarClientSetupProvider
 String _$calendarClientSetupHash() =>
     r'cfa2310a5679c86ccef7cfbaf2936cb61c814578';
 
+@ProviderFor(calendarEvent)
+final calendarEventProvider = CalendarEventFamily._();
+
+final class CalendarEventProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<CalendarEvent>,
+          CalendarEvent,
+          FutureOr<CalendarEvent>
+        >
+    with $FutureModifier<CalendarEvent>, $FutureProvider<CalendarEvent> {
+  CalendarEventProvider._({
+    required CalendarEventFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'calendarEventProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$calendarEventHash();
+
+  @override
+  String toString() {
+    return r'calendarEventProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<CalendarEvent> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<CalendarEvent> create(Ref ref) {
+    final argument = this.argument as String;
+    return calendarEvent(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is CalendarEventProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$calendarEventHash() => r'637cafd78690cae4821a18608f2292bd25521592';
+
+final class CalendarEventFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<CalendarEvent>, String> {
+  CalendarEventFamily._()
+    : super(
+        retry: null,
+        name: r'calendarEventProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  CalendarEventProvider call(String id) =>
+      CalendarEventProvider._(argument: id, from: this);
+
+  @override
+  String toString() => r'calendarEventProvider';
+}
+
 @ProviderFor(CalendarNotifier)
 final calendarProvider = CalendarNotifierProvider._();
 

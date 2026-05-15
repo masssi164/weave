@@ -101,6 +101,19 @@ class CalendarFacadeClient {
     );
   }
 
+  Future<CalendarEvent> readEvent(String id) async {
+    final context = await _requireContext();
+    final response = await _send(
+      () => _httpClient.get(
+        _apiUri(context.baseUrl, ['api', 'calendar', 'events', id]),
+        headers: _jsonHeaders(context.accessToken),
+      ),
+      fallbackMessage: 'Unable to read the calendar event.',
+    );
+    _ensureSuccess(response, successCodes: const {200});
+    return _decodeEvent(_decodeObject(response.body));
+  }
+
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
     final context = await _requireContext();
     final response = await _send(

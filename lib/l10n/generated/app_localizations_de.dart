@@ -1657,9 +1657,39 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String calendarViewEventTooltip(String title) {
+    return '$title anzeigen';
+  }
+
+  @override
   String calendarEventSemantic(String title, String startsAt, String endsAt) {
     return '$title, beginnt $startsAt, endet $endsAt';
   }
+
+  @override
+  String get calendarDetailsDialogTitle => 'Kalendertermin-Details';
+
+  @override
+  String get calendarDetailsLoading => 'Termindetails werden geladen…';
+
+  @override
+  String get calendarDetailsError =>
+      'Termindetails sind gerade nicht verfügbar.';
+
+  @override
+  String get calendarDetailsTimeLabel => 'Zeit';
+
+  @override
+  String get calendarDetailsScopeLabel => 'Kalenderbereich';
+
+  @override
+  String get calendarDetailsLocationLabel => 'Ort';
+
+  @override
+  String get calendarDetailsDescriptionLabel => 'Beschreibung';
+
+  @override
+  String get calendarCloseButton => 'Schließen';
 
   @override
   String get calendarCreateSuccess => 'Kalendertermin erstellt.';

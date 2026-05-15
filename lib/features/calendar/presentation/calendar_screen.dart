@@ -71,6 +71,7 @@ class CalendarScreen extends ConsumerWidget {
                   final event = calendar.events[index - 1];
                   return _CalendarEventCard(
                     event: event,
+                    onOpen: () => _showEventDetails(context, ref, event),
                     onEdit: () => _showEventDialog(context, ref, event: event),
                     onDelete: () => _deleteEvent(context, ref, event),
                   );
@@ -133,6 +134,22 @@ class CalendarScreen extends ConsumerWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _showEventDetails(
+    BuildContext context,
+    WidgetRef ref,
+    CalendarEvent event,
+  ) async {
+    ref.invalidate(calendarEventProvider(event.id));
+    final freshEvent = await showDialog<CalendarEvent>(
+      context: context,
+      builder: (context) => _CalendarEventDetailsDialog(eventId: event.id),
+    );
+    if (freshEvent == null || !context.mounted) {
+      return;
+    }
+    await _showEventDialog(context, ref, event: freshEvent);
   }
 }
 
@@ -571,11 +588,13 @@ class _CalendarScopeBanner extends StatelessWidget {
 class _CalendarEventCard extends StatelessWidget {
   const _CalendarEventCard({
     required this.event,
+    required this.onOpen,
     required this.onEdit,
     required this.onDelete,
   });
 
   final CalendarEvent event;
+  final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
@@ -588,7 +607,7 @@ class _CalendarEventCard extends StatelessWidget {
 
     return Semantics(
       label: l10n.calendarEventSemantic(event.title, startsAt, endsAt),
-      button: false,
+      button: true,
       child: Card(
         elevation: 0,
         color: theme.colorScheme.surfaceContainerLow,
@@ -597,6 +616,7 @@ class _CalendarEventCard extends StatelessWidget {
           side: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
         child: ListTile(
+          onTap: onOpen,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 20,
             vertical: 8,
@@ -623,6 +643,11 @@ class _CalendarEventCard extends StatelessWidget {
             spacing: 4,
             children: [
               IconButton(
+                tooltip: l10n.calendarViewEventTooltip(event.title),
+                onPressed: onOpen,
+                icon: const Icon(Icons.open_in_new_outlined),
+              ),
+              IconButton(
                 tooltip: l10n.calendarEditEventTooltip(event.title),
                 onPressed: onEdit,
                 icon: const Icon(Icons.edit_outlined),
@@ -635,6 +660,119 @@ class _CalendarEventCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CalendarEventDetailsDialog extends ConsumerWidget {
+  const _CalendarEventDetailsDialog({required this.eventId});
+
+  final String eventId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final event = ref.watch(calendarEventProvider(eventId));
+
+    return AlertDialog(
+      title: Text(l10n.calendarDetailsDialogTitle),
+      content: SizedBox(
+        width: 420,
+        child: switch (event) {
+          AsyncData(value: final value) => _CalendarEventDetails(event: value),
+          AsyncError() => ErrorState(
+            message: l10n.calendarDetailsError,
+            retryLabel: l10n.retryButton,
+            onRetry: () => ref.invalidate(calendarEventProvider(eventId)),
+          ),
+          _ => LoadingState(message: l10n.calendarDetailsLoading),
+        },
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(l10n.calendarCloseButton),
+        ),
+        if (event case AsyncData(value: final value))
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).pop(value),
+            icon: const Icon(Icons.edit_outlined),
+            label: Text(l10n.calendarEditDialogTitle),
+          ),
+      ],
+    );
+  }
+}
+
+class _CalendarEventDetails extends StatelessWidget {
+  const _CalendarEventDetails({required this.event});
+
+  final CalendarEvent event;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final startsAt = _formatDateTime(context, event.startTime);
+    final endsAt = _formatDateTime(context, event.endTime);
+
+    return MergeSemantics(
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(event.title, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 12),
+            _CalendarDetailLine(
+              label: l10n.calendarDetailsTimeLabel,
+              value: '$startsAt – $endsAt',
+            ),
+            _CalendarDetailLine(
+              label: l10n.calendarDetailsScopeLabel,
+              value: event.scope.label,
+            ),
+            if ((event.location ?? '').isNotEmpty)
+              _CalendarDetailLine(
+                label: l10n.calendarDetailsLocationLabel,
+                value: event.location!,
+              ),
+            if ((event.description ?? '').isNotEmpty)
+              _CalendarDetailLine(
+                label: l10n.calendarDetailsDescriptionLabel,
+                value: event.description!,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CalendarDetailLine extends StatelessWidget {
+  const _CalendarDetailLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: theme.textTheme.labelLarge),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
