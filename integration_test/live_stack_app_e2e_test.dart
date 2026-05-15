@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
+import 'package:matrix/matrix.dart' as sdk;
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/secure_store.dart';
@@ -326,6 +327,18 @@ void main() {
         roomId: encryptedRoomId,
         message: encryptedMessage,
       );
+      await matrixClient.oneShotSync();
+      final rawEncryptedTimeline = await encryptedRoom?.getTimeline(limit: 50);
+      final encryptedWireEvents =
+          rawEncryptedTimeline?.events
+              .where(
+                (event) =>
+                    event.type == sdk.EventTypes.Encrypted ||
+                    event.originalSource?.type == sdk.EventTypes.Encrypted,
+              )
+              .toList(growable: false) ??
+          const <sdk.Event>[];
+      rawEncryptedTimeline?.cancelSubscriptions();
       final encryptedTimeline = await chatRepository.loadRoomTimeline(
         encryptedRoomId,
       );
@@ -343,7 +356,7 @@ void main() {
               ChatSecurityBootstrapState.ready &&
           e2eeSecurityState.secretStorageReady &&
           e2eeSecurityState.crossSigningReady;
-      final e2eeEncryptedEventObserved = encryptedTimelineMessages.isNotEmpty;
+      final e2eeEncryptedEventObserved = encryptedWireEvents.isNotEmpty;
       // ignore: avoid_print
       print(
         'E2EE_RESULT roomId=$encryptedRoomId roomName=$encryptedRoomName '
@@ -356,6 +369,7 @@ void main() {
         'crossSigningReady=${e2eeSecurityState.crossSigningReady} '
         'bootstrapGeneratedRecoveryKey=$e2eeBootstrapGeneratedRecoveryKey '
         'roomEncrypted=$e2eeRoomEncrypted '
+        'encryptedWireEvents=${encryptedWireEvents.length} '
         'encryptedTimelineMessages=${encryptedTimelineMessages.length}',
       );
 
@@ -713,6 +727,7 @@ void main() {
           'e2eeSecurityReady=$e2eeSecurityReady '
           'e2eeBootstrapState=${e2eeSecurityState.bootstrapState} '
           'e2eeRoomEncrypted=$e2eeRoomEncrypted '
+          'e2eeEncryptedWireEvents=${encryptedWireEvents.length} '
           'e2eeEncryptedEvents=${encryptedTimelineMessages.length} '
           'filesFacadeConnected=$filesFacadeConnected '
           'filesFacadeStatus=${filesState.connectionState.status} '
