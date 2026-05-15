@@ -344,6 +344,19 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatConnectButton => 'Matrix verbinden';
 
   @override
+  String get chatRefreshingRoomsLabel => 'Chaträume werden aktualisiert';
+
+  @override
+  String get chatStaleRoomsTitle => 'Zuletzt bekannte Räume werden angezeigt';
+
+  @override
+  String get chatStaleRoomsGuidance =>
+      'Matrix konnte gerade nicht aktualisiert werden. Deine Raumliste bleibt erhalten, damit du den Überblick behältst und es erneut versuchen kannst, sobald die Verbindung zurück ist.';
+
+  @override
+  String get chatStaleRoomsRetryButton => 'Räume aktualisieren';
+
+  @override
   String get filesScreenTitle => 'Dateien';
 
   @override

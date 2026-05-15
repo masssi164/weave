@@ -341,6 +341,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatConnectButton => 'Connect Matrix';
 
   @override
+  String get chatRefreshingRoomsLabel => 'Refreshing chat rooms';
+
+  @override
+  String get chatStaleRoomsTitle => 'Showing last known rooms';
+
+  @override
+  String get chatStaleRoomsGuidance =>
+      'We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.';
+
+  @override
+  String get chatStaleRoomsRetryButton => 'Refresh rooms';
+
+  @override
   String get filesScreenTitle => 'Files';
 
   @override

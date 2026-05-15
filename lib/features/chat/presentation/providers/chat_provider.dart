@@ -12,14 +12,24 @@ class ChatUiState {
     required this.phase,
     this.conversations = const <ChatConversation>[],
     this.failure,
+    this.staleFailure,
+    this.isRefreshing = false,
   });
 
   const ChatUiState.loading() : this._(phase: ChatViewPhase.loading);
 
   const ChatUiState.connecting() : this._(phase: ChatViewPhase.connecting);
 
-  const ChatUiState.content(List<ChatConversation> conversations)
-    : this._(phase: ChatViewPhase.content, conversations: conversations);
+  const ChatUiState.content(
+    List<ChatConversation> conversations, {
+    ChatFailure? staleFailure,
+    bool isRefreshing = false,
+  }) : this._(
+         phase: ChatViewPhase.content,
+         conversations: conversations,
+         staleFailure: staleFailure,
+         isRefreshing: isRefreshing,
+       );
 
   const ChatUiState.empty() : this._(phase: ChatViewPhase.empty);
 
@@ -32,6 +42,8 @@ class ChatUiState {
   final ChatViewPhase phase;
   final List<ChatConversation> conversations;
   final ChatFailure? failure;
+  final ChatFailure? staleFailure;
+  final bool isRefreshing;
 }
 
 class ChatController extends Notifier<ChatUiState> {
@@ -56,8 +68,18 @@ class ChatController extends Notifier<ChatUiState> {
   }
 
   Future<void> retry() async {
-    state = const ChatUiState.loading();
-    await _loadConversations(allowAutoConnect: false);
+    final cachedConversations = state.conversations;
+    if (cachedConversations.isEmpty) {
+      state = const ChatUiState.loading();
+      await _loadConversations(allowAutoConnect: false);
+      return;
+    }
+
+    state = ChatUiState.content(cachedConversations, isRefreshing: true);
+    await _loadConversations(
+      allowAutoConnect: false,
+      staleConversations: cachedConversations,
+    );
   }
 
   Future<void> connect() async {
@@ -90,7 +112,10 @@ class ChatController extends Notifier<ChatUiState> {
     );
   }
 
-  Future<void> _loadConversations({required bool allowAutoConnect}) async {
+  Future<void> _loadConversations({
+    required bool allowAutoConnect,
+    List<ChatConversation>? staleConversations,
+  }) async {
     final repository = ref.read(chatRepositoryProvider);
 
     try {
@@ -107,15 +132,27 @@ class ChatController extends Notifier<ChatUiState> {
         return;
       }
 
-      state = _stateForFailure(failure);
+      state = _stateForLoadFailure(failure, staleConversations);
     } catch (error) {
-      state = ChatUiState.error(
+      state = _stateForLoadFailure(
         ChatFailure.unknown(
           'Unable to load conversations right now.',
           cause: error,
         ),
+        staleConversations,
       );
     }
+  }
+
+  ChatUiState _stateForLoadFailure(
+    ChatFailure failure,
+    List<ChatConversation>? staleConversations,
+  ) {
+    if (staleConversations != null && staleConversations.isNotEmpty) {
+      return ChatUiState.content(staleConversations, staleFailure: failure);
+    }
+
+    return _stateForFailure(failure);
   }
 
   ChatUiState _stateForFailure(ChatFailure failure) {
