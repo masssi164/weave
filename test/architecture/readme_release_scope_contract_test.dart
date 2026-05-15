@@ -23,36 +23,38 @@ void main() {
     },
   );
 
-  test(
-    'README preview screenshots keep future and blocked scope explicit',
-    () async {
-      final readme = await File('README.md').readAsString();
-      final calendarPreview = _subsection(
-        readme,
-        '### Guarded Release 2 preview: calendar setup readiness',
-      );
-      final boardsPreview = _subsection(
-        readme,
-        '### Future preview: boards/tasks',
-      );
+  test('README preview screenshots keep active gates explicit', () async {
+    final readme = await File('README.md').readAsString();
+    final calendarPreview = _subsection(
+      readme,
+      '### Guarded active preview: Teams-like calendar',
+    );
+    final boardsPreview = _subsection(
+      readme,
+      '### Active preview: boards/tasks',
+    );
 
-      expect(
-        calendarPreview,
-        contains('06-calendar-setup-readiness-preview.svg'),
-      );
-      expect(calendarPreview.toLowerCase(), contains('preview'));
-      expect(calendarPreview.toLowerCase(), contains('private user calendars'));
-      expect(calendarPreview, contains('blocked until'));
-      expect(calendarPreview, contains('revocable read-only tokens'));
+    expect(
+      calendarPreview,
+      contains('06-calendar-setup-readiness-preview.svg'),
+    );
+    expect(calendarPreview.toLowerCase(), contains('preview'));
+    expect(
+      calendarPreview,
+      contains('workspace/org, team, and channel calendars'),
+    );
+    expect(
+      calendarPreview,
+      contains('private personal calendar ingestion is out of scope'),
+    );
 
-      expect(boardsPreview, contains('07-boards-preview.svg'));
-      expect(boardsPreview.toLowerCase(), contains('preview'));
-      expect(boardsPreview, contains('not part of the current Release 2'));
-      expect(boardsPreview, contains('provider-neutral'));
-      expect(boardsPreview, contains('does not claim a live Vikunja'));
-      expect(boardsPreview, contains('Deck'));
-    },
-  );
+    expect(boardsPreview, contains('07-boards-preview.svg'));
+    expect(boardsPreview.toLowerCase(), contains('preview'));
+    expect(boardsPreview, contains('active Weave scope behind feature gates'));
+    expect(boardsPreview, contains('provider-neutral'));
+    expect(boardsPreview, contains('does not claim a live Vikunja'));
+    expect(boardsPreview, contains('Deck'));
+  });
 }
 
 String _section(String markdown, String heading) {

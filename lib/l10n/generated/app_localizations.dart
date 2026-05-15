@@ -446,7 +446,7 @@ abstract class AppLocalizations {
   /// Semantic label for the hidden future boards preview icon
   ///
   /// In en, this message translates to:
-  /// **'Future boards preview'**
+  /// **'Boards preview'**
   String get semanticDeckIcon;
 
   /// Semantic label for the settings icon
@@ -1124,7 +1124,7 @@ abstract class AppLocalizations {
   /// Subtle branded copy shown in the settings header card
   ///
   /// In en, this message translates to:
-  /// **'Weave Release 1 focuses on messaging, files, and the server connection that holds them together.'**
+  /// **'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.'**
   String get settingsBrandSectionDescription;
 
   /// Section title for user-configurable shell module visibility
@@ -1682,7 +1682,7 @@ abstract class AppLocalizations {
   /// Description for feature-flagged post-release surfaces
   ///
   /// In en, this message translates to:
-  /// **'These surfaces stay hidden by default for Release 1. They only show honest shell states until the backend contracts are available.'**
+  /// **'These feature-gated surfaces stay honest about what is active, blocked, or still waiting for backend contracts.'**
   String get settingsPreviewSurfacesDescription;
 
   /// Feature-flagged Guest Portal preview title
@@ -2258,7 +2258,7 @@ abstract class AppLocalizations {
   /// Legacy hidden Deck empty state message retained for compatibility
   ///
   /// In en, this message translates to:
-  /// **'No boards in this future preview yet'**
+  /// **'No boards in this active preview yet'**
   String get deckEmptyMessage;
 
   /// Label for the detected device language display
@@ -2630,7 +2630,7 @@ abstract class AppLocalizations {
   /// Description explaining that the current calendar surface is workspace-scoped rather than private-user scoped
   ///
   /// In en, this message translates to:
-  /// **'This first Calendar slice uses the shared Weave workspace calendar. Private user calendars stay unavailable until the access model is implemented.'**
+  /// **'This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.'**
   String get calendarWorkspaceScopeDescription;
 
   /// Description for non-workspace calendar scope metadata returned by the backend
@@ -2726,13 +2726,13 @@ abstract class AppLocalizations {
   /// Status text when private user calendars are available
   ///
   /// In en, this message translates to:
-  /// **'Private user calendars available'**
+  /// **'Private personal calendars out of scope'**
   String get calendarClientSetupPrivateCalendarsAvailable;
 
   /// Status text when private user calendars are blocked
   ///
   /// In en, this message translates to:
-  /// **'Private user calendars blocked'**
+  /// **'Private personal calendars out of scope'**
   String get calendarClientSetupPrivateCalendarsBlocked;
 
   /// Calendar external credential model label
@@ -2973,7 +2973,7 @@ abstract class AppLocalizations {
   /// **'The calendar could not save that change right now.'**
   String get calendarOperationFailure;
 
-  /// Title for the hidden future boards/tasks preview screen
+  /// Title for the feature-gated boards/tasks preview screen
   ///
   /// In en, this message translates to:
   /// **'Boards preview'**
@@ -2982,31 +2982,31 @@ abstract class AppLocalizations {
   /// Semantic label for the boards preview icon
   ///
   /// In en, this message translates to:
-  /// **'Future boards preview'**
+  /// **'Boards preview'**
   String get boardsPreviewIconSemantic;
 
-  /// Title for the banner that marks boards/tasks as future scope
+  /// Title for the banner that marks boards/tasks as active gated scope
   ///
   /// In en, this message translates to:
-  /// **'Future boards/tasks preview'**
+  /// **'Active boards/tasks preview'**
   String get boardsPreviewBoundaryTitle;
 
-  /// Description explaining that boards/tasks are future scope and not provider-connected
+  /// Description explaining that boards/tasks are active scope but not provider-connected
   ///
   /// In en, this message translates to:
-  /// **'This design preview shows the intended Weave-owned board model and accessible task movement alternatives. It is hidden from Release 1 navigation and is not connected to Vikunja, Deck, or another provider yet.'**
+  /// **'This active preview shows the intended Weave-owned board model and accessible task movement alternatives. It remains feature-gated and is not connected to Vikunja, Deck, or another provider yet.'**
   String get boardsPreviewBoundaryDescription;
 
-  /// Semantic summary for the future-scope boundary banner
+  /// Semantic summary for the active-preview boundary banner
   ///
   /// In en, this message translates to:
-  /// **'Future boards/tasks preview. Hidden from Release 1 navigation. Provider-neutral Weave model with keyboard and screen-reader alternatives; no provider is connected yet.'**
+  /// **'Active boards/tasks preview. Feature-gated provider-neutral Weave model with keyboard and screen-reader alternatives; no live provider is connected yet.'**
   String get boardsPreviewBoundarySemantic;
 
-  /// Chip label stating boards/tasks are after Release 1
+  /// Chip label stating boards/tasks are active preview scope
   ///
   /// In en, this message translates to:
-  /// **'Post-Release-1'**
+  /// **'Active preview'**
   String get boardsPreviewPostReleaseChip;
 
   /// Chip label stating the boards model is provider-neutral

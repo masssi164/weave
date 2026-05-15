@@ -204,7 +204,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get semanticCalendarIcon => 'Calendar events';
 
   @override
-  String get semanticDeckIcon => 'Future boards preview';
+  String get semanticDeckIcon => 'Boards preview';
 
   @override
   String get semanticSettingsIcon => 'Application settings';
@@ -622,7 +622,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsBrandSectionDescription =>
-      'Weave Release 1 focuses on messaging, files, and the server connection that holds them together.';
+      'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.';
 
   @override
   String get settingsShellModulesTitle => 'Shell modules';
@@ -955,7 +955,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsPreviewSurfacesDescription =>
-      'These surfaces stay hidden by default for Release 1. They only show honest shell states until the backend contracts are available.';
+      'These feature-gated surfaces stay honest about what is active, blocked, or still waiting for backend contracts.';
 
   @override
   String get settingsGuestPortalPreviewTitle => 'Guest Portal';
@@ -1293,7 +1293,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendarEmptyMessage => 'No events yet';
 
   @override
-  String get deckEmptyMessage => 'No boards in this future preview yet';
+  String get deckEmptyMessage => 'No boards in this active preview yet';
 
   @override
   String get deviceLanguageLabel => 'Device Language';
@@ -1509,7 +1509,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarWorkspaceScopeDescription =>
-      'This first Calendar slice uses the shared Weave workspace calendar. Private user calendars stay unavailable until the access model is implemented.';
+      'This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.';
 
   @override
   String calendarGenericScopeDescription(String scopeLabel) {
@@ -1565,11 +1565,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get calendarClientSetupPrivateCalendarsAvailable =>
-      'Private user calendars available';
+      'Private personal calendars out of scope';
 
   @override
   String get calendarClientSetupPrivateCalendarsBlocked =>
-      'Private user calendars blocked';
+      'Private personal calendars out of scope';
 
   @override
   String calendarClientSetupExternalCredentialModel(String model) {
@@ -1720,21 +1720,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get boardsPreviewScreenTitle => 'Boards preview';
 
   @override
-  String get boardsPreviewIconSemantic => 'Future boards preview';
+  String get boardsPreviewIconSemantic => 'Boards preview';
 
   @override
-  String get boardsPreviewBoundaryTitle => 'Future boards/tasks preview';
+  String get boardsPreviewBoundaryTitle => 'Active boards/tasks preview';
 
   @override
   String get boardsPreviewBoundaryDescription =>
-      'This design preview shows the intended Weave-owned board model and accessible task movement alternatives. It is hidden from Release 1 navigation and is not connected to Vikunja, Deck, or another provider yet.';
+      'This active preview shows the intended Weave-owned board model and accessible task movement alternatives. It remains feature-gated and is not connected to Vikunja, Deck, or another provider yet.';
 
   @override
   String get boardsPreviewBoundarySemantic =>
-      'Future boards/tasks preview. Hidden from Release 1 navigation. Provider-neutral Weave model with keyboard and screen-reader alternatives; no provider is connected yet.';
+      'Active boards/tasks preview. Feature-gated provider-neutral Weave model with keyboard and screen-reader alternatives; no live provider is connected yet.';
 
   @override
-  String get boardsPreviewPostReleaseChip => 'Post-Release-1';
+  String get boardsPreviewPostReleaseChip => 'Active preview';
 
   @override
   String get boardsPreviewProviderNeutralChip => 'Provider-neutral model';

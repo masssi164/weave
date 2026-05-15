@@ -20,7 +20,7 @@ class GuestAccessPreviewCard extends StatelessWidget {
     return Semantics(
       container: true,
       label:
-          '$title. Hidden by default for Release 1. Guests are distinct from members and only see explicitly granted capabilities.',
+          '$title. Feature-gated by default. Guests are distinct from members and only see explicitly granted capabilities.',
       child: Card(
         elevation: 0,
         color: theme.colorScheme.surfaceContainerLow,

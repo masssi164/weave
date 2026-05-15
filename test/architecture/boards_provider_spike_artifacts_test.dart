@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('provider spike artifacts stay concrete and post-Release-1', () async {
+  test('provider spike artifacts stay concrete and active-preview', () async {
     final artifacts = await File(
       'docs/research/boards-provider-spike-artifacts.md',
     ).readAsString();
@@ -20,7 +20,10 @@ void main() {
       artifacts,
       contains('No live instance, credentials, or provider secrets'),
     );
-    expect(artifacts, contains('hidden and disabled for Release 1'));
+    expect(
+      artifacts,
+      contains('feature-gated until provider contracts are ready'),
+    );
   });
 
   test(

@@ -87,7 +87,7 @@ SCREENS: tuple[Screen, ...] = (
         subhero="Custom Matrix chat surface with room list, readable message history, and a clear composer.",
         metrics=(
             Metric("Room", "#release-room"),
-            Metric("Encryption", "E2EE deferred, clearly labeled"),
+            Metric("Encryption", "E2EE active scope, gated"),
             Metric("State", "Connected"),
         ),
         cards=(
@@ -143,7 +143,7 @@ SCREENS: tuple[Screen, ...] = (
         description="The guarded Calendar preview shows Release 2 preparation copy for access-model and external credential-readiness states.",
         active_nav="Preview",
         hero="Calendar setup readiness preview",
-        subhero="Release 2 preparation stays honest: workspace scope is labelled, private calendars are blocked, and external client setup is disabled until safe credentials exist.",
+        subhero="The shared Calendar preview stays honest: workspace scope is labelled as the first Teams-like calendar scope, while team/channel calendars and meeting threads remain the next gated slices.",
         metrics=(
             Metric("Scope", "Workspace calendar"),
             Metric("Access", "Private calendars blocked"),
@@ -161,7 +161,7 @@ SCREENS: tuple[Screen, ...] = (
         title="Weave future boards preview screen",
         description="A clearly labelled future boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.",
         active_nav="Preview",
-        hero="Boards/tasks preview · future scope",
+        hero="Boards/tasks preview · active scope",
         subhero="A Weave-owned board model for future provider adapters. Hidden from the current release and not connected to Vikunja, Deck, or another provider yet.",
         metrics=(
             Metric("Release", "Future track"),

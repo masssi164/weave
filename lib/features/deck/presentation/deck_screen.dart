@@ -3,7 +3,7 @@ import 'package:weave/features/boards/presentation/boards_preview_screen.dart';
 
 /// Compatibility wrapper for the hidden legacy Deck route.
 ///
-/// Boards/tasks are post-Release-1 future scope and use Weave-owned,
+/// Boards/tasks are active feature-gated scope and use Weave-owned,
 /// provider-neutral language. This route is not present in the shell navigation
 /// and remains redirected away in the app router until a later promotion spec
 /// explicitly enables a boards/tasks module.

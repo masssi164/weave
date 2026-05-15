@@ -25,11 +25,46 @@ class CalendarFacadeClient {
   final ServerConfigurationRepository _serverConfigurationRepository;
   final AuthSessionRepository _authSessionRepository;
 
-  Future<CalendarEventList> listEvents({DateTime? from, DateTime? to}) async {
+  Future<CalendarScopeList> listScopes() async {
+    final context = await _requireContext();
+    final response = await _send(
+      () => _httpClient.get(
+        _apiUri(context.baseUrl, const ['api', 'calendar', 'scopes']),
+        headers: _jsonHeaders(context.accessToken),
+      ),
+      fallbackMessage: 'Unable to load calendar scopes from the Weave backend.',
+    );
+    _ensureSuccess(response, successCodes: const {200});
+    final payload = _decodeObject(response.body);
+    final rawScopes = payload['scopes'];
+    if (rawScopes is! List) {
+      throw const AppFailure.unknown(
+        'The Weave backend returned an invalid calendar scopes payload.',
+      );
+    }
+    final scopes = rawScopes
+        .whereType<Map<String, dynamic>>()
+        .map(_decodeScope)
+        .toList(growable: false);
+    return CalendarScopeList(
+      scopes: scopes.isEmpty ? const [CalendarScope.workspace] : scopes,
+    );
+  }
+
+  Future<CalendarEventList> listEvents({
+    DateTime? from,
+    DateTime? to,
+    CalendarScope? selectedScope,
+  }) async {
     final context = await _requireContext();
     final query = <String, String>{
       if (from != null) 'from': from.toUtc().toIso8601String(),
       if (to != null) 'to': to.toUtc().toIso8601String(),
+      if (selectedScope != null && !selectedScope.isWorkspace)
+        'scopeType': selectedScope.type,
+      if (selectedScope?.teamId case final teamId?) 'teamId': teamId,
+      if (selectedScope?.channelId case final channelId?)
+        'channelId': channelId,
     };
     final response = await _send(
       () => _httpClient.get(
@@ -50,12 +85,12 @@ class CalendarFacadeClient {
         'The Weave backend returned an invalid calendar payload.',
       );
     }
-    final scope = _decodeScope(payload['scope']);
+    final responseScope = _decodeScope(payload['scope']);
     final events = rawEvents
         .whereType<Map<String, dynamic>>()
-        .map((event) => _decodeEvent(event, defaultScope: scope))
+        .map((event) => _decodeEvent(event, defaultScope: responseScope))
         .toList(growable: false);
-    return CalendarEventList(scope: scope, events: events);
+    return CalendarEventList(scope: responseScope, events: events);
   }
 
   Future<CalendarClientSetup> clientSetup() async {
@@ -269,7 +304,40 @@ class CalendarFacadeClient {
             _ => type,
           };
 
-    return CalendarScope(type: type, label: label);
+    final rawId = rawScope['id'];
+    final rawWorkspaceId = rawScope['workspaceId'];
+    final rawTeamId = rawScope['teamId'];
+    final rawChannelId = rawScope['channelId'];
+    final rawAccessModel = rawScope['accessModel'];
+
+    final teamId = rawTeamId is String && rawTeamId.trim().isNotEmpty
+        ? rawTeamId.trim()
+        : null;
+    final channelId = rawChannelId is String && rawChannelId.trim().isNotEmpty
+        ? rawChannelId.trim()
+        : null;
+    final fallbackId = switch (type) {
+      'team' => teamId == null ? 'team' : 'team:$teamId',
+      'channel' => channelId == null ? 'channel' : 'channel:$channelId',
+      _ => defaultScope.id,
+    };
+
+    return CalendarScope(
+      id: rawId is String && rawId.trim().isNotEmpty
+          ? rawId.trim()
+          : fallbackId,
+      type: type,
+      label: label,
+      workspaceId: rawWorkspaceId is String && rawWorkspaceId.trim().isNotEmpty
+          ? rawWorkspaceId.trim()
+          : defaultScope.workspaceId,
+      teamId: teamId,
+      channelId: channelId,
+      accessModel: rawAccessModel is String && rawAccessModel.trim().isNotEmpty
+          ? rawAccessModel.trim()
+          : defaultScope.accessModel,
+      capabilities: _readStringList(rawScope['capabilities']),
+    );
   }
 
   CalendarAccessModel _decodeAccessModel(Object? rawAccessModel) {

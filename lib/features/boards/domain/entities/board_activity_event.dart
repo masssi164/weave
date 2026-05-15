@@ -2,7 +2,7 @@
 ///
 /// This is an app-layer contract only: it normalizes preview fixtures and
 /// external-provider-shaped samples without claiming that a live provider is
-/// connected in Release 1.
+/// connected until the provider facade is explicitly enabled.
 enum BoardActivityEventType {
   taskCreated,
   taskUpdated,

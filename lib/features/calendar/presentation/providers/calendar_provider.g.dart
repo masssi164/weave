@@ -105,6 +105,100 @@ final class CalendarRepositoryProvider
 String _$calendarRepositoryHash() =>
     r'7114198967e26af320220ef18cd4b95dab8ceb7f';
 
+@ProviderFor(SelectedCalendarScope)
+final selectedCalendarScopeProvider = SelectedCalendarScopeProvider._();
+
+final class SelectedCalendarScopeProvider
+    extends $NotifierProvider<SelectedCalendarScope, CalendarScope> {
+  SelectedCalendarScopeProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'selectedCalendarScopeProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$selectedCalendarScopeHash();
+
+  @$internal
+  @override
+  SelectedCalendarScope create() => SelectedCalendarScope();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(CalendarScope value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<CalendarScope>(value),
+    );
+  }
+}
+
+String _$selectedCalendarScopeHash() =>
+    r'631d8146a2929ac5c8f835811a53e156fa90c35a';
+
+abstract class _$SelectedCalendarScope extends $Notifier<CalendarScope> {
+  CalendarScope build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final ref = this.ref as $Ref<CalendarScope, CalendarScope>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<CalendarScope, CalendarScope>,
+              CalendarScope,
+              Object?,
+              Object?
+            >;
+    element.handleCreate(ref, build);
+  }
+}
+
+@ProviderFor(calendarScopes)
+final calendarScopesProvider = CalendarScopesProvider._();
+
+final class CalendarScopesProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<CalendarScopeList>,
+          CalendarScopeList,
+          FutureOr<CalendarScopeList>
+        >
+    with
+        $FutureModifier<CalendarScopeList>,
+        $FutureProvider<CalendarScopeList> {
+  CalendarScopesProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'calendarScopesProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$calendarScopesHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<CalendarScopeList> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<CalendarScopeList> create(Ref ref) {
+    return calendarScopes(ref);
+  }
+}
+
+String _$calendarScopesHash() => r'b2935571b6cde8a8eb588a11d4ddc18943ca330e';
+
 @ProviderFor(calendarClientSetup)
 final calendarClientSetupProvider = CalendarClientSetupProvider._();
 
@@ -246,7 +340,7 @@ final class CalendarNotifierProvider
   CalendarNotifier create() => CalendarNotifier();
 }
 
-String _$calendarNotifierHash() => r'd019ac3247543c39dc76dd552259e82227c7fe02';
+String _$calendarNotifierHash() => r'9bfa0be88274e403ad261f18989fd9de9d095486';
 
 abstract class _$CalendarNotifier extends $AsyncNotifier<CalendarEventList> {
   FutureOr<CalendarEventList> build();

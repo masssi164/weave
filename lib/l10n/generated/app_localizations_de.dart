@@ -207,7 +207,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get semanticCalendarIcon => 'Kalendertermine';
 
   @override
-  String get semanticDeckIcon => 'Zukünftige Boards-Vorschau';
+  String get semanticDeckIcon => 'Boards-Vorschau';
 
   @override
   String get semanticSettingsIcon => 'App-Einstellungen';
@@ -971,7 +971,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsPreviewSurfacesDescription =>
-      'Diese Bereiche bleiben für Release 1 standardmäßig verborgen. Sie zeigen nur ehrliche Shell-Zustände, bis die Backend-Verträge verfügbar sind.';
+      'Diese feature-gegateten Bereiche bleiben ehrlich darüber, was aktiv, blockiert oder noch von Backend-Verträgen abhängig ist.';
 
   @override
   String get settingsGuestPortalPreviewTitle => 'Gastportal';
@@ -1747,7 +1747,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get boardsPreviewScreenTitle => 'Boards-Vorschau';
 
   @override
-  String get boardsPreviewIconSemantic => 'Zukünftige Boards-Vorschau';
+  String get boardsPreviewIconSemantic => 'Boards-Vorschau';
 
   @override
   String get boardsPreviewBoundaryTitle =>
@@ -1762,7 +1762,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Zukünftige Boards-/Aufgaben-Vorschau. In der Release-1-Navigation ausgeblendet. Anbieterneutrales Weave-Modell mit Tastatur- und Screenreader-Alternativen; noch kein Anbieter verbunden.';
 
   @override
-  String get boardsPreviewPostReleaseChip => 'Nach Release 1';
+  String get boardsPreviewPostReleaseChip => 'Aktive Vorschau';
 
   @override
   String get boardsPreviewProviderNeutralChip => 'Anbieterneutrales Modell';

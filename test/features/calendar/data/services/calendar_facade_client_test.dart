@@ -82,6 +82,65 @@ void main() {
       );
     });
 
+    test('loads workspace, team, and channel calendar scopes', () async {
+      late http.Request capturedRequest;
+      final facade = client(
+        MockClient((request) async {
+          capturedRequest = request;
+          return http.Response(
+            jsonEncode({
+              'scopes': [
+                {
+                  'id': 'workspace',
+                  'type': 'workspace',
+                  'label': 'Weave workspace calendar',
+                  'workspaceId': 'workspace',
+                  'accessModel': 'shared-workspace-calendar',
+                  'capabilities': ['read', 'create'],
+                },
+                {
+                  'id': 'team:engineering',
+                  'type': 'team',
+                  'label': 'Engineering team calendar',
+                  'workspaceId': 'workspace',
+                  'teamId': 'engineering',
+                  'accessModel': 'shared-team-calendar',
+                  'capabilities': ['read', 'create'],
+                },
+                {
+                  'id': 'channel:engineering-general',
+                  'type': 'channel',
+                  'label': 'Engineering / general channel calendar',
+                  'workspaceId': 'workspace',
+                  'teamId': 'engineering',
+                  'channelId': 'engineering-general',
+                  'accessModel': 'shared-channel-calendar',
+                  'capabilities': ['read', 'create'],
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final scopes = await facade.listScopes();
+
+      expect(capturedRequest.method, 'GET');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.home.internal/api/calendar/scopes',
+      );
+      expect(scopes.scopes.map((scope) => scope.type), [
+        'workspace',
+        'team',
+        'channel',
+      ]);
+      expect(scopes.scopes[1].teamId, 'engineering');
+      expect(scopes.scopes[2].channelId, 'engineering-general');
+      expect(scopes.scopes[2].accessModel, 'shared-channel-calendar');
+    });
+
     test('lists events through the backend calendar facade', () async {
       late http.Request capturedRequest;
       final facade = client(
@@ -119,12 +178,19 @@ void main() {
       final events = await facade.listEvents(
         from: DateTime.utc(2026, 4, 26),
         to: DateTime.utc(2026, 4, 27),
+        selectedScope: const CalendarScope(
+          id: 'channel:engineering-general',
+          type: 'channel',
+          label: 'Engineering / general channel calendar',
+          teamId: 'engineering',
+          channelId: 'engineering-general',
+        ),
       );
 
       expect(capturedRequest.method, 'GET');
       expect(
         capturedRequest.url.toString(),
-        'https://api.home.internal/api/calendar/events?from=2026-04-26T00%3A00%3A00.000Z&to=2026-04-27T00%3A00%3A00.000Z',
+        'https://api.home.internal/api/calendar/events?from=2026-04-26T00%3A00%3A00.000Z&to=2026-04-27T00%3A00%3A00.000Z&scopeType=channel&teamId=engineering&channelId=engineering-general',
       );
       expect(capturedRequest.headers['authorization'], 'Bearer calendar-token');
       expect(events.scope.type, 'workspace');
@@ -349,7 +415,10 @@ void main() {
           'PATCH https://api.home.internal/api/calendar/events/calendar:workspace:1',
           'DELETE https://api.home.internal/api/calendar/events/calendar:workspace:1',
         ]);
-        expect(jsonDecode(requests.first.body)['timezone'], 'Europe/Berlin');
+        final createBody =
+            jsonDecode(requests.first.body) as Map<String, dynamic>;
+        expect(createBody['timezone'], 'Europe/Berlin');
+        expect(createBody['scope']['type'], 'workspace');
         expect(jsonDecode(requests[1].body), {
           'title': 'Updated Planning',
           'etag': 'abc',

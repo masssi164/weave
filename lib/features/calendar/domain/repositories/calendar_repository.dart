@@ -1,7 +1,9 @@
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 
 abstract interface class CalendarRepository {
-  Future<CalendarEventList> loadEvents();
+  Future<CalendarScopeList> loadScopes();
+
+  Future<CalendarEventList> loadEvents({CalendarScope? scope});
 
   Future<CalendarClientSetup> loadClientSetup();
 

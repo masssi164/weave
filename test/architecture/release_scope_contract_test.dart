@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'Release 1 router keeps future calendar and boards surfaces hidden',
+    'Router keeps feature-gated calendar and boards surfaces out of default navigation',
     () async {
       final routerSource = await File(
         'lib/core/router/app_router.dart',
@@ -35,7 +35,7 @@ void main() {
   );
 
   test(
-    'README screenshots keep Release 2 product surfaces separate from guarded previews',
+    'README screenshots keep current product surfaces separate from guarded active previews',
     () async {
       final readme = await File('README.md').readAsString();
       final screenshotSection = _section(readme, '## Product screenshots');
@@ -76,7 +76,7 @@ void main() {
         '## Guarded previews and roadmap screenshots',
       ).toLowerCase();
       expect(guardedPreviewSection, contains('calendar setup readiness'));
-      expect(guardedPreviewSection, contains('future preview'));
+      expect(guardedPreviewSection, contains('active preview'));
       expect(guardedPreviewSection, contains('does not claim a live vikunja'));
     },
   );

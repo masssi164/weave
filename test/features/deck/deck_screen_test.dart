@@ -14,7 +14,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Future boards/tasks preview'), findsOneWidget);
+      expect(find.text('Active boards/tasks preview'), findsOneWidget);
       expect(find.text('Provider-neutral model'), findsOneWidget);
     });
 

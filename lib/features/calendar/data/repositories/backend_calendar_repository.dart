@@ -9,8 +9,13 @@ class BackendCalendarRepository implements CalendarRepository {
   final CalendarFacadeClient _client;
 
   @override
-  Future<CalendarEventList> loadEvents() {
-    return _client.listEvents();
+  Future<CalendarScopeList> loadScopes() {
+    return _client.listScopes();
+  }
+
+  @override
+  Future<CalendarEventList> loadEvents({CalendarScope? scope}) {
+    return _client.listEvents(selectedScope: scope);
   }
 
   @override

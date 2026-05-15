@@ -67,6 +67,7 @@ class CalendarScreen extends ConsumerWidget {
     AppLocalizations l10n,
   ) {
     final asyncCalendar = ref.watch(calendarProvider);
+    final asyncScopes = ref.watch(calendarScopesProvider);
 
     return asyncCalendar.when(
       loading: () => SliverFillRemaining(
@@ -83,18 +84,21 @@ class CalendarScreen extends ConsumerWidget {
       data: (calendar) => SliverPadding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         sliver: SliverList.separated(
-          itemCount: calendar.events.isEmpty ? 3 : calendar.events.length + 2,
+          itemCount: calendar.events.isEmpty ? 4 : calendar.events.length + 3,
           separatorBuilder: (context, index) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             if (index == 0) {
               return _CalendarScopeBanner(scope: calendar.scope);
             }
+            if (index == 1) {
+              return _CalendarScopeSelector(scopes: asyncScopes);
+            }
             if (calendar.events.isNotEmpty &&
-                index == calendar.events.length + 1) {
+                index == calendar.events.length + 2) {
               return const _CalendarClientSetupCard();
             }
             if (calendar.events.isEmpty) {
-              if (index == 1) {
+              if (index == 2) {
                 return const _CalendarClientSetupCard();
               }
               return SizedBox(
@@ -106,7 +110,7 @@ class CalendarScreen extends ConsumerWidget {
               );
             }
 
-            final event = calendar.events[index - 1];
+            final event = calendar.events[index - 2];
             return _CalendarEventCard(
               event: event,
               onOpen: () => _showEventDetails(context, ref, event),
@@ -124,9 +128,14 @@ class CalendarScreen extends ConsumerWidget {
     WidgetRef ref, {
     CalendarEvent? event,
   }) async {
+    final CalendarScope selectedScope =
+        event?.scope ?? ref.read(selectedCalendarScopeProvider);
     final draft = await showDialog<CalendarEventDraft>(
       context: context,
-      builder: (context) => _CalendarEventDialog(initialEvent: event),
+      builder: (context) => _CalendarEventDialog(
+        initialEvent: event,
+        initialScope: selectedScope,
+      ),
     );
     if (draft == null || !context.mounted) {
       return;
@@ -680,6 +689,53 @@ class _CalendarScopeBanner extends StatelessWidget {
   }
 }
 
+class _CalendarScopeSelector extends ConsumerWidget {
+  const _CalendarScopeSelector({required this.scopes});
+
+  final AsyncValue<CalendarScopeList> scopes;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final selectedScope = ref.watch(selectedCalendarScopeProvider);
+    final visibleScopes = switch (scopes) {
+      AsyncData(value: final scopeList) => scopeList.scopes,
+      _ => [selectedScope],
+    };
+    final selectedValue = visibleScopes.contains(selectedScope)
+        ? selectedScope
+        : visibleScopes.first;
+
+    return Semantics(
+      container: true,
+      label: l10n.calendarDetailsScopeLabel,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final scope in visibleScopes)
+            ChoiceChip(
+              label: Text(scope.label),
+              selected: scope == selectedValue,
+              onSelected: (_) {
+                ref.read(selectedCalendarScopeProvider.notifier).select(scope);
+                ref.invalidate(calendarProvider);
+              },
+              avatar: Icon(
+                scope.isChannel
+                    ? Icons.tag_outlined
+                    : scope.isTeam
+                    ? Icons.group_work_outlined
+                    : Icons.domain_outlined,
+                size: 18,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CalendarEventCard extends StatelessWidget {
   const _CalendarEventCard({
     required this.event,
@@ -716,27 +772,12 @@ class _CalendarEventCard extends StatelessWidget {
             horizontal: 20,
             vertical: 8,
           ),
-          title: Text(event.title, style: theme.textTheme.titleMedium),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$startsAt – $endsAt'),
-                if ((event.location ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(event.location!),
-                ],
-                if ((event.description ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(event.description!),
-                ],
-              ],
-            ),
-          ),
-          trailing: Wrap(
-            spacing: 4,
+          title: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Expanded(
+                child: Text(event.title, style: theme.textTheme.titleMedium),
+              ),
               IconButton(
                 tooltip: l10n.calendarViewEventTooltip(event.title),
                 onPressed: onOpen,
@@ -753,6 +794,23 @@ class _CalendarEventCard extends StatelessWidget {
                 icon: const Icon(Icons.delete_outline),
               ),
             ],
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$startsAt – $endsAt'),
+                if ((event.location ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(event.location!),
+                ],
+                if ((event.description ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(event.description!),
+                ],
+              ],
+            ),
           ),
         ),
       ),
@@ -874,9 +932,10 @@ class _CalendarDetailLine extends StatelessWidget {
 }
 
 class _CalendarEventDialog extends StatefulWidget {
-  const _CalendarEventDialog({this.initialEvent});
+  const _CalendarEventDialog({this.initialEvent, required this.initialScope});
 
   final CalendarEvent? initialEvent;
+  final CalendarScope initialScope;
 
   @override
   State<_CalendarEventDialog> createState() => _CalendarEventDialogState();
@@ -951,6 +1010,14 @@ class _CalendarEventDialogState extends State<_CalendarEventDialog> {
                   labelText: l10n.calendarLocationFieldLabel,
                 ),
               ),
+              const SizedBox(height: 16),
+              TextFormField(
+                initialValue: widget.initialScope.label,
+                readOnly: true,
+                decoration: InputDecoration(
+                  labelText: l10n.calendarDetailsScopeLabel,
+                ),
+              ),
             ],
           ),
         ),
@@ -977,6 +1044,7 @@ class _CalendarEventDialogState extends State<_CalendarEventDialog> {
                     startsAt.add(const Duration(hours: 1)),
                 timezone: initialEvent?.timezone ?? 'UTC',
                 allDay: initialEvent?.allDay ?? false,
+                scope: widget.initialScope,
               ),
             );
           },

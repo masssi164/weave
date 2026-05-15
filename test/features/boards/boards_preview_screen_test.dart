@@ -7,7 +7,7 @@ import '../../helpers/test_app.dart';
 
 void main() {
   group('BoardsPreviewScreen', () {
-    testWidgets('labels boards as future provider-neutral preview', (
+    testWidgets('labels boards as active provider-neutral preview', (
       tester,
     ) async {
       _setCompactPreviewSurface(tester);
@@ -20,8 +20,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Boards preview'), findsWidgets);
-      expect(find.text('Future boards/tasks preview'), findsOneWidget);
-      expect(find.text('Post-Release-1'), findsOneWidget);
+      expect(find.text('Active boards/tasks preview'), findsOneWidget);
+      expect(find.text('Active preview'), findsWidgets);
       expect(find.text('Provider-neutral model'), findsOneWidget);
       expect(find.text('No drag required'), findsOneWidget);
       expect(find.text('Vikunja adapter spike'), findsOneWidget);
@@ -67,7 +67,7 @@ void main() {
 
       expect(
         find.bySemanticsLabel(
-          'Future boards/tasks preview. Hidden from Release 1 navigation. Provider-neutral Weave model with keyboard and screen-reader alternatives; no provider is connected yet.',
+          'Active boards/tasks preview. Feature-gated provider-neutral Weave model with keyboard and screen-reader alternatives; no live provider is connected yet.',
         ),
         findsOneWidget,
       );
@@ -125,7 +125,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Future boards/tasks preview'), findsOneWidget);
+      expect(find.text('Active boards/tasks preview'), findsOneWidget);
 
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -1800));
       await tester.pumpAndSettle();

@@ -20,7 +20,7 @@ class ConnectorSettingsPreviewCard extends StatelessWidget {
     return Semantics(
       container: true,
       label:
-          '$title. Hidden by default for Release 1. Provider secrets are never entered, shown, stored, or logged by the Flutter client.',
+          '$title. Feature-gated by default. Provider secrets are never entered, shown, stored, or logged by the Flutter client.',
       child: Card(
         elevation: 0,
         color: theme.colorScheme.surfaceContainerLow,
