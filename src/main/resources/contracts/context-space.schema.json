@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/context-graph.schema.json",
+  "title": "Weave Context Graph Contract",
+  "description": "Contract draft for tenant-scoped Weave contexts, graph edges, memberships, provider bindings, and ReBAC tuples. Team and channel are templates/kinds, not the hard backend hierarchy.",
+  "type": "object",
+  "required": ["tenant_id", "contexts", "edges", "memberships", "provider_bindings", "rebac_tuples"],
+  "properties": {
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "contexts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/context" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/context_edge" }
+    },
+    "memberships": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/context_membership" }
+    },
+    "provider_bindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/provider_binding" }
+    },
+    "rebac_tuples": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/rebac_tuple" }
+    }
+  },
+  "$defs": {
+    "context": {
+      "type": "object",
+      "required": ["tenant_id", "context_id", "kind", "template", "display_name", "lifecycle", "capabilities", "policy"],
+      "properties": {
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "context_id": { "type": "string", "minLength": 1 },
+        "parent_context_id": { "type": ["string", "null"] },
+        "kind": {
+          "type": "string",
+          "enum": ["workspace", "space", "project", "team", "channel", "meeting", "custom"]
+        },
+        "template": {
+          "type": "string",
+          "enum": ["workspace", "team", "channel", "project", "meeting", "custom", "none"]
+        },
+        "display_name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "lifecycle": {
+          "type": "string",
+          "enum": ["active", "archived", "disabled", "provisioning", "degraded"]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["chat", "files", "calendar", "boards", "meeting_threads", "connectors", "assistant"]
+          },
+          "uniqueItems": true
+        },
+        "policy": { "$ref": "#/$defs/context_policy" }
+      },
+      "additionalProperties": false
+    },
+    "context_edge": {
+      "type": "object",
+      "required": ["tenant_id", "edge_id", "from_context_id", "to_context_id", "relation"],
+      "properties": {
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "edge_id": { "type": "string", "minLength": 1 },
+        "from_context_id": { "type": "string", "minLength": 1 },
+        "to_context_id": { "type": "string", "minLength": 1 },
+        "relation": {
+          "type": "string",
+          "enum": ["contains", "linked_to", "calendar_for", "board_for", "files_for", "thread_for", "imports_from"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "context_membership": {
+      "type": "object",
+      "required": ["tenant_id", "context_id", "principal_ref", "role", "source"],
+      "properties": {
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "context_id": { "type": "string", "minLength": 1 },
+        "principal_ref": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "enum": ["owner", "admin", "member", "guest", "viewer", "connector", "assistant"] },
+        "source": { "type": "string", "enum": ["keycloak", "invite", "connector_consent", "system", "manual"] }
+      },
+      "additionalProperties": false
+    },
+    "provider_binding": {
+      "type": "object",
+      "required": ["tenant_id", "binding_id", "context_id", "provider", "external_id", "visibility", "capabilities"],
+      "properties": {
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "binding_id": { "type": "string", "minLength": 1 },
+        "context_id": { "type": "string", "minLength": 1 },
+        "provider": {
+          "type": "string",
+          "enum": ["matrix", "nextcloud", "vikunja", "openproject", "nextcloud-deck", "weave", "unknown"]
+        },
+        "external_id": { "type": "string", "minLength": 1 },
+        "external_url": { "type": "string", "format": "uri" },
+        "visibility": {
+          "type": "string",
+          "enum": ["hidden", "admin_fallback", "support_safe", "user_visible_provider"]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "cursor_ref": { "type": "string" },
+        "webhook_ref": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "rebac_tuple": {
+      "type": "object",
+      "required": ["tenant_id", "object_ref", "relation", "subject_ref"],
+      "properties": {
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "object_ref": { "type": "string", "minLength": 1 },
+        "relation": { "type": "string", "minLength": 1 },
+        "subject_ref": { "type": "string", "minLength": 1 },
+        "caveat": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "context_policy": {
+      "type": "object",
+      "required": ["connector_consent_required", "agentic_writes_allowed", "audit_required"],
+      "properties": {
+        "connector_consent_required": { "type": "boolean", "const": true },
+        "agentic_writes_allowed": { "type": "boolean", "const": false },
+        "audit_required": { "type": "boolean", "const": true },
+        "data_limit_refs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

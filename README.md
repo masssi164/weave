@@ -17,7 +17,7 @@ The backend is an active product facade for the MVP collaboration surfaces. Some
 - first-run onboarding status at `/api/onboarding/status`
 - workspace capability and release-readiness snapshots at `/api/workspace/capabilities` and `/api/workspace/release-readiness`
 - Nextcloud-backed Files facade endpoints when a backend-owned actor is configured; otherwise they fail closed
-- Calendar facade endpoints mapped to the backend actor's Nextcloud CalDAV workspace calendar fallback while workspace/team/channel scheduling scopes are implemented; unsafe private-personal calendar templates fail closed
+- Calendar facade endpoints mapped to the backend actor's Nextcloud CalDAV workspace calendar fallback while flexible Context/Space scheduling evolves from the current workspace/team/channel template scopes; unsafe private-personal calendar templates fail closed
 - secret-free Calendar client setup metadata at `GET /api/calendar/client-setup` for feature-gated native-client setup; it does not return credentials or generate profiles yet
 - OpenAPI JSON at `/v3/api-docs`
 - Actuator health/info endpoints, Gradle wrapper, Dockerfile, and GitHub Actions CI
@@ -48,6 +48,7 @@ Avoid using it to replace standards-based native flows by default:
 - `docs/runtime-configuration.md`: complete environment-variable reference and fail-closed adapter behavior.
 - `docs/release-operations.md`: Backend API operations guide and minimum operator checks.
 - `docs/calendar-client-setup.md`: active research and phased plan for Apple `.mobileconfig`, Android DAVx5, desktop CalDAV, and read-only webcal/ICS setup.
+- `docs/context-space-adr.md`: proposed flexible Context/Space contract seam; team/channel stay useful templates, not the hard backend hierarchy.
 - `docs/architecture-alignment.md`: cross-repo responsibility split for app, backend, and infrastructure.
 - `docs/boards-preview-contract.md`: active feature-gated Boards/Tasks provider-neutral contract notes; not a Product screenshots or live product surface.
 - `docs/issues/`: historical alignment issue drafts.
