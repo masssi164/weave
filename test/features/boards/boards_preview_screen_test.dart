@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:weave/features/boards/presentation/boards_preview_screen.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
 import '../../helpers/test_app.dart';
@@ -24,9 +27,90 @@ void main() {
       expect(find.text('Active preview'), findsWidgets);
       expect(find.text('Provider-neutral model'), findsOneWidget);
       expect(find.text('No drag required'), findsOneWidget);
+      expect(find.text('Static fixture preview'), findsOneWidget);
       expect(find.text('Vikunja adapter spike'), findsOneWidget);
       expect(find.text('Move menu instead of drag-only'), findsOneWidget);
     });
+
+    testWidgets('renders backend-fed snapshots and provider capability flags', (
+      tester,
+    ) async {
+      _setCompactPreviewSurface(tester);
+      final requests = <http.Request>[];
+      await tester.pumpWidget(
+        createTestApp(
+          const BoardsPreviewScreen(),
+          overrides: _backendPreviewOverrides((request) async {
+            requests.add(request);
+            if (request.method == 'POST') {
+              return http.Response('{"id":"task-1"}', 200);
+            }
+            return http.Response(
+              _backendPreviewPayload,
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Launch board'), findsOneWidget);
+      expect(find.text('Backend facade fed'), findsOneWidget);
+      expect(find.text('Provider: in-memory backend facade'), findsOneWidget);
+      expect(find.text('Backend non-drag actions ready'), findsOneWidget);
+      expect(find.text('Validate keyboard movement'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Board Launch board, 3 columns, 1 task.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byIcon(Icons.more_vert).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark done'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Task marked done through the backend facade.'),
+        findsOneWidget,
+      );
+      expect(
+        requests.any(
+          (request) =>
+              request.method == 'POST' &&
+              request.url.toString() ==
+                  'https://api.weave.local/api/boards/tasks/task-1/complete',
+        ),
+        isTrue,
+      );
+    });
+
+    testWidgets(
+      'shows blocked provider state when backend facade is disabled',
+      (tester) async {
+        _setCompactPreviewSurface(tester);
+        await tester.pumpWidget(
+          createTestApp(
+            const BoardsPreviewScreen(),
+            overrides: _backendPreviewOverrides(
+              (_) async =>
+                  http.Response('{"code":"boards-provider_unavailable"}', 503),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Provider runtime blocked'), findsOneWidget);
+        expect(find.text('Provider: backend unavailable'), findsOneWidget);
+        expect(find.text('Backend non-drag actions blocked'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(
+            'Board Boards backend facade unavailable, 0 columns, 0 tasks.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets('offers non-drag task actions with preview-only feedback', (
       tester,
@@ -140,9 +224,61 @@ final _staticPreviewOverrides = [
   weaveAuthenticatedSessionProvider.overrideWith((ref) async => null),
 ];
 
+List<dynamic> _backendPreviewOverrides(
+  Future<http.Response> Function(http.Request request) handler,
+) => [
+  weaveAuthenticatedSessionProvider.overrideWith(
+    (ref) async => WeaveAuthenticatedSession(
+      apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+      accessToken: 'token',
+    ),
+  ),
+  weaveApiHttpClientProvider.overrideWithValue(MockClient(handler)),
+];
+
 void _setCompactPreviewSurface(WidgetTester tester) {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1600);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 }
+
+const _backendPreviewPayload = '''
+{
+  "preview": true,
+  "releaseStatus": "active-feature-gated-preview",
+  "source": "local-preview-backend-facade",
+  "capabilities": {
+    "provider": "in-memory",
+    "enabled": true,
+    "supported": ["accessible_non_drag_moves"],
+    "unsupported": ["comments", "attachments"],
+    "supportSafeSummary": "Local preview backend facade; no external provider secrets are exposed."
+  },
+  "boards": [
+    {
+      "id": "board-1",
+      "name": "Launch board",
+      "description": "Backend-fed feature-gated preview",
+      "columns": [
+        {"id": "todo", "name": "To do", "semanticStatus": "not_started"},
+        {"id": "doing", "name": "Doing", "semanticStatus": "in_progress", "wipLimit": 3},
+        {"id": "done", "name": "Done", "semanticStatus": "done"}
+      ]
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-1",
+      "boardId": "board-1",
+      "columnId": "todo",
+      "title": "Validate keyboard movement",
+      "description": "No drag-only interactions.",
+      "status": "open",
+      "assigneeRefs": ["workspace:member"],
+      "labelRefs": ["a11y"],
+      "priority": "normal"
+    }
+  ]
+}
+''';

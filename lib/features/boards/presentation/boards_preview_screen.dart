@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
+import 'package:weave/features/boards/data/repositories/backend_boards_preview_repository.dart';
 import 'package:weave/features/boards/domain/entities/board_preview.dart';
 import 'package:weave/features/boards/presentation/providers/boards_preview_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 class BoardsPreviewScreen extends ConsumerWidget {
@@ -38,7 +42,7 @@ class BoardsPreviewScreen extends ConsumerWidget {
                 const SizedBox(height: 16),
                 _BoardSummaryCard(board: value),
                 const SizedBox(height: 16),
-                _BoardLayout(board: value),
+                _BoardLayout(board: value, ref: ref),
               ],
             ),
           ),
@@ -111,6 +115,16 @@ class _PreviewBoundaryBanner extends StatelessWidget {
                           icon: Icons.keyboard_alt_outlined,
                           label: l10n.boardsPreviewKeyboardChip,
                         ),
+                        _InfoChip(
+                          icon: board.isBackendFed
+                              ? Icons.sync_alt_outlined
+                              : Icons.lock_outline,
+                          label: board.isBackendFed
+                              ? l10n.boardsPreviewBackendFedChip
+                              : board.isBackendBlocked
+                              ? l10n.boardsPreviewProviderBlockedChip
+                              : l10n.boardsPreviewStaticFixtureChip,
+                        ),
                       ],
                     ),
                   ],
@@ -178,8 +192,31 @@ class _BoardSummaryCard extends StatelessWidget {
                     icon: Icons.move_down_outlined,
                     label: l10n.boardsPreviewNonDragMovement,
                   ),
+                  _InfoChip(
+                    icon: Icons.extension_outlined,
+                    label: l10n.boardsPreviewProviderCapabilitySummary(
+                      _providerLabel(l10n, board.capabilities.provider),
+                    ),
+                  ),
+                  _InfoChip(
+                    icon: board.canUseBackendNonDragActions
+                        ? Icons.check_circle_outline
+                        : Icons.block_outlined,
+                    label: board.canUseBackendNonDragActions
+                        ? l10n.boardsPreviewCapabilityNonDragReady
+                        : l10n.boardsPreviewCapabilityNonDragBlocked,
+                  ),
                 ],
               ),
+              if (board.capabilities.supportSafeSummary.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  board.capabilities.supportSafeSummary,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -189,9 +226,10 @@ class _BoardSummaryCard extends StatelessWidget {
 }
 
 class _BoardLayout extends StatelessWidget {
-  const _BoardLayout({required this.board});
+  const _BoardLayout({required this.board, required this.ref});
 
   final BoardPreview board;
+  final WidgetRef ref;
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +237,10 @@ class _BoardLayout extends StatelessWidget {
       builder: (context, constraints) {
         final useWideLayout = constraints.maxWidth >= 980;
         final columns = board.columns
-            .map((column) => _BoardColumnCard(column: column))
+            .map(
+              (column) =>
+                  _BoardColumnCard(board: board, column: column, ref: ref),
+            )
             .toList();
 
         if (!useWideLayout) {
@@ -232,9 +273,15 @@ class _BoardLayout extends StatelessWidget {
 }
 
 class _BoardColumnCard extends StatelessWidget {
-  const _BoardColumnCard({required this.column});
+  const _BoardColumnCard({
+    required this.board,
+    required this.column,
+    required this.ref,
+  });
 
+  final BoardPreview board;
   final BoardColumnPreview column;
+  final WidgetRef ref;
 
   @override
   Widget build(BuildContext context) {
@@ -283,7 +330,12 @@ class _BoardColumnCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               for (final task in column.tasks) ...[
-                _BoardTaskCard(task: task, columnName: column.name),
+                _BoardTaskCard(
+                  board: board,
+                  task: task,
+                  column: column,
+                  ref: ref,
+                ),
                 if (task != column.tasks.last) const SizedBox(height: 10),
               ],
             ],
@@ -295,10 +347,17 @@ class _BoardColumnCard extends StatelessWidget {
 }
 
 class _BoardTaskCard extends StatelessWidget {
-  const _BoardTaskCard({required this.task, required this.columnName});
+  const _BoardTaskCard({
+    required this.board,
+    required this.task,
+    required this.column,
+    required this.ref,
+  });
 
+  final BoardPreview board;
   final BoardTaskPreview task;
-  final String columnName;
+  final BoardColumnPreview column;
+  final WidgetRef ref;
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +369,7 @@ class _BoardTaskCard extends StatelessWidget {
       container: true,
       label: l10n.boardsPreviewTaskSemantic(
         task.title,
-        columnName,
+        column.name,
         statusLabel,
         task.assigneeLabel,
         task.dueLabel,
@@ -339,7 +398,12 @@ class _BoardTaskCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _TaskActionMenu(task: task),
+                  _TaskActionMenu(
+                    board: board,
+                    column: column,
+                    task: task,
+                    ref: ref,
+                  ),
                 ],
               ),
               const SizedBox(height: 6),
@@ -386,9 +450,17 @@ class _BoardTaskCard extends StatelessWidget {
 }
 
 class _TaskActionMenu extends StatelessWidget {
-  const _TaskActionMenu({required this.task});
+  const _TaskActionMenu({
+    required this.board,
+    required this.column,
+    required this.task,
+    required this.ref,
+  });
 
+  final BoardPreview board;
+  final BoardColumnPreview column;
   final BoardTaskPreview task;
+  final WidgetRef ref;
 
   @override
   Widget build(BuildContext context) {
@@ -396,11 +468,7 @@ class _TaskActionMenu extends StatelessWidget {
 
     return PopupMenuButton<_PreviewTaskAction>(
       tooltip: l10n.boardsPreviewTaskActionsTooltip(task.title),
-      onSelected: (action) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.boardsPreviewActionPreviewOnly)),
-        );
-      },
+      onSelected: (action) => _runTaskAction(context, l10n, action),
       itemBuilder: (context) => [
         PopupMenuItem(
           value: _PreviewTaskAction.moveNext,
@@ -417,6 +485,70 @@ class _TaskActionMenu extends StatelessWidget {
       ],
       icon: const Icon(Icons.more_vert),
     );
+  }
+
+  Future<void> _runTaskAction(
+    BuildContext context,
+    AppLocalizations l10n,
+    _PreviewTaskAction action,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!board.canUseBackendNonDragActions ||
+        action == _PreviewTaskAction.block) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.boardsPreviewActionPreviewOnly)),
+      );
+      return;
+    }
+
+    final session = await ref.read(weaveAuthenticatedSessionProvider.future);
+    if (session == null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.boardsPreviewActionPreviewOnly)),
+      );
+      return;
+    }
+
+    final repository = BackendBoardsPreviewRepository(
+      httpClient: ref.read(weaveApiHttpClientProvider),
+      apiBaseUrl: session.apiBaseUrl,
+      accessToken: session.accessToken,
+    );
+
+    try {
+      switch (action) {
+        case _PreviewTaskAction.moveNext:
+          final target = _nextColumn(board, column);
+          if (target == null) {
+            messenger.showSnackBar(
+              SnackBar(content: Text(l10n.boardsPreviewActionNoNextColumn)),
+            );
+            return;
+          }
+          await repository.moveTask(
+            taskId: task.id,
+            targetColumnId: target.id,
+            targetPosition: target.tasks.length,
+          );
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.boardsPreviewActionMoved)),
+          );
+        case _PreviewTaskAction.markDone:
+          await repository.completeTask(task.id);
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.boardsPreviewActionCompleted)),
+          );
+        case _PreviewTaskAction.block:
+          messenger.showSnackBar(
+            SnackBar(content: Text(l10n.boardsPreviewActionPreviewOnly)),
+          );
+      }
+      ref.invalidate(boardsPreviewProvider);
+    } on AppFailure {
+      messenger.showSnackBar(
+        SnackBar(content: Text(l10n.boardsPreviewActionFailed)),
+      );
+    }
   }
 }
 
@@ -483,5 +615,25 @@ String _statusLabel(AppLocalizations l10n, BoardTaskStatus status) {
     BoardTaskStatus.inProgress => l10n.boardsPreviewStatusInProgress,
     BoardTaskStatus.blocked => l10n.boardsPreviewStatusBlocked,
     BoardTaskStatus.done => l10n.boardsPreviewStatusDone,
+  };
+}
+
+BoardColumnPreview? _nextColumn(BoardPreview board, BoardColumnPreview column) {
+  final currentIndex = board.columns.indexWhere((item) => item.id == column.id);
+  if (currentIndex < 0 || currentIndex >= board.columns.length - 1) {
+    return null;
+  }
+  return board.columns[currentIndex + 1];
+}
+
+String _providerLabel(AppLocalizations l10n, String provider) {
+  return switch (provider) {
+    'in-memory' => l10n.boardsPreviewProviderInMemory,
+    'vikunja' => l10n.boardsPreviewProviderVikunja,
+    'openproject' => l10n.boardsPreviewProviderOpenProject,
+    'nextcloud-deck' => l10n.boardsPreviewProviderNextcloudDeck,
+    'none' => l10n.boardsPreviewProviderNone,
+    'unavailable' => l10n.boardsPreviewProviderUnavailable,
+    _ => l10n.boardsPreviewProviderUnknown,
   };
 }
