@@ -1875,4 +1875,63 @@ class AppLocalizationsEn extends AppLocalizations {
   String boardsPreviewStatusSemantic(String status) {
     return 'Status: $status';
   }
+
+  @override
+  String get boardsPreviewBackendFedChip => 'Backend facade fed';
+
+  @override
+  String get boardsPreviewProviderBlockedChip => 'Provider runtime blocked';
+
+  @override
+  String get boardsPreviewStaticFixtureChip => 'Static fixture preview';
+
+  @override
+  String boardsPreviewProviderCapabilitySummary(String provider) {
+    return 'Provider: $provider';
+  }
+
+  @override
+  String get boardsPreviewCapabilityNonDragReady =>
+      'Backend non-drag actions ready';
+
+  @override
+  String get boardsPreviewCapabilityNonDragBlocked =>
+      'Backend non-drag actions blocked';
+
+  @override
+  String get boardsPreviewProviderInMemory => 'in-memory backend facade';
+
+  @override
+  String get boardsPreviewProviderVikunja => 'Vikunja adapter';
+
+  @override
+  String get boardsPreviewProviderOpenProject => 'OpenProject adapter';
+
+  @override
+  String get boardsPreviewProviderNextcloudDeck => 'Nextcloud Deck adapter';
+
+  @override
+  String get boardsPreviewProviderNone => 'no backend provider';
+
+  @override
+  String get boardsPreviewProviderUnavailable => 'backend unavailable';
+
+  @override
+  String get boardsPreviewProviderUnknown => 'unknown provider';
+
+  @override
+  String get boardsPreviewActionMoved =>
+      'Task moved through the backend facade.';
+
+  @override
+  String get boardsPreviewActionCompleted =>
+      'Task marked done through the backend facade.';
+
+  @override
+  String get boardsPreviewActionFailed =>
+      'The backend facade could not save that Boards preview action.';
+
+  @override
+  String get boardsPreviewActionNoNextColumn =>
+      'This task is already in the last preview column.';
 }

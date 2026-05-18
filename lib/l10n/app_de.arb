@@ -526,6 +526,23 @@
   "boardsPreviewStatusInProgress": "In Arbeit",
   "boardsPreviewStatusBlocked": "Blockiert",
   "boardsPreviewStatusDone": "Erledigt",
-  "boardsPreviewStatusSemantic": "Status: {status}"
+  "boardsPreviewStatusSemantic": "Status: {status}",
+  "boardsPreviewBackendFedChip": "Aus Backend-Fassade",
+  "boardsPreviewProviderBlockedChip": "Provider-Laufzeit blockiert",
+  "boardsPreviewStaticFixtureChip": "Statische Vorschau",
+  "boardsPreviewProviderCapabilitySummary": "Provider: {provider}",
+  "boardsPreviewCapabilityNonDragReady": "Backend-Aktionen ohne Ziehen bereit",
+  "boardsPreviewCapabilityNonDragBlocked": "Backend-Aktionen ohne Ziehen blockiert",
+  "boardsPreviewProviderInMemory": "In-Memory-Backend-Fassade",
+  "boardsPreviewProviderVikunja": "Vikunja-Adapter",
+  "boardsPreviewProviderOpenProject": "OpenProject-Adapter",
+  "boardsPreviewProviderNextcloudDeck": "Nextcloud-Deck-Adapter",
+  "boardsPreviewProviderNone": "kein Backend-Provider",
+  "boardsPreviewProviderUnavailable": "Backend nicht verfügbar",
+  "boardsPreviewProviderUnknown": "unbekannter Provider",
+  "boardsPreviewActionMoved": "Aufgabe über die Backend-Fassade verschoben.",
+  "boardsPreviewActionCompleted": "Aufgabe über die Backend-Fassade als erledigt markiert.",
+  "boardsPreviewActionFailed": "Die Backend-Fassade konnte diese Boards-Vorschau-Aktion nicht speichern.",
+  "boardsPreviewActionNoNextColumn": "Diese Aufgabe ist bereits in der letzten Vorschau-Spalte."
 
 }

@@ -3143,6 +3143,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Status: {status}'**
   String boardsPreviewStatusSemantic(String status);
+
+  /// Chip label indicating the preview snapshot came from the backend facade
+  ///
+  /// In en, this message translates to:
+  /// **'Backend facade fed'**
+  String get boardsPreviewBackendFedChip;
+
+  /// Chip label indicating the backend provider runtime is blocked/unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Provider runtime blocked'**
+  String get boardsPreviewProviderBlockedChip;
+
+  /// Chip label indicating the preview is still using local fixtures
+  ///
+  /// In en, this message translates to:
+  /// **'Static fixture preview'**
+  String get boardsPreviewStaticFixtureChip;
+
+  /// Visible provider capability summary
+  ///
+  /// In en, this message translates to:
+  /// **'Provider: {provider}'**
+  String boardsPreviewProviderCapabilitySummary(String provider);
+
+  /// Capability label when accessible non-drag backend actions are available
+  ///
+  /// In en, this message translates to:
+  /// **'Backend non-drag actions ready'**
+  String get boardsPreviewCapabilityNonDragReady;
+
+  /// Capability label when accessible non-drag backend actions are unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Backend non-drag actions blocked'**
+  String get boardsPreviewCapabilityNonDragBlocked;
+
+  /// Provider label for the hidden local backend facade
+  ///
+  /// In en, this message translates to:
+  /// **'in-memory backend facade'**
+  String get boardsPreviewProviderInMemory;
+
+  /// Provider label for Vikunja
+  ///
+  /// In en, this message translates to:
+  /// **'Vikunja adapter'**
+  String get boardsPreviewProviderVikunja;
+
+  /// Provider label for OpenProject
+  ///
+  /// In en, this message translates to:
+  /// **'OpenProject adapter'**
+  String get boardsPreviewProviderOpenProject;
+
+  /// Provider label for Nextcloud Deck
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud Deck adapter'**
+  String get boardsPreviewProviderNextcloudDeck;
+
+  /// Provider label when only static fixtures are available
+  ///
+  /// In en, this message translates to:
+  /// **'no backend provider'**
+  String get boardsPreviewProviderNone;
+
+  /// Provider label when the backend facade is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'backend unavailable'**
+  String get boardsPreviewProviderUnavailable;
+
+  /// Provider label for an unrecognized backend provider
+  ///
+  /// In en, this message translates to:
+  /// **'unknown provider'**
+  String get boardsPreviewProviderUnknown;
+
+  /// Snackbar after a backend move task action succeeds
+  ///
+  /// In en, this message translates to:
+  /// **'Task moved through the backend facade.'**
+  String get boardsPreviewActionMoved;
+
+  /// Snackbar after a backend complete task action succeeds
+  ///
+  /// In en, this message translates to:
+  /// **'Task marked done through the backend facade.'**
+  String get boardsPreviewActionCompleted;
+
+  /// Snackbar after a backend Boards action fails
+  ///
+  /// In en, this message translates to:
+  /// **'The backend facade could not save that Boards preview action.'**
+  String get boardsPreviewActionFailed;
+
+  /// Snackbar when moving to the next preview column is not possible
+  ///
+  /// In en, this message translates to:
+  /// **'This task is already in the last preview column.'**
+  String get boardsPreviewActionNoNextColumn;
 }
 
 class _AppLocalizationsDelegate

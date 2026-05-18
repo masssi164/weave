@@ -40,6 +40,9 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
     }
 
     if (response.statusCode != 200) {
+      if (response.statusCode == 503) {
+        return const BoardPreview.backendBlocked();
+      }
       throw AppFailure.unknown(
         'The Weave backend Boards preview is not enabled right now.',
         cause: response.statusCode,
@@ -65,6 +68,17 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
   }
 
   BoardPreview _parsePreview(Map<String, dynamic> payload) {
+    final preview = payload['preview'];
+    final releaseStatus = _string(payload['releaseStatus']);
+    final source = _string(payload['source']);
+    if (preview != true ||
+        releaseStatus != 'active-feature-gated-preview' ||
+        source != 'local-preview-backend-facade') {
+      throw const AppFailure.unknown(
+        'The Weave backend returned a Boards preview outside the active feature-gated facade.',
+      );
+    }
+
     final boards = _listOfMaps(payload['boards']);
     final tasks = _listOfMaps(payload['tasks']);
     if (boards.isEmpty) {
@@ -79,6 +93,9 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
       id: _string(board['id'], fallback: 'backend-board'),
       name: _string(board['name'], fallback: 'Boards preview'),
       description: _string(board['description']),
+      source: BoardPreviewSource.backendFacade,
+      releaseStatus: releaseStatus,
+      capabilities: _capabilities(payload['capabilities']),
       columns: [
         for (final column in columns)
           BoardColumnPreview(
@@ -114,6 +131,56 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
     );
   }
 
+  Future<void> moveTask({
+    required String taskId,
+    required String targetColumnId,
+    required int targetPosition,
+  }) async {
+    final response = await _postJson(
+      _taskMoveUri(taskId),
+      body: {
+        'targetColumnId': targetColumnId,
+        'targetPosition': targetPosition,
+      },
+    );
+    _requireMutationSuccess(response);
+  }
+
+  Future<void> completeTask(String taskId) async {
+    final response = await _postJson(_taskCompleteUri(taskId));
+    _requireMutationSuccess(response);
+  }
+
+  Future<http.Response> _postJson(Uri uri, {Map<String, Object?>? body}) async {
+    try {
+      return await _httpClient
+          .post(
+            uri,
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $_accessToken',
+            },
+            body: body == null ? null : jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 5));
+    } catch (error) {
+      throw AppFailure.unknown(
+        'Unable to reach the Weave backend Boards preview right now.',
+        cause: error,
+      );
+    }
+  }
+
+  void _requireMutationSuccess(http.Response response) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AppFailure.unknown(
+        'The Weave backend did not accept the Boards preview task action.',
+        cause: response.statusCode,
+      );
+    }
+  }
+
   Uri _boardsPreviewUri() {
     final baseSegments = _apiBaseUrl.pathSegments
         .where((segment) => segment.isNotEmpty)
@@ -123,6 +190,39 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
         : [...baseSegments, 'api', 'boards', 'preview'];
     return _apiBaseUrl.replace(pathSegments: apiSegments);
   }
+
+  Uri _taskMoveUri(String taskId) =>
+      _apiUri(['boards', 'tasks', taskId, 'move']);
+
+  Uri _taskCompleteUri(String taskId) =>
+      _apiUri(['boards', 'tasks', taskId, 'complete']);
+
+  Uri _apiUri(List<String> tailSegments) {
+    final baseSegments = _apiBaseUrl.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    final apiSegments = baseSegments.isNotEmpty && baseSegments.last == 'api'
+        ? [...baseSegments, ...tailSegments]
+        : [...baseSegments, 'api', ...tailSegments];
+    return _apiBaseUrl.replace(pathSegments: apiSegments);
+  }
+}
+
+BoardProviderPreviewCapabilities _capabilities(Object? value) {
+  if (value is! Map) {
+    return const BoardProviderPreviewCapabilities.blocked();
+  }
+  final json = value.cast<String, dynamic>();
+  return BoardProviderPreviewCapabilities(
+    provider: _string(json['provider'], fallback: 'unknown'),
+    enabled: json['enabled'] == true,
+    supported: _stringList(json['supported']),
+    unsupported: _stringList(json['unsupported']),
+    supportSafeSummary: _string(
+      json['supportSafeSummary'],
+      fallback: 'Backend Boards preview capabilities were not described.',
+    ),
+  );
 }
 
 List<Map<String, dynamic>> _listOfMaps(Object? value) {

@@ -1904,4 +1904,63 @@ class AppLocalizationsDe extends AppLocalizations {
   String boardsPreviewStatusSemantic(String status) {
     return 'Status: $status';
   }
+
+  @override
+  String get boardsPreviewBackendFedChip => 'Aus Backend-Fassade';
+
+  @override
+  String get boardsPreviewProviderBlockedChip => 'Provider-Laufzeit blockiert';
+
+  @override
+  String get boardsPreviewStaticFixtureChip => 'Statische Vorschau';
+
+  @override
+  String boardsPreviewProviderCapabilitySummary(String provider) {
+    return 'Provider: $provider';
+  }
+
+  @override
+  String get boardsPreviewCapabilityNonDragReady =>
+      'Backend-Aktionen ohne Ziehen bereit';
+
+  @override
+  String get boardsPreviewCapabilityNonDragBlocked =>
+      'Backend-Aktionen ohne Ziehen blockiert';
+
+  @override
+  String get boardsPreviewProviderInMemory => 'In-Memory-Backend-Fassade';
+
+  @override
+  String get boardsPreviewProviderVikunja => 'Vikunja-Adapter';
+
+  @override
+  String get boardsPreviewProviderOpenProject => 'OpenProject-Adapter';
+
+  @override
+  String get boardsPreviewProviderNextcloudDeck => 'Nextcloud-Deck-Adapter';
+
+  @override
+  String get boardsPreviewProviderNone => 'kein Backend-Provider';
+
+  @override
+  String get boardsPreviewProviderUnavailable => 'Backend nicht verfügbar';
+
+  @override
+  String get boardsPreviewProviderUnknown => 'unbekannter Provider';
+
+  @override
+  String get boardsPreviewActionMoved =>
+      'Aufgabe über die Backend-Fassade verschoben.';
+
+  @override
+  String get boardsPreviewActionCompleted =>
+      'Aufgabe über die Backend-Fassade als erledigt markiert.';
+
+  @override
+  String get boardsPreviewActionFailed =>
+      'Die Backend-Fassade konnte diese Boards-Vorschau-Aktion nicht speichern.';
+
+  @override
+  String get boardsPreviewActionNoNextColumn =>
+      'Diese Aufgabe ist bereits in der letzten Vorschau-Spalte.';
 }

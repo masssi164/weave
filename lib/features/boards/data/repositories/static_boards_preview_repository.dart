@@ -12,6 +12,8 @@ class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
     name: 'Release readiness board',
     description:
         'A provider-neutral Weave active preview for task planning. It is not wired to a live provider yet.',
+    source: BoardPreviewSource.staticFixture,
+    capabilities: BoardProviderPreviewCapabilities.staticPreview(),
     columns: [
       BoardColumnPreview(
         id: 'todo',
