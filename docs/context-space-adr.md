@@ -34,6 +34,7 @@ The backend should introduce Context-compatible seams before adding large runtim
 - `kind` is extensible. The initial safe vocabulary is `workspace`, `space`, `project`, `team`, `channel`, `meeting`, and `custom`.
 - Context graph edges capture `contains`, `linked_to`, `calendar_for`, `board_for`, `files_for`, `thread_for`, and `imports_from` relationships.
 - Memberships and a minimal ReBAC tuple adapter shape are part of the first schema so authorization can evolve without baking roles into feature-specific DTOs.
+- The first ReBAC adapter evaluates only Weave Context object refs (`context:<context_id>`) with known relations (`context_viewer`, `context_editor`, `context_admin`, `context_member`, `context_owner`). Unknown relations and raw provider-binding object refs fail closed.
 - Provider bindings include capabilities plus cursor/webhook references, but not provider tokens or raw errors.
 - Existing Calendar scope types (`workspace`, `team`, `channel`) can remain compatibility values while new contracts model them as context templates.
 - Boards/Tasks projects and Calendar scopes should be able to attach to a context without depending on a hard team/channel hierarchy.
@@ -45,7 +46,7 @@ The backend should introduce Context-compatible seams before adding large runtim
 ## Ordered iteration plan
 
 1. **Context Graph Schema** — land this first backend PR: ADR plus contract artifact for `tenant_id`/`context_id`, context graph edges, memberships, provider bindings, and ReBAC tuples. No runtime routes.
-2. **ReBAC Adapter MVP** — add internal authorization port/tests that evaluate context memberships and tuple relationships for read/create/update/delete decisions.
+2. **ReBAC Adapter MVP** — add internal authorization port/tests that evaluate tenant-scoped context memberships and tuple relationships for context view/edit/admin decisions; preserve tenant isolation, membership projection through context edges, unknown-relation fail-closed behavior, and no raw provider-binding bypass.
 3. **Connector SDK Skeleton** — define manifest, capabilities, cursors, webhooks, commands, support-safe errors, and redaction policy without enabling live writes.
 4. **OpenProject Board Connector read-sync MVP** — prefer OpenProject as the first provider-backed, provider-led source-of-truth read path because its API is the best first validation target; map it into context-bound boards/tasks through the connector skeleton. Vikunja and Nextcloud Deck remain comparison/fallback candidates only. Keep this read-only and hidden until smoke/export/accessibility gates pass.
 5. **Audit Event Pipeline** — append-only CloudEvents-like audit envelope for connector/assistant actions, admin-sensitive operations, consent changes, and provider sync.

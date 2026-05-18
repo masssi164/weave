@@ -122,7 +122,10 @@
       "properties": {
         "tenant_id": { "type": "string", "minLength": 1 },
         "object_ref": { "type": "string", "minLength": 1 },
-        "relation": { "type": "string", "minLength": 1 },
+        "relation": {
+          "type": "string",
+          "enum": ["context_viewer", "context_editor", "context_admin", "context_member", "context_owner"]
+        },
         "subject_ref": { "type": "string", "minLength": 1 },
         "caveat": { "type": "string" }
       },

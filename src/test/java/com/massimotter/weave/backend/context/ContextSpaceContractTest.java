@@ -38,6 +38,9 @@ class ContextSpaceContractTest {
         assertThat(schema).contains("\"principal_ref\"");
         assertThat(schema).contains("\"object_ref\"");
         assertThat(schema).contains("\"subject_ref\"");
+        assertThat(schema).contains("\"context_viewer\"");
+        assertThat(schema).contains("\"context_editor\"");
+        assertThat(schema).contains("\"context_admin\"");
     }
 
     @Test
