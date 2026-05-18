@@ -13,8 +13,10 @@ Implemented now:
 - A support-safe error vocabulary aligned with the workspace spec.
 - A Vikunja HTTP/status error mapper that converts provider failures into Weave codes without leaking raw provider messages, URLs, or tokens.
 - A provider-neutral task/board event normalizer, no-op event publisher boundary, and preview JSON/OpenAPI schema artifacts under `src/main/resources/contracts/`.
-- A first Vikunja adapter boundary and mapper that translates Vikunja projects/buckets/tasks into Weave concepts.
-- Fail-closed Vikunja, OpenProject, and Nextcloud Deck repository placeholders that advertise preview/benchmark/bridge capabilities but do not perform runtime HTTP calls.
+- An OpenProject-first read-sync mapper that translates projects/statuses/work packages into Weave concepts without enabling runtime HTTP calls.
+- A connector manifest skeleton contract for capabilities, cursors, webhooks, commands, support-safe errors, secret references, redaction policy, and write-disabled provider posture.
+- Vikunja and Nextcloud Deck comparison/fallback adapter boundaries; they remain useful for comparison/import planning but no longer define the first provider path.
+- Fail-closed Vikunja, OpenProject, and Nextcloud Deck repository placeholders that advertise preview/read-sync/fallback capabilities but do not perform runtime HTTP calls.
 - A hidden local/in-memory backend preview facade behind `weave.boards.preview.runtime-enabled` that proves provider-neutral create, move, and complete operations without drag-only UI assumptions.
 
 Not implemented now:
@@ -55,23 +57,27 @@ The Weave model follows `../specs/14-boards-tasks-domain-and-provider-adapter-co
 - `TaskItem` is the provider-neutral task/card shape consumed by future API/UI work.
 - `ProviderRef` preserves provider IDs, URLs, etags, versions, and sync timestamps for diagnostics, export, migration, and conflict handling without making those references the primary product identity.
 
-## Vikunja first adapter boundary
+## OpenProject-first read-sync boundary
 
-Vikunja is the first strategic adapter boundary because it is lightweight, self-hostable, and API-oriented. The current mapper translates:
+OpenProject is now the preferred first provider-backed read-sync validation path because its API gives the best near-term seam for provider-led source-of-truth boards. The current mapper translates:
 
-- Vikunja project → Weave project and board
-- Vikunja bucket → Weave board column
-- Vikunja task → Weave task item
+- OpenProject project → Weave project and board
+- OpenProject status → Weave board column
+- OpenProject work package → Weave task item
 
-The repository placeholder fails closed with `provider_unavailable` until a promotion spec defines authentication, HTTP client behavior, persistence/sync expectations, route DTOs, and validation gates. The adapter boundary now also contains the support-safe HTTP/status mapping expected once real Vikunja calls are introduced: unauthorized, forbidden, not found, conflict, validation, rate limit, offline, provider unavailable, and unknown failures are normalized before reaching product/API code.
+The repository placeholder fails closed with `provider_unavailable`; it declares read-sync capabilities but performs no HTTP calls and enables no product/runtime provider. A later promotion spec must define authentication, visibility filtering, cursor persistence, route DTOs, smoke/E2E, export/backup, and accessibility gates before any OpenProject runtime is reachable. The first path is read-only: no provider writes, no agentic/team writes, and no raw OpenProject UI as normal Weave UX.
+
+## Vikunja fallback/comparison boundary
+
+Vikunja remains a lightweight, self-hostable, API-oriented comparison/fallback candidate. Its mapper still translates Vikunja projects/buckets/tasks into Weave concepts, and its support-safe HTTP/status mapping remains useful for future comparison. Vikunja is no longer the first strategic provider path.
 
 ## Provider spike contracts
 
 The backend preview layer now declares three disabled adapter contracts against the same `BoardsRepository` port:
 
-- `VikunjaBoardsRepository`: first adapter candidate; supports comments, attachments, non-destructive archive, webhooks, incremental sync, checklists, and accessible non-drag move commands in the contract, but is disabled for runtime use.
-- `OpenProjectBoardsRepository`: accessibility/mature-workflow benchmark; declares comments, attachments, non-destructive archive, and custom fields as benchmark capabilities, but is not the first runtime provider.
-- `NextcloudDeckBoardsRepository`: Nextcloud-adjacent bridge/import candidate; declares comments, attachments, and non-destructive archive, but avoids claiming webhooks or incremental sync until tested.
+- `OpenProjectBoardsRepository`: preferred read-only-first provider seam; declares comments, attachments, non-destructive archive, incremental sync, custom fields, and accessible non-drag move compatibility in the contract, but is disabled for runtime use.
+- `VikunjaBoardsRepository`: comparison/fallback candidate; supports comments, attachments, non-destructive archive, webhooks, incremental sync, checklists, and accessible non-drag move commands in the contract, but is disabled for runtime use.
+- `NextcloudDeckBoardsRepository`: Nextcloud-adjacent fallback bridge/import candidate; declares comments, attachments, and non-destructive archive, but avoids claiming webhooks or incremental sync until tested.
 
 All three fail closed with support-safe `provider_unavailable` errors until a promotion spec defines auth, route DTOs, OpenAPI publication, smoke/E2E coverage, export/backup, and accessibility gates.
 
@@ -91,5 +97,6 @@ This is still preview-only and has no notification, audit, webhook, or live runt
 
 - `src/main/resources/contracts/boards-preview.openapi.yaml` contains preview schema components only and intentionally has `paths: {}`.
 - `src/main/resources/contracts/task-board-event.schema.json` contains the preview normalized event envelope.
+- `src/main/resources/contracts/connector-manifest.schema.json` contains the internal connector manifest skeleton for OpenProject-first read sync and later providers.
 
 These artifacts are open contract drafts for implementation alignment; they are not a published live-provider API surface.

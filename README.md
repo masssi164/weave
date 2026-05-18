@@ -50,7 +50,8 @@ Avoid using it to replace standards-based native flows by default:
 - `docs/calendar-client-setup.md`: active research and phased plan for Apple `.mobileconfig`, Android DAVx5, desktop CalDAV, and read-only webcal/ICS setup.
 - `docs/context-space-adr.md`: proposed flexible Context/Space contract seam; team/channel stay useful templates, not the hard backend hierarchy.
 - `docs/architecture-alignment.md`: cross-repo responsibility split for app, backend, and infrastructure.
-- `docs/boards-preview-contract.md`: active feature-gated Boards/Tasks provider-neutral contract notes; not a Product screenshots or live product surface.
+- `docs/boards-preview-contract.md`: active feature-gated Boards/Tasks provider-neutral contract notes, now OpenProject-first for read sync with Vikunja/Deck as comparison/fallback; not a Product screenshots or live product surface.
+- `src/main/resources/contracts/connector-manifest.schema.json`: internal connector skeleton contract for capabilities, cursors, webhook refs, redaction, and read-only/fail-closed provider seams.
 - `docs/issues/`: historical alignment issue drafts.
 
 ## Quick start

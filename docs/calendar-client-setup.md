@@ -81,7 +81,7 @@ The renderer includes only CalDAV host, port, SSL, principal URL, display label,
 5. **Android setup handoff:** add app/UI support for DAVx5 setup URI, manual fallback instructions, and read-only subscription copy once tokenized ICS exists.
 6. **Read-only subscription tokens:** implement revocable webcal/ICS feed tokens for clients that cannot do CalDAV; label them one-way.
 7. **Calendar product promotion:** once create/read/update/delete and profile setup are safe, enable Calendar as a active module in app capability/navigation tests.
-8. **Boards/Tasks promotion:** after the provider-neutral API and Vikunja adapter are tested, enable Boards/Tasks with non-drag accessible movement as a hard release gate.
+8. **Boards/Tasks promotion:** after the provider-neutral API, connector skeleton, and OpenProject-first read-sync seam are tested, enable Boards/Tasks with non-drag accessible movement as a hard release gate. Vikunja/Deck remain comparison/fallback paths.
 
 ## References
 

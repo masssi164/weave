@@ -23,8 +23,10 @@ import java.util.EnumSet;
 import java.util.Optional;
 
 /**
- * Disabled OpenProject benchmark adapter contract. OpenProject remains an
- * accessibility/workflow benchmark, not the first runtime provider, until a later
+ * Disabled OpenProject-first read-sync adapter contract. OpenProject is the
+ * preferred first provider-backed validation target because its API can map
+ * projects/statuses/work packages into Weave Boards without making provider
+ * vocabulary the product model. Runtime HTTP calls remain disabled until a later
  * promotion spec defines auth, API filters, synchronization, and route DTOs.
  */
 public final class OpenProjectBoardsRepository implements BoardsRepository {
@@ -38,13 +40,13 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
                         BoardCapability.COMMENTS,
                         BoardCapability.ATTACHMENTS,
                         BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
-                        BoardCapability.CUSTOM_FIELDS),
+                        BoardCapability.INCREMENTAL_SYNC,
+                        BoardCapability.CUSTOM_FIELDS,
+                        BoardCapability.ACCESSIBLE_NON_DRAG_MOVES),
                 EnumSet.of(
                         BoardCapability.WEBHOOK_EVENTS,
-                        BoardCapability.INCREMENTAL_SYNC,
-                        BoardCapability.CHECKLISTS,
-                        BoardCapability.ACCESSIBLE_NON_DRAG_MOVES),
-                "OpenProject is a disabled accessibility and mature-workflow benchmark adapter contract, not a live runtime provider.");
+                        BoardCapability.CHECKLISTS),
+                "OpenProject is the disabled, read-only-first Boards provider seam; Vikunja and Deck are comparison/fallback paths only.");
     }
 
     @Override public BoardPage<WeaveProject> listProjects(BoardQuery query) { throw disabled(); }
@@ -62,6 +64,6 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
     private BoardsException disabled() {
         return new BoardsException(
                 BoardsErrorCode.PROVIDER_UNAVAILABLE,
-                "OpenProject Boards/Tasks adapter is benchmark-only and disabled until a promotion spec enables backend routes.");
+                "OpenProject Boards/Tasks read-sync adapter is disabled until a promotion spec enables authenticated backend routes.");
     }
 }

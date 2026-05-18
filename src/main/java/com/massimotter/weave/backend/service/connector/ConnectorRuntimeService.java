@@ -24,14 +24,29 @@ public class ConnectorRuntimeService {
                 List.of(
                         "Connectors run server-side only; Flutter clients never load connector code.",
                         "Credentials are brokered through secret references and never serialized in manifests.",
-                        "Quotas, audit, and support-bundle redaction are mandatory for provider connectors."),
-                List.of("Slack sandbox hardening", "Teams contract proof", "signed package and pinned dependency policy"));
+                        "Context-scoped capabilities, cursors, webhooks, commands, support-safe errors, and redaction policy are required before live provider promotion.",
+                        "Provider writes and agentic/team writes stay disabled unless a later promotion spec explicitly enables them."),
+                List.of("OpenProject read-sync contract proof", "audit and consent gates", "signed package and pinned dependency policy"));
     }
 
     public ConnectorManifestValidationResponse validate(ConnectorManifestValidationRequest request) {
         List<String> errors = new ArrayList<>();
         if (request.capabilities() == null || request.capabilities().isEmpty()) {
             errors.add("capabilities must declare at least one scoped capability");
+        }
+        if (request.releaseStatus() != null && !List.of("disabled", "skeleton", "read-sync-preview").contains(request.releaseStatus())) {
+            errors.add("releaseStatus must be disabled, skeleton, or read-sync-preview until live provider promotion is specified");
+        }
+        if (request.providerWritesEnabled() != null && request.providerWritesEnabled()) {
+            errors.add("providerWritesEnabled must remain false until a promotion spec enables writes");
+        }
+        if (request.redactionPolicy() == null || request.redactionPolicy().isBlank()) {
+            errors.add("redactionPolicy must declare how support bundles redact provider data");
+        } else if (!request.redactionPolicy().contains("redacted")) {
+            errors.add("redactionPolicy must be support-safe and redacted");
+        }
+        if (request.cursorRefs() == null || request.cursorRefs().isEmpty()) {
+            errors.add("cursorRefs must declare at least one cursor or sync reference");
         }
         if (request.secretRefs() != null) {
             request.secretRefs().forEach((name, ref) -> {
@@ -47,7 +62,7 @@ public class ConnectorRuntimeService {
                 false,
                 false,
                 List.copyOf(errors),
-                List.of("Public connector SDK remains deferred until real Slack and Teams connectors prove the boundary."));
+                List.of("Public connector SDK remains deferred; internal skeleton validation exists to prove OpenProject-first read-sync before live provider promotion."));
     }
 
     private boolean looksLikeSecretValue(String value) {

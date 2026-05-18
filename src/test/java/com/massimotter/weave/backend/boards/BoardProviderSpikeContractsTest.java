@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BoardProviderSpikeContractsTest {
 
     @Test
-    void openProjectBenchmarkAdapterDeclaresCapabilitiesButStaysDisabled() {
+    void openProjectFirstReadSyncAdapterDeclaresCapabilitiesButStaysDisabled() {
         var repository = new OpenProjectBoardsRepository();
 
         var capabilities = repository.capabilities();
@@ -25,17 +25,18 @@ class BoardProviderSpikeContractsTest {
                 BoardCapability.COMMENTS,
                 BoardCapability.ATTACHMENTS,
                 BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
-                BoardCapability.CUSTOM_FIELDS);
+                BoardCapability.INCREMENTAL_SYNC,
+                BoardCapability.CUSTOM_FIELDS,
+                BoardCapability.ACCESSIBLE_NON_DRAG_MOVES);
         assertThat(capabilities.unsupported()).contains(
                 BoardCapability.WEBHOOK_EVENTS,
-                BoardCapability.INCREMENTAL_SYNC,
-                BoardCapability.ACCESSIBLE_NON_DRAG_MOVES);
-        assertThat(capabilities.supportSafeSummary()).contains("benchmark").contains("disabled");
+                BoardCapability.CHECKLISTS);
+        assertThat(capabilities.supportSafeSummary()).contains("read-only-first").contains("disabled");
         assertThatThrownBy(() -> repository.listProjects(null))
                 .isInstanceOf(BoardsException.class)
                 .satisfies(error -> assertThat(((BoardsException) error).code())
                         .isEqualTo(BoardsErrorCode.PROVIDER_UNAVAILABLE))
-                .hasMessageContaining("benchmark-only")
+                .hasMessageContaining("read-sync")
                 .hasMessageContaining("disabled");
     }
 

@@ -8,6 +8,12 @@ import java.util.Map;
 public record ConnectorManifestValidationRequest(
         @NotBlank @Size(max = 128) String id,
         @NotBlank @Size(max = 128) String provider,
+        @Size(max = 64) String releaseStatus,
         List<@Size(max = 128) String> capabilities,
-        Map<String, String> secretRefs) {
+        List<@Size(max = 128) String> commands,
+        Map<String, String> cursorRefs,
+        Map<String, String> webhookRefs,
+        Map<String, String> secretRefs,
+        @Size(max = 128) String redactionPolicy,
+        Boolean providerWritesEnabled) {
 }

@@ -12,6 +12,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -81,7 +82,7 @@ class PlatformProductContractControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.valid").value(false))
                 .andExpect(jsonPath("$.secretValuesAccepted").value(false))
-                .andExpect(jsonPath("$.errors[0]").value(containsString("secret material")));
+                .andExpect(jsonPath("$.errors", hasItem(containsString("secret material"))));
     }
 
     @Test
