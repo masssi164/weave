@@ -24,6 +24,14 @@ assert_file_absent() {
   ! grep -Fq -- "${needle}" "${file}" || fail "Did not expect ${file} to contain: ${needle}"
 }
 
+assert_file_contains_once() {
+  local file="$1"
+  local needle="$2"
+  local count
+  count="$(grep -F -c -- "${needle}" "${file}" || true)"
+  [[ "${count}" == "1" ]] || fail "Expected ${file} to contain exactly once: ${needle} (found ${count})"
+}
+
 backend_main="${ROOT_DIR}/01-infrastructure/modules/backend/main.tf"
 infra_main="${ROOT_DIR}/01-infrastructure/main.tf"
 infra_outputs="${ROOT_DIR}/01-infrastructure/outputs.tf"
@@ -59,7 +67,10 @@ assert_file_contains "${backend_main}" 'WEAVE_WORKSPACE_CALENDAR_ENABLED=true'
 assert_file_contains "${backend_main}" 'WEAVE_WORKSPACE_CALENDAR_READINESS=ready'
 assert_file_contains "${backend_main}" 'WEAVE_WORKSPACE_BOARDS_ENABLED=true'
 assert_file_contains "${backend_main}" 'WEAVE_WORKSPACE_BOARDS_READINESS=ready'
-assert_file_contains "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=true'
+assert_file_absent "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=true'
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=${var.boards_preview_runtime_enabled}'
+assert_file_contains_once "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED='
+assert_file_contains "${infra_main}" 'boards_preview_runtime_enabled         = var.boards_preview_runtime_enabled'
 legacy_e2ee_marker='planned-not-'
 legacy_e2ee_marker+='enabled'
 assert_file_absent "${install_script}" "${legacy_e2ee_marker}"
@@ -85,8 +96,12 @@ assert_file_contains "${infra_main}" 'interop_enabled                        = f
 assert_file_contains "${infra_main}" 'interop_slack_enabled                  = false'
 assert_file_contains "${infra_main}" 'connectors_public_sdk_enabled          = false'
 assert_file_contains "${infra_main}" 'boards_preview_runtime_enabled         = var.boards_preview_runtime_enabled'
+assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'variable "boards_preview_runtime_enabled"'
+assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'Defaults false; expensive live feature-proof runs may set true'
 assert_file_contains "${caddy_template}" 'connector_provider_callbacks_guard'
+assert_file_contains "${connector_doc}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=false'
 assert_file_contains "${connector_doc}" 'provider callback routes such as Slack OAuth and event ingestion are blocked at Caddy with `404`'
 assert_file_contains "${connector_doc}" 'do not commit demo OAuth secrets, webhook signing secrets, bot tokens, access tokens, or refresh tokens'
+assert_file_contains "${connector_doc}" 'Boards provider secrets follow the same rule'
 
 printf '%s\n' 'infra product contract tests passed'

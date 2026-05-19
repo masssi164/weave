@@ -167,6 +167,14 @@ container_env_value() {
     awk -v name="${name}" 'index($0, name "=") == 1 { print substr($0, length(name) + 2); found = 1 } END { if (!found) exit 1 }'
 }
 
+container_env_count() {
+  local container="$1"
+  local name="$2"
+
+  docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${container}" 2>/dev/null |
+    awk -v name="${name}" 'index($0, name "=") == 1 { count += 1 } END { print count + 0 }'
+}
+
 assert_backend_env_present() {
   local name="$1"
   local value
@@ -254,6 +262,39 @@ assert_backend_nextcloud_actor_config() {
   fi
 }
 
+assert_backend_product_gate_config() {
+  local boards_runtime_count
+  local boards_runtime_enabled
+  local name
+
+  log "Checking Calendar/Boards product gates..."
+  for name in \
+    WEAVE_WORKSPACE_CALENDAR_ENABLED \
+    WEAVE_WORKSPACE_CALENDAR_READINESS \
+    WEAVE_WORKSPACE_BOARDS_ENABLED \
+    WEAVE_WORKSPACE_BOARDS_READINESS \
+    WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED; do
+    assert_backend_env_present "${name}"
+  done
+
+  [[ "$(container_env_value weave-backend WEAVE_WORKSPACE_CALENDAR_ENABLED)" == "true" ]] || \
+    fail "Operator check failed: Calendar capability must be enabled for the active workspace/team/channel facade path"
+  [[ "$(container_env_value weave-backend WEAVE_WORKSPACE_CALENDAR_READINESS)" == "ready" ]] || \
+    fail "Operator check failed: Calendar capability readiness must be ready when infra wires the active facade"
+  [[ "$(container_env_value weave-backend WEAVE_WORKSPACE_BOARDS_ENABLED)" == "true" ]] || \
+    fail "Operator check failed: Boards capability must be enabled for guarded active preview validation"
+  [[ "$(container_env_value weave-backend WEAVE_WORKSPACE_BOARDS_READINESS)" == "ready" ]] || \
+    fail "Operator check failed: Boards capability readiness must be ready when infra wires the guarded facade"
+
+  boards_runtime_count="$(container_env_count weave-backend WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED)"
+  [[ "${boards_runtime_count}" == "1" ]] || \
+    fail "Operator check failed: WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED must be defined exactly once so the runtime gate is unambiguous"
+
+  boards_runtime_enabled="$(container_env_value weave-backend WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED)"
+  [[ "${boards_runtime_enabled}" == "true" || "${boards_runtime_enabled}" == "false" ]] || \
+    fail "Operator check failed: WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED must be true or false"
+}
+
 require_command curl
 require_command docker
 require_command jq
@@ -296,6 +337,7 @@ nextcloud_status="$(curl_json "${WEAVE_NEXTCLOUD_BASE_URL}/status.php")"
 assert_json "${nextcloud_status}" '.installed == true' "Nextcloud should be installed"
 
 assert_backend_nextcloud_actor_config
+assert_backend_product_gate_config
 
 nextcloud_bearer_validation="$(docker exec --user www-data weave-nextcloud php occ config:system:get user_oidc oidc_provider_bearer_validation 2>/dev/null || true)"
 [[ "${nextcloud_bearer_validation}" == "true" ]] || fail "Operator check failed: Nextcloud user_oidc bearer validation is not enabled"

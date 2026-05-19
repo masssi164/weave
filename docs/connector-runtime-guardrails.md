@@ -9,12 +9,15 @@ Connector preview work is fail-closed by default. The infra layer may expose saf
 - `WEAVE_INTEROP_TEAMS_ENABLED=false`
 - `WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED=false`
 - `connector_provider_callbacks_exposed=false`
+- `WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=false` unless a live feature-proof run explicitly opts in
 
 With these defaults, backend interop/connector status can describe disabled or unavailable capabilities, while provider callback routes such as Slack OAuth and event ingestion are blocked at Caddy with `404` before reaching the backend.
+Boards may advertise the product capability as ready for guarded preview UX, but provider-backed runtime remains fail-closed until the explicit Boards preview/runtime flag is enabled and backend Context/Space authorization allows the request.
 
 ## Secret handling boundary
 
 - Connector secrets are operator-owned and revocable; do not commit demo OAuth secrets, webhook signing secrets, bot tokens, access tokens, or refresh tokens.
+- Boards provider secrets follow the same rule: keep API tokens, refresh tokens, and provider credentials server-side and out of app config, support bundles, and frontend artifacts.
 - Future secret-manager wiring must pass secret references to the backend, not raw provider secrets to Flutter.
 - Support bundles must redact token, secret, password, credential, authorization, cookie, and private-key patterns before an archive is considered shareable.
 - Connector diagnostics should report safe states such as `disabled`, `unavailable`, `degraded`, `action-required`, and `configured-reference`; they must not include raw secret values.

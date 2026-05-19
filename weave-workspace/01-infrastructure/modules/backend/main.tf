@@ -40,7 +40,6 @@ resource "docker_container" "this" {
     "WEAVE_WORKSPACE_CALENDAR_READINESS=ready",
     "WEAVE_WORKSPACE_BOARDS_ENABLED=true",
     "WEAVE_WORKSPACE_BOARDS_READINESS=ready",
-    "WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=true",
     "WEAVE_CALDAV_BASE_URL=${var.caldav_base_url}",
     "WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=${var.caldav_calendar_path_template}",
     "WEAVE_CALDAV_AUTH_MODE=${var.caldav_auth_mode}",
