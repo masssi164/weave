@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.model.calendar;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 @Schema(description = "Calendar event metadata returned by the Weave calendar facade.")
 public record CalendarEventResponse(
@@ -26,7 +27,13 @@ public record CalendarEventResponse(
         @Schema(description = "Calendar scope used for this facade event.")
         CalendarScopeResponse scope,
         @Schema(description = "Safe event thread/context metadata. Does not expose encrypted Matrix message contents.")
-        CalendarThreadRefResponse threadRef) {
+        CalendarThreadRefResponse threadRef,
+        @Schema(description = "Safe attendee metadata when supplied by the backing calendar data.")
+        List<CalendarAttendeeResponse> attendees,
+        @Schema(description = "Safe provider reference. Does not expose raw CalDAV paths, URLs, or credentials.")
+        CalendarProviderRefResponse providerRef,
+        @Schema(description = "Last known event update timestamp when available.")
+        OffsetDateTime updatedAt) {
 
     public CalendarEventResponse(
             String id,
@@ -34,12 +41,12 @@ public record CalendarEventResponse(
             String description,
             OffsetDateTime startsAt,
             OffsetDateTime endsAt,
-            String timezone,
-            String location,
-            boolean allDay,
-            String etag) {
+                String timezone,
+                String location,
+                boolean allDay,
+                String etag) {
         this(id, title, description, startsAt, endsAt, timezone, location, allDay, etag,
-                CalendarScopeResponse.workspace(), null);
+                CalendarScopeResponse.workspace(), null, List.of(), null, null);
     }
 
     public CalendarEventResponse(
@@ -50,14 +57,16 @@ public record CalendarEventResponse(
             OffsetDateTime endsAt,
             String timezone,
             String location,
-            boolean allDay,
-            String etag,
-            CalendarScopeResponse scope) {
-        this(id, title, description, startsAt, endsAt, timezone, location, allDay, etag, scope, null);
+                boolean allDay,
+                String etag,
+                CalendarScopeResponse scope) {
+        this(id, title, description, startsAt, endsAt, timezone, location, allDay, etag, scope, null, List.of(), null, null);
     }
 
     public CalendarEventResponse {
         scope = scope == null ? CalendarScopeResponse.workspace() : scope;
         threadRef = threadRef == null ? CalendarThreadRefResponse.forScope(scope) : threadRef;
+        attendees = attendees == null ? List.of() : List.copyOf(attendees);
+        providerRef = providerRef == null ? CalendarProviderRefResponse.caldavEvent(id, etag, updatedAt) : providerRef;
     }
 }

@@ -358,7 +358,11 @@ public class CalendarFacadeService {
                 event.location(),
                 event.allDay(),
                 event.etag(),
-                scope);
+                scope,
+                null,
+                event.attendees(),
+                null,
+                event.updatedAt());
     }
 
     private String scopedEventId(CalendarScopeResponse scope, String rawId) {

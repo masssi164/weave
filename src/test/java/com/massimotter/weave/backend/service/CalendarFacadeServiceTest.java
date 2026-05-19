@@ -100,6 +100,8 @@ class CalendarFacadeServiceTest {
         assertThat(scopedEvent.threadRef().matrixThreadId()).isNull();
         assertThat(scopedEvent.threadRef().boardTaskIds()).isEmpty();
         assertThat(scopedEvent.id()).startsWith("scoped:");
+        assertThat(scopedEvent.providerRef().opaqueId()).isEqualTo(scopedEvent.id());
+        assertThat(scopedEvent.providerRef().rawProviderPathExposed()).isFalse();
     }
 
     @Test

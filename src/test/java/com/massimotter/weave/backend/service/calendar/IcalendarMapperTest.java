@@ -68,4 +68,34 @@ class IcalendarMapperTest {
         assertThat(merged.endsAt()).isEqualTo(update.endsAt());
         assertThat(merged.location()).isEqualTo("Remote");
     }
+
+    @Test
+    void exposesSafeAttendeeProviderAndUpdatedMetadataFromIcalendar() {
+        var response = mapper.toResponse("opaque-event-id", "\"etag-1\"", """
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                UID:test-uid
+                DTSTAMP:20260425T080000Z
+                LAST-MODIFIED:20260425T090000Z
+                DTSTART;TZID=Europe/Berlin:20260426T100000
+                DTEND;TZID=Europe/Berlin:20260426T110000
+                SUMMARY:Planning
+                ATTENDEE;CN=Ada Lovelace;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED:mailto:ada@example.com
+                END:VEVENT
+                END:VCALENDAR
+                """);
+
+        assertThat(response.updatedAt()).isEqualTo(OffsetDateTime.parse("2026-04-25T09:00:00Z"));
+        assertThat(response.attendees()).singleElement().satisfies(attendee -> {
+            assertThat(attendee.name()).isEqualTo("Ada Lovelace");
+            assertThat(attendee.email()).isEqualTo("ada@example.com");
+            assertThat(attendee.role()).isEqualTo("req-participant");
+            assertThat(attendee.responseStatus()).isEqualTo("accepted");
+        });
+        assertThat(response.providerRef().provider()).isEqualTo("nextcloud-caldav");
+        assertThat(response.providerRef().objectKind()).isEqualTo("calendar-event");
+        assertThat(response.providerRef().opaqueId()).isEqualTo("opaque-event-id");
+        assertThat(response.providerRef().etag()).isEqualTo("\"etag-1\"");
+        assertThat(response.providerRef().rawProviderPathExposed()).isFalse();
+    }
 }

@@ -1,6 +1,9 @@
 package com.massimotter.weave.backend.service.calendar;
 
+import com.massimotter.weave.backend.model.calendar.CalendarAttendeeResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarProviderRefResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
 import java.time.LocalDate;
@@ -68,7 +71,9 @@ public class IcalendarMapper {
     }
 
     public CalendarEventResponse toResponse(String id, String etag, String calendarData) {
+        List<Property> eventProperties = eventProperties(calendarData);
         EventDraft draft = parse(calendarData);
+        OffsetDateTime updatedAt = updatedAt(eventProperties);
         return new CalendarEventResponse(
                 id,
                 draft.title(),
@@ -78,25 +83,18 @@ public class IcalendarMapper {
                 draft.timezone(),
                 draft.location(),
                 draft.allDay(),
-                cleanEtag(etag));
+                cleanEtag(etag),
+                CalendarScopeResponse.workspace(),
+                null,
+                attendees(eventProperties),
+                CalendarProviderRefResponse.caldavEvent(id, cleanEtag(etag), updatedAt),
+                updatedAt);
     }
 
     public EventDraft parse(String calendarData) {
-        List<String> lines = unfold(calendarData);
-        boolean inEvent = false;
+        List<Property> eventProperties = eventProperties(calendarData);
         Map<String, Property> properties = new LinkedHashMap<>();
-        for (String line : lines) {
-            if ("BEGIN:VEVENT".equalsIgnoreCase(line)) {
-                inEvent = true;
-                continue;
-            }
-            if ("END:VEVENT".equalsIgnoreCase(line)) {
-                break;
-            }
-            if (!inEvent || !line.contains(":")) {
-                continue;
-            }
-            Property property = Property.parse(line);
+        for (Property property : eventProperties) {
             properties.putIfAbsent(property.name(), property);
         }
 
@@ -120,6 +118,59 @@ public class IcalendarMapper {
                 timezone,
                 blankToNull(unescape(value(properties, "LOCATION"))),
                 allDay);
+    }
+
+    private List<Property> eventProperties(String calendarData) {
+        List<String> lines = unfold(calendarData);
+        boolean inEvent = false;
+        List<Property> properties = new ArrayList<>();
+        for (String line : lines) {
+            if ("BEGIN:VEVENT".equalsIgnoreCase(line)) {
+                inEvent = true;
+                continue;
+            }
+            if ("END:VEVENT".equalsIgnoreCase(line)) {
+                break;
+            }
+            if (!inEvent || !line.contains(":")) {
+                continue;
+            }
+            properties.add(Property.parse(line));
+        }
+        return properties;
+    }
+
+    private List<CalendarAttendeeResponse> attendees(List<Property> properties) {
+        return properties.stream()
+                .filter(property -> "ATTENDEE".equals(property.name()))
+                .map(property -> new CalendarAttendeeResponse(
+                        unquote(unescape(property.params().get("CN"))),
+                        mailToEmail(unescape(property.value())),
+                        property.params().get("ROLE"),
+                        property.params().get("PARTSTAT")))
+                .toList();
+    }
+
+    private OffsetDateTime updatedAt(List<Property> properties) {
+        Property property = properties.stream()
+                .filter(candidate -> "LAST-MODIFIED".equals(candidate.name()))
+                .findFirst()
+                .orElseGet(() -> properties.stream()
+                        .filter(candidate -> "DTSTAMP".equals(candidate.name()))
+                        .findFirst()
+                        .orElse(null));
+        if (property == null || property.value() == null || property.value().isBlank()) {
+            return null;
+        }
+        return parseTimestamp(property.value());
+    }
+
+    private OffsetDateTime parseTimestamp(String value) {
+        if (value.endsWith("Z")) {
+            return LocalDateTime.parse(value.substring(0, value.length() - 1), LOCAL_DATE_TIME_FORMAT)
+                    .atOffset(ZoneOffset.UTC);
+        }
+        return LocalDateTime.parse(value, LOCAL_DATE_TIME_FORMAT).atOffset(ZoneOffset.UTC);
     }
 
     private void appendDateTime(StringBuilder builder, String name, OffsetDateTime value, String timezone, boolean allDay) {
@@ -214,6 +265,27 @@ public class IcalendarMapper {
         return builder.toString();
     }
 
+    private static String mailToEmail(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.regionMatches(true, 0, "mailto:", 0, "mailto:".length())) {
+            return trimmed.substring("mailto:".length());
+        }
+        return trimmed;
+    }
+
+    private static String unquote(String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        if (value.startsWith("\"") && value.endsWith("\"")) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
+    }
+
     private static String value(Map<String, Property> properties, String name) {
         Property property = properties.get(name);
         return property == null ? null : property.value();
@@ -256,7 +328,9 @@ public class IcalendarMapper {
             for (int index = 1; index < parts.length; index++) {
                 int equals = parts[index].indexOf('=');
                 if (equals > 0) {
-                    params.put(parts[index].substring(0, equals).toUpperCase(Locale.ROOT), parts[index].substring(equals + 1));
+                    params.put(
+                            parts[index].substring(0, equals).toUpperCase(Locale.ROOT),
+                            parts[index].substring(equals + 1));
                 }
             }
             return new Property(name, params, value);

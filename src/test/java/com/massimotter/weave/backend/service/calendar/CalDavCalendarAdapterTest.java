@@ -76,9 +76,11 @@ class CalDavCalendarAdapterTest {
                           <c:calendar-data>BEGIN:VCALENDAR&#13;
 BEGIN:VEVENT&#13;
 UID:event-1&#13;
+LAST-MODIFIED:20260425T090000Z&#13;
 DTSTART;TZID=Europe/Berlin:20260426T100000&#13;
 DTEND;TZID=Europe/Berlin:20260426T110000&#13;
 SUMMARY:Planning&#13;
+ATTENDEE;CN=Ada Lovelace;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED:mailto:ada@example.com&#13;
 END:VEVENT&#13;
 END:VCALENDAR&#13;
 </c:calendar-data>
@@ -100,6 +102,10 @@ END:VCALENDAR&#13;
         assertThat(events.get(0).title()).isEqualTo("Planning");
         assertThat(events.get(0).etag()).isEqualTo("\"etag-1\"");
         assertThat(events.get(0).scope().type()).isEqualTo("workspace");
+        assertThat(events.get(0).updatedAt()).isEqualTo(OffsetDateTime.parse("2026-04-25T09:00:00Z"));
+        assertThat(events.get(0).attendees()).singleElement()
+                .satisfies(attendee -> assertThat(attendee.email()).isEqualTo("ada@example.com"));
+        assertThat(events.get(0).providerRef().rawProviderPathExposed()).isFalse();
     }
 
     @Test
