@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service.calendar;
 
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
+import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
 import com.sun.net.httpserver.HttpExchange;
@@ -106,6 +107,47 @@ END:VCALENDAR&#13;
         assertThat(events.get(0).attendees()).singleElement()
                 .satisfies(attendee -> assertThat(attendee.email()).isEqualTo("ada@example.com"));
         assertThat(events.get(0).providerRef().rawProviderPathExposed()).isFalse();
+    }
+
+    @Test
+    void listsTeamAndChannelScopesFromSeparateBackendActorCollections() throws Exception {
+        List<String> paths = new ArrayList<>();
+        server = server(exchange -> {
+            paths.add(exchange.getRequestURI().getRawPath());
+            respond(exchange, 207, """
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" />
+                    """, null);
+        });
+
+        CalDavCalendarAdapter adapter = adapter();
+        adapter.list(principal(), CalendarScopeResponse.team("Engineering", "Engineering"), null, null);
+        adapter.list(principal(), CalendarScopeResponse.channel(
+                "Engineering", "Engineering General", "Engineering / General"), null, null);
+
+        assertThat(paths).containsExactly(
+                "/remote.php/dav/calendars/weave-backend/weave-team-engineering/",
+                "/remote.php/dav/calendars/weave-backend/weave-channel-engineering-general/");
+    }
+
+    @Test
+    void rejectsOpaqueEventIdsReadThroughTheWrongScope() throws Exception {
+        server = server(exchange -> respond(exchange, 201, "", "\"etag-new\""));
+        CalDavCalendarAdapter adapter = adapter();
+        var created = adapter.create(principal(), new CreateCalendarEventRequest(
+                "Planning",
+                null,
+                OffsetDateTime.parse("2026-04-26T10:00:00+02:00"),
+                OffsetDateTime.parse("2026-04-26T11:00:00+02:00"),
+                "Europe/Berlin",
+                null,
+                false,
+                CalendarScopeResponse.team("engineering", "Engineering")));
+
+        assertThatThrownBy(() -> adapter.read(principal(), CalendarScopeResponse.workspace(), created.id()))
+                .isInstanceOf(CalendarAdapterException.class)
+                .satisfies(error -> assertThat(((CalendarAdapterException) error).type())
+                        .isEqualTo(CalendarAdapterException.Type.INVALID_REQUEST));
     }
 
     @Test

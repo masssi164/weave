@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.service.calendar;
 
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
 import java.io.IOException;
@@ -54,8 +55,18 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
 
     @Override
     public List<CalendarEventResponse> list(CalendarPrincipal principal, OffsetDateTime from, OffsetDateTime to) {
+        return list(principal, CalendarScopeResponse.workspace(), from, to);
+    }
+
+    @Override
+    public List<CalendarEventResponse> list(
+            CalendarPrincipal principal,
+            CalendarScopeResponse scope,
+            OffsetDateTime from,
+            OffsetDateTime to) {
         ensureConfigured("list-events");
-        URI calendarUri = calendarCollectionUri(principal);
+        CalendarScopeResponse resolvedScope = normalizeScope(scope);
+        URI calendarUri = calendarCollectionUri(principal, resolvedScope);
         String body = calendarQuery(from, to);
         HttpRequest request = requestBuilder(calendarUri)
                 .method("REPORT", HttpRequest.BodyPublishers.ofString(body))
@@ -65,7 +76,7 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
                 .build();
         HttpResponse<String> response = send(request, "list-events");
         if (response.statusCode() == HTTP_NOT_FOUND) {
-            ensureCalendarCollection(principal);
+            ensureCalendarCollection(principal, resolvedScope);
             response = send(request, "list-events");
         }
         if (response.statusCode() != HTTP_MULTI_STATUS && !isSuccess(response.statusCode())) {
@@ -77,8 +88,9 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
     @Override
     public CalendarEventResponse create(CalendarPrincipal principal, CreateCalendarEventRequest request) {
         ensureConfigured("create-event");
+        CalendarScopeResponse scope = normalizeScope(request.scope());
         IcalendarMapper.EventDraft draft = mapper.draftFrom(request);
-        String href = calendarHref(principal, draft.uid() + ".ics");
+        String href = calendarHref(principal, scope, draft.uid() + ".ics");
         URI eventUri = eventUri(href);
         HttpRequest httpRequest = requestBuilder(eventUri)
                 .PUT(HttpRequest.BodyPublishers.ofString(mapper.toIcalendar(draft)))
@@ -87,7 +99,7 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
                 .build();
         HttpResponse<String> response = send(httpRequest, "create-event");
         if (response.statusCode() == HTTP_NOT_FOUND) {
-            ensureCalendarCollection(principal);
+            ensureCalendarCollection(principal, scope);
             response = send(httpRequest, "create-event");
         }
         if (!isSuccess(response.statusCode())) {
@@ -107,16 +119,30 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
 
     @Override
     public CalendarEventResponse read(CalendarPrincipal principal, String id) {
+        return read(principal, CalendarScopeResponse.workspace(), id);
+    }
+
+    @Override
+    public CalendarEventResponse read(CalendarPrincipal principal, CalendarScopeResponse scope, String id) {
         ensureConfigured("read-event");
-        String href = hrefFromOpaqueId(id, principal);
+        String href = hrefFromOpaqueId(id, principal, normalizeScope(scope));
         HttpResponse<String> existing = getEvent(href, "read-event");
         return mapper.toResponse(id, existing.headers().firstValue("ETag").orElse(null), existing.body());
     }
 
     @Override
     public CalendarEventResponse update(CalendarPrincipal principal, String id, UpdateCalendarEventRequest request) {
+        return update(principal, CalendarScopeResponse.workspace(), id, request);
+    }
+
+    @Override
+    public CalendarEventResponse update(
+            CalendarPrincipal principal,
+            CalendarScopeResponse scope,
+            String id,
+            UpdateCalendarEventRequest request) {
         ensureConfigured("update-event");
-        String href = hrefFromOpaqueId(id, principal);
+        String href = hrefFromOpaqueId(id, principal, normalizeScope(scope));
         URI eventUri = eventUri(href);
         HttpResponse<String> existing = getEvent(href, "update-event");
 
@@ -145,8 +171,13 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
 
     @Override
     public void delete(CalendarPrincipal principal, String id) {
+        delete(principal, CalendarScopeResponse.workspace(), id);
+    }
+
+    @Override
+    public void delete(CalendarPrincipal principal, CalendarScopeResponse scope, String id) {
         ensureConfigured("delete-event");
-        String href = hrefFromOpaqueId(id, principal);
+        String href = hrefFromOpaqueId(id, principal, normalizeScope(scope));
         HttpResponse<String> response = send(requestBuilder(eventUri(href))
                 .DELETE()
                 .build(), "delete-event");
@@ -282,8 +313,8 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         }
     }
 
-    private void ensureCalendarCollection(CalendarPrincipal principal) {
-        URI calendarUri = calendarCollectionUri(principal);
+    private void ensureCalendarCollection(CalendarPrincipal principal, CalendarScopeResponse scope) {
+        URI calendarUri = calendarCollectionUri(principal, scope);
         HttpRequest request = requestBuilder(calendarUri)
                 .method("MKCALENDAR", HttpRequest.BodyPublishers.ofString(mkCalendarBody()))
                 .header("Content-Type", "application/xml; charset=utf-8")
@@ -294,7 +325,7 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
                 || response.statusCode() == HTTP_METHOD_NOT_ALLOWED) {
             return;
         }
-        throw mapStatus(response.statusCode(), "ensure-calendar-collection", calendarHref(principal, ""));
+        throw mapStatus(response.statusCode(), "ensure-calendar-collection", calendarHref(principal, scope, ""));
     }
 
     private CalendarAdapterException mapStatus(int status, String operation, String href) {
@@ -338,13 +369,15 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         }
     }
 
-    private URI calendarCollectionUri(CalendarPrincipal principal) {
-        return eventUri(calendarHref(principal, ""));
+    private URI calendarCollectionUri(CalendarPrincipal principal, CalendarScopeResponse scope) {
+        return eventUri(calendarHref(principal, scope, ""));
     }
 
-    private String calendarHref(CalendarPrincipal principal, String eventFileName) {
+    private String calendarHref(CalendarPrincipal principal, CalendarScopeResponse scope, String eventFileName) {
+        CalendarScopeResponse resolvedScope = normalizeScope(scope);
         String user = URLEncoder.encode(principal.nextcloudUserId(), StandardCharsets.UTF_8).replace("+", "%20");
         String path = properties.calendarPathTemplate().replace("{user}", user);
+        path = applyScopePath(path, resolvedScope);
         if (!path.startsWith("/")) {
             path = "/" + path;
         }
@@ -354,15 +387,58 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
         return path + eventFileName;
     }
 
+    private String applyScopePath(String path, CalendarScopeResponse scope) {
+        if (path.contains("{scopeId}")
+                || path.contains("{scopeType}")
+                || path.contains("{team}")
+                || path.contains("{channel}")) {
+            return path
+                    .replace("{scopeId}", scopeSegment(scope))
+                    .replace("{scopeType}", pathSegment(scope.type()))
+                    .replace("{team}", pathSegment(scope.teamId()))
+                    .replace("{channel}", pathSegment(scope.channelId()));
+        }
+        if ("workspace".equals(scope.type())) {
+            return path;
+        }
+        String normalizedPath = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+        int lastSlash = normalizedPath.lastIndexOf('/');
+        String parent = lastSlash < 0 ? "" : normalizedPath.substring(0, lastSlash + 1);
+        return parent + "weave-" + scopeSegment(scope) + "/";
+    }
+
+    private CalendarScopeResponse normalizeScope(CalendarScopeResponse scope) {
+        return scope == null || scope.type() == null || scope.type().isBlank()
+                ? CalendarScopeResponse.workspace()
+                : scope;
+    }
+
+    private String scopeSegment(CalendarScopeResponse scope) {
+        return switch (scope.type()) {
+            case "team" -> "team-" + pathSegment(scope.teamId());
+            case "channel" -> "channel-" + pathSegment(scope.channelId());
+            default -> "workspace";
+        };
+    }
+
+    private String pathSegment(String value) {
+        if (value == null || value.isBlank()) {
+            return "default";
+        }
+        String sanitized = value.trim().toLowerCase(java.util.Locale.ROOT).replaceAll("[^a-z0-9._-]+", "-");
+        sanitized = sanitized.replaceAll("(^[.-]+|[.-]+$)", "");
+        return sanitized.isBlank() ? "default" : sanitized;
+    }
+
     private URI eventUri(String href) {
         String path = href.startsWith("/") ? href : "/" + href;
         return URI.create(stripTrailingSlash(properties.baseUrl())).resolve(path);
     }
 
-    private String hrefFromOpaqueId(String id, CalendarPrincipal principal) {
+    private String hrefFromOpaqueId(String id, CalendarPrincipal principal, CalendarScopeResponse scope) {
         try {
             String href = new String(Base64.getUrlDecoder().decode(id), StandardCharsets.UTF_8);
-            String calendarHref = calendarHref(principal, "");
+            String calendarHref = calendarHref(principal, scope, "");
             if (!href.startsWith("/") || href.contains("..") || !href.startsWith(calendarHref)) {
                 throw invalidId();
             }

@@ -17,7 +17,7 @@ The backend is an active product facade for the MVP collaboration surfaces. Some
 - first-run onboarding status at `/api/onboarding/status`
 - workspace capability and release-readiness snapshots at `/api/workspace/capabilities` and `/api/workspace/release-readiness`
 - Nextcloud-backed Files facade endpoints when a backend-owned actor is configured; otherwise they fail closed
-- Calendar facade endpoints mapped to the backend actor's Nextcloud CalDAV workspace calendar fallback while flexible Context/Space scheduling evolves from the current workspace/team/channel template scopes; unsafe private-personal calendar templates fail closed
+- Calendar facade endpoints mapped to backend-owned Nextcloud CalDAV workspace/team/channel collections while flexible Context/Space scheduling evolves; unsafe private-personal calendar templates fail closed
 - secret-free Calendar client setup metadata at `GET /api/calendar/client-setup` for feature-gated native-client setup; it does not return credentials or generate profiles yet
 - internal Audit/Consent seam for future connector/assistant writes, consent grant/revocation events, support-safe redaction, and fail-closed missing-audit behavior; it does not enable live provider writes
 - OpenAPI JSON at `/v3/api-docs`

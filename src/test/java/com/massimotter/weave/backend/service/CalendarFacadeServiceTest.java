@@ -73,13 +73,19 @@ class CalendarFacadeServiceTest {
 
     @Test
     void listCanReturnChannelScopedEventsWithScopedFacadeIds() {
+        AtomicReference<CalendarScopeResponse> capturedScope = new AtomicReference<>();
         OffsetDateTime startsAt = OffsetDateTime.parse("2026-04-26T10:00:00+02:00");
         OffsetDateTime endsAt = OffsetDateTime.parse("2026-04-26T11:00:00+02:00");
         CalendarEventResponse event = new CalendarEventResponse(
                 "raw-event-id", "Planning", null, startsAt, endsAt, "Europe/Berlin", null, false, "etag");
         CalendarAdapter adapter = new StubCalendarAdapter() {
             @Override
-            public List<CalendarEventResponse> list(CalendarPrincipal principal, OffsetDateTime from, OffsetDateTime to) {
+            public List<CalendarEventResponse> list(
+                    CalendarPrincipal principal,
+                    CalendarScopeResponse scope,
+                    OffsetDateTime from,
+                    OffsetDateTime to) {
+                capturedScope.set(scope);
                 return List.of(event);
             }
         };
@@ -91,6 +97,7 @@ class CalendarFacadeServiceTest {
         assertThat(response.scope().type()).isEqualTo("channel");
         assertThat(response.scope().teamId()).isEqualTo("engineering");
         assertThat(response.scope().channelId()).isEqualTo("engineering-general");
+        assertThat(capturedScope.get().contextId()).isEqualTo("channel-engineering-general");
         CalendarEventResponse scopedEvent = response.events().get(0);
         assertThat(scopedEvent.scope().type()).isEqualTo("channel");
         assertThat(scopedEvent.threadRef().kind()).isEqualTo("context");

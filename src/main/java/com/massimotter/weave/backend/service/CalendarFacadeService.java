@@ -94,7 +94,7 @@ public class CalendarFacadeService {
         CalendarScopeResponse scope = resolveScope(scopeType, teamId, channelId);
         requireContextPermission(scope, ContextPermission.VIEW, "list-events");
         try {
-            List<CalendarEventResponse> events = adapter("list-events").list(principal(), from, to).stream()
+            List<CalendarEventResponse> events = adapter("list-events").list(principal(), scope, from, to).stream()
                     .map(event -> withScope(event, scope, true))
                     .toList();
             return new CalendarEventsResponse(scope, events);
@@ -117,7 +117,7 @@ public class CalendarFacadeService {
         ScopedEventId eventId = scopedEventId(id);
         requireContextPermission(eventId.scope(), ContextPermission.VIEW, "read-event");
         try {
-            return withScope(adapter("read-event").read(principal(), eventId.rawId()), eventId.scope(), true);
+            return withScope(adapter("read-event").read(principal(), eventId.scope(), eventId.rawId()), eventId.scope(), true);
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "read-event");
         }
@@ -128,7 +128,7 @@ public class CalendarFacadeService {
         CalendarScopeResponse scope = request.scope() == null ? eventId.scope() : normalizeScope(request.scope(), "update-event");
         requireContextPermission(scope, ContextPermission.EDIT, "update-event");
         try {
-            return withScope(adapter("update-event").update(principal(), eventId.rawId(), request), scope, true);
+            return withScope(adapter("update-event").update(principal(), scope, eventId.rawId(), request), scope, true);
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "update-event");
         }
@@ -138,7 +138,7 @@ public class CalendarFacadeService {
         ScopedEventId eventId = scopedEventId(id);
         requireContextPermission(eventId.scope(), ContextPermission.EDIT, "delete-event");
         try {
-            adapter("delete-event").delete(principal(), eventId.rawId());
+            adapter("delete-event").delete(principal(), eventId.scope(), eventId.rawId());
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "delete-event");
         }
