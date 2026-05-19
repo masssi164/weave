@@ -1053,6 +1053,35 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsWorkspaceLastChangeLabel => 'Letzte Änderung';
 
   @override
+  String get settingsWorkspaceMatrixE2eeGateLabel => 'E2EE-Gate';
+
+  @override
+  String get settingsWorkspaceMatrixE2eeValidated => 'Validiert';
+
+  @override
+  String get settingsWorkspaceMatrixE2eeNotValidated => 'Nicht validiert';
+
+  @override
+  String get settingsWorkspaceMatrixServerBodiesLabel =>
+      'Server-lesbare Inhalte';
+
+  @override
+  String get settingsWorkspaceMatrixServerBodiesOpaque => 'Nein';
+
+  @override
+  String get settingsWorkspaceMatrixServerBodiesReadable => 'Prüfen';
+
+  @override
+  String get settingsWorkspaceMatrixAgentWritesLabel => 'Agent-Schreibzugriff';
+
+  @override
+  String get settingsWorkspaceMatrixAgentWritesBlocked =>
+      'Blockiert/fail-closed';
+
+  @override
+  String get settingsWorkspaceMatrixAgentWritesReview => 'Policy prüfen';
+
+  @override
   String get settingsWorkspaceCapabilityReady => 'Bereit';
 
   @override
