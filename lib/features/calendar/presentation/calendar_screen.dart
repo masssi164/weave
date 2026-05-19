@@ -755,9 +755,13 @@ class _CalendarEventCard extends StatelessWidget {
     final theme = Theme.of(context);
     final startsAt = _formatDateTime(context, event.startTime);
     final endsAt = _formatDateTime(context, event.endTime);
+    final scopeLine = '${l10n.calendarDetailsScopeLabel}: ${event.scope.label}';
+    final contextLine =
+        '${l10n.calendarDetailsContextLabel}: ${event.threadRef.contextId}';
 
     return Semantics(
-      label: l10n.calendarEventSemantic(event.title, startsAt, endsAt),
+      label:
+          '${l10n.calendarEventSemantic(event.title, startsAt, endsAt)}, $scopeLine, $contextLine',
       button: true,
       child: Card(
         elevation: 0,
@@ -801,6 +805,10 @@ class _CalendarEventCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('$startsAt – $endsAt'),
+                const SizedBox(height: 4),
+                Text(scopeLine),
+                const SizedBox(height: 4),
+                Text(contextLine),
                 if ((event.location ?? '').isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(event.location!),

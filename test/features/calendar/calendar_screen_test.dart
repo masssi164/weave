@@ -20,6 +20,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   final List<CalendarEventDraft> createdDrafts = [];
   final List<(String, CalendarEventDraft)> updatedDrafts = [];
   final List<String> deletedIds = [];
+  final List<CalendarScope?> loadedScopes = [];
 
   @override
   Future<CalendarScopeList> loadScopes() async => const CalendarScopeList(
@@ -29,6 +30,7 @@ class _FakeCalendarRepository implements CalendarRepository {
         id: 'team:engineering',
         type: 'team',
         label: 'Engineering team calendar',
+        contextId: 'team-engineering',
         teamId: 'engineering',
         accessModel: 'shared-team-calendar',
       ),
@@ -36,6 +38,7 @@ class _FakeCalendarRepository implements CalendarRepository {
         id: 'channel:engineering-general',
         type: 'channel',
         label: 'Engineering / general channel calendar',
+        contextId: 'channel-engineering-general',
         teamId: 'engineering',
         channelId: 'engineering-general',
         accessModel: 'shared-channel-calendar',
@@ -46,6 +49,7 @@ class _FakeCalendarRepository implements CalendarRepository {
   @override
   Future<CalendarEventList> loadEvents({CalendarScope? scope}) async {
     loadCount += 1;
+    loadedScopes.add(scope);
     return CalendarEventList(
       scope: scope ?? CalendarScope.workspace,
       events: List<CalendarEvent>.of(events),
@@ -118,6 +122,7 @@ class _FakeCalendarRepository implements CalendarRepository {
       endTime: draft.endTime,
       timezone: draft.timezone,
       allDay: draft.allDay,
+      scope: draft.scope,
     );
     events.add(event);
     return event;
@@ -136,6 +141,7 @@ class _FakeCalendarRepository implements CalendarRepository {
       endTime: draft.endTime,
       timezone: draft.timezone,
       allDay: draft.allDay,
+      scope: draft.scope,
     );
     events[index] = event;
     return event;
@@ -327,7 +333,16 @@ void main() {
       expect(find.text('Sprint planning'), findsOneWidget);
       expect(find.text('Office'), findsOneWidget);
       expect(
-        find.bySemanticsLabel(RegExp(r'Planning, starts')),
+        find.text('Calendar scope: Engineering / general channel calendar'),
+        findsOneWidget,
+      );
+      expect(find.text('Context: channel-engineering-general'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            r'Planning, starts .* Calendar scope: Engineering / general channel calendar, Context: channel-engineering-general',
+          ),
+        ),
         findsOneWidget,
       );
 
@@ -513,6 +528,40 @@ void main() {
 
       expect(repository.deletedIds.single, 'created-1');
       expect(find.text('Customer demo'), findsNothing);
+    });
+
+    testWidgets('creates events in the selected team or channel scope', (
+      tester,
+    ) async {
+      final repository = _FakeCalendarRepository();
+
+      await tester.pumpWidget(
+        createTestApp(
+          const CalendarScreen(),
+          overrides: _calendarOverrides(repository),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Engineering / general channel calendar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).first, 'Channel sync');
+      await tester.tap(find.text('Save event'));
+      await tester.pumpAndSettle();
+
+      expect(repository.createdDrafts.single.scope.type, 'channel');
+      expect(
+        repository.createdDrafts.single.scope.contextId,
+        'channel-engineering-general',
+      );
+      expect(repository.loadedScopes.last?.id, 'channel:engineering-general');
+      expect(
+        find.text('Calendar scope: Engineering / general channel calendar'),
+        findsOneWidget,
+      );
+      expect(find.text('Context: channel-engineering-general'), findsOneWidget);
     });
 
     testWidgets('keeps invalid event drafts in the accessible form', (
