@@ -24,7 +24,9 @@ public record CalendarEventResponse(
         @Schema(description = "Opaque revision token used for conflict detection when available.")
         String etag,
         @Schema(description = "Calendar scope used for this facade event.")
-        CalendarScopeResponse scope) {
+        CalendarScopeResponse scope,
+        @Schema(description = "Safe event thread/context metadata. Does not expose encrypted Matrix message contents.")
+        CalendarThreadRefResponse threadRef) {
 
     public CalendarEventResponse(
             String id,
@@ -37,10 +39,25 @@ public record CalendarEventResponse(
             boolean allDay,
             String etag) {
         this(id, title, description, startsAt, endsAt, timezone, location, allDay, etag,
-                CalendarScopeResponse.workspace());
+                CalendarScopeResponse.workspace(), null);
+    }
+
+    public CalendarEventResponse(
+            String id,
+            String title,
+            String description,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            String timezone,
+            String location,
+            boolean allDay,
+            String etag,
+            CalendarScopeResponse scope) {
+        this(id, title, description, startsAt, endsAt, timezone, location, allDay, etag, scope, null);
     }
 
     public CalendarEventResponse {
         scope = scope == null ? CalendarScopeResponse.workspace() : scope;
+        threadRef = threadRef == null ? CalendarThreadRefResponse.forScope(scope) : threadRef;
     }
 }

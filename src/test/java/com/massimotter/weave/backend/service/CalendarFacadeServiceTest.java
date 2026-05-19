@@ -63,8 +63,11 @@ class CalendarFacadeServiceTest {
 
         assertThat(response.scopes()).extracting(CalendarScopeResponse::type)
                 .containsExactly("workspace", "team", "channel");
+        assertThat(response.scopes().get(0).contextId()).isEqualTo("workspace-default");
         assertThat(response.scopes().get(1).teamId()).isEqualTo("engineering");
+        assertThat(response.scopes().get(1).contextId()).isEqualTo("team-engineering");
         assertThat(response.scopes().get(2).channelId()).isEqualTo("engineering-general");
+        assertThat(response.scopes().get(2).contextId()).isEqualTo("channel-engineering-general");
         assertThat(response.scopes().get(2).capabilities()).contains("read", "create", "edit", "delete");
     }
 
@@ -90,6 +93,12 @@ class CalendarFacadeServiceTest {
         assertThat(response.scope().channelId()).isEqualTo("engineering-general");
         CalendarEventResponse scopedEvent = response.events().get(0);
         assertThat(scopedEvent.scope().type()).isEqualTo("channel");
+        assertThat(scopedEvent.threadRef().kind()).isEqualTo("context");
+        assertThat(scopedEvent.threadRef().contextId()).isEqualTo("channel-engineering-general");
+        assertThat(scopedEvent.threadRef().channelId()).isEqualTo("engineering-general");
+        assertThat(scopedEvent.threadRef().matrixRoomId()).isNull();
+        assertThat(scopedEvent.threadRef().matrixThreadId()).isNull();
+        assertThat(scopedEvent.threadRef().boardTaskIds()).isEmpty();
         assertThat(scopedEvent.id()).startsWith("scoped:");
     }
 

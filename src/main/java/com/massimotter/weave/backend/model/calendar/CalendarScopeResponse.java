@@ -13,6 +13,8 @@ public record CalendarScopeResponse(
         String label,
         @Schema(description = "Workspace identifier that owns this scope.", example = "workspace")
         String workspaceId,
+        @Schema(description = "Durable Weave Context/Space identifier backing this calendar scope.", example = "channel-engineering-general")
+        String contextId,
         @Schema(description = "Team identifier for team/channel scopes.", example = "engineering")
         String teamId,
         @Schema(description = "Channel identifier for channel scopes.", example = "engineering-general")
@@ -23,7 +25,7 @@ public record CalendarScopeResponse(
         List<String> capabilities) {
 
     public CalendarScopeResponse(String type, String label) {
-        this(defaultId(type, null, null), type, label, "workspace", null, null,
+        this(defaultId(type, null, null), type, label, "workspace", null, null, null,
                 defaultAccessModel(type), defaultCapabilities());
     }
 
@@ -33,6 +35,9 @@ public record CalendarScopeResponse(
         }
         if (workspaceId == null || workspaceId.isBlank()) {
             workspaceId = "workspace";
+        }
+        if (contextId == null || contextId.isBlank()) {
+            contextId = defaultContextId(type, teamId, channelId);
         }
         if (accessModel == null || accessModel.isBlank()) {
             accessModel = defaultAccessModel(type);
@@ -48,6 +53,7 @@ public record CalendarScopeResponse(
                 "workspace",
                 "Weave workspace calendar",
                 "workspace",
+                "workspace-default",
                 null,
                 null,
                 "shared-workspace-calendar",
@@ -60,6 +66,7 @@ public record CalendarScopeResponse(
                 "team",
                 label,
                 "workspace",
+                defaultContextId("team", teamId, null),
                 teamId,
                 null,
                 "shared-team-calendar",
@@ -72,6 +79,7 @@ public record CalendarScopeResponse(
                 "channel",
                 label,
                 "workspace",
+                defaultContextId("channel", teamId, channelId),
                 teamId,
                 channelId,
                 "shared-channel-calendar",
@@ -95,6 +103,14 @@ public record CalendarScopeResponse(
             case "team" -> teamId == null || teamId.isBlank() ? "team" : "team:" + teamId;
             case "channel" -> channelId == null || channelId.isBlank() ? "channel" : "channel:" + channelId;
             default -> "workspace";
+        };
+    }
+
+    private static String defaultContextId(String type, String teamId, String channelId) {
+        return switch (type == null ? "workspace" : type) {
+            case "team" -> "team-" + (teamId == null || teamId.isBlank() ? "engineering" : teamId);
+            case "channel" -> "channel-" + (channelId == null || channelId.isBlank() ? "engineering-general" : channelId);
+            default -> "workspace-default";
         };
     }
 }
