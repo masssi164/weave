@@ -84,6 +84,22 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void filesFacadeFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
+        when(contextAuthorizationPort.check(any()))
+                .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
+
+        mockMvc.perform(get("/api/files")
+                        .with(workspaceJwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(header().exists("X-Request-Id"))
+                .andExpect(jsonPath("$.code").value("files-forbidden"))
+                .andExpect(jsonPath("$.details.module").value("files"))
+                .andExpect(jsonPath("$.details.operation").value("list-files"))
+                .andExpect(jsonPath("$.details.contextId").value("workspace-default"))
+                .andExpect(jsonPath("$.details.permission").value("view"));
+    }
+
+    @Test
     void calendarFacadeRequiresAuthenticatedWorkspaceScope() throws Exception {
         mockMvc.perform(get("/api/calendar/events"))
                 .andExpect(status().isUnauthorized())

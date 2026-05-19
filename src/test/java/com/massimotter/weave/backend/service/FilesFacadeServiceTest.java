@@ -1,6 +1,10 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.model.files.CreateFolderRequest;
 import com.massimotter.weave.backend.model.files.FileItemResponse;
 import com.massimotter.weave.backend.model.files.FileListResponse;
@@ -10,9 +14,14 @@ import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
 import java.time.OffsetDateTime;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.multipart.MultipartFile;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,10 +29,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FilesFacadeServiceTest {
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void failsClosedWhenAdapterIsMissingOrUnconfigured() {
-        FilesFacadeService missing = new FilesFacadeService(provider(null));
-        FilesFacadeService unconfigured = new FilesFacadeService(provider(new StubAdapter(false)));
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesFacadeService missing = service(null);
+        FilesFacadeService unconfigured = service(new StubAdapter(false));
 
         assertThatThrownBy(() -> missing.list("/"))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
@@ -38,12 +53,69 @@ class FilesFacadeServiceTest {
 
     @Test
     void delegatesToConfiguredStorageAdapter() {
-        FilesFacadeService service = new FilesFacadeService(provider(new StubAdapter(true)));
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesFacadeService service = service(new StubAdapter(true));
 
         FileListResponse response = service.list("/Team");
 
         assertThat(response.path()).isEqualTo("/Team");
         assertThat(response.items()).extracting(FileItemResponse::name).containsExactly("readme.md");
+    }
+
+    @Test
+    void listFailsClosedWhenContextAuthorizationDeniesAccess() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+
+        assertThatThrownBy(() -> service(
+                        new StubAdapter(true),
+                        request -> ContextAuthorizationDecision.deny("no matching context membership"))
+                        .list("/Team"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(exception.code()).isEqualTo("files-forbidden");
+                    assertThat(exception.details()).containsEntry("module", "files");
+                    assertThat(exception.details()).containsEntry("operation", "list-files");
+                    assertThat(exception.details()).containsEntry("contextId", "workspace-default");
+                    assertThat(exception.details()).containsEntry("permission", "view");
+                    assertThat(exception.details()).containsEntry("reason", "no matching context membership");
+                });
+    }
+
+    @Test
+    void mutatingOperationsRequireEditPermissionForWorkspaceContext() {
+        AtomicReference<ContextAuthorizationRequest> captured = new AtomicReference<>();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+
+        assertThatThrownBy(() -> service(
+                        new StubAdapter(true),
+                        request -> {
+                            captured.set(request);
+                            return ContextAuthorizationDecision.deny("edit denied");
+                        })
+                        .upload("/Team", null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(exception.details()).containsEntry("permission", "edit");
+                });
+        assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
+        assertThat(captured.get().contextId()).isEqualTo("workspace-default");
+        assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
+        assertThat(captured.get().permission()).isEqualTo(ContextPermission.EDIT);
+    }
+
+    private FilesFacadeService service(FilesStorageAdapter adapter) {
+        return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
+    }
+
+    private FilesFacadeService service(FilesStorageAdapter adapter, ContextAuthorizationPort contextAuthorizationPort) {
+        return new FilesFacadeService(provider(adapter), contextAuthorizationPort);
+    }
+
+    private Jwt jwt() {
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .build();
     }
 
     private ObjectProvider<FilesStorageAdapter> provider(FilesStorageAdapter adapter) {
