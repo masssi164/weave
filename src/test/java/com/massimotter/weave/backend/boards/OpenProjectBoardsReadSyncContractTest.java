@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.boards.domain.TaskPriority;
 import com.massimotter.weave.backend.boards.domain.TaskStatus;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsMapper;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
+import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntimeGate;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectProjectSnapshot;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectStatusSnapshot;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectWorkPackageSnapshot;
@@ -45,10 +46,69 @@ class OpenProjectBoardsReadSyncContractTest {
                 .contains("fallback");
         assertThatThrownBy(() -> repository.listProjects(null))
                 .isInstanceOf(BoardsException.class)
-                .satisfies(error -> assertThat(((BoardsException) error).code())
-                        .isEqualTo(BoardsErrorCode.PROVIDER_UNAVAILABLE))
+                .satisfies(error -> {
+                    var boardsError = (BoardsException) error;
+                    assertThat(boardsError.code()).isEqualTo(BoardsErrorCode.PROVIDER_UNAVAILABLE);
+                    assertThat(boardsError.details()).containsEntry("provider", "openproject");
+                    assertThat(boardsError.details().get("missingGates"))
+                            .contains("provider_runtime")
+                            .contains("read_sync")
+                            .contains("context_authorization");
+                })
                 .hasMessageContaining("read-sync")
-                .hasMessageContaining("disabled");
+                .hasMessageContaining("fail-closed");
+    }
+
+    @Test
+    void openProjectGateRequiresContextAuthorizationBeforeReadSync() {
+        var repository = new OpenProjectBoardsRepository(new OpenProjectBoardsRuntimeGate(
+                true,
+                true,
+                false,
+                false,
+                false,
+                "service-account"));
+
+        assertThatThrownBy(() -> repository.listProjects(null))
+                .isInstanceOf(BoardsException.class)
+                .satisfies(error -> {
+                    var boardsError = (BoardsException) error;
+                    assertThat(boardsError.code()).isEqualTo(BoardsErrorCode.PROVIDER_UNAVAILABLE);
+                    assertThat(boardsError.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "list-projects")
+                            .containsEntry("mode", "read_sync");
+                    assertThat(boardsError.details().get("missingGates"))
+                            .contains("context_authorization")
+                            .doesNotContain("provider_runtime")
+                            .doesNotContain("read_sync");
+                });
+    }
+
+    @Test
+    void openProjectWritesStayUnsupportedUntilAuditConsentPromotion() {
+        var repository = new OpenProjectBoardsRepository(new OpenProjectBoardsRuntimeGate(
+                true,
+                true,
+                true,
+                false,
+                false,
+                "service-account"));
+
+        assertThatThrownBy(() -> repository.completeTask("openproject:work-package:99"))
+                .isInstanceOf(BoardsException.class)
+                .satisfies(error -> {
+                    var boardsError = (BoardsException) error;
+                    assertThat(boardsError.code()).isEqualTo(BoardsErrorCode.UNSUPPORTED_CAPABILITY);
+                    assertThat(boardsError.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "complete-task")
+                            .containsEntry("mode", "write")
+                            .containsEntry("missingGates", "provider_writes_disabled")
+                            .containsEntry("providerWritesEnabled", "false");
+                })
+                .hasMessageContaining("writes remain disabled")
+                .hasMessageContaining("audit");
     }
 
     @Test

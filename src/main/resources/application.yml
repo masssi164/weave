@@ -101,6 +101,17 @@ weave:
     boards:
       enabled: ${WEAVE_WORKSPACE_BOARDS_ENABLED:false}
       readiness: ${WEAVE_WORKSPACE_BOARDS_READINESS:}
+  boards:
+    preview:
+      runtime-enabled: ${WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED:false}
+      provider: ${WEAVE_BOARDS_PREVIEW_PROVIDER:local-preview}
+    openproject:
+      provider-runtime-enabled: ${WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED:false}
+      read-sync-enabled: ${WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED:false}
+      context-authorization-enabled: ${WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED:false}
+      audit-consent-enabled: ${WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED:false}
+      provider-writes-enabled: ${WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED:false}
+      auth-mode: ${WEAVE_BOARDS_OPENPROJECT_AUTH_MODE:disabled}
   onboarding:
     matrix:
       # Optional first-run provisioning override. When blank, status is derived from

@@ -31,6 +31,16 @@ import java.util.Optional;
  */
 public final class OpenProjectBoardsRepository implements BoardsRepository {
 
+    private final OpenProjectBoardsRuntimeGate runtimeGate;
+
+    public OpenProjectBoardsRepository() {
+        this(OpenProjectBoardsRuntimeGate.disabled());
+    }
+
+    public OpenProjectBoardsRepository(OpenProjectBoardsRuntimeGate runtimeGate) {
+        this.runtimeGate = runtimeGate;
+    }
+
     @Override
     public BoardProviderCapabilities capabilities() {
         return new BoardProviderCapabilities(
@@ -49,21 +59,29 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
                 "OpenProject is the disabled, read-only-first Boards provider seam; Vikunja and Deck are comparison/fallback paths only.");
     }
 
-    @Override public BoardPage<WeaveProject> listProjects(BoardQuery query) { throw disabled(); }
-    @Override public BoardPage<Board> listBoards(String projectId, BoardQuery query) { throw disabled(); }
-    @Override public Optional<Board> findBoard(String boardId) { throw disabled(); }
-    @Override public BoardPage<BoardColumn> listColumns(String boardId, BoardQuery query) { throw disabled(); }
-    @Override public BoardPage<TaskItem> listTasks(String boardId, TaskQuery query) { throw disabled(); }
-    @Override public BoardPage<Label> listLabels(String boardId, BoardQuery query) { throw disabled(); }
-    @Override public BoardPage<TaskComment> listComments(String taskId, BoardQuery query) { throw disabled(); }
-    @Override public BoardPage<TaskAttachment> listAttachments(String taskId, BoardQuery query) { throw disabled(); }
-    @Override public TaskItem createTask(CreateTaskCommand command) { throw disabled(); }
-    @Override public TaskItem moveTask(MoveTaskCommand command) { throw disabled(); }
-    @Override public TaskItem completeTask(String taskId) { throw disabled(); }
+    @Override public BoardPage<WeaveProject> listProjects(BoardQuery query) { throw readSyncDisabled("list-projects"); }
+    @Override public BoardPage<Board> listBoards(String projectId, BoardQuery query) { throw readSyncDisabled("list-boards"); }
+    @Override public Optional<Board> findBoard(String boardId) { throw readSyncDisabled("find-board"); }
+    @Override public BoardPage<BoardColumn> listColumns(String boardId, BoardQuery query) { throw readSyncDisabled("list-columns"); }
+    @Override public BoardPage<TaskItem> listTasks(String boardId, TaskQuery query) { throw readSyncDisabled("list-tasks"); }
+    @Override public BoardPage<Label> listLabels(String boardId, BoardQuery query) { throw readSyncDisabled("list-labels"); }
+    @Override public BoardPage<TaskComment> listComments(String taskId, BoardQuery query) { throw readSyncDisabled("list-comments"); }
+    @Override public BoardPage<TaskAttachment> listAttachments(String taskId, BoardQuery query) { throw readSyncDisabled("list-attachments"); }
+    @Override public TaskItem createTask(CreateTaskCommand command) { throw writeDisabled("create-task"); }
+    @Override public TaskItem moveTask(MoveTaskCommand command) { throw writeDisabled("move-task"); }
+    @Override public TaskItem completeTask(String taskId) { throw writeDisabled("complete-task"); }
 
-    private BoardsException disabled() {
+    private BoardsException readSyncDisabled(String operation) {
+        runtimeGate.requireReadSyncAllowed(operation);
         return new BoardsException(
                 BoardsErrorCode.PROVIDER_UNAVAILABLE,
-                "OpenProject Boards/Tasks read-sync adapter is disabled until a promotion spec enables authenticated backend routes.");
+                "OpenProject Boards/Tasks read-sync HTTP client is not implemented until a promotion spec enables authenticated backend routes.");
+    }
+
+    private BoardsException writeDisabled(String operation) {
+        runtimeGate.requireWriteAllowed(operation);
+        return new BoardsException(
+                BoardsErrorCode.UNSUPPORTED_CAPABILITY,
+                "OpenProject Boards/Tasks writes are not implemented for the read-sync-first adapter seam.");
     }
 }

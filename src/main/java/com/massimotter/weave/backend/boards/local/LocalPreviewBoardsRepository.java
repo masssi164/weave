@@ -212,7 +212,7 @@ public class LocalPreviewBoardsRepository implements BoardsRepository {
         List<TaskItem> seedTasks = new ArrayList<>();
         seedTasks.add(task("local-task-contract", TODO_COLUMN, "Review board API contract", "Keep routes hidden and provider-neutral before enabling a live adapter.", 0, TaskStatus.OPEN));
         seedTasks.add(task("local-task-a11y", ACTIVE_COLUMN, "Validate non-drag movement", "Keyboard and screen-reader users need move and complete actions without pointer drag.", 0, TaskStatus.OPEN));
-        seedTasks.add(task("local-task-provider", BLOCKED_COLUMN, "Choose provider adapter", "Vikunja remains the first candidate; Deck and OpenProject stay evaluated behind the Weave model.", 0, TaskStatus.BLOCKED));
+        seedTasks.add(task("local-task-provider", BLOCKED_COLUMN, "Promote provider adapter gates", "OpenProject is the preferred read-sync seam; Vikunja and Deck remain comparison paths behind the Weave model.", 0, TaskStatus.BLOCKED));
         seedTasks.add(task("local-task-events", DONE_COLUMN, "Normalize task events", "Event envelopes redact provider details before later notifications or audits consume them.", 0, TaskStatus.COMPLETED));
         seedTasks.forEach(task -> tasks.put(task.id(), task));
     }
