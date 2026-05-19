@@ -2621,6 +2621,12 @@ abstract class AppLocalizations {
   /// **'Calendar'**
   String get settingsWorkspaceCalendarLabel;
 
+  /// Row label for boards readiness in the workspace readiness summary
+  ///
+  /// In en, this message translates to:
+  /// **'Boards'**
+  String get settingsWorkspaceBoardsLabel;
+
   /// Title for the workspace-scoped calendar banner
   ///
   /// In en, this message translates to:

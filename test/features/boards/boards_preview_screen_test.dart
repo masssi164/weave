@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/boards/presentation/boards_preview_screen.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
@@ -40,17 +41,22 @@ void main() {
       await tester.pumpWidget(
         createTestApp(
           const BoardsPreviewScreen(),
-          overrides: _backendPreviewOverrides((request) async {
-            requests.add(request);
-            if (request.method == 'POST') {
-              return http.Response('{"id":"task-1"}', 200);
-            }
-            return http.Response(
-              _backendPreviewPayload,
-              200,
-              headers: {'content-type': 'application/json'},
-            );
-          }),
+          overrides: [
+            ..._backendPreviewOverrides((request) async {
+              requests.add(request);
+              if (request.method == 'POST') {
+                return http.Response('{"id":"task-1"}', 200);
+              }
+              return http.Response(
+                _backendPreviewPayload,
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => _capabilities(),
+            ),
+          ],
         ),
       );
       await tester.pumpAndSettle();
@@ -109,6 +115,60 @@ void main() {
           ),
           findsOneWidget,
         );
+      },
+    );
+
+    testWidgets('fails closed when backend Boards capability is not ready', (
+      tester,
+    ) async {
+      _setCompactPreviewSurface(tester);
+      final requests = <http.Request>[];
+      await tester.pumpWidget(
+        createTestApp(
+          const BoardsPreviewScreen(),
+          overrides: [
+            ..._backendPreviewOverrides((request) async {
+              requests.add(request);
+              return http.Response(_backendPreviewPayload, 200);
+            }),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async =>
+                  _capabilities(boards: WorkspaceCapabilityReadiness.blocked),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Provider runtime blocked'), findsOneWidget);
+      expect(find.text('Backend non-drag actions blocked'), findsOneWidget);
+      expect(requests, isEmpty);
+    });
+
+    testWidgets(
+      'fails closed when backend Boards context authorization denies',
+      (tester) async {
+        _setCompactPreviewSurface(tester);
+        final requests = <http.Request>[];
+        await tester.pumpWidget(
+          createTestApp(
+            const BoardsPreviewScreen(),
+            overrides: [
+              ..._backendPreviewOverrides((request) async {
+                requests.add(request);
+                return http.Response('{"code":"boards-forbidden"}', 403);
+              }),
+              weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) async => _capabilities(),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Provider runtime blocked'), findsOneWidget);
+        expect(find.text('Backend non-drag actions blocked'), findsOneWidget);
+        expect(requests, hasLength(1));
       },
     );
 
@@ -235,6 +295,31 @@ List<dynamic> _backendPreviewOverrides(
   ),
   weaveApiHttpClientProvider.overrideWithValue(MockClient(handler)),
 ];
+
+WorkspaceCapabilitySnapshot _capabilities({
+  WorkspaceCapabilityReadiness boards = WorkspaceCapabilityReadiness.ready,
+}) => WorkspaceCapabilitySnapshot(
+  shellAccess: const WorkspaceCapabilityState(
+    capability: WorkspaceCapability.shellAccess,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  chat: const WorkspaceCapabilityState(
+    capability: WorkspaceCapability.chat,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  files: const WorkspaceCapabilityState(
+    capability: WorkspaceCapability.files,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  calendar: const WorkspaceCapabilityState(
+    capability: WorkspaceCapability.calendar,
+    readiness: WorkspaceCapabilityReadiness.ready,
+  ),
+  boards: WorkspaceCapabilityState(
+    capability: WorkspaceCapability.boards,
+    readiness: boards,
+  ),
+);
 
 void _setCompactPreviewSurface(WidgetTester tester) {
   tester.view.devicePixelRatio = 1;

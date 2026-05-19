@@ -1274,6 +1274,8 @@
   "@profileEditSavedMessage": {"description": "Live-region success message after saving profile edits"},
   "settingsWorkspaceCalendarLabel": "Calendar",
   "@settingsWorkspaceCalendarLabel": {"description": "Row label for calendar readiness in the workspace readiness summary"},
+  "settingsWorkspaceBoardsLabel": "Boards",
+  "@settingsWorkspaceBoardsLabel": {"description": "Row label for boards readiness in the workspace readiness summary"},
   "calendarWorkspaceScopeTitle": "Workspace calendar",
   "@calendarWorkspaceScopeTitle": {"description": "Title for the workspace-scoped calendar banner"},
   "calendarWorkspaceScopeDescription": "This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.",
