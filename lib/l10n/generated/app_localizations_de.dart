@@ -1770,6 +1770,56 @@ class AppLocalizationsDe extends AppLocalizations {
   String get calendarDetailsDescriptionLabel => 'Beschreibung';
 
   @override
+  String get calendarDetailsAttendeesLabel => 'Teilnehmende';
+
+  @override
+  String calendarDetailsAttendeeSummary(
+    String name,
+    String email,
+    String role,
+    String responseStatus,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(email, {
+      'none': '',
+      'other': ' <$email>',
+    });
+    String _temp1 = intl.Intl.selectLogic(role, {
+      'none': '',
+      'other': ' · $role',
+    });
+    String _temp2 = intl.Intl.selectLogic(responseStatus, {
+      'none': '',
+      'other': ' · $responseStatus',
+    });
+    return '$name$_temp0$_temp1$_temp2';
+  }
+
+  @override
+  String get calendarDetailsUnknownAttendee => 'Unbekannte teilnehmende Person';
+
+  @override
+  String get calendarDetailsProviderLabel => 'Anbietergrenze';
+
+  @override
+  String calendarDetailsProviderSummary(
+    String provider,
+    String objectKind,
+    String opaqueId,
+  ) {
+    return '$provider $objectKind über opake Weave-ID $opaqueId';
+  }
+
+  @override
+  String get calendarDetailsProviderUnsafe =>
+      'Anbietermetadaten sind blockiert, weil sie einen rohen Anbieterpfad offenlegen würden.';
+
+  @override
+  String get calendarDetailsProviderOpaqueFallback => 'opaker Termin';
+
+  @override
+  String get calendarDetailsUpdatedAtLabel => 'Zuletzt aktualisiert';
+
+  @override
   String get calendarCloseButton => 'Schließen';
 
   @override

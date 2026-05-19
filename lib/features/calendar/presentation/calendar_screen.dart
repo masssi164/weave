@@ -906,9 +906,96 @@ class _CalendarEventDetails extends StatelessWidget {
                 label: l10n.calendarDetailsDescriptionLabel,
                 value: event.description!,
               ),
+            if (event.attendees.isNotEmpty)
+              _CalendarAttendeeDetails(attendees: event.attendees),
+            if (event.providerRef != null)
+              _CalendarProviderDetails(providerRef: event.providerRef!),
+            if (event.updatedAt != null)
+              _CalendarDetailLine(
+                label: l10n.calendarDetailsUpdatedAtLabel,
+                value: _formatDateTime(context, event.updatedAt!),
+              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CalendarAttendeeDetails extends StatelessWidget {
+  const _CalendarAttendeeDetails({required this.attendees});
+
+  final List<CalendarAttendee> attendees;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.calendarDetailsAttendeesLabel,
+            style: theme.textTheme.labelLarge,
+          ),
+          const SizedBox(height: 2),
+          for (final attendee in attendees)
+            Text(
+              l10n.calendarDetailsAttendeeSummary(
+                _attendeeName(attendee, l10n),
+                _selectValue(attendee.email),
+                _selectValue(attendee.role),
+                _selectValue(attendee.responseStatus),
+              ),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _attendeeName(CalendarAttendee attendee, AppLocalizations l10n) {
+    final name = attendee.name?.trim();
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+    final email = attendee.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      return email;
+    }
+    return l10n.calendarDetailsUnknownAttendee;
+  }
+
+  String _selectValue(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? 'none' : trimmed;
+  }
+}
+
+class _CalendarProviderDetails extends StatelessWidget {
+  const _CalendarProviderDetails({required this.providerRef});
+
+  final CalendarProviderRef providerRef;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final value = providerRef.rawProviderPathExposed
+        ? l10n.calendarDetailsProviderUnsafe
+        : l10n.calendarDetailsProviderSummary(
+            providerRef.provider,
+            providerRef.objectKind,
+            providerRef.opaqueId ?? l10n.calendarDetailsProviderOpaqueFallback,
+          );
+
+    return _CalendarDetailLine(
+      label: l10n.calendarDetailsProviderLabel,
+      value: value,
     );
   }
 }

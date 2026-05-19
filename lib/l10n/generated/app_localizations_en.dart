@@ -1742,6 +1742,56 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendarDetailsDescriptionLabel => 'Description';
 
   @override
+  String get calendarDetailsAttendeesLabel => 'Attendees';
+
+  @override
+  String calendarDetailsAttendeeSummary(
+    String name,
+    String email,
+    String role,
+    String responseStatus,
+  ) {
+    String _temp0 = intl.Intl.selectLogic(email, {
+      'none': '',
+      'other': ' <$email>',
+    });
+    String _temp1 = intl.Intl.selectLogic(role, {
+      'none': '',
+      'other': ' · $role',
+    });
+    String _temp2 = intl.Intl.selectLogic(responseStatus, {
+      'none': '',
+      'other': ' · $responseStatus',
+    });
+    return '$name$_temp0$_temp1$_temp2';
+  }
+
+  @override
+  String get calendarDetailsUnknownAttendee => 'Unknown attendee';
+
+  @override
+  String get calendarDetailsProviderLabel => 'Provider boundary';
+
+  @override
+  String calendarDetailsProviderSummary(
+    String provider,
+    String objectKind,
+    String opaqueId,
+  ) {
+    return '$provider $objectKind via opaque Weave id $opaqueId';
+  }
+
+  @override
+  String get calendarDetailsProviderUnsafe =>
+      'Provider metadata is blocked because it would expose a raw provider path.';
+
+  @override
+  String get calendarDetailsProviderOpaqueFallback => 'opaque event';
+
+  @override
+  String get calendarDetailsUpdatedAtLabel => 'Last updated';
+
+  @override
   String get calendarCloseButton => 'Close';
 
   @override

@@ -281,6 +281,44 @@ class CalendarFacadeClient {
       etag: _readNullableString(json, 'etag'),
       scope: eventScope,
       threadRef: _decodeThreadRef(json['threadRef'], defaultScope: eventScope),
+      attendees: _decodeAttendees(json['attendees']),
+      providerRef: _decodeProviderRef(json['providerRef']),
+      updatedAt: _readNullableDateTime(json, 'updatedAt'),
+    );
+  }
+
+  List<CalendarAttendee> _decodeAttendees(Object? rawAttendees) {
+    if (rawAttendees is! List) {
+      return const [];
+    }
+
+    return rawAttendees
+        .whereType<Map<String, dynamic>>()
+        .map(
+          (json) => CalendarAttendee(
+            name: _readNullableString(json, 'name'),
+            email: _readNullableString(json, 'email'),
+            role: _readNullableString(json, 'role'),
+            responseStatus: _readNullableString(json, 'responseStatus'),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  CalendarProviderRef? _decodeProviderRef(Object? rawProviderRef) {
+    if (rawProviderRef is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final provider = _readNullableString(rawProviderRef, 'provider');
+    final objectKind = _readNullableString(rawProviderRef, 'objectKind');
+    return CalendarProviderRef(
+      provider: provider ?? 'nextcloud-caldav',
+      objectKind: objectKind ?? 'calendar-event',
+      opaqueId: _readNullableString(rawProviderRef, 'opaqueId'),
+      etag: _readNullableString(rawProviderRef, 'etag'),
+      lastSyncedAt: _readNullableDateTime(rawProviderRef, 'lastSyncedAt'),
+      rawProviderPathExposed: rawProviderRef['rawProviderPathExposed'] == true,
     );
   }
 
@@ -507,6 +545,14 @@ class CalendarFacadeClient {
     throw AppFailure.unknown(
       'The Weave backend returned a calendar event without a valid $key.',
     );
+  }
+
+  DateTime? _readNullableDateTime(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    return null;
   }
 
   Map<String, String> _jsonHeaders(String accessToken) {

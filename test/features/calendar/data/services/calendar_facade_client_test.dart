@@ -185,6 +185,23 @@ void main() {
                     'matrixThreadId': null,
                     'boardTaskIds': [],
                   },
+                  'attendees': [
+                    {
+                      'name': 'Ada Lovelace',
+                      'email': 'ada@example.com',
+                      'role': 'req-participant',
+                      'responseStatus': 'accepted',
+                    },
+                  ],
+                  'providerRef': {
+                    'provider': 'nextcloud-caldav',
+                    'objectKind': 'calendar-event',
+                    'opaqueId': 'calendar:workspace:1',
+                    'etag': 'abc',
+                    'lastSyncedAt': '2026-04-25T09:00:00Z',
+                    'rawProviderPathExposed': false,
+                  },
+                  'updatedAt': '2026-04-25T09:00:00Z',
                 },
               ],
             }),
@@ -229,6 +246,25 @@ void main() {
       );
       expect(events.events.single.threadRef.channelId, 'engineering-general');
       expect(events.events.single.threadRef.matrixThreadId, isNull);
+      expect(events.events.single.attendees.single.name, 'Ada Lovelace');
+      expect(events.events.single.attendees.single.email, 'ada@example.com');
+      expect(events.events.single.attendees.single.role, 'req-participant');
+      expect(events.events.single.attendees.single.responseStatus, 'accepted');
+      expect(events.events.single.providerRef?.provider, 'nextcloud-caldav');
+      expect(events.events.single.providerRef?.objectKind, 'calendar-event');
+      expect(
+        events.events.single.providerRef?.opaqueId,
+        'calendar:workspace:1',
+      );
+      expect(events.events.single.providerRef?.rawProviderPathExposed, isFalse);
+      expect(
+        events.events.single.providerRef?.lastSyncedAt,
+        DateTime.parse('2026-04-25T09:00:00Z'),
+      );
+      expect(
+        events.events.single.updatedAt,
+        DateTime.parse('2026-04-25T09:00:00Z'),
+      );
     });
 
     test(

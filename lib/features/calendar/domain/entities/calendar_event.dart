@@ -208,6 +208,50 @@ class CalendarClientSetup {
   final List<CalendarClientSetupOption> options;
 }
 
+class CalendarAttendee {
+  const CalendarAttendee({
+    this.name,
+    this.email,
+    this.role,
+    this.responseStatus,
+  });
+
+  final String? name;
+  final String? email;
+  final String? role;
+  final String? responseStatus;
+
+  String get displayName {
+    final trimmedName = name?.trim();
+    if (trimmedName != null && trimmedName.isNotEmpty) {
+      return trimmedName;
+    }
+    final trimmedEmail = email?.trim();
+    if (trimmedEmail != null && trimmedEmail.isNotEmpty) {
+      return trimmedEmail;
+    }
+    return 'Unknown attendee';
+  }
+}
+
+class CalendarProviderRef {
+  const CalendarProviderRef({
+    required this.provider,
+    required this.objectKind,
+    required this.rawProviderPathExposed,
+    this.opaqueId,
+    this.etag,
+    this.lastSyncedAt,
+  });
+
+  final String provider;
+  final String objectKind;
+  final String? opaqueId;
+  final String? etag;
+  final DateTime? lastSyncedAt;
+  final bool rawProviderPathExposed;
+}
+
 class CalendarEvent {
   CalendarEvent({
     required this.id,
@@ -221,6 +265,9 @@ class CalendarEvent {
     this.etag,
     this.scope = CalendarScope.workspace,
     CalendarThreadRef? threadRef,
+    this.attendees = const [],
+    this.providerRef,
+    this.updatedAt,
   }) : threadRef = threadRef ?? CalendarThreadRef.forScope(scope);
 
   final String id;
@@ -234,6 +281,9 @@ class CalendarEvent {
   final String? etag;
   final CalendarScope scope;
   final CalendarThreadRef threadRef;
+  final List<CalendarAttendee> attendees;
+  final CalendarProviderRef? providerRef;
+  final DateTime? updatedAt;
 }
 
 class CalendarEventDraft {

@@ -286,6 +286,22 @@ void main() {
             contextId: 'channel-engineering-general',
             channelId: 'engineering-general',
           ),
+          attendees: const [
+            CalendarAttendee(
+              name: 'Ada Lovelace',
+              email: 'ada@example.com',
+              role: 'req-participant',
+              responseStatus: 'accepted',
+            ),
+          ],
+          providerRef: const CalendarProviderRef(
+            provider: 'nextcloud-caldav',
+            objectKind: 'calendar-event',
+            opaqueId: 'planning',
+            etag: 'abc',
+            rawProviderPathExposed: false,
+          ),
+          updatedAt: DateTime.utc(2026, 4, 25, 9),
         ),
       ]);
 
@@ -373,6 +389,22 @@ void main() {
             contextId: 'channel-engineering-general',
             channelId: 'engineering-general',
           ),
+          attendees: const [
+            CalendarAttendee(
+              name: 'Ada Lovelace',
+              email: 'ada@example.com',
+              role: 'req-participant',
+              responseStatus: 'accepted',
+            ),
+          ],
+          providerRef: const CalendarProviderRef(
+            provider: 'nextcloud-caldav',
+            objectKind: 'calendar-event',
+            opaqueId: 'planning',
+            etag: 'abc',
+            rawProviderPathExposed: false,
+          ),
+          updatedAt: DateTime.utc(2026, 4, 25, 9),
         ),
       ]);
 
@@ -419,6 +451,41 @@ void main() {
           matching: find.textContaining(
             'chat thread linkage is not configured',
           ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Attendees'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.textContaining('Ada Lovelace <ada@example.com>'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Provider boundary'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.textContaining('nextcloud-caldav calendar-event'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Last updated'),
         ),
         findsOneWidget,
       );

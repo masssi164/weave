@@ -3021,6 +3021,63 @@ abstract class AppLocalizations {
   /// **'Description'**
   String get calendarDetailsDescriptionLabel;
 
+  /// Label for calendar event attendees in the details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Attendees'**
+  String get calendarDetailsAttendeesLabel;
+
+  /// One-line attendee summary in calendar event details
+  ///
+  /// In en, this message translates to:
+  /// **'{name}{email, select, none{} other{ <{email}>}}{role, select, none{} other{ · {role}}}{responseStatus, select, none{} other{ · {responseStatus}}}'**
+  String calendarDetailsAttendeeSummary(
+    String name,
+    String email,
+    String role,
+    String responseStatus,
+  );
+
+  /// Fallback attendee name when backend provides only empty attendee metadata
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown attendee'**
+  String get calendarDetailsUnknownAttendee;
+
+  /// Label for safe calendar provider metadata in event details
+  ///
+  /// In en, this message translates to:
+  /// **'Provider boundary'**
+  String get calendarDetailsProviderLabel;
+
+  /// Safe provider metadata summary for a calendar event
+  ///
+  /// In en, this message translates to:
+  /// **'{provider} {objectKind} via opaque Weave id {opaqueId}'**
+  String calendarDetailsProviderSummary(
+    String provider,
+    String objectKind,
+    String opaqueId,
+  );
+
+  /// Warning when unsafe provider path exposure is detected
+  ///
+  /// In en, this message translates to:
+  /// **'Provider metadata is blocked because it would expose a raw provider path.'**
+  String get calendarDetailsProviderUnsafe;
+
+  /// Fallback opaque provider id label
+  ///
+  /// In en, this message translates to:
+  /// **'opaque event'**
+  String get calendarDetailsProviderOpaqueFallback;
+
+  /// Label for last known calendar event update timestamp
+  ///
+  /// In en, this message translates to:
+  /// **'Last updated'**
+  String get calendarDetailsUpdatedAtLabel;
+
   /// Button label for closing the calendar details dialog
   ///
   /// In en, this message translates to:
