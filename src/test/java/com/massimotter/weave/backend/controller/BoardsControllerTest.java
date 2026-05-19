@@ -5,6 +5,9 @@ import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.BoardsRuntimeConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.BoardsFacadeService;
 import org.junit.jupiter.api.Test;
@@ -20,6 +23,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -51,6 +56,9 @@ class BoardsControllerTest {
     @MockBean
     private JwtDecoder jwtDecoder;
 
+    @MockBean
+    private ContextAuthorizationPort contextAuthorizationPort;
+
     @Test
     void boardsPreviewRequiresAuthenticatedWorkspaceScope() throws Exception {
         mockMvc.perform(get("/api/boards/preview"))
@@ -60,6 +68,8 @@ class BoardsControllerTest {
 
     @Test
     void boardsPreviewReturnsProviderNeutralLocalFacadeSnapshot() throws Exception {
+        allowBoardsPermission(ContextPermission.VIEW);
+
         mockMvc.perform(get("/api/boards/preview")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
@@ -76,6 +86,7 @@ class BoardsControllerTest {
 
     @Test
     void boardsPreviewSupportsCreateMoveAndCompleteWithoutDragOnlyFlow() throws Exception {
+        allowBoardsPermission(ContextPermission.EDIT);
         String createPayload = """
                 {
                   "columnId": "local-column-todo",
@@ -119,6 +130,8 @@ class BoardsControllerTest {
 
     @Test
     void boardsPreviewUsesSupportSafeErrorsForUnknownTasks() throws Exception {
+        allowBoardsPermission(ContextPermission.EDIT);
+
         mockMvc.perform(post("/api/boards/tasks/missing-task/complete")
                         .with(workspaceJwt()))
                 .andExpect(status().isNotFound())
@@ -127,6 +140,36 @@ class BoardsControllerTest {
                 .andExpect(jsonPath("$.details.module").value("boards"))
                 .andExpect(jsonPath("$.details.preview").value(true))
                 .andExpect(jsonPath("$.details.resource").value("task"));
+    }
+
+    @Test
+    void boardsPreviewFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
+        when(contextAuthorizationPort.check(argThat(request ->
+                request != null
+                        && "tenant-default".equals(request.tenantId())
+                        && "workspace-default".equals(request.contextId())
+                        && "user:user-123".equals(request.principalRef())
+                        && request.permission() == ContextPermission.VIEW)))
+                .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
+
+        mockMvc.perform(get("/api/boards/preview")
+                        .with(workspaceJwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("boards-forbidden"))
+                .andExpect(jsonPath("$.details.module").value("boards"))
+                .andExpect(jsonPath("$.details.preview").value(true))
+                .andExpect(jsonPath("$.details.contextId").value("workspace-default"))
+                .andExpect(jsonPath("$.details.permission").value("view"));
+    }
+
+    private void allowBoardsPermission(ContextPermission permission) {
+        when(contextAuthorizationPort.check(argThat(request ->
+                request != null
+                        && "tenant-default".equals(request.tenantId())
+                        && "workspace-default".equals(request.contextId())
+                        && "user:user-123".equals(request.principalRef())
+                        && request.permission() == permission)))
+                .thenReturn(ContextAuthorizationDecision.allow("test allow"));
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {

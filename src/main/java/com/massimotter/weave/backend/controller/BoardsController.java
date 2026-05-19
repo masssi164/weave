@@ -16,6 +16,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,8 +48,8 @@ public class BoardsController {
     @Operation(summary = "Read the hidden Boards/Tasks preview facade")
     @ApiResponse(responseCode = "200", description = "Provider-neutral Boards/Tasks preview snapshot.",
             content = @Content(schema = @Schema(implementation = BoardsPreviewResponse.class)))
-    public BoardsPreviewResponse preview() {
-        return boardsFacadeService.preview();
+    public BoardsPreviewResponse preview(@AuthenticationPrincipal Jwt jwt) {
+        return boardsFacadeService.preview(jwt);
     }
 
     @PostMapping("/api/boards/{boardId}/tasks")
@@ -55,9 +57,10 @@ public class BoardsController {
     @ApiResponse(responseCode = "200", description = "Created provider-neutral task.",
             content = @Content(schema = @Schema(implementation = TaskItem.class)))
     public TaskItem createTask(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String boardId,
             @Valid @RequestBody BoardsCreateTaskRequest request) {
-        return boardsFacadeService.createTask(boardId, request);
+        return boardsFacadeService.createTask(jwt, boardId, request);
     }
 
     @PostMapping("/api/boards/tasks/{taskId}/move")
@@ -65,16 +68,19 @@ public class BoardsController {
     @ApiResponse(responseCode = "200", description = "Moved provider-neutral task.",
             content = @Content(schema = @Schema(implementation = TaskItem.class)))
     public TaskItem moveTask(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId,
             @Valid @RequestBody BoardsMoveTaskRequest request) {
-        return boardsFacadeService.moveTask(taskId, request);
+        return boardsFacadeService.moveTask(jwt, taskId, request);
     }
 
     @PostMapping("/api/boards/tasks/{taskId}/complete")
     @Operation(summary = "Complete a task without drag-and-drop in the hidden Boards/Tasks preview facade")
     @ApiResponse(responseCode = "200", description = "Completed provider-neutral task.",
             content = @Content(schema = @Schema(implementation = TaskItem.class)))
-    public TaskItem completeTask(@PathVariable @Size(max = 128) String taskId) {
-        return boardsFacadeService.completeTask(taskId);
+    public TaskItem completeTask(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable @Size(max = 128) String taskId) {
+        return boardsFacadeService.completeTask(jwt, taskId);
     }
 }
