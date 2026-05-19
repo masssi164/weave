@@ -159,6 +159,41 @@ class CalendarFacadeServiceTest {
     }
 
     @Test
+    void createPassesNormalizedChannelScopeToAdapter() {
+        AtomicReference<CalendarScopeResponse> capturedScope = new AtomicReference<>();
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-04-26T10:00:00+02:00");
+        OffsetDateTime endsAt = OffsetDateTime.parse("2026-04-26T11:00:00+02:00");
+        CalendarEventResponse event = new CalendarEventResponse(
+                "raw-event-id", "Planning", null, startsAt, endsAt, "Europe/Berlin", null, false, "etag");
+        CalendarAdapter adapter = new StubCalendarAdapter() {
+            @Override
+            public CalendarEventResponse create(CalendarPrincipal principal, CreateCalendarEventRequest request) {
+                capturedScope.set(request.scope());
+                return event;
+            }
+        };
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        CreateCalendarEventRequest request = new CreateCalendarEventRequest(
+                "Planning",
+                null,
+                startsAt,
+                endsAt,
+                "Europe/Berlin",
+                null,
+                false,
+                new CalendarScopeResponse(null, "channel", null, "workspace", null, "engineering", null, null, List.of()));
+
+        var created = service(adapter).create(request);
+
+        assertThat(capturedScope.get().type()).isEqualTo("channel");
+        assertThat(capturedScope.get().teamId()).isEqualTo("engineering");
+        assertThat(capturedScope.get().channelId()).isEqualTo("engineering-general");
+        assertThat(capturedScope.get().contextId()).isEqualTo("channel-engineering-general");
+        assertThat(created.scope().channelId()).isEqualTo("engineering-general");
+        assertThat(created.threadRef().contextId()).isEqualTo("channel-engineering-general");
+    }
+
+    @Test
     void rejectsInvalidListRangeBeforeCallingAdapter() {
         OffsetDateTime timestamp = OffsetDateTime.parse("2026-04-26T10:00:00+02:00");
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));

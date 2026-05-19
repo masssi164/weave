@@ -120,6 +120,57 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void calendarScopesExposeWorkspaceTeamAndChannelContextMetadata() throws Exception {
+        mockMvc.perform(get("/api/calendar/scopes")
+                        .with(workspaceJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scopes[0].id").value("workspace"))
+                .andExpect(jsonPath("$.scopes[0].type").value("workspace"))
+                .andExpect(jsonPath("$.scopes[0].contextId").value("workspace-default"))
+                .andExpect(jsonPath("$.scopes[0].accessModel").value("shared-workspace-calendar"))
+                .andExpect(jsonPath("$.scopes[1].id").value("team:engineering"))
+                .andExpect(jsonPath("$.scopes[1].type").value("team"))
+                .andExpect(jsonPath("$.scopes[1].teamId").value("engineering"))
+                .andExpect(jsonPath("$.scopes[1].contextId").value("team-engineering"))
+                .andExpect(jsonPath("$.scopes[1].accessModel").value("shared-team-calendar"))
+                .andExpect(jsonPath("$.scopes[2].id").value("channel:engineering-general"))
+                .andExpect(jsonPath("$.scopes[2].type").value("channel"))
+                .andExpect(jsonPath("$.scopes[2].teamId").value("engineering"))
+                .andExpect(jsonPath("$.scopes[2].channelId").value("engineering-general"))
+                .andExpect(jsonPath("$.scopes[2].contextId").value("channel-engineering-general"))
+                .andExpect(jsonPath("$.scopes[2].accessModel").value("shared-channel-calendar"))
+                .andExpect(jsonPath("$.scopes[2].capabilities[0]").value("read"));
+    }
+
+    @Test
+    void calendarFacadeRejectsPrivatePersonalCalendarScopesBeforeAdapterAccess() throws Exception {
+        String privateEvent = """
+                {
+                  "title": "Private sync",
+                  "startsAt": "2026-04-26T10:00:00+02:00",
+                  "endsAt": "2026-04-26T11:00:00+02:00",
+                  "timezone": "Europe/Berlin",
+                  "scope": {
+                    "type": "private",
+                    "label": "Personal calendar"
+                  }
+                }
+                """;
+
+        mockMvc.perform(post("/api/calendar/events")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(privateEvent))
+                .andExpect(status().isBadRequest())
+                .andExpect(header().exists("X-Request-Id"))
+                .andExpect(jsonPath("$.code").value("validation-error"))
+                .andExpect(jsonPath("$.details.module").value("calendar"))
+                .andExpect(jsonPath("$.details.operation").value("create-event"))
+                .andExpect(jsonPath("$.details.fields['scope.type']")
+                        .value("scope type must be workspace, team, or channel"));
+    }
+
+    @Test
     void calendarFacadeFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
         when(contextAuthorizationPort.check(any()))
                 .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));

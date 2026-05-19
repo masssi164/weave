@@ -107,7 +107,7 @@ public class CalendarFacadeService {
         CalendarScopeResponse scope = normalizeScope(request.scope(), "create-event");
         requireContextPermission(scope, ContextPermission.EDIT, "create-event");
         try {
-            return withScope(adapter("create-event").create(principal(), request), scope, true);
+            return withScope(adapter("create-event").create(principal(), withScope(request, scope)), scope, true);
         } catch (CalendarAdapterException exception) {
             throw apiError(exception, "create-event");
         }
@@ -363,6 +363,18 @@ public class CalendarFacadeService {
                 event.attendees(),
                 null,
                 event.updatedAt());
+    }
+
+    private CreateCalendarEventRequest withScope(CreateCalendarEventRequest request, CalendarScopeResponse scope) {
+        return new CreateCalendarEventRequest(
+                request.title(),
+                request.description(),
+                request.startsAt(),
+                request.endsAt(),
+                request.timezone(),
+                request.location(),
+                request.allDay(),
+                scope);
     }
 
     private String scopedEventId(CalendarScopeResponse scope, String rawId) {
