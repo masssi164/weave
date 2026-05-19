@@ -4,6 +4,7 @@ class CalendarScope {
     required this.type,
     required this.label,
     this.workspaceId = 'workspace',
+    this.contextId = 'workspace-default',
     this.teamId,
     this.channelId,
     this.accessModel = 'shared-workspace-calendar',
@@ -14,6 +15,7 @@ class CalendarScope {
     id: 'workspace',
     type: 'workspace',
     label: 'Weave workspace calendar',
+    contextId: 'workspace-default',
     accessModel: 'shared-workspace-calendar',
   );
 
@@ -21,6 +23,7 @@ class CalendarScope {
   final String type;
   final String label;
   final String workspaceId;
+  final String contextId;
   final String? teamId;
   final String? channelId;
   final String accessModel;
@@ -35,6 +38,7 @@ class CalendarScope {
     'type': type,
     'label': label,
     'workspaceId': workspaceId,
+    'contextId': contextId,
     if (teamId != null) 'teamId': teamId,
     if (channelId != null) 'channelId': channelId,
     'accessModel': accessModel,
@@ -49,12 +53,36 @@ class CalendarScope {
           other.type == type &&
           other.label == label &&
           other.workspaceId == workspaceId &&
+          other.contextId == contextId &&
           other.teamId == teamId &&
           other.channelId == channelId;
 
   @override
   int get hashCode =>
-      Object.hash(id, type, label, workspaceId, teamId, channelId);
+      Object.hash(id, type, label, workspaceId, contextId, teamId, channelId);
+}
+
+class CalendarThreadRef {
+  const CalendarThreadRef({
+    this.kind = 'context',
+    required this.contextId,
+    this.channelId,
+    this.matrixRoomId,
+    this.matrixThreadId,
+    this.boardTaskIds = const [],
+  });
+
+  factory CalendarThreadRef.forScope(CalendarScope scope) => CalendarThreadRef(
+    contextId: scope.contextId,
+    channelId: scope.isChannel ? scope.channelId : null,
+  );
+
+  final String kind;
+  final String contextId;
+  final String? channelId;
+  final String? matrixRoomId;
+  final String? matrixThreadId;
+  final List<String> boardTaskIds;
 }
 
 class CalendarScopeList {
@@ -181,7 +209,7 @@ class CalendarClientSetup {
 }
 
 class CalendarEvent {
-  const CalendarEvent({
+  CalendarEvent({
     required this.id,
     required this.title,
     required this.startTime,
@@ -192,7 +220,8 @@ class CalendarEvent {
     this.allDay = false,
     this.etag,
     this.scope = CalendarScope.workspace,
-  });
+    CalendarThreadRef? threadRef,
+  }) : threadRef = threadRef ?? CalendarThreadRef.forScope(scope);
 
   final String id;
   final String title;
@@ -204,6 +233,7 @@ class CalendarEvent {
   final bool allDay;
   final String? etag;
   final CalendarScope scope;
+  final CalendarThreadRef threadRef;
 }
 
 class CalendarEventDraft {

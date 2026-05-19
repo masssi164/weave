@@ -268,6 +268,7 @@ class CalendarFacadeClient {
     Map<String, dynamic> json, {
     CalendarScope defaultScope = CalendarScope.workspace,
   }) {
+    final eventScope = _decodeScope(json['scope'], defaultScope: defaultScope);
     return CalendarEvent(
       id: _readString(json, 'id'),
       title: _readString(json, 'title'),
@@ -278,7 +279,8 @@ class CalendarFacadeClient {
       location: _readNullableString(json, 'location'),
       allDay: json['allDay'] == true,
       etag: _readNullableString(json, 'etag'),
-      scope: _decodeScope(json['scope'], defaultScope: defaultScope),
+      scope: eventScope,
+      threadRef: _decodeThreadRef(json['threadRef'], defaultScope: eventScope),
     );
   }
 
@@ -306,6 +308,7 @@ class CalendarFacadeClient {
 
     final rawId = rawScope['id'];
     final rawWorkspaceId = rawScope['workspaceId'];
+    final rawContextId = rawScope['contextId'];
     final rawTeamId = rawScope['teamId'];
     final rawChannelId = rawScope['channelId'];
     final rawAccessModel = rawScope['accessModel'];
@@ -331,6 +334,9 @@ class CalendarFacadeClient {
       workspaceId: rawWorkspaceId is String && rawWorkspaceId.trim().isNotEmpty
           ? rawWorkspaceId.trim()
           : defaultScope.workspaceId,
+      contextId: rawContextId is String && rawContextId.trim().isNotEmpty
+          ? rawContextId.trim()
+          : _defaultContextId(type, teamId: teamId, channelId: channelId),
       teamId: teamId,
       channelId: channelId,
       accessModel: rawAccessModel is String && rawAccessModel.trim().isNotEmpty
@@ -338,6 +344,40 @@ class CalendarFacadeClient {
           : defaultScope.accessModel,
       capabilities: _readStringList(rawScope['capabilities']),
     );
+  }
+
+  CalendarThreadRef _decodeThreadRef(
+    Object? rawThreadRef, {
+    required CalendarScope defaultScope,
+  }) {
+    if (rawThreadRef is! Map<String, dynamic>) {
+      return CalendarThreadRef.forScope(defaultScope);
+    }
+
+    final rawContextId = rawThreadRef['contextId'];
+    final contextId = rawContextId is String && rawContextId.trim().isNotEmpty
+        ? rawContextId.trim()
+        : defaultScope.contextId;
+    final rawKind = rawThreadRef['kind'];
+
+    return CalendarThreadRef(
+      kind: rawKind is String && rawKind.trim().isNotEmpty
+          ? rawKind.trim()
+          : 'context',
+      contextId: contextId,
+      channelId: _readNullableString(rawThreadRef, 'channelId'),
+      matrixRoomId: _readNullableString(rawThreadRef, 'matrixRoomId'),
+      matrixThreadId: _readNullableString(rawThreadRef, 'matrixThreadId'),
+      boardTaskIds: _readStringList(rawThreadRef['boardTaskIds']),
+    );
+  }
+
+  String _defaultContextId(String type, {String? teamId, String? channelId}) {
+    return switch (type) {
+      'team' => 'team-${teamId ?? 'engineering'}',
+      'channel' => 'channel-${channelId ?? 'engineering-general'}',
+      _ => 'workspace-default',
+    };
   }
 
   CalendarAccessModel _decodeAccessModel(Object? rawAccessModel) {

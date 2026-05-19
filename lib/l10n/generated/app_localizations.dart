@@ -2991,6 +2991,24 @@ abstract class AppLocalizations {
   /// **'Calendar scope'**
   String get calendarDetailsScopeLabel;
 
+  /// Label for the Weave Context/Space id in the event details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Context'**
+  String get calendarDetailsContextLabel;
+
+  /// Label for meeting thread metadata in the event details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Meeting thread'**
+  String get calendarDetailsMeetingThreadLabel;
+
+  /// Calendar details text when the backend exposes safe context metadata but not a Matrix thread id
+  ///
+  /// In en, this message translates to:
+  /// **'Safe context metadata is available; chat thread linkage is not configured yet.'**
+  String get calendarDetailsMeetingThreadPending;
+
   /// Label for the calendar event location in the details dialog
   ///
   /// In en, this message translates to:

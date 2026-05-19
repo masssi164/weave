@@ -1754,6 +1754,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get calendarDetailsScopeLabel => 'Kalenderbereich';
 
   @override
+  String get calendarDetailsContextLabel => 'Kontext';
+
+  @override
+  String get calendarDetailsMeetingThreadLabel => 'Meeting-Thread';
+
+  @override
+  String get calendarDetailsMeetingThreadPending =>
+      'Sichere Kontextmetadaten sind verfügbar; die Chat-Thread-Verknüpfung ist noch nicht konfiguriert.';
+
+  @override
   String get calendarDetailsLocationLabel => 'Ort';
 
   @override
