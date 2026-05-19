@@ -726,6 +726,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'No encrypted rooms are known yet, but the account security state is still tracked here.';
 
   @override
+  String get chatSecurityBoundaryCardTitle => 'Backend and agent boundary';
+
+  @override
+  String get chatSecurityBoundaryCardValue => 'Blocked until consent/audit';
+
+  @override
+  String get chatSecurityBoundaryCardBody =>
+      'Encrypted message contents stay on Matrix devices. Backend diagnostics may use support-safe metadata such as room ID, encryption status, device trust, and timestamps, but not decrypted message bodies. Bots and connectors stay blocked from encrypted rooms until consent, audit, device-trust, and client-identity gates are implemented.';
+
+  @override
   String get chatSecurityStatusSignedOut => 'Matrix not connected';
 
   @override
