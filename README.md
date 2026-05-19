@@ -19,6 +19,7 @@ The backend is an active product facade for the MVP collaboration surfaces. Some
 - Nextcloud-backed Files facade endpoints when a backend-owned actor is configured; otherwise they fail closed
 - Calendar facade endpoints mapped to the backend actor's Nextcloud CalDAV workspace calendar fallback while flexible Context/Space scheduling evolves from the current workspace/team/channel template scopes; unsafe private-personal calendar templates fail closed
 - secret-free Calendar client setup metadata at `GET /api/calendar/client-setup` for feature-gated native-client setup; it does not return credentials or generate profiles yet
+- internal Audit/Consent seam for future connector/assistant writes, consent grant/revocation events, support-safe redaction, and fail-closed missing-audit behavior; it does not enable live provider writes
 - OpenAPI JSON at `/v3/api-docs`
 - Actuator health/info endpoints, Gradle wrapper, Dockerfile, and GitHub Actions CI
 
@@ -52,6 +53,7 @@ Avoid using it to replace standards-based native flows by default:
 - `docs/architecture-alignment.md`: cross-repo responsibility split for app, backend, and infrastructure.
 - `docs/boards-preview-contract.md`: active feature-gated Boards/Tasks provider-neutral contract notes, now OpenProject-first for read sync with Vikunja/Deck as comparison/fallback; not a Product screenshots or live product surface.
 - `src/main/resources/contracts/connector-manifest.schema.json`: internal connector skeleton contract for capabilities, cursors, webhook refs, redaction, and read-only/fail-closed provider seams.
+- `src/main/resources/contracts/audit-consent.schema.json` and `docs/audit-consent-seam.md`: internal append-only Audit/Consent seam for future connector/assistant writes; provider writes remain disabled.
 - `docs/issues/`: historical alignment issue drafts.
 
 ## Quick start

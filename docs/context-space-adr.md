@@ -49,8 +49,8 @@ The backend should introduce Context-compatible seams before adding large runtim
 2. **ReBAC Adapter MVP** — add internal authorization port/tests that evaluate tenant-scoped context memberships and tuple relationships for context view/edit/admin decisions; preserve tenant isolation, membership projection through context edges, unknown-relation fail-closed behavior, and no raw provider-binding bypass.
 3. **Connector SDK Skeleton** — define manifest, capabilities, cursors, webhooks, commands, support-safe errors, and redaction policy without enabling live writes.
 4. **OpenProject Board Connector read-sync MVP** — prefer OpenProject as the first provider-backed, provider-led source-of-truth read path because its API is the best first validation target; map it into context-bound boards/tasks through the connector skeleton. Vikunja and Nextcloud Deck remain comparison/fallback candidates only. Keep this read-only and hidden until smoke/export/accessibility gates pass.
-5. **Audit Event Pipeline** — append-only CloudEvents-like audit envelope for connector/assistant actions, admin-sensitive operations, consent changes, and provider sync.
-6. **Consent Center MVP** — backend consent grants/revocation and frontend/admin surface for context-scoped + source-scoped connector/assistant access.
+5. **Audit Event Pipeline / Consent internal seam** — append-only CloudEvents-like audit envelope for connector/assistant write attempts, consent grant/revocation events, support-safe redaction, and fail-closed missing-audit behavior. This remains backend-only and does not enable live provider writes.
+6. **Consent Center MVP** — backend consent grants/revocation storage and frontend/admin surface for context-scoped + source-scoped connector/assistant access.
 7. **Meeting Thread Schema** — canonical MeetingThread object with optional calendar event, Matrix thread/room, task, and file bindings; safe when Matrix content is E2EE.
 8. **Client-side Personal Index MVP** — per-user local index over accessible contexts/providers for discovery/search only; no upload or server-side personal data hoarding.
 
