@@ -4,6 +4,7 @@ import 'package:weave/core/bootstrap/domain/bootstrap_state.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
@@ -55,61 +56,81 @@ final weaveApiClientProvider = Provider<WeaveApiClient>((ref) {
 
 final weaveApiWorkspaceCapabilitySnapshotProvider =
     FutureProvider<WorkspaceCapabilitySnapshot?>((ref) async {
-      // Watch the invalidation signal so explicit invalidations (sign-out,
-      // restart-setup, URL change) trigger a re-fetch beyond just config changes.
-      ref.watch(
-        integrationInvalidationProvider(WorkspaceIntegration.weaveBackend),
-      );
-
-      final configuration = await ref.watch(
-        savedServerConfigurationProvider.future,
-      );
-      if (configuration == null) {
-        return null;
-      }
-
-      final bootstrapState = await ref.watch(appBootstrapProvider.future);
-      if (bootstrapState.phase != BootstrapPhase.ready) {
-        return null;
-      }
-
-      try {
-        final authState = await ref
-            .read(authSessionRepositoryProvider)
-            .restoreSession(
-              AuthConfiguration(
-                issuer: configuration.oidcIssuerUrl,
-                clientId: configuration.oidcClientRegistration.clientId.trim(),
-              ),
-            );
-        final session = authState.session;
-        if (!authState.isAuthenticated || session == null) {
-          return null;
-        }
-
-        return ref
-            .read(weaveApiClientProvider)
-            .fetchWorkspaceCapabilities(
-              baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
-              accessToken: session.accessToken,
-            );
-      } on AuthFailure {
-        // Treat an OIDC session-restore failure as backend-unauthorised so
-        // weaveBackendConnectionStateProvider can surface the right state.
-        throw const AppFailure.unknown(
-          'The Weave backend rejected the current session.',
+      return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+        return client.fetchWorkspaceCapabilities(
+          baseUrl: baseUrl,
+          accessToken: accessToken,
         );
-      } on AppFailure {
-        // Propagate to Riverpod error channel; workspaceCapabilitySnapshotProvider
-        // already falls back to the local snapshot on AsyncError.
-        rethrow;
-      } catch (error) {
-        throw AppFailure.unknown(
-          'The Weave backend returned an unexpected error.',
-          cause: error,
-        );
-      }
+      });
     });
+
+final weaveApiMatrixE2eeDiagnosticProvider =
+    FutureProvider<MatrixE2eeDiagnostic?>((ref) async {
+      return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+        return client.fetchMatrixE2eeDiagnostic(
+          baseUrl: baseUrl,
+          accessToken: accessToken,
+        );
+      });
+    });
+
+Future<T?> _withWeaveApiSession<T>(
+  Ref ref,
+  Future<T> Function(WeaveApiClient client, Uri baseUrl, String accessToken)
+  action,
+) async {
+  // Watch the invalidation signal so explicit invalidations (sign-out,
+  // restart-setup, URL change) trigger a re-fetch beyond just config changes.
+  ref.watch(integrationInvalidationProvider(WorkspaceIntegration.weaveBackend));
+
+  final configuration = await ref.watch(
+    savedServerConfigurationProvider.future,
+  );
+  if (configuration == null) {
+    return null;
+  }
+
+  final bootstrapState = await ref.watch(appBootstrapProvider.future);
+  if (bootstrapState.phase != BootstrapPhase.ready) {
+    return null;
+  }
+
+  try {
+    final authState = await ref
+        .read(authSessionRepositoryProvider)
+        .restoreSession(
+          AuthConfiguration(
+            issuer: configuration.oidcIssuerUrl,
+            clientId: configuration.oidcClientRegistration.clientId.trim(),
+          ),
+        );
+    final session = authState.session;
+    if (!authState.isAuthenticated || session == null) {
+      return null;
+    }
+
+    return action(
+      ref.read(weaveApiClientProvider),
+      configuration.serviceEndpoints.backendApiBaseUrl,
+      session.accessToken,
+    );
+  } on AuthFailure {
+    // Treat an OIDC session-restore failure as backend-unauthorised so
+    // weaveBackendConnectionStateProvider can surface the right state.
+    throw const AppFailure.unknown(
+      'The Weave backend rejected the current session.',
+    );
+  } on AppFailure {
+    // Propagate to Riverpod error channel; workspaceCapabilitySnapshotProvider
+    // already falls back to the local snapshot on AsyncError.
+    rethrow;
+  } catch (error) {
+    throw AppFailure.unknown(
+      'The Weave backend returned an unexpected error.',
+      cause: error,
+    );
+  }
+}
 
 /// Maps the backend capability provider state to a distinct [WeaveBackendConnectionState].
 ///

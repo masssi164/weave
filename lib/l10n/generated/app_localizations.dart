@@ -1817,6 +1817,60 @@ abstract class AppLocalizations {
   /// **'Last change'**
   String get settingsWorkspaceLastChangeLabel;
 
+  /// Label for Matrix E2EE validation status in workspace readiness
+  ///
+  /// In en, this message translates to:
+  /// **'E2EE gate'**
+  String get settingsWorkspaceMatrixE2eeGateLabel;
+
+  /// Value when all Matrix E2EE validation gates are complete
+  ///
+  /// In en, this message translates to:
+  /// **'Validated'**
+  String get settingsWorkspaceMatrixE2eeValidated;
+
+  /// Value when Matrix E2EE validation gates are not complete
+  ///
+  /// In en, this message translates to:
+  /// **'Not validated'**
+  String get settingsWorkspaceMatrixE2eeNotValidated;
+
+  /// Label for whether backend diagnostics can read Matrix message bodies
+  ///
+  /// In en, this message translates to:
+  /// **'Server-readable bodies'**
+  String get settingsWorkspaceMatrixServerBodiesLabel;
+
+  /// Value when encrypted Matrix message bodies remain opaque to backend diagnostics
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get settingsWorkspaceMatrixServerBodiesOpaque;
+
+  /// Value shown if backend diagnostics claim Matrix message bodies are server-readable
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get settingsWorkspaceMatrixServerBodiesReadable;
+
+  /// Label for bot, assistant, or connector write policy in Matrix readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Agent writes'**
+  String get settingsWorkspaceMatrixAgentWritesLabel;
+
+  /// Value when Matrix bot/connector writes are blocked or fail closed
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked/fail-closed'**
+  String get settingsWorkspaceMatrixAgentWritesBlocked;
+
+  /// Value shown when Matrix bot/connector write policy is not clearly fail-closed
+  ///
+  /// In en, this message translates to:
+  /// **'Review policy'**
+  String get settingsWorkspaceMatrixAgentWritesReview;
+
   /// Readiness label for a ready capability
   ///
   /// In en, this message translates to:

@@ -10,6 +10,7 @@ import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -79,6 +80,17 @@ AsyncValue<WorkspaceConnectionState> _workspaceConnectionState() {
   );
 }
 
+const _matrixDiagnostic = MatrixE2eeDiagnostic(
+  e2eeEnabled: false,
+  status: 'not_validated',
+  serverReadableMessageContent: false,
+  messageContentPolicy: 'encrypted_message_bodies_are_client_readable_only',
+  agentParticipation:
+      'blocked_until_explicit_consent_audit_and_matrix_device_trust_are_implemented',
+  connectorWritePolicy:
+      'fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented',
+);
+
 AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
   return const AsyncData(
     WorkspaceCapabilitySnapshot(
@@ -131,6 +143,9 @@ void main() {
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
           ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
+          ),
           userProfileProvider.overrideWith((ref) async => null),
         ],
       );
@@ -167,6 +182,18 @@ void main() {
       );
       expect(
         find.text('Last change: Matrix homeserver changed', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.text('E2EE gate: Not validated', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Server-readable bodies: No', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Agent writes: Blocked/fail-closed', findRichText: true),
         findsOneWidget,
       );
       expect(find.text('Server Configuration'), findsOneWidget);
@@ -224,6 +251,9 @@ void main() {
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
           ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
+          ),
           userProfileProvider.overrideWith((ref) async => null),
         ],
       );
@@ -268,6 +298,9 @@ void main() {
           ),
           weaveBackendConnectionStateProvider.overrideWithValue(
             WeaveBackendConnectionState.connected,
+          ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
           ),
           userProfileProvider.overrideWith((ref) async => null),
         ],
@@ -349,6 +382,9 @@ void main() {
             ),
             weaveBackendConnectionStateProvider.overrideWithValue(
               WeaveBackendConnectionState.connected,
+            ),
+            weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+              (ref) async => _matrixDiagnostic,
             ),
             userProfileProvider.overrideWith((ref) async => null),
           ],

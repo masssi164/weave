@@ -886,6 +886,33 @@
   "settingsWorkspaceLastChangeLabel": "Last change",
   "@settingsWorkspaceLastChangeLabel": { "description": "Label used for invalidation-reason pills in the workspace summary" },
 
+  "settingsWorkspaceMatrixE2eeGateLabel": "E2EE gate",
+  "@settingsWorkspaceMatrixE2eeGateLabel": { "description": "Label for Matrix E2EE validation status in workspace readiness" },
+
+  "settingsWorkspaceMatrixE2eeValidated": "Validated",
+  "@settingsWorkspaceMatrixE2eeValidated": { "description": "Value when all Matrix E2EE validation gates are complete" },
+
+  "settingsWorkspaceMatrixE2eeNotValidated": "Not validated",
+  "@settingsWorkspaceMatrixE2eeNotValidated": { "description": "Value when Matrix E2EE validation gates are not complete" },
+
+  "settingsWorkspaceMatrixServerBodiesLabel": "Server-readable bodies",
+  "@settingsWorkspaceMatrixServerBodiesLabel": { "description": "Label for whether backend diagnostics can read Matrix message bodies" },
+
+  "settingsWorkspaceMatrixServerBodiesOpaque": "No",
+  "@settingsWorkspaceMatrixServerBodiesOpaque": { "description": "Value when encrypted Matrix message bodies remain opaque to backend diagnostics" },
+
+  "settingsWorkspaceMatrixServerBodiesReadable": "Review",
+  "@settingsWorkspaceMatrixServerBodiesReadable": { "description": "Value shown if backend diagnostics claim Matrix message bodies are server-readable" },
+
+  "settingsWorkspaceMatrixAgentWritesLabel": "Agent writes",
+  "@settingsWorkspaceMatrixAgentWritesLabel": { "description": "Label for bot, assistant, or connector write policy in Matrix readiness" },
+
+  "settingsWorkspaceMatrixAgentWritesBlocked": "Blocked/fail-closed",
+  "@settingsWorkspaceMatrixAgentWritesBlocked": { "description": "Value when Matrix bot/connector writes are blocked or fail closed" },
+
+  "settingsWorkspaceMatrixAgentWritesReview": "Review policy",
+  "@settingsWorkspaceMatrixAgentWritesReview": { "description": "Value shown when Matrix bot/connector write policy is not clearly fail-closed" },
+
   "settingsWorkspaceCapabilityReady": "Ready",
   "@settingsWorkspaceCapabilityReady": { "description": "Readiness label for a ready capability" },
 
