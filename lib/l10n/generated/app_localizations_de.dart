@@ -1529,6 +1529,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsWorkspaceCalendarLabel => 'Kalender';
 
   @override
+  String get settingsWorkspaceBoardsLabel => 'Boards';
+
+  @override
   String get calendarWorkspaceScopeTitle => 'Arbeitsbereichskalender';
 
   @override

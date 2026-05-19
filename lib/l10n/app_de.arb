@@ -432,6 +432,7 @@
   "profileEditSavingButton": "Profil wird gespeichert…",
   "profileEditSavedMessage": "Profil gespeichert.",
   "settingsWorkspaceCalendarLabel": "Kalender",
+  "settingsWorkspaceBoardsLabel": "Boards",
   "calendarWorkspaceScopeTitle": "Arbeitsbereichskalender",
   "calendarWorkspaceScopeDescription": "Dieser erste Kalender-Schnitt nutzt den gemeinsamen Weave-Arbeitsbereichskalender. Private Nutzerkalender bleiben deaktiviert, bis das Zugriffsmodell umgesetzt ist.",
   "calendarGenericScopeDescription": "Termine werden aus {scopeLabel} angezeigt.",

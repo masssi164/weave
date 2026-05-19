@@ -133,6 +133,10 @@ class _WorkspaceSummary extends StatelessWidget {
                   label: l10n.settingsWorkspaceCalendarLabel,
                   readiness: capabilities.calendar.readiness,
                 ),
+                _CapabilityChip(
+                  label: l10n.settingsWorkspaceBoardsLabel,
+                  readiness: capabilities.boards.readiness,
+                ),
               ],
             ),
           ],
