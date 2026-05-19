@@ -1,6 +1,10 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
@@ -53,6 +57,8 @@ class CalendarFacadeServiceTest {
 
     @Test
     void exposesWorkspaceTeamAndChannelCalendarScopes() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+
         var response = service(new StubCalendarAdapter()).scopes();
 
         assertThat(response.scopes()).extracting(CalendarScopeResponse::type)
@@ -226,10 +232,68 @@ class CalendarFacadeServiceTest {
                 });
     }
 
+    @Test
+    void listFailsClosedWhenContextAuthorizationDeniesScopeAccess() {
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-04-26T10:00:00+02:00");
+        OffsetDateTime endsAt = OffsetDateTime.parse("2026-04-26T11:00:00+02:00");
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+
+        assertThatThrownBy(() -> service(
+                        new StubCalendarAdapter(),
+                        request -> ContextAuthorizationDecision.deny("no matching context membership"))
+                        .list(startsAt.minusDays(1), endsAt.plusDays(1), "channel", "engineering", "engineering-general"))
+                .isInstanceOf(ApiErrorException.class)
+                .satisfies(error -> {
+                    ApiErrorException apiError = (ApiErrorException) error;
+                    assertThat(apiError.status().value()).isEqualTo(403);
+                    assertThat(apiError.code()).isEqualTo("calendar-forbidden");
+                    assertThat(apiError.details()).containsEntry("module", "calendar");
+                    assertThat(apiError.details()).containsEntry("operation", "list-events");
+                    assertThat(apiError.details()).containsEntry("contextId", "channel-engineering-general");
+                    assertThat(apiError.details()).containsEntry("permission", "view");
+                    assertThat(apiError.details()).containsEntry("reason", "no matching context membership");
+                });
+    }
+
+    @Test
+    void createRequiresEditPermissionForTeamContextBeforeCallingAdapter() {
+        AtomicReference<ContextAuthorizationRequest> captured = new AtomicReference<>();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        CreateCalendarEventRequest request = new CreateCalendarEventRequest(
+                "Planning",
+                null,
+                OffsetDateTime.parse("2026-04-26T10:00:00+02:00"),
+                OffsetDateTime.parse("2026-04-26T11:00:00+02:00"),
+                "Europe/Berlin",
+                null,
+                false,
+                CalendarScopeResponse.team("engineering", "Engineering team calendar"));
+
+        assertThatThrownBy(() -> service(
+                        new StubCalendarAdapter(),
+                        authzRequest -> {
+                            captured.set(authzRequest);
+                            return ContextAuthorizationDecision.deny("edit denied");
+                        })
+                        .create(request))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(403);
+                    assertThat(error.details()).containsEntry("permission", "edit");
+                });
+        assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
+        assertThat(captured.get().contextId()).isEqualTo("team-engineering");
+        assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
+        assertThat(captured.get().permission()).isEqualTo(ContextPermission.EDIT);
+    }
+
     private CalendarFacadeService service(CalendarAdapter adapter) {
+        return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
+    }
+
+    private CalendarFacadeService service(CalendarAdapter adapter, ContextAuthorizationPort contextAuthorizationPort) {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("calendarAdapter", adapter);
-        return new CalendarFacadeService(beanFactory.getBeanProvider(CalendarAdapter.class));
+        return new CalendarFacadeService(beanFactory.getBeanProvider(CalendarAdapter.class), contextAuthorizationPort);
     }
 
     private Jwt jwt() {

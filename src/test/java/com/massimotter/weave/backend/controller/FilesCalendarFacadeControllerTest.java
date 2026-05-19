@@ -4,9 +4,12 @@ import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
@@ -19,6 +22,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -48,6 +53,15 @@ class FilesCalendarFacadeControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private ContextAuthorizationPort contextAuthorizationPort;
+
+    @BeforeEach
+    void allowContextAccess() {
+        when(contextAuthorizationPort.check(any()))
+                .thenReturn(ContextAuthorizationDecision.allow("test allow"));
+    }
 
     @Test
     void filesFacadeRequiresAuthenticatedWorkspaceScope() throws Exception {
@@ -87,6 +101,22 @@ class FilesCalendarFacadeControllerTest {
                         "Calendar facade is available, but the downstream Nextcloud adapter is not configured yet."))
                 .andExpect(jsonPath("$.details.module").value("calendar"))
                 .andExpect(jsonPath("$.details.operation").value("list-events"));
+    }
+
+    @Test
+    void calendarFacadeFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
+        when(contextAuthorizationPort.check(any()))
+                .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
+
+        mockMvc.perform(get("/api/calendar/events")
+                        .with(workspaceJwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(header().exists("X-Request-Id"))
+                .andExpect(jsonPath("$.code").value("calendar-forbidden"))
+                .andExpect(jsonPath("$.details.module").value("calendar"))
+                .andExpect(jsonPath("$.details.operation").value("list-events"))
+                .andExpect(jsonPath("$.details.contextId").value("workspace-default"))
+                .andExpect(jsonPath("$.details.permission").value("view"));
     }
 
     @Test

@@ -1,6 +1,9 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.model.calendar.CalendarAccessModelResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarAccessPolicyResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarClientSetupOptionResponse;
@@ -44,20 +47,28 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Service
 public class CalendarFacadeService {
 
+    private static final String DEFAULT_TENANT_ID = "tenant-default";
+    private static final String DEFAULT_CONTEXT_ID = "workspace-default";
+
     private final ObjectProvider<CalendarAdapter> calendarAdapterProvider;
     private final String nextcloudBaseUrl;
+    private final ContextAuthorizationPort contextAuthorizationPort;
     private final AppleMobileConfigProfileRenderer appleProfileRenderer;
     private final Map<String, CalendarSetupCredentialResponse> setupCredentials = new ConcurrentHashMap<>();
 
-    public CalendarFacadeService(ObjectProvider<CalendarAdapter> calendarAdapterProvider) {
-        this(calendarAdapterProvider, "https://files.weave.local");
+    public CalendarFacadeService(
+            ObjectProvider<CalendarAdapter> calendarAdapterProvider,
+            ContextAuthorizationPort contextAuthorizationPort) {
+        this(calendarAdapterProvider, "https://files.weave.local", contextAuthorizationPort);
     }
 
     @Autowired
     public CalendarFacadeService(
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
-            @Value("${weave.platform.nextcloud-base-url:https://files.weave.local}") String nextcloudBaseUrl) {
+            @Value("${weave.platform.nextcloud-base-url:https://files.weave.local}") String nextcloudBaseUrl,
+            ContextAuthorizationPort contextAuthorizationPort) {
         this.calendarAdapterProvider = calendarAdapterProvider;
+        this.contextAuthorizationPort = contextAuthorizationPort;
         this.nextcloudBaseUrl = nextcloudBaseUrl == null || nextcloudBaseUrl.isBlank()
                 ? "https://files.weave.local"
                 : nextcloudBaseUrl.trim();
@@ -65,6 +76,7 @@ public class CalendarFacadeService {
     }
 
     public CalendarScopesResponse scopes() {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "list-scopes");
         return new CalendarScopesResponse(calendarScopes());
     }
 
@@ -80,6 +92,7 @@ public class CalendarFacadeService {
             String channelId) {
         validateRange(from, to);
         CalendarScopeResponse scope = resolveScope(scopeType, teamId, channelId);
+        requireContextPermission(scope, ContextPermission.VIEW, "list-events");
         try {
             List<CalendarEventResponse> events = adapter("list-events").list(principal(), from, to).stream()
                     .map(event -> withScope(event, scope, true))
@@ -92,6 +105,7 @@ public class CalendarFacadeService {
 
     public CalendarEventResponse create(CreateCalendarEventRequest request) {
         CalendarScopeResponse scope = normalizeScope(request.scope(), "create-event");
+        requireContextPermission(scope, ContextPermission.EDIT, "create-event");
         try {
             return withScope(adapter("create-event").create(principal(), request), scope, true);
         } catch (CalendarAdapterException exception) {
@@ -101,6 +115,7 @@ public class CalendarFacadeService {
 
     public CalendarEventResponse read(String id) {
         ScopedEventId eventId = scopedEventId(id);
+        requireContextPermission(eventId.scope(), ContextPermission.VIEW, "read-event");
         try {
             return withScope(adapter("read-event").read(principal(), eventId.rawId()), eventId.scope(), true);
         } catch (CalendarAdapterException exception) {
@@ -111,6 +126,7 @@ public class CalendarFacadeService {
     public CalendarEventResponse update(String id, UpdateCalendarEventRequest request) {
         ScopedEventId eventId = scopedEventId(id);
         CalendarScopeResponse scope = request.scope() == null ? eventId.scope() : normalizeScope(request.scope(), "update-event");
+        requireContextPermission(scope, ContextPermission.EDIT, "update-event");
         try {
             return withScope(adapter("update-event").update(principal(), eventId.rawId(), request), scope, true);
         } catch (CalendarAdapterException exception) {
@@ -120,6 +136,7 @@ public class CalendarFacadeService {
 
     public void delete(String id) {
         ScopedEventId eventId = scopedEventId(id);
+        requireContextPermission(eventId.scope(), ContextPermission.EDIT, "delete-event");
         try {
             adapter("delete-event").delete(principal(), eventId.rawId());
         } catch (CalendarAdapterException exception) {
@@ -128,6 +145,7 @@ public class CalendarFacadeService {
     }
 
     public CalendarClientSetupResponse clientSetup() {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "client-setup");
         CalendarPrincipal principal = principal();
         String username = principal.nextcloudUserId();
         String discoveryUrl = davUrl("remote.php", "dav");
@@ -187,6 +205,7 @@ public class CalendarFacadeService {
 
 
     public AppleMobileConfigProfile appleMobileConfigProfile() {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "download-apple-mobileconfig");
         // Keep the download route present but unavailable until a real signing path is wired.
         // The unsigned renderer is covered by tests so the future signer has a no-secret input artifact.
         appleProfileRenderer.renderUnsignedNoSecretProfile(principal());
@@ -207,6 +226,7 @@ public class CalendarFacadeService {
     }
 
     public CalendarAccessPolicyResponse accessPolicy() {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "access-policy");
         return new CalendarAccessPolicyResponse(
                 accessModel(),
                 List.of("workspace-calendar.read", "workspace-calendar.write", "client-setup.metadata"),
@@ -219,6 +239,7 @@ public class CalendarFacadeService {
     }
 
     public CalendarSetupCredentialListResponse setupCredentials() {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "list-setup-credentials");
         CalendarPrincipal principal = principal();
         return new CalendarSetupCredentialListResponse(setupCredentials.values().stream()
                 .filter(credential -> principal.subject().equals(credential.username()))
@@ -227,6 +248,7 @@ public class CalendarFacadeService {
     }
 
     public CalendarSetupCredentialResponse createSetupCredential(CalendarSetupCredentialRequest request) {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.EDIT, "create-setup-credential");
         CalendarPrincipal principal = principal();
         OffsetDateTime issuedAt = OffsetDateTime.now(ZoneOffset.UTC);
         String id = "cal_setup_" + UUID.randomUUID();
@@ -247,6 +269,7 @@ public class CalendarFacadeService {
     }
 
     public CalendarSetupCredentialResponse revokeSetupCredential(String credentialId) {
+        requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.EDIT, "revoke-setup-credential");
         CalendarPrincipal principal = principal();
         CalendarSetupCredentialResponse current = setupCredentials.get(credentialId);
         if (current == null || !principal.subject().equals(current.username())) {
@@ -463,6 +486,72 @@ public class CalendarFacadeService {
             return new CalendarPrincipal(jwt.getSubject(), nextcloudUserId);
         }
         return new CalendarPrincipal(authentication.getName(), authentication.getName());
+    }
+
+    private void requireContextPermission(
+            CalendarScopeResponse scope,
+            ContextPermission permission,
+            String operation) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            throw new ApiErrorException(
+                    HttpStatus.UNAUTHORIZED,
+                    "unauthorized",
+                    "Authentication is required.",
+                    Map.of("module", "calendar", "operation", operation));
+        }
+        PrincipalContext principalContext = principalContext(authentication);
+        String contextId = contextId(scope);
+        var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
+                principalContext.tenantId(),
+                contextId,
+                principalContext.principalRef(),
+                permission));
+        if (!decision.allowed()) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "calendar-forbidden",
+                    "Calendar access is not allowed for this Context/Space.",
+                    Map.of(
+                            "module", "calendar",
+                            "operation", operation,
+                            "reason", decision.reason(),
+                            "contextId", contextId,
+                            "permission", permission.name().toLowerCase()));
+        }
+    }
+
+    private PrincipalContext principalContext(Authentication authentication) {
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            return new PrincipalContext(
+                    claimOrDefault(jwt, "weave_tenant_id", "tenant_id", DEFAULT_TENANT_ID),
+                    "user:" + jwt.getSubject());
+        }
+        return new PrincipalContext(DEFAULT_TENANT_ID, "user:" + authentication.getName());
+    }
+
+    private String claimOrDefault(Jwt jwt, String primaryClaim, String fallbackClaim, String defaultValue) {
+        String primary = jwt.getClaimAsString(primaryClaim);
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        String fallback = jwt.getClaimAsString(fallbackClaim);
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
+        return defaultValue;
+    }
+
+    private String contextId(CalendarScopeResponse scope) {
+        CalendarScopeResponse normalizedScope = scope == null ? CalendarScopeResponse.workspace() : scope;
+        return switch (normalizedScope.type() == null ? "workspace" : normalizedScope.type()) {
+            case "team" -> "team-" + firstNonBlank(normalizedScope.teamId(), "engineering");
+            case "channel" -> "channel-" + firstNonBlank(normalizedScope.channelId(), "engineering-general");
+            default -> DEFAULT_CONTEXT_ID;
+        };
+    }
+
+    private record PrincipalContext(String tenantId, String principalRef) {
     }
 
     private void validateRange(OffsetDateTime from, OffsetDateTime to) {
