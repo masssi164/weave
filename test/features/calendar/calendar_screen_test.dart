@@ -286,6 +286,22 @@ void main() {
             contextId: 'channel-engineering-general',
             channelId: 'engineering-general',
           ),
+          attendees: const [
+            CalendarAttendee(
+              name: 'Ada Lovelace',
+              email: 'ada@example.com',
+              role: 'req-participant',
+              responseStatus: 'accepted',
+            ),
+          ],
+          providerRef: CalendarProviderRef(
+            provider: 'nextcloud-caldav',
+            objectKind: 'calendar-event',
+            opaqueId: 'calendar:workspace:1',
+            etag: 'abc',
+            lastSyncedAt: DateTime.utc(2026, 4, 27, 8, 45),
+          ),
+          updatedAt: DateTime.utc(2026, 4, 27, 8, 45),
         ),
       ]);
 
@@ -373,6 +389,22 @@ void main() {
             contextId: 'channel-engineering-general',
             channelId: 'engineering-general',
           ),
+          attendees: const [
+            CalendarAttendee(
+              name: 'Ada Lovelace',
+              email: 'ada@example.com',
+              role: 'req-participant',
+              responseStatus: 'accepted',
+            ),
+          ],
+          providerRef: CalendarProviderRef(
+            provider: 'nextcloud-caldav',
+            objectKind: 'calendar-event',
+            opaqueId: 'calendar:workspace:1',
+            etag: 'abc',
+            lastSyncedAt: DateTime.utc(2026, 4, 27, 8, 45),
+          ),
+          updatedAt: DateTime.utc(2026, 4, 27, 8, 45),
         ),
       ]);
 
@@ -419,6 +451,34 @@ void main() {
           matching: find.textContaining(
             'chat thread linkage is not configured',
           ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Attendees'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.textContaining('Ada Lovelace <ada@example.com>'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Provider reference'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.textContaining('raw provider path hidden'),
         ),
         findsOneWidget,
       );

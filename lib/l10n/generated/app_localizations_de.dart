@@ -1764,6 +1764,19 @@ class AppLocalizationsDe extends AppLocalizations {
       'Sichere Kontextmetadaten sind verfügbar; die Chat-Thread-Verknüpfung ist noch nicht konfiguriert.';
 
   @override
+  String get calendarDetailsAttendeesLabel => 'Teilnehmende';
+
+  @override
+  String get calendarDetailsProviderLabel => 'Provider-Referenz';
+
+  @override
+  String get calendarDetailsProviderPathHidden =>
+      'roher Provider-Pfad verborgen';
+
+  @override
+  String get calendarDetailsUpdatedLabel => 'Aktualisiert';
+
+  @override
   String get calendarDetailsLocationLabel => 'Ort';
 
   @override

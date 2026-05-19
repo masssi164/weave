@@ -896,6 +896,21 @@ class _CalendarEventDetails extends StatelessWidget {
                   ? l10n.calendarDetailsMeetingThreadPending
                   : event.threadRef.matrixThreadId!,
             ),
+            if (event.attendees.isNotEmpty)
+              _CalendarDetailLine(
+                label: l10n.calendarDetailsAttendeesLabel,
+                value: event.attendees.map(_formatAttendee).join('\n'),
+              ),
+            if (event.providerRef case final providerRef?)
+              _CalendarDetailLine(
+                label: l10n.calendarDetailsProviderLabel,
+                value: _formatProviderRef(l10n, providerRef),
+              ),
+            if (event.updatedAt case final updatedAt?)
+              _CalendarDetailLine(
+                label: l10n.calendarDetailsUpdatedLabel,
+                value: _formatDateTime(context, updatedAt),
+              ),
             if ((event.location ?? '').isNotEmpty)
               _CalendarDetailLine(
                 label: l10n.calendarDetailsLocationLabel,
@@ -910,6 +925,23 @@ class _CalendarEventDetails extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatAttendee(CalendarAttendee attendee) {
+    final role = attendee.role == null ? '' : ' · ${attendee.role}';
+    return '${attendee.displayLabel}$role';
+  }
+
+  String _formatProviderRef(
+    AppLocalizations l10n,
+    CalendarProviderRef providerRef,
+  ) {
+    return [
+      providerRef.provider,
+      providerRef.objectKind,
+      if (providerRef.opaqueId case final opaqueId?) opaqueId,
+      l10n.calendarDetailsProviderPathHidden,
+    ].join(' · ');
   }
 }
 

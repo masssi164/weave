@@ -85,6 +85,45 @@ class CalendarThreadRef {
   final List<String> boardTaskIds;
 }
 
+class CalendarAttendee {
+  const CalendarAttendee({
+    this.name,
+    this.email,
+    this.role,
+    this.responseStatus,
+  });
+
+  final String? name;
+  final String? email;
+  final String? role;
+  final String? responseStatus;
+
+  String get displayLabel {
+    final displayName = name ?? email ?? 'Unknown attendee';
+    final address = email != null && email != name ? ' <$email>' : '';
+    final status = responseStatus == null ? '' : ' · $responseStatus';
+    return '$displayName$address$status';
+  }
+}
+
+class CalendarProviderRef {
+  const CalendarProviderRef({
+    required this.provider,
+    required this.objectKind,
+    this.opaqueId,
+    this.etag,
+    this.lastSyncedAt,
+    this.rawProviderPathExposed = false,
+  });
+
+  final String provider;
+  final String objectKind;
+  final String? opaqueId;
+  final String? etag;
+  final DateTime? lastSyncedAt;
+  final bool rawProviderPathExposed;
+}
+
 class CalendarScopeList {
   const CalendarScopeList({this.scopes = const [CalendarScope.workspace]});
 
@@ -221,6 +260,9 @@ class CalendarEvent {
     this.etag,
     this.scope = CalendarScope.workspace,
     CalendarThreadRef? threadRef,
+    this.attendees = const [],
+    this.providerRef,
+    this.updatedAt,
   }) : threadRef = threadRef ?? CalendarThreadRef.forScope(scope);
 
   final String id;
@@ -234,6 +276,9 @@ class CalendarEvent {
   final String? etag;
   final CalendarScope scope;
   final CalendarThreadRef threadRef;
+  final List<CalendarAttendee> attendees;
+  final CalendarProviderRef? providerRef;
+  final DateTime? updatedAt;
 }
 
 class CalendarEventDraft {

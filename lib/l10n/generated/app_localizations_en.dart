@@ -1736,6 +1736,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Safe context metadata is available; chat thread linkage is not configured yet.';
 
   @override
+  String get calendarDetailsAttendeesLabel => 'Attendees';
+
+  @override
+  String get calendarDetailsProviderLabel => 'Provider reference';
+
+  @override
+  String get calendarDetailsProviderPathHidden => 'raw provider path hidden';
+
+  @override
+  String get calendarDetailsUpdatedLabel => 'Updated';
+
+  @override
   String get calendarDetailsLocationLabel => 'Location';
 
   @override

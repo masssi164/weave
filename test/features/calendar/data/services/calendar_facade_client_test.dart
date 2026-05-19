@@ -185,6 +185,23 @@ void main() {
                     'matrixThreadId': null,
                     'boardTaskIds': [],
                   },
+                  'attendees': [
+                    {
+                      'name': 'Ada Lovelace',
+                      'email': 'ada@example.com',
+                      'role': 'req-participant',
+                      'responseStatus': 'accepted',
+                    },
+                  ],
+                  'providerRef': {
+                    'provider': 'nextcloud-caldav',
+                    'objectKind': 'calendar-event',
+                    'opaqueId': 'calendar:workspace:1',
+                    'etag': 'abc',
+                    'lastSyncedAt': '2026-04-26T08:45:00Z',
+                    'rawProviderPathExposed': false,
+                  },
+                  'updatedAt': '2026-04-26T08:45:00Z',
                 },
               ],
             }),
@@ -229,6 +246,16 @@ void main() {
       );
       expect(events.events.single.threadRef.channelId, 'engineering-general');
       expect(events.events.single.threadRef.matrixThreadId, isNull);
+      expect(events.events.single.attendees.single.name, 'Ada Lovelace');
+      expect(events.events.single.attendees.single.responseStatus, 'accepted');
+      expect(events.events.single.providerRef?.provider, 'nextcloud-caldav');
+      expect(
+        events.events.single.providerRef?.opaqueId,
+        'calendar:workspace:1',
+      );
+      expect(events.events.single.providerRef?.rawProviderPathExposed, isFalse);
+      expect(events.events.single.providerRef?.lastSyncedAt, isNotNull);
+      expect(events.events.single.updatedAt, DateTime.utc(2026, 4, 26, 8, 45));
     });
 
     test(
@@ -256,6 +283,10 @@ void main() {
 
         expect(events.scope, CalendarScope.workspace);
         expect(events.events.single.scope, CalendarScope.workspace);
+        expect(events.events.single.threadRef.contextId, 'workspace-default');
+        expect(events.events.single.attendees, isEmpty);
+        expect(events.events.single.providerRef, isNull);
+        expect(events.events.single.updatedAt, isNull);
       },
     );
 

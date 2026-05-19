@@ -3009,6 +3009,30 @@ abstract class AppLocalizations {
   /// **'Safe context metadata is available; chat thread linkage is not configured yet.'**
   String get calendarDetailsMeetingThreadPending;
 
+  /// Label for safe attendee metadata in the calendar event details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Attendees'**
+  String get calendarDetailsAttendeesLabel;
+
+  /// Label for safe provider metadata in the calendar event details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Provider reference'**
+  String get calendarDetailsProviderLabel;
+
+  /// Calendar details text explaining that raw provider paths are not exposed
+  ///
+  /// In en, this message translates to:
+  /// **'raw provider path hidden'**
+  String get calendarDetailsProviderPathHidden;
+
+  /// Label for the last known calendar event update timestamp in the details dialog
+  ///
+  /// In en, this message translates to:
+  /// **'Updated'**
+  String get calendarDetailsUpdatedLabel;
+
   /// Label for the calendar event location in the details dialog
   ///
   /// In en, this message translates to:
