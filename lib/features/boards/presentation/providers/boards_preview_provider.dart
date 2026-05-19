@@ -38,7 +38,7 @@ final boardsPreviewProvider = FutureProvider<BoardPreview>((ref) async {
   try {
     return await backendRepository.loadPreview();
   } on AppFailure {
-    return staticRepository.loadPreview();
+    return const BoardPreview.backendBlocked();
   }
 });
 

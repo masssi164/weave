@@ -145,6 +145,33 @@ void main() {
       expect(requests, isEmpty);
     });
 
+    testWidgets(
+      'fails closed when backend Boards context authorization denies',
+      (tester) async {
+        _setCompactPreviewSurface(tester);
+        final requests = <http.Request>[];
+        await tester.pumpWidget(
+          createTestApp(
+            const BoardsPreviewScreen(),
+            overrides: [
+              ..._backendPreviewOverrides((request) async {
+                requests.add(request);
+                return http.Response('{"code":"boards-forbidden"}', 403);
+              }),
+              weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+                (ref) async => _capabilities(),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Provider runtime blocked'), findsOneWidget);
+        expect(find.text('Backend non-drag actions blocked'), findsOneWidget);
+        expect(requests, hasLength(1));
+      },
+    );
+
     testWidgets('offers non-drag task actions with preview-only feedback', (
       tester,
     ) async {
