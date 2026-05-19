@@ -900,16 +900,25 @@ create_nextcloud_backend_actor() {
 }
 
 ensure_nextcloud_backend_actor_calendar() {
+  local calendar_id
+  local -a calendar_ids=(
+    personal
+    weave-team-engineering
+    weave-channel-engineering-general
+  )
+
   if ! occ list --format=txt | grep -q '^  dav:create-calendar'; then
     log "Nextcloud dav:create-calendar command is unavailable; backend actor calendar pre-creation skipped."
     return
   fi
 
-  if occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" personal >/dev/null 2>&1; then
-    return
-  fi
+  for calendar_id in "${calendar_ids[@]}"; do
+    if occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" >/dev/null 2>&1; then
+      continue
+    fi
 
-  log "Nextcloud backend actor calendar already exists or could not be pre-created; continuing with idempotent setup."
+    log "Nextcloud backend actor calendar ${calendar_id} already exists or could not be pre-created; continuing with idempotent setup."
+  done
 }
 
 ensure_nextcloud_backend_actor() {

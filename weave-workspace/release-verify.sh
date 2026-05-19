@@ -91,6 +91,16 @@ container_env_value() {
     awk -v name="${name}" 'index($0, name "=") == 1 { print substr($0, length(name) + 2); found = 1 } END { if (!found) exit 1 }'
 }
 
+assert_nextcloud_backend_actor_calendar() {
+  local actor_username="$1"
+  local calendar_id="$2"
+
+  docker exec --user www-data weave-nextcloud php occ list --format=txt 2>/dev/null | grep -q '^  dav:list-calendars' || \
+    fail "Release verify failed: Nextcloud dav:list-calendars command is unavailable; cannot verify backend-owned calendar hierarchy"
+  docker exec --user www-data weave-nextcloud php occ dav:list-calendars "${actor_username}" 2>/dev/null | grep -Fq "${calendar_id}" || \
+    fail "Release verify failed: Nextcloud backend actor calendar ${calendar_id} is not provisioned"
+}
+
 assert_backend_env_present() {
   local name="$1"
   local value
@@ -171,6 +181,10 @@ assert_backend_nextcloud_actor_config() {
 
   docker exec --user www-data weave-nextcloud php occ user:info "${actor_username}" >/dev/null 2>&1 || \
     fail "Release verify failed: Nextcloud backend actor user is not provisioned"
+
+  for calendar_id in personal weave-team-engineering weave-channel-engineering-general; do
+    assert_nextcloud_backend_actor_calendar "${actor_username}" "${calendar_id}"
+  done
 }
 
 require_command curl

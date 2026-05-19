@@ -38,12 +38,13 @@ infra_outputs="${ROOT_DIR}/01-infrastructure/outputs.tf"
 install_script="${ROOT_DIR}/install.sh"
 keycloak_main="${ROOT_DIR}/02-keycloak-setup/modules/tenant-identity/main.tf"
 release_env="${ROOT_DIR}/release.env.example"
+release_verify="${ROOT_DIR}/release-verify.sh"
 admin_doc="${REPO_DIR}/docs/admin-user-activation.md"
 caldav_doc="${REPO_DIR}/docs/calendar-caldav-external-clients.md"
 connector_doc="${REPO_DIR}/docs/connector-runtime-guardrails.md"
 caddy_template="${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${caddy_template}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${caddy_template}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -71,6 +72,11 @@ assert_file_absent "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=true'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=${var.boards_preview_runtime_enabled}'
 assert_file_contains_once "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED='
 assert_file_contains "${infra_main}" 'boards_preview_runtime_enabled         = var.boards_preview_runtime_enabled'
+assert_file_contains "${install_script}" 'weave-team-engineering'
+assert_file_contains "${install_script}" 'weave-channel-engineering-general'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'weave-team-engineering'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'weave-channel-engineering-general'
+assert_file_contains "${release_verify}" 'weave-channel-engineering-general'
 legacy_e2ee_marker='planned-not-'
 legacy_e2ee_marker+='enabled'
 assert_file_absent "${install_script}" "${legacy_e2ee_marker}"
@@ -96,6 +102,11 @@ assert_file_contains "${infra_main}" 'interop_enabled                        = f
 assert_file_contains "${infra_main}" 'interop_slack_enabled                  = false'
 assert_file_contains "${infra_main}" 'connectors_public_sdk_enabled          = false'
 assert_file_contains "${infra_main}" 'boards_preview_runtime_enabled         = var.boards_preview_runtime_enabled'
+assert_file_contains "${install_script}" 'weave-team-engineering'
+assert_file_contains "${install_script}" 'weave-channel-engineering-general'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'weave-team-engineering'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'weave-channel-engineering-general'
+assert_file_contains "${release_verify}" 'weave-channel-engineering-general'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'variable "boards_preview_runtime_enabled"'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'Defaults false; expensive live feature-proof runs may set true'
 assert_file_contains "${caddy_template}" 'connector_provider_callbacks_guard'

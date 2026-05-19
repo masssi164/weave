@@ -71,7 +71,7 @@ Default local names resolve to loopback; non-local installs derive the same patt
 
 The product should prefer Weave routes and backend APIs where they exist. Raw Nextcloud remains a technical/admin/protocol fallback, not the primary customer-facing files/calendar UX.
 
-The first Calendar facade slice uses the backend-owned Nextcloud actor's own `personal` CalDAV collection as a Weave-managed workspace calendar while team/channel scopes are implemented. A backend service account cannot read every user's private personal Nextcloud calendar merely by targeting `/calendars/{user}/personal/`; private personal calendars require a later explicit sharing, provisioning, or delegated-token contract.
+The Calendar facade uses backend-owned Nextcloud actor CalDAV collections as Weave-managed backing stores: `personal` for the workspace calendar plus default team/channel smoke collections such as `weave-team-engineering` and `weave-channel-engineering-general`. A backend service account cannot read every user's private personal Nextcloud calendar merely by targeting `/calendars/{user}/personal/`; private personal calendars require a later explicit sharing, provisioning, or delegated-token contract.
 
 ## Repo compass
 
