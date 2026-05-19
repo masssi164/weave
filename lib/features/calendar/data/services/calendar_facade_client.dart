@@ -281,6 +281,9 @@ class CalendarFacadeClient {
       etag: _readNullableString(json, 'etag'),
       scope: eventScope,
       threadRef: _decodeThreadRef(json['threadRef'], defaultScope: eventScope),
+      attendees: _decodeAttendees(json['attendees']),
+      providerRef: _decodeProviderRef(json['providerRef']),
+      updatedAt: _readNullableDateTime(json, 'updatedAt'),
     );
   }
 
@@ -369,6 +372,39 @@ class CalendarFacadeClient {
       matrixRoomId: _readNullableString(rawThreadRef, 'matrixRoomId'),
       matrixThreadId: _readNullableString(rawThreadRef, 'matrixThreadId'),
       boardTaskIds: _readStringList(rawThreadRef['boardTaskIds']),
+    );
+  }
+
+  List<CalendarAttendee> _decodeAttendees(Object? rawAttendees) {
+    if (rawAttendees is! List) {
+      return const [];
+    }
+
+    return rawAttendees
+        .whereType<Map<String, dynamic>>()
+        .map((attendee) {
+          return CalendarAttendee(
+            name: _readNullableString(attendee, 'name'),
+            email: _readNullableString(attendee, 'email'),
+            role: _readNullableString(attendee, 'role'),
+            responseStatus: _readNullableString(attendee, 'responseStatus'),
+          );
+        })
+        .toList(growable: false);
+  }
+
+  CalendarProviderRef? _decodeProviderRef(Object? rawProviderRef) {
+    if (rawProviderRef is! Map<String, dynamic>) {
+      return null;
+    }
+
+    return CalendarProviderRef(
+      provider: _readString(rawProviderRef, 'provider'),
+      objectKind: _readString(rawProviderRef, 'objectKind'),
+      opaqueId: _readNullableString(rawProviderRef, 'opaqueId'),
+      etag: _readNullableString(rawProviderRef, 'etag'),
+      lastSyncedAt: _readNullableDateTime(rawProviderRef, 'lastSyncedAt'),
+      rawProviderPathExposed: rawProviderRef['rawProviderPathExposed'] == true,
     );
   }
 
@@ -507,6 +543,14 @@ class CalendarFacadeClient {
     throw AppFailure.unknown(
       'The Weave backend returned a calendar event without a valid $key.',
     );
+  }
+
+  DateTime? _readNullableDateTime(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    if (value is String && value.trim().isNotEmpty) {
+      return DateTime.tryParse(value);
+    }
+    return null;
   }
 
   Map<String, String> _jsonHeaders(String accessToken) {
