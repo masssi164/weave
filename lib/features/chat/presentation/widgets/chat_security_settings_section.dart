@@ -59,6 +59,12 @@ class ChatSecuritySettingsSection extends ConsumerWidget {
                 ? l10n.chatSecurityEncryptedRoomsCardBodyExisting
                 : l10n.chatSecurityEncryptedRoomsCardBodyNone,
           ),
+          const SizedBox(height: 12),
+          _StatusCard(
+            title: l10n.chatSecurityBoundaryCardTitle,
+            value: l10n.chatSecurityBoundaryCardValue,
+            body: l10n.chatSecurityBoundaryCardBody,
+          ),
           const SizedBox(height: 16),
           _ActionArea(state: state, l10n: l10n),
         ],
@@ -655,18 +661,25 @@ class _StatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final semanticLabel = '$title. $value. $body';
     return Card(
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
+      child: Semantics(
+        container: true,
+        label: semanticLabel,
+        child: ExcludeSemantics(
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+            title: Text(title),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(body),
+            ),
+            trailing: Text(value),
+          ),
         ),
-        title: Text(title),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Text(body),
-        ),
-        trailing: Text(value),
       ),
     );
   }

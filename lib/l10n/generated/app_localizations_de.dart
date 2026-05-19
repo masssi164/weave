@@ -735,6 +735,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'Es sind noch keine verschlüsselten Räume bekannt, aber der Sicherheitsstatus des Kontos wird hier trotzdem verfolgt.';
 
   @override
+  String get chatSecurityBoundaryCardTitle => 'Backend- und Agent-Grenze';
+
+  @override
+  String get chatSecurityBoundaryCardValue => 'Bis Consent/Audit blockiert';
+
+  @override
+  String get chatSecurityBoundaryCardBody =>
+      'Verschlüsselte Nachrichteninhalte bleiben auf Matrix-Geräten. Backend-Diagnosen dürfen support-sichere Metadaten wie Raum-ID, Verschlüsselungsstatus, Gerätevertrauen und Zeitstempel verwenden, aber keine entschlüsselten Nachrichteninhalte. Bots und Connectoren bleiben in verschlüsselten Räumen blockiert, bis Consent-, Audit-, Gerätevertrauens- und Client-Identitäts-Gates umgesetzt sind.';
+
+  @override
   String get chatSecurityStatusSignedOut => 'Matrix nicht verbunden';
 
   @override

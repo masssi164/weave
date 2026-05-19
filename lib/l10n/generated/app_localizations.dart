@@ -1289,6 +1289,24 @@ abstract class AppLocalizations {
   /// **'No encrypted rooms are known yet, but the account security state is still tracked here.'**
   String get chatSecurityEncryptedRoomsCardBodyNone;
 
+  /// Matrix E2EE diagnostics card title explaining backend and agent boundaries
+  ///
+  /// In en, this message translates to:
+  /// **'Backend and agent boundary'**
+  String get chatSecurityBoundaryCardTitle;
+
+  /// Matrix E2EE diagnostics card status for agent or connector participation
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked until consent/audit'**
+  String get chatSecurityBoundaryCardValue;
+
+  /// Matrix E2EE diagnostics card body explaining server-readable metadata and bot connector limits
+  ///
+  /// In en, this message translates to:
+  /// **'Encrypted message contents stay on Matrix devices. Backend diagnostics may use support-safe metadata such as room ID, encryption status, device trust, and timestamps, but not decrypted message bodies. Bots and connectors stay blocked from encrypted rooms until consent, audit, device-trust, and client-identity gates are implemented.'**
+  String get chatSecurityBoundaryCardBody;
+
   /// Status label when Matrix is not connected
   ///
   /// In en, this message translates to:

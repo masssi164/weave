@@ -9,6 +9,59 @@ import '../../../../helpers/test_app.dart';
 
 void main() {
   group('ChatSecuritySettingsSection', () {
+    testWidgets('documents backend metadata and agent E2EE boundaries', (
+      tester,
+    ) async {
+      final repository = FakeChatSecurityRepository(
+        loadSecurityStateHandler: ({bool refresh = false}) async {
+          return const ChatSecurityState(
+            isMatrixSignedIn: true,
+            bootstrapState: ChatSecurityBootstrapState.ready,
+            accountVerificationState: ChatAccountVerificationState.verified,
+            deviceVerificationState: ChatDeviceVerificationState.verified,
+            keyBackupState: ChatKeyBackupState.ready,
+            roomEncryptionReadiness: ChatRoomEncryptionReadiness.ready,
+            secretStorageReady: true,
+            crossSigningReady: true,
+            hasEncryptedConversations: true,
+            verificationSession: ChatVerificationSession.none(),
+          );
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const SingleChildScrollView(child: ChatSecuritySettingsSection()),
+          overrides: [
+            chatSecurityRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Backend and agent boundary'), findsOneWidget);
+      expect(find.text('Blocked until consent/audit'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Encrypted message contents stay on Matrix devices',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Bots and connectors stay blocked'),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            'Backend and agent boundary.*Blocked until consent/audit.*not decrypted message bodies',
+            dotAll: true,
+          ),
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('continues verification with recovery material', (
       tester,
     ) async {
