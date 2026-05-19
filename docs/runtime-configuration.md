@@ -23,6 +23,23 @@ This document is the backend runtime reference for operators and local integrati
 - `WEAVE_TARGET_WEB`: advertise web as a supported client target, defaults to `false`.
 - `PORT`: HTTP listen port, defaults to `8080`.
 
+## Matrix E2EE and backend boundary variables
+
+Matrix E2EE status is diagnostic-only until Matrix-native encrypted-room, device verification, recovery, lost-device, multi-device, and accessibility flows are validated. Backend diagnostics must not inspect or require encrypted message bodies.
+
+- `WEAVE_MATRIX_FEDERATION_ENABLED`: report whether Matrix federation is enabled, defaults to `false` for the MVP private workspace contract.
+- `WEAVE_MATRIX_E2EE_ENCRYPTED_ROOMS_VALIDATED`: encrypted default room gate, defaults to `false`.
+- `WEAVE_MATRIX_E2EE_DEVICE_VERIFICATION_VALIDATED`: device verification gate, defaults to `false`.
+- `WEAVE_MATRIX_E2EE_KEY_BACKUP_VALIDATED`: key backup/recovery gate, defaults to `false`.
+- `WEAVE_MATRIX_E2EE_LOST_DEVICE_RECOVERY_VALIDATED`: lost-device recovery gate, defaults to `false`.
+- `WEAVE_MATRIX_E2EE_MULTI_DEVICE_VALIDATED`: multi-device UX gate, defaults to `false`.
+- `WEAVE_MATRIX_E2EE_ACCESSIBILITY_REVIEWED`: accessibility review gate for verification/recovery flows, defaults to `false`.
+- `WEAVE_MATRIX_E2EE_STATUS_SOURCE`: support-safe source label for E2EE diagnostics, defaults to `backend_runtime_flags_only`.
+- `WEAVE_MATRIX_AGENT_PARTICIPATION_POLICY`: policy label for bot/assistant participation in encrypted rooms, defaults to `blocked_until_explicit_consent_audit_and_matrix_device_trust_are_implemented`.
+- `WEAVE_MATRIX_CONNECTOR_WRITE_POLICY`: policy label for connector writes that target Matrix rooms, defaults to `fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented`.
+
+`/api/platform/status` reports `matrix.e2eeEnabled = true` only when all E2EE validation flags above are true. It also reports `matrix.backendBoundary.serverReadableMessageContent = false` and lists only support-safe metadata classes that backend diagnostics may use (`room_id`, `event_id`, `sender_id`, timestamps, membership state, room encryption algorithm, and redacted state).
+
 ## Workspace capability variables
 
 - `WEAVE_WORKSPACE_SHELL_ACCESS_ENABLED`: enable the authenticated shell contract, defaults to `true`.

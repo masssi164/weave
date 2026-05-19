@@ -41,7 +41,34 @@ public record PlatformStatusResponse(
             String message,
             String action,
             boolean federationEnabled,
-            boolean e2eeEnabled) {
+            @Schema(description = "True only after all active Matrix E2EE implementation and accessibility gates are validated.")
+            boolean e2eeEnabled,
+            E2eeStatus e2ee,
+            MatrixBackendBoundary backendBoundary) {
+    }
+
+    public record E2eeStatus(
+            @Schema(description = "validated only when encrypted rooms, device verification, recovery, lost-device, multi-device, and accessibility gates are complete.")
+            String status,
+            @Schema(description = "Support-safe source of this status; never a room message-body inspection source.")
+            String source,
+            boolean encryptedRoomsValidated,
+            boolean deviceVerificationValidated,
+            boolean keyBackupValidated,
+            boolean lostDeviceRecoveryValidated,
+            boolean multiDeviceValidated,
+            boolean accessibilityReviewed,
+            String action) {
+    }
+
+    public record MatrixBackendBoundary(
+            @Schema(description = "False for E2EE-compatible backend behavior; encrypted message bodies are client-readable only.")
+            boolean serverReadableMessageContent,
+            @Schema(description = "Support-safe metadata classes backend diagnostics may use without implying message body access.")
+            List<String> metadataReadable,
+            String messageContentPolicy,
+            String agentParticipation,
+            String connectorWritePolicy) {
     }
 
     public record DiagnosticCheck(

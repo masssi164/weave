@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
@@ -16,16 +17,19 @@ public class PlatformContractService {
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final PlatformContractProperties platformProperties;
+    private final MatrixChatProperties matrixProperties;
     private final WeaveSecurityProperties securityProperties;
     private final WorkspaceCapabilityProperties workspaceProperties;
 
     public PlatformContractService(
             OAuth2ResourceServerProperties resourceServerProperties,
             PlatformContractProperties platformProperties,
+            MatrixChatProperties matrixProperties,
             WeaveSecurityProperties securityProperties,
             WorkspaceCapabilityProperties workspaceProperties) {
         this.resourceServerProperties = resourceServerProperties;
         this.platformProperties = platformProperties;
+        this.matrixProperties = matrixProperties;
         this.securityProperties = securityProperties;
         this.workspaceProperties = workspaceProperties;
     }
@@ -45,8 +49,8 @@ public class PlatformContractService {
                         platformProperties.targets().web()),
                 new PlatformConfigResponse.Features(
                         workspaceProperties.chat().enabled(),
-                        false,
-                        false,
+                        workspaceProperties.chat().enabled() && matrixProperties.e2ee().fullyValidated(),
+                        matrixProperties.federationEnabled(),
                         workspaceProperties.files().enabled(),
                         workspaceProperties.calendar().enabled()));
     }
@@ -143,8 +147,44 @@ public class PlatformContractService {
                 status.readiness(),
                 status.message(),
                 status.action(),
+                matrixProperties.federationEnabled(),
+                workspaceProperties.chat().enabled() && matrixProperties.e2ee().fullyValidated(),
+                e2eeStatus(),
+                backendBoundary());
+    }
+
+    private PlatformStatusResponse.E2eeStatus e2eeStatus() {
+        MatrixChatProperties.E2ee e2ee = matrixProperties.e2ee();
+        boolean fullyValidated = e2ee.fullyValidated();
+        return new PlatformStatusResponse.E2eeStatus(
+                fullyValidated ? "validated" : "not_validated",
+                e2ee.statusSource(),
+                e2ee.encryptedRoomsValidated(),
+                e2ee.deviceVerificationValidated(),
+                e2ee.keyBackupValidated(),
+                e2ee.lostDeviceRecoveryValidated(),
+                e2ee.multiDeviceValidated(),
+                e2ee.accessibilityReviewed(),
+                fullyValidated
+                        ? null
+                        : "Do not claim Matrix chat E2EE complete until encrypted-room, device verification, key backup/recovery, lost-device, multi-device, and accessibility gates are validated.");
+    }
+
+    private PlatformStatusResponse.MatrixBackendBoundary backendBoundary() {
+        MatrixChatProperties.BackendBoundary boundary = matrixProperties.backendBoundary();
+        return new PlatformStatusResponse.MatrixBackendBoundary(
                 false,
-                false);
+                List.of(
+                        "room_id",
+                        "event_id",
+                        "sender_id",
+                        "origin_server_ts",
+                        "membership_state",
+                        "room_encryption_algorithm",
+                        "redacted_state"),
+                "Encrypted Matrix message bodies are opaque to backend diagnostics and must not be required for product readiness.",
+                boundary.agentParticipation(),
+                boundary.connectorWritePolicy());
     }
 
     private PlatformStatusResponse.DiagnosticStatus moduleStatus(

@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.controller;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.config.MatrixChatProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
@@ -38,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiErrorResponseWriter.class
 })
 @EnableConfigurationProperties({
+        MatrixChatProperties.class,
         PlatformContractProperties.class,
         WeaveSecurityProperties.class,
         WorkspaceCapabilityProperties.class,
@@ -93,6 +95,20 @@ class PlatformControllerTest {
                 .andExpect(jsonPath("$.matrix.readiness").value("ready"))
                 .andExpect(jsonPath("$.matrix.federationEnabled").value(false))
                 .andExpect(jsonPath("$.matrix.e2eeEnabled").value(false))
+                .andExpect(jsonPath("$.matrix.e2ee.status").value("not_validated"))
+                .andExpect(jsonPath("$.matrix.e2ee.source").value("backend_runtime_flags_only"))
+                .andExpect(jsonPath("$.matrix.e2ee.encryptedRoomsValidated").value(false))
+                .andExpect(jsonPath("$.matrix.e2ee.deviceVerificationValidated").value(false))
+                .andExpect(jsonPath("$.matrix.e2ee.keyBackupValidated").value(false))
+                .andExpect(jsonPath("$.matrix.e2ee.lostDeviceRecoveryValidated").value(false))
+                .andExpect(jsonPath("$.matrix.e2ee.multiDeviceValidated").value(false))
+                .andExpect(jsonPath("$.matrix.e2ee.accessibilityReviewed").value(false))
+                .andExpect(jsonPath("$.matrix.backendBoundary.serverReadableMessageContent").value(false))
+                .andExpect(jsonPath("$.matrix.backendBoundary.metadataReadable[0]").value("room_id"))
+                .andExpect(jsonPath("$.matrix.backendBoundary.agentParticipation")
+                        .value("blocked_until_explicit_consent_audit_and_matrix_device_trust_are_implemented"))
+                .andExpect(jsonPath("$.matrix.backendBoundary.connectorWritePolicy")
+                        .value("fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented"))
                 .andExpect(jsonPath("$.files.status").value("up"))
                 .andExpect(jsonPath("$.calendar.status").value("up"))
                 .andExpect(jsonPath("$.nextcloud.status").value("up"))

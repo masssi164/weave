@@ -66,6 +66,23 @@ weave:
       backend-username: ${WEAVE_CALDAV_BACKEND_USERNAME:}
       backend-token: ${WEAVE_CALDAV_BACKEND_TOKEN:}
       request-timeout-seconds: ${WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS:10}
+  matrix:
+    # Backend diagnostics must remain E2EE-compatible: the backend never inspects
+    # encrypted Matrix message bodies. These validation flags are false until real
+    # encrypted-room, device verification, recovery, lost-device, multi-device, and
+    # accessibility gates are proven by Matrix-native client/smoke/E2E flows.
+    federation-enabled: ${WEAVE_MATRIX_FEDERATION_ENABLED:false}
+    e2ee:
+      encrypted-rooms-validated: ${WEAVE_MATRIX_E2EE_ENCRYPTED_ROOMS_VALIDATED:false}
+      device-verification-validated: ${WEAVE_MATRIX_E2EE_DEVICE_VERIFICATION_VALIDATED:false}
+      key-backup-validated: ${WEAVE_MATRIX_E2EE_KEY_BACKUP_VALIDATED:false}
+      lost-device-recovery-validated: ${WEAVE_MATRIX_E2EE_LOST_DEVICE_RECOVERY_VALIDATED:false}
+      multi-device-validated: ${WEAVE_MATRIX_E2EE_MULTI_DEVICE_VALIDATED:false}
+      accessibility-reviewed: ${WEAVE_MATRIX_E2EE_ACCESSIBILITY_REVIEWED:false}
+      status-source: ${WEAVE_MATRIX_E2EE_STATUS_SOURCE:backend_runtime_flags_only}
+    backend-boundary:
+      agent-participation: ${WEAVE_MATRIX_AGENT_PARTICIPATION_POLICY:blocked_until_explicit_consent_audit_and_matrix_device_trust_are_implemented}
+      connector-write-policy: ${WEAVE_MATRIX_CONNECTOR_WRITE_POLICY:fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented}
   workspace:
     shell-access:
       enabled: ${WEAVE_WORKSPACE_SHELL_ACCESS_ENABLED:true}

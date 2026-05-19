@@ -92,7 +92,7 @@ docker build -t weave-backend:e2e .
 - Weave files/calendar product routes: `https://weave.local/files` and `https://weave.local/calendar`
 - Raw Nextcloud technical/admin/protocol fallback: `https://files.weave.local`
 
-Protected `/api/**` routes require a bearer token whose `iss`, `aud`, `azp`/`client_id`, and `scope` match the first-party Weave app contract. Public health, platform config/status, and OpenAPI endpoints are used for bootstrap and diagnostics.
+Protected `/api/**` routes require a bearer token whose `iss`, `aud`, `azp`/`client_id`, and `scope` match the first-party Weave app contract. Public health, platform config/status, and OpenAPI endpoints are used for bootstrap and diagnostics. Matrix E2EE diagnostics are intentionally conservative: `/api/platform/status` does not claim E2EE completion until every encrypted-room/device/recovery/multi-device/accessibility gate is validated, and it states that encrypted message bodies are opaque to backend diagnostics.
 
 ## Operator notes
 
