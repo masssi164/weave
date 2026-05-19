@@ -274,6 +274,18 @@ void main() {
           endTime: DateTime.utc(2026, 4, 27, 10),
           timezone: 'Europe/Berlin',
           allDay: false,
+          scope: const CalendarScope(
+            id: 'channel:engineering-general',
+            type: 'channel',
+            label: 'Engineering / general channel calendar',
+            contextId: 'channel-engineering-general',
+            teamId: 'engineering',
+            channelId: 'engineering-general',
+          ),
+          threadRef: const CalendarThreadRef(
+            contextId: 'channel-engineering-general',
+            channelId: 'engineering-general',
+          ),
         ),
       ]);
 
@@ -349,6 +361,18 @@ void main() {
           endTime: DateTime.utc(2026, 4, 27, 10),
           timezone: 'Europe/Berlin',
           allDay: false,
+          scope: const CalendarScope(
+            id: 'channel:engineering-general',
+            type: 'channel',
+            label: 'Engineering / general channel calendar',
+            contextId: 'channel-engineering-general',
+            teamId: 'engineering',
+            channelId: 'engineering-general',
+          ),
+          threadRef: const CalendarThreadRef(
+            contextId: 'channel-engineering-general',
+            channelId: 'engineering-general',
+          ),
         ),
       ]);
 
@@ -378,7 +402,23 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(AlertDialog),
-          matching: find.text('Weave workspace calendar'),
+          matching: find.text('Engineering / general channel calendar'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('channel-engineering-general'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.textContaining(
+            'chat thread linkage is not configured',
+          ),
         ),
         findsOneWidget,
       );

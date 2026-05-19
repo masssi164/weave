@@ -886,6 +886,16 @@ class _CalendarEventDetails extends StatelessWidget {
               label: l10n.calendarDetailsScopeLabel,
               value: event.scope.label,
             ),
+            _CalendarDetailLine(
+              label: l10n.calendarDetailsContextLabel,
+              value: event.threadRef.contextId,
+            ),
+            _CalendarDetailLine(
+              label: l10n.calendarDetailsMeetingThreadLabel,
+              value: event.threadRef.matrixThreadId == null
+                  ? l10n.calendarDetailsMeetingThreadPending
+                  : event.threadRef.matrixThreadId!,
+            ),
             if ((event.location ?? '').isNotEmpty)
               _CalendarDetailLine(
                 label: l10n.calendarDetailsLocationLabel,

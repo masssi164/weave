@@ -95,6 +95,7 @@ void main() {
                   'type': 'workspace',
                   'label': 'Weave workspace calendar',
                   'workspaceId': 'workspace',
+                  'contextId': 'workspace-default',
                   'accessModel': 'shared-workspace-calendar',
                   'capabilities': ['read', 'create'],
                 },
@@ -103,6 +104,7 @@ void main() {
                   'type': 'team',
                   'label': 'Engineering team calendar',
                   'workspaceId': 'workspace',
+                  'contextId': 'team-engineering',
                   'teamId': 'engineering',
                   'accessModel': 'shared-team-calendar',
                   'capabilities': ['read', 'create'],
@@ -112,6 +114,7 @@ void main() {
                   'type': 'channel',
                   'label': 'Engineering / general channel calendar',
                   'workspaceId': 'workspace',
+                  'contextId': 'channel-engineering-general',
                   'teamId': 'engineering',
                   'channelId': 'engineering-general',
                   'accessModel': 'shared-channel-calendar',
@@ -137,7 +140,9 @@ void main() {
         'channel',
       ]);
       expect(scopes.scopes[1].teamId, 'engineering');
+      expect(scopes.scopes[1].contextId, 'team-engineering');
       expect(scopes.scopes[2].channelId, 'engineering-general');
+      expect(scopes.scopes[2].contextId, 'channel-engineering-general');
       expect(scopes.scopes[2].accessModel, 'shared-channel-calendar');
     });
 
@@ -164,8 +169,21 @@ void main() {
                   'allDay': false,
                   'etag': 'abc',
                   'scope': {
-                    'type': 'workspace',
-                    'label': 'Weave workspace calendar',
+                    'id': 'channel:engineering-general',
+                    'type': 'channel',
+                    'label': 'Engineering / general channel calendar',
+                    'workspaceId': 'workspace',
+                    'contextId': 'channel-engineering-general',
+                    'teamId': 'engineering',
+                    'channelId': 'engineering-general',
+                  },
+                  'threadRef': {
+                    'kind': 'context',
+                    'contextId': 'channel-engineering-general',
+                    'channelId': 'engineering-general',
+                    'matrixRoomId': null,
+                    'matrixThreadId': null,
+                    'boardTaskIds': [],
                   },
                 },
               ],
@@ -199,7 +217,18 @@ void main() {
       expect(events.events.single.title, 'Planning');
       expect(events.events.single.timezone, 'Europe/Berlin');
       expect(events.events.single.etag, 'abc');
-      expect(events.events.single.scope.type, 'workspace');
+      expect(events.events.single.scope.type, 'channel');
+      expect(
+        events.events.single.scope.contextId,
+        'channel-engineering-general',
+      );
+      expect(events.events.single.threadRef.kind, 'context');
+      expect(
+        events.events.single.threadRef.contextId,
+        'channel-engineering-general',
+      );
+      expect(events.events.single.threadRef.channelId, 'engineering-general');
+      expect(events.events.single.threadRef.matrixThreadId, isNull);
     });
 
     test(

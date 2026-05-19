@@ -1726,6 +1726,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calendarDetailsScopeLabel => 'Calendar scope';
 
   @override
+  String get calendarDetailsContextLabel => 'Context';
+
+  @override
+  String get calendarDetailsMeetingThreadLabel => 'Meeting thread';
+
+  @override
+  String get calendarDetailsMeetingThreadPending =>
+      'Safe context metadata is available; chat thread linkage is not configured yet.';
+
+  @override
   String get calendarDetailsLocationLabel => 'Location';
 
   @override
