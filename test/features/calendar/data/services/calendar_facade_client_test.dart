@@ -180,6 +180,8 @@ void main() {
                   'threadRef': {
                     'kind': 'context',
                     'contextId': 'channel-engineering-general',
+                    'meetingThreadId':
+                        'meeting:channel-engineering-general:abc123def456',
                     'channelId': 'engineering-general',
                     'matrixRoomId': null,
                     'matrixThreadId': null,
@@ -243,6 +245,10 @@ void main() {
       expect(
         events.events.single.threadRef.contextId,
         'channel-engineering-general',
+      );
+      expect(
+        events.events.single.threadRef.meetingThreadId,
+        'meeting:channel-engineering-general:abc123def456',
       );
       expect(events.events.single.threadRef.channelId, 'engineering-general');
       expect(events.events.single.threadRef.matrixThreadId, isNull);

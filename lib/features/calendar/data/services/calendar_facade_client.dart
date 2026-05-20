@@ -368,6 +368,7 @@ class CalendarFacadeClient {
           ? rawKind.trim()
           : 'context',
       contextId: contextId,
+      meetingThreadId: _readNullableString(rawThreadRef, 'meetingThreadId'),
       channelId: _readNullableString(rawThreadRef, 'channelId'),
       matrixRoomId: _readNullableString(rawThreadRef, 'matrixRoomId'),
       matrixThreadId: _readNullableString(rawThreadRef, 'matrixThreadId'),
