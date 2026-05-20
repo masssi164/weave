@@ -25,6 +25,10 @@ public record OpenProjectBoardsRuntimeGate(
         return new OpenProjectBoardsRuntimeGate(false, false, false, false, false, "disabled");
     }
 
+    public boolean readSyncConfigured() {
+        return missingReadGates().isEmpty();
+    }
+
     public void requireReadSyncAllowed(String operation) {
         var missing = missingReadGates();
         if (!missing.isEmpty()) {
