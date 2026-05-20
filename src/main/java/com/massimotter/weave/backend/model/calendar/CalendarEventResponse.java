@@ -65,7 +65,7 @@ public record CalendarEventResponse(
 
     public CalendarEventResponse {
         scope = scope == null ? CalendarScopeResponse.workspace() : scope;
-        threadRef = threadRef == null ? CalendarThreadRefResponse.forScope(scope) : threadRef;
+        threadRef = threadRef == null ? CalendarThreadRefResponse.forEvent(scope, id) : threadRef;
         attendees = attendees == null ? List.of() : List.copyOf(attendees);
         providerRef = providerRef == null ? CalendarProviderRefResponse.caldavEvent(id, etag, updatedAt) : providerRef;
     }

@@ -102,6 +102,9 @@ class CalendarFacadeServiceTest {
         assertThat(scopedEvent.scope().type()).isEqualTo("channel");
         assertThat(scopedEvent.threadRef().kind()).isEqualTo("context");
         assertThat(scopedEvent.threadRef().contextId()).isEqualTo("channel-engineering-general");
+        assertThat(scopedEvent.threadRef().meetingThreadId())
+                .startsWith("meeting:channel-engineering-general:");
+        assertThat(scopedEvent.threadRef().meetingThreadId()).hasSize("meeting:channel-engineering-general:".length() + 12);
         assertThat(scopedEvent.threadRef().channelId()).isEqualTo("engineering-general");
         assertThat(scopedEvent.threadRef().matrixRoomId()).isNull();
         assertThat(scopedEvent.threadRef().matrixThreadId()).isNull();
@@ -153,7 +156,9 @@ class CalendarFacadeServiceTest {
         service(adapter).delete(created.id());
 
         assertThat(created.scope().type()).isEqualTo("team");
+        assertThat(created.threadRef().meetingThreadId()).startsWith("meeting:team-engineering:");
         assertThat(read.scope().teamId()).isEqualTo("engineering");
+        assertThat(read.threadRef().meetingThreadId()).isEqualTo(created.threadRef().meetingThreadId());
         assertThat(readId.get()).isEqualTo("raw-event-id");
         assertThat(deletedId.get()).isEqualTo("raw-event-id");
     }
