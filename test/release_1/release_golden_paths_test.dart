@@ -153,8 +153,8 @@ void main() {
         await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
-        expect(find.text('Connect Nextcloud'), findsWidgets);
-        await tester.tap(find.text('Connect Nextcloud').first);
+        expect(find.text('Connect Files'), findsWidgets);
+        await tester.tap(find.text('Connect Files').first);
         await tester.pumpAndSettle();
 
         expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
@@ -228,14 +228,14 @@ void main() {
         await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
-        expect(find.text('https://files-alt.weave.local'), findsOneWidget);
-        expect(find.text('Connect Nextcloud'), findsWidgets);
+        expect(find.text('https://files-alt.weave.local'), findsNothing);
+        expect(find.text('Connect Files'), findsWidgets);
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
           'https://files-alt.weave.local',
         );
 
-        await tester.tap(find.text('Connect Nextcloud').first);
+        await tester.tap(find.text('Connect Files').first);
         await tester.pumpAndSettle();
 
         expect(find.widgetWithText(ListTile, 'Documents'), findsOneWidget);
@@ -468,7 +468,7 @@ class _ScenarioFilesRepository
   Future<DirectoryListing> listDirectory(String path) async {
     if (!_connected) {
       throw const FilesFailure.sessionRequired(
-        'Connect Nextcloud to browse your files.',
+        'Connect Files to browse your files.',
       );
     }
 

@@ -344,7 +344,7 @@ void main() {
     });
 
     testWidgets(
-      'files-first journey connects Nextcloud, browses folders, and keeps chat reachable',
+      'files-first journey connects Weave Files, browses folders, and keeps chat reachable',
       (tester) async {
         final secureStore = InMemorySecureStore({
           authSessionStorageKey: AuthSessionDto.fromSession(
@@ -454,9 +454,9 @@ void main() {
         await tester.tap(find.byIcon(Icons.folder_outlined));
         await tester.pumpAndSettle();
 
-        expect(find.text('Connect Nextcloud'), findsWidgets);
+        expect(find.text('Connect Files'), findsWidgets);
 
-        await tester.tap(find.text('Connect Nextcloud').first);
+        await tester.tap(find.text('Connect Files').first);
         await tester.pumpAndSettle();
 
         expect(filesRepository.connectCalls, 1);
