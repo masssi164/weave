@@ -736,6 +736,42 @@ class AppLocalizationsEn extends AppLocalizations {
       'Encrypted message contents stay on Matrix devices. Backend diagnostics may use support-safe metadata such as room ID, encryption status, device trust, and timestamps, but not decrypted message bodies. Bots and connectors stay blocked from encrypted rooms until consent, audit, device-trust, and client-identity gates are implemented.';
 
   @override
+  String get chatSecurityRecoveryGuidanceCardTitle =>
+      'Device recovery checklist';
+
+  @override
+  String get chatSecurityRecoveryGuidanceValueActionRequired =>
+      'Action required';
+
+  @override
+  String get chatSecurityRecoveryGuidanceValueReady =>
+      'Ready for device changes';
+
+  @override
+  String get chatSecurityRecoveryGuidanceIntro =>
+      'Before relying on encrypted chat across devices:';
+
+  @override
+  String get chatSecurityRecoveryGuidanceSaveRecovery =>
+      'Save the recovery key or passphrase outside Weave, preferably in a password manager.';
+
+  @override
+  String get chatSecurityRecoveryGuidanceVerifyDevice =>
+      'Verify this device with another signed-in Matrix device when possible.';
+
+  @override
+  String get chatSecurityRecoveryGuidanceNewDevice =>
+      'On a new or reinstalled device, use the recovery key first, then verify the device.';
+
+  @override
+  String get chatSecurityRecoveryGuidanceLostDevice =>
+      'If a device is lost, remove or distrust it from Matrix before trusting new encrypted rooms.';
+
+  @override
+  String get chatSecurityRecoveryGuidanceServerCannotRecover =>
+      'Weave servers can report safe metadata, but cannot recover encrypted message contents for you.';
+
+  @override
   String get chatSecurityStatusSignedOut => 'Matrix not connected';
 
   @override

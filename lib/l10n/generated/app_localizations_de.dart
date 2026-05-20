@@ -745,6 +745,42 @@ class AppLocalizationsDe extends AppLocalizations {
       'Verschlüsselte Nachrichteninhalte bleiben auf Matrix-Geräten. Backend-Diagnosen dürfen support-sichere Metadaten wie Raum-ID, Verschlüsselungsstatus, Gerätevertrauen und Zeitstempel verwenden, aber keine entschlüsselten Nachrichteninhalte. Bots und Connectoren bleiben in verschlüsselten Räumen blockiert, bis Consent-, Audit-, Gerätevertrauens- und Client-Identitäts-Gates umgesetzt sind.';
 
   @override
+  String get chatSecurityRecoveryGuidanceCardTitle =>
+      'Checkliste zur Gerätewiederherstellung';
+
+  @override
+  String get chatSecurityRecoveryGuidanceValueActionRequired =>
+      'Aktion erforderlich';
+
+  @override
+  String get chatSecurityRecoveryGuidanceValueReady =>
+      'Bereit für Gerätewechsel';
+
+  @override
+  String get chatSecurityRecoveryGuidanceIntro =>
+      'Bevor verschlüsselter Chat geräteübergreifend verlässlich genutzt wird:';
+
+  @override
+  String get chatSecurityRecoveryGuidanceSaveRecovery =>
+      'Speichere den Wiederherstellungsschlüssel oder die Passphrase außerhalb von Weave, am besten in einem Passwortmanager.';
+
+  @override
+  String get chatSecurityRecoveryGuidanceVerifyDevice =>
+      'Verifiziere dieses Gerät möglichst mit einem anderen angemeldeten Matrix-Gerät.';
+
+  @override
+  String get chatSecurityRecoveryGuidanceNewDevice =>
+      'Nutze auf einem neuen oder neu installierten Gerät zuerst den Wiederherstellungsschlüssel und verifiziere danach das Gerät.';
+
+  @override
+  String get chatSecurityRecoveryGuidanceLostDevice =>
+      'Wenn ein Gerät verloren geht, entferne es oder entziehe ihm das Vertrauen in Matrix, bevor du neuen verschlüsselten Räumen vertraust.';
+
+  @override
+  String get chatSecurityRecoveryGuidanceServerCannotRecover =>
+      'Weave-Server können sichere Metadaten melden, aber keine verschlüsselten Nachrichteninhalte für dich wiederherstellen.';
+
+  @override
   String get chatSecurityStatusSignedOut => 'Matrix nicht verbunden';
 
   @override
