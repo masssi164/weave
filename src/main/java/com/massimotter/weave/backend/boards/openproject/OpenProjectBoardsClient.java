@@ -7,11 +7,13 @@ import com.massimotter.weave.backend.boards.port.TaskQuery;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -30,6 +32,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 final class OpenProjectBoardsClient {
 
     private static final Pattern ID_FROM_LINK = Pattern.compile(".*/(\\d+)$");
+    private static final String CURSOR_PREFIX = "op:v1:";
     private static final String API_USER = "apikey";
 
     private final URI baseUrl;
@@ -51,9 +54,9 @@ final class OpenProjectBoardsClient {
         BoardQuery effectiveQuery = query == null ? BoardQuery.firstPage() : query;
         JsonNode root = get("/api/v3/projects", Map.of(
                 "pageSize", Integer.toString(effectiveQuery.limit()),
-                "offset", offset(effectiveQuery.cursor())), "list-projects");
+                "offset", offset(effectiveQuery.cursor(), "projects", "list-projects")), "list-projects");
         List<OpenProjectProjectSnapshot> projects = elements(root).stream().map(this::project).toList();
-        return new BoardPage<>(projects, nextCursor(root, effectiveQuery.limit()));
+        return new BoardPage<>(projects, nextCursor(root, effectiveQuery.limit(), "projects"));
     }
 
     Optional<OpenProjectProjectSnapshot> findProject(long projectId) {
@@ -73,21 +76,22 @@ final class OpenProjectBoardsClient {
         BoardQuery effectiveQuery = query == null ? BoardQuery.firstPage() : query;
         JsonNode root = get("/api/v3/statuses", Map.of(
                 "pageSize", Integer.toString(effectiveQuery.limit()),
-                "offset", offset(effectiveQuery.cursor())), "list-statuses");
+                "offset", offset(effectiveQuery.cursor(), "statuses", "list-statuses")), "list-statuses");
         List<OpenProjectStatusSnapshot> statuses = elements(root).stream().map(this::status).toList();
-        return new BoardPage<>(statuses, nextCursor(root, effectiveQuery.limit()));
+        return new BoardPage<>(statuses, nextCursor(root, effectiveQuery.limit(), "statuses"));
     }
 
     BoardPage<OpenProjectWorkPackageSnapshot> listWorkPackages(long projectId, TaskQuery query) {
         requireConfigured("list-tasks");
         TaskQuery effectiveQuery = query == null ? TaskQuery.all() : query;
+        String cursorCollection = "work-packages:" + projectId;
         String filters = "[{\"project\":{\"operator\":\"=\",\"values\":[\"" + projectId + "\"]}}]";
         JsonNode root = get("/api/v3/work_packages", Map.of(
                 "filters", filters,
                 "pageSize", Integer.toString(effectiveQuery.limit()),
-                "offset", offset(effectiveQuery.cursor())), "list-tasks");
+                "offset", offset(effectiveQuery.cursor(), cursorCollection, "list-tasks")), "list-tasks");
         List<OpenProjectWorkPackageSnapshot> tasks = elements(root).stream().map(this::workPackage).toList();
-        return new BoardPage<>(tasks, nextCursor(root, effectiveQuery.limit()));
+        return new BoardPage<>(tasks, nextCursor(root, effectiveQuery.limit(), cursorCollection));
     }
 
     private JsonNode get(String path, Map<String, String> queryParams, String operation) {
@@ -214,25 +218,44 @@ final class OpenProjectBoardsClient {
         return values;
     }
 
-    private String nextCursor(JsonNode root, int fallbackLimit) {
+    private String nextCursor(JsonNode root, int fallbackLimit, String collection) {
         int total = root == null ? 0 : root.path("total").asInt(0);
         int count = root == null ? 0 : root.path("count").asInt(0);
         int offset = root == null ? 1 : root.path("offset").asInt(1);
         int pageSize = root == null ? fallbackLimit : root.path("pageSize").asInt(fallbackLimit);
         int consumed = count > 0 ? count : pageSize;
         int next = offset + consumed;
-        return total >= next ? Integer.toString(next) : null;
+        return total >= next ? encodeCursor(collection, next) : null;
     }
 
-    private String offset(String cursor) {
+    private String offset(String cursor, String collection, String operation) {
         if (cursor == null || cursor.isBlank()) {
             return "1";
         }
         try {
-            return Integer.toString(Math.max(1, Integer.parseInt(cursor)));
-        } catch (NumberFormatException exception) {
-            return "1";
+            String payload = new String(Base64.getUrlDecoder().decode(cursor.substring(CURSOR_PREFIX.length())), StandardCharsets.UTF_8);
+            int split = payload.lastIndexOf(':');
+            if (!cursor.startsWith(CURSOR_PREFIX) || split < 1) {
+                throw new IllegalArgumentException("invalid cursor envelope");
+            }
+            String cursorCollection = payload.substring(0, split);
+            int cursorOffset = Integer.parseInt(payload.substring(split + 1));
+            if (!collection.equals(cursorCollection) || cursorOffset < 1) {
+                throw new IllegalArgumentException("cursor collection mismatch");
+            }
+            return Integer.toString(cursorOffset);
+        } catch (RuntimeException exception) {
+            throw new BoardsException(
+                    BoardsErrorCode.VALIDATION,
+                    "OpenProject Boards read-sync received an invalid support-safe pagination cursor.",
+                    details(operation, "cursor_validation"));
         }
+    }
+
+    private String encodeCursor(String collection, int offset) {
+        String payload = collection + ":" + offset;
+        return CURSOR_PREFIX + Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
     }
 
     private Optional<Long> linkId(JsonNode node, String name) {

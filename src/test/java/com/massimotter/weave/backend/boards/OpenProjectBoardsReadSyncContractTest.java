@@ -11,6 +11,7 @@ import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntime
 import com.massimotter.weave.backend.boards.openproject.OpenProjectProjectSnapshot;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectStatusSnapshot;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectWorkPackageSnapshot;
+import com.massimotter.weave.backend.boards.port.BoardQuery;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
 import java.net.URI;
@@ -32,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -197,6 +199,62 @@ class OpenProjectBoardsReadSyncContractTest {
     }
 
     @Test
+    void enabledReadSyncUsesOpaqueSupportSafeCursorsForProviderPagination() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        var repository = enabledRepository(builder);
+
+        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/projects")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, authHeader()))
+                .andExpect(queryParam("pageSize", "2"))
+                .andExpect(queryParam("offset", "1"))
+                .andRespond(withSuccess(projectsPageJson(1, 2, 3, 42, "Apollo Launch"), MediaType.APPLICATION_JSON));
+        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/projects")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, authHeader()))
+                .andExpect(queryParam("pageSize", "2"))
+                .andExpect(queryParam("offset", "3"))
+                .andRespond(withSuccess(projectsPageJson(3, 1, 3, 43, "Hermes Ops"), MediaType.APPLICATION_JSON));
+
+        var firstPage = repository.listProjects(new BoardQuery(null, 2));
+
+        assertThat(firstPage.items()).singleElement().satisfies(project ->
+                assertThat(project.id()).isEqualTo("openproject:project:42"));
+        assertThat(firstPage.nextCursor())
+                .startsWith("op:v1:")
+                .isNotEqualTo("3")
+                .doesNotContain("openproject.example.test")
+                .doesNotContain("secret-api-token");
+
+        var secondPage = repository.listProjects(new BoardQuery(firstPage.nextCursor(), 2));
+
+        assertThat(secondPage.items()).singleElement().satisfies(project ->
+                assertThat(project.id()).isEqualTo("openproject:project:43"));
+        assertThat(secondPage.nextCursor()).isNull();
+        server.verify();
+    }
+
+    @Test
+    void enabledReadSyncRejectsRawProviderOffsetsAsInvalidCursors() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        var repository = enabledRepository(builder);
+
+        assertThatThrownBy(() -> repository.listProjects(new BoardQuery("3", 2)))
+                .isInstanceOfSatisfying(BoardsException.class, error -> {
+                    assertThat(error.code()).isEqualTo(BoardsErrorCode.VALIDATION);
+                    assertThat(error.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "list-projects")
+                            .containsEntry("reason", "cursor_validation")
+                            .containsEntry("supportSafe", "true");
+                    assertThat(error.getMessage()).doesNotContain("3");
+                });
+        server.verify();
+    }
+
+    @Test
     void mapperTurnsOpenProjectProjectsStatusesAndWorkPackagesIntoWeaveBoards() {
         var mapper = new OpenProjectBoardsMapper();
         Instant syncedAt = Instant.parse("2026-05-18T19:45:00Z");
@@ -280,6 +338,29 @@ class OpenProjectBoardsReadSyncContractTest {
                   "updatedAt": "2026-05-20T12:00:00Z"
                 }
                 """;
+    }
+
+    private String projectsPageJson(int offset, int count, int total, long projectId, String name) {
+        return """
+                {
+                  "count": %d,
+                  "total": %d,
+                  "pageSize": 2,
+                  "offset": %d,
+                  "_embedded": {
+                    "elements": [
+                      {
+                        "id": %d,
+                        "identifier": "project-%d",
+                        "name": "%s",
+                        "description": {"raw": "Provider-backed read sync."},
+                        "active": true,
+                        "updatedAt": "2026-05-20T12:00:00Z"
+                      }
+                    ]
+                  }
+                }
+                """.formatted(count, total, offset, projectId, projectId, name);
     }
 
     private String statusesJson() {
