@@ -900,9 +900,10 @@ class _CalendarEventDetails extends StatelessWidget {
             ),
             _CalendarDetailLine(
               label: l10n.calendarDetailsMeetingThreadLabel,
-              value: event.threadRef.matrixThreadId == null
-                  ? l10n.calendarDetailsMeetingThreadPending
-                  : event.threadRef.matrixThreadId!,
+              value:
+                  event.threadRef.meetingThreadId ??
+                  event.threadRef.matrixThreadId ??
+                  l10n.calendarDetailsMeetingThreadPending,
             ),
             if (event.attendees.isNotEmpty)
               _CalendarDetailLine(

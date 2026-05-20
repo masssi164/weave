@@ -66,6 +66,7 @@ class CalendarThreadRef {
   const CalendarThreadRef({
     this.kind = 'context',
     required this.contextId,
+    this.meetingThreadId,
     this.channelId,
     this.matrixRoomId,
     this.matrixThreadId,
@@ -79,6 +80,7 @@ class CalendarThreadRef {
 
   final String kind;
   final String contextId;
+  final String? meetingThreadId;
   final String? channelId;
   final String? matrixRoomId;
   final String? matrixThreadId;
