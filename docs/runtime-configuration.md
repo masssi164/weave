@@ -59,6 +59,23 @@ Capability readiness is intentionally conservative:
 - `files` follows `WEAVE_WORKSPACE_FILES_READINESS` when set; otherwise it is `ready` when `WEAVE_NEXTCLOUD_BASE_URL` is configured, `degraded` without that route, and `blocked` if shell access is blocked.
 - `calendar` and `boards` are stable contract slots. They are `unavailable` when disabled and may advertise rollout state through explicit readiness overrides.
 
+## Boards/OpenProject runtime gates
+
+Boards remains a Weave product facade. OpenProject is the first provider-backed read-sync engine, not the visible product UX. Runtime defaults are fail-closed and local-preview unless explicitly configured by infra/operator env.
+
+- `WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED`: enables hidden authenticated Boards preview routes, defaults to `false`.
+- `WEAVE_BOARDS_PREVIEW_PROVIDER`: preview backend provider, defaults to `local-preview`; set `openproject` only for explicit read-sync validation.
+- `WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED`: OpenProject provider runtime gate, defaults to `false`.
+- `WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED`: read-only sync gate, defaults to `false`.
+- `WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED`: Context/Space authorization gate for provider references, defaults to `false`; must be `true` before OpenProject read-sync is reachable.
+- `WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED`: audit/consent promotion gate for future writes, defaults to `false`.
+- `WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED`: provider-write gate, defaults to `false` and must stay false for the read-only runtime path.
+- `WEAVE_BOARDS_OPENPROJECT_AUTH_MODE`: provider auth mode, defaults to `disabled`; read-sync requires `service-token`.
+- `WEAVE_BOARDS_OPENPROJECT_BASE_URL`: backend-only OpenProject base URL. Blank keeps read-sync fail-closed.
+- `WEAVE_BOARDS_OPENPROJECT_API_TOKEN`: backend-held OpenProject service token. Blank keeps read-sync fail-closed; never expose this to Flutter, platform config, support logs, or support bundles.
+
+Read-sync requires provider `openproject`, runtime enabled, read-sync enabled, Context/Space authorization enabled, `service-token` auth, a base URL, and a backend-held API token. Provider writes always fail closed unless the future write, audit/consent, and Context/Space gates are all promoted. The OpenProject webhook signature verifier is available for the future ingress seam, but no runtime webhook route is published here; webhook handling remains normalization-only and does not enable user/provider writes or live audit publication.
+
 ## Files facade and Nextcloud WebDAV adapter
 
 The app never sends raw Nextcloud credentials to this backend. Files operations use a backend-owned actor for WebDAV calls.

@@ -13,18 +13,20 @@ Implemented now:
 - A support-safe error vocabulary aligned with the workspace spec.
 - A Vikunja HTTP/status error mapper that converts provider failures into Weave codes without leaking raw provider messages, URLs, or tokens.
 - A provider-neutral task/board event normalizer, no-op event publisher boundary, and preview JSON/OpenAPI schema artifacts under `src/main/resources/contracts/`.
-- An OpenProject-first read-sync mapper that translates projects/statuses/work packages into Weave concepts without enabling runtime HTTP calls.
+- An OpenProject-first read-sync mapper and HTTP-backed read path that translate projects/statuses/work packages into Weave concepts only when all OpenProject runtime gates are explicitly enabled.
 - A connector manifest skeleton contract for capabilities, cursors, webhooks, commands, support-safe errors, secret references, redaction policy, and write-disabled provider posture.
 - Vikunja and Nextcloud Deck comparison/fallback adapter boundaries; they remain useful for comparison/import planning but no longer define the first provider path.
-- Fail-closed Vikunja, OpenProject, and Nextcloud Deck repository placeholders that advertise preview/read-sync/fallback capabilities but do not perform runtime HTTP calls.
+- Fail-closed Vikunja and Nextcloud Deck repository placeholders that advertise preview/fallback capabilities but do not perform runtime HTTP calls.
+- A fail-closed OpenProject repository that can perform authenticated read-only sync when provider runtime, read-sync, Context/Space authorization, auth mode, base URL, and API token are configured; writes stay disabled.
 - A hidden local/in-memory backend preview facade behind `weave.boards.preview.runtime-enabled` that proves provider-neutral create, move, and complete operations without drag-only UI assumptions.
 
 Not implemented now:
 
 - No live provider navigation or product enablement until promotion gates pass.
-- No live provider runtime configuration, secrets, Caddy routes, or smoke checks.
+- No provider writes, agent/team writes, or user-facing provider mutation flows.
+- No raw OpenProject UX as a normal Weave product surface.
 - No user-facing screenshots.
-- No notifications, audit streams, webhooks, or automation consumers.
+- No notifications, audit streams, automation consumers, or published OpenProject webhook route. The OpenProject signature verifier exists for the future ingress seam; webhook handling is not yet live publication/audit behavior.
 
 ## Hidden preview API
 
@@ -65,7 +67,7 @@ OpenProject is now the preferred first provider-backed read-sync validation path
 - OpenProject status → Weave board column
 - OpenProject work package → Weave task item
 
-The repository placeholder fails closed with `provider_unavailable`; it declares read-sync capabilities but performs no HTTP calls and enables no product/runtime provider. A later promotion spec must define authentication, visibility filtering, cursor persistence, route DTOs, smoke/E2E, export/backup, and accessibility gates before any OpenProject runtime is reachable. The first path is read-only: no provider writes, no agentic/team writes, and no raw OpenProject UI as normal Weave UX.
+The repository fails closed with support-safe `provider_unavailable` or `unsupported_capability` errors unless all read gates are configured. Read-sync requires `provider=openproject`, provider runtime enabled, read-sync enabled, Context/Space authorization enabled, `service-token` auth, a base URL, and a backend-held API token. It stores provider cursors and provider refs only as support-safe sync metadata. The first path is read-only: no provider writes, no agentic/team writes, and no raw OpenProject UI as normal Weave UX.
 
 ## Vikunja fallback/comparison boundary
 
@@ -75,11 +77,11 @@ Vikunja remains a lightweight, self-hostable, API-oriented comparison/fallback c
 
 The backend preview layer now declares three disabled adapter contracts against the same `BoardsRepository` port:
 
-- `OpenProjectBoardsRepository`: preferred read-only-first provider seam; declares comments, attachments, non-destructive archive, incremental sync, custom fields, and accessible non-drag move compatibility in the contract, but is disabled for runtime use.
+- `OpenProjectBoardsRepository`: preferred read-only-first provider seam; declares comments, attachments, non-destructive archive, incremental sync, custom fields, and accessible non-drag move compatibility in the contract. Runtime read-sync is available only behind the fail-closed OpenProject gate and remains write-disabled.
 - `VikunjaBoardsRepository`: comparison/fallback candidate; supports comments, attachments, non-destructive archive, webhooks, incremental sync, checklists, and accessible non-drag move commands in the contract, but is disabled for runtime use.
 - `NextcloudDeckBoardsRepository`: Nextcloud-adjacent fallback bridge/import candidate; declares comments, attachments, and non-destructive archive, but avoids claiming webhooks or incremental sync until tested.
 
-All three fail closed with support-safe `provider_unavailable` errors until a promotion spec defines auth, route DTOs, OpenAPI publication, smoke/E2E coverage, export/backup, and accessibility gates.
+Vikunja and Deck fail closed with support-safe `provider_unavailable` errors. OpenProject read-sync additionally fails closed unless its runtime gates and backend-held service-token auth are configured. Provider writes remain blocked until a later promotion spec defines audit/consent, route DTOs, smoke/E2E coverage, export/backup, and accessibility gates.
 
 ## Event normalizer
 
@@ -91,7 +93,7 @@ All three fail closed with support-safe `provider_unavailable` errors until a pr
 - preserves ordering inputs such as source event id and provider timestamps in payload fields without publishing routes;
 - redacts support-unsafe payload keys such as tokens, secrets, raw messages, credentials, authorisation headers, and provider URLs before support-safe events leave the adapter boundary.
 
-This is still preview-only and has no notification, audit, webhook, or live runtime publication.
+This is still preview-only and has no notification, audit, or live runtime publication. The OpenProject signature verifier is available for a future guarded normalization seam, but no published webhook route enables writes or live user events.
 
 ## Contract artifacts
 

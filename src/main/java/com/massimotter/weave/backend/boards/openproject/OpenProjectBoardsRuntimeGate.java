@@ -66,8 +66,8 @@ public record OpenProjectBoardsRuntimeGate(
         if (!contextAuthorizationEnabled) {
             missing.add("context_authorization");
         }
-        if (authMode == null || authMode.isBlank() || "disabled".equalsIgnoreCase(authMode)) {
-            missing.add("provider_auth_mode");
+        if (!serviceTokenAuthConfigured()) {
+            missing.add("provider_auth_mode_service_token");
         }
         return missing;
     }
@@ -80,10 +80,14 @@ public record OpenProjectBoardsRuntimeGate(
         if (!auditConsentEnabled) {
             missing.add("audit_consent");
         }
-        if (authMode == null || authMode.isBlank() || "disabled".equalsIgnoreCase(authMode)) {
-            missing.add("provider_auth_mode");
+        if (!serviceTokenAuthConfigured()) {
+            missing.add("provider_auth_mode_service_token");
         }
         return missing;
+    }
+
+    private boolean serviceTokenAuthConfigured() {
+        return "service-token".equalsIgnoreCase(authMode == null ? "" : authMode.trim());
     }
 
     private Map<String, String> details(String operation, java.util.List<String> missing, String mode) {

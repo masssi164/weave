@@ -83,7 +83,7 @@ class OpenProjectBoardsReadSyncContractTest {
                 false,
                 false,
                 false,
-                "service-account"));
+                "service-token"));
 
         assertThatThrownBy(() -> repository.listProjects(null))
                 .isInstanceOf(BoardsException.class)
@@ -102,6 +102,35 @@ class OpenProjectBoardsReadSyncContractTest {
     }
 
     @Test
+    void openProjectGateRequiresBackendHeldServiceTokenAuthModeBeforeReadSync() {
+        var repository = new OpenProjectBoardsRepository(new OpenProjectBoardsRuntimeGate(
+                true,
+                true,
+                true,
+                false,
+                false,
+                "api-token"),
+                URI.create("https://openproject.example.test"),
+                "secret-api-token",
+                RestClient.builder());
+
+        assertThat(repository.capabilities().enabled()).isFalse();
+        assertThatThrownBy(() -> repository.listProjects(null))
+                .isInstanceOf(BoardsException.class)
+                .satisfies(error -> {
+                    var boardsError = (BoardsException) error;
+                    assertThat(boardsError.code()).isEqualTo(BoardsErrorCode.PROVIDER_UNAVAILABLE);
+                    assertThat(boardsError.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "list-projects")
+                            .containsEntry("mode", "read_sync");
+                    assertThat(boardsError.details().get("missingGates"))
+                            .contains("provider_auth_mode_service_token")
+                            .doesNotContain("context_authorization");
+                });
+    }
+
+    @Test
     void openProjectWritesStayUnsupportedUntilAuditConsentPromotion() {
         var repository = new OpenProjectBoardsRepository(new OpenProjectBoardsRuntimeGate(
                 true,
@@ -109,7 +138,7 @@ class OpenProjectBoardsReadSyncContractTest {
                 true,
                 false,
                 false,
-                "service-account"));
+                "service-token"));
 
         assertThatThrownBy(() -> repository.completeTask("openproject:work-package:99"))
                 .isInstanceOf(BoardsException.class)
@@ -316,7 +345,7 @@ class OpenProjectBoardsReadSyncContractTest {
 
     private OpenProjectBoardsRepository enabledRepository(RestClient.Builder builder) {
         return new OpenProjectBoardsRepository(
-                new OpenProjectBoardsRuntimeGate(true, true, true, false, false, "api-token"),
+                new OpenProjectBoardsRuntimeGate(true, true, true, false, false, "service-token"),
                 URI.create("https://openproject.example.test"),
                 "secret-api-token",
                 builder);
