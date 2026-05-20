@@ -27,6 +27,8 @@ class ConnectorManifestSkeletonTest {
         assertThat(schema.path("properties").path("support_safe_errors").path("items").path("enum").toString())
                 .contains("rate_limited")
                 .contains("provider_unavailable");
+        assertThat(schema.path("properties").path("webhook_refs").path("additionalProperties").path("pattern").asText())
+                .isEqualTo("^webhook://.+");
     }
 
     @Test
@@ -66,5 +68,41 @@ class ConnectorManifestSkeletonTest {
                 "redactionPolicy must be support-safe and redacted",
                 "cursorRefs must declare at least one cursor or sync reference");
         assertThat(invalid.errors()).anySatisfy(error -> assertThat(error).contains("secret material"));
+    }
+
+    @Test
+    void validatesWebhookRefsAsSignedBackendOwnedIngressOnly() {
+        var valid = service.validate(new ConnectorManifestValidationRequest(
+                "openproject-webhook-preview",
+                "openproject",
+                "read-sync-preview",
+                List.of("boards.work_package.read", "webhook_events"),
+                List.of("boards.sync.read"),
+                Map.of("workPackages", "cursor://openproject/work-packages"),
+                Map.of("workPackages", "webhook://openproject/work-packages"),
+                Map.of(
+                        "apiToken", "secret://connectors/openproject/api-token",
+                        "webhookSignatureSecret", "secret://connectors/openproject/webhook-signature-secret"),
+                "support-safe-redacted",
+                false));
+
+        assertThat(valid.valid()).isTrue();
+
+        var invalid = service.validate(new ConnectorManifestValidationRequest(
+                "openproject-raw-webhook",
+                "openproject",
+                "read-sync-preview",
+                List.of("boards.work_package.read", "webhook_events"),
+                List.of("boards.sync.read"),
+                Map.of("workPackages", "cursor://openproject/work-packages"),
+                Map.of("workPackages", "https://openproject.example.test/webhooks?token=secret"),
+                Map.of("apiToken", "secret://connectors/openproject/api-token"),
+                "support-safe-redacted",
+                false));
+
+        assertThat(invalid.valid()).isFalse();
+        assertThat(invalid.errors()).contains(
+                "webhookRefs.workPackages must be a backend-owned webhook:// reference, not a raw provider URL",
+                "webhookRefs require secretRefs.webhookSignatureSecret for signed provider ingress");
     }
 }

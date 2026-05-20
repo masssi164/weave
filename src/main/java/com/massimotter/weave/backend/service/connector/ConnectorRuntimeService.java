@@ -48,6 +48,7 @@ public class ConnectorRuntimeService {
         if (request.cursorRefs() == null || request.cursorRefs().isEmpty()) {
             errors.add("cursorRefs must declare at least one cursor or sync reference");
         }
+        validateWebhookRefs(request, errors);
         if (request.secretRefs() != null) {
             request.secretRefs().forEach((name, ref) -> {
                 if (ref == null || ref.isBlank()) {
@@ -63,6 +64,22 @@ public class ConnectorRuntimeService {
                 false,
                 List.copyOf(errors),
                 List.of("Public connector SDK remains deferred; internal skeleton validation exists to prove OpenProject-first read-sync before live provider promotion."));
+    }
+
+    private void validateWebhookRefs(ConnectorManifestValidationRequest request, List<String> errors) {
+        if (request.webhookRefs() == null || request.webhookRefs().isEmpty()) {
+            return;
+        }
+        request.webhookRefs().forEach((name, ref) -> {
+            if (ref == null || ref.isBlank()) {
+                errors.add("webhookRefs." + name + " must be a non-empty webhook reference");
+            } else if (!ref.startsWith("webhook://")) {
+                errors.add("webhookRefs." + name + " must be a backend-owned webhook:// reference, not a raw provider URL");
+            }
+        });
+        if (request.secretRefs() == null || !request.secretRefs().containsKey("webhookSignatureSecret")) {
+            errors.add("webhookRefs require secretRefs.webhookSignatureSecret for signed provider ingress");
+        }
     }
 
     private boolean looksLikeSecretValue(String value) {

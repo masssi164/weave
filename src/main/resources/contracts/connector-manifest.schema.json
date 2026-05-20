@@ -49,8 +49,8 @@
     },
     "webhook_refs": {
       "type": "object",
-      "additionalProperties": {"type": "string", "minLength": 1},
-      "description": "References to webhook registration state; empty for polling-only read sync."
+      "additionalProperties": {"type": "string", "pattern": "^webhook://.+"},
+      "description": "References to backend-owned signed webhook ingress state; empty for polling-only read sync. Raw provider URLs and tokens are not allowed."
     },
     "secret_refs": {
       "type": "object",
