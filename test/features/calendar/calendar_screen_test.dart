@@ -290,6 +290,7 @@ void main() {
           ),
           threadRef: const CalendarThreadRef(
             contextId: 'channel-engineering-general',
+            meetingThreadId: 'meeting:channel-engineering-general:abc123',
             channelId: 'engineering-general',
           ),
           attendees: const [
@@ -402,6 +403,7 @@ void main() {
           ),
           threadRef: const CalendarThreadRef(
             contextId: 'channel-engineering-general',
+            meetingThreadId: 'meeting:channel-engineering-general:abc123',
             channelId: 'engineering-general',
           ),
           attendees: const [
@@ -463,9 +465,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(AlertDialog),
-          matching: find.textContaining(
-            'chat thread linkage is not configured',
-          ),
+          matching: find.text('meeting:channel-engineering-general:abc123'),
         ),
         findsOneWidget,
       );

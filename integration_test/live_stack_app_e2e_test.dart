@@ -540,6 +540,10 @@ void main() {
       final readCreatedEvent = await calendarRepository.readEvent(
         createdEvent.id,
       );
+      final calendarCreatedThreadRefReady = _channelMeetingThreadReady(
+        readCreatedEvent,
+        channelScope,
+      );
       final calendarCreatedAndRead =
           loadedCalendar.scope.isChannel &&
           loadedCalendar.scope.teamId == channelScope.teamId &&
@@ -569,6 +573,14 @@ void main() {
       final readUpdatedEvent = await calendarRepository.readEvent(
         createdEvent.id,
       );
+      final calendarUpdatedThreadRefReady = _channelMeetingThreadReady(
+        readUpdatedEvent,
+        channelScope,
+      );
+      final calendarMeetingThreadStable =
+          readCreatedEvent.threadRef.meetingThreadId != null &&
+          readCreatedEvent.threadRef.meetingThreadId ==
+              readUpdatedEvent.threadRef.meetingThreadId;
       final calendarUpdatedAndRead =
           updatedEvent.id == createdEvent.id &&
           updatedEvent.title == updatedCalendarTitle &&
@@ -598,6 +610,10 @@ void main() {
         'channelId=${loadedCalendar.scope.channelId} '
         'createdAndRead=$calendarCreatedAndRead '
         'updatedAndRead=$calendarUpdatedAndRead '
+        'createdThreadRefReady=$calendarCreatedThreadRefReady '
+        'updatedThreadRefReady=$calendarUpdatedThreadRefReady '
+        'meetingThreadStable=$calendarMeetingThreadStable '
+        'meetingThreadId=${readCreatedEvent.threadRef.meetingThreadId} '
         'deleted=$calendarDeleted',
       );
 
@@ -733,6 +749,9 @@ void main() {
           !calendarScopesReady ||
           !calendarCreatedAndRead ||
           !calendarUpdatedAndRead ||
+          !calendarCreatedThreadRefReady ||
+          !calendarUpdatedThreadRefReady ||
+          !calendarMeetingThreadStable ||
           !calendarDeleted ||
           !boardsProviderNeutral ||
           !boardsNonDragMutationWorked) {
@@ -767,6 +786,10 @@ void main() {
           'calendarChannelId=${loadedCalendar.scope.channelId} '
           'calendarCreatedAndRead=$calendarCreatedAndRead '
           'calendarUpdatedAndRead=$calendarUpdatedAndRead '
+          'calendarCreatedThreadRefReady=$calendarCreatedThreadRefReady '
+          'calendarUpdatedThreadRefReady=$calendarUpdatedThreadRefReady '
+          'calendarMeetingThreadStable=$calendarMeetingThreadStable '
+          'calendarMeetingThreadId=${readCreatedEvent.threadRef.meetingThreadId} '
           'calendarDeleted=$calendarDeleted '
           'calendarEventId=${createdEvent.id} '
           'boardsProviderNeutral=$boardsProviderNeutral '
@@ -790,12 +813,27 @@ void main() {
       expect(calendarScopesReady, isTrue);
       expect(calendarCreatedAndRead, isTrue);
       expect(calendarUpdatedAndRead, isTrue);
+      expect(calendarCreatedThreadRefReady, isTrue);
+      expect(calendarUpdatedThreadRefReady, isTrue);
+      expect(calendarMeetingThreadStable, isTrue);
       expect(calendarDeleted, isTrue);
       expect(boardsProviderNeutral, isTrue);
       expect(boardsNonDragMutationWorked, isTrue);
     },
     semanticsEnabled: false,
   );
+}
+
+bool _channelMeetingThreadReady(CalendarEvent event, CalendarScope scope) {
+  final meetingThreadId = event.threadRef.meetingThreadId;
+  return event.scope.isChannel &&
+      event.scope.teamId == scope.teamId &&
+      event.scope.channelId == scope.channelId &&
+      event.threadRef.contextId == scope.contextId &&
+      event.threadRef.channelId == scope.channelId &&
+      meetingThreadId != null &&
+      meetingThreadId.startsWith('meeting:') &&
+      meetingThreadId.contains(scope.contextId);
 }
 
 Future<void> _pumpUntilSettled(WidgetTester tester) async {
