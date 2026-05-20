@@ -95,19 +95,19 @@ jobs:
 
     steps:
       - name: Check out weave
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: weave
 
       - name: Check out weave-infra
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: masssi164/weave-infra
           ref: ${{ env.WEAVE_INFRA_REF }}
           path: weave-infra
 
       - name: Check out weave-backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: masssi164/weave-backend
           ref: ${{ env.WEAVE_BACKEND_REF }}
