@@ -51,6 +51,7 @@ Use the single-host guide and env template as the starting point for a real depl
 - [docs/operator-runbook.md](docs/operator-runbook.md): install/upgrade, rotation, backup, restore, destructive reset, and triage guidance
 - [docs/calendar-caldav-external-clients.md](docs/calendar-caldav-external-clients.md): CalDAV discovery, safe external-client credential path, and blocked private-personal-calendar/profile flows
 - [docs/connector-runtime-guardrails.md](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, provider callback, secret, and support-bundle guardrails
+- [docs/openproject-boards-runtime.md](docs/openproject-boards-runtime.md): optional OpenProject Boards read-sync setup for external providers or the off-by-default self-hosted/demo profile
 
 After installation, run public and host-local verification from the operator env:
 
@@ -85,6 +86,7 @@ The Calendar facade uses backend-owned Nextcloud actor CalDAV collections as Wea
 - `docs/operator-runbook.md`: operations, backup/restore, rotation, and triage guidance.
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
 - `docs/calendar-caldav-external-clients.md`: CalDAV discovery, revocable client credentials, and fail-closed Calendar profile boundaries.
+- `docs/openproject-boards-runtime.md`: optional OpenProject read-only provider runtime setup and promotion gates.
 - `weave-workspace/install.sh`: end-to-end bootstrap for local and single-host runs.
 - `weave-workspace/teardown.sh`: non-destructive cleanup by default; destructive volume reset requires explicit confirmation.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.

@@ -187,6 +187,90 @@ variable "boards_preview_runtime_enabled" {
   default     = false
 }
 
+variable "boards_preview_provider" {
+  description = "Provider backing the hidden Boards/Tasks preview facade. Defaults to local-preview; set openproject only for explicit OpenProject read-sync validation."
+  type        = string
+  default     = "local-preview"
+
+  validation {
+    condition     = contains(["local-preview", "openproject"], var.boards_preview_provider)
+    error_message = "boards_preview_provider must be local-preview or openproject."
+  }
+}
+
+variable "boards_openproject_runtime_enabled" {
+  description = "Enable the OpenProject provider runtime gate. Defaults false so the core stack remains independent from OpenProject."
+  type        = bool
+  default     = false
+}
+
+variable "boards_openproject_read_sync_enabled" {
+  description = "Enable read-only OpenProject synchronization. Defaults false and must not enable provider writes."
+  type        = bool
+  default     = false
+}
+
+variable "boards_openproject_context_authorization_enabled" {
+  description = "Require Context/Space authorization for OpenProject read-sync requests. Keep false until backend ReBAC validation is promoted."
+  type        = bool
+  default     = false
+}
+
+variable "boards_openproject_audit_consent_enabled" {
+  description = "Enable audit/consent posture for OpenProject provider actions. Required before any future provider writes."
+  type        = bool
+  default     = false
+}
+
+variable "boards_openproject_provider_writes_enabled" {
+  description = "Enable writes to OpenProject. Must remain false for the read-only MVP/runtime path."
+  type        = bool
+  default     = false
+}
+
+variable "boards_openproject_auth_mode" {
+  description = "OpenProject backend auth mode. Use service-token for backend-held API-token read-sync; disabled keeps runtime fail-closed."
+  type        = string
+  default     = "disabled"
+
+  validation {
+    condition     = contains(["disabled", "service-token"], var.boards_openproject_auth_mode)
+    error_message = "boards_openproject_auth_mode must be disabled or service-token."
+  }
+}
+
+variable "boards_openproject_base_url" {
+  description = "Internal or external OpenProject base URL consumed only by the backend adapter. Leave blank to fail closed."
+  type        = string
+  default     = ""
+}
+
+variable "boards_openproject_api_token" {
+  description = "Backend-held OpenProject service-account API token for read-only sync. Never expose to Flutter, app config, or support bundles."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "openproject_image" {
+  description = "Optional self-hosted OpenProject image for the off-by-default local/demo compose profile."
+  type        = string
+  default     = "openproject/openproject:15"
+}
+
+variable "openproject_host_port" {
+  description = "Optional direct host port for the self-hosted OpenProject profile. Not part of the default Weave product routes."
+  type        = number
+  default     = 48086
+}
+
+variable "openproject_secret_key_base" {
+  description = "Secret key base for the optional self-hosted OpenProject profile. Set only in private env files."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "postgres_image" {
   description = "PostgreSQL image used for the shared database."
   type        = string

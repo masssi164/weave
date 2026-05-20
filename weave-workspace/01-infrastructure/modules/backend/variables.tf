@@ -165,6 +165,52 @@ variable "boards_preview_runtime_enabled" {
   type        = bool
 }
 
+variable "boards_preview_provider" {
+  description = "Provider backing the hidden Boards/Tasks preview facade. Keep local-preview unless OpenProject read-sync is explicitly enabled."
+  type        = string
+}
+
+variable "boards_openproject_runtime_enabled" {
+  description = "Enable the OpenProject provider runtime gate. Defaults false; must be true with read-sync for the first real provider-backed Boards path."
+  type        = bool
+}
+
+variable "boards_openproject_read_sync_enabled" {
+  description = "Enable read-only OpenProject synchronization. Defaults false and never implies provider writes."
+  type        = bool
+}
+
+variable "boards_openproject_context_authorization_enabled" {
+  description = "Require Context/Space authorization for OpenProject read-sync requests. Keep false until the backend ReBAC seam is fully validated."
+  type        = bool
+}
+
+variable "boards_openproject_audit_consent_enabled" {
+  description = "Enable audit/consent posture for OpenProject provider actions. Required before future provider writes."
+  type        = bool
+}
+
+variable "boards_openproject_provider_writes_enabled" {
+  description = "Enable writes to OpenProject. Must remain false for the read-only MVP/runtime path."
+  type        = bool
+}
+
+variable "boards_openproject_auth_mode" {
+  description = "OpenProject backend auth mode. Use service-token for backend-held API-token read-sync; disabled keeps runtime fail-closed."
+  type        = string
+}
+
+variable "boards_openproject_base_url" {
+  description = "Internal or external OpenProject base URL consumed only by the backend adapter. Leave blank to fail closed."
+  type        = string
+}
+
+variable "boards_openproject_api_token" {
+  description = "Backend-held OpenProject service-account API token for read-only sync. Never expose to Flutter, app config, or support bundles."
+  type        = string
+  sensitive   = true
+}
+
 variable "oidc_issuer_uri" {
   description = "OIDC issuer URI consumed by the Weave backend."
   type        = string

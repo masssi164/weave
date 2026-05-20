@@ -42,9 +42,11 @@ release_verify="${ROOT_DIR}/release-verify.sh"
 admin_doc="${REPO_DIR}/docs/admin-user-activation.md"
 caldav_doc="${REPO_DIR}/docs/calendar-caldav-external-clients.md"
 connector_doc="${REPO_DIR}/docs/connector-runtime-guardrails.md"
+openproject_doc="${REPO_DIR}/docs/openproject-boards-runtime.md"
+openproject_compose="${ROOT_DIR}/docker-compose.openproject.yml"
 caddy_template="${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${caddy_template}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${openproject_doc}" "${openproject_compose}" "${caddy_template}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -55,8 +57,8 @@ assert_file_contains "${backend_main}" 'WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_M
 assert_file_contains "${backend_main}" 'WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS=${var.caldav_external_private_user_calendars}'
 assert_file_contains "${infra_main}" 'caldav_external_discovery_url'
 assert_file_contains "${infra_main}" 'nextcloud-login-flow-app-password'
-assert_file_contains "${infra_main}" 'caldav_external_profile_password_mode  = "omit"'
-assert_file_contains "${infra_main}" 'caldav_external_private_user_calendars = "disabled"'
+assert_file_contains "${infra_main}" 'caldav_external_profile_password_mode            = "omit"'
+assert_file_contains "${infra_main}" 'caldav_external_private_user_calendars           = "disabled"'
 assert_file_contains "${install_script}" 'WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL'
 assert_file_contains "${install_script}" 'WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE'
 assert_file_contains "${release_env}" 'WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL=https://files.weave.example/remote.php/dav'
@@ -71,7 +73,7 @@ assert_file_contains "${backend_main}" 'WEAVE_WORKSPACE_BOARDS_READINESS=ready'
 assert_file_absent "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=true'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=${var.boards_preview_runtime_enabled}'
 assert_file_contains_once "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED='
-assert_file_contains "${infra_main}" 'boards_preview_runtime_enabled         = var.boards_preview_runtime_enabled'
+assert_file_contains "${infra_main}" 'boards_preview_runtime_enabled                   = var.boards_preview_runtime_enabled'
 assert_file_contains "${install_script}" 'weave-team-engineering'
 assert_file_contains "${install_script}" 'weave-channel-engineering-general'
 assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'weave-team-engineering'
@@ -98,10 +100,10 @@ assert_file_contains "${backend_main}" 'WEAVE_INTEROP_TEAMS_ENABLED=${var.intero
 assert_file_contains "${backend_main}" 'WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED=${var.connectors_public_sdk_enabled}'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=${var.boards_preview_runtime_enabled}'
 assert_file_contains "${infra_main}" 'connector_provider_callbacks_exposed ? ""'
-assert_file_contains "${infra_main}" 'interop_enabled                        = false'
-assert_file_contains "${infra_main}" 'interop_slack_enabled                  = false'
-assert_file_contains "${infra_main}" 'connectors_public_sdk_enabled          = false'
-assert_file_contains "${infra_main}" 'boards_preview_runtime_enabled         = var.boards_preview_runtime_enabled'
+assert_file_contains "${infra_main}" 'interop_enabled                                  = false'
+assert_file_contains "${infra_main}" 'interop_slack_enabled                            = false'
+assert_file_contains "${infra_main}" 'connectors_public_sdk_enabled                    = false'
+assert_file_contains "${infra_main}" 'boards_preview_runtime_enabled                   = var.boards_preview_runtime_enabled'
 assert_file_contains "${install_script}" 'weave-team-engineering'
 assert_file_contains "${install_script}" 'weave-channel-engineering-general'
 assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'weave-team-engineering'
@@ -113,6 +115,27 @@ assert_file_contains "${caddy_template}" 'connector_provider_callbacks_guard'
 assert_file_contains "${connector_doc}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=false'
 assert_file_contains "${connector_doc}" 'provider callback routes such as Slack OAuth and event ingestion are blocked at Caddy with `404`'
 assert_file_contains "${connector_doc}" 'do not commit demo OAuth secrets, webhook signing secrets, bot tokens, access tokens, or refresh tokens'
+
+# OpenProject is the first real Boards provider path, but must stay optional, read-only, and secret-safe.
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_PREVIEW_PROVIDER=${var.boards_preview_provider}'
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=${var.boards_openproject_runtime_enabled}'
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=${var.boards_openproject_read_sync_enabled}'
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=${var.boards_openproject_provider_writes_enabled}'
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=${var.boards_openproject_auth_mode}'
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_BASE_URL=${var.boards_openproject_base_url}'
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_API_TOKEN=${var.boards_openproject_api_token}'
+assert_file_contains "${infra_main}" 'boards_preview_provider'
+assert_file_contains "${infra_main}" 'boards_openproject_provider_writes_enabled       = var.boards_openproject_provider_writes_enabled'
+assert_file_contains "${install_script}" 'TF_VAR_boards_openproject_provider_writes_enabled=false'
+assert_file_contains "${release_env}" 'TF_VAR_boards_openproject_provider_writes_enabled=false'
+assert_file_contains "${openproject_compose}" 'profiles:'
+assert_file_contains "${openproject_compose}" 'weave-openproject'
+assert_file_contains "${openproject_compose}" 'TF_VAR_openproject_secret_key_base'
+assert_file_contains "${openproject_doc}" 'OpenProject is a backend/provider engine only'
+assert_file_contains "${openproject_doc}" 'TF_VAR_boards_openproject_provider_writes_enabled=false'
+assert_file_contains "${openproject_doc}" 'The backend-held API token is never written to `app-config.env`'
+assert_file_absent "${release_env}" 'TF_VAR_boards_openproject_api_token=replace-me'
+assert_file_absent "${install_script}" 'WEAVE_BOARDS_OPENPROJECT_API_TOKEN=%q'
 assert_file_contains "${connector_doc}" 'Boards provider secrets follow the same rule'
 
 printf '%s\n' 'infra product contract tests passed'

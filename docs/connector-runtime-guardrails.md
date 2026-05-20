@@ -10,14 +10,20 @@ Connector preview work is fail-closed by default. The infra layer may expose saf
 - `WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED=false`
 - `connector_provider_callbacks_exposed=false`
 - `WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=false` unless a live feature-proof run explicitly opts in
+- `WEAVE_BOARDS_PREVIEW_PROVIDER=local-preview`
+- `WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=false`
+- `WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=false`
+- `WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=false`
+- `WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=disabled`
 
 With these defaults, backend interop/connector status can describe disabled or unavailable capabilities, while provider callback routes such as Slack OAuth and event ingestion are blocked at Caddy with `404` before reaching the backend.
-Boards may advertise the product capability as ready for guarded preview UX, but provider-backed runtime remains fail-closed until the explicit Boards preview/runtime flag is enabled and backend Context/Space authorization allows the request.
+Boards may advertise the product capability as ready for guarded preview UX, but provider-backed runtime remains fail-closed until the explicit Boards preview/runtime flag is enabled and backend Context/Space authorization allows the request. OpenProject is the first real provider-backed read-sync path, but remains read-only, optional, and backend-held-token only.
 
 ## Secret handling boundary
 
 - Connector secrets are operator-owned and revocable; do not commit demo OAuth secrets, webhook signing secrets, bot tokens, access tokens, or refresh tokens.
 - Boards provider secrets follow the same rule: keep API tokens, refresh tokens, and provider credentials server-side and out of app config, support bundles, and frontend artifacts.
+- For OpenProject read-sync, `TF_VAR_boards_openproject_api_token` is a backend-only secret; app config may expose only support-safe readiness/source metadata such as provider name, runtime gate state, and base URL when needed for operator diagnostics.
 - Future secret-manager wiring must pass secret references to the backend, not raw provider secrets to Flutter.
 - Support bundles must redact token, secret, password, credential, authorization, cookie, and private-key patterns before an archive is considered shareable.
 - Connector diagnostics should report safe states such as `disabled`, `unavailable`, `degraded`, `action-required`, and `configured-reference`; they must not include raw secret values.

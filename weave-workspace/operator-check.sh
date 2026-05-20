@@ -193,6 +193,42 @@ assert_backend_env_present() {
   [[ -n "${value}" ]] || fail "Operator check failed: weave-backend is missing required ${name} Nextcloud facade configuration"
 }
 
+assert_backend_boards_openproject_config() {
+  local preview_provider
+  local runtime_enabled
+  local read_sync_enabled
+  local auth_mode
+  local base_url
+  local api_token
+  local provider_writes_enabled
+
+  log "Checking backend Boards/OpenProject runtime gates..."
+  preview_provider="$(container_env_value weave-backend WEAVE_BOARDS_PREVIEW_PROVIDER || true)"
+  runtime_enabled="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED || true)"
+  read_sync_enabled="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED || true)"
+  auth_mode="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_AUTH_MODE || true)"
+  base_url="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_BASE_URL || true)"
+  api_token="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_API_TOKEN || true)"
+  provider_writes_enabled="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED || true)"
+
+  [[ -n "${preview_provider}" ]] || fail "Operator check failed: weave-backend is missing WEAVE_BOARDS_PREVIEW_PROVIDER"
+  [[ "${preview_provider}" == "local-preview" || "${preview_provider}" == "openproject" ]] || fail "Operator check failed: unsupported boards preview provider ${preview_provider}"
+  [[ "${provider_writes_enabled}" != "true" ]] || fail "Operator check failed: OpenProject provider writes must stay disabled for the read-only MVP/runtime path"
+
+  if [[ "${preview_provider}" != "openproject" && "${runtime_enabled}" != "true" && "${read_sync_enabled}" != "true" ]]; then
+    [[ "${auth_mode}" == "disabled" ]] || fail "Operator check failed: disabled OpenProject runtime must use auth-mode=disabled"
+    [[ -z "${api_token}" ]] || fail "Operator check failed: disabled OpenProject runtime must not carry a provider API token"
+    return
+  fi
+
+  [[ "${preview_provider}" == "openproject" ]] || fail "Operator check failed: OpenProject runtime requires WEAVE_BOARDS_PREVIEW_PROVIDER=openproject"
+  [[ "${runtime_enabled}" == "true" ]] || fail "Operator check failed: OpenProject runtime requires WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=true"
+  [[ "${read_sync_enabled}" == "true" ]] || fail "Operator check failed: OpenProject read-sync requires WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=true"
+  [[ "${auth_mode}" == "service-token" ]] || fail "Operator check failed: OpenProject read-sync requires backend-held service-token auth"
+  [[ -n "${base_url}" ]] || fail "Operator check failed: OpenProject read-sync requires a backend-only base URL"
+  [[ -n "${api_token}" ]] || fail "Operator check failed: OpenProject read-sync requires a backend-held API token"
+}
+
 assert_backend_nextcloud_actor_config() {
   local actor_username
   local actor_model
@@ -352,6 +388,7 @@ assert_json "${nextcloud_status}" '.installed == true' "Nextcloud should be inst
 
 assert_backend_nextcloud_actor_config
 assert_backend_product_gate_config
+assert_backend_boards_openproject_config
 
 nextcloud_bearer_validation="$(docker exec --user www-data weave-nextcloud php occ config:system:get user_oidc oidc_provider_bearer_validation 2>/dev/null || true)"
 [[ "${nextcloud_bearer_validation}" == "true" ]] || fail "Operator check failed: Nextcloud user_oidc bearer validation is not enabled"

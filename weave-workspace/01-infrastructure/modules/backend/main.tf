@@ -55,6 +55,15 @@ resource "docker_container" "this" {
     "WEAVE_INTEROP_TEAMS_ENABLED=${var.interop_teams_enabled}",
     "WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED=${var.connectors_public_sdk_enabled}",
     "WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=${var.boards_preview_runtime_enabled}",
+    "WEAVE_BOARDS_PREVIEW_PROVIDER=${var.boards_preview_provider}",
+    "WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=${var.boards_openproject_runtime_enabled}",
+    "WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=${var.boards_openproject_read_sync_enabled}",
+    "WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=${var.boards_openproject_context_authorization_enabled}",
+    "WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED=${var.boards_openproject_audit_consent_enabled}",
+    "WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=${var.boards_openproject_provider_writes_enabled}",
+    "WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=${var.boards_openproject_auth_mode}",
+    "WEAVE_BOARDS_OPENPROJECT_BASE_URL=${var.boards_openproject_base_url}",
+    "WEAVE_BOARDS_OPENPROJECT_API_TOKEN=${var.boards_openproject_api_token}",
   ]
 
   ports {

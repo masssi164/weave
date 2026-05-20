@@ -40,6 +40,19 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_backend_host_port
   TF_VAR_backend_container_port
   TF_VAR_weave_backend_image
+  TF_VAR_boards_preview_runtime_enabled
+  TF_VAR_boards_preview_provider
+  TF_VAR_boards_openproject_runtime_enabled
+  TF_VAR_boards_openproject_read_sync_enabled
+  TF_VAR_boards_openproject_context_authorization_enabled
+  TF_VAR_boards_openproject_audit_consent_enabled
+  TF_VAR_boards_openproject_provider_writes_enabled
+  TF_VAR_boards_openproject_auth_mode
+  TF_VAR_boards_openproject_base_url
+  TF_VAR_boards_openproject_api_token
+  TF_VAR_openproject_image
+  TF_VAR_openproject_host_port
+  TF_VAR_openproject_secret_key_base
   TF_VAR_synapse_uid
   TF_VAR_synapse_gid
   TF_VAR_db_name
@@ -215,6 +228,15 @@ persist_bootstrap_env() {
     printf 'export WEAVE_CALDAV_EXTERNAL_CREDENTIAL_MODE=%q\n' "nextcloud-login-flow-app-password"
     printf 'export WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE=%q\n' "omit"
     printf 'export WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS=%q\n' "disabled"
+    printf 'export WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_preview_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_PREVIEW_PROVIDER=%q\n' "${TF_VAR_boards_preview_provider}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=%q\n' "${TF_VAR_boards_openproject_read_sync_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=%q\n' "${TF_VAR_boards_openproject_context_authorization_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED=%q\n' "${TF_VAR_boards_openproject_audit_consent_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=%q\n' "${TF_VAR_boards_openproject_provider_writes_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=%q\n' "${TF_VAR_boards_openproject_auth_mode}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_BASE_URL=%q\n' "${TF_VAR_boards_openproject_base_url}"
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")$(public_port_suffix)"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' "weave-app"
@@ -471,6 +493,15 @@ write_app_config_summary() {
     printf 'export WEAVE_CALDAV_EXTERNAL_CREDENTIAL_MODE=%q\n' "nextcloud-login-flow-app-password"
     printf 'export WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE=%q\n' "omit"
     printf 'export WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS=%q\n' "disabled"
+    printf 'export WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_preview_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_PREVIEW_PROVIDER=%q\n' "${TF_VAR_boards_preview_provider}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=%q\n' "${TF_VAR_boards_openproject_read_sync_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=%q\n' "${TF_VAR_boards_openproject_context_authorization_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED=%q\n' "${TF_VAR_boards_openproject_audit_consent_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=%q\n' "${TF_VAR_boards_openproject_provider_writes_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=%q\n' "${TF_VAR_boards_openproject_auth_mode}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_BASE_URL=%q\n' "${TF_VAR_boards_openproject_base_url}"
     printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
     printf 'export WEAVE_TARGET_DESKTOP=%q\n' "true"
     printf 'export WEAVE_TARGET_WEB=%q\n' "false"
@@ -617,6 +648,17 @@ ensure_default_inputs() {
     "TF_VAR_backend_host_port=48084"
     "TF_VAR_backend_container_port=8080"
     "TF_VAR_weave_backend_image=weave-backend:local"
+    "TF_VAR_boards_preview_runtime_enabled=false"
+    "TF_VAR_boards_preview_provider=local-preview"
+    "TF_VAR_boards_openproject_runtime_enabled=false"
+    "TF_VAR_boards_openproject_read_sync_enabled=false"
+    "TF_VAR_boards_openproject_context_authorization_enabled=false"
+    "TF_VAR_boards_openproject_audit_consent_enabled=false"
+    "TF_VAR_boards_openproject_provider_writes_enabled=false"
+    "TF_VAR_boards_openproject_auth_mode=disabled"
+    "TF_VAR_boards_openproject_base_url="
+    "TF_VAR_openproject_image=openproject/openproject:15"
+    "TF_VAR_openproject_host_port=48086"
     "TF_VAR_synapse_uid=991"
     "TF_VAR_synapse_gid=991"
     "TF_VAR_db_name=weave"
@@ -656,6 +698,8 @@ ensure_generated_secrets() {
   set_default_secret TF_VAR_nextcloud_db_password "$(random_base64 24)"
   set_default_secret TF_VAR_nextcloud_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_nextcloud_backend_actor_token "$(random_base64 24)"
+  set_default_var TF_VAR_boards_openproject_api_token ""
+  set_default_var TF_VAR_openproject_secret_key_base ""
   set_default_secret TF_VAR_matrix_mas_client_secret "$(random_base64 32)"
   set_default_secret TF_VAR_mas_encryption_secret "$(random_hex 32)"
   set_default_secret TF_VAR_mas_matrix_secret "$(random_base64 32)"
