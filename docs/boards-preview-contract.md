@@ -18,6 +18,7 @@ Implemented now:
 - Vikunja and Nextcloud Deck comparison/fallback adapter boundaries; they remain useful for comparison/import planning but no longer define the first provider path.
 - Fail-closed Vikunja and Nextcloud Deck repository placeholders that advertise preview/fallback capabilities but do not perform runtime HTTP calls.
 - A fail-closed OpenProject repository that can perform authenticated read-only sync when provider runtime, read-sync, Context/Space authorization, auth mode, base URL, and API token are configured; writes stay disabled.
+- Support-safe `syncMetadata` on the preview response for provider, read-only mode, Context/Space scoping, opaque next cursors, and last-sync timestamps without leaking provider URLs, raw offsets, or tokens.
 - A hidden local/in-memory backend preview facade behind `weave.boards.preview.runtime-enabled` that proves provider-neutral create, move, and complete operations without drag-only UI assumptions.
 
 Not implemented now:
@@ -37,7 +38,7 @@ The feature-gated preview API is deliberately narrow and disabled by default for
 - `POST /api/boards/tasks/{taskId}/move`
 - `POST /api/boards/tasks/{taskId}/complete`
 
-All routes require the normal authenticated `weave:workspace` backend boundary. They return provider-neutral Weave domain shapes and support-safe `boards-*` errors. The local adapter stores only in-memory preview data, exposes `releaseStatus = active-feature-gated-preview`, and must not be documented as a customer-ready module.
+All routes require the normal authenticated `weave:workspace` backend boundary. They return provider-neutral Weave domain shapes, `syncMetadata` with adapter-owned opaque cursors only, and support-safe `boards-*` errors. The local adapter stores only in-memory preview data, exposes `releaseStatus = active-feature-gated-preview`, and must not be documented as a customer-ready module.
 
 ## 2026-05-14 issue/spec matrix
 
@@ -67,7 +68,7 @@ OpenProject is now the preferred first provider-backed read-sync validation path
 - OpenProject status → Weave board column
 - OpenProject work package → Weave task item
 
-The repository fails closed with support-safe `provider_unavailable` or `unsupported_capability` errors unless all read gates are configured. Read-sync requires `provider=openproject`, provider runtime enabled, read-sync enabled, Context/Space authorization enabled, `service-token` auth, a base URL, and a backend-held API token. It stores provider cursors and provider refs only as support-safe sync metadata. The first path is read-only: no provider writes, no agentic/team writes, and no raw OpenProject UI as normal Weave UX.
+The repository fails closed with support-safe `provider_unavailable` or `unsupported_capability` errors unless all read gates are configured. Read-sync requires `provider=openproject`, provider runtime enabled, read-sync enabled, Context/Space authorization enabled, `service-token` auth, a base URL, and a backend-held API token. It stores provider refs only as support-safe sync metadata and exposes pagination through opaque adapter-owned cursors such as `op:v1:*`; raw provider offsets, URLs, tokens, passwords, and secrets are blocked from the preview response. The first path is read-only: no provider writes, no agentic/team writes, and no raw OpenProject UI as normal Weave UX.
 
 ## Vikunja fallback/comparison boundary
 

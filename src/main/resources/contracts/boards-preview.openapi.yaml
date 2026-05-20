@@ -6,8 +6,8 @@ info:
     Preview-only provider-neutral schema components for future Boards/Tasks work.
     Hidden preview-only provider-neutral schema and route draft for future Boards/Tasks work.
     The runtime routes are disabled by default, require the normal authenticated Weave
-    workspace boundary, use only a local/in-memory preview adapter, and do not publish
-    Boards/Tasks as a live product API.
+    workspace boundary, expose local/in-memory preview or explicitly gated OpenProject
+    read-sync snapshots only, and do not publish Boards/Tasks as a live product API.
 paths:
   /api/boards/preview:
     get:
@@ -85,7 +85,7 @@ components:
 
     BoardsPreviewResponse:
       type: object
-      required: [preview, releaseStatus, source, capabilities, projects, boards, tasks]
+      required: [preview, releaseStatus, source, capabilities, syncMetadata, projects, boards, tasks]
       properties:
         preview: { type: boolean }
         releaseStatus:
@@ -96,6 +96,8 @@ components:
           enum: [local-preview-backend-facade, openproject-read-sync-backend-facade, provider-neutral-preview-backend-facade]
         capabilities:
           $ref: '#/components/schemas/BoardProviderCapabilities'
+        syncMetadata:
+          $ref: '#/components/schemas/BoardsSyncMetadataResponse'
         projects:
           type: array
           items: { $ref: '#/components/schemas/WeaveProject' }
@@ -105,6 +107,30 @@ components:
         tasks:
           type: array
           items: { $ref: '#/components/schemas/TaskItem' }
+    BoardsSyncMetadataResponse:
+      type: object
+      required: [provider, mode, readOnly, contextScoped, supportSafe, nextCursors]
+      properties:
+        provider:
+          type: string
+          enum: [vikunja, openproject, nextcloud-deck, in-memory, unknown]
+        mode:
+          type: string
+          description: Support-safe source/mode such as read-only-sync or local-preview-backend-facade.
+        readOnly:
+          type: boolean
+        contextScoped:
+          type: boolean
+        supportSafe:
+          type: boolean
+        nextCursors:
+          type: object
+          additionalProperties:
+            type: string
+          description: Opaque adapter-owned cursors only; raw provider offsets, URLs, and secrets are forbidden.
+        lastSyncedAt:
+          type: string
+          format: date-time
     BoardProviderCapabilities:
       type: object
       required: [provider, enabled, supported, unsupported, supportSafeSummary]

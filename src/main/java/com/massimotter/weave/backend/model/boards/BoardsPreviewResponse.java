@@ -11,6 +11,7 @@ public record BoardsPreviewResponse(
         String releaseStatus,
         String source,
         BoardProviderCapabilities capabilities,
+        BoardsSyncMetadataResponse syncMetadata,
         List<WeaveProject> projects,
         List<Board> boards,
         List<TaskItem> tasks) {

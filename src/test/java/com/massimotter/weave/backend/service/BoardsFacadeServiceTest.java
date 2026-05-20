@@ -109,9 +109,50 @@ class BoardsFacadeServiceTest {
 
         assertThat(response.source()).isEqualTo("openproject-read-sync-backend-facade");
         assertThat(response.capabilities().provider()).isEqualTo(ProviderKind.OPEN_PROJECT);
+        assertThat(response.syncMetadata().provider()).isEqualTo("openproject");
+        assertThat(response.syncMetadata().mode()).isEqualTo("read-only-sync");
+        assertThat(response.syncMetadata().readOnly()).isTrue();
+        assertThat(response.syncMetadata().contextScoped()).isTrue();
+        assertThat(response.syncMetadata().supportSafe()).isTrue();
         assertThat(response.projects()).isEmpty();
         assertThat(response.boards()).isEmpty();
         assertThat(response.tasks()).isEmpty();
+    }
+
+    @Test
+    void previewIncludesOnlyOpaqueSupportSafeAdapterCursorsInSyncMetadata() {
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsPreviewGuard(true),
+                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "op:v1:c3VwcG9ydC1zYWZl"),
+                request -> ContextAuthorizationDecision.allow("test allow"));
+
+        var response = service.preview(jwt());
+
+        assertThat(response.syncMetadata().nextCursors())
+                .containsEntry("projects", "op:v1:c3VwcG9ydC1zYWZl");
+        assertThat(response.syncMetadata().nextCursors().get("projects"))
+                .doesNotContain("https://")
+                .doesNotContain("secret")
+                .doesNotContain("token");
+    }
+
+    @Test
+    void previewFailsClosedInsteadOfLeakingUnsafeProviderCursor() {
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsPreviewGuard(true),
+                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "https://openproject.example.test/page?token=secret"),
+                request -> ContextAuthorizationDecision.allow("test allow"));
+
+        assertThatThrownBy(() -> service.preview(jwt()))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(400);
+                    assertThat(error.code()).isEqualTo("boards-validation");
+                    assertThat(error.getMessage()).doesNotContain("openproject.example")
+                            .doesNotContain("secret");
+                    assertThat(error.details())
+                            .containsEntry("cursorKey", "projects")
+                            .containsEntry("supportSafe", "true");
+                });
     }
 
     private Jwt jwt() {
@@ -126,8 +167,14 @@ class BoardsFacadeServiceTest {
 
     private static final class EmptyBoardsRepository implements BoardsRepository {
         private final BoardProviderCapabilities capabilities;
+        private final String projectNextCursor;
 
         private EmptyBoardsRepository(ProviderKind provider) {
+            this(provider, null);
+        }
+
+        private EmptyBoardsRepository(ProviderKind provider, String projectNextCursor) {
+            this.projectNextCursor = projectNextCursor;
             this.capabilities = new BoardProviderCapabilities(
                     provider,
                     true,
@@ -137,7 +184,7 @@ class BoardsFacadeServiceTest {
         }
 
         @Override public BoardProviderCapabilities capabilities() { return capabilities; }
-        @Override public BoardPage<WeaveProject> listProjects(BoardQuery query) { return BoardPage.singlePage(List.of()); }
+        @Override public BoardPage<WeaveProject> listProjects(BoardQuery query) { return new BoardPage<>(List.of(), projectNextCursor); }
         @Override public BoardPage<Board> listBoards(String projectId, BoardQuery query) { return BoardPage.singlePage(List.of()); }
         @Override public Optional<Board> findBoard(String boardId) { return Optional.empty(); }
         @Override public BoardPage<BoardColumn> listColumns(String boardId, BoardQuery query) { return BoardPage.singlePage(List.of()); }

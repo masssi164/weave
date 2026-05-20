@@ -1,7 +1,10 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.boards.domain.Board;
 import com.massimotter.weave.backend.boards.domain.ProviderKind;
+import com.massimotter.weave.backend.boards.domain.ProviderRef;
 import com.massimotter.weave.backend.boards.domain.TaskItem;
+import com.massimotter.weave.backend.boards.domain.WeaveProject;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
 import com.massimotter.weave.backend.boards.port.BoardsPreviewGuard;
 import com.massimotter.weave.backend.boards.port.BoardsRepository;
@@ -17,7 +20,11 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest;
 import com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest;
 import com.massimotter.weave.backend.model.boards.BoardsPreviewResponse;
+import com.massimotter.weave.backend.model.boards.BoardsSyncMetadataResponse;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -47,18 +54,33 @@ public class BoardsFacadeService {
         requireContextPermission(jwt, ContextPermission.VIEW);
         try {
             var capabilities = boardsRepository.capabilities();
-            var projects = boardsRepository.listProjects(BoardQuery.firstPage()).items();
-            var boards = projects.stream()
-                    .flatMap(project -> boardsRepository.listBoards(project.id(), BoardQuery.firstPage()).items().stream())
-                    .toList();
-            var tasks = boards.stream()
-                    .flatMap(board -> boardsRepository.listTasks(board.id(), TaskQuery.all()).items().stream())
-                    .toList();
+            var nextCursors = new LinkedHashMap<String, String>();
+
+            var projectsPage = boardsRepository.listProjects(BoardQuery.firstPage());
+            addCursor(nextCursors, "projects", projectsPage.nextCursor());
+            var projects = projectsPage.items();
+
+            var boards = new ArrayList<Board>();
+            for (var project : projects) {
+                var boardsPage = boardsRepository.listBoards(project.id(), BoardQuery.firstPage());
+                boards.addAll(boardsPage.items());
+                addCursor(nextCursors, "boards:" + project.id(), boardsPage.nextCursor());
+            }
+
+            var tasks = new ArrayList<TaskItem>();
+            for (var board : boards) {
+                var tasksPage = boardsRepository.listTasks(board.id(), TaskQuery.all());
+                tasks.addAll(tasksPage.items());
+                addCursor(nextCursors, "tasks:" + board.id(), tasksPage.nextCursor());
+            }
+
+            String source = sourceFor(capabilities.provider());
             return new BoardsPreviewResponse(
                     true,
                     "active-feature-gated-preview",
-                    sourceFor(capabilities.provider()),
+                    source,
                     capabilities,
+                    syncMetadata(capabilities.provider(), source, nextCursors, projects, boards, tasks),
                     projects,
                     boards,
                     tasks);
@@ -165,6 +187,57 @@ public class BoardsFacadeService {
             case IN_MEMORY -> "local-preview-backend-facade";
             default -> "provider-neutral-preview-backend-facade";
         };
+    }
+
+    private BoardsSyncMetadataResponse syncMetadata(
+            ProviderKind provider,
+            String source,
+            Map<String, String> nextCursors,
+            List<WeaveProject> projects,
+            List<Board> boards,
+            List<TaskItem> tasks) {
+        return new BoardsSyncMetadataResponse(
+                provider.contractName(),
+                provider == ProviderKind.OPEN_PROJECT ? "read-only-sync" : source,
+                true,
+                true,
+                true,
+                nextCursors,
+                lastSyncedAt(projects, boards, tasks));
+    }
+
+    private void addCursor(Map<String, String> nextCursors, String key, String cursor) {
+        if (cursor != null && !cursor.isBlank()) {
+            String normalized = cursor.toLowerCase(java.util.Locale.ROOT);
+            if (cursor.length() > 512
+                    || normalized.contains("://")
+                    || normalized.contains("token")
+                    || normalized.contains("secret")
+                    || normalized.contains("password")
+                    || normalized.contains("apikey")
+                    || normalized.contains("api_key")) {
+                throw new BoardsException(
+                        BoardsErrorCode.VALIDATION,
+                        "Boards adapter returned an unsafe pagination cursor and the preview response was blocked.",
+                        Map.of("cursorKey", key, "supportSafe", "true"));
+            }
+            nextCursors.put(key, cursor);
+        }
+    }
+
+    private Instant lastSyncedAt(
+            List<WeaveProject> projects,
+            List<Board> boards,
+            List<TaskItem> tasks) {
+        return java.util.stream.Stream.of(
+                        projects.stream().flatMap(project -> project.providerRefs().stream()),
+                        boards.stream().flatMap(board -> board.providerRefs().stream()),
+                        tasks.stream().flatMap(task -> task.providerRefs().stream()))
+                .flatMap(refs -> refs)
+                .map(ProviderRef::lastSyncedAt)
+                .filter(java.util.Objects::nonNull)
+                .max(Instant::compareTo)
+                .orElse(null);
     }
 
     private ApiErrorException apiError(BoardsException exception) {
