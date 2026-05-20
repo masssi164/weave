@@ -48,14 +48,15 @@ class OpenProjectBoardsReadSyncContractTest {
 
         assertThat(capabilities.provider()).isEqualTo(ProviderKind.OPEN_PROJECT);
         assertThat(capabilities.enabled()).isFalse();
-        assertThat(capabilities.supported()).contains(
+        assertThat(capabilities.supported()).containsExactly(BoardCapability.INCREMENTAL_SYNC);
+        assertThat(capabilities.unsupported()).contains(
                 BoardCapability.COMMENTS,
                 BoardCapability.ATTACHMENTS,
                 BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
-                BoardCapability.INCREMENTAL_SYNC,
+                BoardCapability.WEBHOOK_EVENTS,
+                BoardCapability.CHECKLISTS,
                 BoardCapability.CUSTOM_FIELDS,
                 BoardCapability.ACCESSIBLE_NON_DRAG_MOVES);
-        assertThat(capabilities.unsupported()).contains(BoardCapability.WEBHOOK_EVENTS, BoardCapability.CHECKLISTS);
         assertThat(capabilities.supportSafeSummary())
                 .contains("OpenProject")
                 .contains("read-only-first")
@@ -153,6 +154,41 @@ class OpenProjectBoardsReadSyncContractTest {
                             .containsEntry("providerWritesEnabled", "false");
                 })
                 .hasMessageContaining("writes remain disabled")
+                .hasMessageContaining("audit");
+    }
+
+    @Test
+    void openProjectCommentsAndAttachmentsStayUnsupportedUntilPromotion() {
+        var repository = new OpenProjectBoardsRepository(new OpenProjectBoardsRuntimeGate(
+                true,
+                true,
+                true,
+                false,
+                false,
+                "service-token"));
+
+        assertThatThrownBy(() -> repository.listComments("openproject:work-package:99", null))
+                .isInstanceOfSatisfying(BoardsException.class, error -> {
+                    assertThat(error.code()).isEqualTo(BoardsErrorCode.UNSUPPORTED_CAPABILITY);
+                    assertThat(error.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "list-comments")
+                            .containsEntry("capability", "comments")
+                            .containsEntry("supportSafe", "true");
+                })
+                .hasMessageContaining("comments remain disabled")
+                .hasMessageContaining("audit");
+
+        assertThatThrownBy(() -> repository.listAttachments("openproject:work-package:99", null))
+                .isInstanceOfSatisfying(BoardsException.class, error -> {
+                    assertThat(error.code()).isEqualTo(BoardsErrorCode.UNSUPPORTED_CAPABILITY);
+                    assertThat(error.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "list-attachments")
+                            .containsEntry("capability", "attachments")
+                            .containsEntry("supportSafe", "true");
+                })
+                .hasMessageContaining("attachments remain disabled")
                 .hasMessageContaining("audit");
     }
 

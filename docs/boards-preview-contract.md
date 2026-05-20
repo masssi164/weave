@@ -78,7 +78,7 @@ Vikunja remains a lightweight, self-hostable, API-oriented comparison/fallback c
 
 The backend preview layer now declares three disabled adapter contracts against the same `BoardsRepository` port:
 
-- `OpenProjectBoardsRepository`: preferred read-only-first provider seam; declares comments, attachments, non-destructive archive, incremental sync, custom fields, and accessible non-drag move compatibility in the contract. Runtime read-sync is available only behind the fail-closed OpenProject gate and remains write-disabled.
+- `OpenProjectBoardsRepository`: preferred read-only-first provider seam; declares only incremental read-sync as supported for the promoted runtime path. Comments, attachments, non-destructive archive, custom fields, accessible move/write commands, webhooks, and checklists remain unsupported/fail-closed until audit/consent and provider-write promotion tests exist. Runtime read-sync is available only behind the fail-closed OpenProject gate and remains write-disabled.
 - `VikunjaBoardsRepository`: comparison/fallback candidate; supports comments, attachments, non-destructive archive, webhooks, incremental sync, checklists, and accessible non-drag move commands in the contract, but is disabled for runtime use.
 - `NextcloudDeckBoardsRepository`: Nextcloud-adjacent fallback bridge/import candidate; declares comments, attachments, and non-destructive archive, but avoids claiming webhooks or incremental sync until tested.
 

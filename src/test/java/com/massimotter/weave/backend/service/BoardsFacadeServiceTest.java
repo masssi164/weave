@@ -68,6 +68,26 @@ class BoardsFacadeServiceTest {
     }
 
     @Test
+    void previewUsesJwtTenantAndContextClaimsForContextBoundProviderReads() {
+        java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsPreviewGuard(true),
+                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
+                request -> {
+                    captured.set(request);
+                    return ContextAuthorizationDecision.allow("context membership matched");
+                });
+
+        service.preview(jwtWithContext("tenant-acme", "ctx-product-channel"));
+
+        assertThat(captured.get().tenantId()).isEqualTo("tenant-acme");
+        assertThat(captured.get().contextId()).isEqualTo("ctx-product-channel");
+        assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
+        assertThat(captured.get().permission().name()).isEqualTo("VIEW");
+    }
+
+    @Test
     void createTaskRequiresEditPermissionForDefaultWorkspaceContext() {
         java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
@@ -160,6 +180,18 @@ class BoardsFacadeServiceTest {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(300))
+                .build();
+    }
+
+    private Jwt jwtWithContext(String tenantId, String contextId) {
+        Instant now = Instant.parse("2026-05-19T05:00:00Z");
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .claim("weave_tenant_id", tenantId)
+                .claim("weave_context_id", contextId)
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

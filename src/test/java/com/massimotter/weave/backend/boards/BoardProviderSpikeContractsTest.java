@@ -21,16 +21,15 @@ class BoardProviderSpikeContractsTest {
 
         assertThat(capabilities.provider()).isEqualTo(ProviderKind.OPEN_PROJECT);
         assertThat(capabilities.enabled()).isFalse();
-        assertThat(capabilities.supported()).contains(
+        assertThat(capabilities.supported()).containsExactly(BoardCapability.INCREMENTAL_SYNC);
+        assertThat(capabilities.unsupported()).contains(
                 BoardCapability.COMMENTS,
                 BoardCapability.ATTACHMENTS,
                 BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
-                BoardCapability.INCREMENTAL_SYNC,
+                BoardCapability.WEBHOOK_EVENTS,
+                BoardCapability.CHECKLISTS,
                 BoardCapability.CUSTOM_FIELDS,
                 BoardCapability.ACCESSIBLE_NON_DRAG_MOVES);
-        assertThat(capabilities.unsupported()).contains(
-                BoardCapability.WEBHOOK_EVENTS,
-                BoardCapability.CHECKLISTS);
         assertThat(capabilities.supportSafeSummary()).contains("read-only-first").contains("disabled");
         assertThatThrownBy(() -> repository.listProjects(null))
                 .isInstanceOf(BoardsException.class)

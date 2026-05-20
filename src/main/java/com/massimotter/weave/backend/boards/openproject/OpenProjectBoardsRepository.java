@@ -66,17 +66,17 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
                 ProviderKind.OPEN_PROJECT,
                 enabled,
                 EnumSet.of(
+                        BoardCapability.INCREMENTAL_SYNC),
+                EnumSet.of(
                         BoardCapability.COMMENTS,
                         BoardCapability.ATTACHMENTS,
                         BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
-                        BoardCapability.INCREMENTAL_SYNC,
+                        BoardCapability.WEBHOOK_EVENTS,
+                        BoardCapability.CHECKLISTS,
                         BoardCapability.CUSTOM_FIELDS,
                         BoardCapability.ACCESSIBLE_NON_DRAG_MOVES),
-                EnumSet.of(
-                        BoardCapability.WEBHOOK_EVENTS,
-                        BoardCapability.CHECKLISTS),
                 enabled
-                        ? "OpenProject is enabled for authenticated read-only Boards sync; writes remain gated behind audit/consent promotion."
+                        ? "OpenProject is enabled for authenticated read-only Boards sync of projects, statuses, and work packages; comments, attachments, archive, and writes remain gated behind audit/consent promotion."
                         : "OpenProject is the disabled, read-only-first Boards provider seam; Vikunja and Deck are comparison/fallback paths only.");
     }
 
@@ -130,14 +130,12 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
 
     @Override
     public BoardPage<TaskComment> listComments(String taskId, BoardQuery query) {
-        requireReadSync("list-comments");
-        return BoardPage.singlePage(List.of());
+        throw unsupportedUntilPromotion("list-comments", "comments");
     }
 
     @Override
     public BoardPage<TaskAttachment> listAttachments(String taskId, BoardQuery query) {
-        requireReadSync("list-attachments");
-        return BoardPage.singlePage(List.of());
+        throw unsupportedUntilPromotion("list-attachments", "attachments");
     }
 
     @Override public TaskItem createTask(CreateTaskCommand command) { throw writeDisabled("create-task"); }
@@ -185,5 +183,17 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
         return new BoardsException(
                 BoardsErrorCode.UNSUPPORTED_CAPABILITY,
                 "OpenProject Boards/Tasks writes are not implemented for the read-sync-first adapter seam.");
+    }
+
+    private BoardsException unsupportedUntilPromotion(String operation, String capability) {
+        return new BoardsException(
+                BoardsErrorCode.UNSUPPORTED_CAPABILITY,
+                "OpenProject Boards " + capability + " remain disabled until audit, consent, and support-safe provider promotion are explicitly implemented.",
+                Map.of(
+                        "provider", "openproject",
+                        "operation", operation,
+                        "capability", capability,
+                        "mode", "read_sync",
+                        "supportSafe", "true"));
     }
 }
