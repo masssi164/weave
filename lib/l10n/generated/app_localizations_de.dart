@@ -377,13 +377,23 @@ class AppLocalizationsDe extends AppLocalizations {
   String get filesStaleDirectoryRetryButton => 'Ordner aktualisieren';
 
   @override
-  String get filesNextcloudTitle => 'Nextcloud';
+  String get filesNextcloudTitle => 'Weave-Dateien';
 
   @override
-  String get filesConnectButton => 'Nextcloud verbinden';
+  String get filesProductTitle => 'Weave-Dateien';
 
   @override
-  String get filesReconnectButton => 'Nextcloud neu verbinden';
+  String get filesProductBoundaryTitle => 'Weave-Produktgrenze';
+
+  @override
+  String get filesProductBoundaryBody =>
+      'Dateiaktionen nutzen die Weave-Backend-Fassade. Nextcloud bleibt Speicheranbieter sowie Admin-/Fallback-Oberfläche; rohe Anbieterpfade und Zugangsdaten gehören nicht zur normalen Dateien-UX.';
+
+  @override
+  String get filesConnectButton => 'Dateien verbinden';
+
+  @override
+  String get filesReconnectButton => 'Dateien neu verbinden';
 
   @override
   String get filesDisconnectButton => 'Trennen';
@@ -428,15 +438,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesDisconnectedMessage =>
-      'Verbinde Nextcloud, um deine Dateien zu durchsuchen.';
+      'Verbinde Weave-Dateien, um Arbeitsbereichsdateien zu durchsuchen.';
 
   @override
   String get filesInvalidSessionMessage =>
-      'Verbinde Nextcloud erneut, weil die gespeicherte Sitzung nicht mehr gültig ist.';
+      'Verbinde Dateien neu, weil die Weave-Sitzung nicht mehr gültig ist.';
 
   @override
   String get filesMisconfiguredMessage =>
-      'Konfiguriere zuerst eine Nextcloud-URL, bevor du Dateien verbindest.';
+      'Schließe zuerst die Weave-Servereinrichtung ab, bevor du Dateien verbindest.';
 
   @override
   String filesConnectionConnected(String accountLabel) {
@@ -445,15 +455,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get filesConnectionDisconnected =>
-      'Auf diesem Gerät ist keine Nextcloud-Sitzung verbunden.';
+      'Dateien sind für diese Weave-Sitzung nicht verbunden.';
 
   @override
   String get filesConnectionInvalid =>
-      'Die gespeicherte Nextcloud-Sitzung braucht Aufmerksamkeit.';
+      'Die Weave-Dateisitzung braucht Aufmerksamkeit.';
 
   @override
   String get filesConnectionMisconfigured =>
-      'Die Server-Einrichtung für Nextcloud-Dateien ist unvollständig.';
+      'Die Server-Einrichtung für Weave-Dateien ist unvollständig.';
 
   @override
   String get filesOpenParentSemantic => 'Übergeordneten Ordner öffnen';

@@ -374,13 +374,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filesStaleDirectoryRetryButton => 'Refresh folder';
 
   @override
-  String get filesNextcloudTitle => 'Nextcloud';
+  String get filesNextcloudTitle => 'Weave Files';
 
   @override
-  String get filesConnectButton => 'Connect Nextcloud';
+  String get filesProductTitle => 'Weave Files';
 
   @override
-  String get filesReconnectButton => 'Reconnect Nextcloud';
+  String get filesProductBoundaryTitle => 'Weave product boundary';
+
+  @override
+  String get filesProductBoundaryBody =>
+      'Files actions use the Weave backend facade. Nextcloud remains the storage provider and admin/fallback surface; raw provider paths and credentials are not part of the normal Files UX.';
+
+  @override
+  String get filesConnectButton => 'Connect Files';
+
+  @override
+  String get filesReconnectButton => 'Reconnect Files';
 
   @override
   String get filesDisconnectButton => 'Disconnect';
@@ -425,15 +435,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesDisconnectedMessage =>
-      'Connect Nextcloud to browse your files.';
+      'Connect Weave Files to browse workspace files.';
 
   @override
   String get filesInvalidSessionMessage =>
-      'Reconnect Nextcloud because the saved session is no longer valid.';
+      'Reconnect Files because the Weave session is no longer valid.';
 
   @override
   String get filesMisconfiguredMessage =>
-      'Configure a Nextcloud URL before connecting files.';
+      'Finish Weave server setup before connecting files.';
 
   @override
   String filesConnectionConnected(String accountLabel) {
@@ -442,15 +452,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesConnectionDisconnected =>
-      'No Nextcloud session is connected on this device.';
+      'Files are not connected for this Weave session.';
 
   @override
   String get filesConnectionInvalid =>
-      'The saved Nextcloud session needs attention.';
+      'The Weave Files session needs attention.';
 
   @override
   String get filesConnectionMisconfigured =>
-      'Server setup is incomplete for Nextcloud files.';
+      'Server setup is incomplete for Weave Files.';
 
   @override
   String get filesOpenParentSemantic => 'Open parent folder';

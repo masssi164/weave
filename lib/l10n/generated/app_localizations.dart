@@ -755,25 +755,43 @@ abstract class AppLocalizations {
   /// **'Refresh folder'**
   String get filesStaleDirectoryRetryButton;
 
-  /// Section title for the Nextcloud files connection card
+  /// Deprecated alias for the Weave Files connection card title
   ///
   /// In en, this message translates to:
-  /// **'Nextcloud'**
+  /// **'Weave Files'**
   String get filesNextcloudTitle;
 
-  /// Button label used to start the Nextcloud connection flow
+  /// Section title for the Weave Files connection card
   ///
   /// In en, this message translates to:
-  /// **'Connect Nextcloud'**
+  /// **'Weave Files'**
+  String get filesProductTitle;
+
+  /// Title for a Files card explaining the product/provider boundary
+  ///
+  /// In en, this message translates to:
+  /// **'Weave product boundary'**
+  String get filesProductBoundaryTitle;
+
+  /// Body for a Files card explaining the product/provider boundary
+  ///
+  /// In en, this message translates to:
+  /// **'Files actions use the Weave backend facade. Nextcloud remains the storage provider and admin/fallback surface; raw provider paths and credentials are not part of the normal Files UX.'**
+  String get filesProductBoundaryBody;
+
+  /// Button label used to start the Files connection flow
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Files'**
   String get filesConnectButton;
 
-  /// Button label used to reconnect an invalid Nextcloud session
+  /// Button label used to reconnect an invalid Files session
   ///
   /// In en, this message translates to:
-  /// **'Reconnect Nextcloud'**
+  /// **'Reconnect Files'**
   String get filesReconnectButton;
 
-  /// Button label used to disconnect the saved Nextcloud session
+  /// Button label used to disconnect the saved Files session
   ///
   /// In en, this message translates to:
   /// **'Disconnect'**
@@ -815,46 +833,46 @@ abstract class AppLocalizations {
   /// **'{folderCount, plural, =0{No folders} one{1 folder} other{{folderCount} folders}} • {fileCount, plural, =0{no files} one{1 file} other{{fileCount} files}}'**
   String filesDirectorySummary(int folderCount, int fileCount);
 
-  /// Message shown when the Files screen is disconnected from Nextcloud
+  /// Message shown when the Files screen is disconnected
   ///
   /// In en, this message translates to:
-  /// **'Connect Nextcloud to browse your files.'**
+  /// **'Connect Weave Files to browse workspace files.'**
   String get filesDisconnectedMessage;
 
-  /// Message shown when the saved Nextcloud session is no longer valid
+  /// Message shown when the saved Files session is no longer valid
   ///
   /// In en, this message translates to:
-  /// **'Reconnect Nextcloud because the saved session is no longer valid.'**
+  /// **'Reconnect Files because the Weave session is no longer valid.'**
   String get filesInvalidSessionMessage;
 
-  /// Message shown when the Files feature is missing a valid Nextcloud base URL
+  /// Message shown when the Files feature is missing required server setup
   ///
   /// In en, this message translates to:
-  /// **'Configure a Nextcloud URL before connecting files.'**
+  /// **'Finish Weave server setup before connecting files.'**
   String get filesMisconfiguredMessage;
 
-  /// Status message shown when the Files feature is connected to Nextcloud
+  /// Status message shown when the Files feature is connected through Weave
   ///
   /// In en, this message translates to:
   /// **'Connected as {accountLabel}'**
   String filesConnectionConnected(String accountLabel);
 
-  /// Status message shown when no Nextcloud session is saved locally
+  /// Status message shown when Files are not connected
   ///
   /// In en, this message translates to:
-  /// **'No Nextcloud session is connected on this device.'**
+  /// **'Files are not connected for this Weave session.'**
   String get filesConnectionDisconnected;
 
-  /// Status message shown when the saved Nextcloud session is invalid
+  /// Status message shown when the Files session is invalid
   ///
   /// In en, this message translates to:
-  /// **'The saved Nextcloud session needs attention.'**
+  /// **'The Weave Files session needs attention.'**
   String get filesConnectionInvalid;
 
-  /// Status message shown when Nextcloud server setup is incomplete
+  /// Status message shown when Weave Files server setup is incomplete
   ///
   /// In en, this message translates to:
-  /// **'Server setup is incomplete for Nextcloud files.'**
+  /// **'Server setup is incomplete for Weave Files.'**
   String get filesConnectionMisconfigured;
 
   /// Semantic label for the action that opens the parent Nextcloud directory

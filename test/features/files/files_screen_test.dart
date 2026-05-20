@@ -125,7 +125,7 @@ class _FakeFilesImportPicker implements FilesImportPicker {
 
 void main() {
   group('FilesScreen', () {
-    testWidgets('shows a connect action when Nextcloud is disconnected', (
+    testWidgets('shows a connect action when Weave Files is disconnected', (
       tester,
     ) async {
       final repository = _FakeFilesRepository(
@@ -148,10 +148,26 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Connect Nextcloud'), findsNWidgets(2));
+      expect(find.text('Connect Files'), findsNWidgets(2));
       expect(find.text('Files are not connected'), findsOneWidget);
       expect(
-        find.text('Connect Nextcloud to browse your files.'),
+        find.text('Connect Weave Files to browse workspace files.'),
+        findsOneWidget,
+      );
+      expect(find.text('Weave Files'), findsOneWidget);
+      expect(find.text('Weave product boundary'), findsOneWidget);
+      expect(
+        find.textContaining('Files actions use the Weave backend facade'),
+        findsOneWidget,
+      );
+      expect(find.text('https://files.home.internal'), findsNothing);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            'Weave product boundary.*backend facade.*raw provider paths and credentials',
+            dotAll: true,
+          ),
+        ),
         findsOneWidget,
       );
     });
@@ -188,6 +204,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Refresh'), findsAtLeastNWidgets(1));
+      expect(find.text('https://files.home.internal'), findsNothing);
+      expect(find.text('Nextcloud'), findsNothing);
     });
 
     testWidgets('renders directory contents and allows folder navigation', (
