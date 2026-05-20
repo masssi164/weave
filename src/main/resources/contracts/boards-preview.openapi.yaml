@@ -93,7 +93,7 @@ components:
           enum: [active-feature-gated-preview]
         source:
           type: string
-          enum: [local-preview-backend-facade]
+          enum: [local-preview-backend-facade, openproject-read-sync-backend-facade, provider-neutral-preview-backend-facade]
         capabilities:
           $ref: '#/components/schemas/BoardProviderCapabilities'
         projects:

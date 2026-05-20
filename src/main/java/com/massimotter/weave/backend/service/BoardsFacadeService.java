@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.boards.domain.ProviderKind;
 import com.massimotter.weave.backend.boards.domain.TaskItem;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
 import com.massimotter.weave.backend.boards.port.BoardsPreviewGuard;
@@ -45,6 +46,7 @@ public class BoardsFacadeService {
         requireEnabled();
         requireContextPermission(jwt, ContextPermission.VIEW);
         try {
+            var capabilities = boardsRepository.capabilities();
             var projects = boardsRepository.listProjects(BoardQuery.firstPage()).items();
             var boards = projects.stream()
                     .flatMap(project -> boardsRepository.listBoards(project.id(), BoardQuery.firstPage()).items().stream())
@@ -55,8 +57,8 @@ public class BoardsFacadeService {
             return new BoardsPreviewResponse(
                     true,
                     "active-feature-gated-preview",
-                    "local-preview-backend-facade",
-                    boardsRepository.capabilities(),
+                    sourceFor(capabilities.provider()),
+                    capabilities,
                     projects,
                     boards,
                     tasks);
@@ -155,6 +157,14 @@ public class BoardsFacadeService {
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
+    }
+
+    private String sourceFor(ProviderKind provider) {
+        return switch (provider) {
+            case OPEN_PROJECT -> "openproject-read-sync-backend-facade";
+            case IN_MEMORY -> "local-preview-backend-facade";
+            default -> "provider-neutral-preview-backend-facade";
+        };
     }
 
     private ApiErrorException apiError(BoardsException exception) {

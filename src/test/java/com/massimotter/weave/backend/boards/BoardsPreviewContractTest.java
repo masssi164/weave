@@ -135,6 +135,7 @@ class BoardsPreviewContractTest {
         assertThat(contract).contains("/api/boards/preview");
         assertThat(contract).contains("/api/boards/{boardId}/tasks");
         assertThat(contract).contains("active-feature-gated-preview");
+        assertThat(contract).contains("openproject-read-sync-backend-facade");
         assertThat(contract).contains("TaskBoardEvent");
         assertThat(contract).contains("task.moved");
     }
