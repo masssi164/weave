@@ -19,7 +19,7 @@ TF_VAR_boards_preview_runtime_enabled=true
 TF_VAR_boards_preview_provider=openproject
 TF_VAR_boards_openproject_runtime_enabled=true
 TF_VAR_boards_openproject_read_sync_enabled=true
-TF_VAR_boards_openproject_context_authorization_enabled=false
+TF_VAR_boards_openproject_context_authorization_enabled=true
 TF_VAR_boards_openproject_audit_consent_enabled=false
 TF_VAR_boards_openproject_provider_writes_enabled=false
 TF_VAR_boards_openproject_auth_mode=service-token
@@ -45,6 +45,7 @@ TF_VAR_boards_preview_runtime_enabled=true
 TF_VAR_boards_preview_provider=openproject
 TF_VAR_boards_openproject_runtime_enabled=true
 TF_VAR_boards_openproject_read_sync_enabled=true
+TF_VAR_boards_openproject_context_authorization_enabled=true
 TF_VAR_boards_openproject_auth_mode=service-token
 TF_VAR_boards_openproject_base_url=http://weave-openproject
 TF_VAR_boards_openproject_api_token=replace-with-openproject-service-token
@@ -56,7 +57,7 @@ The profile exposes only a direct operator port (`TF_VAR_openproject_host_port`,
 
 Before provider writes or agent/team writes are enabled, a later backend/infra slice must prove:
 
-1. Context/Space/ReBAC authorization is active for provider references.
+1. Context/Space/ReBAC authorization stays active for provider references.
 2. audit/consent evidence exists and refusal paths fail closed.
 3. provider webhook verification, cursor/idempotency, and redaction behavior are tested.
 4. support bundles redact every provider credential and raw upstream error.

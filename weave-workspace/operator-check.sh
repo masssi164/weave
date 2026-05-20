@@ -224,6 +224,7 @@ assert_backend_boards_openproject_config() {
   [[ "${preview_provider}" == "openproject" ]] || fail "Operator check failed: OpenProject runtime requires WEAVE_BOARDS_PREVIEW_PROVIDER=openproject"
   [[ "${runtime_enabled}" == "true" ]] || fail "Operator check failed: OpenProject runtime requires WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=true"
   [[ "${read_sync_enabled}" == "true" ]] || fail "Operator check failed: OpenProject read-sync requires WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=true"
+  [[ "$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED || true)" == "true" ]] || fail "Operator check failed: OpenProject read-sync requires Context/Space authorization gate enabled"
   [[ "${auth_mode}" == "service-token" ]] || fail "Operator check failed: OpenProject read-sync requires backend-held service-token auth"
   [[ -n "${base_url}" ]] || fail "Operator check failed: OpenProject read-sync requires a backend-only base URL"
   [[ -n "${api_token}" ]] || fail "Operator check failed: OpenProject read-sync requires a backend-held API token"
