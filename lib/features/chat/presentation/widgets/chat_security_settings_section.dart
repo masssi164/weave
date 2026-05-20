@@ -65,6 +65,8 @@ class ChatSecuritySettingsSection extends ConsumerWidget {
             value: l10n.chatSecurityBoundaryCardValue,
             body: l10n.chatSecurityBoundaryCardBody,
           ),
+          const SizedBox(height: 12),
+          _RecoveryGuidanceCard(security: security),
           const SizedBox(height: 16),
           _ActionArea(state: state, l10n: l10n),
         ],
@@ -642,6 +644,86 @@ class _SasSummary extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecoveryGuidanceCard extends StatelessWidget {
+  const _RecoveryGuidanceCard({required this.security});
+
+  final ChatSecurityState security;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final items = <String>[
+      l10n.chatSecurityRecoveryGuidanceSaveRecovery,
+      l10n.chatSecurityRecoveryGuidanceVerifyDevice,
+      l10n.chatSecurityRecoveryGuidanceNewDevice,
+      l10n.chatSecurityRecoveryGuidanceLostDevice,
+      l10n.chatSecurityRecoveryGuidanceServerCannotRecover,
+    ];
+    final value = security.requiresAttention
+        ? l10n.chatSecurityRecoveryGuidanceValueActionRequired
+        : l10n.chatSecurityRecoveryGuidanceValueReady;
+    final semanticLabel = [
+      l10n.chatSecurityRecoveryGuidanceCardTitle,
+      value,
+      l10n.chatSecurityRecoveryGuidanceIntro,
+      ...items,
+    ].join('. ');
+
+    return Card(
+      child: Semantics(
+        container: true,
+        label: semanticLabel,
+        child: ExcludeSemantics(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        l10n.chatSecurityRecoveryGuidanceCardTitle,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      value,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: security.requiresAttention
+                            ? theme.colorScheme.error
+                            : theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(l10n.chatSecurityRecoveryGuidanceIntro),
+                const SizedBox(height: 8),
+                for (final item in items)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('•'),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(item)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -626,6 +626,33 @@
   "chatSecurityBoundaryCardBody": "Encrypted message contents stay on Matrix devices. Backend diagnostics may use support-safe metadata such as room ID, encryption status, device trust, and timestamps, but not decrypted message bodies. Bots and connectors stay blocked from encrypted rooms until consent, audit, device-trust, and client-identity gates are implemented.",
   "@chatSecurityBoundaryCardBody": { "description": "Matrix E2EE diagnostics card body explaining server-readable metadata and bot connector limits" },
 
+  "chatSecurityRecoveryGuidanceCardTitle": "Device recovery checklist",
+  "@chatSecurityRecoveryGuidanceCardTitle": { "description": "Matrix E2EE recovery checklist card title" },
+
+  "chatSecurityRecoveryGuidanceValueActionRequired": "Action required",
+  "@chatSecurityRecoveryGuidanceValueActionRequired": { "description": "Matrix E2EE recovery checklist status when user action is required" },
+
+  "chatSecurityRecoveryGuidanceValueReady": "Ready for device changes",
+  "@chatSecurityRecoveryGuidanceValueReady": { "description": "Matrix E2EE recovery checklist status when recovery and verification are healthy" },
+
+  "chatSecurityRecoveryGuidanceIntro": "Before relying on encrypted chat across devices:",
+  "@chatSecurityRecoveryGuidanceIntro": { "description": "Intro text for Matrix E2EE device recovery checklist" },
+
+  "chatSecurityRecoveryGuidanceSaveRecovery": "Save the recovery key or passphrase outside Weave, preferably in a password manager.",
+  "@chatSecurityRecoveryGuidanceSaveRecovery": { "description": "Matrix E2EE recovery checklist item about saving recovery material" },
+
+  "chatSecurityRecoveryGuidanceVerifyDevice": "Verify this device with another signed-in Matrix device when possible.",
+  "@chatSecurityRecoveryGuidanceVerifyDevice": { "description": "Matrix E2EE recovery checklist item about device verification" },
+
+  "chatSecurityRecoveryGuidanceNewDevice": "On a new or reinstalled device, use the recovery key first, then verify the device.",
+  "@chatSecurityRecoveryGuidanceNewDevice": { "description": "Matrix E2EE recovery checklist item about new device recovery order" },
+
+  "chatSecurityRecoveryGuidanceLostDevice": "If a device is lost, remove or distrust it from Matrix before trusting new encrypted rooms.",
+  "@chatSecurityRecoveryGuidanceLostDevice": { "description": "Matrix E2EE recovery checklist item about lost device handling" },
+
+  "chatSecurityRecoveryGuidanceServerCannotRecover": "Weave servers can report safe metadata, but cannot recover encrypted message contents for you.",
+  "@chatSecurityRecoveryGuidanceServerCannotRecover": { "description": "Matrix E2EE recovery checklist item explaining server recovery limits" },
+
   "chatSecurityStatusSignedOut": "Matrix not connected",
   "@chatSecurityStatusSignedOut": { "description": "Status label when Matrix is not connected" },
 

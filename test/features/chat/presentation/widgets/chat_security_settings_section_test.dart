@@ -60,6 +60,57 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(find.text('Device recovery checklist'), findsOneWidget);
+      expect(find.text('Ready for device changes'), findsOneWidget);
+      expect(
+        find.textContaining('cannot recover encrypted message contents'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows actionable device recovery guidance', (tester) async {
+      final repository = FakeChatSecurityRepository(
+        loadSecurityStateHandler: ({bool refresh = false}) async {
+          return const ChatSecurityState(
+            isMatrixSignedIn: true,
+            bootstrapState: ChatSecurityBootstrapState.recoveryRequired,
+            accountVerificationState:
+                ChatAccountVerificationState.verificationRequired,
+            deviceVerificationState: ChatDeviceVerificationState.unverified,
+            keyBackupState: ChatKeyBackupState.recoveryRequired,
+            roomEncryptionReadiness:
+                ChatRoomEncryptionReadiness.encryptedRoomsNeedAttention,
+            secretStorageReady: false,
+            crossSigningReady: false,
+            hasEncryptedConversations: true,
+            verificationSession: ChatVerificationSession.none(),
+          );
+        },
+      );
+
+      await tester.pumpWidget(
+        createTestApp(
+          const SingleChildScrollView(child: ChatSecuritySettingsSection()),
+          overrides: [
+            chatSecurityRepositoryProvider.overrideWithValue(repository),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Device recovery checklist'), findsOneWidget);
+      expect(find.text('Action required'), findsOneWidget);
+      expect(find.textContaining('new or reinstalled device'), findsOneWidget);
+      expect(find.textContaining('device is lost'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          RegExp(
+            'Device recovery checklist.*Action required.*Save the recovery key.*new or reinstalled device.*cannot recover encrypted message contents',
+            dotAll: true,
+          ),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('continues verification with recovery material', (

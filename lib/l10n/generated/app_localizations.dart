@@ -1307,6 +1307,60 @@ abstract class AppLocalizations {
   /// **'Encrypted message contents stay on Matrix devices. Backend diagnostics may use support-safe metadata such as room ID, encryption status, device trust, and timestamps, but not decrypted message bodies. Bots and connectors stay blocked from encrypted rooms until consent, audit, device-trust, and client-identity gates are implemented.'**
   String get chatSecurityBoundaryCardBody;
 
+  /// Matrix E2EE recovery checklist card title
+  ///
+  /// In en, this message translates to:
+  /// **'Device recovery checklist'**
+  String get chatSecurityRecoveryGuidanceCardTitle;
+
+  /// Matrix E2EE recovery checklist status when user action is required
+  ///
+  /// In en, this message translates to:
+  /// **'Action required'**
+  String get chatSecurityRecoveryGuidanceValueActionRequired;
+
+  /// Matrix E2EE recovery checklist status when recovery and verification are healthy
+  ///
+  /// In en, this message translates to:
+  /// **'Ready for device changes'**
+  String get chatSecurityRecoveryGuidanceValueReady;
+
+  /// Intro text for Matrix E2EE device recovery checklist
+  ///
+  /// In en, this message translates to:
+  /// **'Before relying on encrypted chat across devices:'**
+  String get chatSecurityRecoveryGuidanceIntro;
+
+  /// Matrix E2EE recovery checklist item about saving recovery material
+  ///
+  /// In en, this message translates to:
+  /// **'Save the recovery key or passphrase outside Weave, preferably in a password manager.'**
+  String get chatSecurityRecoveryGuidanceSaveRecovery;
+
+  /// Matrix E2EE recovery checklist item about device verification
+  ///
+  /// In en, this message translates to:
+  /// **'Verify this device with another signed-in Matrix device when possible.'**
+  String get chatSecurityRecoveryGuidanceVerifyDevice;
+
+  /// Matrix E2EE recovery checklist item about new device recovery order
+  ///
+  /// In en, this message translates to:
+  /// **'On a new or reinstalled device, use the recovery key first, then verify the device.'**
+  String get chatSecurityRecoveryGuidanceNewDevice;
+
+  /// Matrix E2EE recovery checklist item about lost device handling
+  ///
+  /// In en, this message translates to:
+  /// **'If a device is lost, remove or distrust it from Matrix before trusting new encrypted rooms.'**
+  String get chatSecurityRecoveryGuidanceLostDevice;
+
+  /// Matrix E2EE recovery checklist item explaining server recovery limits
+  ///
+  /// In en, this message translates to:
+  /// **'Weave servers can report safe metadata, but cannot recover encrypted message contents for you.'**
+  String get chatSecurityRecoveryGuidanceServerCannotRecover;
+
   /// Status label when Matrix is not connected
   ///
   /// In en, this message translates to:
