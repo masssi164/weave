@@ -32,6 +32,12 @@ The generated MAS config disables password authentication (`passwords.enabled=fa
 
 By default the MAS container is `weave-mas`. Override `WEAVE_MATRIX_MAS_CONTAINER_NAME` only if the deployment intentionally uses a different container name. If MAS is not running, the image does not provide `mas-cli`, or Synapse rejects a freshly issued compatibility token, provisioning fails before room creation with an actionable error. Matrix API calls also retry transient rate-limit/service-unavailable responses.
 
+## E2EE posture in this slice
+
+Matrix E2EE is active architecture scope but not complete. The current default workspace rooms remain unencrypted, and backend platform config must keep `features.chatE2ee=false` until encrypted-room, device-verification, and key-backup/recovery validation exists. `operator-check.sh` and `smoke-test.sh` use the private Matrix provisioner token to verify that default rooms do not carry `m.room.encryption` state. They also collect the provisioner-account key-backup response as a diagnostic only; that account state is not a global E2EE recovery-readiness claim.
+
+See `docs/matrix-e2ee-posture.md` for the promotion gates, support-safe metadata boundary, and bot/assistant/connector fail-closed policy for encrypted rooms.
+
 ## Secret handling
 
 The script stores MAS compatibility access tokens only in the private `weave-workspace/.generated/bootstrap.env` file. It does not print Matrix access tokens. `support-bundle.sh` does not include these private values and its redaction check treats token/secret/password patterns as failures.

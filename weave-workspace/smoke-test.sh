@@ -160,6 +160,13 @@ curl_auth_status_to_file() {
     "$url"
 }
 
+curl_auth_status() {
+  local token="$1"
+  local url="$2"
+
+  curl_auth_status_to_file "${token}" "${url}" /dev/null
+}
+
 curl_status() {
   local url="$1"
   local host_port
@@ -308,6 +315,30 @@ assert_backend_nextcloud_actor_config() {
     ! grep -Eq 'WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN|WEAVE_CALDAV_BACKEND_TOKEN|TF_VAR_nextcloud_backend_actor_token' "${ROOT_DIR}/.generated/app-config.env" || \
       fail "Smoke check failed: no-secret app config exposes backend Nextcloud actor secrets"
   fi
+}
+
+assert_matrix_room_unencrypted_until_e2ee_promoted() {
+  local room_name="$1"
+  local room_id="$2"
+  local status
+
+  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${matrix_base_url}/_matrix/client/v3/rooms/$(url_encode "${room_id}")/state/m.room.encryption/" || true)"
+  case "${status}" in
+    404) ;;
+    200) fail "Smoke check failed: ${room_name} has m.room.encryption while platform config reports chatE2ee=false; promote encrypted-room/device/recovery validation before claiming E2EE" ;;
+    *) fail "Smoke check failed: could not verify Matrix encryption posture for ${room_name}, HTTP ${status}" ;;
+  esac
+}
+
+check_matrix_provisioner_key_backup_diagnostic() {
+  local status
+
+  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${matrix_base_url}/_matrix/client/v3/room_keys/version" || true)"
+  case "${status}" in
+    404) ;;
+    200) log "Matrix provisioner account has key-backup state; this is diagnostic only and does not prove global E2EE recovery readiness." ;;
+    *) fail "Smoke check failed: could not verify Matrix provisioner key-backup posture, HTTP ${status}" ;;
+  esac
 }
 
 probe_authenticated_facade() {
@@ -464,5 +495,12 @@ assert_json "${help_child_state}" ".via | index(\"${matrix_homeserver}\") != nul
 
 announcements_power_levels="$(curl_auth_json "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${matrix_base_url}/_matrix/client/v3/rooms/$(url_encode "${matrix_announcements_id}")/state/m.room.power_levels/")"
 assert_json "${announcements_power_levels}" '.events_default == 50 and .users_default == 0' "announcements posting should be limited to owner/admin by default"
+
+log "Checking Matrix E2EE posture gates..."
+assert_matrix_room_unencrypted_until_e2ee_promoted "workspace space" "${matrix_space_id}"
+assert_matrix_room_unencrypted_until_e2ee_promoted "announcements" "${matrix_announcements_id}"
+assert_matrix_room_unencrypted_until_e2ee_promoted "general" "${matrix_general_id}"
+assert_matrix_room_unencrypted_until_e2ee_promoted "help" "${matrix_help_id}"
+check_matrix_provisioner_key_backup_diagnostic
 
 log "Smoke checks passed."

@@ -42,11 +42,14 @@ release_verify="${ROOT_DIR}/release-verify.sh"
 admin_doc="${REPO_DIR}/docs/admin-user-activation.md"
 caldav_doc="${REPO_DIR}/docs/calendar-caldav-external-clients.md"
 connector_doc="${REPO_DIR}/docs/connector-runtime-guardrails.md"
+matrix_workspace_doc="${REPO_DIR}/docs/matrix-default-workspace.md"
+matrix_e2ee_doc="${REPO_DIR}/docs/matrix-e2ee-posture.md"
 openproject_doc="${REPO_DIR}/docs/openproject-boards-runtime.md"
 openproject_compose="${ROOT_DIR}/docker-compose.openproject.yml"
 caddy_template="${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl"
+support_bundle="${ROOT_DIR}/support-bundle.sh"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${openproject_doc}" "${openproject_compose}" "${caddy_template}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${support_bundle}" "${caddy_template}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -66,6 +69,18 @@ assert_file_absent "${caldav_doc}" 'WEAVE_CALDAV_BACKEND_TOKEN='
 assert_file_absent "${release_env}" 'WEAVE_CALDAV_BACKEND_TOKEN='
 assert_file_contains "${install_script}" 'printf '\''export WEAVE_CHAT_E2EE=%q\n'\'' "active-architecture-gated"'
 assert_file_contains "${infra_outputs}" 'WEAVE_CHAT_E2EE                              = "active-architecture-gated"'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'features.chatE2ee == false'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'm.room.encryption'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'room_keys/version'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'features.chatE2ee == false'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'curl_auth_status()'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'm.room.encryption'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'room_keys/version'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'diagnostic only and does not prove global E2EE recovery readiness'
+assert_file_contains "${support_bundle}" 'WEAVE_CHAT_E2EE'
+assert_file_contains "${matrix_workspace_doc}" 'Matrix E2EE is active architecture scope but not complete.'
+assert_file_contains "${matrix_e2ee_doc}" 'Bot, assistant, and connector participation in encrypted rooms remains fail-closed'
+assert_file_contains "${matrix_e2ee_doc}" 'Matrix message bodies are not backend/support-readable'
 assert_file_contains "${backend_main}" 'WEAVE_WORKSPACE_CALENDAR_ENABLED=true'
 assert_file_contains "${backend_main}" 'WEAVE_WORKSPACE_CALENDAR_READINESS=ready'
 assert_file_contains "${backend_main}" 'WEAVE_WORKSPACE_BOARDS_ENABLED=true'

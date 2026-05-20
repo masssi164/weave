@@ -134,6 +134,24 @@ curl_status() {
   curl "${args[@]}" -o /dev/null -w '%{http_code}' "$url"
 }
 
+curl_auth_status() {
+  local token="$1"
+  local url="$2"
+  local host_port
+  local -a args=(--silent --show-error)
+
+  host_port="$(host_port_from_url "${url}")"
+  args+=(--resolve "${host_port}:127.0.0.1")
+
+  if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
+    args+=(--cacert "${WEAVE_TLS_CA_FILE}")
+  elif [[ -n "${TF_VAR_caddy_tls_ca_file:-}" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then
+    args+=(--cacert "${TF_VAR_caddy_tls_ca_file}")
+  fi
+
+  curl "${args[@]}" -H "Authorization: Bearer ${token}" -o /dev/null -w '%{http_code}' "$url"
+}
+
 assert_container_running() {
   local name="$1"
   local state
@@ -228,6 +246,34 @@ assert_backend_boards_openproject_config() {
   [[ "${auth_mode}" == "service-token" ]] || fail "Operator check failed: OpenProject read-sync requires backend-held service-token auth"
   [[ -n "${base_url}" ]] || fail "Operator check failed: OpenProject read-sync requires a backend-only base URL"
   [[ -n "${api_token}" ]] || fail "Operator check failed: OpenProject read-sync requires a backend-held API token"
+}
+
+assert_matrix_room_unencrypted_until_e2ee_promoted() {
+  local room_name="$1"
+  local room_id="$2"
+  local status
+
+  [[ -n "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN:-}" ]] ||     fail "Operator check failed: Matrix provisioner token is missing from private bootstrap env; cannot verify E2EE room posture"
+
+  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/rooms/$(url_encode "${room_id}")/state/m.room.encryption/" || true)"
+  case "${status}" in
+    404) ;;
+    200) fail "Operator check failed: ${room_name} has m.room.encryption while WEAVE_CHAT_E2EE is still active-architecture-gated; promote encrypted-room/device/recovery validation before claiming E2EE" ;;
+    *) fail "Operator check failed: could not verify Matrix encryption posture for ${room_name}, HTTP ${status}" ;;
+  esac
+}
+
+check_matrix_provisioner_key_backup_diagnostic() {
+  local status
+
+  [[ -n "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN:-}" ]] ||     fail "Operator check failed: Matrix provisioner token is missing from private bootstrap env; cannot verify provisioner key-backup posture"
+
+  status="$(curl_auth_status "${WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN}" "${WEAVE_MATRIX_HOMESERVER_URL}/_matrix/client/v3/room_keys/version" || true)"
+  case "${status}" in
+    404) ;;
+    200) log "Matrix provisioner account has key-backup state; this is diagnostic only and does not prove global E2EE recovery readiness." ;;
+    *) fail "Operator check failed: could not verify Matrix provisioner key-backup posture, HTTP ${status}" ;;
+  esac
 }
 
 assert_backend_nextcloud_actor_config() {
@@ -384,6 +430,9 @@ assert_json "${issuer_config}" ".issuer == \"${WEAVE_OIDC_ISSUER_URL}\"" "public
 backend_health="$(curl_json "${WEAVE_BASE_URL}/health/ready")"
 assert_json "${backend_health}" '.status == "up"' "public backend readiness should report up"
 
+platform_config="$(curl_json "${WEAVE_BASE_URL}/platform/config")"
+assert_json "${platform_config}" '.features.chatE2ee == false and .features.matrixFederation == false' "platform config should not claim Matrix E2EE or federation readiness"
+
 nextcloud_status="$(curl_json "${WEAVE_NEXTCLOUD_BASE_URL}/status.php")"
 assert_json "${nextcloud_status}" '.installed == true' "Nextcloud should be installed"
 
@@ -425,5 +474,12 @@ matrix_help_id="$(matrix_room_id_by_alias "${WEAVE_MATRIX_HOMESERVER_URL}" "${ma
 [[ "${matrix_announcements_id}" == \!* ]] || fail "Operator check failed: announcements room alias did not resolve"
 [[ "${matrix_general_id}" == \!* ]] || fail "Operator check failed: general room alias did not resolve"
 [[ "${matrix_help_id}" == \!* ]] || fail "Operator check failed: help room alias did not resolve"
+
+log "Checking Matrix E2EE posture gates..."
+assert_matrix_room_unencrypted_until_e2ee_promoted "workspace space" "${matrix_space_id}"
+assert_matrix_room_unencrypted_until_e2ee_promoted "announcements" "${matrix_announcements_id}"
+assert_matrix_room_unencrypted_until_e2ee_promoted "general" "${matrix_general_id}"
+assert_matrix_room_unencrypted_until_e2ee_promoted "help" "${matrix_help_id}"
+check_matrix_provisioner_key_backup_diagnostic
 
 log "Operator checks passed."
