@@ -75,6 +75,25 @@ curl_dav_discovery_status() {
   curl "${args[@]}"     --request PROPFIND     --header 'Depth: 0'     -o /dev/null     -w '%{http_code}'     "$url"
 }
 
+curl_basic_propfind_status() {
+  local username="$1"
+  local password="$2"
+  local url="$3"
+  local -a args=(--silent --show-error)
+
+  if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
+    args+=(--cacert "${WEAVE_TLS_CA_FILE}")
+  fi
+
+  curl "${args[@]}" \
+    --user "${username}:${password}" \
+    --request PROPFIND \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "$url"
+}
+
 assert_json() {
   local json="$1"
   local jq_filter="$2"
@@ -93,12 +112,17 @@ container_env_value() {
 
 assert_nextcloud_backend_actor_calendar() {
   local actor_username="$1"
-  local calendar_id="$2"
+  local actor_token="$2"
+  local calendar_id="$3"
+  local calendar_url
+  local status
 
-  docker exec --user www-data weave-nextcloud php occ list --format=txt 2>/dev/null | grep -q '^  dav:list-calendars' || \
-    fail "Release verify failed: Nextcloud dav:list-calendars command is unavailable; cannot verify backend-owned calendar hierarchy"
-  docker exec --user www-data weave-nextcloud php occ dav:list-calendars "${actor_username}" 2>/dev/null | grep -Fq "${calendar_id}" || \
-    fail "Release verify failed: Nextcloud backend actor calendar ${calendar_id} is not provisioned"
+  calendar_url="${WEAVE_NEXTCLOUD_BASE_URL}/remote.php/dav/calendars/${actor_username}/${calendar_id}/"
+  status="$(curl_basic_propfind_status "${actor_username}" "${actor_token}" "${calendar_url}" || true)"
+  case "${status}" in
+    200|207) ;;
+    *) fail "Release verify failed: Nextcloud backend actor calendar ${calendar_id} is not provisioned or not readable through CalDAV, HTTP ${status}" ;;
+  esac
 }
 
 assert_backend_env_present() {
@@ -111,6 +135,7 @@ assert_backend_env_present() {
 
 assert_backend_nextcloud_actor_config() {
   local actor_username
+  local actor_token
   local actor_model
   local webdav_root
   local backend_nextcloud_base_url
@@ -144,6 +169,7 @@ assert_backend_nextcloud_actor_config() {
   [[ "${actor_model}" == "backend-service-account" ]] || fail "Release verify failed: unsupported files actor model ${actor_model}"
 
   actor_username="$(container_env_value weave-backend WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME)"
+  actor_token="$(container_env_value weave-backend WEAVE_CALDAV_BACKEND_TOKEN)"
   caldav_username="$(container_env_value weave-backend WEAVE_CALDAV_BACKEND_USERNAME)"
   [[ "${actor_username}" == "${caldav_username}" ]] || fail "Release verify failed: files and calendar adapters should use the same backend-owned Nextcloud actor username"
 
@@ -183,7 +209,7 @@ assert_backend_nextcloud_actor_config() {
     fail "Release verify failed: Nextcloud backend actor user is not provisioned"
 
   for calendar_id in personal weave-team-engineering weave-channel-engineering-general; do
-    assert_nextcloud_backend_actor_calendar "${actor_username}" "${calendar_id}"
+    assert_nextcloud_backend_actor_calendar "${actor_username}" "${actor_token}" "${calendar_id}"
   done
 }
 

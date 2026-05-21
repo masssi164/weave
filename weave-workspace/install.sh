@@ -440,6 +440,43 @@ nextcloud_public_url() {
   printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_nextcloud_subdomain}")" "$(public_port_suffix)"
 }
 
+host_port_from_url() {
+  local url="$1"
+  local host_port
+
+  host_port="${url#*://}"
+  host_port="${host_port%%/*}"
+  if [[ "${host_port}" != *:* ]]; then
+    case "${url%%://*}" in
+      https) host_port="${host_port}:443" ;;
+      http) host_port="${host_port}:80" ;;
+    esac
+  fi
+
+  printf '%s\n' "${host_port}"
+}
+
+curl_nextcloud_actor_calendar_status() {
+  local method="$1"
+  local url="$2"
+  local host_port
+  local -a args=(--silent --show-error)
+
+  host_port="$(host_port_from_url "${url}")"
+  args+=(--resolve "${host_port}:127.0.0.1")
+  if [[ "${TF_VAR_public_scheme}" == "https" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then
+    args+=(--cacert "${TF_VAR_caddy_tls_ca_file}")
+  fi
+
+  curl "${args[@]}" \
+    --user "${TF_VAR_nextcloud_backend_actor_username}:${TF_VAR_nextcloud_backend_actor_token}" \
+    --request "${method}" \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "${url}"
+}
+
 create_test_user_enabled() {
   case "${TF_VAR_create_test_user:-false}" in
     true | TRUE | True | 1)
@@ -945,23 +982,40 @@ create_nextcloud_backend_actor() {
 
 ensure_nextcloud_backend_actor_calendar() {
   local calendar_id
+  local calendar_url
+  local create_status
+  local read_status
   local -a calendar_ids=(
     personal
     weave-team-engineering
     weave-channel-engineering-general
   )
 
-  if ! occ list --format=txt | grep -q '^  dav:create-calendar'; then
-    log "Nextcloud dav:create-calendar command is unavailable; backend actor calendar pre-creation skipped."
-    return
-  fi
-
   for calendar_id in "${calendar_ids[@]}"; do
-    if occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" >/dev/null 2>&1; then
+    if occ list --format=txt | grep -q '^  dav:create-calendar' && \
+      occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" >/dev/null 2>&1; then
       continue
     fi
 
-    log "Nextcloud backend actor calendar ${calendar_id} already exists or could not be pre-created; continuing with idempotent setup."
+    calendar_url="$(nextcloud_public_url)/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/${calendar_id}/"
+    read_status="$(curl_nextcloud_actor_calendar_status PROPFIND "${calendar_url}" || true)"
+    case "${read_status}" in
+      200 | 207) continue ;;
+      404) ;;
+      *) fail "Nextcloud backend actor calendar ${calendar_id} is not readable before creation, HTTP ${read_status}" ;;
+    esac
+
+    create_status="$(curl_nextcloud_actor_calendar_status MKCALENDAR "${calendar_url}" || true)"
+    case "${create_status}" in
+      200 | 201 | 204) ;;
+      *) fail "Nextcloud backend actor calendar ${calendar_id} could not be created through CalDAV, HTTP ${create_status}" ;;
+    esac
+
+    read_status="$(curl_nextcloud_actor_calendar_status PROPFIND "${calendar_url}" || true)"
+    case "${read_status}" in
+      200 | 207) ;;
+      *) fail "Nextcloud backend actor calendar ${calendar_id} is not readable after creation, HTTP ${read_status}" ;;
+    esac
   done
 }
 

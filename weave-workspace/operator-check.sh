@@ -134,6 +134,25 @@ curl_status() {
   curl "${args[@]}" -o /dev/null -w '%{http_code}' "$url"
 }
 
+curl_basic_propfind_status() {
+  local username="$1"
+  local password="$2"
+  local url="$3"
+  local -a args=()
+
+  while IFS= read -r -d '' arg; do
+    args+=("${arg}")
+  done < <(curl_common_args "${url}")
+
+  curl "${args[@]}" \
+    --user "${username}:${password}" \
+    --request PROPFIND \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "$url"
+}
+
 curl_auth_status() {
   local token="$1"
   local url="$2"
@@ -195,12 +214,17 @@ container_env_count() {
 
 assert_nextcloud_backend_actor_calendar() {
   local actor_username="$1"
-  local calendar_id="$2"
+  local actor_token="$2"
+  local calendar_id="$3"
+  local calendar_url
+  local status
 
-  docker exec --user www-data weave-nextcloud php occ list --format=txt 2>/dev/null | grep -q '^  dav:list-calendars' || \
-    fail "Operator check failed: Nextcloud dav:list-calendars command is unavailable; cannot verify backend-owned calendar hierarchy"
-  docker exec --user www-data weave-nextcloud php occ dav:list-calendars "${actor_username}" 2>/dev/null | grep -Fq "${calendar_id}" || \
-    fail "Operator check failed: Nextcloud backend actor calendar ${calendar_id} is not provisioned"
+  calendar_url="$(public_url "${TF_VAR_nextcloud_subdomain:-files}")/remote.php/dav/calendars/${actor_username}/${calendar_id}/"
+  status="$(curl_basic_propfind_status "${actor_username}" "${actor_token}" "${calendar_url}" || true)"
+  case "${status}" in
+    200|207) ;;
+    *) fail "Operator check failed: Nextcloud backend actor calendar ${calendar_id} is not provisioned or not readable through CalDAV, HTTP ${status}" ;;
+  esac
 }
 
 assert_backend_env_present() {
@@ -278,6 +302,7 @@ check_matrix_provisioner_key_backup_diagnostic() {
 
 assert_backend_nextcloud_actor_config() {
   local actor_username
+  local actor_token
   local actor_model
   local webdav_root
   local backend_nextcloud_base_url
@@ -311,6 +336,7 @@ assert_backend_nextcloud_actor_config() {
   [[ "${actor_model}" == "backend-service-account" ]] || fail "Operator check failed: unsupported files actor model ${actor_model}"
 
   actor_username="$(container_env_value weave-backend WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME)"
+  actor_token="$(container_env_value weave-backend WEAVE_CALDAV_BACKEND_TOKEN)"
   caldav_username="$(container_env_value weave-backend WEAVE_CALDAV_BACKEND_USERNAME)"
   [[ "${actor_username}" == "${caldav_username}" ]] || fail "Operator check failed: files and calendar adapters should use the same backend-owned Nextcloud actor username"
 
@@ -350,7 +376,7 @@ assert_backend_nextcloud_actor_config() {
     fail "Operator check failed: Nextcloud backend actor user is not provisioned"
 
   for calendar_id in personal weave-team-engineering weave-channel-engineering-general; do
-    assert_nextcloud_backend_actor_calendar "${actor_username}" "${calendar_id}"
+    assert_nextcloud_backend_actor_calendar "${actor_username}" "${actor_token}" "${calendar_id}"
   done
 
   if [[ -f "${APP_CONFIG_ENV_FILE}" ]]; then
