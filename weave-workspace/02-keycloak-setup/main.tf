@@ -42,14 +42,15 @@ locals {
 module "tenant_identity" {
   source = "./modules/tenant-identity"
 
-  tenant_slug              = var.tenant_slug
-  keycloak_public_url      = local.public_urls.auth
-  mas_public_url           = local.public_urls.matrix
-  nextcloud_public_url     = local.public_urls.files
-  matrix_mas_upstream_id   = local.matrix_mas_upstream_id
-  matrix_mas_client_secret = var.matrix_mas_client_secret
-  create_test_user         = var.create_test_user
-  test_user_password       = var.test_user_password
+  tenant_slug                             = var.tenant_slug
+  keycloak_public_url                     = local.public_urls.auth
+  mas_public_url                          = local.public_urls.matrix
+  nextcloud_public_url                    = local.public_urls.files
+  matrix_mas_upstream_id                  = local.matrix_mas_upstream_id
+  matrix_mas_client_secret                = var.matrix_mas_client_secret
+  create_test_user                        = var.create_test_user
+  test_user_password                      = var.test_user_password
+  context_authorization_default_tenant_id = var.context_authorization_default_tenant_id
 }
 
 moved {

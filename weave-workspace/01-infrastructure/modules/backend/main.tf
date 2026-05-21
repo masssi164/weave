@@ -18,7 +18,7 @@ resource "docker_container" "this" {
   depends_on = [
     docker_image.this,
   ]
-  env = [
+  env = concat([
     "WEAVE_OIDC_ISSUER_URI=${var.oidc_issuer_uri}",
     "WEAVE_OIDC_JWK_SET_URI=${var.oidc_jwk_set_uri}",
     "WEAVE_OIDC_REQUIRED_AUDIENCE=${var.oidc_required_audience}",
@@ -64,7 +64,18 @@ resource "docker_container" "this" {
     "WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=${var.boards_openproject_auth_mode}",
     "WEAVE_BOARDS_OPENPROJECT_BASE_URL=${var.boards_openproject_base_url}",
     "WEAVE_BOARDS_OPENPROJECT_API_TOKEN=${var.boards_openproject_api_token}",
-  ]
+    "WEAVE_CONTEXT_AUTHORIZATION_TENANT_CLAIM=${var.context_authorization_tenant_claim}",
+    "WEAVE_CONTEXT_AUTHORIZATION_TENANT_FALLBACK_CLAIM=${var.context_authorization_tenant_fallback_claim}",
+    "WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID=${var.context_authorization_default_tenant_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=${var.context_authorization_principal_claim}",
+    "WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_REF_PREFIX=${var.context_authorization_principal_ref_prefix}",
+    ], var.context_authorization_bootstrap_enabled ? [
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_TENANT_ID=${var.context_authorization_default_tenant_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_CONTEXT_ID=${var.context_authorization_bootstrap_context_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=${var.context_authorization_bootstrap_principal_ref}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=${var.context_authorization_bootstrap_role}",
+    "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=local-dev-bootstrap",
+  ] : [])
 
   ports {
     internal = var.container_port

@@ -140,6 +140,52 @@ variable "caldav_external_private_user_calendars" {
   type        = string
 }
 
+
+variable "context_authorization_tenant_claim" {
+  description = "JWT claim used to derive the tenant for Context/Space authorization. Defaults to weave_tenant_id."
+  type        = string
+}
+
+variable "context_authorization_tenant_fallback_claim" {
+  description = "Fallback JWT tenant claim used for Context/Space authorization when the primary tenant claim is absent."
+  type        = string
+}
+
+variable "context_authorization_default_tenant_id" {
+  description = "Tenant used for non-JWT local/dev Context/Space authorization. JWT tokens must carry the primary or fallback tenant claim."
+  type        = string
+}
+
+variable "context_authorization_principal_claim" {
+  description = "JWT claim used to derive the principal reference for Context/Space authorization. Production should prefer sub; local live E2E may use preferred_username with deterministic seeded users."
+  type        = string
+}
+
+variable "context_authorization_principal_ref_prefix" {
+  description = "Prefix prepended to principal claim values before Context/Space authorization checks."
+  type        = string
+}
+
+variable "context_authorization_bootstrap_enabled" {
+  description = "Enable deterministic local/dev Context/Space bootstrap membership. Keep false unless the stack intentionally seeds the matching identity."
+  type        = bool
+}
+
+variable "context_authorization_bootstrap_context_id" {
+  description = "Context ID granted to the bootstrap principal for local/dev live E2E."
+  type        = string
+}
+
+variable "context_authorization_bootstrap_principal_ref" {
+  description = "Principal reference granted local/dev Context/Space membership."
+  type        = string
+}
+
+variable "context_authorization_bootstrap_role" {
+  description = "Context role granted to the bootstrap principal."
+  type        = string
+}
+
 variable "interop_enabled" {
   description = "Enable backend interop gateway runtime. Defaults false for connector preview guardrails."
   type        = bool

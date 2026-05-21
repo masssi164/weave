@@ -41,3 +41,9 @@ variable "test_user_password" {
   sensitive   = true
   default     = ""
 }
+
+variable "context_authorization_default_tenant_id" {
+  description = "Deterministic local/dev tenant ID exposed as weave_tenant_id for integration-test users."
+  type        = string
+  default     = "tenant-default"
+}

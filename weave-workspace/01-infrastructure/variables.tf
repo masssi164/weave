@@ -252,6 +252,65 @@ variable "boards_openproject_api_token" {
   sensitive   = true
 }
 
+variable "context_authorization_tenant_claim" {
+  description = "JWT claim used to derive the tenant for Context/Space authorization."
+  type        = string
+  default     = "weave_tenant_id"
+}
+
+variable "context_authorization_tenant_fallback_claim" {
+  description = "Fallback JWT claim used to derive the tenant for Context/Space authorization when the primary claim is absent."
+  type        = string
+  default     = "tenant_id"
+}
+
+variable "context_authorization_default_tenant_id" {
+  description = "Default local/dev tenant for non-JWT Context/Space authorization. JWT tokens must carry the primary or fallback tenant claim."
+  type        = string
+  default     = "tenant-default"
+}
+
+variable "context_authorization_principal_claim" {
+  description = "JWT claim used for Context/Space principal references. Use sub by default; local live E2E may use preferred_username with deterministic seeded users."
+  type        = string
+  default     = "sub"
+}
+
+variable "context_authorization_principal_ref_prefix" {
+  description = "Prefix prepended to Context/Space principal claim values."
+  type        = string
+  default     = "user:"
+}
+
+variable "context_authorization_bootstrap_enabled" {
+  description = "Seed a deterministic local/dev Context/Space membership for live E2E. Defaults false and must be explicitly enabled by install.sh when TF_VAR_create_test_user=true."
+  type        = bool
+  default     = false
+}
+
+variable "context_authorization_bootstrap_context_id" {
+  description = "Context ID granted to the bootstrap principal."
+  type        = string
+  default     = "workspace-default"
+}
+
+variable "context_authorization_bootstrap_principal_ref" {
+  description = "Principal reference granted local/dev Context/Space membership."
+  type        = string
+  default     = "user:test"
+}
+
+variable "context_authorization_bootstrap_role" {
+  description = "Context role granted to the bootstrap principal."
+  type        = string
+  default     = "MEMBER"
+
+  validation {
+    condition     = contains(["OWNER", "ADMIN", "MEMBER", "GUEST", "VIEWER"], var.context_authorization_bootstrap_role)
+    error_message = "context_authorization_bootstrap_role must be one of OWNER, ADMIN, MEMBER, GUEST, or VIEWER."
+  }
+}
+
 variable "openproject_image" {
   description = "Optional self-hosted OpenProject image for the off-by-default local/demo compose profile."
   type        = string

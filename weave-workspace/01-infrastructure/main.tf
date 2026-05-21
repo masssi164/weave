@@ -384,6 +384,15 @@ module "backend" {
   caldav_external_credential_mode                  = "nextcloud-login-flow-app-password"
   caldav_external_profile_password_mode            = "omit"
   caldav_external_private_user_calendars           = "disabled"
+  context_authorization_tenant_claim               = var.context_authorization_tenant_claim
+  context_authorization_tenant_fallback_claim      = var.context_authorization_tenant_fallback_claim
+  context_authorization_default_tenant_id          = var.context_authorization_default_tenant_id
+  context_authorization_principal_claim            = var.context_authorization_principal_claim
+  context_authorization_principal_ref_prefix       = var.context_authorization_principal_ref_prefix
+  context_authorization_bootstrap_enabled          = var.context_authorization_bootstrap_enabled
+  context_authorization_bootstrap_context_id       = var.context_authorization_bootstrap_context_id
+  context_authorization_bootstrap_principal_ref    = var.context_authorization_bootstrap_principal_ref
+  context_authorization_bootstrap_role             = var.context_authorization_bootstrap_role
   interop_enabled                                  = false
   interop_slack_enabled                            = false
   interop_teams_enabled                            = false

@@ -125,6 +125,10 @@ resource "keycloak_user" "test" {
   last_name      = local.test_user.last_name
   email_verified = true
 
+  attributes = {
+    weave_tenant_id = var.context_authorization_default_tenant_id
+  }
+
   initial_password {
     value     = local.test_user.password
     temporary = false
@@ -198,6 +202,18 @@ resource "keycloak_openid_client_scope" "weave_workspace" {
   name                   = "weave:workspace"
   description            = "Grants Weave mobile clients access to workspace APIs."
   include_in_token_scope = true
+}
+
+resource "keycloak_openid_user_attribute_protocol_mapper" "weave_tenant_id" {
+  realm_id            = keycloak_realm.tenant.id
+  client_scope_id     = keycloak_openid_client_scope.weave_workspace.id
+  name                = "weave-tenant-id"
+  user_attribute      = "weave_tenant_id"
+  claim_name          = "weave_tenant_id"
+  claim_value_type    = "String"
+  add_to_id_token     = false
+  add_to_access_token = true
+  add_to_userinfo     = true
 }
 
 resource "keycloak_openid_audience_protocol_mapper" "weave_backend_audience" {

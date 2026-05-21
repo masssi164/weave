@@ -51,6 +51,15 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_boards_openproject_auth_mode
   TF_VAR_boards_openproject_base_url
   TF_VAR_boards_openproject_api_token
+  TF_VAR_context_authorization_tenant_claim
+  TF_VAR_context_authorization_tenant_fallback_claim
+  TF_VAR_context_authorization_default_tenant_id
+  TF_VAR_context_authorization_principal_claim
+  TF_VAR_context_authorization_principal_ref_prefix
+  TF_VAR_context_authorization_bootstrap_enabled
+  TF_VAR_context_authorization_bootstrap_context_id
+  TF_VAR_context_authorization_bootstrap_principal_ref
+  TF_VAR_context_authorization_bootstrap_role
   TF_VAR_openproject_image
   TF_VAR_openproject_host_port
   TF_VAR_openproject_secret_key_base
@@ -238,6 +247,18 @@ persist_bootstrap_env() {
     printf 'export WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=%q\n' "${TF_VAR_boards_openproject_provider_writes_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=%q\n' "${TF_VAR_boards_openproject_auth_mode}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_BASE_URL=%q\n' "${TF_VAR_boards_openproject_base_url}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_TENANT_CLAIM=%q\n' "${TF_VAR_context_authorization_tenant_claim}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_TENANT_FALLBACK_CLAIM=%q\n' "${TF_VAR_context_authorization_tenant_fallback_claim}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=%q\n' "${TF_VAR_context_authorization_principal_claim}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_REF_PREFIX=%q\n' "${TF_VAR_context_authorization_principal_ref_prefix}"
+    if [[ "${TF_VAR_context_authorization_bootstrap_enabled}" == "true" ]]; then
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_CONTEXT_ID=%q\n' "${TF_VAR_context_authorization_bootstrap_context_id}"
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_bootstrap_principal_ref}"
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=%q\n' "local-dev-bootstrap"
+    fi
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")$(public_port_suffix)"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' "weave-app"
@@ -695,6 +716,14 @@ ensure_default_inputs() {
     "TF_VAR_boards_openproject_provider_writes_enabled=false"
     "TF_VAR_boards_openproject_auth_mode=disabled"
     "TF_VAR_boards_openproject_base_url="
+    "TF_VAR_context_authorization_tenant_claim=weave_tenant_id"
+    "TF_VAR_context_authorization_tenant_fallback_claim=tenant_id"
+    "TF_VAR_context_authorization_default_tenant_id=tenant-default"
+    "TF_VAR_context_authorization_principal_claim=preferred_username"
+    "TF_VAR_context_authorization_principal_ref_prefix=user:"
+    "TF_VAR_context_authorization_bootstrap_context_id=workspace-default"
+    "TF_VAR_context_authorization_bootstrap_principal_ref=user:test"
+    "TF_VAR_context_authorization_bootstrap_role=MEMBER"
     "TF_VAR_openproject_image=openproject/openproject:15"
     "TF_VAR_openproject_host_port=48086"
     "TF_VAR_synapse_uid=991"
@@ -714,6 +743,12 @@ ensure_default_inputs() {
   for entry in "${defaults[@]}"; do
     set_default_var "${entry%%=*}" "${entry#*=}"
   done
+
+  if create_test_user_enabled; then
+    set_default_var TF_VAR_context_authorization_bootstrap_enabled true
+  else
+    set_default_var TF_VAR_context_authorization_bootstrap_enabled false
+  fi
 
   set_default_var TF_VAR_caddy_tls_cert_file "${INFRA_DIR}/.generated/caddy/certs/weave.local.pem"
   set_default_var TF_VAR_caddy_tls_key_file "${INFRA_DIR}/.generated/caddy/certs/weave.local-key.pem"
