@@ -40,8 +40,34 @@ resource "terraform_data" "synapse_volume_permissions" {
     command = <<-EOT
       set -euo pipefail
 
-      docker run --rm -u 0:0 -v "$${SYNAPSE_VOLUME}:/data" --entrypoint /bin/sh "${var.synapse_image_name}" -c \
-        "install -d -m 0750 -o $${SYNAPSE_UID} -g $${SYNAPSE_GID} /data /data/media_store && rm -f \"$${SYNAPSE_SIGNING_KEY}\" && chown -R $${SYNAPSE_UID}:$${SYNAPSE_GID} /data"
+      docker run --rm -u 0:0 \
+        -e SYNAPSE_UID="$${SYNAPSE_UID}" \
+        -e SYNAPSE_GID="$${SYNAPSE_GID}" \
+        -e SYNAPSE_SIGNING_KEY="$${SYNAPSE_SIGNING_KEY}" \
+        -v "$${SYNAPSE_VOLUME}:/data" \
+        --entrypoint /bin/sh \
+        "${var.synapse_image_name}" \
+        -c 'set -eu
+            install -d -m 0750 -o "$${SYNAPSE_UID}" -g "$${SYNAPSE_GID}" /data /data/media_store
+            chown -R "$${SYNAPSE_UID}:$${SYNAPSE_GID}" /data
+            chmod 0750 /data /data/media_store
+            if [ -e "$${SYNAPSE_SIGNING_KEY}" ]; then
+              chown "$${SYNAPSE_UID}:$${SYNAPSE_GID}" "$${SYNAPSE_SIGNING_KEY}"
+              chmod 0600 "$${SYNAPSE_SIGNING_KEY}"
+            fi'
+
+      docker run --rm -u "$${SYNAPSE_UID}:$${SYNAPSE_GID}" \
+        -e SYNAPSE_SIGNING_KEY_CHECK="$${SYNAPSE_SIGNING_KEY}.weave-writable-check" \
+        -v "$${SYNAPSE_VOLUME}:/data" \
+        --entrypoint /bin/sh \
+        "${var.synapse_image_name}" \
+        -c 'set -eu
+            test -d /data
+            test -w /data
+            test -d /data/media_store
+            test -w /data/media_store
+            : > "$${SYNAPSE_SIGNING_KEY_CHECK}"
+            rm -f "$${SYNAPSE_SIGNING_KEY_CHECK}"'
     EOT
   }
 

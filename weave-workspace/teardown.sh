@@ -9,6 +9,7 @@ readonly INFRA_DIR="${ROOT_DIR}/01-infrastructure"
 readonly KEYCLOAK_DIR="${ROOT_DIR}/02-keycloak-setup"
 readonly BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
 readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/bootstrap.env"
+readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly WEAVE_CONTAINERS=(
   weave-proxy
   weave-keycloak
@@ -91,6 +92,18 @@ remove_volume() {
     log "Removing volume ${name}"
     docker volume rm -f "${name}" >/dev/null 2>&1 || true
   fi
+}
+
+forget_synapse_volume_terraform_state() {
+  if dry_run_enabled; then
+    log "DRY RUN: would remove stale Terraform state for weave_synapse_data and its permission provisioner"
+    return
+  fi
+
+  # shellcheck disable=SC1090
+  source "${SYNAPSE_VOLUME_HELPER}"
+  synapse_terraform_state_rm_if_present module.matrix.terraform_data.synapse_volume_permissions
+  synapse_terraform_state_rm_if_present module.matrix.docker_volume.synapse_data
 }
 
 remove_network() {
@@ -239,6 +252,7 @@ main() {
     for volume in "${WEAVE_VOLUMES[@]}"; do
       remove_volume "${volume}"
     done
+    forget_synapse_volume_terraform_state
   fi
 }
 

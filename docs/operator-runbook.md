@@ -164,6 +164,8 @@ The destructive path prints the backup guidance, affected data domains, and exac
 
 The old `WEAVE_CONFIRM_REMOVE_VOLUMES=weave-delete-local-data` token is deliberately rejected so operators type the tenant/workspace slug instead of copying a generic phrase.
 
+When destructive volume cleanup removes `weave_synapse_data`, the helper also forgets the matching Terraform Synapse volume and permission-provisioner state. The next `install.sh` run must recreate the Weave-local volume through Terraform and rerun the ownership/writability guard instead of trusting stale state or a Docker-created root-owned volume.
+
 ## 8. Minimum observability and triage
 
 Useful commands:
@@ -178,6 +180,8 @@ docker logs --tail=100 weave-nextcloud
 bash weave-workspace/operator-check.sh
 bash weave-workspace/release-verify.sh
 ```
+
+`operator-check.sh` starts by diagnosing the Weave-local `weave_synapse_data` volume for `weave-synapse`: expected owner `991:991`, mode `0750` on `/data` and `/data/media_store`, and write access for the Matrix signing-key path. This check is intentionally scoped to `weave-synapse` and must not be used as evidence about any separate `homelab-synapse` service.
 
 For support requests, prefer a redacted support bundle over hand-copying raw logs:
 

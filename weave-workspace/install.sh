@@ -12,6 +12,7 @@ readonly BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
 readonly APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
 readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/bootstrap.env"
 readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
+readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly LOOPBACK_HOST="127.0.0.1"
 readonly TEST_USER_EMAIL="test@weave.local"
 readonly PERSISTED_TF_VARS=(
@@ -1103,10 +1104,15 @@ main() {
   ensure_generated_secrets
   ensure_local_tls_certificates
   persist_bootstrap_env
+  # shellcheck disable=SC1090
+  source "${SYNAPSE_VOLUME_HELPER}"
   ensure_terraform_network_state
+  synapse_reconcile_terraform_state
 
   log "Applying infrastructure module..."
   terraform_apply "${INFRA_DIR}"
+  synapse_repair_volume_permissions
+  synapse_verify_volume_writable
   ensure_postgres_bootstrap_applied
   refresh_backend_container_if_image_changed
 

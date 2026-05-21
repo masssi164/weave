@@ -6,6 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
 APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
+SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 
 log() {
   printf '%s\n' "$*"
@@ -422,12 +423,16 @@ require_command curl
 require_command docker
 require_command jq
 load_bootstrap_env
+# shellcheck disable=SC1090
+source "${SYNAPSE_VOLUME_HELPER}"
 
 : "${WEAVE_BASE_URL:=$(api_public_url)/api}"
 : "${WEAVE_PUBLIC_BASE_URL:=$(product_public_url)}"
 : "${WEAVE_OIDC_ISSUER_URL:=$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:=$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
 : "${WEAVE_MATRIX_HOMESERVER_URL:=$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
+
+synapse_operator_diagnose_volume
 
 log "Checking core containers..."
 for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
