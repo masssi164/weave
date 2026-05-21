@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
@@ -340,7 +341,7 @@ class CalendarFacadeServiceTest {
                 });
         assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
         assertThat(captured.get().contextId()).isEqualTo("team-engineering");
-        assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
+        assertThat(captured.get().principalRef()).isEqualTo("user:massimo");
         assertThat(captured.get().permission()).isEqualTo(ContextPermission.EDIT);
     }
 
@@ -351,7 +352,23 @@ class CalendarFacadeServiceTest {
     private CalendarFacadeService service(CalendarAdapter adapter, ContextAuthorizationPort contextAuthorizationPort) {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("calendarAdapter", adapter);
-        return new CalendarFacadeService(beanFactory.getBeanProvider(CalendarAdapter.class), contextAuthorizationPort);
+        return new CalendarFacadeService(
+                beanFactory.getBeanProvider(CalendarAdapter.class),
+                "https://files.weave.local",
+                contextAuthorizationPort,
+                contextAuthorizationProperties());
+    }
+
+    private ContextAuthorizationProperties contextAuthorizationProperties() {
+        return new ContextAuthorizationProperties(
+                "weave_tenant_id",
+                "tenant_id",
+                "tenant-default",
+                "preferred_username",
+                "user:",
+                List.of(),
+                List.of(),
+                List.of());
     }
 
     private Jwt jwt() {
@@ -359,6 +376,7 @@ class CalendarFacadeServiceTest {
                 .header("alg", "none")
                 .subject("user-123")
                 .claim("preferred_username", "massimo")
+                .claim("weave_tenant_id", "tenant-default")
                 .build();
     }
 

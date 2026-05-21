@@ -192,6 +192,8 @@ class PlatformProductContractControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("preferred_username", "test")
+                        .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }

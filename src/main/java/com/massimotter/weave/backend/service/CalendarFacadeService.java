@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
@@ -47,28 +48,33 @@ import org.springframework.web.util.UriComponentsBuilder;
 @Service
 public class CalendarFacadeService {
 
-    private static final String DEFAULT_TENANT_ID = "tenant-default";
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
 
     private final ObjectProvider<CalendarAdapter> calendarAdapterProvider;
     private final String nextcloudBaseUrl;
     private final ContextAuthorizationPort contextAuthorizationPort;
+    private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final AppleMobileConfigProfileRenderer appleProfileRenderer;
     private final Map<String, CalendarSetupCredentialResponse> setupCredentials = new ConcurrentHashMap<>();
 
     public CalendarFacadeService(
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
             ContextAuthorizationPort contextAuthorizationPort) {
-        this(calendarAdapterProvider, "https://files.weave.local", contextAuthorizationPort);
+        this(calendarAdapterProvider, "https://files.weave.local", contextAuthorizationPort,
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null));
     }
 
     @Autowired
     public CalendarFacadeService(
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
             @Value("${weave.platform.nextcloud-base-url:https://files.weave.local}") String nextcloudBaseUrl,
-            ContextAuthorizationPort contextAuthorizationPort) {
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties) {
         this.calendarAdapterProvider = calendarAdapterProvider;
         this.contextAuthorizationPort = contextAuthorizationPort;
+        this.contextAuthorizationProperties = contextAuthorizationProperties == null
+                ? new ContextAuthorizationProperties(null, null, null, null, null, null, null, null)
+                : contextAuthorizationProperties;
         this.nextcloudBaseUrl = nextcloudBaseUrl == null || nextcloudBaseUrl.isBlank()
                 ? "https://files.weave.local"
                 : nextcloudBaseUrl.trim();
@@ -541,23 +547,52 @@ public class CalendarFacadeService {
 
     private PrincipalContext principalContext(Authentication authentication) {
         if (authentication.getPrincipal() instanceof Jwt jwt) {
-            return new PrincipalContext(
-                    claimOrDefault(jwt, "weave_tenant_id", "tenant_id", DEFAULT_TENANT_ID),
-                    "user:" + jwt.getSubject());
+            return new PrincipalContext(jwtTenantId(jwt), jwtPrincipalRef(jwt));
         }
-        return new PrincipalContext(DEFAULT_TENANT_ID, "user:" + authentication.getName());
+        String principalRef = contextAuthorizationProperties.principalRef(authentication.getName());
+        if (principalRef == null) {
+            throw invalidAuthentication("principal claim is missing");
+        }
+        return new PrincipalContext(contextAuthorizationProperties.defaultTenantId(), principalRef);
     }
 
-    private String claimOrDefault(Jwt jwt, String primaryClaim, String fallbackClaim, String defaultValue) {
-        String primary = jwt.getClaimAsString(primaryClaim);
-        if (primary != null && !primary.isBlank()) {
-            return primary;
+    private String jwtTenantId(Jwt jwt) {
+        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
+        if (tenantId == null) {
+            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
         }
-        String fallback = jwt.getClaimAsString(fallbackClaim);
-        if (fallback != null && !fallback.isBlank()) {
-            return fallback;
+        if (tenantId == null) {
+            throw invalidAuthentication("tenant claim is missing");
         }
-        return defaultValue;
+        return tenantId;
+    }
+
+    private String jwtPrincipalRef(Jwt jwt) {
+        String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
+        if (configuredClaim != null) {
+            return contextAuthorizationProperties.principalRef(configuredClaim);
+        }
+        String principalRef = contextAuthorizationProperties.principalRef(jwt.getSubject());
+        if (principalRef == null) {
+            throw invalidAuthentication("principal claim is missing");
+        }
+        return principalRef;
+    }
+
+    private String jwtClaim(Jwt jwt, String claimName) {
+        String value = jwt.getClaimAsString(claimName);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private ApiErrorException invalidAuthentication(String reason) {
+        return new ApiErrorException(
+                HttpStatus.UNAUTHORIZED,
+                "unauthorized",
+                "Authentication is required.",
+                Map.of("module", "calendar", "reason", reason));
     }
 
     private String contextId(CalendarScopeResponse scope) {
