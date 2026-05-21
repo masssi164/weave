@@ -42,13 +42,17 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
   _FakeAuthSessionRepository(this.state);
 
   AuthState state;
+  AuthState? refreshedState;
+  int refreshCalls = 0;
 
   @override
   Future<void> clearLocalSession() async {}
 
   @override
-  Future<AuthState> refreshSession(AuthConfiguration configuration) async =>
-      state;
+  Future<AuthState> refreshSession(AuthConfiguration configuration) async {
+    refreshCalls++;
+    return refreshedState ?? state;
+  }
 
   @override
   Future<AuthState> restoreSession(AuthConfiguration configuration) async =>
@@ -304,6 +308,35 @@ void main() {
                 ),
           ),
         );
+      },
+    );
+
+    test(
+      'refreshes the Weave session once after a backend 401 and retries',
+      () async {
+        authSessionRepository.refreshedState = AuthState.authenticated(
+          buildTestAuthSession(accessToken: 'fresh-files-token'),
+        );
+        final authorizationHeaders = <String?>[];
+        final client = MockClient((request) async {
+          authorizationHeaders.add(request.headers['authorization']);
+          if (authorizationHeaders.length == 1) {
+            return http.Response(
+              jsonEncode({'message': 'Authentication is required.'}),
+              401,
+            );
+          }
+          return http.Response(jsonEncode({'path': '/', 'items': []}), 200);
+        });
+
+        final listing = await repository(client).listDirectory('/');
+
+        expect(listing.entries, isEmpty);
+        expect(authSessionRepository.refreshCalls, 1);
+        expect(authorizationHeaders, [
+          'Bearer files-token',
+          'Bearer fresh-files-token',
+        ]);
       },
     );
 

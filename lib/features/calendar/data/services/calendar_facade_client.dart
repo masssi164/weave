@@ -27,10 +27,11 @@ class CalendarFacadeClient {
 
   Future<CalendarScopeList> listScopes() async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.get(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.get(
         _apiUri(context.baseUrl, const ['api', 'calendar', 'scopes']),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
       ),
       fallbackMessage: 'Unable to load calendar scopes from the Weave backend.',
     );
@@ -66,14 +67,15 @@ class CalendarFacadeClient {
       if (selectedScope?.channelId case final channelId?)
         'channelId': channelId,
     };
-    final response = await _send(
-      () => _httpClient.get(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.get(
         _apiUri(context.baseUrl, const [
           'api',
           'calendar',
           'events',
         ], query: query.isEmpty ? null : query),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
       ),
       fallbackMessage: 'Unable to load calendar events from the Weave backend.',
     );
@@ -95,10 +97,11 @@ class CalendarFacadeClient {
 
   Future<CalendarClientSetup> clientSetup() async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.get(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.get(
         _apiUri(context.baseUrl, const ['api', 'calendar', 'client-setup']),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
       ),
       fallbackMessage:
           'Unable to load calendar setup metadata from the Weave backend.',
@@ -138,10 +141,11 @@ class CalendarFacadeClient {
 
   Future<CalendarEvent> readEvent(String id) async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.get(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.get(
         _apiUri(context.baseUrl, ['api', 'calendar', 'events', id]),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
       ),
       fallbackMessage: 'Unable to read the calendar event.',
     );
@@ -151,10 +155,11 @@ class CalendarFacadeClient {
 
   Future<CalendarEvent> createEvent(CalendarEventDraft draft) async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.post(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.post(
         _apiUri(context.baseUrl, const ['api', 'calendar', 'events']),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
         body: jsonEncode(draft.toJson()),
       ),
       fallbackMessage: 'Unable to create the calendar event.',
@@ -168,10 +173,11 @@ class CalendarFacadeClient {
     required CalendarEventPatch patch,
   }) async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.patch(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.patch(
         _apiUri(context.baseUrl, ['api', 'calendar', 'events', id]),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
         body: jsonEncode(patch.toJson()),
       ),
       fallbackMessage: 'Unable to update the calendar event.',
@@ -182,10 +188,11 @@ class CalendarFacadeClient {
 
   Future<void> deleteEvent(String id) async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.delete(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.delete(
         _apiUri(context.baseUrl, ['api', 'calendar', 'events', id]),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
       ),
       fallbackMessage: 'Unable to delete the calendar event.',
     );
@@ -201,8 +208,9 @@ class CalendarFacadeClient {
       );
     }
 
+    final authConfiguration = _authConfiguration(configuration);
     final authState = await _authSessionRepository.restoreSession(
-      _authConfiguration(configuration),
+      authConfiguration,
     );
     final session = authState.session;
     if (!authState.isAuthenticated || session == null) {
@@ -214,6 +222,7 @@ class CalendarFacadeClient {
     return _CalendarFacadeContext(
       baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
       accessToken: session.accessToken,
+      authConfiguration: authConfiguration,
     );
   }
 
@@ -234,6 +243,52 @@ class CalendarFacadeClient {
       rethrow;
     } catch (error) {
       throw AppFailure.unknown(fallbackMessage, cause: error);
+    }
+  }
+
+  Future<http.Response> _sendAuthenticated(
+    _CalendarFacadeContext context,
+    Future<http.Response> Function(String accessToken) request, {
+    required String fallbackMessage,
+  }) async {
+    final response = await _send(
+      () => request(context.accessToken),
+      fallbackMessage: fallbackMessage,
+    );
+    if (response.statusCode != 401) {
+      return response;
+    }
+
+    final refreshedContext = await _refreshContext(context);
+    if (refreshedContext == null ||
+        refreshedContext.accessToken == context.accessToken) {
+      return response;
+    }
+
+    return _send(
+      () => request(refreshedContext.accessToken),
+      fallbackMessage: fallbackMessage,
+    );
+  }
+
+  Future<_CalendarFacadeContext?> _refreshContext(
+    _CalendarFacadeContext context,
+  ) async {
+    try {
+      final authState = await _authSessionRepository.refreshSession(
+        context.authConfiguration,
+      );
+      final session = authState.session;
+      if (!authState.isAuthenticated || session == null) {
+        return null;
+      }
+      return _CalendarFacadeContext(
+        baseUrl: context.baseUrl,
+        accessToken: session.accessToken,
+        authConfiguration: context.authConfiguration,
+      );
+    } catch (_) {
+      return null;
     }
   }
 
@@ -592,8 +647,10 @@ class _CalendarFacadeContext {
   const _CalendarFacadeContext({
     required this.baseUrl,
     required this.accessToken,
+    required this.authConfiguration,
   });
 
   final Uri baseUrl;
   final String accessToken;
+  final AuthConfiguration authConfiguration;
 }
