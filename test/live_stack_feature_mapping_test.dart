@@ -27,6 +27,7 @@ void main() {
     final featureText = feature.readAsStringSync();
     final executableText = executable.readAsStringSync();
     final productFlowText = productFlowDoc.readAsStringSync();
+    final evidenceTextByPath = <String, String>{};
 
     expect(
       RegExp(r'```mermaid\s+flowchart TD').allMatches(productFlowText).length,
@@ -60,6 +61,26 @@ void main() {
           reason:
               'Scenario "${entry.key}" must stay linked to executable Live Stack evidence fragment "$fragment".',
         );
+      }
+      for (final evidence in entry.value.additionalEvidence) {
+        final evidenceText = evidenceTextByPath.putIfAbsent(evidence.path, () {
+          final evidenceFile = File(evidence.path);
+          expect(
+            evidenceFile.existsSync(),
+            isTrue,
+            reason:
+                'Scenario "${entry.key}" references missing evidence file ${evidence.path}.',
+          );
+          return evidenceFile.readAsStringSync();
+        });
+        for (final fragment in evidence.fragments) {
+          expect(
+            evidenceText,
+            contains(fragment),
+            reason:
+                'Scenario "${entry.key}" must stay linked to ${evidence.path} evidence fragment "$fragment".',
+          );
+        }
       }
     }
   });
@@ -115,6 +136,25 @@ const _requiredMappings = <String, _ScenarioMapping>{
           '/api/boards/tasks/\$taskId/move',
           'BOARDS_RESULT',
         ],
+        additionalEvidence: <_EvidenceMapping>[
+          _EvidenceMapping(
+            path: 'test/features/boards/boards_preview_screen_test.dart',
+            fragments: <String>[
+              'offers non-drag task actions with preview-only feedback',
+              'exposes screen-reader summaries for board, columns, and tasks',
+              'meets tap-target accessibility guidelines',
+              'keeps critical preview copy reachable with large text',
+            ],
+          ),
+          _EvidenceMapping(
+            path:
+                'test/features/boards/data/backend_boards_preview_repository_test.dart',
+            fragments: <String>[
+              'posts accessible non-drag move and complete actions to backend facade',
+              '"targetColumnId":"done","targetPosition":2',
+            ],
+          ),
+        ],
       ),
 };
 
@@ -154,8 +194,17 @@ class _ScenarioMapping {
   const _ScenarioMapping({
     required this.tag,
     required this.executableFragments,
+    this.additionalEvidence = const <_EvidenceMapping>[],
   });
 
   final String tag;
   final List<String> executableFragments;
+  final List<_EvidenceMapping> additionalEvidence;
+}
+
+class _EvidenceMapping {
+  const _EvidenceMapping({required this.path, required this.fragments});
+
+  final String path;
+  final List<String> fragments;
 }

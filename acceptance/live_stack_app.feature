@@ -41,3 +41,4 @@ Feature: Live Stack app collaboration journey
     When the user reads the preview, creates a task, moves it, and completes it without drag-and-drop
     Then the preview reports the local provider-neutral backend source
     And the task reaches the completed column through Weave API routes
+    And mapped frontend accessibility evidence covers screen-reader summaries, tap targets, large text, and action-menu alternatives
