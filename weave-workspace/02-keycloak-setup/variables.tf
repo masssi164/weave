@@ -94,7 +94,7 @@ variable "test_user_password" {
 }
 
 variable "context_authorization_default_tenant_id" {
-  description = "Deterministic local/dev tenant ID exposed as weave_tenant_id for integration-test users."
+  description = "Tenant ID exposed as the weave_tenant_id access-token claim for this Keycloak tenant realm."
   type        = string
   default     = "tenant-default"
 }

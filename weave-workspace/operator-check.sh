@@ -104,6 +104,34 @@ curl_json() {
   curl "${args[@]}" "$url"
 }
 
+curl_form() {
+  local url="$1"
+  shift
+  local -a args=()
+
+  while IFS= read -r -d '' arg; do
+    args+=("${arg}")
+  done < <(curl_common_args "${url}")
+
+  curl "${args[@]}" \
+    --header 'content-type: application/x-www-form-urlencoded' \
+    "$url" "$@"
+}
+
+curl_auth_json() {
+  local token="$1"
+  local url="$2"
+  local -a args=()
+
+  while IFS= read -r -d '' arg; do
+    args+=("${arg}")
+  done < <(curl_common_args "${url}")
+
+  curl "${args[@]}" \
+    --header "Authorization: Bearer ${token}" \
+    "$url"
+}
+
 url_encode() {
   local value="$1"
   jq -nr --arg value "${value}" '$value|@uri'
@@ -386,6 +414,40 @@ assert_backend_nextcloud_actor_config() {
   fi
 }
 
+assert_authenticated_backend_facades_accept_test_user() {
+  local token_endpoint
+  local token_response
+  local access_token
+  local profile_response
+  local files_status
+
+  if [[ "${TF_VAR_create_test_user:-false}" != "true" ]]; then
+    return
+  fi
+
+  : "${WEAVE_OIDC_CLIENT_ID:=weave-app}"
+  : "${WEAVE_TEST_USERNAME:=test}"
+  : "${WEAVE_TEST_PASSWORD:=${TF_VAR_test_user_password:-}}"
+  [[ -n "${WEAVE_TEST_PASSWORD}" ]] || fail "Operator check failed: TF_VAR_create_test_user=true but no WEAVE_TEST_PASSWORD/TF_VAR_test_user_password is available"
+
+  log "Checking authenticated backend facade token contract..."
+  token_endpoint="${WEAVE_OIDC_ISSUER_URL}/protocol/openid-connect/token"
+  token_response="$(curl_form "${token_endpoint}" \
+    --data-urlencode grant_type=password \
+    --data-urlencode client_id="${WEAVE_OIDC_CLIENT_ID}" \
+    --data-urlencode username="${WEAVE_TEST_USERNAME}" \
+    --data-urlencode password="${WEAVE_TEST_PASSWORD}" \
+    --data-urlencode scope='openid profile email weave:workspace')"
+  access_token="$(jq -r '.access_token // empty' <<<"${token_response}")"
+  [[ -n "${access_token}" ]] || fail "Operator check failed: Keycloak did not mint a test-user app access token"
+
+  profile_response="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/me")"
+  assert_json "${profile_response}" ".email == \"${WEAVE_TEST_USERNAME}\"" "backend should accept the test-user app token"
+
+  files_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/files" || true)"
+  [[ "${files_status}" == 2* ]] || fail "Operator check failed: authenticated files facade rejected the test-user app token with HTTP ${files_status}"
+}
+
 assert_backend_product_gate_config() {
   local boards_runtime_count
   local boards_runtime_enabled
@@ -470,6 +532,7 @@ assert_json "${nextcloud_status}" '.installed == true' "Nextcloud should be inst
 assert_backend_nextcloud_actor_config
 assert_backend_product_gate_config
 assert_backend_boards_openproject_config
+assert_authenticated_backend_facades_accept_test_user
 
 nextcloud_bearer_validation="$(docker exec --user www-data weave-nextcloud php occ config:system:get user_oidc oidc_provider_bearer_validation 2>/dev/null || true)"
 [[ "${nextcloud_bearer_validation}" == "true" ]] || fail "Operator check failed: Nextcloud user_oidc bearer validation is not enabled"

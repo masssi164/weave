@@ -204,12 +204,12 @@ resource "keycloak_openid_client_scope" "weave_workspace" {
   include_in_token_scope = true
 }
 
-resource "keycloak_openid_user_attribute_protocol_mapper" "weave_tenant_id" {
+resource "keycloak_openid_hardcoded_claim_protocol_mapper" "weave_tenant_id" {
   realm_id            = keycloak_realm.tenant.id
   client_scope_id     = keycloak_openid_client_scope.weave_workspace.id
   name                = "weave-tenant-id"
-  user_attribute      = "weave_tenant_id"
   claim_name          = "weave_tenant_id"
+  claim_value         = var.context_authorization_default_tenant_id
   claim_value_type    = "String"
   add_to_id_token     = false
   add_to_access_token = true
