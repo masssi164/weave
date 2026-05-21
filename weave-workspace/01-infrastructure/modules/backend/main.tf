@@ -75,6 +75,19 @@ resource "docker_container" "this" {
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=${var.context_authorization_bootstrap_principal_ref}",
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=${var.context_authorization_bootstrap_role}",
     "WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=local-dev-bootstrap",
+    # Project the deterministic workspace membership to the seeded team/channel
+    # Contexts used by the live-stack Calendar facade E2E. This keeps the
+    # product ReBAC path fail-closed unless the local/dev bootstrap is explicitly
+    # enabled, while allowing channel-scoped calendar CRUD to prove the same
+    # authorization graph as production adapters will use.
+    "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_0_TENANT_ID=${var.context_authorization_default_tenant_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_0_FROM_CONTEXT_ID=${var.context_authorization_bootstrap_context_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_0_TO_CONTEXT_ID=team-engineering",
+    "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_0_RELATION=CONTAINS",
+    "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_1_TENANT_ID=${var.context_authorization_default_tenant_id}",
+    "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_1_FROM_CONTEXT_ID=team-engineering",
+    "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_1_TO_CONTEXT_ID=channel-engineering-general",
+    "WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_1_RELATION=CONTAINS",
   ] : [])
 
   ports {
