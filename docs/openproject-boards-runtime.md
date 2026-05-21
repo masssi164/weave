@@ -53,6 +53,27 @@ TF_VAR_boards_openproject_api_token=replace-with-openproject-service-token
 
 The profile exposes only a direct operator port (`TF_VAR_openproject_host_port`, default `48086`). It is not mounted under `/boards`, `/api`, `/files`, `/calendar`, or any other Weave product route.
 
+## Live Stack E2E
+
+OpenProject Boards runtime evidence lives behind an explicit operator/live-stack gate because it depends on a running Weave stack, a real app token from Keycloak, and optionally an external or self-hosted OpenProject service.
+
+After `install.sh` has produced `.generated/bootstrap.env`, run the Weave API path check:
+
+```bash
+bash weave-workspace/openproject-boards-live-e2e.sh
+```
+
+By default this validates the safe default posture: `/api/boards/preview` is reachable only through Weave and fails closed with a support-safe Boards error, and provider writes are refused without leaking OpenProject secrets, raw provider URLs, or `/api/v3` paths. The manual full-stack smoke workflow runs this fail-closed gate after the core smoke test.
+
+For an enabled read-only provider run, first configure the backend with the OpenProject variables above, point it at either the external connector or the optional self-hosted profile, and ensure Context/Space authorization has a membership for the smoke-test principal. Then run:
+
+```bash
+WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_ENABLED=true \
+  bash weave-workspace/openproject-boards-live-e2e.sh
+```
+
+The enabled mode requires the response source to be `openproject-read-sync-backend-facade`, provider capabilities to report `openproject`, sync metadata to be read-only/context-scoped/support-safe, and provider-neutral projects, boards, and tasks to be present. It also rechecks that write attempts remain refused until the later audit/consent promotion.
+
 ## Promotion gates still closed
 
 Before provider writes or agent/team writes are enabled, a later backend/infra slice must prove:

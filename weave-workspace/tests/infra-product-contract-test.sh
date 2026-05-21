@@ -46,10 +46,11 @@ matrix_workspace_doc="${REPO_DIR}/docs/matrix-default-workspace.md"
 matrix_e2ee_doc="${REPO_DIR}/docs/matrix-e2ee-posture.md"
 openproject_doc="${REPO_DIR}/docs/openproject-boards-runtime.md"
 openproject_compose="${ROOT_DIR}/docker-compose.openproject.yml"
+openproject_live_e2e="${ROOT_DIR}/openproject-boards-live-e2e.sh"
 caddy_template="${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl"
 support_bundle="${ROOT_DIR}/support-bundle.sh"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${support_bundle}" "${caddy_template}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -150,6 +151,12 @@ assert_file_contains "${openproject_doc}" 'OpenProject is a backend/provider eng
 assert_file_contains "${openproject_doc}" 'TF_VAR_boards_openproject_context_authorization_enabled=true'
 assert_file_contains "${openproject_doc}" 'TF_VAR_boards_openproject_provider_writes_enabled=false'
 assert_file_contains "${openproject_doc}" 'The backend-held API token is never written to `app-config.env`'
+assert_file_contains "${openproject_doc}" 'WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_ENABLED=true'
+assert_file_contains "${openproject_live_e2e}" '/boards/preview'
+assert_file_contains "${openproject_live_e2e}" 'openproject-read-sync-backend-facade'
+assert_file_contains "${openproject_live_e2e}" 'response leaked OpenProject API token'
+assert_file_contains "${openproject_live_e2e}" 'provider writes remain refused'
+assert_file_contains "${REPO_DIR}/.github/workflows/ci.yml" 'openproject-boards-live-e2e.sh'
 assert_file_contains "${ROOT_DIR}/operator-check.sh" 'OpenProject read-sync requires Context/Space authorization gate enabled'
 assert_file_absent "${release_env}" 'TF_VAR_boards_openproject_api_token=replace-me'
 assert_file_absent "${install_script}" 'WEAVE_BOARDS_OPENPROJECT_API_TOKEN=%q'
