@@ -37,13 +37,17 @@ class _FakeAuthSessionRepository implements AuthSessionRepository {
   _FakeAuthSessionRepository(this.state);
 
   AuthState state;
+  AuthState? refreshedState;
+  int refreshCalls = 0;
 
   @override
   Future<void> clearLocalSession() async {}
 
   @override
-  Future<AuthState> refreshSession(AuthConfiguration configuration) async =>
-      state;
+  Future<AuthState> refreshSession(AuthConfiguration configuration) async {
+    refreshCalls++;
+    return refreshedState ?? state;
+  }
 
   @override
   Future<AuthState> restoreSession(AuthConfiguration configuration) async =>
@@ -491,6 +495,40 @@ void main() {
         });
       },
     );
+
+    test('refreshes the Weave session once after a backend 401', () async {
+      authSessionRepository.refreshedState = AuthState.authenticated(
+        buildTestAuthSession(accessToken: 'fresh-calendar-token'),
+      );
+      final authorizationHeaders = <String?>[];
+      final facade = client(
+        MockClient((request) async {
+          authorizationHeaders.add(request.headers['authorization']);
+          if (authorizationHeaders.length == 1) {
+            return http.Response(
+              jsonEncode({'message': 'Authentication is required.'}),
+              401,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'scope': {'type': 'workspace', 'label': 'Workspace'},
+              'events': [],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final events = await facade.listEvents();
+
+      expect(events.events, isEmpty);
+      expect(authSessionRepository.refreshCalls, 1);
+      expect(authorizationHeaders, [
+        'Bearer calendar-token',
+        'Bearer fresh-calendar-token',
+      ]);
+    });
 
     test('maps backend failures without direct CalDAV fallback', () async {
       final facade = client(

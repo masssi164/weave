@@ -81,10 +81,11 @@ class BackendFilesRepository
   @override
   Future<DirectoryListing> listDirectory(String path) async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.get(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.get(
         _apiUri(context.baseUrl, const ['api', 'files'], query: {'path': path}),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
       ),
       fallbackMessage: 'Unable to load files from the Weave backend.',
     );
@@ -147,10 +148,11 @@ class BackendFilesRepository
     required String name,
   }) async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.post(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.post(
         _apiUri(context.baseUrl, const ['api', 'files', 'folders']),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
         body: jsonEncode({'parentPath': parentPath, 'name': name}),
       ),
       fallbackMessage: 'Unable to create the folder through the Weave backend.',
@@ -161,10 +163,11 @@ class BackendFilesRepository
 
   Future<void> prepareDownload(String id) async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.get(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.get(
         _apiUri(context.baseUrl, ['api', 'files', id, 'download']),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
       ),
       fallbackMessage: 'Unable to prepare the file download.',
     );
@@ -180,10 +183,11 @@ class BackendFilesRepository
     }
 
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.get(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.get(
         _apiUri(context.baseUrl, ['api', 'files', entry.id, 'download']),
-        headers: {'Authorization': 'Bearer ${context.accessToken}'},
+        headers: {'Authorization': 'Bearer $accessToken'},
       ),
       fallbackMessage: 'Unable to download the file through the Weave backend.',
     );
@@ -215,10 +219,11 @@ class BackendFilesRepository
 
   Future<void> delete(String id) async {
     final context = await _requireContext();
-    final response = await _send(
-      () => _httpClient.delete(
+    final response = await _sendAuthenticated(
+      context,
+      (accessToken) => _httpClient.delete(
         _apiUri(context.baseUrl, ['api', 'files', id]),
-        headers: _jsonHeaders(context.accessToken),
+        headers: _jsonHeaders(accessToken),
       ),
       fallbackMessage: 'Unable to delete the file through the Weave backend.',
     );
@@ -237,8 +242,9 @@ class BackendFilesRepository
       );
     }
 
+    final authConfiguration = _authConfiguration(configuration);
     final authState = await _authSessionRepository.restoreSession(
-      _authConfiguration(configuration),
+      authConfiguration,
     );
     final session = authState.session;
     if (!authState.isAuthenticated || session == null) {
@@ -250,6 +256,7 @@ class BackendFilesRepository
     return _BackendFilesContext(
       baseUrl: configuration.serviceEndpoints.backendApiBaseUrl,
       accessToken: session.accessToken,
+      authConfiguration: authConfiguration,
     );
   }
 
@@ -283,6 +290,52 @@ class BackendFilesRepository
       rethrow;
     } catch (error) {
       throw FilesFailure.unknown(fallbackMessage, cause: error);
+    }
+  }
+
+  Future<http.Response> _sendAuthenticated(
+    _BackendFilesContext context,
+    Future<http.Response> Function(String accessToken) request, {
+    required String fallbackMessage,
+  }) async {
+    final response = await _send(
+      () => request(context.accessToken),
+      fallbackMessage: fallbackMessage,
+    );
+    if (response.statusCode != 401) {
+      return response;
+    }
+
+    final refreshedContext = await _refreshContext(context);
+    if (refreshedContext == null ||
+        refreshedContext.accessToken == context.accessToken) {
+      return response;
+    }
+
+    return _send(
+      () => request(refreshedContext.accessToken),
+      fallbackMessage: fallbackMessage,
+    );
+  }
+
+  Future<_BackendFilesContext?> _refreshContext(
+    _BackendFilesContext context,
+  ) async {
+    try {
+      final authState = await _authSessionRepository.refreshSession(
+        context.authConfiguration,
+      );
+      final session = authState.session;
+      if (!authState.isAuthenticated || session == null) {
+        return null;
+      }
+      return _BackendFilesContext(
+        baseUrl: context.baseUrl,
+        accessToken: session.accessToken,
+        authConfiguration: context.authConfiguration,
+      );
+    } catch (_) {
+      return null;
     }
   }
 
@@ -464,8 +517,10 @@ class _BackendFilesContext {
   const _BackendFilesContext({
     required this.baseUrl,
     required this.accessToken,
+    required this.authConfiguration,
   });
 
   final Uri baseUrl;
   final String accessToken;
+  final AuthConfiguration authConfiguration;
 }
