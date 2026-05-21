@@ -1,8 +1,10 @@
 .PHONY: offline-contract-test acceptance-feature-mapping integration-contract-test integration-app-e2e integration-test marketing-screenshots
 
 offline-contract-test: acceptance-feature-mapping
-	@WEAVE_OFFLINE_CONTRACT_ONLY=true \
-	$(MAKE) integration-contract-test
+	@env -u WEAVE_TEST_USERNAME -u WEAVE_TEST_PASSWORD \
+	  WEAVE_OFFLINE_CONTRACT_ONLY=true \
+	  WEAVE_BOOTSTRAP_ENV=/dev/null \
+	  $(MAKE) integration-contract-test
 
 acceptance-feature-mapping:
 	@flutter test test/live_stack_feature_mapping_test.dart

@@ -61,6 +61,24 @@ void main() {
               'Scenario "${entry.key}" must stay linked to executable Live Stack evidence fragment "$fragment".',
         );
       }
+      for (final evidence in entry.value.supportingEvidence) {
+        final evidenceFile = File(evidence.path);
+        expect(
+          evidenceFile.existsSync(),
+          isTrue,
+          reason:
+              'Scenario "${entry.key}" must reference existing supporting evidence file ${evidence.path}.',
+        );
+        final evidenceText = evidenceFile.readAsStringSync();
+        for (final fragment in evidence.fragments) {
+          expect(
+            evidenceText,
+            contains(fragment),
+            reason:
+                'Scenario "${entry.key}" must stay linked to supporting evidence fragment "$fragment" in ${evidence.path}.',
+          );
+        }
+      }
     }
   });
 }
@@ -115,6 +133,26 @@ const _requiredMappings = <String, _ScenarioMapping>{
           '/api/boards/tasks/\$taskId/move',
           'BOARDS_RESULT',
         ],
+        supportingEvidence: <_SupportingEvidence>[
+          _SupportingEvidence(
+            path: 'test/features/boards/boards_preview_screen_test.dart',
+            fragments: <String>[
+              'offers non-drag task actions with preview-only feedback',
+              'exposes screen-reader summaries for board, columns, and tasks',
+              'meets tap-target accessibility guidelines',
+              'keeps critical preview copy reachable with large text',
+            ],
+          ),
+          _SupportingEvidence(
+            path:
+                'test/features/boards/data/backend_boards_preview_repository_test.dart',
+            fragments: <String>[
+              'posts accessible non-drag move and complete actions to backend facade',
+              '/api/boards/tasks/task-1/move',
+              '/api/boards/tasks/task-1/complete',
+            ],
+          ),
+        ],
       ),
 };
 
@@ -154,8 +192,17 @@ class _ScenarioMapping {
   const _ScenarioMapping({
     required this.tag,
     required this.executableFragments,
+    this.supportingEvidence = const <_SupportingEvidence>[],
   });
 
   final String tag;
   final List<String> executableFragments;
+  final List<_SupportingEvidence> supportingEvidence;
+}
+
+class _SupportingEvidence {
+  const _SupportingEvidence({required this.path, required this.fragments});
+
+  final String path;
+  final List<String> fragments;
 }
