@@ -3,6 +3,7 @@ Feature: OpenProject Boards read-only runtime through Weave
   keeping Weave as the product API, preserving Context/Space authorization, and
   refusing unsupported provider writes until audit and consent promotion exists.
 
+  @backend-openproject-disabled-fail-closed
   Scenario: OpenProject provider disabled fails closed support-safely
     Given the OpenProject Boards provider is disabled
     When a workspace member previews Boards through Weave
@@ -10,6 +11,7 @@ Feature: OpenProject Boards read-only runtime through Weave
     And the error is support-safe
     And the response does not leak provider secrets or raw OpenProject URLs
 
+  @backend-openproject-enabled-readonly
   Scenario: OpenProject provider enabled shows read-only boards and tasks through Weave
     Given the OpenProject Boards provider is enabled with backend-held credentials
     And OpenProject has a project "Apollo Launch" with a completed work package "Ship backend seam"
@@ -19,6 +21,7 @@ Feature: OpenProject Boards read-only runtime through Weave
     And sync metadata is support-safe and read-only
     And the response does not leak provider secrets or raw OpenProject URLs
 
+  @backend-openproject-context-space-gate
   Scenario: Missing Context Space authorization exposes no provider data
     Given the OpenProject Boards provider is enabled with backend-held credentials
     And OpenProject has a project "Apollo Launch" with a completed work package "Ship backend seam"
@@ -28,6 +31,7 @@ Feature: OpenProject Boards read-only runtime through Weave
     And the error is support-safe
     And OpenProject was not contacted
 
+  @backend-openproject-support-safe-metadata
   Scenario: Provider cursors and metadata stay support-safe
     Given the OpenProject Boards provider is enabled with backend-held credentials
     And OpenProject has a second page of projects
@@ -35,6 +39,7 @@ Feature: OpenProject Boards read-only runtime through Weave
     Then sync metadata contains an opaque OpenProject cursor
     And the response does not leak provider secrets or raw OpenProject URLs
 
+  @backend-openproject-write-refusals
   Scenario: Writes comments and archive actions are refused until audit consent promotion
     Given the OpenProject Boards provider is enabled with backend-held credentials
     When a workspace member tries unsupported OpenProject provider actions
