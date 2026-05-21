@@ -107,7 +107,7 @@ This is still preview-only and has no notification, audit, or live runtime publi
 
 ## Contract artifacts
 
-- `src/main/resources/contracts/boards-preview.openapi.yaml` contains preview schema components only and intentionally has `paths: {}`.
+- `src/main/resources/contracts/boards-preview.openapi.yaml` contains the hidden preview route draft for `GET /api/boards/preview`, local in-memory create/move/complete preview routes, and the provider-neutral schema components. The routes remain feature-gated, fail-closed for live providers, and do not publish a customer-ready live-provider API.
 - `src/main/resources/contracts/task-board-event.schema.json` contains the preview normalized event envelope.
 - `src/main/resources/contracts/connector-manifest.schema.json` contains the internal connector manifest skeleton for OpenProject-first read sync and later providers.
 
