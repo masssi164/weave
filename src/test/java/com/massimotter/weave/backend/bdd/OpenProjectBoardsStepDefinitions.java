@@ -217,11 +217,13 @@ public class OpenProjectBoardsStepDefinitions {
                 });
     }
 
-    @Then("comments and attachments are refused support-safely")
-    public void commentsAndAttachmentsAreRefusedSupportSafely() {
+    @Then("comments attachments archive and agent automation are refused support-safely")
+    public void commentsAttachmentsArchiveAndAgentAutomationAreRefusedSupportSafely() {
         assertThat(repository.capabilities().unsupported()).contains(
                 BoardCapability.COMMENTS,
-                BoardCapability.ATTACHMENTS);
+                BoardCapability.ATTACHMENTS,
+                BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
+                BoardCapability.WEBHOOK_EVENTS);
         assertThatThrownBy(() -> repository.listComments("openproject:work-package:99", BoardQuery.firstPage()))
                 .isInstanceOfSatisfying(BoardsException.class, error -> {
                     assertThat(error.code()).isEqualTo(BoardsErrorCode.UNSUPPORTED_CAPABILITY);

@@ -40,8 +40,8 @@ Feature: OpenProject Boards read-only runtime through Weave
     And the response does not leak provider secrets or raw OpenProject URLs
 
   @backend-openproject-write-refusals
-  Scenario: Writes comments and archive actions are refused until audit consent promotion
+  Scenario: Writes comments archive and agent actions are refused until audit consent promotion
     Given the OpenProject Boards provider is enabled with backend-held credentials
     When a workspace member tries unsupported OpenProject provider actions
     Then provider writes are refused support-safely
-    And comments and attachments are refused support-safely
+    And comments attachments archive and agent automation are refused support-safely
