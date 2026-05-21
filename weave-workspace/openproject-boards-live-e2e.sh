@@ -182,6 +182,10 @@ WEAVE_OIDC_ISSUER_URL="${WEAVE_OIDC_ISSUER_URL:-$(public_url "${TF_VAR_auth_subd
 : "${WEAVE_TEST_PASSWORD:?Expected WEAVE_TEST_PASSWORD in env or bootstrap env}"
 
 expected_enabled="${WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_ENABLED:-false}"
+expected_context_denied="${WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_CONTEXT_DENIED:-false}"
+if [[ "${expected_enabled}" == "true" && "${expected_context_denied}" == "true" ]]; then
+  fail "WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_ENABLED and WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_CONTEXT_DENIED are mutually exclusive"
+fi
 access_token="$(mint_access_token)"
 [[ -n "${access_token}" && "${access_token}" != "null" ]] || fail "OpenProject Boards live E2E failed: Keycloak did not return an access token"
 
@@ -203,12 +207,18 @@ if [[ "${expected_enabled}" == "true" ]]; then
   assert_json "${preview_json}" '(.projects | length) >= 1 and (.boards | length) >= 1 and (.tasks | length) >= 1' "read-sync preview should contain provider-neutral projects, boards, and tasks"
   log "OpenProject read-only Boards preview passed through Weave API."
 else
-  case "${preview_status}" in
-    401|403|503) ;;
-    *) fail "OpenProject Boards live E2E failed: expected disabled/misconfigured/context-gated preview to fail closed with 401/403/503, got ${preview_status}: $(cat "${preview_body}")" ;;
-  esac
-  assert_json "$(cat "${preview_body}")" '(.code // .error // "") | tostring | startswith("boards-")' "fail-closed response should use a Boards API error code"
-  log "OpenProject Boards preview failed closed support-safely with HTTP ${preview_status}."
+  if [[ "${expected_context_denied}" == "true" ]]; then
+    [[ "${preview_status}" == "403" ]] || fail "OpenProject Boards live E2E failed: expected Context/Space authorization denial HTTP 403, got ${preview_status}: $(cat "${preview_body}")"
+    assert_json "$(cat "${preview_body}")" '(.code // .error // "") == "boards-forbidden"' "context-denied response should use the Boards forbidden error code"
+    log "OpenProject Boards preview respected the Context/Space authorization gate with HTTP ${preview_status}."
+  else
+    case "${preview_status}" in
+      401|403|503) ;;
+      *) fail "OpenProject Boards live E2E failed: expected disabled/misconfigured/context-gated preview to fail closed with 401/403/503, got ${preview_status}: $(cat "${preview_body}")" ;;
+    esac
+    assert_json "$(cat "${preview_body}")" '(.code // .error // "") | tostring | startswith("boards-")' "fail-closed response should use a Boards API error code"
+    log "OpenProject Boards preview failed closed support-safely with HTTP ${preview_status}."
+  fi
 fi
 
 log "Checking provider write refusal through Weave API..."

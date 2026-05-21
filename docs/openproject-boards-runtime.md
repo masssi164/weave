@@ -74,6 +74,15 @@ WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_ENABLED=true \
 
 The enabled mode requires the response source to be `openproject-read-sync-backend-facade`, provider capabilities to report `openproject`, sync metadata to be read-only/context-scoped/support-safe, and provider-neutral projects, boards, and tasks to be present. It also rechecks that write attempts remain refused until the later audit/consent promotion.
 
+For a live Context/Space denial proof, enable the OpenProject runtime but configure the smoke-test principal without a matching Boards Context/Space membership. Then run:
+
+```bash
+WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_CONTEXT_DENIED=true \
+  bash weave-workspace/openproject-boards-live-e2e.sh
+```
+
+This mode requires HTTP 403 with `boards-forbidden` and still applies the no-secret/no-raw-OpenProject-output checks.
+
 ## Promotion gates still closed
 
 Before provider writes or agent/team writes are enabled, a later backend/infra slice must prove:
