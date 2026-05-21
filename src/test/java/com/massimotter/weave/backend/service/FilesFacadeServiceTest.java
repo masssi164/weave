@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.config.ContextAuthorizationConfiguration;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -18,6 +20,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -28,6 +34,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FilesFacadeServiceTest {
+
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withUserConfiguration(ContextAuthorizationTestConfiguration.class);
 
     @AfterEach
     void clearSecurityContext() {
@@ -103,19 +112,112 @@ class FilesFacadeServiceTest {
         assertThat(captured.get().permission()).isEqualTo(ContextPermission.EDIT);
     }
 
+    @Test
+    void configurationPropertiesBindSeededMembershipsIntoAuthorizationPort() {
+        contextRunner
+                .withPropertyValues(
+                        "weave.context.authorization.memberships[0].tenant-id=tenant-default",
+                        "weave.context.authorization.memberships[0].context-id=workspace-default",
+                        "weave.context.authorization.memberships[0].principal-ref=user:test",
+                        "weave.context.authorization.memberships[0].role=MEMBER",
+                        "weave.context.authorization.memberships[0].source=test-seed")
+                .run(context -> {
+                    ContextAuthorizationPort port = context.getBean(ContextAuthorizationPort.class);
+
+                    assertThat(port.check(new ContextAuthorizationRequest(
+                                    "tenant-default",
+                                    "workspace-default",
+                                    "user:test",
+                                    ContextPermission.VIEW)).allowed())
+                            .isTrue();
+                    assertThat(port.check(new ContextAuthorizationRequest(
+                                    "tenant-default",
+                                    "workspace-default",
+                                    "user:other",
+                                    ContextPermission.VIEW)).allowed())
+                            .isFalse();
+                });
+    }
+
+    @Test
+    void jwtWithoutTenantClaimIsRejectedBeforeSeededAuthorizationCanGrantAccess() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
+                Jwt.withTokenValue("token")
+                        .header("alg", "none")
+                        .subject("user-123")
+                        .build(),
+                null));
+
+        assertThatThrownBy(() -> service(new StubAdapter(true)).list("/Team"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.UNAUTHORIZED);
+                    assertThat(exception.details()).containsEntry("reason", "tenant claim is missing");
+                });
+    }
+
+    @Test
+    void configurablePrincipalClaimSupportsDeterministicLocalContextSeeds() {
+        AtomicReference<ContextAuthorizationRequest> captured = new AtomicReference<>();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
+                Jwt.withTokenValue("token")
+                        .header("alg", "none")
+                        .subject("opaque-keycloak-subject")
+                        .claim("preferred_username", "test")
+                        .claim("weave_tenant_id", "tenant-default")
+                        .build(),
+                null));
+
+        FilesFacadeService service = service(
+                new StubAdapter(true),
+                request -> {
+                    captured.set(request);
+                    return ContextAuthorizationDecision.allow("seeded local membership");
+                },
+                new ContextAuthorizationProperties(
+                        "weave_tenant_id",
+                        "tenant_id",
+                        "tenant-default",
+                        "preferred_username",
+                        "user:",
+                        List.of(),
+                        List.of(),
+                        List.of()));
+
+        assertThat(service.list("/").items()).hasSize(1);
+        assertThat(captured.get().principalRef()).isEqualTo("user:test");
+    }
+
     private FilesFacadeService service(FilesStorageAdapter adapter) {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
     }
 
     private FilesFacadeService service(FilesStorageAdapter adapter, ContextAuthorizationPort contextAuthorizationPort) {
-        return new FilesFacadeService(provider(adapter), contextAuthorizationPort);
+        return service(adapter, contextAuthorizationPort, defaultContextAuthorizationProperties());
+    }
+
+    private FilesFacadeService service(
+            FilesStorageAdapter adapter,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties) {
+        return new FilesFacadeService(provider(adapter), contextAuthorizationPort, contextAuthorizationProperties);
+    }
+
+    private ContextAuthorizationProperties defaultContextAuthorizationProperties() {
+        return new ContextAuthorizationProperties(null, null, null, null, null, List.of(), List.of(), List.of());
     }
 
     private Jwt jwt() {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .claim("weave_tenant_id", "tenant-default")
                 .build();
+    }
+
+    @Configuration
+    @EnableConfigurationProperties(ContextAuthorizationProperties.class)
+    @Import(ContextAuthorizationConfiguration.class)
+    static class ContextAuthorizationTestConfiguration {
     }
 
     private ObjectProvider<FilesStorageAdapter> provider(FilesStorageAdapter adapter) {

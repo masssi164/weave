@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.controller;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -57,10 +58,19 @@ class FilesCalendarFacadeControllerTest {
     @MockBean
     private ContextAuthorizationPort contextAuthorizationPort;
 
+    @MockBean
+    private ContextAuthorizationProperties contextAuthorizationProperties;
+
     @BeforeEach
     void allowContextAccess() {
         when(contextAuthorizationPort.check(any()))
                 .thenReturn(ContextAuthorizationDecision.allow("test allow"));
+        when(contextAuthorizationProperties.tenantClaim()).thenReturn("weave_tenant_id");
+        when(contextAuthorizationProperties.tenantFallbackClaim()).thenReturn("tenant_id");
+        when(contextAuthorizationProperties.defaultTenantId()).thenReturn("tenant-default");
+        when(contextAuthorizationProperties.principalClaim()).thenReturn("sub");
+        when(contextAuthorizationProperties.principalRefPrefix()).thenReturn("user:");
+        when(contextAuthorizationProperties.principalRef(any())).thenAnswer(invocation -> "user:" + invocation.getArgument(0));
     }
 
     @Test
@@ -277,7 +287,8 @@ class FilesCalendarFacadeControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
-                        .claim("aud", java.util.List.of("weave-app")))
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("weave_tenant_id", "tenant-default"))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

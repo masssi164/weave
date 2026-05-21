@@ -2,6 +2,7 @@ package com.massimotter.weave.backend;
 
 import com.massimotter.weave.backend.config.CalendarCalDavProperties;
 import com.massimotter.weave.backend.config.ConnectorRuntimeProperties;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.GuestAccessProperties;
 import com.massimotter.weave.backend.config.InteropGatewayProperties;
 import com.massimotter.weave.backend.config.MatrixChatProperties;
@@ -19,6 +20,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 @EnableConfigurationProperties({
         CalendarCalDavProperties.class,
         ConnectorRuntimeProperties.class,
+        ContextAuthorizationProperties.class,
         GuestAccessProperties.class,
         InteropGatewayProperties.class,
         MatrixChatProperties.class,
