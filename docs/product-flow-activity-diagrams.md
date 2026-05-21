@@ -8,6 +8,14 @@ Executable scenario anchors:
 - Backend Cucumber: `weave-backend/src/test/resources/features/openproject-boards-readonly.feature`
 - Infra Live Gates: `weave-infra/acceptance/openproject_boards_live_stack.feature` and `weave-infra/acceptance/operator_support_safety.feature`
 
+Source/quality-check anchors:
+
+- Identity/profile source of truth: `specs/03-identity-and-unified-user-profile.md:73` and `/api/me`.
+- CI/smoke/E2E source of truth: `specs/10-ci-smoke-and-e2e-contract.md:59`.
+- Spec-map guard source: `/tool/spec_map.dart` in the repository that owns the checked mapping.
+- `/admin/protocol` is not a current Weave product route here; treat it only as shorthand for raw admin/protocol fallback surfaces unless a future spec defines the endpoint.
+- `/storage/power` is not a current Weave product route here; treat it only as shorthand for the manual storage/power budget gate unless a future spec defines the endpoint.
+
 ## 1. Sign-in and workspace shell
 
 Scenario anchor: `@weave-live-auth-shell`
