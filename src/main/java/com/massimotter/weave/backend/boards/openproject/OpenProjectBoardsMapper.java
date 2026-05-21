@@ -11,7 +11,6 @@ import com.massimotter.weave.backend.boards.domain.TaskPriority;
 import com.massimotter.weave.backend.boards.domain.TaskStatus;
 import com.massimotter.weave.backend.boards.domain.WeaveProject;
 
-import java.net.URI;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
@@ -30,7 +29,7 @@ public final class OpenProjectBoardsMapper {
                 source.name(),
                 source.archived() ? ProjectVisibility.PRIVATE : ProjectVisibility.WORKSPACE,
                 List.of(),
-                List.of(providerRef("project", source.id(), source.webUrl(), null, source.updatedAt())));
+                List.of(providerRef("project", source.id(), null, source.updatedAt())));
     }
 
     public Board toBoard(OpenProjectProjectSnapshot source, List<BoardColumn> columns) {
@@ -41,7 +40,7 @@ public final class OpenProjectBoardsMapper {
                 source.description(),
                 columns,
                 source.archived(),
-                List.of(providerRef("project", source.id(), source.webUrl(), null, source.updatedAt())));
+                List.of(providerRef("project", source.id(), null, source.updatedAt())));
     }
 
     public BoardColumn toColumn(long projectId, OpenProjectStatusSnapshot source) {
@@ -52,7 +51,7 @@ public final class OpenProjectBoardsMapper {
                 Math.max(0, source.position()),
                 semanticStatus(source),
                 null,
-                List.of(providerRef("status", source.id(), source.webUrl(), null, null)));
+                List.of(providerRef("status", source.id(), null, null)));
     }
 
     public TaskItem toTask(OpenProjectWorkPackageSnapshot source, Map<Long, OpenProjectStatusSnapshot> statusesById) {
@@ -74,7 +73,7 @@ public final class OpenProjectBoardsMapper {
                 source.dueAt(),
                 completed ? source.closedAt() : null,
                 updatedAt,
-                List.of(providerRef("work-package", source.id(), source.webUrl(), source.lockVersion(), updatedAt)));
+                List.of(providerRef("work-package", source.id(), source.lockVersion(), updatedAt)));
     }
 
     private ColumnSemanticStatus semanticStatus(OpenProjectStatusSnapshot status) {
@@ -108,8 +107,8 @@ public final class OpenProjectBoardsMapper {
         return priority == null || priority.isBlank() ? null : TaskPriority.NORMAL;
     }
 
-    private ProviderRef providerRef(String type, long id, URI url, String version, Instant lastSyncedAt) {
-        return new ProviderRef(ProviderKind.OPEN_PROJECT, type + ":" + id, url, version, null, lastSyncedAt);
+    private ProviderRef providerRef(String type, long id, String version, Instant lastSyncedAt) {
+        return new ProviderRef(ProviderKind.OPEN_PROJECT, type + ":" + id, null, version, null, lastSyncedAt);
     }
 
     private String weaveId(String type, long id) {

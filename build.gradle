@@ -27,6 +27,9 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'io.cucumber:cucumber-java:7.18.1'
+    testImplementation 'org.junit.platform:junit-platform-suite'
+    testRuntimeOnly 'io.cucumber:cucumber-junit-platform-engine:7.18.1'
 }
 
 tasks.named('test') {

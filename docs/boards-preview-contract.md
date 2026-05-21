@@ -19,6 +19,7 @@ Implemented now:
 - Fail-closed Vikunja and Nextcloud Deck repository placeholders that advertise preview/fallback capabilities but do not perform runtime HTTP calls.
 - A fail-closed OpenProject repository that can perform authenticated read-only sync when provider runtime, read-sync, Context/Space authorization, auth mode, base URL, and API token are configured; writes stay disabled.
 - Support-safe `syncMetadata` on the preview response for provider, read-only mode, Context/Space scoping, opaque next cursors, and last-sync timestamps without leaking provider URLs, raw offsets, or tokens.
+- A Cucumber/JUnit acceptance suite (`src/test/resources/features/openproject-boards-readonly.feature`) that binds the OpenProject read-only path to executable Gherkin scenarios for fail-closed defaults, enabled read-sync, Context/Space denial, support-safe metadata/cursors, and refusal of writes/comments/attachments/archive capability.
 - A hidden local/in-memory backend preview facade behind `weave.boards.preview.runtime-enabled` that proves provider-neutral create, move, and complete operations without drag-only UI assumptions.
 
 Not implemented now:
@@ -69,6 +70,14 @@ OpenProject is now the preferred first provider-backed read-sync validation path
 - OpenProject work package → Weave task item
 
 The repository fails closed with support-safe `provider_unavailable` or `unsupported_capability` errors unless all read gates are configured. Read-sync requires `provider=openproject`, provider runtime enabled, read-sync enabled, Context/Space authorization enabled, `service-token` auth, a base URL, and a backend-held API token. It stores provider refs only as support-safe sync metadata and exposes pagination through opaque adapter-owned cursors such as `op:v1:*`; raw provider offsets, URLs, tokens, passwords, and secrets are blocked from the preview response. The first path is read-only: no provider writes, no agentic/team writes, and no raw OpenProject UI as normal Weave UX.
+
+Executable BDD coverage is available with:
+
+```bash
+./gradlew test --tests 'com.massimotter.weave.backend.bdd.OpenProjectBoardsAcceptanceSuiteTest'
+```
+
+The Gherkin suite uses `MockRestServiceServer` against the backend repository/facade seam, so it remains deterministic in CI while the infra repository owns the optional live-stack OpenProject service/profile proof.
 
 ## Vikunja fallback/comparison boundary
 
