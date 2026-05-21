@@ -2,6 +2,9 @@
 
 offline-contract-test: acceptance-feature-mapping
 	@WEAVE_OFFLINE_CONTRACT_ONLY=true \
+	WEAVE_BOOTSTRAP_ENV=/dev/null \
+	WEAVE_TEST_USERNAME= \
+	WEAVE_TEST_PASSWORD= \
 	$(MAKE) integration-contract-test
 
 acceptance-feature-mapping:
@@ -42,6 +45,7 @@ integration-contract-test:
 	if [ "$$caller_WEAVE_TEST_USERNAME_set" = x ] && [ -n "$$caller_WEAVE_TEST_USERNAME" ]; then WEAVE_TEST_USERNAME="$$caller_WEAVE_TEST_USERNAME"; fi; \
 	if [ "$$caller_WEAVE_TEST_PASSWORD_set" = x ] && [ -n "$$caller_WEAVE_TEST_PASSWORD" ]; then WEAVE_TEST_PASSWORD="$$caller_WEAVE_TEST_PASSWORD"; fi; \
 	if [ "$$caller_WEAVE_OFFLINE_CONTRACT_ONLY_set" = x ] && [ -n "$$caller_WEAVE_OFFLINE_CONTRACT_ONLY" ]; then WEAVE_OFFLINE_CONTRACT_ONLY="$$caller_WEAVE_OFFLINE_CONTRACT_ONLY"; fi; \
+	if [ "$${WEAVE_OFFLINE_CONTRACT_ONLY:-false}" = "true" ]; then WEAVE_TEST_USERNAME=""; WEAVE_TEST_PASSWORD=""; fi; \
 	WEAVE_API_BASE_URL="$${WEAVE_API_BASE_URL:-$${WEAVE_BASE_URL:-https://api.weave.local/api}}"; \
 	WEAVE_BASE_URL="$${WEAVE_API_BASE_URL}"; \
 	WEAVE_OIDC_ISSUER_URL="$${WEAVE_OIDC_ISSUER_URL:-https://auth.weave.local/realms/weave}"; \
