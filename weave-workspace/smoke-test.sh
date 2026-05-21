@@ -188,6 +188,24 @@ curl_dav_discovery_status() {
   curl --silent --show-error     --cacert "${CADDY_TLS_CA_FILE}"     --resolve "${host_port}:127.0.0.1"     --request PROPFIND     --header 'Depth: 0'     -o /dev/null     -w '%{http_code}'     "$url"
 }
 
+curl_basic_propfind_status() {
+  local username="$1"
+  local password="$2"
+  local url="$3"
+  local host_port
+
+  host_port="$(host_port_from_url "${url}")"
+  curl --silent --show-error \
+    --cacert "${CADDY_TLS_CA_FILE}" \
+    --resolve "${host_port}:127.0.0.1" \
+    --user "${username}:${password}" \
+    --request PROPFIND \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "$url"
+}
+
 curl_location() {
   local url="$1"
   local host_port
@@ -219,12 +237,17 @@ container_env_value() {
 
 assert_nextcloud_backend_actor_calendar() {
   local actor_username="$1"
-  local calendar_id="$2"
+  local actor_token="$2"
+  local calendar_id="$3"
+  local calendar_url
+  local status
 
-  docker exec --user www-data "${NEXTCLOUD_CONTAINER_NAME}" php occ list --format=txt 2>/dev/null | grep -q '^  dav:list-calendars' || \
-    fail "Smoke check failed: Nextcloud dav:list-calendars command is unavailable; cannot verify backend-owned calendar hierarchy"
-  docker exec --user www-data "${NEXTCLOUD_CONTAINER_NAME}" php occ dav:list-calendars "${actor_username}" 2>/dev/null | grep -Fq "${calendar_id}" || \
-    fail "Smoke check failed: Nextcloud backend actor calendar ${calendar_id} is not provisioned"
+  calendar_url="${WEAVE_NEXTCLOUD_BASE_URL}/remote.php/dav/calendars/${actor_username}/${calendar_id}/"
+  status="$(curl_basic_propfind_status "${actor_username}" "${actor_token}" "${calendar_url}" || true)"
+  case "${status}" in
+    200|207) ;;
+    *) fail "Smoke check failed: Nextcloud backend actor calendar ${calendar_id} is not provisioned or not readable through CalDAV, HTTP ${status}" ;;
+  esac
 }
 
 assert_backend_env_present() {
@@ -237,6 +260,7 @@ assert_backend_env_present() {
 
 assert_backend_nextcloud_actor_config() {
   local actor_username
+  local actor_token
   local actor_model
   local webdav_root
   local backend_nextcloud_base_url
@@ -269,6 +293,7 @@ assert_backend_nextcloud_actor_config() {
   [[ "${actor_model}" == "backend-service-account" ]] || fail "Smoke check failed: unsupported files actor model ${actor_model}"
 
   actor_username="$(container_env_value weave-backend WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME)"
+  actor_token="$(container_env_value weave-backend WEAVE_CALDAV_BACKEND_TOKEN)"
   caldav_username="$(container_env_value weave-backend WEAVE_CALDAV_BACKEND_USERNAME)"
   [[ "${actor_username}" == "${caldav_username}" ]] || fail "Smoke check failed: files and calendar adapters should use the same backend-owned Nextcloud actor username"
 
@@ -308,7 +333,7 @@ assert_backend_nextcloud_actor_config() {
     fail "Smoke check failed: Nextcloud backend actor user is not provisioned"
 
   for calendar_id in personal weave-team-engineering weave-channel-engineering-general; do
-    assert_nextcloud_backend_actor_calendar "${actor_username}" "${calendar_id}"
+    assert_nextcloud_backend_actor_calendar "${actor_username}" "${actor_token}" "${calendar_id}"
   done
 
   if [[ -f "${ROOT_DIR}/.generated/app-config.env" ]]; then
