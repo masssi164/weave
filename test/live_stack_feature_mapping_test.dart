@@ -2,209 +2,131 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../tool/acceptance_contract.dart' as acceptance;
+
 void main() {
-  test('live stack feature scenarios are mapped to executable E2E evidence', () {
-    final feature = File('acceptance/live_stack_app.feature');
-    final executable = File('integration_test/live_stack_app_e2e_test.dart');
-    final productFlowDoc = File('docs/product-flow-activity-diagrams.md');
+  test(
+    'live stack feature scenarios are mapped to executable E2E evidence',
+    () {
+      final root = Directory.current;
+      final scenarios = acceptance.parseFeatureDirectory(root, 'acceptance');
+      final mappings = acceptance.loadScenarioMappings(
+        root,
+        'acceptance/scenario_mappings.json',
+      );
+      final result = acceptance.validateAcceptanceContract(
+        root: root,
+        scenarios: scenarios,
+        mappings: mappings,
+        runtimeEvidence: acceptance.RuntimeEvidence.notCollected(),
+      );
 
-    expect(
-      feature.existsSync(),
-      isTrue,
-      reason: 'Missing readable Live Stack scenarios.',
-    );
-    expect(
-      executable.existsSync(),
-      isTrue,
-      reason: 'Missing executable Live Stack E2E test.',
-    );
-    expect(
-      productFlowDoc.existsSync(),
-      isTrue,
-      reason: 'Missing presentable product-flow activity diagrams.',
-    );
-
-    final featureText = feature.readAsStringSync();
-    final executableText = executable.readAsStringSync();
-    final productFlowText = productFlowDoc.readAsStringSync();
-    final evidenceTextByPath = <String, String>{};
-
-    expect(
-      RegExp(r'```mermaid\s+flowchart TD').allMatches(productFlowText).length,
-      greaterThanOrEqualTo(7),
-      reason:
-          'Product-flow doc must contain the seven required activity diagrams.',
-    );
-    final scenarios = _scenarios(featureText);
-
-    expect(scenarios.keys, unorderedEquals(_requiredMappings.keys));
-
-    for (final entry in _requiredMappings.entries) {
-      final scenario = scenarios[entry.key];
-      expect(scenario, isNotNull, reason: 'Missing scenario: ${entry.key}');
       expect(
-        scenario!.tags,
-        contains(entry.value.tag),
-        reason:
-            'Scenario "${entry.key}" must carry stable tag ${entry.value.tag}.',
+        result.findings.map((finding) => finding.message).toList(),
+        isEmpty,
       );
       expect(
-        productFlowText,
-        contains(entry.value.tag),
-        reason:
-            'Scenario "${entry.key}" must be anchored in the product-flow activity diagrams.',
+        result.scenarios.map((scenario) => scenario.name),
+        unorderedEquals(<String>[
+          'Sign-in restores the Weave workspace and profile',
+          'Matrix chat sends and reads a workspace message',
+          'Matrix encryption status is proved honestly',
+          'Files are uploaded, shown, downloaded, and cleaned up in Weave',
+          'Channel calendar events keep their meeting thread reference',
+          'Boards preview supports accessible non-drag task work',
+        ]),
       );
-      for (final fragment in entry.value.executableFragments) {
-        expect(
-          executableText,
-          contains(fragment),
-          reason:
-              'Scenario "${entry.key}" must stay linked to executable Live Stack evidence fragment "$fragment".',
-        );
-      }
-      for (final evidence in entry.value.additionalEvidence) {
-        final evidenceText = evidenceTextByPath.putIfAbsent(evidence.path, () {
-          final evidenceFile = File(evidence.path);
-          expect(
-            evidenceFile.existsSync(),
-            isTrue,
-            reason:
-                'Scenario "${entry.key}" references missing evidence file ${evidence.path}.',
-          );
-          return evidenceFile.readAsStringSync();
-        });
-        for (final fragment in evidence.fragments) {
-          expect(
-            evidenceText,
-            contains(fragment),
-            reason:
-                'Scenario "${entry.key}" must stay linked to ${evidence.path} evidence fragment "$fragment".',
-          );
-        }
-      }
-    }
-  });
-}
+    },
+  );
 
-const _requiredMappings = <String, _ScenarioMapping>{
-  'Auth sign-in restores the Weave workspace shell and profile facade':
-      _ScenarioMapping(
-        tag: '@weave-live-auth-shell',
-        executableFragments: <String>[
-          'LiveOidcTestDriver(config: config)',
-          "find.text('Anmelden')",
-          'PROFILE_RESULT',
-          'profileUpdated',
-        ],
+  test('mapping guard fails a newly added unmapped scenario', () {
+    final root = Directory.current;
+    final scenarios = <acceptance.FeatureScenario>[
+      ...acceptance.parseFeatureDirectory(root, 'acceptance'),
+      const acceptance.FeatureScenario(
+        featurePath: 'acceptance/live_stack_app.feature',
+        line: 999,
+        name: 'A new product behavior starts here and must not be decorative',
+        tags: <String>['@weave-live-unmapped-negative-fixture'],
       ),
-  'Matrix chat sends messages and proves E2EE posture honestly':
-      _ScenarioMapping(
-        tag: '@weave-live-matrix-e2ee',
-        executableFragments: <String>[
-          'MATRIX_RESULT',
-          'E2EE_RESULT',
-          '_waitForAuthoritativeEncryptedWireEvent',
-          'encryptedWirePlaintextLeaked',
-        ],
-      ),
-  'Files are browsed, uploaded, and downloaded through the Weave product facade':
-      _ScenarioMapping(
-        tag: '@weave-live-files-boundary',
-        executableFragments: <String>[
-          'filesProvider.notifier).connect',
-          'uploadFile',
-          'downloadFile',
-          'FILES_RESULT',
-        ],
-      ),
-  'Channel calendar events round trip with stable meeting thread references':
-      _ScenarioMapping(
-        tag: '@weave-live-calendar-threadrefs',
-        executableFragments: <String>[
-          'calendarRepository.loadScopes',
-          '_createCalendarEventWithReadAfterWrite',
-          '_channelMeetingThreadReady',
-          'CALENDAR_RESULT',
-        ],
-      ),
-  'Boards preview stays provider-neutral and supports non-drag task operations':
-      _ScenarioMapping(
-        tag: '@weave-live-boards-preview-nondrag',
-        executableFragments: <String>[
-          '/api/boards/preview',
-          '/api/boards/\$boardId/tasks',
-          '/api/boards/tasks/\$taskId/move',
-          'BOARDS_RESULT',
-        ],
-        additionalEvidence: <_EvidenceMapping>[
-          _EvidenceMapping(
-            path: 'test/features/boards/boards_preview_screen_test.dart',
-            fragments: <String>[
-              'offers non-drag task actions with preview-only feedback',
-              'exposes screen-reader summaries for board, columns, and tasks',
-              'meets tap-target accessibility guidelines',
-              'keeps critical preview copy reachable with large text',
-            ],
-          ),
-          _EvidenceMapping(
-            path:
-                'test/features/boards/data/backend_boards_preview_repository_test.dart',
-            fragments: <String>[
-              'posts accessible non-drag move and complete actions to backend facade',
-              '"targetColumnId":"done","targetPosition":2',
-            ],
-          ),
-        ],
-      ),
-};
+    ];
+    final mappings = acceptance.loadScenarioMappings(
+      root,
+      'acceptance/scenario_mappings.json',
+    );
 
-Map<String, _FeatureScenario> _scenarios(String featureText) {
-  final scenarios = <String, _FeatureScenario>{};
-  final pendingTags = <String>[];
+    final result = acceptance.validateAcceptanceContract(
+      root: root,
+      scenarios: scenarios,
+      mappings: mappings,
+      runtimeEvidence: acceptance.RuntimeEvidence.notCollected(),
+    );
 
-  for (final rawLine in featureText.split('\n')) {
-    final line = rawLine.trim();
-    if (line.startsWith('@')) {
-      pendingTags
-        ..clear()
-        ..addAll(line.split(RegExp(r'\s+')).where((part) => part.isNotEmpty));
-      continue;
-    }
-    if (line.startsWith('Scenario: ')) {
-      final name = line.substring('Scenario: '.length).trim();
-      scenarios[name] = _FeatureScenario(
-        name,
-        List<String>.unmodifiable(pendingTags),
-      );
-      pendingTags.clear();
-    }
-  }
-
-  return scenarios;
-}
-
-class _FeatureScenario {
-  const _FeatureScenario(this.name, this.tags);
-
-  final String name;
-  final List<String> tags;
-}
-
-class _ScenarioMapping {
-  const _ScenarioMapping({
-    required this.tag,
-    required this.executableFragments,
-    this.additionalEvidence = const <_EvidenceMapping>[],
+    expect(result.isValid, isFalse);
+    expect(
+      result.findings.map((finding) => finding.message).join('\n'),
+      contains('has no executable mapping'),
+    );
   });
 
-  final String tag;
-  final List<String> executableFragments;
-  final List<_EvidenceMapping> additionalEvidence;
-}
+  test('mapping guard fails when an evidence marker is not executable', () {
+    final root = Directory.current;
+    final scenarios = acceptance.parseFeatureDirectory(root, 'acceptance');
+    final mappings = acceptance
+        .loadScenarioMappings(root, 'acceptance/scenario_mappings.json')
+        .map((mapping) {
+          if (mapping.tag != '@weave-live-auth-shell') {
+            return mapping;
+          }
+          return acceptance.ScenarioMapping(
+            tag: mapping.tag,
+            scenario: mapping.scenario,
+            featurePath: mapping.featurePath,
+            executableTest: mapping.executableTest,
+            evidenceMarkers: <String>['MISSING_NEGATIVE_FIXTURE_MARKER'],
+            additionalEvidence: mapping.additionalEvidence,
+          );
+        })
+        .toList(growable: false);
 
-class _EvidenceMapping {
-  const _EvidenceMapping({required this.path, required this.fragments});
+    final result = acceptance.validateAcceptanceContract(
+      root: root,
+      scenarios: scenarios,
+      mappings: mappings,
+      runtimeEvidence: acceptance.RuntimeEvidence.notCollected(),
+    );
 
-  final String path;
-  final List<String> fragments;
+    expect(result.isValid, isFalse);
+    expect(
+      result.findings.map((finding) => finding.message).join('\n'),
+      contains('references missing evidence marker'),
+    );
+  });
+
+  test(
+    'mapping guard fails when collected runtime evidence misses a marker',
+    () {
+      final root = Directory.current;
+      final scenarios = acceptance.parseFeatureDirectory(root, 'acceptance');
+      final mappings = acceptance.loadScenarioMappings(
+        root,
+        'acceptance/scenario_mappings.json',
+      );
+      final result = acceptance.validateAcceptanceContract(
+        root: root,
+        scenarios: scenarios,
+        mappings: mappings,
+        runtimeEvidence: const acceptance.RuntimeEvidence(
+          wasCollected: true,
+          markers: <String, acceptance.SanitizedEvidenceMarker>{},
+        ),
+      );
+
+      expect(result.isValid, isFalse);
+      expect(
+        result.findings.map((finding) => finding.message).join('\n'),
+        contains('runtime evidence did not observe marker AUTH_RESULT'),
+      );
+    },
+  );
 }
