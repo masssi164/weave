@@ -6,6 +6,7 @@ void main() {
   test('live stack feature scenarios are mapped to executable E2E evidence', () {
     final feature = File('acceptance/live_stack_app.feature');
     final executable = File('integration_test/live_stack_app_e2e_test.dart');
+    final productFlowDoc = File('docs/product-flow-activity-diagrams.md');
 
     expect(
       feature.existsSync(),
@@ -17,9 +18,22 @@ void main() {
       isTrue,
       reason: 'Missing executable Live Stack E2E test.',
     );
+    expect(
+      productFlowDoc.existsSync(),
+      isTrue,
+      reason: 'Missing presentable product-flow activity diagrams.',
+    );
 
     final featureText = feature.readAsStringSync();
     final executableText = executable.readAsStringSync();
+    final productFlowText = productFlowDoc.readAsStringSync();
+
+    expect(
+      RegExp(r'```mermaid\s+flowchart TD').allMatches(productFlowText).length,
+      greaterThanOrEqualTo(7),
+      reason:
+          'Product-flow doc must contain the seven required activity diagrams.',
+    );
     final scenarios = _scenarios(featureText);
 
     expect(scenarios.keys, unorderedEquals(_requiredMappings.keys));
@@ -32,6 +46,12 @@ void main() {
         contains(entry.value.tag),
         reason:
             'Scenario "${entry.key}" must carry stable tag ${entry.value.tag}.',
+      );
+      expect(
+        productFlowText,
+        contains(entry.value.tag),
+        reason:
+            'Scenario "${entry.key}" must be anchored in the product-flow activity diagrams.',
       );
       for (final fragment in entry.value.executableFragments) {
         expect(
