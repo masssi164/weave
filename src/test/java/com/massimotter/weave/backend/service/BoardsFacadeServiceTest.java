@@ -17,6 +17,7 @@ import com.massimotter.weave.backend.boards.port.BoardsRepository;
 import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.port.MoveTaskCommand;
 import com.massimotter.weave.backend.boards.port.TaskQuery;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import java.time.Instant;
@@ -36,7 +37,8 @@ class BoardsFacadeServiceTest {
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsPreviewGuard(false),
                 new LocalPreviewBoardsRepository(),
-                request -> ContextAuthorizationDecision.allow("test allow"));
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                contextAuthorizationProperties());
 
         assertThatThrownBy(() -> service.preview(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -53,7 +55,8 @@ class BoardsFacadeServiceTest {
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsPreviewGuard(true),
                 new LocalPreviewBoardsRepository(),
-                request -> ContextAuthorizationDecision.deny("no matching context membership"));
+                request -> ContextAuthorizationDecision.deny("no matching context membership"),
+                contextAuthorizationProperties());
 
         assertThatThrownBy(() -> service.preview(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -77,7 +80,8 @@ class BoardsFacadeServiceTest {
                 request -> {
                     captured.set(request);
                     return ContextAuthorizationDecision.allow("context membership matched");
-                });
+                },
+                contextAuthorizationProperties());
 
         service.preview(jwtWithContext("tenant-acme", "ctx-product-channel"));
 
@@ -97,7 +101,8 @@ class BoardsFacadeServiceTest {
                 request -> {
                     captured.set(request);
                     return ContextAuthorizationDecision.deny("edit denied");
-                });
+                },
+                contextAuthorizationProperties());
 
         var createRequest = new com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest(
                 "local-column-todo",
@@ -123,7 +128,8 @@ class BoardsFacadeServiceTest {
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsPreviewGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
-                request -> ContextAuthorizationDecision.allow("test allow"));
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                contextAuthorizationProperties());
 
         var response = service.preview(jwt());
 
@@ -144,7 +150,8 @@ class BoardsFacadeServiceTest {
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsPreviewGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "op:v1:c3VwcG9ydC1zYWZl"),
-                request -> ContextAuthorizationDecision.allow("test allow"));
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                contextAuthorizationProperties());
 
         var response = service.preview(jwt());
 
@@ -161,7 +168,8 @@ class BoardsFacadeServiceTest {
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsPreviewGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "https://openproject.example.test/page?token=secret"),
-                request -> ContextAuthorizationDecision.allow("test allow"));
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                contextAuthorizationProperties());
 
         assertThatThrownBy(() -> service.preview(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -175,11 +183,16 @@ class BoardsFacadeServiceTest {
                 });
     }
 
+    private ContextAuthorizationProperties contextAuthorizationProperties() {
+        return new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+    }
+
     private Jwt jwt() {
         Instant now = Instant.parse("2026-05-19T05:00:00Z");
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .claim("weave_tenant_id", "tenant-default")
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

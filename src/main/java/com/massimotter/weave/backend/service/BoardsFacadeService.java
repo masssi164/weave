@@ -13,6 +13,7 @@ import com.massimotter.weave.backend.boards.port.MoveTaskCommand;
 import com.massimotter.weave.backend.boards.port.TaskQuery;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
@@ -33,20 +34,22 @@ import org.springframework.stereotype.Service;
 @Service
 public class BoardsFacadeService {
 
-    private static final String DEFAULT_TENANT_ID = "tenant-default";
     private static final String DEFAULT_CONTEXT_ID = "workspace-default";
 
     private final BoardsPreviewGuard previewGuard;
     private final BoardsRepository boardsRepository;
     private final ContextAuthorizationPort contextAuthorizationPort;
+    private final ContextAuthorizationProperties contextAuthorizationProperties;
 
     public BoardsFacadeService(
             BoardsPreviewGuard previewGuard,
             BoardsRepository boardsRepository,
-            ContextAuthorizationPort contextAuthorizationPort) {
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties) {
         this.previewGuard = previewGuard;
         this.boardsRepository = boardsRepository;
         this.contextAuthorizationPort = contextAuthorizationPort;
+        this.contextAuthorizationProperties = contextAuthorizationProperties;
     }
 
     public BoardsPreviewResponse preview(Jwt jwt) {
@@ -130,13 +133,12 @@ public class BoardsFacadeService {
     }
 
     private void requireContextPermission(Jwt jwt, ContextPermission permission) {
-        String principalRef = principalRef(jwt);
-        String tenantId = claimOrDefault(jwt, "weave_tenant_id", "tenant_id", DEFAULT_TENANT_ID);
+        PrincipalContext principalContext = principalContext(jwt);
         String contextId = claimOrDefault(jwt, "weave_context_id", "context_id", DEFAULT_CONTEXT_ID);
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
-                tenantId,
+                principalContext.tenantId(),
                 contextId,
-                principalRef,
+                principalContext.principalRef(),
                 permission));
         if (!decision.allowed()) {
             throw apiError(new BoardsException(
@@ -149,28 +151,56 @@ public class BoardsFacadeService {
         }
     }
 
-    private String principalRef(Jwt jwt) {
-        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
-            throw apiError(new BoardsException(
-                    BoardsErrorCode.UNAUTHORIZED,
-                    "Boards access requires an authenticated principal."));
+    private PrincipalContext principalContext(Jwt jwt) {
+        if (jwt == null) {
+            throw invalidAuthentication("JWT is missing");
         }
-        return "user:" + jwt.getSubject();
+        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
+        if (tenantId == null) {
+            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
+        }
+        if (tenantId == null) {
+            throw invalidAuthentication("tenant claim is missing");
+        }
+        String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
+        String principalRef = contextAuthorizationProperties.principalRef(configuredClaim != null ? configuredClaim : jwt.getSubject());
+        if (principalRef == null) {
+            throw invalidAuthentication("principal claim is missing");
+        }
+        return new PrincipalContext(tenantId, principalRef);
     }
 
     private String claimOrDefault(Jwt jwt, String primaryClaim, String fallbackClaim, String defaultValue) {
-        if (jwt == null) {
-            return defaultValue;
-        }
-        String primary = jwt.getClaimAsString(primaryClaim);
-        if (primary != null && !primary.isBlank()) {
+        String primary = jwtClaim(jwt, primaryClaim);
+        if (primary != null) {
             return primary;
         }
-        String fallback = jwt.getClaimAsString(fallbackClaim);
-        if (fallback != null && !fallback.isBlank()) {
+        String fallback = jwtClaim(jwt, fallbackClaim);
+        if (fallback != null) {
             return fallback;
         }
         return defaultValue;
+    }
+
+    private String jwtClaim(Jwt jwt, String claimName) {
+        if (jwt == null || claimName == null || claimName.isBlank()) {
+            return null;
+        }
+        String value = jwt.getClaimAsString(claimName);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private ApiErrorException invalidAuthentication(String reason) {
+        return apiError(new BoardsException(
+                BoardsErrorCode.UNAUTHORIZED,
+                "Boards access requires an authenticated principal.",
+                Map.of("reason", reason)));
+    }
+
+    private record PrincipalContext(String tenantId, String principalRef) {
     }
 
     private void requireEnabled() {

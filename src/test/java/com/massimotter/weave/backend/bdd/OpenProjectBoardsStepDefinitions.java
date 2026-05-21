@@ -18,6 +18,7 @@ import com.massimotter.weave.backend.boards.port.BoardsPreviewGuard;
 import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.boards.BoardsPreviewResponse;
@@ -248,7 +249,8 @@ public class OpenProjectBoardsStepDefinitions {
                 boardsRepository,
                 request -> denyContext
                         ? ContextAuthorizationDecision.deny("no matching context membership")
-                        : ContextAuthorizationDecision.allow("context membership matched"));
+                        : ContextAuthorizationDecision.allow("context membership matched"),
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null));
     }
 
     private void ensureScenarioState() {

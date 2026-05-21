@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.BoardsRuntimeConfiguration;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -15,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -46,8 +48,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
-        "weave.boards.preview.runtime-enabled=true"
+        "weave.boards.preview.runtime-enabled=true",
+        "weave.context.authorization.principal-claim=preferred_username"
 })
+@EnableConfigurationProperties(ContextAuthorizationProperties.class)
 class BoardsControllerTest {
 
     @Autowired
@@ -155,7 +159,7 @@ class BoardsControllerTest {
                 request != null
                         && "tenant-default".equals(request.tenantId())
                         && "workspace-default".equals(request.contextId())
-                        && "user:user-123".equals(request.principalRef())
+                        && "user:test".equals(request.principalRef())
                         && request.permission() == ContextPermission.VIEW)))
                 .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
 
@@ -174,7 +178,7 @@ class BoardsControllerTest {
                 request != null
                         && "tenant-default".equals(request.tenantId())
                         && "workspace-default".equals(request.contextId())
-                        && "user:user-123".equals(request.principalRef())
+                        && "user:test".equals(request.principalRef())
                         && request.permission() == permission)))
                 .thenReturn(ContextAuthorizationDecision.allow("test allow"));
     }
@@ -182,6 +186,8 @@ class BoardsControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("preferred_username", "test")
+                        .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
