@@ -665,6 +665,90 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get chatScreenTitle;
 
+  /// Title for the chat overview/home surface
+  ///
+  /// In en, this message translates to:
+  /// **'Weave Home'**
+  String get chatOverviewTitle;
+
+  /// Description for the chat overview/home surface
+  ///
+  /// In en, this message translates to:
+  /// **'Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.'**
+  String get chatOverviewDescription;
+
+  /// Title for the favorites section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get chatFavoritesSectionTitle;
+
+  /// Description for the favorites section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned people, channels, and AI chats you want to reach first.'**
+  String get chatFavoritesSectionDescription;
+
+  /// Empty state for the favorites section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.'**
+  String get chatFavoritesSectionEmpty;
+
+  /// Title for the personal messages section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Personal messages'**
+  String get chatPersonalMessagesSectionTitle;
+
+  /// Description for the personal messages section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Direct conversations with people in your workspace.'**
+  String get chatPersonalMessagesSectionDescription;
+
+  /// Empty state for the personal messages section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'No personal messages are available yet.'**
+  String get chatPersonalMessagesSectionEmpty;
+
+  /// Title for the channel section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Channels'**
+  String get chatChannelsSectionTitle;
+
+  /// Description for the channel section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Team and topic rooms for shared work.'**
+  String get chatChannelsSectionDescription;
+
+  /// Empty state for the channel section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'No channels are available yet.'**
+  String get chatChannelsSectionEmpty;
+
+  /// Title for the AI chats section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'AI chats'**
+  String get chatAiChatsSectionTitle;
+
+  /// Description for the AI chats section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Specialized assistant and agent chats live in their own area.'**
+  String get chatAiChatsSectionDescription;
+
+  /// Empty state for the AI chats section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.'**
+  String get chatAiChatsSectionEmpty;
+
   /// Message shown while the chat room list is loading
   ///
   /// In en, this message translates to:

@@ -324,6 +324,56 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatScreenTitle => 'Chat';
 
   @override
+  String get chatOverviewTitle => 'Weave Home';
+
+  @override
+  String get chatOverviewDescription =>
+      'Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.';
+
+  @override
+  String get chatFavoritesSectionTitle => 'Favorites';
+
+  @override
+  String get chatFavoritesSectionDescription =>
+      'Pinned people, channels, and AI chats you want to reach first.';
+
+  @override
+  String get chatFavoritesSectionEmpty =>
+      'No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.';
+
+  @override
+  String get chatPersonalMessagesSectionTitle => 'Personal messages';
+
+  @override
+  String get chatPersonalMessagesSectionDescription =>
+      'Direct conversations with people in your workspace.';
+
+  @override
+  String get chatPersonalMessagesSectionEmpty =>
+      'No personal messages are available yet.';
+
+  @override
+  String get chatChannelsSectionTitle => 'Channels';
+
+  @override
+  String get chatChannelsSectionDescription =>
+      'Team and topic rooms for shared work.';
+
+  @override
+  String get chatChannelsSectionEmpty => 'No channels are available yet.';
+
+  @override
+  String get chatAiChatsSectionTitle => 'AI chats';
+
+  @override
+  String get chatAiChatsSectionDescription =>
+      'Specialized assistant and agent chats live in their own area.';
+
+  @override
+  String get chatAiChatsSectionEmpty =>
+      'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.';
+
+  @override
   String get chatLoadingLabel => 'Loading conversations…';
 
   @override

@@ -327,6 +327,56 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatScreenTitle => 'Chat';
 
   @override
+  String get chatOverviewTitle => 'Weave Home';
+
+  @override
+  String get chatOverviewDescription =>
+      'Deine persönlichen Nachrichten, Favoriten, Kanäle und KI-Chats sind hier gruppiert, damit der Workspace nach Absicht startet statt als flache Raumliste.';
+
+  @override
+  String get chatFavoritesSectionTitle => 'Favoriten';
+
+  @override
+  String get chatFavoritesSectionDescription =>
+      'Angepinnte Personen, Kanäle und KI-Chats, die du zuerst erreichen möchtest.';
+
+  @override
+  String get chatFavoritesSectionEmpty =>
+      'Noch keine Favoriten. Sobald Favoriten synchronisiert werden, bleiben wichtige Direktnachrichten, Kanäle und KI-Chats hier.';
+
+  @override
+  String get chatPersonalMessagesSectionTitle => 'Persönliche Nachrichten';
+
+  @override
+  String get chatPersonalMessagesSectionDescription =>
+      'Direkte Unterhaltungen mit Personen in deinem Workspace.';
+
+  @override
+  String get chatPersonalMessagesSectionEmpty =>
+      'Noch keine persönlichen Nachrichten verfügbar.';
+
+  @override
+  String get chatChannelsSectionTitle => 'Kanäle';
+
+  @override
+  String get chatChannelsSectionDescription =>
+      'Team- und Themenräume für gemeinsame Arbeit.';
+
+  @override
+  String get chatChannelsSectionEmpty => 'Noch keine Kanäle verfügbar.';
+
+  @override
+  String get chatAiChatsSectionTitle => 'KI-Chats';
+
+  @override
+  String get chatAiChatsSectionDescription =>
+      'Spezialisierte Assistenten- und Agentenchats haben ihren eigenen Bereich.';
+
+  @override
+  String get chatAiChatsSectionEmpty =>
+      'Noch keine KI-Chats verbunden. Künftige spezialisierte Agenten erscheinen hier, statt zwischen persönlichen Nachrichten zu verschwinden.';
+
+  @override
   String get chatLoadingLabel => 'Unterhaltungen werden geladen…';
 
   @override
