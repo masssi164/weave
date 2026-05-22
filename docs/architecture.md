@@ -105,6 +105,10 @@ Current failure types:
 
 Slack, Teams, guest collaboration, migration tooling, and connectors must attach through backend-owned Interop Gateway boundaries rather than provider-specific Flutter transport logic. See [Interop Gateway and External Collaboration](interop-gateway-and-external-collaboration.md). Interop remains feature-flagged/off by default until explicitly promoted.
 
+## Free commercial provider stack
+
+The free commercially usable provider-stack decision is captured in [ADR: Free Commercial Provider Stack v1](free-commercial-provider-stack-v1.md). It keeps Weave as the product UX, makes `weave-backend` the provider facade for non-Matrix product operations, selects GitLab CE/FOSS as the primary DevOps provider with Forgejo as a first-class alternative, selects ONLYOFFICE Docs Community as the default Office candidate, keeps Collabora non-default/licensing-risk pending review, and defines backend facade ports for identity, files, office, calendar, contacts, forms, boards, source control, CI, issue tracking, and releases.
+
 ## Active tasks and boards scope
 
 Tasks/boards are active Weave scope behind feature gates. Build a Weave-owned, accessibility-first board/task model with provider adapters rather than exposing Nextcloud Deck or any other upstream tool as the product model. See [Product scope: calendar hierarchy, Matrix E2EE, and Boards](product-calendar-e2ee-boards-scope.md), [Boards and Tasks Provider Strategy](research/boards-task-module-provider-strategy.md), and [Boards and Tasks Domain Contract](research/boards-task-domain-contract.md).
