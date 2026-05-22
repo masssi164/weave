@@ -1,0 +1,217 @@
+{
+  "schema_version": 1,
+  "issue": 232,
+  "status": "research-contract-before-adapters",
+  "scope": "GitLab CE/FOSS self-managed primary and Forgejo first-class alternative DevOps providers behind Java backend facades",
+  "backend_facade_required": true,
+  "flutter_provider_neutral": true,
+  "no_provider_tokens_to_flutter": true,
+  "no_raw_provider_errors_to_flutter": true,
+  "allowed_error_codes": [
+    "unauthorized",
+    "forbidden",
+    "not_found",
+    "conflict",
+    "rate_limited",
+    "offline",
+    "validation",
+    "provider_unavailable",
+    "provider_feature_unavailable",
+    "unknown"
+  ],
+  "ports": [
+    {
+      "name": "SourceControlProvider",
+      "read_operations": [
+        "listLinkedProjects",
+        "getRepositorySummary",
+        "listBranches",
+        "listTags",
+        "listRecentCommits",
+        "getFileMetadata"
+      ],
+      "write_operations_later": [
+        "createBranch",
+        "createCommitOrFileChange",
+        "openMergeOrPullRequest"
+      ]
+    },
+    {
+      "name": "IssueTrackerProvider",
+      "read_operations": [
+        "listOpenIssues",
+        "getIssue",
+        "listIssueComments",
+        "listLabels",
+        "listMilestones"
+      ],
+      "write_operations_later": [
+        "createIssueComment",
+        "setIssueLabels",
+        "updateIssueState"
+      ]
+    },
+    {
+      "name": "CiProvider",
+      "read_operations": [
+        "listPipelinesOrRuns",
+        "getPipelineOrRun",
+        "listJobs",
+        "getJobLogMetadata",
+        "listArtifactsMetadata"
+      ],
+      "write_operations_later": [
+        "retryJob",
+        "cancelPipelineOrRun",
+        "triggerPipelineOrWorkflow"
+      ]
+    },
+    {
+      "name": "ReleaseProvider",
+      "read_operations": [
+        "listReleases",
+        "getRelease",
+        "listTags",
+        "listPackages",
+        "listContainerImages"
+      ],
+      "write_operations_later": [
+        "createReleaseDraftOrRelease",
+        "attachReleaseAsset"
+      ]
+    }
+  ],
+  "required_capability_keys": [
+    "license_and_self_hosting",
+    "projects_repositories",
+    "groups_users_permissions",
+    "issues",
+    "merge_or_pull_requests",
+    "ci_pipelines_jobs_actions",
+    "releases_tags",
+    "artifacts_packages_container_registry",
+    "webhooks",
+    "oauth_oidc_tokens",
+    "pagination_rate_limits",
+    "read_only_first_fit",
+    "safe_later_write_fit",
+    "paid_or_feature_boundary_risk",
+    "accessibility_product_fit"
+  ],
+  "allowed_capability_values": [
+    "native",
+    "native_with_caveats",
+    "partial",
+    "not_for_initial_scope",
+    "exclude"
+  ],
+  "providers": [
+    {
+      "id": "gitlab-ce-foss",
+      "name": "GitLab CE/FOSS self-managed",
+      "role": "primary_candidate",
+      "license": "MIT Expat for FOSS repository outside ee/jh/doc exceptions",
+      "commercial_self_hosting_fit": "free_to_run_self_hostable_commercially_usable",
+      "minimal_read_scopes_or_role": [
+        "Use a backend-held PAT or OAuth token; prefer read_api where possible, or API token constrained by a Reporter role on linked projects/groups.",
+        "Do not request admin, sudo, write_repository, api-wide write usage, or paid tier assumptions for MVP."
+      ],
+      "safe_later_write_scopes_or_role": [
+        "Use narrowly scoped project/group access tokens or service account tokens when CE instance policy allows.",
+        "Gate each mutation by backend policy and map provider failures to support-safe error codes."
+      ],
+      "capabilities": {
+        "license_and_self_hosting": "native",
+        "projects_repositories": "native",
+        "groups_users_permissions": "native",
+        "issues": "native",
+        "merge_or_pull_requests": "native",
+        "ci_pipelines_jobs_actions": "native",
+        "releases_tags": "native",
+        "artifacts_packages_container_registry": "native",
+        "webhooks": "native",
+        "oauth_oidc_tokens": "native_with_caveats",
+        "pagination_rate_limits": "native_with_caveats",
+        "read_only_first_fit": "native",
+        "safe_later_write_fit": "native_with_caveats",
+        "paid_or_feature_boundary_risk": "native_with_caveats",
+        "accessibility_product_fit": "native_with_caveats"
+      },
+      "exclude_paid_features": [
+        "merge request approvals and eligible approver policy",
+        "Code Owners approval enforcement",
+        "epics, issue weights, iterations, health status, advanced roadmaps/planning",
+        "merge trains and external/status-check approval gates",
+        "advanced security scanning dashboards and enforcement, secret push protection enforcement, dependency/SAST/vulnerability management",
+        "custom member roles, LDAP/SAML group sync or enterprise identity inventory",
+        "GitLab Duo/AI features"
+      ],
+      "source_urls": [
+        "https://docs.gitlab.com/api/rest/",
+        "https://docs.gitlab.com/api/projects/",
+        "https://docs.gitlab.com/api/groups/",
+        "https://docs.gitlab.com/api/members/",
+        "https://docs.gitlab.com/api/issues/",
+        "https://docs.gitlab.com/api/merge_requests/",
+        "https://docs.gitlab.com/api/pipelines/",
+        "https://docs.gitlab.com/api/jobs/",
+        "https://docs.gitlab.com/api/releases/",
+        "https://docs.gitlab.com/api/tags/",
+        "https://docs.gitlab.com/api/job_artifacts/",
+        "https://docs.gitlab.com/api/packages/",
+        "https://docs.gitlab.com/api/container_registry/",
+        "https://docs.gitlab.com/api/project_webhooks/",
+        "https://docs.gitlab.com/api/oauth2/",
+        "https://docs.gitlab.com/user/profile/personal_access_tokens/",
+        "https://docs.gitlab.com/administration/settings/user_and_ip_rate_limits/",
+        "https://gitlab.com/gitlab-org/gitlab-foss/-/raw/master/LICENSE"
+      ]
+    },
+    {
+      "id": "forgejo",
+      "name": "Forgejo",
+      "role": "first_class_alternative",
+      "license": "GPL-3.0-or-later",
+      "commercial_self_hosting_fit": "free_to_run_self_hostable_commercially_usable_with_copyleft_distribution_obligations",
+      "minimal_read_scopes_or_role": [
+        "Use scoped personal access tokens with Specific repositories selected.",
+        "Start with read:repository, read:issue, read:organization/read:user only where needed."
+      ],
+      "safe_later_write_scopes_or_role": [
+        "Add write:issue for comments/labels/state changes.",
+        "Add write:repository only for explicit PR/branch/file operations and never for global admin tasks.",
+        "Prefer PAT scopes over OAuth until OAuth scopes are enforced by Forgejo."
+      ],
+      "capabilities": {
+        "license_and_self_hosting": "native_with_caveats",
+        "projects_repositories": "native",
+        "groups_users_permissions": "native_with_caveats",
+        "issues": "native",
+        "merge_or_pull_requests": "native",
+        "ci_pipelines_jobs_actions": "native_with_caveats",
+        "releases_tags": "native",
+        "artifacts_packages_container_registry": "native_with_caveats",
+        "webhooks": "native",
+        "oauth_oidc_tokens": "native_with_caveats",
+        "pagination_rate_limits": "native_with_caveats",
+        "read_only_first_fit": "native",
+        "safe_later_write_fit": "native_with_caveats",
+        "paid_or_feature_boundary_risk": "native",
+        "accessibility_product_fit": "native_with_caveats"
+      },
+      "exclude_paid_features": [],
+      "source_urls": [
+        "https://forgejo.org/docs/latest/user/api-usage/",
+        "https://forgejo.org/docs/latest/user/token-scope/",
+        "https://forgejo.org/docs/latest/user/oauth2-provider/",
+        "https://forgejo.org/docs/latest/user/webhooks/",
+        "https://forgejo.org/docs/latest/user/actions/reference/",
+        "https://try.next.forgejo.org/swagger.v1.json",
+        "https://forgejo.org/docs/latest/admin/installation/",
+        "https://forgejo.org/docs/latest/admin/config-cheat-sheet/#api-api",
+        "https://codeberg.org/forgejo/forgejo/raw/branch/forgejo/LICENSE"
+      ]
+    }
+  ],
+  "recommendation": "Implement GitLab CE/FOSS read-only first behind Java backend ports, while keeping Forgejo as an equal adapter target. Do not expose forge-native UI shape, tokens, or raw errors to Flutter."
+}
