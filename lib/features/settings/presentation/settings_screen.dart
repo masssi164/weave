@@ -1012,7 +1012,12 @@ class _ProviderStackReadinessSection extends ConsumerWidget {
               onRetry: () =>
                   ref.invalidate(weaveApiProviderStackStatusProvider),
             ),
-            _ => LoadingState(message: l10n.loadingLabel),
+            _ => Text(
+              l10n.settingsWorkspaceProviderStackUnavailable,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           },
         ],
       ),
