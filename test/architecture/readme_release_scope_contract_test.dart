@@ -27,14 +27,14 @@ void main() {
     final roadmap = await File(
       'docs/roadmap-and-guarded-surfaces.md',
     ).readAsString();
-    final calendarRoadmap = _section(roadmap, '## Teams-like calendar');
+    final calendarRoadmap = _section(roadmap, '## Shared calendars');
     final boardsRoadmap = _section(roadmap, '## Boards/tasks');
 
     expect(calendarRoadmap, contains('06-calendar-roadmap-readiness.svg'));
     expect(calendarRoadmap.toLowerCase(), isNot(contains('preview')));
     expect(
       calendarRoadmap,
-      contains('workspace/org, team, and channel scheduling'),
+      contains('shared workspace, team, and channel scheduling'),
     );
     expect(
       calendarRoadmap,

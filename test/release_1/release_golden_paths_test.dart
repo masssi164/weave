@@ -45,7 +45,7 @@ import 'package:weave/main.dart';
 import '../helpers/in_memory_stores.dart';
 
 void main() {
-  group('Release 1 auth/files golden paths', () {
+  group('current release auth/files golden paths', () {
     testWidgets(
       'setup, sign-in, ready shell, files browsing, chat room open plus send, sign-out/re-auth, and changed-server recovery',
       (tester) async {
