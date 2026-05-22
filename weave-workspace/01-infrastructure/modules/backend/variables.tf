@@ -257,6 +257,115 @@ variable "boards_openproject_api_token" {
   sensitive   = true
 }
 
+
+variable "provider_stack_profile" {
+  description = "Provider-stack runtime posture profile. The default fail-closed profile advertises provider seams without enabling provider runtimes or secrets."
+  type        = string
+}
+
+variable "provider_stack_readiness" {
+  description = "Support-safe aggregate provider-stack readiness label exported to the backend."
+  type        = string
+}
+
+variable "devops_primary_provider" {
+  description = "Primary DevOps provider candidate exported to the backend. GitLab CE/FOSS is the default primary path."
+  type        = string
+}
+
+variable "devops_alternative_provider" {
+  description = "Alternative DevOps provider candidate exported to the backend. Forgejo remains first-class but disabled by default."
+  type        = string
+}
+
+variable "devops_gitlab_runtime_enabled" {
+  description = "Enable GitLab CE/FOSS DevOps provider runtime. Defaults false/fail-closed."
+  type        = bool
+}
+
+variable "devops_gitlab_base_url" {
+  description = "Backend-only GitLab CE/FOSS base URL. Leave blank unless the GitLab provider runtime is intentionally enabled."
+  type        = string
+}
+
+variable "devops_gitlab_api_token" {
+  description = "Backend-held GitLab service token. Never expose to Flutter, app config, or support bundles."
+  type        = string
+  sensitive   = true
+}
+
+variable "devops_gitlab_writes_enabled" {
+  description = "Enable GitLab provider writes. Defaults false; current DevOps facade is read-only."
+  type        = bool
+}
+
+variable "devops_forgejo_runtime_enabled" {
+  description = "Enable Forgejo DevOps provider runtime. Defaults false/fail-closed."
+  type        = bool
+}
+
+variable "devops_forgejo_base_url" {
+  description = "Backend-only Forgejo base URL. Leave blank unless the Forgejo provider runtime is intentionally enabled."
+  type        = string
+}
+
+variable "devops_forgejo_api_token" {
+  description = "Backend-held Forgejo service token. Never expose to Flutter, app config, or support bundles."
+  type        = string
+  sensitive   = true
+}
+
+variable "devops_forgejo_writes_enabled" {
+  description = "Enable Forgejo provider writes. Defaults false; current DevOps facade is read-only."
+  type        = bool
+}
+
+variable "office_primary_provider" {
+  description = "Primary Office provider candidate exported to the backend. ONLYOFFICE Docs Community is the default candidate."
+  type        = string
+}
+
+variable "office_onlyoffice_runtime_enabled" {
+  description = "Enable ONLYOFFICE runtime/session bridge. Defaults false/fail-closed."
+  type        = bool
+}
+
+variable "office_onlyoffice_document_server_url" {
+  description = "Backend-only ONLYOFFICE Document Server URL. Leave blank unless the Office runtime is intentionally enabled."
+  type        = string
+}
+
+variable "office_onlyoffice_jwt_secret" {
+  description = "Backend-held ONLYOFFICE JWT secret. Never expose to Flutter, app config, or support bundles."
+  type        = string
+  sensitive   = true
+}
+
+variable "office_nextcloud_integration_mode" {
+  description = "Office integration path exported to backend/operator tooling. Defaults to Nextcloud ONLYOFFICE app behind backend facade."
+  type        = string
+}
+
+variable "office_collabora_runtime_enabled" {
+  description = "Enable Collabora/CODE runtime. Defaults false; non-default candidate with licensing/runtime fit risk."
+  type        = bool
+}
+
+variable "groupware_contacts_runtime_enabled" {
+  description = "Enable Nextcloud Contacts provider runtime. Defaults false until backend PR #104 is merged and validated."
+  type        = bool
+}
+
+variable "groupware_forms_runtime_enabled" {
+  description = "Enable Nextcloud Forms provider runtime. Defaults false until backend PR #104 is merged and validated."
+  type        = bool
+}
+
+variable "boards_nextcloud_deck_runtime_enabled" {
+  description = "Enable Nextcloud Deck as an alternative Boards provider. Defaults false; OpenProject remains the primary read-sync path."
+  type        = bool
+}
+
 variable "oidc_issuer_uri" {
   description = "OIDC issuer URI consumed by the Weave backend."
   type        = string

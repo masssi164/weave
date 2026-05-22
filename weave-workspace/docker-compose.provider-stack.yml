@@ -1,0 +1,89 @@
+# Optional provider-stack runtimes for local/demo/full-suite validation.
+# The core Weave stack does not start these services. Use explicit profiles only,
+# for example:
+#   docker compose -f docker-compose.yml -f docker-compose.provider-stack.yml --profile forgejo up -d
+# Backend-facing tokens/secrets must still be supplied through private env files.
+
+services:
+  gitlab:
+    profiles:
+      - gitlab-ce
+    image: ${TF_VAR_devops_gitlab_image:-gitlab/gitlab-ce:17.11.1-ce.0}
+    container_name: weave-gitlab
+    restart: unless-stopped
+    shm_size: ${TF_VAR_devops_gitlab_shm_size:-256m}
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url '${TF_VAR_devops_gitlab_external_url:-http://gitlab.weave.local:48088}'
+        gitlab_rails['gitlab_shell_ssh_port'] = ${TF_VAR_devops_gitlab_ssh_host_port:-48022}
+    ports:
+      - "${TF_VAR_devops_gitlab_http_host_port:-48088}:80"
+      - "${TF_VAR_devops_gitlab_ssh_host_port:-48022}:22"
+    volumes:
+      - weave_gitlab_config:/etc/gitlab
+      - weave_gitlab_logs:/var/log/gitlab
+      - weave_gitlab_data:/var/opt/gitlab
+    networks:
+      weave:
+        aliases:
+          - weave-gitlab
+
+  forgejo:
+    profiles:
+      - forgejo
+    image: ${TF_VAR_devops_forgejo_image:-codeberg.org/forgejo/forgejo:9}
+    container_name: weave-forgejo
+    restart: unless-stopped
+    environment:
+      USER_UID: ${TF_VAR_devops_forgejo_uid:-1000}
+      USER_GID: ${TF_VAR_devops_forgejo_gid:-1000}
+      FORGEJO__server__DOMAIN: ${TF_VAR_devops_forgejo_domain:-forgejo.weave.local}
+      FORGEJO__server__ROOT_URL: ${TF_VAR_devops_forgejo_root_url:-http://forgejo.weave.local:48089/}
+      FORGEJO__server__SSH_PORT: ${TF_VAR_devops_forgejo_ssh_host_port:-48023}
+    ports:
+      - "${TF_VAR_devops_forgejo_http_host_port:-48089}:3000"
+      - "${TF_VAR_devops_forgejo_ssh_host_port:-48023}:22"
+    volumes:
+      - weave_forgejo_data:/data
+    networks:
+      weave:
+        aliases:
+          - weave-forgejo
+
+  onlyoffice-documentserver:
+    profiles:
+      - onlyoffice
+    image: ${TF_VAR_office_onlyoffice_image:-onlyoffice/documentserver:8.3}
+    container_name: weave-onlyoffice
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: ${TF_VAR_office_onlyoffice_jwt_enabled:-false}
+      JWT_SECRET: ${TF_VAR_office_onlyoffice_jwt_secret:-}
+    ports:
+      - "${TF_VAR_office_onlyoffice_host_port:-48090}:80"
+    volumes:
+      - weave_onlyoffice_data:/var/www/onlyoffice/Data
+      - weave_onlyoffice_logs:/var/log/onlyoffice
+    networks:
+      weave:
+        aliases:
+          - weave-onlyoffice
+
+volumes:
+  weave_gitlab_config:
+    name: weave_gitlab_config
+  weave_gitlab_logs:
+    name: weave_gitlab_logs
+  weave_gitlab_data:
+    name: weave_gitlab_data
+  weave_forgejo_data:
+    name: weave_forgejo_data
+  weave_onlyoffice_data:
+    name: weave_onlyoffice_data
+  weave_onlyoffice_logs:
+    name: weave_onlyoffice_logs
+
+networks:
+  weave:
+    external: true
+    name: ${TF_VAR_docker_network_name:-weave_network}

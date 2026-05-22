@@ -26,6 +26,7 @@ required_scenarios=(
   "Provider writes remain refused until audit and consent promotion"
   "Support bundle redacts secrets and provider credentials"
   "Operator checks verify the local Weave product topology"
+  "Runner checks verify provider stack readiness fail-closed"
   "Destructive reset refuses persistent data deletion without typed confirmation"
 )
 
@@ -77,6 +78,12 @@ assert_file_contains "weave-workspace/operator-check.sh" "Checking public produc
 assert_file_contains "weave-workspace/operator-check.sh" "WEAVE_BASE_URL:=\$("
 assert_file_contains "weave-workspace/operator-check.sh" "WEAVE_MATRIX_HOMESERVER_URL:=\$("
 assert_file_contains "weave-workspace/operator-check.sh" "assert_backend_boards_openproject_config"
+assert_file_contains "weave-workspace/operator-check.sh" "/providers/status"
+assert_file_contains "weave-workspace/operator-check.sh" "/profile/readiness"
+assert_file_contains "weave-workspace/operator-check.sh" "CEFACADE"
+assert_file_contains "weave-workspace/smoke-test.sh" "/providers/status"
+assert_file_contains "weave-workspace/smoke-test.sh" "/profile/readiness"
+assert_file_contains "weave-workspace/smoke-test.sh" "CEFACADE"
 
 assert_file_contains "weave-workspace/tests/teardown-guard-test.sh" "Persistent Docker volumes: preserved."
 assert_file_contains "weave-workspace/tests/teardown-guard-test.sh" "Refusing to remove persistent Weave Docker volumes"

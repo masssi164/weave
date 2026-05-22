@@ -167,6 +167,12 @@ probe_create_refusal() {
     --data '{"columnId":"openproject:status:1","title":"live e2e write refusal"}'
 }
 
+probe_provider_status() {
+  local token="$1"
+  local body_file="$2"
+  curl_auth_status_to_file "${token}" GET "${WEAVE_BASE_URL}/providers/status" "${body_file}"
+}
+
 require_command curl
 require_command jq
 load_bootstrap_env
@@ -191,7 +197,15 @@ access_token="$(mint_access_token)"
 
 preview_body="$(mktemp)"
 write_body="$(mktemp)"
-trap 'rm -f -- "${preview_body}" "${write_body}"' EXIT
+provider_body="$(mktemp)"
+trap 'rm -f -- "${preview_body}" "${write_body}" "${provider_body}"' EXIT
+
+log "Checking provider registry through Weave API..."
+provider_status="$(probe_provider_status "${access_token}" "${provider_body}" || true)"
+[[ "${provider_status}" == "200" ]] || fail "OpenProject Boards live E2E failed: expected provider registry HTTP 200, got ${provider_status}: $(cat "${provider_body}")"
+assert_support_safe_file "${provider_body}"
+assert_json "$(cat "${provider_body}")" '.backendOwnedFacades == true and .flutterDirectProviderCallsAllowed == false and .supportSafe == true' "provider registry should be backend-owned and support-safe"
+assert_json "$(cat "${provider_body}")" '[.providers[] | select(.module == "boards")] | length >= 1' "provider registry should expose boards readiness"
 
 log "Checking OpenProject Boards preview through Weave API..."
 preview_status="$(probe_preview "${access_token}" "${preview_body}" || true)"

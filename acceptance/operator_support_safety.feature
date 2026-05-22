@@ -17,6 +17,14 @@ Feature: Operator diagnostics and support bundles stay support-safe
     Then canonical Weave API auth Matrix and files origins are checked
     And diagnostics avoid printing secret environment values
 
+  @infra-provider-stack-readiness
+  Scenario: Runner checks verify provider stack readiness fail-closed
+    Given the self-hosted or manual smoke runner boots the Weave backend stack
+    When authenticated runner checks call provider readiness through Weave
+    Then /providers/status is visible through the backend API
+    And /profile/readiness returns CEFACADE support-safe readiness
+    And DevOps Office Forms and Contacts remain disabled or not configured by default
+
   @infra-reset-guardrails
   Scenario: Destructive reset refuses persistent data deletion without typed confirmation
     Given the operator asks for teardown in dry-run mode

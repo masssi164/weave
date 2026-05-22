@@ -451,6 +451,17 @@ assert_json "${profile_response}" ".email == \"${WEAVE_TEST_USERNAME}\"" "Backen
 assert_json "${profile_response}" ".audience | index(\"${WEAVE_OIDC_CLIENT_ID}\") != null" "Token audience should include the app client"
 assert_json "${profile_response}" '.userId != null and .username != null' "Backend should expose canonical identity fields"
 
+log "Checking provider stack readiness contract..."
+profile_readiness="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/profile/readiness")"
+assert_json "${profile_readiness}" '.contractId == "CEFACADE" and .endpoint == "/profile/readiness"' "Profile readiness should expose CEFACADE at /profile/readiness"
+assert_json "${profile_readiness}" '.backendOwnedFacade == true and .directProviderCallsAllowed == false and .supportSafe == true' "Profile readiness should stay backend-owned and support-safe"
+
+provider_status="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/providers/status")"
+assert_json "${provider_status}" '.backendOwnedFacades == true and .flutterDirectProviderCallsAllowed == false and .supportSafe == true' "Provider registry should be visible through Weave and forbid direct Flutter provider calls"
+assert_json "${provider_status}" '[.providers[] | select(.module == "office" or .module == "contacts" or .module == "forms" or .module == "source-control" or .module == "issue-tracker" or .module == "ci" or .module == "release") | select(.enabled == false and .configured == false and .failClosed == true and .supportSafe == true)] | length >= 7' "Optional providers should default fail-closed and support-safe"
+! grep -Eiq 'Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/' <<<"${provider_status}" || \
+  fail "Smoke check failed: provider registry leaked provider credentials or raw upstream paths"
+
 log "Checking backend files/calendar facade actor wiring..."
 assert_backend_nextcloud_actor_config
 probe_authenticated_facade "Files" "${access_token}" "${WEAVE_BASE_URL}/files"

@@ -181,6 +181,160 @@ variable "connector_provider_callbacks_exposed" {
   default     = false
 }
 
+
+variable "provider_stack_profile" {
+  description = "Provider-stack runtime posture profile. Keep fail-closed by default so provider seams are visible but runtimes/secrets are disabled."
+  type        = string
+  default     = "fail-closed"
+
+  validation {
+    condition     = contains(["fail-closed", "local-live"], var.provider_stack_profile)
+    error_message = "provider_stack_profile must be fail-closed or local-live."
+  }
+}
+
+variable "provider_stack_readiness" {
+  description = "Support-safe aggregate provider-stack readiness label exported to backend/provider-status validation."
+  type        = string
+  default     = "fail-closed"
+
+  validation {
+    condition     = contains(["fail-closed", "ready", "degraded"], var.provider_stack_readiness)
+    error_message = "provider_stack_readiness must be fail-closed, ready, or degraded."
+  }
+}
+
+variable "devops_primary_provider" {
+  description = "Primary DevOps provider candidate. GitLab CE/FOSS is the default; no Premium/Ultimate dependency is allowed."
+  type        = string
+  default     = "gitlab-ce-foss"
+
+  validation {
+    condition     = contains(["gitlab-ce-foss"], var.devops_primary_provider)
+    error_message = "devops_primary_provider must be gitlab-ce-foss."
+  }
+}
+
+variable "devops_alternative_provider" {
+  description = "Alternative DevOps provider candidate. Forgejo stays first-class but disabled unless explicitly enabled."
+  type        = string
+  default     = "forgejo"
+
+  validation {
+    condition     = contains(["forgejo"], var.devops_alternative_provider)
+    error_message = "devops_alternative_provider must be forgejo."
+  }
+}
+
+variable "devops_gitlab_runtime_enabled" {
+  description = "Enable GitLab CE/FOSS source-control/CI/issues/releases provider runtime. Defaults false/fail-closed."
+  type        = bool
+  default     = false
+}
+
+variable "devops_gitlab_base_url" {
+  description = "Backend-only GitLab CE/FOSS base URL. Leave blank unless the GitLab provider runtime is intentionally enabled."
+  type        = string
+  default     = ""
+}
+
+variable "devops_gitlab_api_token" {
+  description = "Backend-held GitLab service token. Never expose to Flutter, app config, support bundles, or provider status output."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "devops_gitlab_writes_enabled" {
+  description = "Enable writes to GitLab. Defaults false; the current backend DevOps facade is read-only."
+  type        = bool
+  default     = false
+}
+
+variable "devops_forgejo_runtime_enabled" {
+  description = "Enable Forgejo source-control/CI/issues/releases provider runtime. Defaults false/fail-closed."
+  type        = bool
+  default     = false
+}
+
+variable "devops_forgejo_base_url" {
+  description = "Backend-only Forgejo base URL. Leave blank unless the Forgejo provider runtime is intentionally enabled."
+  type        = string
+  default     = ""
+}
+
+variable "devops_forgejo_api_token" {
+  description = "Backend-held Forgejo service token. Never expose to Flutter, app config, support bundles, or provider status output."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "devops_forgejo_writes_enabled" {
+  description = "Enable writes to Forgejo. Defaults false; the current backend DevOps facade is read-only."
+  type        = bool
+  default     = false
+}
+
+variable "office_primary_provider" {
+  description = "Primary Office provider candidate. ONLYOFFICE Docs Community is the default candidate."
+  type        = string
+  default     = "onlyoffice-community"
+
+  validation {
+    condition     = contains(["onlyoffice-community"], var.office_primary_provider)
+    error_message = "office_primary_provider must be onlyoffice-community."
+  }
+}
+
+variable "office_onlyoffice_runtime_enabled" {
+  description = "Enable ONLYOFFICE backend-owned document-session runtime. Defaults false/fail-closed."
+  type        = bool
+  default     = false
+}
+
+variable "office_onlyoffice_document_server_url" {
+  description = "Backend-only ONLYOFFICE Document Server URL. Leave blank unless the Office runtime is intentionally enabled."
+  type        = string
+  default     = ""
+}
+
+variable "office_onlyoffice_jwt_secret" {
+  description = "Backend-held ONLYOFFICE JWT secret. Never expose to Flutter, app config, support bundles, or provider status output."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "office_nextcloud_integration_mode" {
+  description = "Office integration path. Default keeps ONLYOFFICE behind Nextcloud and the backend facade, not direct Flutter/provider calls."
+  type        = string
+  default     = "nextcloud-onlyoffice-app-behind-backend-facade"
+
+  validation {
+    condition     = contains(["nextcloud-onlyoffice-app-behind-backend-facade"], var.office_nextcloud_integration_mode)
+    error_message = "office_nextcloud_integration_mode must be nextcloud-onlyoffice-app-behind-backend-facade."
+  }
+}
+
+variable "office_collabora_runtime_enabled" {
+  description = "Enable Collabora/CODE runtime. Defaults false; non-default candidate with licensing/runtime fit risk."
+  type        = bool
+  default     = false
+}
+
+variable "groupware_contacts_runtime_enabled" {
+  description = "Enable Nextcloud Contacts provider runtime. Defaults false until backend PR #104 is merged and validated."
+  type        = bool
+  default     = false
+}
+
+variable "groupware_forms_runtime_enabled" {
+  description = "Enable Nextcloud Forms provider runtime. Defaults false until backend PR #104 is merged and validated."
+  type        = bool
+  default     = false
+}
+
 variable "boards_preview_runtime_enabled" {
   description = "Enable the hidden backend Boards/Tasks preview facade. Defaults false; expensive live feature-proof runs may set true to validate the guarded active-preview path."
   type        = bool
@@ -224,6 +378,13 @@ variable "boards_openproject_audit_consent_enabled" {
 
 variable "boards_openproject_provider_writes_enabled" {
   description = "Enable writes to OpenProject. Must remain false for the read-only MVP/runtime path."
+  type        = bool
+  default     = false
+}
+
+
+variable "boards_nextcloud_deck_runtime_enabled" {
+  description = "Enable Nextcloud Deck as an alternative Boards provider. Defaults false; OpenProject remains the primary read-sync assumption."
   type        = bool
   default     = false
 }

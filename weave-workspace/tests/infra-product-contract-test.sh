@@ -46,11 +46,13 @@ matrix_workspace_doc="${REPO_DIR}/docs/matrix-default-workspace.md"
 matrix_e2ee_doc="${REPO_DIR}/docs/matrix-e2ee-posture.md"
 openproject_doc="${REPO_DIR}/docs/openproject-boards-runtime.md"
 openproject_compose="${ROOT_DIR}/docker-compose.openproject.yml"
+provider_stack_compose="${ROOT_DIR}/docker-compose.provider-stack.yml"
+provider_stack_check="${ROOT_DIR}/provider-stack-fail-closed-check.sh"
 openproject_live_e2e="${ROOT_DIR}/openproject-boards-live-e2e.sh"
 caddy_template="${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl"
 support_bundle="${ROOT_DIR}/support-bundle.sh"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -132,11 +134,43 @@ assert_file_contains "${connector_doc}" 'WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=fa
 assert_file_contains "${connector_doc}" 'provider callback routes such as Slack OAuth and event ingestion are blocked at Caddy with `404`'
 assert_file_contains "${connector_doc}" 'do not commit demo OAuth secrets, webhook signing secrets, bot tokens, access tokens, or refresh tokens'
 
+# Provider-stack seams must be wired into the backend while optional/heavy runtimes stay fail-closed by default.
+assert_file_contains "${backend_main}" 'WEAVE_PROVIDER_STACK_PROFILE=${var.provider_stack_profile}'
+assert_file_contains "${backend_main}" 'WEAVE_DEVOPS_PRIMARY_PROVIDER=${var.devops_primary_provider}'
+assert_file_contains "${backend_main}" 'WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=${var.devops_gitlab_runtime_enabled}'
+assert_file_contains "${backend_main}" 'WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=${var.devops_forgejo_runtime_enabled}'
+assert_file_contains "${backend_main}" 'WEAVE_OFFICE_PRIMARY_PROVIDER=${var.office_primary_provider}'
+assert_file_contains "${backend_main}" 'WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=${var.office_onlyoffice_runtime_enabled}'
+assert_file_contains "${backend_main}" 'WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE=${var.office_nextcloud_integration_mode}'
+assert_file_contains "${backend_main}" 'WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED=${var.groupware_contacts_runtime_enabled}'
+assert_file_contains "${backend_main}" 'WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED=${var.groupware_forms_runtime_enabled}'
+assert_file_contains "${infra_main}" 'devops_primary_provider                          = var.devops_primary_provider'
+assert_file_contains "${infra_main}" 'office_nextcloud_integration_mode                = var.office_nextcloud_integration_mode'
+assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'GitLab CE/FOSS is the default; no Premium/Ultimate dependency is allowed.'
+assert_file_contains "${install_script}" 'TF_VAR_provider_stack_profile=fail-closed'
+assert_file_contains "${install_script}" 'TF_VAR_devops_gitlab_runtime_enabled=false'
+assert_file_contains "${install_script}" 'TF_VAR_devops_forgejo_runtime_enabled=false'
+assert_file_contains "${install_script}" 'TF_VAR_office_onlyoffice_runtime_enabled=false'
+assert_file_contains "${install_script}" 'TF_VAR_office_nextcloud_integration_mode=nextcloud-onlyoffice-app-behind-backend-facade'
+assert_file_contains "${provider_stack_compose}" 'gitlab/gitlab-ce'
+assert_file_contains "${provider_stack_compose}" 'codeberg.org/forgejo/forgejo'
+assert_file_contains "${provider_stack_compose}" 'onlyoffice/documentserver'
+assert_file_contains "${provider_stack_check}" '/providers/status'
+assert_file_contains "${provider_stack_check}" '/office/capabilities'
+assert_file_contains "${provider_stack_check}" '/devops/summary'
+assert_file_absent "${install_script}" 'WEAVE_DEVOPS_GITLAB_API_TOKEN=%q'
+assert_file_absent "${install_script}" 'WEAVE_OFFICE_ONLYOFFICE_JWT_SECRET=%q'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'assert_backend_provider_stack_config'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'GitLab CE/FOSS must remain the primary DevOps provider assumption'
+assert_file_contains "${support_bundle}" 'WEAVE_DEVOPS_PRIMARY_PROVIDER'
+assert_file_contains "${support_bundle}" 'WEAVE_OFFICE_PRIMARY_PROVIDER'
+
 # OpenProject is the first real Boards provider path, but must stay optional, read-only, and secret-safe.
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_PREVIEW_PROVIDER=${var.boards_preview_provider}'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=${var.boards_openproject_runtime_enabled}'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=${var.boards_openproject_read_sync_enabled}'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=${var.boards_openproject_provider_writes_enabled}'
+assert_file_contains "${backend_main}" 'WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED=${var.boards_nextcloud_deck_runtime_enabled}'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=${var.boards_openproject_auth_mode}'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_BASE_URL=${var.boards_openproject_base_url}'
 assert_file_contains "${backend_main}" 'WEAVE_BOARDS_OPENPROJECT_API_TOKEN=${var.boards_openproject_api_token}'
@@ -149,6 +183,7 @@ assert_file_contains "${backend_main}" 'WEAVE_CONTEXT_AUTHORIZATION_GRAPH_EDGES_
 assert_file_contains "${backend_main}" 'var.context_authorization_bootstrap_enabled ?'
 assert_file_contains "${infra_main}" 'boards_preview_provider'
 assert_file_contains "${infra_main}" 'boards_openproject_provider_writes_enabled       = var.boards_openproject_provider_writes_enabled'
+assert_file_contains "${infra_main}" 'boards_nextcloud_deck_runtime_enabled            = var.boards_nextcloud_deck_runtime_enabled'
 assert_file_contains "${infra_main}" 'context_authorization_bootstrap_enabled          = var.context_authorization_bootstrap_enabled'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'variable "context_authorization_bootstrap_enabled"'
 assert_file_contains "${ROOT_DIR}/01-infrastructure/variables.tf" 'default     = "sub"'
@@ -175,9 +210,18 @@ assert_file_contains "${openproject_doc}" 'TF_VAR_boards_openproject_provider_wr
 assert_file_contains "${openproject_doc}" 'The backend-held API token is never written to `app-config.env`'
 assert_file_contains "${openproject_doc}" 'WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_ENABLED=true'
 assert_file_contains "${openproject_live_e2e}" '/boards/preview'
+assert_file_contains "${openproject_live_e2e}" '/providers/status'
 assert_file_contains "${openproject_live_e2e}" 'openproject-read-sync-backend-facade'
 assert_file_contains "${openproject_live_e2e}" 'response leaked OpenProject API token'
 assert_file_contains "${openproject_live_e2e}" 'provider writes remain refused'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" '/providers/status'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" '/profile/readiness'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'CEFACADE'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'flutterDirectProviderCallsAllowed == false'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" '/providers/status'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" '/profile/readiness'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'CEFACADE'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'flutterDirectProviderCallsAllowed == false'
 assert_file_contains "${REPO_DIR}/.github/workflows/ci.yml" 'openproject-boards-live-e2e.sh'
 assert_file_contains "${ROOT_DIR}/operator-check.sh" 'OpenProject read-sync requires Context/Space authorization gate enabled'
 assert_file_absent "${release_env}" 'TF_VAR_boards_openproject_api_token=replace-me'

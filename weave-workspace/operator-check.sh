@@ -264,6 +264,93 @@ assert_backend_env_present() {
   [[ -n "${value}" ]] || fail "Operator check failed: weave-backend is missing required ${name} Nextcloud facade configuration"
 }
 
+assert_backend_provider_stack_config() {
+  local name
+  local gitlab_enabled
+  local forgejo_enabled
+  local onlyoffice_enabled
+  local contacts_enabled
+  local forms_enabled
+  local deck_enabled
+
+  log "Checking provider-stack runtime fail-closed configuration..."
+  for name in \
+    WEAVE_PROVIDER_STACK_PROFILE \
+    WEAVE_PROVIDER_STACK_READINESS \
+    WEAVE_DEVOPS_PRIMARY_PROVIDER \
+    WEAVE_DEVOPS_ALTERNATIVE_PROVIDER \
+    WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED \
+    WEAVE_DEVOPS_GITLAB_BASE_URL \
+    WEAVE_DEVOPS_GITLAB_API_TOKEN \
+    WEAVE_DEVOPS_GITLAB_WRITES_ENABLED \
+    WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED \
+    WEAVE_DEVOPS_FORGEJO_BASE_URL \
+    WEAVE_DEVOPS_FORGEJO_API_TOKEN \
+    WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED \
+    WEAVE_OFFICE_PRIMARY_PROVIDER \
+    WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED \
+    WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL \
+    WEAVE_OFFICE_ONLYOFFICE_JWT_SECRET \
+    WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE \
+    WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED \
+    WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED \
+    WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED \
+    WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED; do
+    [[ "$(container_env_count weave-backend "${name}")" == "1" ]] || fail "Operator check failed: weave-backend must define ${name} exactly once"
+  done
+
+  [[ "$(container_env_value weave-backend WEAVE_PROVIDER_STACK_PROFILE)" == "fail-closed" || "$(container_env_value weave-backend WEAVE_PROVIDER_STACK_PROFILE)" == "local-live" ]] || \
+    fail "Operator check failed: unsupported provider-stack profile"
+  [[ "$(container_env_value weave-backend WEAVE_DEVOPS_PRIMARY_PROVIDER)" == "gitlab-ce-foss" ]] || \
+    fail "Operator check failed: GitLab CE/FOSS must remain the primary DevOps provider assumption"
+  [[ "$(container_env_value weave-backend WEAVE_DEVOPS_ALTERNATIVE_PROVIDER)" == "forgejo" ]] || \
+    fail "Operator check failed: Forgejo must remain the first-class DevOps alternative"
+  [[ "$(container_env_value weave-backend WEAVE_OFFICE_PRIMARY_PROVIDER)" == "onlyoffice-community" ]] || \
+    fail "Operator check failed: ONLYOFFICE Docs Community must remain the default Office candidate"
+  [[ "$(container_env_value weave-backend WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE)" == "nextcloud-onlyoffice-app-behind-backend-facade" ]] || \
+    fail "Operator check failed: Office integration must stay behind Nextcloud/backend facade"
+
+  gitlab_enabled="$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED)"
+  forgejo_enabled="$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED)"
+  onlyoffice_enabled="$(container_env_value weave-backend WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED)"
+  contacts_enabled="$(container_env_value weave-backend WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED)"
+  forms_enabled="$(container_env_value weave-backend WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED)"
+  deck_enabled="$(container_env_value weave-backend WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED)"
+
+  [[ "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_WRITES_ENABLED)" != "true" ]] || fail "Operator check failed: GitLab provider writes must stay disabled for the read-only DevOps facade"
+  [[ "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED)" != "true" ]] || fail "Operator check failed: Forgejo provider writes must stay disabled for the read-only DevOps facade"
+  [[ "$(container_env_value weave-backend WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED)" != "true" ]] || fail "Operator check failed: Collabora/CODE must stay disabled until licensing/runtime fit is validated"
+  [[ "${contacts_enabled}" != "true" ]] || fail "Operator check failed: Contacts runtime must stay disabled until backend PR #104 is merged and validated"
+  [[ "${forms_enabled}" != "true" ]] || fail "Operator check failed: Forms runtime must stay disabled until backend PR #104 is merged and validated"
+  [[ "${deck_enabled}" != "true" ]] || fail "Operator check failed: Nextcloud Deck must stay disabled while OpenProject is the primary Boards provider assumption"
+
+  if [[ "${gitlab_enabled}" != "true" ]]; then
+    [[ -z "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_API_TOKEN)" ]] || fail "Operator check failed: disabled GitLab runtime must not carry an API token"
+  else
+    [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_BASE_URL)" ]] || fail "Operator check failed: enabled GitLab runtime requires a backend-only base URL"
+    [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_GITLAB_API_TOKEN)" ]] || fail "Operator check failed: enabled GitLab runtime requires a backend-held service token"
+  fi
+
+  if [[ "${forgejo_enabled}" != "true" ]]; then
+    [[ -z "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_API_TOKEN)" ]] || fail "Operator check failed: disabled Forgejo runtime must not carry an API token"
+  else
+    [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_BASE_URL)" ]] || fail "Operator check failed: enabled Forgejo runtime requires a backend-only base URL"
+    [[ -n "$(container_env_value weave-backend WEAVE_DEVOPS_FORGEJO_API_TOKEN)" ]] || fail "Operator check failed: enabled Forgejo runtime requires a backend-held service token"
+  fi
+
+  if [[ "${onlyoffice_enabled}" != "true" ]]; then
+    [[ -z "$(container_env_value weave-backend WEAVE_OFFICE_ONLYOFFICE_JWT_SECRET)" ]] || fail "Operator check failed: disabled ONLYOFFICE runtime must not carry a JWT secret"
+  else
+    [[ -n "$(container_env_value weave-backend WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL)" ]] || fail "Operator check failed: enabled ONLYOFFICE runtime requires a backend-only Document Server URL"
+    [[ -n "$(container_env_value weave-backend WEAVE_OFFICE_ONLYOFFICE_JWT_SECRET)" ]] || fail "Operator check failed: enabled ONLYOFFICE runtime requires a backend-held JWT secret"
+  fi
+
+  if [[ -f "${APP_CONFIG_ENV_FILE}" ]]; then
+    ! grep -Eq 'WEAVE_DEVOPS_.*API_TOKEN|WEAVE_OFFICE_ONLYOFFICE_JWT_SECRET|TF_VAR_devops_.*api_token|TF_VAR_office_onlyoffice_jwt_secret' "${APP_CONFIG_ENV_FILE}" || \
+      fail "Operator check failed: no-secret app config exposes provider stack secrets"
+  fi
+}
+
 assert_backend_boards_openproject_config() {
   local preview_provider
   local runtime_enabled
@@ -419,6 +506,8 @@ assert_authenticated_backend_facades_accept_test_user() {
   local token_response
   local access_token
   local profile_response
+  local profile_readiness
+  local provider_status
   local files_status
 
   if [[ "${TF_VAR_create_test_user:-false}" != "true" ]]; then
@@ -443,6 +532,16 @@ assert_authenticated_backend_facades_accept_test_user() {
 
   profile_response="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/me")"
   assert_json "${profile_response}" ".email == \"${WEAVE_TEST_USERNAME}\"" "backend should accept the test-user app token"
+
+  profile_readiness="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/profile/readiness")"
+  assert_json "${profile_readiness}" '.contractId == "CEFACADE" and .endpoint == "/profile/readiness"' "profile readiness should expose the CEFACADE /profile/readiness contract"
+  assert_json "${profile_readiness}" '.backendOwnedFacade == true and .directProviderCallsAllowed == false and .supportSafe == true' "profile readiness should remain backend-owned and support-safe"
+
+  provider_status="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/providers/status")"
+  assert_json "${provider_status}" '.backendOwnedFacades == true and .flutterDirectProviderCallsAllowed == false and .supportSafe == true' "provider registry should be visible through the backend facade and disallow direct Flutter provider calls"
+  assert_json "${provider_status}" '[.providers[] | select(.module == "office" or .module == "contacts" or .module == "forms" or .module == "source-control" or .module == "issue-tracker" or .module == "ci" or .module == "release") | select(.enabled == false and .configured == false and .failClosed == true and .supportSafe == true)] | length >= 7' "optional providers should default fail-closed and support-safe"
+  ! grep -Eiq 'Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/' <<<"${provider_status}" || \
+    fail "Operator check failed: provider registry leaked provider credentials or raw upstream paths"
 
   files_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/files" || true)"
   [[ "${files_status}" == 2* ]] || fail "Operator check failed: authenticated files facade rejected the test-user app token with HTTP ${files_status}"
@@ -531,8 +630,15 @@ assert_json "${nextcloud_status}" '.installed == true' "Nextcloud should be inst
 
 assert_backend_nextcloud_actor_config
 assert_backend_product_gate_config
+assert_backend_provider_stack_config
 assert_backend_boards_openproject_config
 assert_authenticated_backend_facades_accept_test_user
+
+if [[ "${WEAVE_PROVIDER_STACK_ENDPOINT_CHECKS:-false}" == "true" ]]; then
+  bash "${ROOT_DIR}/provider-stack-fail-closed-check.sh" --endpoints
+else
+  log "Provider-stack endpoint fail-closed checks skipped; set WEAVE_PROVIDER_STACK_ENDPOINT_CHECKS=true when running a backend image with provider endpoints."
+fi
 
 nextcloud_bearer_validation="$(docker exec --user www-data weave-nextcloud php occ config:system:get user_oidc oidc_provider_bearer_validation 2>/dev/null || true)"
 [[ "${nextcloud_bearer_validation}" == "true" ]] || fail "Operator check failed: Nextcloud user_oidc bearer validation is not enabled"

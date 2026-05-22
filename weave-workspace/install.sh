@@ -41,6 +41,23 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_backend_host_port
   TF_VAR_backend_container_port
   TF_VAR_weave_backend_image
+  TF_VAR_provider_stack_profile
+  TF_VAR_provider_stack_readiness
+  TF_VAR_devops_primary_provider
+  TF_VAR_devops_alternative_provider
+  TF_VAR_devops_gitlab_runtime_enabled
+  TF_VAR_devops_gitlab_base_url
+  TF_VAR_devops_gitlab_writes_enabled
+  TF_VAR_devops_forgejo_runtime_enabled
+  TF_VAR_devops_forgejo_base_url
+  TF_VAR_devops_forgejo_writes_enabled
+  TF_VAR_office_primary_provider
+  TF_VAR_office_onlyoffice_runtime_enabled
+  TF_VAR_office_onlyoffice_document_server_url
+  TF_VAR_office_nextcloud_integration_mode
+  TF_VAR_office_collabora_runtime_enabled
+  TF_VAR_groupware_contacts_runtime_enabled
+  TF_VAR_groupware_forms_runtime_enabled
   TF_VAR_boards_preview_runtime_enabled
   TF_VAR_boards_preview_provider
   TF_VAR_boards_openproject_runtime_enabled
@@ -48,9 +65,9 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_boards_openproject_context_authorization_enabled
   TF_VAR_boards_openproject_audit_consent_enabled
   TF_VAR_boards_openproject_provider_writes_enabled
+  TF_VAR_boards_nextcloud_deck_runtime_enabled
   TF_VAR_boards_openproject_auth_mode
   TF_VAR_boards_openproject_base_url
-  TF_VAR_boards_openproject_api_token
   TF_VAR_context_authorization_tenant_claim
   TF_VAR_context_authorization_tenant_fallback_claim
   TF_VAR_context_authorization_default_tenant_id
@@ -238,6 +255,23 @@ persist_bootstrap_env() {
     printf 'export WEAVE_CALDAV_EXTERNAL_CREDENTIAL_MODE=%q\n' "nextcloud-login-flow-app-password"
     printf 'export WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE=%q\n' "omit"
     printf 'export WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS=%q\n' "disabled"
+    printf 'export WEAVE_PROVIDER_STACK_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
+    printf 'export WEAVE_PROVIDER_STACK_READINESS=%q\n' "${TF_VAR_provider_stack_readiness}"
+    printf 'export WEAVE_DEVOPS_PRIMARY_PROVIDER=%q\n' "${TF_VAR_devops_primary_provider}"
+    printf 'export WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=%q\n' "${TF_VAR_devops_alternative_provider}"
+    printf 'export WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_gitlab_runtime_enabled}"
+    printf 'export WEAVE_DEVOPS_GITLAB_BASE_URL=%q\n' "${TF_VAR_devops_gitlab_base_url}"
+    printf 'export WEAVE_DEVOPS_GITLAB_WRITES_ENABLED=%q\n' "${TF_VAR_devops_gitlab_writes_enabled}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_forgejo_runtime_enabled}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_BASE_URL=%q\n' "${TF_VAR_devops_forgejo_base_url}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED=%q\n' "${TF_VAR_devops_forgejo_writes_enabled}"
+    printf 'export WEAVE_OFFICE_PRIMARY_PROVIDER=%q\n' "${TF_VAR_office_primary_provider}"
+    printf 'export WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_onlyoffice_runtime_enabled}"
+    printf 'export WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL=%q\n' "${TF_VAR_office_onlyoffice_document_server_url}"
+    printf 'export WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE=%q\n' "${TF_VAR_office_nextcloud_integration_mode}"
+    printf 'export WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_collabora_runtime_enabled}"
+    printf 'export WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_contacts_runtime_enabled}"
+    printf 'export WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_forms_runtime_enabled}"
     printf 'export WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_preview_runtime_enabled}"
     printf 'export WEAVE_BOARDS_PREVIEW_PROVIDER=%q\n' "${TF_VAR_boards_preview_provider}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
@@ -245,6 +279,7 @@ persist_bootstrap_env() {
     printf 'export WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=%q\n' "${TF_VAR_boards_openproject_context_authorization_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED=%q\n' "${TF_VAR_boards_openproject_audit_consent_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=%q\n' "${TF_VAR_boards_openproject_provider_writes_enabled}"
+    printf 'export WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_nextcloud_deck_runtime_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=%q\n' "${TF_VAR_boards_openproject_auth_mode}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_BASE_URL=%q\n' "${TF_VAR_boards_openproject_base_url}"
     printf 'export WEAVE_CONTEXT_AUTHORIZATION_TENANT_CLAIM=%q\n' "${TF_VAR_context_authorization_tenant_claim}"
@@ -552,6 +587,23 @@ write_app_config_summary() {
     printf 'export WEAVE_CALDAV_EXTERNAL_CREDENTIAL_MODE=%q\n' "nextcloud-login-flow-app-password"
     printf 'export WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE=%q\n' "omit"
     printf 'export WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS=%q\n' "disabled"
+    printf 'export WEAVE_PROVIDER_STACK_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
+    printf 'export WEAVE_PROVIDER_STACK_READINESS=%q\n' "${TF_VAR_provider_stack_readiness}"
+    printf 'export WEAVE_DEVOPS_PRIMARY_PROVIDER=%q\n' "${TF_VAR_devops_primary_provider}"
+    printf 'export WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=%q\n' "${TF_VAR_devops_alternative_provider}"
+    printf 'export WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_gitlab_runtime_enabled}"
+    printf 'export WEAVE_DEVOPS_GITLAB_BASE_URL=%q\n' "${TF_VAR_devops_gitlab_base_url}"
+    printf 'export WEAVE_DEVOPS_GITLAB_WRITES_ENABLED=%q\n' "${TF_VAR_devops_gitlab_writes_enabled}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_forgejo_runtime_enabled}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_BASE_URL=%q\n' "${TF_VAR_devops_forgejo_base_url}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED=%q\n' "${TF_VAR_devops_forgejo_writes_enabled}"
+    printf 'export WEAVE_OFFICE_PRIMARY_PROVIDER=%q\n' "${TF_VAR_office_primary_provider}"
+    printf 'export WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_onlyoffice_runtime_enabled}"
+    printf 'export WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL=%q\n' "${TF_VAR_office_onlyoffice_document_server_url}"
+    printf 'export WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE=%q\n' "${TF_VAR_office_nextcloud_integration_mode}"
+    printf 'export WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_collabora_runtime_enabled}"
+    printf 'export WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_contacts_runtime_enabled}"
+    printf 'export WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_forms_runtime_enabled}"
     printf 'export WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_preview_runtime_enabled}"
     printf 'export WEAVE_BOARDS_PREVIEW_PROVIDER=%q\n' "${TF_VAR_boards_preview_provider}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
@@ -559,6 +611,7 @@ write_app_config_summary() {
     printf 'export WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=%q\n' "${TF_VAR_boards_openproject_context_authorization_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED=%q\n' "${TF_VAR_boards_openproject_audit_consent_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=%q\n' "${TF_VAR_boards_openproject_provider_writes_enabled}"
+    printf 'export WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_nextcloud_deck_runtime_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=%q\n' "${TF_VAR_boards_openproject_auth_mode}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_BASE_URL=%q\n' "${TF_VAR_boards_openproject_base_url}"
     printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
@@ -707,6 +760,23 @@ ensure_default_inputs() {
     "TF_VAR_backend_host_port=48084"
     "TF_VAR_backend_container_port=8080"
     "TF_VAR_weave_backend_image=weave-backend:local"
+    "TF_VAR_provider_stack_profile=fail-closed"
+    "TF_VAR_provider_stack_readiness=fail-closed"
+    "TF_VAR_devops_primary_provider=gitlab-ce-foss"
+    "TF_VAR_devops_alternative_provider=forgejo"
+    "TF_VAR_devops_gitlab_runtime_enabled=false"
+    "TF_VAR_devops_gitlab_base_url="
+    "TF_VAR_devops_gitlab_writes_enabled=false"
+    "TF_VAR_devops_forgejo_runtime_enabled=false"
+    "TF_VAR_devops_forgejo_base_url="
+    "TF_VAR_devops_forgejo_writes_enabled=false"
+    "TF_VAR_office_primary_provider=onlyoffice-community"
+    "TF_VAR_office_onlyoffice_runtime_enabled=false"
+    "TF_VAR_office_onlyoffice_document_server_url="
+    "TF_VAR_office_nextcloud_integration_mode=nextcloud-onlyoffice-app-behind-backend-facade"
+    "TF_VAR_office_collabora_runtime_enabled=false"
+    "TF_VAR_groupware_contacts_runtime_enabled=false"
+    "TF_VAR_groupware_forms_runtime_enabled=false"
     "TF_VAR_boards_preview_runtime_enabled=false"
     "TF_VAR_boards_preview_provider=local-preview"
     "TF_VAR_boards_openproject_runtime_enabled=false"
@@ -714,6 +784,7 @@ ensure_default_inputs() {
     "TF_VAR_boards_openproject_context_authorization_enabled=false"
     "TF_VAR_boards_openproject_audit_consent_enabled=false"
     "TF_VAR_boards_openproject_provider_writes_enabled=false"
+    "TF_VAR_boards_nextcloud_deck_runtime_enabled=false"
     "TF_VAR_boards_openproject_auth_mode=disabled"
     "TF_VAR_boards_openproject_base_url="
     "TF_VAR_context_authorization_tenant_claim=weave_tenant_id"
@@ -771,6 +842,9 @@ ensure_generated_secrets() {
   set_default_secret TF_VAR_nextcloud_db_password "$(random_base64 24)"
   set_default_secret TF_VAR_nextcloud_admin_password "$(random_base64 24)"
   set_default_secret TF_VAR_nextcloud_backend_actor_token "$(random_base64 24)"
+  set_default_var TF_VAR_devops_gitlab_api_token ""
+  set_default_var TF_VAR_devops_forgejo_api_token ""
+  set_default_var TF_VAR_office_onlyoffice_jwt_secret ""
   set_default_var TF_VAR_boards_openproject_api_token ""
   set_default_var TF_VAR_openproject_secret_key_base ""
   set_default_secret TF_VAR_matrix_mas_client_secret "$(random_base64 32)"
