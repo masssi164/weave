@@ -485,6 +485,83 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatStaleRoomsRetryButton => 'Refresh rooms';
 
   @override
+  String channelWorkspaceSummaryTitle(String channelName) {
+    return '$channelName workspace';
+  }
+
+  @override
+  String get channelWorkspaceSummaryDescription =>
+      'This channel is a work room with tabs for chat, files, boards, and calendar where the workspace has enabled them.';
+
+  @override
+  String get channelWorkspaceGovernanceNote =>
+      'Context stays explicit: no hidden continuous room reading and no ordinary member access to admin setup.';
+
+  @override
+  String channelWorkspaceTabsSemanticLabel(String channelName) {
+    return 'Channel workspace tabs for $channelName';
+  }
+
+  @override
+  String get channelWorkspaceChatTab => 'Chat';
+
+  @override
+  String get channelWorkspaceFilesTab => 'Files';
+
+  @override
+  String get channelWorkspaceBoardsTab => 'Boards';
+
+  @override
+  String get channelWorkspaceCalendarTab => 'Calendar';
+
+  @override
+  String get channelWorkspaceChatTitle => 'Channel chat';
+
+  @override
+  String get channelWorkspaceFilesTitle => 'Channel files';
+
+  @override
+  String get channelWorkspaceBoardsTitle => 'Channel boards and tasks';
+
+  @override
+  String get channelWorkspaceCalendarTitle => 'Channel calendar';
+
+  @override
+  String get channelWorkspaceChatDescription =>
+      'Messages remain the default live context for this channel.';
+
+  @override
+  String get channelWorkspaceFilesDescription =>
+      'Channel file linking is a preview seam. Files will attach through the Weave files facade instead of raw provider paths once the backend contract is ready.';
+
+  @override
+  String get channelWorkspaceBoardsDescription =>
+      'Linked boards and tasks are shown as an honest preview until provider-neutral board state is connected to this channel context.';
+
+  @override
+  String get channelWorkspaceCalendarDescription =>
+      'Channel events stay gated until calendar scope capability is available for this workspace.';
+
+  @override
+  String get channelWorkspaceStatusAvailable => 'Available';
+
+  @override
+  String get channelWorkspaceStatusPreview => 'Preview contract';
+
+  @override
+  String get channelWorkspaceStatusGated => 'Gated by capability';
+
+  @override
+  String channelWorkspaceProviderContract(String contractId) {
+    return 'Provider seam: $contractId';
+  }
+
+  @override
+  String channelWorkspaceExplicitContextNote(String channelName) {
+    return 'Only explicit context from $channelName is shown here; Weave does not continuously read the room in the background.';
+  }
+
+  @override
   String get filesScreenTitle => 'Files';
 
   @override
@@ -1467,6 +1544,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatConversationDirectMessageLabel => 'Direct conversation';
+
+  @override
+  String get chatConversationOpensChannelWorkspaceLabel =>
+      'Opens channel workspace';
 
   @override
   String get chatConversationRecentNow => 'Active now';

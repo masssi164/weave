@@ -315,6 +315,61 @@
   "chatStaleRoomsRetryButton": "Refresh rooms",
   "@chatStaleRoomsRetryButton": { "description": "Button label for retrying a stale chat room list refresh" },
 
+  "channelWorkspaceSummaryTitle": "{channelName} workspace",
+  "@channelWorkspaceSummaryTitle": {
+    "description": "Title for the channel workspace summary card",
+    "placeholders": { "channelName": { "type": "String" } }
+  },
+  "channelWorkspaceSummaryDescription": "This channel is a work room with tabs for chat, files, boards, and calendar where the workspace has enabled them.",
+  "@channelWorkspaceSummaryDescription": { "description": "Description for the channel workspace summary card" },
+  "channelWorkspaceGovernanceNote": "Context stays explicit: no hidden continuous room reading and no ordinary member access to admin setup.",
+  "@channelWorkspaceGovernanceNote": { "description": "Governance note for channel workspace tabs" },
+  "channelWorkspaceTabsSemanticLabel": "Channel workspace tabs for {channelName}",
+  "@channelWorkspaceTabsSemanticLabel": {
+    "description": "Semantic label for the channel workspace tab list",
+    "placeholders": { "channelName": { "type": "String" } }
+  },
+  "channelWorkspaceChatTab": "Chat",
+  "@channelWorkspaceChatTab": { "description": "Channel workspace chat tab label" },
+  "channelWorkspaceFilesTab": "Files",
+  "@channelWorkspaceFilesTab": { "description": "Channel workspace files tab label" },
+  "channelWorkspaceBoardsTab": "Boards",
+  "@channelWorkspaceBoardsTab": { "description": "Channel workspace boards tab label" },
+  "channelWorkspaceCalendarTab": "Calendar",
+  "@channelWorkspaceCalendarTab": { "description": "Channel workspace calendar tab label" },
+  "channelWorkspaceChatTitle": "Channel chat",
+  "@channelWorkspaceChatTitle": { "description": "Title for the chat surface in a channel workspace" },
+  "channelWorkspaceFilesTitle": "Channel files",
+  "@channelWorkspaceFilesTitle": { "description": "Title for the files surface in a channel workspace" },
+  "channelWorkspaceBoardsTitle": "Channel boards and tasks",
+  "@channelWorkspaceBoardsTitle": { "description": "Title for the boards/tasks surface in a channel workspace" },
+  "channelWorkspaceCalendarTitle": "Channel calendar",
+  "@channelWorkspaceCalendarTitle": { "description": "Title for the calendar surface in a channel workspace" },
+  "channelWorkspaceChatDescription": "Messages remain the default live context for this channel.",
+  "@channelWorkspaceChatDescription": { "description": "Description for the channel chat surface" },
+  "channelWorkspaceFilesDescription": "Channel file linking is a preview seam. Files will attach through the Weave files facade instead of raw provider paths once the backend contract is ready.",
+  "@channelWorkspaceFilesDescription": { "description": "Description for the channel files preview placeholder" },
+  "channelWorkspaceBoardsDescription": "Linked boards and tasks are shown as an honest preview until provider-neutral board state is connected to this channel context.",
+  "@channelWorkspaceBoardsDescription": { "description": "Description for the channel boards/tasks preview placeholder" },
+  "channelWorkspaceCalendarDescription": "Channel events stay gated until calendar scope capability is available for this workspace.",
+  "@channelWorkspaceCalendarDescription": { "description": "Description for the gated channel calendar placeholder" },
+  "channelWorkspaceStatusAvailable": "Available",
+  "@channelWorkspaceStatusAvailable": { "description": "Status label for an available channel workspace surface" },
+  "channelWorkspaceStatusPreview": "Preview contract",
+  "@channelWorkspaceStatusPreview": { "description": "Status label for a preview-only channel workspace surface" },
+  "channelWorkspaceStatusGated": "Gated by capability",
+  "@channelWorkspaceStatusGated": { "description": "Status label for a gated channel workspace surface" },
+  "channelWorkspaceProviderContract": "Provider seam: {contractId}",
+  "@channelWorkspaceProviderContract": {
+    "description": "Provider/domain seam label for a channel workspace surface",
+    "placeholders": { "contractId": { "type": "String" } }
+  },
+  "channelWorkspaceExplicitContextNote": "Only explicit context from {channelName} is shown here; Weave does not continuously read the room in the background.",
+  "@channelWorkspaceExplicitContextNote": {
+    "description": "Privacy/context note for a channel workspace surface",
+    "placeholders": { "channelName": { "type": "String" } }
+  },
+
   "filesScreenTitle": "Files",
   "@filesScreenTitle": { "description": "Title for the files screen app bar" },
   "filesLoadingLabel": "Loading files…",
@@ -1222,6 +1277,8 @@
 
   "chatConversationDirectMessageLabel": "Direct conversation",
   "@chatConversationDirectMessageLabel": { "description": "Accessibility label for direct conversations" },
+  "chatConversationOpensChannelWorkspaceLabel": "Opens channel workspace",
+  "@chatConversationOpensChannelWorkspaceLabel": { "description": "Accessibility hint for channel conversation tiles that open the channel workspace" },
 
   "chatConversationRecentNow": "Active now",
   "@chatConversationRecentNow": { "description": "Recency badge for a chat conversation with activity in the last hour" },

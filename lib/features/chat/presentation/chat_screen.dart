@@ -1045,6 +1045,8 @@ class _ConversationTile extends StatelessWidget {
       unreadLabel,
       if (conversation.isInvite) l10n.chatConversationInviteLabel,
       if (conversation.isDirectMessage) l10n.chatConversationDirectMessageLabel,
+      if (!conversation.isDirectMessage && !conversation.isAiChat)
+        l10n.chatConversationOpensChannelWorkspaceLabel,
     ].join('. ');
 
     return Semantics(
