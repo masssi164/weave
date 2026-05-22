@@ -406,6 +406,55 @@
   "chatSecurityEmojiSummaryLabel": "Sicherheits-Emojis",
   "chatSecurityNumbersSummaryLabel": "Sicherheitszahlen {value}",
   "settingsServerConfigurationTitle": "Serverkonfiguration",
+
+  "settingsWorkspaceProviderStackTitle": "Provider-Stack-Status",
+  "@settingsWorkspaceProviderStackTitle": { "description": "Title for provider stack readiness details in settings" },
+
+  "settingsWorkspaceProviderStackDescription": "Optionale DevOps-, Office-, Forms- und Contacts-Provider werden nur über backend-eigene Fassaden sichtbar und bleiben fail-closed, wenn sie deaktiviert sind.",
+  "@settingsWorkspaceProviderStackDescription": { "description": "Description for provider stack readiness details in settings" },
+
+  "settingsWorkspaceProviderStackUnavailable": "Provider-Status ist erst verfügbar, wenn die Backend-Registry gelesen werden kann.",
+  "@settingsWorkspaceProviderStackUnavailable": { "description": "Message when provider readiness data is missing" },
+
+  "settingsWorkspaceProviderStackError": "Provider-Status konnte nicht aus dem Weave-Backend geladen werden.",
+  "@settingsWorkspaceProviderStackError": { "description": "Error when provider readiness loading fails" },
+
+  "settingsWorkspaceProviderStackBackendFacadeLabel": "Backend-Fassade",
+  "@settingsWorkspaceProviderStackBackendFacadeLabel": { "description": "Provider stack boundary pill label for backend-owned facades" },
+
+  "settingsWorkspaceProviderStackBackendFacadeValue": "Backend-eigen",
+  "@settingsWorkspaceProviderStackBackendFacadeValue": { "description": "Provider stack boundary pill value for backend-owned facades" },
+
+  "settingsWorkspaceProviderStackFlutterBoundaryLabel": "Flutter-Grenze",
+  "@settingsWorkspaceProviderStackFlutterBoundaryLabel": { "description": "Provider stack boundary pill label for Flutter provider calls" },
+
+  "settingsWorkspaceProviderStackFlutterBoundaryValue": "Direkte Provider-Aufrufe blockiert",
+  "@settingsWorkspaceProviderStackFlutterBoundaryValue": { "description": "Provider stack boundary pill value when Flutter cannot call providers directly" },
+
+  "settingsWorkspaceProviderStackSupportSafeLabel": "Support-Sicherheit",
+  "@settingsWorkspaceProviderStackSupportSafeLabel": { "description": "Provider stack boundary pill label for support-safe metadata" },
+
+  "settingsWorkspaceProviderStackSupportSafeValue": "Keine Secrets exponiert",
+  "@settingsWorkspaceProviderStackSupportSafeValue": { "description": "Provider stack boundary pill value when metadata is support safe" },
+
+  "settingsWorkspaceProviderStackFailClosedLabel": "Fail-closed",
+  "@settingsWorkspaceProviderStackFailClosedLabel": { "description": "Provider stack boundary pill label for fail-closed state" },
+
+  "settingsWorkspaceProviderStackFailClosedValue": "Sicher deaktiviert",
+  "@settingsWorkspaceProviderStackFailClosedValue": { "description": "Provider stack boundary pill value when providers are disabled safely" },
+
+  "settingsWorkspaceProviderStackReviewValue": "Prüfen",
+  "@settingsWorkspaceProviderStackReviewValue": { "description": "Provider stack boundary pill value when a state needs review" },
+
+  "settingsWorkspaceProviderStackProviderLabel": "Provider",
+  "@settingsWorkspaceProviderStackProviderLabel": { "description": "Provider stack readiness pill label for provider key" },
+
+  "settingsWorkspaceProviderStackStateLabel": "Status",
+  "@settingsWorkspaceProviderStackStateLabel": { "description": "Provider stack readiness pill label for provider state" },
+
+  "settingsWorkspaceProviderStackReadinessLabel": "Bereitschaft",
+  "@settingsWorkspaceProviderStackReadinessLabel": { "description": "Provider stack readiness pill label for provider readiness" },
+
   "settingsServerConfigurationDescription": "Aktualisiere den Anbieter und die Dienst-URLs, die Weave für deine selbst gehostete Umgebung verwenden soll.",
   "settingsSaveButton": "Änderungen speichern",
   "settingsSaveInProgress": "Wird gespeichert…",
@@ -465,6 +514,11 @@
   "channelWorkspaceStatusPreview": "Vorschau-Vertrag",
   "channelWorkspaceStatusGated": "Durch Fähigkeit gesperrt",
   "channelWorkspaceProviderContract": "Anbieter-Nahtstelle: {contractId}",
+  "channelWorkspaceProviderReadiness": "Provider-Status: {readinessId}",
+  "@channelWorkspaceProviderReadiness": {
+    "description": "Provider readiness label for a channel workspace surface",
+    "placeholders": { "readinessId": { "type": "String" } }
+  },
   "channelWorkspaceExplicitContextNote": "Hier wird nur ausdrücklicher Kontext aus {channelName} gezeigt; Weave liest den Raum nicht dauerhaft im Hintergrund mit.",
   "chatRoomLoadingLabel": "Konversation wird geladen…",
   "chatRoomEmptyMessage": "Noch keine Nachrichten",

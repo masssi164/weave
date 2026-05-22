@@ -1163,6 +1163,12 @@ abstract class AppLocalizations {
   /// **'Provider seam: {contractId}'**
   String channelWorkspaceProviderContract(String contractId);
 
+  /// Provider readiness label for a channel workspace surface
+  ///
+  /// In en, this message translates to:
+  /// **'Provider readiness: {readinessId}'**
+  String channelWorkspaceProviderReadiness(String readinessId);
+
   /// Privacy/context note for a channel workspace surface
   ///
   /// In en, this message translates to:
@@ -2704,6 +2710,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Backend API URL changed'**
   String get settingsWorkspaceInvalidationBackendApiBaseUrlChanged;
+
+  /// Title for provider stack readiness details in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Provider stack readiness'**
+  String get settingsWorkspaceProviderStackTitle;
+
+  /// Description for provider stack readiness details in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Optional DevOps, Office, Forms, and Contacts providers are exposed only through backend-owned facades and stay fail-closed when disabled.'**
+  String get settingsWorkspaceProviderStackDescription;
+
+  /// Message when provider readiness data is missing
+  ///
+  /// In en, this message translates to:
+  /// **'Provider readiness is unavailable until the backend registry can be read.'**
+  String get settingsWorkspaceProviderStackUnavailable;
+
+  /// Error when provider readiness loading fails
+  ///
+  /// In en, this message translates to:
+  /// **'Provider readiness could not be loaded from the Weave backend.'**
+  String get settingsWorkspaceProviderStackError;
+
+  /// Provider stack boundary pill label for backend-owned facades
+  ///
+  /// In en, this message translates to:
+  /// **'Backend facade'**
+  String get settingsWorkspaceProviderStackBackendFacadeLabel;
+
+  /// Provider stack boundary pill value for backend-owned facades
+  ///
+  /// In en, this message translates to:
+  /// **'Backend-owned'**
+  String get settingsWorkspaceProviderStackBackendFacadeValue;
+
+  /// Provider stack boundary pill label for Flutter provider calls
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter boundary'**
+  String get settingsWorkspaceProviderStackFlutterBoundaryLabel;
+
+  /// Provider stack boundary pill value when Flutter cannot call providers directly
+  ///
+  /// In en, this message translates to:
+  /// **'Direct provider calls blocked'**
+  String get settingsWorkspaceProviderStackFlutterBoundaryValue;
+
+  /// Provider stack boundary pill label for support-safe metadata
+  ///
+  /// In en, this message translates to:
+  /// **'Support safety'**
+  String get settingsWorkspaceProviderStackSupportSafeLabel;
+
+  /// Provider stack boundary pill value when metadata is support safe
+  ///
+  /// In en, this message translates to:
+  /// **'No secrets exposed'**
+  String get settingsWorkspaceProviderStackSupportSafeValue;
+
+  /// Provider stack boundary pill label for fail-closed state
+  ///
+  /// In en, this message translates to:
+  /// **'Fail-closed'**
+  String get settingsWorkspaceProviderStackFailClosedLabel;
+
+  /// Provider stack boundary pill value when providers are disabled safely
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled safely'**
+  String get settingsWorkspaceProviderStackFailClosedValue;
+
+  /// Provider stack boundary pill value when a state needs review
+  ///
+  /// In en, this message translates to:
+  /// **'Review'**
+  String get settingsWorkspaceProviderStackReviewValue;
+
+  /// Provider stack readiness pill label for provider key
+  ///
+  /// In en, this message translates to:
+  /// **'Provider'**
+  String get settingsWorkspaceProviderStackProviderLabel;
+
+  /// Provider stack readiness pill label for provider state
+  ///
+  /// In en, this message translates to:
+  /// **'State'**
+  String get settingsWorkspaceProviderStackStateLabel;
+
+  /// Provider stack readiness pill label for provider readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Readiness'**
+  String get settingsWorkspaceProviderStackReadinessLabel;
 
   /// Description for the settings server configuration section
   ///

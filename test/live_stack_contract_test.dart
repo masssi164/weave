@@ -90,6 +90,52 @@ void main() {
       );
     });
 
+    test('provider stack readiness stays behind the Weave backend facade', () {
+      expect(
+        liveConfig.apiUri('/api/providers/status').toString(),
+        'https://api.weave.local/api/providers/status',
+      );
+      expect(
+        liveConfig.apiUri('/api/profile/readiness').toString(),
+        'https://api.weave.local/api/profile/readiness',
+      );
+    });
+
+    test(
+      'direct Flutter provider calls remain blocked for optional provider stack modules',
+      () async {
+        final forbiddenFragments = <String>[
+          '/api/v3/',
+          '/work_packages',
+          'openproject.example',
+          'openproject.weave.local',
+          'gitlab.com/api',
+          'forgejo/api',
+          'onlyoffice',
+          'collabora-code',
+          'nextcloud/forms',
+          'carddav',
+        ];
+
+        final offenders = <String>[];
+        for (final file in _productionDartFiles()) {
+          final content = await file.readAsString();
+          for (final fragment in forbiddenFragments) {
+            if (content.toLowerCase().contains(fragment.toLowerCase())) {
+              offenders.add('${file.path}: $fragment');
+            }
+          }
+        }
+
+        expect(
+          offenders,
+          isEmpty,
+          reason:
+              'Flutter must call backend facades such as /api/providers/status and /profile/readiness, not provider APIs directly.',
+        );
+      },
+    );
+
     test(
       'shell readiness contract can be exercised without live auth',
       () async {
@@ -236,6 +282,89 @@ void main() {
     }
   }, skip: liveSkipReason);
 
+  test('authenticated GET /api/providers/status returns fail-closed provider '
+      'readiness', () async {
+    final accessToken = await authHelper.signIn(config);
+
+    final response = await httpClient.get(
+      config.apiUri('/api/providers/status'),
+      headers: <String, String>{
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $accessToken',
+      },
+    );
+
+    expect(response.statusCode, 200, reason: response.body);
+    final payload = _decodeObject(response.body);
+    expect(payload['backendOwnedFacades'], isTrue);
+    expect(payload['flutterDirectProviderCallsAllowed'], isFalse);
+    expect(payload['supportSafe'], isTrue);
+
+    final providers = (payload['providers'] as List).cast<Map>();
+    final modules = providers.map((provider) => provider['module']).toSet();
+    expect(
+      modules,
+      containsAll(<String>[
+        'office',
+        'contacts',
+        'forms',
+        'source-control',
+        'issue-tracker',
+        'ci',
+        'release',
+      ]),
+    );
+    for (final provider in providers.where(
+      (provider) => <String>{
+        'office',
+        'contacts',
+        'forms',
+        'source-control',
+        'issue-tracker',
+        'ci',
+        'release',
+      }.contains(provider['module']),
+    )) {
+      expect(provider['enabled'], isFalse, reason: '$provider');
+      expect(provider['configured'], isFalse, reason: '$provider');
+      expect(provider['failClosed'], isTrue, reason: '$provider');
+      expect(provider['supportSafe'], isTrue, reason: '$provider');
+    }
+
+    expect(
+      response.body,
+      isNot(
+        matches(
+          RegExp(r'Authorization|api[_-]?token|/api/v3/', caseSensitive: false),
+        ),
+      ),
+    );
+  }, skip: liveSkipReason);
+
+  test(
+    'authenticated GET /api/profile/readiness returns CEFACADE readiness',
+    () async {
+      final accessToken = await authHelper.signIn(config);
+
+      final response = await httpClient.get(
+        config.apiUri('/api/profile/readiness'),
+        headers: <String, String>{
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      expect(response.statusCode, 200, reason: response.body);
+      final payload = _decodeObject(response.body);
+      expect(payload['contractId'], 'CEFACADE');
+      expect(payload['endpoint'], '/profile/readiness');
+      expect(payload['backendOwnedFacade'], isTrue);
+      expect(payload['directProviderCallsAllowed'], isFalse);
+      expect(payload['supportSafe'], isTrue);
+    },
+    skip: liveSkipReason,
+  );
+
   test(
     'backend unavailable -> backend client surfaces unreachable failure',
     () async {
@@ -308,6 +437,20 @@ Map<String, dynamic> _decodeObject(String body) {
   }
 
   return decoded;
+}
+
+List<File> _productionDartFiles() {
+  final lib = Directory('lib');
+  if (!lib.existsSync()) {
+    return const <File>[];
+  }
+
+  return lib
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .where((file) => !file.path.contains('/l10n/generated/'))
+      .toList(growable: false);
 }
 
 class _MemoryServerConfigurationRepository

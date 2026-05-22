@@ -31,6 +31,22 @@
       "evidenceMarkers": ["FILES_RESULT"]
     },
     {
+      "tag": "@weave-live-provider-stack-readiness",
+      "scenario": "Provider stack readiness is visible and fail-closed through Weave",
+      "feature": "acceptance/live_stack_app.feature",
+      "executableTest": "integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": ["PROVIDER_STACK_RESULT"],
+      "additionalEvidence": [
+        {
+          "path": "test/live_stack_contract_test.dart",
+          "fragments": [
+            "provider stack readiness stays behind the Weave backend facade",
+            "direct Flutter provider calls remain blocked for optional provider stack modules"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-live-calendar-threadrefs",
       "scenario": "Channel calendar events keep their meeting thread reference",
       "feature": "acceptance/live_stack_app.feature",

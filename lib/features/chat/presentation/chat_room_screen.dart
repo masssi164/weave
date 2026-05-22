@@ -18,6 +18,7 @@ import 'package:weave/features/chat/presentation/providers/channel_workspace_pre
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/context_pack_preview_provider.dart';
 import 'package:weave/features/chat/presentation/providers/decision_evidence_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 class ChatRoomScreen extends ConsumerStatefulWidget {
@@ -589,8 +590,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
 
     final workspaceFacade = ref.watch(channelWorkspacePreviewFacadeProvider);
+    final providerStack = ref.watch(weaveApiProviderStackStatusProvider);
     final workspace = workspaceFacade.supportsWorkspaceTabs(widget.conversation)
-        ? workspaceFacade.previewForChannel(widget.conversation)
+        ? workspaceFacade.previewForChannel(
+            widget.conversation,
+            providerStack: providerStack.asData?.value,
+          )
         : null;
     final scaffold = Scaffold(
       appBar: AppBar(
@@ -828,6 +833,7 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
       status,
       body,
       l10n.channelWorkspaceProviderContract(surface.providerContractId),
+      l10n.channelWorkspaceProviderReadiness(surface.providerReadinessId),
       l10n.channelWorkspaceExplicitContextNote(workspace.channelTitle),
     ].join('. ');
 
@@ -888,6 +894,14 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
                         label: Text(
                           l10n.channelWorkspaceProviderContract(
                             surface.providerContractId,
+                          ),
+                        ),
+                      ),
+                      Chip(
+                        avatar: const Icon(Icons.health_and_safety_outlined, size: 18),
+                        label: Text(
+                          l10n.channelWorkspaceProviderReadiness(
+                            surface.providerReadinessId,
                           ),
                         ),
                       ),

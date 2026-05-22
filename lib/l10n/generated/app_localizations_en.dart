@@ -621,6 +621,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String channelWorkspaceProviderReadiness(String readinessId) {
+    return 'Provider readiness: $readinessId';
+  }
+
+  @override
   String channelWorkspaceExplicitContextNote(String channelName) {
     return 'Only explicit context from $channelName is shown here; Weave does not continuously read the room in the background.';
   }
@@ -1560,6 +1565,62 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsWorkspaceInvalidationBackendApiBaseUrlChanged =>
       'Backend API URL changed';
+
+  @override
+  String get settingsWorkspaceProviderStackTitle => 'Provider stack readiness';
+
+  @override
+  String get settingsWorkspaceProviderStackDescription =>
+      'Optional DevOps, Office, Forms, and Contacts providers are exposed only through backend-owned facades and stay fail-closed when disabled.';
+
+  @override
+  String get settingsWorkspaceProviderStackUnavailable =>
+      'Provider readiness is unavailable until the backend registry can be read.';
+
+  @override
+  String get settingsWorkspaceProviderStackError =>
+      'Provider readiness could not be loaded from the Weave backend.';
+
+  @override
+  String get settingsWorkspaceProviderStackBackendFacadeLabel =>
+      'Backend facade';
+
+  @override
+  String get settingsWorkspaceProviderStackBackendFacadeValue =>
+      'Backend-owned';
+
+  @override
+  String get settingsWorkspaceProviderStackFlutterBoundaryLabel =>
+      'Flutter boundary';
+
+  @override
+  String get settingsWorkspaceProviderStackFlutterBoundaryValue =>
+      'Direct provider calls blocked';
+
+  @override
+  String get settingsWorkspaceProviderStackSupportSafeLabel => 'Support safety';
+
+  @override
+  String get settingsWorkspaceProviderStackSupportSafeValue =>
+      'No secrets exposed';
+
+  @override
+  String get settingsWorkspaceProviderStackFailClosedLabel => 'Fail-closed';
+
+  @override
+  String get settingsWorkspaceProviderStackFailClosedValue => 'Disabled safely';
+
+  @override
+  String get settingsWorkspaceProviderStackReviewValue => 'Review';
+
+  @override
+  String get settingsWorkspaceProviderStackProviderLabel => 'Provider';
+
+  @override
+  String get settingsWorkspaceProviderStackStateLabel => 'State';
+
+  @override
+  String get settingsWorkspaceProviderStackReadinessLabel => 'Readiness';
 
   @override
   String get settingsServerConfigurationDescription =>

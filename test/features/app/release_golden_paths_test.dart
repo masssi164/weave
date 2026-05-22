@@ -6,6 +6,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -231,6 +232,71 @@ class _StaticWeaveApiClient implements WeaveApiClient {
           'fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented',
     );
   }
+
+  @override
+  Future<ProviderStackStatus> fetchProviderStackStatus({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return const ProviderStackStatus(
+      releaseStatus: 'provider-stack-contract-preview',
+      backendOwnedFacades: true,
+      flutterDirectProviderCallsAllowed: false,
+      supportSafe: true,
+      providers: <ProviderReadiness>[],
+    );
+  }
+
+  @override
+  Future<DevopsChannelSummary> fetchDevopsSummary({
+    required Uri baseUrl,
+    required String accessToken,
+    required String workspaceId,
+    required String channelId,
+  }) async {
+    return const DevopsChannelSummary(
+      workspaceId: 'workspace-default',
+      channelId: 'general',
+      releaseStatus: 'provider-stack-contract-preview',
+      readOnly: true,
+      paidFeaturesRequired: false,
+      supportSafe: true,
+      providerReadiness: <ProviderReadiness>[],
+    );
+  }
+
+  @override
+  Future<OfficeCapabilities> fetchOfficeCapabilities({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return const OfficeCapabilities(
+      releaseStatus: 'provider-stack-contract-preview',
+      enabled: false,
+      configured: false,
+      supportSafe: true,
+      launchMode: 'unavailable',
+      defaultProvider: 'onlyoffice',
+      providerReadiness: <ProviderReadiness>[],
+      supportedFileTypes: <String>{},
+      permissions: OfficePermissionModel(
+        canView: false,
+        canEdit: false,
+        canComment: false,
+        canReview: false,
+        canFillForms: false,
+        reason: 'office-provider-disabled',
+      ),
+    );
+  }
+
+  @override
+  Future<void> launchOfficeSession({
+    required Uri baseUrl,
+    required String accessToken,
+    required String fileId,
+    required String requestedMode,
+  }) async {}
 }
 
 void main() {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
@@ -133,6 +134,100 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
           'fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented',
     );
   }
+
+  @override
+  Future<ProviderStackStatus> fetchProviderStackStatus({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return const ProviderStackStatus(
+      releaseStatus: 'provider-stack-contract-preview',
+      backendOwnedFacades: true,
+      flutterDirectProviderCallsAllowed: false,
+      supportSafe: true,
+      providers: <ProviderReadiness>[
+        ProviderReadiness(
+          module: 'office',
+          providerKey: 'onlyoffice',
+          state: 'disabled',
+          readiness: 'unavailable',
+          enabled: false,
+          configured: false,
+          readOnly: true,
+          failClosed: true,
+          supportSafe: true,
+          summary: 'ONLYOFFICE is disabled by default and launch is blocked.',
+          supportedCapabilities: <String>{},
+          unsupportedOperations: <String>{'launch'},
+        ),
+        ProviderReadiness(
+          module: 'source-control',
+          providerKey: 'gitlab-ce',
+          state: 'disabled',
+          readiness: 'unavailable',
+          enabled: false,
+          configured: false,
+          readOnly: true,
+          failClosed: true,
+          supportSafe: true,
+          summary: 'GitLab CE is profiled out by default.',
+          supportedCapabilities: <String>{},
+          unsupportedOperations: <String>{'clone'},
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<DevopsChannelSummary> fetchDevopsSummary({
+    required Uri baseUrl,
+    required String accessToken,
+    required String workspaceId,
+    required String channelId,
+  }) async {
+    return const DevopsChannelSummary(
+      workspaceId: 'workspace-default',
+      channelId: 'general',
+      releaseStatus: 'provider-stack-contract-preview',
+      readOnly: true,
+      paidFeaturesRequired: false,
+      supportSafe: true,
+      providerReadiness: <ProviderReadiness>[],
+    );
+  }
+
+  @override
+  Future<OfficeCapabilities> fetchOfficeCapabilities({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return const OfficeCapabilities(
+      releaseStatus: 'provider-stack-contract-preview',
+      enabled: false,
+      configured: false,
+      supportSafe: true,
+      launchMode: 'unavailable',
+      defaultProvider: 'onlyoffice',
+      providerReadiness: <ProviderReadiness>[],
+      supportedFileTypes: <String>{},
+      permissions: OfficePermissionModel(
+        canView: false,
+        canEdit: false,
+        canComment: false,
+        canReview: false,
+        canFillForms: false,
+        reason: 'office-provider-disabled',
+      ),
+    );
+  }
+
+  @override
+  Future<void> launchOfficeSession({
+    required Uri baseUrl,
+    required String accessToken,
+    required String fileId,
+    required String requestedMode,
+  }) async {}
 }
 
 const _memberProfile = UserProfile(

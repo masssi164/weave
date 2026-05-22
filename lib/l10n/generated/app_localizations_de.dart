@@ -624,6 +624,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String channelWorkspaceProviderReadiness(String readinessId) {
+    return 'Provider-Status: $readinessId';
+  }
+
+  @override
   String channelWorkspaceExplicitContextNote(String channelName) {
     return 'Hier wird nur ausdrücklicher Kontext aus $channelName gezeigt; Weave liest den Raum nicht dauerhaft im Hintergrund mit.';
   }
@@ -1581,6 +1586,64 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get settingsWorkspaceInvalidationBackendApiBaseUrlChanged =>
       'Backend-API-URL geändert';
+
+  @override
+  String get settingsWorkspaceProviderStackTitle => 'Provider-Stack-Status';
+
+  @override
+  String get settingsWorkspaceProviderStackDescription =>
+      'Optionale DevOps-, Office-, Forms- und Contacts-Provider werden nur über backend-eigene Fassaden sichtbar und bleiben fail-closed, wenn sie deaktiviert sind.';
+
+  @override
+  String get settingsWorkspaceProviderStackUnavailable =>
+      'Provider-Status ist erst verfügbar, wenn die Backend-Registry gelesen werden kann.';
+
+  @override
+  String get settingsWorkspaceProviderStackError =>
+      'Provider-Status konnte nicht aus dem Weave-Backend geladen werden.';
+
+  @override
+  String get settingsWorkspaceProviderStackBackendFacadeLabel =>
+      'Backend-Fassade';
+
+  @override
+  String get settingsWorkspaceProviderStackBackendFacadeValue =>
+      'Backend-eigen';
+
+  @override
+  String get settingsWorkspaceProviderStackFlutterBoundaryLabel =>
+      'Flutter-Grenze';
+
+  @override
+  String get settingsWorkspaceProviderStackFlutterBoundaryValue =>
+      'Direkte Provider-Aufrufe blockiert';
+
+  @override
+  String get settingsWorkspaceProviderStackSupportSafeLabel =>
+      'Support-Sicherheit';
+
+  @override
+  String get settingsWorkspaceProviderStackSupportSafeValue =>
+      'Keine Secrets exponiert';
+
+  @override
+  String get settingsWorkspaceProviderStackFailClosedLabel => 'Fail-closed';
+
+  @override
+  String get settingsWorkspaceProviderStackFailClosedValue =>
+      'Sicher deaktiviert';
+
+  @override
+  String get settingsWorkspaceProviderStackReviewValue => 'Prüfen';
+
+  @override
+  String get settingsWorkspaceProviderStackProviderLabel => 'Provider';
+
+  @override
+  String get settingsWorkspaceProviderStackStateLabel => 'Status';
+
+  @override
+  String get settingsWorkspaceProviderStackReadinessLabel => 'Bereitschaft';
 
   @override
   String get settingsServerConfigurationDescription =>

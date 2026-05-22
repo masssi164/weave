@@ -15,6 +15,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
@@ -830,6 +831,7 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
     final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
+    final providerStack = ref.watch(weaveApiProviderStackStatusProvider);
 
     return Card(
       elevation: 0,
@@ -902,6 +904,8 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   capability: capabilitySnapshot.calendar,
                   connection: workspaceState.nextcloud,
                 ),
+                const Divider(height: 32),
+                _ProviderStackReadinessSection(providerStack: providerStack),
               ],
             ),
           (AsyncError(), _) || (_, AsyncError()) => ErrorState(
@@ -962,6 +966,196 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
       IntegrationConnectionStatus.connected =>
         l10n.settingsWorkspaceSummaryConnected,
     };
+  }
+}
+
+class _ProviderStackReadinessSection extends ConsumerWidget {
+  const _ProviderStackReadinessSection({required this.providerStack});
+
+  final AsyncValue<ProviderStackStatus?> providerStack;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Semantics(
+      container: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.settingsWorkspaceProviderStackTitle,
+            style: theme.textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            l10n.settingsWorkspaceProviderStackDescription,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          switch (providerStack) {
+            AsyncData(value: final status?) => _ProviderStackStatusDetails(
+              status: status,
+            ),
+            AsyncData(value: null) => Text(
+              l10n.settingsWorkspaceProviderStackUnavailable,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            AsyncError() => ErrorState(
+              message: l10n.settingsWorkspaceProviderStackError,
+              retryLabel: l10n.retryButton,
+              onRetry: () =>
+                  ref.invalidate(weaveApiProviderStackStatusProvider),
+            ),
+            _ => LoadingState(message: l10n.loadingLabel),
+          },
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderStackStatusDetails extends StatelessWidget {
+  const _ProviderStackStatusDetails({required this.status});
+
+  final ProviderStackStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final trackedProviders = status.providers
+        .where(
+          (provider) => const {
+            'office',
+            'contacts',
+            'forms',
+            'source-control',
+            'issue-tracker',
+            'ci',
+            'release',
+          }.contains(provider.module),
+        )
+        .toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            _StatusPill(
+              label: l10n.settingsWorkspaceProviderStackBackendFacadeLabel,
+              value: status.backendOwnedFacades
+                  ? l10n.settingsWorkspaceProviderStackBackendFacadeValue
+                  : l10n.settingsWorkspaceProviderStackReviewValue,
+            ),
+            _StatusPill(
+              label: l10n.settingsWorkspaceProviderStackFlutterBoundaryLabel,
+              value: status.flutterDirectProviderCallsAllowed
+                  ? l10n.settingsWorkspaceProviderStackReviewValue
+                  : l10n.settingsWorkspaceProviderStackFlutterBoundaryValue,
+            ),
+            _StatusPill(
+              label: l10n.settingsWorkspaceProviderStackSupportSafeLabel,
+              value: status.supportSafe
+                  ? l10n.settingsWorkspaceProviderStackSupportSafeValue
+                  : l10n.settingsWorkspaceProviderStackReviewValue,
+            ),
+            _StatusPill(
+              label: l10n.settingsWorkspaceProviderStackFailClosedLabel,
+              value: status.allOptionalProvidersFailClosed
+                  ? l10n.settingsWorkspaceProviderStackFailClosedValue
+                  : l10n.settingsWorkspaceProviderStackReviewValue,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (trackedProviders.isEmpty)
+          Text(
+            l10n.settingsWorkspaceProviderStackUnavailable,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: trackedProviders
+                .map(
+                  (provider) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _ProviderReadinessRow(provider: provider),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+      ],
+    );
+  }
+}
+
+class _ProviderReadinessRow extends StatelessWidget {
+  const _ProviderReadinessRow({required this.provider});
+
+  final ProviderReadiness provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return MergeSemantics(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            provider.module,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _StatusPill(
+                label: l10n.settingsWorkspaceProviderStackProviderLabel,
+                value: provider.providerKey,
+              ),
+              _StatusPill(
+                label: l10n.settingsWorkspaceProviderStackStateLabel,
+                value: provider.state,
+              ),
+              _StatusPill(
+                label: l10n.settingsWorkspaceProviderStackReadinessLabel,
+                value: provider.readiness,
+              ),
+              _StatusPill(
+                label: l10n.settingsWorkspaceProviderStackFailClosedLabel,
+                value: provider.isFailClosedUnavailable
+                    ? l10n.settingsWorkspaceProviderStackFailClosedValue
+                    : l10n.settingsWorkspaceProviderStackReviewValue,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            provider.summary,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

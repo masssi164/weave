@@ -403,6 +403,11 @@
     "description": "Provider/domain seam label for a channel workspace surface",
     "placeholders": { "contractId": { "type": "String" } }
   },
+  "channelWorkspaceProviderReadiness": "Provider readiness: {readinessId}",
+  "@channelWorkspaceProviderReadiness": {
+    "description": "Provider readiness label for a channel workspace surface",
+    "placeholders": { "readinessId": { "type": "String" } }
+  },
   "channelWorkspaceExplicitContextNote": "Only explicit context from {channelName} is shown here; Weave does not continuously read the room in the background.",
   "@channelWorkspaceExplicitContextNote": {
     "description": "Privacy/context note for a channel workspace surface",
@@ -1272,6 +1277,55 @@
 
   "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend API URL changed",
   "@settingsWorkspaceInvalidationBackendApiBaseUrlChanged": { "description": "Invalidation label for backend API base URL changes" },
+
+
+  "settingsWorkspaceProviderStackTitle": "Provider stack readiness",
+  "@settingsWorkspaceProviderStackTitle": { "description": "Title for provider stack readiness details in settings" },
+
+  "settingsWorkspaceProviderStackDescription": "Optional DevOps, Office, Forms, and Contacts providers are exposed only through backend-owned facades and stay fail-closed when disabled.",
+  "@settingsWorkspaceProviderStackDescription": { "description": "Description for provider stack readiness details in settings" },
+
+  "settingsWorkspaceProviderStackUnavailable": "Provider readiness is unavailable until the backend registry can be read.",
+  "@settingsWorkspaceProviderStackUnavailable": { "description": "Message when provider readiness data is missing" },
+
+  "settingsWorkspaceProviderStackError": "Provider readiness could not be loaded from the Weave backend.",
+  "@settingsWorkspaceProviderStackError": { "description": "Error when provider readiness loading fails" },
+
+  "settingsWorkspaceProviderStackBackendFacadeLabel": "Backend facade",
+  "@settingsWorkspaceProviderStackBackendFacadeLabel": { "description": "Provider stack boundary pill label for backend-owned facades" },
+
+  "settingsWorkspaceProviderStackBackendFacadeValue": "Backend-owned",
+  "@settingsWorkspaceProviderStackBackendFacadeValue": { "description": "Provider stack boundary pill value for backend-owned facades" },
+
+  "settingsWorkspaceProviderStackFlutterBoundaryLabel": "Flutter boundary",
+  "@settingsWorkspaceProviderStackFlutterBoundaryLabel": { "description": "Provider stack boundary pill label for Flutter provider calls" },
+
+  "settingsWorkspaceProviderStackFlutterBoundaryValue": "Direct provider calls blocked",
+  "@settingsWorkspaceProviderStackFlutterBoundaryValue": { "description": "Provider stack boundary pill value when Flutter cannot call providers directly" },
+
+  "settingsWorkspaceProviderStackSupportSafeLabel": "Support safety",
+  "@settingsWorkspaceProviderStackSupportSafeLabel": { "description": "Provider stack boundary pill label for support-safe metadata" },
+
+  "settingsWorkspaceProviderStackSupportSafeValue": "No secrets exposed",
+  "@settingsWorkspaceProviderStackSupportSafeValue": { "description": "Provider stack boundary pill value when metadata is support safe" },
+
+  "settingsWorkspaceProviderStackFailClosedLabel": "Fail-closed",
+  "@settingsWorkspaceProviderStackFailClosedLabel": { "description": "Provider stack boundary pill label for fail-closed state" },
+
+  "settingsWorkspaceProviderStackFailClosedValue": "Disabled safely",
+  "@settingsWorkspaceProviderStackFailClosedValue": { "description": "Provider stack boundary pill value when providers are disabled safely" },
+
+  "settingsWorkspaceProviderStackReviewValue": "Review",
+  "@settingsWorkspaceProviderStackReviewValue": { "description": "Provider stack boundary pill value when a state needs review" },
+
+  "settingsWorkspaceProviderStackProviderLabel": "Provider",
+  "@settingsWorkspaceProviderStackProviderLabel": { "description": "Provider stack readiness pill label for provider key" },
+
+  "settingsWorkspaceProviderStackStateLabel": "State",
+  "@settingsWorkspaceProviderStackStateLabel": { "description": "Provider stack readiness pill label for provider state" },
+
+  "settingsWorkspaceProviderStackReadinessLabel": "Readiness",
+  "@settingsWorkspaceProviderStackReadinessLabel": { "description": "Provider stack readiness pill label for provider readiness" },
 
   "settingsServerConfigurationDescription": "Update the provider and service URLs Weave should use for your self-hosted environment.",
   "@settingsServerConfigurationDescription": { "description": "Description for the settings server configuration section" },

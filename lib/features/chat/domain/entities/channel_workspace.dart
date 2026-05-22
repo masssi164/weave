@@ -1,3 +1,4 @@
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 
 enum ChannelWorkspaceSurfaceKind { chat, files, boards, calendar, meetings }
@@ -10,12 +11,14 @@ class ChannelWorkspaceSurface {
     required this.availability,
     required this.providerContractId,
     required this.contextId,
+    required this.providerReadinessId,
   });
 
   final ChannelWorkspaceSurfaceKind kind;
   final ChannelWorkspaceSurfaceAvailability availability;
   final String providerContractId;
   final String contextId;
+  final String providerReadinessId;
 
   bool get isAvailable =>
       availability == ChannelWorkspaceSurfaceAvailability.available;
@@ -157,9 +160,20 @@ class ChannelWorkspacePreview {
   });
 
   factory ChannelWorkspacePreview.forConversation(
-    ChatConversation conversation,
-  ) {
+    ChatConversation conversation, {
+    ProviderStackStatus? providerStack,
+  }) {
     final contextId = 'channel:${conversation.id}';
+    final officeReadiness = _providerReadinessId(
+      providerStack,
+      modules: const {'office'},
+      prefix: 'office',
+    );
+    final devopsReadiness = _providerReadinessId(
+      providerStack,
+      modules: const {'source-control', 'issue-tracker', 'ci', 'release'},
+      prefix: 'devops',
+    );
     return ChannelWorkspacePreview(
       channelId: conversation.id,
       channelTitle: conversation.title,
@@ -170,30 +184,35 @@ class ChannelWorkspacePreview {
           availability: ChannelWorkspaceSurfaceAvailability.available,
           providerContractId: 'matrix-room',
           contextId: contextId,
+          providerReadinessId: 'matrix-client-ready',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.files,
           availability: ChannelWorkspaceSurfaceAvailability.preview,
           providerContractId: 'weave-files-channel-link',
           contextId: contextId,
+          providerReadinessId: officeReadiness,
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.boards,
           availability: ChannelWorkspaceSurfaceAvailability.preview,
           providerContractId: 'weave-boards-channel-link',
           contextId: contextId,
+          providerReadinessId: devopsReadiness,
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.calendar,
           availability: ChannelWorkspaceSurfaceAvailability.gated,
           providerContractId: 'weave-calendar-channel-scope',
           contextId: contextId,
+          providerReadinessId: 'calendar-channel-scope-gated',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.meetings,
           availability: ChannelWorkspaceSurfaceAvailability.gated,
           providerContractId: 'weave-meetings-channel-preview',
           contextId: contextId,
+          providerReadinessId: 'meetings-provider-fail-closed',
         ),
       ],
       meetingPreview: ChannelMeetingPreview.forConversation(
@@ -223,4 +242,31 @@ class ChannelWorkspacePreview {
   ChannelWorkspaceSurface surface(ChannelWorkspaceSurfaceKind kind) {
     return surfaces.singleWhere((surface) => surface.kind == kind);
   }
+}
+
+String _providerReadinessId(
+  ProviderStackStatus? providerStack, {
+  required Set<String> modules,
+  required String prefix,
+}) {
+  if (providerStack == null) {
+    return '$prefix-provider-registry-pending';
+  }
+
+  final providers = providerStack.providers
+      .where((provider) => modules.contains(provider.module))
+      .toList(growable: false);
+  if (providers.isEmpty) {
+    return '$prefix-provider-unavailable';
+  }
+
+  if (providers.any((provider) => provider.isReady)) {
+    return '$prefix-provider-ready';
+  }
+
+  if (providers.every((provider) => provider.isFailClosedUnavailable)) {
+    return '$prefix-provider-fail-closed';
+  }
+
+  return '$prefix-provider-review-required';
 }

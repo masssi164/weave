@@ -36,6 +36,15 @@ Feature: Live Stack product acceptance journey
     And downloading the file returns the original content
     And the test removes the file it created
 
+  @weave-live-provider-stack-readiness
+  Scenario: Provider stack readiness is visible and fail-closed through Weave
+    Given the signed-in person has the Weave backend facade available
+    When the app reads provider stack readiness
+    Then the registry is visible through the Weave API
+    And DevOps Office Forms and Contacts providers are fail-closed by default
+    And profile readiness uses CEFACADE at /profile/readiness
+    And no provider secrets or direct Flutter provider calls are exposed
+
   @weave-live-calendar-threadrefs
   Scenario: Channel calendar events keep their meeting thread reference
     Given workspace, team, and channel calendar scopes are available in Weave

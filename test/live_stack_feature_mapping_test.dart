@@ -32,6 +32,7 @@ void main() {
           'Matrix chat sends and reads a workspace message',
           'Matrix encryption status is proved honestly',
           'Files are uploaded, shown, downloaded, and cleaned up in Weave',
+          'Provider stack readiness is visible and fail-closed through Weave',
           'Channel calendar events keep their meeting thread reference',
           'Boards preview supports accessible non-drag task work',
         ]),
