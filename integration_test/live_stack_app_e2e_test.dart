@@ -182,6 +182,15 @@ void main() {
           return 'weaveAuthenticatedSession=$session';
         },
       );
+      final restoredSession = container
+          .read(weaveAuthenticatedSessionProvider)
+          .asData
+          ?.value;
+      // ignore: avoid_print
+      print(
+        'AUTH_RESULT signedIn=${restoredSession != null} '
+        'accessTokenPresent=${restoredSession?.accessToken.isNotEmpty ?? false}',
+      );
 
       final profileRepository = container.read(userProfileRepositoryProvider);
       final originalProfile = await profileRepository.loadProfile();

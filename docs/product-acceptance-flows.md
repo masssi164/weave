@@ -49,7 +49,8 @@ flowchart TD
 
 Acceptance evidence:
 - `weave/acceptance/live_stack_app.feature` scenario `@weave-live-auth-shell`.
-- `weave/integration_test/live_stack_app_e2e_test.dart` prints `PROFILE_RESULT` and verifies profile load/update/reload/restore.
+- `weave/acceptance/scenario_mappings.json` maps the scenario to `AUTH_RESULT` and `PROFILE_RESULT`.
+- `weave/integration_test/live_stack_app_e2e_test.dart` prints the mapped markers and verifies profile load/update/reload/restore.
 - `weave/test/live_stack_feature_mapping_test.dart` prevents the readable scenario from drifting away from executable evidence.
 
 ## Flow 2: Workspace/team/channel and Context/Space selection
@@ -191,8 +192,8 @@ Acceptance evidence:
 | Product area | Readable scenario file | Executable or deterministic gate | Why it is relevant |
 | --- | --- | --- | --- |
 | Sign-in / shell / profile | `weave/acceptance/live_stack_app.feature` | Flutter live E2E + `test/live_stack_feature_mapping_test.dart` | One login must restore Weave and `/api/me`/profile facade identity. |
-| Matrix chat / E2EE | `weave/acceptance/live_stack_app.feature` | Flutter live E2E encrypted wire/timeline proof | E2EE posture must be truthful, not decorative. |
-| Files boundary | `weave/acceptance/live_stack_app.feature` | Flutter live E2E backend files facade proof | Files must be Weave product UX, not raw provider UI. |
+| Matrix chat / E2EE | `weave/acceptance/live_stack_app.feature` + `weave/acceptance/scenario_mappings.json` | Flutter live E2E encrypted wire/timeline proof + acceptance artifact | E2EE posture must be truthful, not decorative. |
+| Files boundary | `weave/acceptance/live_stack_app.feature` + `weave/acceptance/scenario_mappings.json` | Flutter live E2E product files proof + acceptance artifact | Files must be Weave product UX, not raw provider UI. |
 | Calendar event/thread | `weave/acceptance/live_stack_app.feature` | Flutter live E2E calendar CRUD + thread reference proof | Channel scheduling needs stable context and future meeting/chat linkage. |
 | Boards app preview | `weave/acceptance/live_stack_app.feature` | Flutter live E2E Boards preview/non-drag operation proof | Boards need accessible non-drag product behavior. |
 | OpenProject provider | `weave-backend/src/test/resources/features/openproject-boards-readonly.feature` | Backend Cucumber/JUnit acceptance suite | Provider runtime must be read-only, context-scoped, support-safe, and fail-closed. |

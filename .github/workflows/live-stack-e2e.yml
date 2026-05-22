@@ -113,6 +113,16 @@ jobs:
           ref: ${{ env.WEAVE_BACKEND_REF }}
           path: weave-backend
 
+      - name: Prepare acceptance evidence directory
+        run: |
+          set -euo pipefail
+          evidence_dir="$RUNNER_TEMP/weave-live-stack-acceptance-evidence"
+          test_log="$RUNNER_TEMP/weave-live-stack-e2e.log"
+          mkdir -p "$evidence_dir"
+          : > "$test_log"
+          echo "WEAVE_ACCEPTANCE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
+          echo "WEAVE_ACCEPTANCE_TEST_LOG=$test_log" >> "$GITHUB_ENV"
+
       - name: Configure Docker auth without macOS Keychain
         env:
           GHCR_TOKEN: ${{ github.token }}
@@ -237,7 +247,21 @@ jobs:
         working-directory: weave
         env:
           WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
-        run: make integration-test
+        run: |
+          set -euo pipefail
+          make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
+
+      - name: Generate live stack acceptance evidence
+        if: always()
+        working-directory: weave
+        run: |
+          set -euo pipefail
+          dart run tool/acceptance_contract.dart guard \
+            --features acceptance \
+            --mapping acceptance/scenario_mappings.json \
+            --out "$WEAVE_ACCEPTANCE_EVIDENCE_DIR" \
+            --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
+            --append-summary "$GITHUB_STEP_SUMMARY"
 
       - name: Dump stack logs on failure
         if: failure()
@@ -253,3 +277,12 @@ jobs:
         if: always()
         working-directory: weave-infra/weave-workspace
         run: bash ./teardown.sh
+
+      - name: Upload live stack acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weave-live-stack-acceptance-evidence
+          path: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}
+          if-no-files-found: error
+          retention-days: 30

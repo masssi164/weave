@@ -239,6 +239,10 @@ Useful test targets:
 - `make integration-contract-test` — live-stack contract check requiring real test credentials.
 - `make integration-app-e2e` / `make integration-test` — expensive app-level live E2E targets for manual runs.
 
+Gherkin scenarios are product acceptance contracts, not decorative BDD. See
+[docs/acceptance-contracts.md](docs/acceptance-contracts.md) for the ATDD workflow,
+scenario-to-test mapping guard, and live-stack acceptance artifact contract.
+
 Supported overrides:
 
 - `WEAVE_API_BASE_URL`: canonical base URL for the Weave backend API, defaulting to `https://api.weave.local/api`
