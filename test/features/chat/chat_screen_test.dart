@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
+import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
+import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
@@ -413,6 +415,11 @@ void main() {
                 securityRepository,
               ),
               firstRunStatusProvider.overrideWith((ref) async => null),
+              agentCapabilityPolicyProvider.overrideWithValue(
+                AsyncData(
+                  AgentCapabilityPolicy.preview(canManageCapabilities: true),
+                ),
+              ),
             ],
           ),
         );

@@ -4025,6 +4025,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.'**
   String get firstRunAdminSetupDescription;
+
+  /// Settings card title for AI agent capability governance
+  ///
+  /// In en, this message translates to:
+  /// **'AI agent capability governance'**
+  String get agentCapabilityPolicyTitle;
+
+  /// Admin-facing description for AI agent capability governance
+  ///
+  /// In en, this message translates to:
+  /// **'Owners and admins decide which agent packages and connectors can be used. This preview stays off until permission, consent, and audit controls are connected.'**
+  String get agentCapabilityPolicyAdminDescription;
+
+  /// Member-facing description for AI agent capability governance
+  ///
+  /// In en, this message translates to:
+  /// **'AI agent chats are not enabled for this workspace yet. You can keep using Weave normally; an owner or admin must turn this on first.'**
+  String get agentCapabilityPolicyUserDescription;
+
+  /// Fail-closed notice when policy cannot be trusted
+  ///
+  /// In en, this message translates to:
+  /// **'Agent capabilities are blocked until Weave can confirm your role and the workspace policy.'**
+  String get agentCapabilityPolicyFailClosedNotice;
+
+  /// Disabled button label for future agent capability management
+  ///
+  /// In en, this message translates to:
+  /// **'Management unavailable in this preview'**
+  String get agentCapabilityPolicyManageDisabledButton;
+
+  /// Hint for non-admin users
+  ///
+  /// In en, this message translates to:
+  /// **'Need an agent for your team? Ask a workspace owner or admin to review agent capabilities when they are available.'**
+  String get agentCapabilityPolicyAskAdminHint;
+
+  /// Admin state hint for disabled agent capabilities
+  ///
+  /// In en, this message translates to:
+  /// **'Current state: off by default. Future controls will require owner/admin review before users can start an agent.'**
+  String get agentCapabilityPolicyAdminStateHint;
+
+  /// Agent capability title for personal assistant
+  ///
+  /// In en, this message translates to:
+  /// **'Personal assistant'**
+  String get agentCapabilityPersonalAssistantTitle;
+
+  /// Agent capability description for personal assistant
+  ///
+  /// In en, this message translates to:
+  /// **'Will only use context you choose for a request, after your workspace enables the capability.'**
+  String get agentCapabilityPersonalAssistantDescription;
+
+  /// Agent capability title for channel agent
+  ///
+  /// In en, this message translates to:
+  /// **'Channel agent'**
+  String get agentCapabilityChannelAgentTitle;
+
+  /// Agent capability description for channel agent
+  ///
+  /// In en, this message translates to:
+  /// **'Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.'**
+  String get agentCapabilityChannelAgentDescription;
+
+  /// Agent capability availability label for preview-only state
+  ///
+  /// In en, this message translates to:
+  /// **'Preview only'**
+  String get agentCapabilityAvailabilityPreviewOnly;
+
+  /// Agent capability availability label when admin setup is required
+  ///
+  /// In en, this message translates to:
+  /// **'Admin setup required'**
+  String get agentCapabilityAvailabilityAdminSetupRequired;
+
+  /// Agent capability availability label for blocked state
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get agentCapabilityAvailabilityBlocked;
+
+  /// Error message for AI agent capability policy settings section
+  ///
+  /// In en, this message translates to:
+  /// **'Agent capability policy is unavailable.'**
+  String get agentCapabilityPolicyErrorTitle;
+
+  /// Loading message for AI agent capability policy settings section
+  ///
+  /// In en, this message translates to:
+  /// **'Checking agent capability policy…'**
+  String get agentCapabilityPolicyLoading;
 }
 
 class _AppLocalizationsDelegate

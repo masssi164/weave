@@ -7,13 +7,14 @@ class AgentChatPreviewCapability {
     required this.id,
     required this.kind,
     required this.availability,
+    this.canStart = false,
   });
 
   final String id;
   final AgentChatPreviewKind kind;
   final AgentChatAvailability availability;
 
-  /// Agent chats are intentionally non-startable until backend capability,
-  /// consent, audit, and policy gates are connected.
-  bool get canStart => false;
+  /// Agent chats remain non-startable until owner/admin policy, consent,
+  /// audit, and connector gates are connected through the backend facade.
+  final bool canStart;
 }
