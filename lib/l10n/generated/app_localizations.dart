@@ -2705,6 +2705,288 @@ abstract class AppLocalizations {
   /// **'Backend API URL changed'**
   String get settingsWorkspaceInvalidationBackendApiBaseUrlChanged;
 
+  /// Title for provider stack readiness summary in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Provider stack readiness'**
+  String get settingsProviderStackTitle;
+
+  /// Accessibility label for provider readiness summary
+  ///
+  /// In en, this message translates to:
+  /// **'Provider stack readiness. Backend-owned facades: {backendOwnedFacades}. Flutter provider calls: {flutterCalls}.'**
+  String settingsProviderStackSemanticLabel(
+    String backendOwnedFacades,
+    String flutterCalls,
+  );
+
+  /// Provider stack description when backend facade and fail-closed rules are satisfied
+  ///
+  /// In en, this message translates to:
+  /// **'Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call GitLab, Office, or other provider APIs directly.'**
+  String get settingsProviderStackFailClosedDescription;
+
+  /// Provider stack description when readiness needs review
+  ///
+  /// In en, this message translates to:
+  /// **'Provider readiness needs review before enabling direct launch or workspace actions.'**
+  String get settingsProviderStackNeedsReviewDescription;
+
+  /// Pill label for backend-owned provider facades
+  ///
+  /// In en, this message translates to:
+  /// **'Backend facades'**
+  String get settingsProviderStackBackendFacadesLabel;
+
+  /// Pill label for whether Flutter calls provider APIs directly
+  ///
+  /// In en, this message translates to:
+  /// **'Flutter provider calls'**
+  String get settingsProviderStackFlutterCallsLabel;
+
+  /// Pill label for support-safe provider diagnostics
+  ///
+  /// In en, this message translates to:
+  /// **'Support safety'**
+  String get settingsProviderStackSupportSafetyLabel;
+
+  /// Value when provider facades are backend-owned
+  ///
+  /// In en, this message translates to:
+  /// **'Owned by backend'**
+  String get settingsProviderStackOwned;
+
+  /// Value when provider facades are missing
+  ///
+  /// In en, this message translates to:
+  /// **'Missing'**
+  String get settingsProviderStackMissing;
+
+  /// Value when provider stack needs review
+  ///
+  /// In en, this message translates to:
+  /// **'Needs review'**
+  String get settingsProviderStackNeedsReview;
+
+  /// Value when direct provider calls are blocked
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get settingsProviderStackBlocked;
+
+  /// Value when provider diagnostics are support-safe/redacted
+  ///
+  /// In en, this message translates to:
+  /// **'Redacted'**
+  String get settingsProviderStackRedacted;
+
+  /// Short yes value in provider stack semantics
+  ///
+  /// In en, this message translates to:
+  /// **'Yes'**
+  String get settingsProviderStackYes;
+
+  /// Short no value in provider stack semantics
+  ///
+  /// In en, this message translates to:
+  /// **'No'**
+  String get settingsProviderStackNo;
+
+  /// Semantics value when Flutter direct provider calls are allowed
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed'**
+  String get settingsProviderStackFlutterCallsAllowed;
+
+  /// Semantics value when Flutter direct provider calls are blocked
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get settingsProviderStackFlutterCallsBlocked;
+
+  /// Provider status badge for fail-closed behavior
+  ///
+  /// In en, this message translates to:
+  /// **'fail-closed'**
+  String get settingsProviderStackFailClosedBadge;
+
+  /// Provider status badge for read-only behavior
+  ///
+  /// In en, this message translates to:
+  /// **'read-only'**
+  String get settingsProviderStackReadOnlyBadge;
+
+  /// Provider status badge for paid feature requirements
+  ///
+  /// In en, this message translates to:
+  /// **'paid features required'**
+  String get settingsProviderStackPaidFeaturesRequiredBadge;
+
+  /// Provider module label for identity realm
+  ///
+  /// In en, this message translates to:
+  /// **'Identity realm'**
+  String get settingsProviderModuleIdentityRealm;
+
+  /// Provider module label for source control
+  ///
+  /// In en, this message translates to:
+  /// **'Source control'**
+  String get settingsProviderModuleSourceControl;
+
+  /// Provider module label for issue tracker
+  ///
+  /// In en, this message translates to:
+  /// **'Issue tracker'**
+  String get settingsProviderModuleIssueTracker;
+
+  /// Provider module label for CI
+  ///
+  /// In en, this message translates to:
+  /// **'CI'**
+  String get settingsProviderModuleCi;
+
+  /// Provider module label for releases
+  ///
+  /// In en, this message translates to:
+  /// **'Release'**
+  String get settingsProviderModuleRelease;
+
+  /// Provider module label for Office
+  ///
+  /// In en, this message translates to:
+  /// **'Office'**
+  String get settingsProviderModuleOffice;
+
+  /// Provider module label for files
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get settingsProviderModuleFiles;
+
+  /// Provider module label for calendar
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar'**
+  String get settingsProviderModuleCalendar;
+
+  /// Provider module label for contacts
+  ///
+  /// In en, this message translates to:
+  /// **'Contacts'**
+  String get settingsProviderModuleContacts;
+
+  /// Provider module label for forms
+  ///
+  /// In en, this message translates to:
+  /// **'Forms'**
+  String get settingsProviderModuleForms;
+
+  /// Provider module label for boards
+  ///
+  /// In en, this message translates to:
+  /// **'Boards'**
+  String get settingsProviderModuleBoards;
+
+  /// Fallback provider module label
+  ///
+  /// In en, this message translates to:
+  /// **'Provider'**
+  String get settingsProviderModuleProvider;
+
+  /// Provider state label for disabled providers
+  ///
+  /// In en, this message translates to:
+  /// **'disabled'**
+  String get settingsProviderStateDisabled;
+
+  /// Provider state label for unconfigured providers
+  ///
+  /// In en, this message translates to:
+  /// **'unconfigured'**
+  String get settingsProviderStateNotConfigured;
+
+  /// Provider state label for configured providers
+  ///
+  /// In en, this message translates to:
+  /// **'configured'**
+  String get settingsProviderStateConfigured;
+
+  /// Provider state label for ready providers
+  ///
+  /// In en, this message translates to:
+  /// **'ready'**
+  String get settingsProviderStateReady;
+
+  /// Provider state label for degraded providers
+  ///
+  /// In en, this message translates to:
+  /// **'degraded'**
+  String get settingsProviderStateDegraded;
+
+  /// Provider state label for unsupported providers
+  ///
+  /// In en, this message translates to:
+  /// **'unsupported'**
+  String get settingsProviderStateUnsupported;
+
+  /// Provider state label for unknown provider state
+  ///
+  /// In en, this message translates to:
+  /// **'unknown'**
+  String get settingsProviderStateUnknown;
+
+  /// Title for Office provider readiness summary
+  ///
+  /// In en, this message translates to:
+  /// **'Office readiness'**
+  String get settingsOfficeReadinessTitle;
+
+  /// Accessibility label for Office readiness summary
+  ///
+  /// In en, this message translates to:
+  /// **'Office readiness. Launch is {launchState}. Provider is {providerState}.'**
+  String settingsOfficeReadinessSemanticLabel(
+    String launchState,
+    String providerState,
+  );
+
+  /// Office readiness description when launch is fail-closed
+  ///
+  /// In en, this message translates to:
+  /// **'Office launch is fail-closed until a backend-owned provider adapter, session tokens, callbacks, and permissions are configured.'**
+  String get settingsOfficeReadinessFailClosedDescription;
+
+  /// Office readiness description when launch is available
+  ///
+  /// In en, this message translates to:
+  /// **'Office launch is available through the backend facade.'**
+  String get settingsOfficeReadinessAvailableDescription;
+
+  /// Office launch availability value
+  ///
+  /// In en, this message translates to:
+  /// **'available'**
+  String get settingsOfficeReadinessAvailable;
+
+  /// Office provider enabled value
+  ///
+  /// In en, this message translates to:
+  /// **'enabled'**
+  String get settingsOfficeReadinessEnabled;
+
+  /// Office readiness value when no launch modes are available
+  ///
+  /// In en, this message translates to:
+  /// **'no launch modes'**
+  String get settingsOfficeReadinessNoLaunchModes;
+
+  /// Enabled Office launch modes
+  ///
+  /// In en, this message translates to:
+  /// **'modes: {modes}'**
+  String settingsOfficeReadinessModes(String modes);
+
   /// Description for the settings server configuration section
   ///
   /// In en, this message translates to:

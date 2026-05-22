@@ -15,6 +15,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
@@ -830,6 +831,10 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
     final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
+    final providerStack = ref.watch(weaveApiProviderStackSnapshotProvider);
+    final officeCapabilities = ref.watch(
+      weaveApiOfficeCapabilitiesSnapshotProvider,
+    );
 
     return Card(
       elevation: 0,
@@ -869,6 +874,11 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                       ref.invalidate(
                         weaveApiWorkspaceCapabilitySnapshotProvider,
                       );
+                      ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
+                      ref.invalidate(weaveApiProviderStackSnapshotProvider);
+                      ref.invalidate(
+                        weaveApiOfficeCapabilitiesSnapshotProvider,
+                      );
                     },
                   ),
                 ],
@@ -877,6 +887,13 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   _workspaceSummary(l10n, workspaceState),
                   style: theme.textTheme.bodyMedium,
                 ),
+                if (providerStack.asData?.value case final stack?) ...[
+                  const SizedBox(height: 20),
+                  _ProviderStackReadinessSummary(
+                    stack: stack,
+                    officeCapabilities: officeCapabilities.asData?.value,
+                  ),
+                ],
                 const SizedBox(height: 20),
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceShellAccessLabel,
@@ -914,6 +931,10 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
               ref.invalidate(appAuthIntegrationConnectionProvider);
               ref.invalidate(matrixIntegrationConnectionProvider);
               ref.invalidate(nextcloudIntegrationConnectionProvider);
+              ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
+              ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
+              ref.invalidate(weaveApiProviderStackSnapshotProvider);
+              ref.invalidate(weaveApiOfficeCapabilitiesSnapshotProvider);
             },
           ),
           _ => LoadingState(message: l10n.loadingLabel),
@@ -962,6 +983,253 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
       IntegrationConnectionStatus.connected =>
         l10n.settingsWorkspaceSummaryConnected,
     };
+  }
+}
+
+class _ProviderStackReadinessSummary extends StatelessWidget {
+  const _ProviderStackReadinessSummary({
+    required this.stack,
+    this.officeCapabilities,
+  });
+
+  final ProviderStackSnapshot stack;
+  final OfficeCapabilitiesSnapshot? officeCapabilities;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final providers = stack.providers.take(6).toList(growable: false);
+    final flutterCalls = stack.flutterDirectProviderCallsAllowed
+        ? l10n.settingsProviderStackFlutterCallsAllowed
+        : l10n.settingsProviderStackFlutterCallsBlocked;
+
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: l10n.settingsProviderStackSemanticLabel(
+        stack.backendOwnedFacades
+            ? l10n.settingsProviderStackYes
+            : l10n.settingsProviderStackNo,
+        flutterCalls,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.settingsProviderStackTitle,
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                stack.failClosed
+                    ? l10n.settingsProviderStackFailClosedDescription
+                    : l10n.settingsProviderStackNeedsReviewDescription,
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _StatusPill(
+                    label: l10n.settingsProviderStackBackendFacadesLabel,
+                    value: stack.backendOwnedFacades
+                        ? l10n.settingsProviderStackOwned
+                        : l10n.settingsProviderStackMissing,
+                  ),
+                  _StatusPill(
+                    label: l10n.settingsProviderStackFlutterCallsLabel,
+                    value: stack.flutterDirectProviderCallsAllowed
+                        ? l10n.settingsProviderStackNeedsReview
+                        : l10n.settingsProviderStackBlocked,
+                  ),
+                  _StatusPill(
+                    label: l10n.settingsProviderStackSupportSafetyLabel,
+                    value: stack.supportSafe
+                        ? l10n.settingsProviderStackRedacted
+                        : l10n.settingsProviderStackNeedsReview,
+                  ),
+                ],
+              ),
+              if (officeCapabilities case final office?) ...[
+                const SizedBox(height: 12),
+                _OfficeProviderReadinessSummary(office: office),
+              ],
+              if (providers.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (final provider in providers)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '${_providerModuleLabel(l10n, provider.module)}: ${_providerStateLabel(l10n, provider.state)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (provider.disabled)
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStateDisabled,
+                          ),
+                        if (provider.unconfigured)
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStateNotConfigured,
+                          ),
+                        if (provider.failClosed)
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStackFailClosedBadge,
+                          ),
+                        if (provider.readOnly)
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStackReadOnlyBadge,
+                          ),
+                        if (provider.paidFeaturesRequired)
+                          _CompactStatusBadge(
+                            label: l10n
+                                .settingsProviderStackPaidFeaturesRequiredBadge,
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _providerModuleLabel(AppLocalizations l10n, String module) {
+    return switch (module) {
+      'identity-realm' => l10n.settingsProviderModuleIdentityRealm,
+      'source-control' => l10n.settingsProviderModuleSourceControl,
+      'issue-tracker' => l10n.settingsProviderModuleIssueTracker,
+      'ci' => l10n.settingsProviderModuleCi,
+      'release' => l10n.settingsProviderModuleRelease,
+      'office' => l10n.settingsProviderModuleOffice,
+      'files' => l10n.settingsProviderModuleFiles,
+      'calendar' => l10n.settingsProviderModuleCalendar,
+      'contacts' => l10n.settingsProviderModuleContacts,
+      'forms' => l10n.settingsProviderModuleForms,
+      'boards' => l10n.settingsProviderModuleBoards,
+      _ => l10n.settingsProviderModuleProvider,
+    };
+  }
+
+  String _providerStateLabel(AppLocalizations l10n, ProviderState state) {
+    return switch (state) {
+      ProviderState.disabled => l10n.settingsProviderStateDisabled,
+      ProviderState.notConfigured => l10n.settingsProviderStateNotConfigured,
+      ProviderState.configured => l10n.settingsProviderStateConfigured,
+      ProviderState.ready => l10n.settingsProviderStateReady,
+      ProviderState.degraded => l10n.settingsProviderStateDegraded,
+      ProviderState.unsupported => l10n.settingsProviderStateUnsupported,
+      ProviderState.unknown => l10n.settingsProviderStateUnknown,
+    };
+  }
+}
+
+class _OfficeProviderReadinessSummary extends StatelessWidget {
+  const _OfficeProviderReadinessSummary({required this.office});
+
+  final OfficeCapabilitiesSnapshot office;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final enabledModes = office.capabilities.enabledModes;
+
+    return Semantics(
+      container: true,
+      label: l10n.settingsOfficeReadinessSemanticLabel(
+        office.launchFailClosed
+            ? l10n.settingsProviderStackFailClosedBadge
+            : l10n.settingsOfficeReadinessAvailable,
+        office.configured
+            ? l10n.settingsProviderStateConfigured
+            : l10n.settingsProviderStateNotConfigured,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.settingsOfficeReadinessTitle,
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            office.launchFailClosed
+                ? l10n.settingsOfficeReadinessFailClosedDescription
+                : l10n.settingsOfficeReadinessAvailableDescription,
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _CompactStatusBadge(
+                label: office.enabled
+                    ? l10n.settingsOfficeReadinessEnabled
+                    : l10n.settingsProviderStateDisabled,
+              ),
+              _CompactStatusBadge(
+                label: office.configured
+                    ? l10n.settingsProviderStateConfigured
+                    : l10n.settingsProviderStateNotConfigured,
+              ),
+              if (office.launchFailClosed)
+                _CompactStatusBadge(
+                  label: l10n.settingsProviderStackFailClosedBadge,
+                ),
+              _CompactStatusBadge(
+                label: enabledModes.isEmpty
+                    ? l10n.settingsOfficeReadinessNoLaunchModes
+                    : l10n.settingsOfficeReadinessModes(
+                        enabledModes.join(', '),
+                      ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactStatusBadge extends StatelessWidget {
+  const _CompactStatusBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(label, style: theme.textTheme.labelSmall),
+      ),
+    );
   }
 }
 

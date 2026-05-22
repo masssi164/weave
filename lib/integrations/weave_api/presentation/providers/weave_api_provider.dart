@@ -5,6 +5,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
@@ -68,6 +69,26 @@ final weaveApiMatrixE2eeDiagnosticProvider =
     FutureProvider<MatrixE2eeDiagnostic?>((ref) async {
       return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
         return client.fetchMatrixE2eeDiagnostic(
+          baseUrl: baseUrl,
+          accessToken: accessToken,
+        );
+      });
+    });
+
+final weaveApiProviderStackSnapshotProvider =
+    FutureProvider<ProviderStackSnapshot?>((ref) async {
+      return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+        return client.fetchProviderStackStatus(
+          baseUrl: baseUrl,
+          accessToken: accessToken,
+        );
+      });
+    });
+
+final weaveApiOfficeCapabilitiesSnapshotProvider =
+    FutureProvider<OfficeCapabilitiesSnapshot?>((ref) async {
+      return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+        return client.fetchOfficeCapabilities(
           baseUrl: baseUrl,
           accessToken: accessToken,
         );

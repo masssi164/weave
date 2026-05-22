@@ -12,6 +12,7 @@ import 'package:weave/core/theme/shared_preferences_app_theme_preference_reposit
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -482,6 +483,129 @@ void main() {
         store.rawString(shellModulePreferencesStorageKey),
         '{"hiddenModules":["workspaceStatus"],"moduleOrder":["recentActivity","workspaceStatus"]}',
       );
+    });
+
+    testWidgets('surfaces provider stack fail-closed readiness safely', (
+      tester,
+    ) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+          ),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
+          ),
+          weaveApiProviderStackSnapshotProvider.overrideWith(
+            (ref) async => const ProviderStackSnapshot(
+              releaseStatus: 'contract-preview',
+              backendOwnedFacades: true,
+              flutterDirectProviderCallsAllowed: false,
+              supportSafe: true,
+              providers: [
+                ProviderStatusSnapshot(
+                  module: 'office',
+                  providerKey: 'onlyoffice-community',
+                  state: ProviderState.disabled,
+                  readiness: 'fail-closed',
+                  enabled: false,
+                  configured: false,
+                  readOnly: true,
+                  failClosed: true,
+                  supportSafe: true,
+                  paidFeaturesRequired: false,
+                  summary: 'Disabled until configured behind backend facade.',
+                  supportedCapabilities: [],
+                  unsupportedOperations: ['launch'],
+                  supportSafeErrorCodes: ['PROVIDER_DISABLED'],
+                  redactionPolicy: 'support-safe',
+                  candidates: ['ONLYOFFICE Docs Community'],
+                ),
+              ],
+            ),
+          ),
+          weaveApiOfficeCapabilitiesSnapshotProvider.overrideWith(
+            (ref) async => const OfficeCapabilitiesSnapshot(
+              releaseStatus: 'contract-preview',
+              enabled: false,
+              configured: false,
+              supportSafe: true,
+              launchMode: 'disabled',
+              defaultProvider: 'onlyoffice-community',
+              providerReadiness: [],
+              supportedFileTypes: [],
+              candidates: [],
+              capabilities: OfficeCapabilityFlagsSnapshot(
+                view: false,
+                edit: false,
+                comment: false,
+                review: false,
+                formFill: false,
+              ),
+              permissions: OfficePermissionModelSnapshot(
+                canView: false,
+                canEdit: false,
+                canComment: false,
+                canReview: false,
+                canFillForms: false,
+                reason: 'token leaked from https://office.example.test',
+              ),
+              lockSessionReadiness: OfficeLockSessionReadinessSnapshot(
+                documentLocks: 'unavailable',
+                sessionTokens: 'unavailable',
+                callbackVerification: 'unavailable',
+                supportSafe: true,
+              ),
+            ),
+          ),
+          userProfileProvider.overrideWith((ref) async => _ownerProfile),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Provider stack readiness'), findsOneWidget);
+      expect(
+        find.text('Flutter provider calls: Blocked', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Flutter does not call GitLab'),
+        findsOneWidget,
+      );
+      expect(find.text('Office readiness'), findsOneWidget);
+      expect(find.text('unconfigured'), findsWidgets);
+      expect(find.text('fail-closed'), findsWidgets);
+      expect(
+        find.textContaining('Office launch is fail-closed'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('provider-token-123'), findsNothing);
+      expect(find.textContaining('https://gitlab.example.test'), findsNothing);
+      expect(find.textContaining('https://office.example.test'), findsNothing);
     });
 
     testWidgets(
