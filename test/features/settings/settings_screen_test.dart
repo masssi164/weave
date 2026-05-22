@@ -259,6 +259,20 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(find.text('Realm import preview'), findsOneWidget);
+      expect(
+        find.text(
+          'Safe preview ready. Realm import remains disabled until Weave has a backend/infra import contract.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Expected roles: owner, admin, member, guest. Backend APIs remain authoritative.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Realm import disabled in preview'), findsOneWidget);
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
       expect(find.text('weave-app'), findsWidgets);
@@ -354,6 +368,8 @@ void main() {
         find.textContaining('Normal users can keep using Weave'),
         findsOneWidget,
       );
+      expect(find.text('Realm import preview'), findsNothing);
+      expect(find.text('Realm import disabled in preview'), findsNothing);
       expect(find.text('Server Configuration'), findsNothing);
       expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
       expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);

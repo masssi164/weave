@@ -33,6 +33,7 @@ import 'package:weave/features/server_config/domain/entities/server_configuratio
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
+import 'package:weave/features/settings/domain/entities/admin_realm_import_preview.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
@@ -196,6 +197,10 @@ class _AdminSetupConfigurationCard extends ConsumerWidget {
             const SizedBox(height: 12),
             _AdminPermissionSummary(profile: profile),
             const SizedBox(height: 24),
+            _AdminRealmImportPreviewCard(
+              preview: AdminRealmImportPreview.fromConfiguration(configuration),
+            ),
+            const SizedBox(height: 24),
             Text(
               l10n.settingsServerConfigurationTitle,
               style: theme.textTheme.titleLarge,
@@ -354,6 +359,232 @@ class _AdminSetupLoadingCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _AdminRealmImportPreviewCard extends StatelessWidget {
+  const _AdminRealmImportPreviewCard({required this.preview});
+
+  final AdminRealmImportPreview preview;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final statusText = preview.readyForSafePreview
+        ? l10n.settingsRealmImportPreviewReady
+        : l10n.settingsRealmImportPreviewFailClosed;
+
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label: l10n.settingsRealmImportPreviewSemantic(statusText),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.settingsRealmImportPreviewTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.settingsRealmImportPreviewDescription,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _RealmImportStatusBanner(
+                text: statusText,
+                ready: preview.readyForSafePreview,
+              ),
+              const SizedBox(height: 12),
+              for (final item in preview.items) ...[
+                _RealmImportChecklistTile(item: item),
+                const SizedBox(height: 8),
+              ],
+              Text(
+                l10n.settingsRealmImportNoSecretsNotice,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              AccessibleButton(
+                onPressed: null,
+                outlined: true,
+                semanticLabel: l10n.settingsRealmImportDisabledActionSemantic,
+                child: Text(l10n.settingsRealmImportDisabledAction),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RealmImportStatusBanner extends StatelessWidget {
+  const _RealmImportStatusBanner({required this.text, required this.ready});
+
+  final String text;
+  final bool ready;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final background = ready
+        ? colorScheme.primaryContainer.withValues(alpha: 0.48)
+        : colorScheme.errorContainer.withValues(alpha: 0.56);
+    final foreground = ready
+        ? colorScheme.onPrimaryContainer
+        : colorScheme.onErrorContainer;
+
+    return Semantics(
+      liveRegion: true,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                ready ? Icons.visibility_outlined : Icons.lock_outline_rounded,
+                color: foreground,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  text,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: foreground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RealmImportChecklistTile extends StatelessWidget {
+  const _RealmImportChecklistTile({required this.item});
+
+  final AdminRealmImportChecklistItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final title = _titleFor(context, item.key);
+    final detail = _detailFor(context, item);
+    final status = item.ready
+        ? l10n.settingsRealmImportChecklistReady
+        : l10n.settingsRealmImportChecklistActionRequired;
+
+    return Semantics(
+      container: true,
+      label: '$title. $status. $detail',
+      child: ExcludeSemantics(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              item.ready ? Icons.check_circle_outline : Icons.error_outline,
+              color: item.ready ? colorScheme.primary : colorScheme.error,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              status,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: item.ready ? colorScheme.primary : colorScheme.error,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _titleFor(BuildContext context, AdminRealmImportChecklistKey key) {
+    final l10n = AppLocalizations.of(context);
+
+    return switch (key) {
+      AdminRealmImportChecklistKey.realmAuthority =>
+        l10n.settingsRealmImportAuthorityTitle,
+      AdminRealmImportChecklistKey.oidcClient =>
+        l10n.settingsRealmImportClientTitle,
+      AdminRealmImportChecklistKey.productApi =>
+        l10n.settingsRealmImportProductApiTitle,
+      AdminRealmImportChecklistKey.moduleEndpoints =>
+        l10n.settingsRealmImportModuleEndpointsTitle,
+      AdminRealmImportChecklistKey.roleBaseline =>
+        l10n.settingsRealmImportRolesTitle,
+    };
+  }
+
+  String _detailFor(BuildContext context, AdminRealmImportChecklistItem item) {
+    final l10n = AppLocalizations.of(context);
+    final value = item.value;
+
+    return switch (item.key) {
+      AdminRealmImportChecklistKey.realmAuthority =>
+        item.ready && value != null
+            ? l10n.settingsRealmImportAuthorityReady(value)
+            : l10n.settingsRealmImportAuthorityMissing,
+      AdminRealmImportChecklistKey.oidcClient =>
+        item.ready && value != null
+            ? l10n.settingsRealmImportClientReady(value)
+            : l10n.settingsRealmImportClientMissing,
+      AdminRealmImportChecklistKey.productApi =>
+        item.ready && value != null
+            ? l10n.settingsRealmImportProductApiReady(value)
+            : l10n.settingsRealmImportProductApiMissing,
+      AdminRealmImportChecklistKey.moduleEndpoints =>
+        item.ready && value != null
+            ? l10n.settingsRealmImportModuleEndpointsReady(value)
+            : l10n.settingsRealmImportModuleEndpointsMissing,
+      AdminRealmImportChecklistKey.roleBaseline =>
+        l10n.settingsRealmImportRolesReady,
+    };
   }
 }
 

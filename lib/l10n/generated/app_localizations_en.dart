@@ -2591,6 +2591,99 @@ class AppLocalizationsEn extends AppLocalizations {
       'Workspace owners and admins manage OIDC, realm, organization, and service endpoints here. Members and guests only see sign-in and product settings.';
 
   @override
+  String get settingsRealmImportPreviewTitle => 'Realm import preview';
+
+  @override
+  String get settingsRealmImportPreviewDescription =>
+      'Review the product baseline a future Keycloak realm import must satisfy. This screen is preview-only and never imports a realm by itself.';
+
+  @override
+  String get settingsRealmImportPreviewReady =>
+      'Safe preview ready. Realm import remains disabled until Weave has a backend/infra import contract.';
+
+  @override
+  String get settingsRealmImportPreviewFailClosed =>
+      'Fail-closed. Save the admin setup values before any realm import can be prepared.';
+
+  @override
+  String settingsRealmImportPreviewSemantic(String status) {
+    return 'Realm import preview. $status';
+  }
+
+  @override
+  String get settingsRealmImportChecklistReady => 'Ready';
+
+  @override
+  String get settingsRealmImportChecklistActionRequired => 'Needs setup';
+
+  @override
+  String get settingsRealmImportAuthorityTitle => 'Realm authority';
+
+  @override
+  String settingsRealmImportAuthorityReady(String issuer) {
+    return 'Issuer: $issuer';
+  }
+
+  @override
+  String get settingsRealmImportAuthorityMissing =>
+      'Save the Keycloak/OIDC issuer before preparing realm import.';
+
+  @override
+  String get settingsRealmImportClientTitle => 'Weave app client';
+
+  @override
+  String settingsRealmImportClientReady(String clientId) {
+    return 'Client ID: $clientId';
+  }
+
+  @override
+  String get settingsRealmImportClientMissing =>
+      'Add the Weave OIDC client ID. Do not paste secrets here.';
+
+  @override
+  String get settingsRealmImportProductApiTitle => 'Product API';
+
+  @override
+  String settingsRealmImportProductApiReady(String apiBaseUrl) {
+    return 'Backend facade: $apiBaseUrl';
+  }
+
+  @override
+  String get settingsRealmImportProductApiMissing =>
+      'Save the backend API base URL used by the product.';
+
+  @override
+  String get settingsRealmImportModuleEndpointsTitle => 'Module endpoints';
+
+  @override
+  String settingsRealmImportModuleEndpointsReady(String endpoints) {
+    return 'Matrix and files endpoints: $endpoints';
+  }
+
+  @override
+  String get settingsRealmImportModuleEndpointsMissing =>
+      'Save the Matrix and files endpoints before preparing setup guidance.';
+
+  @override
+  String get settingsRealmImportRolesTitle => 'Role baseline';
+
+  @override
+  String get settingsRealmImportRolesReady =>
+      'Expected roles: owner, admin, member, guest. Backend APIs remain authoritative.';
+
+  @override
+  String get settingsRealmImportNoSecretsNotice =>
+      'No secrets, passwords, client credentials, or realm JSON are stored or imported from this screen.';
+
+  @override
+  String get settingsRealmImportDisabledAction =>
+      'Realm import disabled in preview';
+
+  @override
+  String get settingsRealmImportDisabledActionSemantic =>
+      'Realm import action disabled in preview until a safe backend and infrastructure contract exists.';
+
+  @override
   String get settingsAdminPermissionTitle => 'Admin controls unlocked';
 
   @override

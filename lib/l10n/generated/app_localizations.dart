@@ -4318,6 +4318,150 @@ abstract class AppLocalizations {
   /// **'Workspace owners and admins manage OIDC, realm, organization, and service endpoints here. Members and guests only see sign-in and product settings.'**
   String get settingsAdminSetupDescription;
 
+  /// Title for the safe admin realm import preview card
+  ///
+  /// In en, this message translates to:
+  /// **'Realm import preview'**
+  String get settingsRealmImportPreviewTitle;
+
+  /// Description for the safe admin realm import preview card
+  ///
+  /// In en, this message translates to:
+  /// **'Review the product baseline a future Keycloak realm import must satisfy. This screen is preview-only and never imports a realm by itself.'**
+  String get settingsRealmImportPreviewDescription;
+
+  /// Status when the realm import preview checklist has enough setup data
+  ///
+  /// In en, this message translates to:
+  /// **'Safe preview ready. Realm import remains disabled until Weave has a backend/infra import contract.'**
+  String get settingsRealmImportPreviewReady;
+
+  /// Status when realm import preview is missing required setup data
+  ///
+  /// In en, this message translates to:
+  /// **'Fail-closed. Save the admin setup values before any realm import can be prepared.'**
+  String get settingsRealmImportPreviewFailClosed;
+
+  /// Screen-reader label for the realm import preview card
+  ///
+  /// In en, this message translates to:
+  /// **'Realm import preview. {status}'**
+  String settingsRealmImportPreviewSemantic(String status);
+
+  /// Checklist status for ready realm import preview items
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get settingsRealmImportChecklistReady;
+
+  /// Checklist status for realm import preview items that still need setup
+  ///
+  /// In en, this message translates to:
+  /// **'Needs setup'**
+  String get settingsRealmImportChecklistActionRequired;
+
+  /// Checklist title for the Keycloak/OIDC realm authority
+  ///
+  /// In en, this message translates to:
+  /// **'Realm authority'**
+  String get settingsRealmImportAuthorityTitle;
+
+  /// Ready detail for the OIDC issuer
+  ///
+  /// In en, this message translates to:
+  /// **'Issuer: {issuer}'**
+  String settingsRealmImportAuthorityReady(String issuer);
+
+  /// Missing detail for the OIDC issuer
+  ///
+  /// In en, this message translates to:
+  /// **'Save the Keycloak/OIDC issuer before preparing realm import.'**
+  String get settingsRealmImportAuthorityMissing;
+
+  /// Checklist title for the Weave OIDC client
+  ///
+  /// In en, this message translates to:
+  /// **'Weave app client'**
+  String get settingsRealmImportClientTitle;
+
+  /// Ready detail for the OIDC client id
+  ///
+  /// In en, this message translates to:
+  /// **'Client ID: {clientId}'**
+  String settingsRealmImportClientReady(String clientId);
+
+  /// Missing detail for the OIDC client id
+  ///
+  /// In en, this message translates to:
+  /// **'Add the Weave OIDC client ID. Do not paste secrets here.'**
+  String get settingsRealmImportClientMissing;
+
+  /// Checklist title for backend product API readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Product API'**
+  String get settingsRealmImportProductApiTitle;
+
+  /// Ready detail for backend API base URL
+  ///
+  /// In en, this message translates to:
+  /// **'Backend facade: {apiBaseUrl}'**
+  String settingsRealmImportProductApiReady(String apiBaseUrl);
+
+  /// Missing detail for the backend API base URL
+  ///
+  /// In en, this message translates to:
+  /// **'Save the backend API base URL used by the product.'**
+  String get settingsRealmImportProductApiMissing;
+
+  /// Checklist title for Matrix and files module endpoint readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Module endpoints'**
+  String get settingsRealmImportModuleEndpointsTitle;
+
+  /// Ready detail for Matrix and Nextcloud endpoints
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix and files endpoints: {endpoints}'**
+  String settingsRealmImportModuleEndpointsReady(String endpoints);
+
+  /// Missing detail for Matrix and files endpoints
+  ///
+  /// In en, this message translates to:
+  /// **'Save the Matrix and files endpoints before preparing setup guidance.'**
+  String get settingsRealmImportModuleEndpointsMissing;
+
+  /// Checklist title for the canonical workspace role baseline
+  ///
+  /// In en, this message translates to:
+  /// **'Role baseline'**
+  String get settingsRealmImportRolesTitle;
+
+  /// Ready detail for the canonical workspace roles
+  ///
+  /// In en, this message translates to:
+  /// **'Expected roles: owner, admin, member, guest. Backend APIs remain authoritative.'**
+  String get settingsRealmImportRolesReady;
+
+  /// Security notice for the realm import preview
+  ///
+  /// In en, this message translates to:
+  /// **'No secrets, passwords, client credentials, or realm JSON are stored or imported from this screen.'**
+  String get settingsRealmImportNoSecretsNotice;
+
+  /// Disabled button label for realm import preview
+  ///
+  /// In en, this message translates to:
+  /// **'Realm import disabled in preview'**
+  String get settingsRealmImportDisabledAction;
+
+  /// Screen-reader label for disabled realm import preview button
+  ///
+  /// In en, this message translates to:
+  /// **'Realm import action disabled in preview until a safe backend and infrastructure contract exists.'**
+  String get settingsRealmImportDisabledActionSemantic;
+
   /// Title confirming admin controls are visible
   ///
   /// In en, this message translates to:
