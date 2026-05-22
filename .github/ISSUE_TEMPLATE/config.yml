@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Developer handbook
+    url: https://github.com/masssi164/weave/blob/main/docs/developer-handbook.md
+    about: Start here for local setup, validation, screenshots, and contribution workflow.
+  - name: Quality and acceptance evidence
+    url: https://github.com/masssi164/weave/blob/main/docs/quality-and-evidence.md
+    about: Understand offline checks, live-stack evidence, and acceptance artifacts.

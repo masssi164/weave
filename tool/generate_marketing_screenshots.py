@@ -15,7 +15,8 @@ from pathlib import Path
 from textwrap import wrap
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_DIR = ROOT / "docs" / "assets" / "marketing"
+MARKETING_OUTPUT_DIR = ROOT / "docs" / "assets" / "marketing"
+ROADMAP_OUTPUT_DIR = ROOT / "docs" / "assets" / "roadmap"
 WIDTH = 1440
 HEIGHT = 900
 
@@ -28,6 +29,7 @@ class Metric:
 
 @dataclass(frozen=True)
 class Screen:
+    output_dir: Path
     file_name: str
     title: str
     description: str
@@ -41,6 +43,7 @@ class Screen:
 
 SCREENS: tuple[Screen, ...] = (
     Screen(
+        output_dir=MARKETING_OUTPUT_DIR,
         file_name="01-setup-start.svg",
         title="Weave setup start screen",
         description="A Weave welcome screen invites an admin to configure the self-hosted workspace.",
@@ -60,6 +63,7 @@ SCREENS: tuple[Screen, ...] = (
         status="Get Started",
     ),
     Screen(
+        output_dir=MARKETING_OUTPUT_DIR,
         file_name="02-review-service-endpoints.svg",
         title="Weave service endpoint review screen",
         description="The setup review lists canonical local service endpoints before finishing configuration.",
@@ -79,6 +83,7 @@ SCREENS: tuple[Screen, ...] = (
         status="Finish setup",
     ),
     Screen(
+        output_dir=MARKETING_OUTPUT_DIR,
         file_name="03-chat-room.svg",
         title="Weave chat room screen",
         description="The custom Weave chat room shows a Release Room conversation and accessible message composer.",
@@ -98,6 +103,7 @@ SCREENS: tuple[Screen, ...] = (
         status="Send message",
     ),
     Screen(
+        output_dir=MARKETING_OUTPUT_DIR,
         file_name="04-files-documents.svg",
         title="Weave files documents screen",
         description="The Weave files screen lists folders and files through the backend files facade.",
@@ -117,6 +123,7 @@ SCREENS: tuple[Screen, ...] = (
         status="Upload / create folder",
     ),
     Screen(
+        output_dir=MARKETING_OUTPUT_DIR,
         file_name="05-settings.svg",
         title="Weave settings screen",
         description="The Weave settings screen shows saved local service configuration and sign-out controls.",
@@ -138,11 +145,12 @@ SCREENS: tuple[Screen, ...] = (
 
 
     Screen(
-        file_name="06-calendar-setup-readiness-preview.svg",
-        title="Weave calendar setup readiness preview screen",
-        description="The guarded Calendar preview shows active workspace/team/channel readiness copy for the Teams-like shared scheduling path.",
-        active_nav="Preview",
-        hero="Calendar channel schedule preview",
+        output_dir=ROADMAP_OUTPUT_DIR,
+        file_name="06-calendar-roadmap-readiness.svg",
+        title="Weave calendar roadmap readiness screen",
+        description="The guarded Calendar roadmap shows active workspace/team/channel readiness copy for the Teams-like shared scheduling path.",
+        active_nav="Calendar",
+        hero="Calendar channel schedule readiness",
         subhero="The shared Calendar path is Teams-like: workspace, team, and channel scopes are visible; channel event CRUD is validated through the backend Calendar facade.",
         metrics=(
             Metric("Scope", "Workspace · team · channel"),
@@ -154,18 +162,19 @@ SCREENS: tuple[Screen, ...] = (
             ("🔐", "Credential readiness", "Backend actor credentials are not exposed to generated setup artifacts."),
             ("#", "Channel context", "Events carry channel scope metadata so meeting-thread context can attach without raw CalDAV concepts."),
         ),
-        status="Active preview",
+        status="Guarded roadmap",
     ),
     Screen(
-        file_name="07-boards-preview.svg",
-        title="Weave boards active preview screen",
-        description="A clearly labelled feature-gated boards/tasks preview with provider-neutral columns, tasks, and non-drag actions.",
-        active_nav="Preview",
-        hero="Boards/tasks preview · active scope",
+        output_dir=ROADMAP_OUTPUT_DIR,
+        file_name="07-boards-feature-gate.svg",
+        title="Weave boards feature-gated roadmap screen",
+        description="A clearly labelled feature-gated boards/tasks roadmap screen with provider-neutral columns, tasks, and non-drag actions.",
+        active_nav="Boards",
+        hero="Boards/tasks feature-gated scope",
         subhero="A Weave-owned board model behind the backend facade. The live gate validates provider-neutral create, move, and complete actions without drag-and-drop.",
         metrics=(
-            Metric("Release", "active-feature-gated-preview"),
-            Metric("Source", "local-preview-backend-facade"),
+            Metric("Release", "feature-gated roadmap"),
+            Metric("Source", "backend-facade fixture"),
             Metric("Movement", "Non-drag actions validated"),
         ),
         cards=(
@@ -173,7 +182,7 @@ SCREENS: tuple[Screen, ...] = (
             ("🔌", "Provider boundary", "The app talks to Weave backend DTOs; no secret-bearing provider client is exposed."),
             ("♿", "Screen-reader copy", "Columns, statuses, due dates, and priority use text labels, not color alone."),
         ),
-        status="Active preview",
+        status="Feature gate",
     ),
 )
 
@@ -257,9 +266,9 @@ def render(screen: Screen) -> str:
 
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     for screen in SCREENS:
-        path = OUTPUT_DIR / screen.file_name
+        screen.output_dir.mkdir(parents=True, exist_ok=True)
+        path = screen.output_dir / screen.file_name
         svg = "\n".join(line.rstrip() for line in render(screen).splitlines()) + "\n"
         path.write_text(svg, encoding="utf-8")
         print(path.relative_to(ROOT))
