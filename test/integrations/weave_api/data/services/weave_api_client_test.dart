@@ -261,6 +261,13 @@ void main() {
                 'paidFeaturesRequired': false,
                 'summary': 'token leaked from https://gitlab.example.test',
                 'redactionPolicy': 'secret should not be visible',
+                'diagnostics': {
+                  'safeFlag': true,
+                  'nested': {
+                    'details': ['ok', 'https://gitlab.example.test/token'],
+                  },
+                  'tokenHeader': 'Bearer provider-token-123',
+                },
               },
             ],
           });
@@ -277,6 +284,16 @@ void main() {
       expect(
         snapshot.providers.single.redactionPolicy,
         isNot(contains('secret')),
+      );
+      expect(snapshot.providers.single.diagnostics['safeFlag'], isTrue);
+      expect(snapshot.providers.single.diagnostics.toString(), contains('ok'));
+      expect(
+        snapshot.providers.single.diagnostics.toString(),
+        isNot(contains('provider-token-123')),
+      );
+      expect(
+        snapshot.providers.single.diagnostics.toString(),
+        isNot(contains('https://gitlab.example.test')),
       );
     });
 
@@ -365,6 +382,29 @@ void main() {
       expect(launch.errorCode, 'office-provider-not-configured');
       expect(launch.message, isNot(contains('token-123')));
     });
+
+    test(
+      'maps non-JSON Office launch 503 errors to fail-closed results',
+      () async {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return http.StreamedResponse(Stream.value(const <int>[]), 503);
+          }),
+        );
+
+        final launch = await client.launchOfficeSession(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+          fileId: 'file-1',
+          requestedMode: 'view',
+        );
+
+        expect(launch.launched, isFalse);
+        expect(launch.failClosed, isTrue);
+        expect(launch.errorCode, 'office-launch-fail-closed');
+        expect(launch.message, isNot(contains('token-123')));
+      },
+    );
 
     test('maps successful Office launch sessions', () async {
       final client = HttpWeaveApiClient(

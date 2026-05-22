@@ -807,18 +807,15 @@ String _string(Object? value, {required String fallback}) {
 
 String _safeProviderKey(Object? value) {
   final key = _string(value, fallback: 'unknown');
-  return _containsSensitiveText(key) ? 'redacted-provider' : key;
+  return _containsSensitiveText(key) ? 'unknown' : key;
 }
 
 String _safeText(Object? value) {
   if (value is! String || value.trim().isEmpty) {
-    return 'Not reported by the Weave backend.';
+    return '';
   }
   final text = value.trim();
-  if (_containsSensitiveText(text)) {
-    return 'Support-safe details only; raw provider data was redacted.';
-  }
-  return text;
+  return _containsSensitiveText(text) ? '' : text;
 }
 
 bool _containsSensitiveText(String text) {
@@ -841,8 +838,7 @@ List<String> _safeStringList(Object? value) {
   return value
       .whereType<String>()
       .map((item) => item.trim())
-      .where((item) => item.isNotEmpty)
-      .map((item) => _containsSensitiveText(item) ? 'redacted' : item)
+      .where((item) => item.isNotEmpty && !_containsSensitiveText(item))
       .toList(growable: false);
 }
 
@@ -850,14 +846,34 @@ Map<String, Object?> _safeDiagnostics(Object? value) {
   if (value is! Map<String, dynamic>) {
     return const <String, Object?>{};
   }
-  return Map<String, Object?>.unmodifiable(
-    value.map(
-      (key, item) => MapEntry(
-        _containsSensitiveText(key) ? 'redacted' : key,
-        item is String && _containsSensitiveText(item) ? 'redacted' : item,
-      ),
-    ),
-  );
+
+  final sanitized = <String, Object?>{};
+  for (final entry in value.entries) {
+    if (_containsSensitiveText(entry.key)) {
+      continue;
+    }
+    final safeValue = _safeDiagnosticValue(entry.value);
+    if (safeValue != null) {
+      sanitized[entry.key] = safeValue;
+    }
+  }
+
+  return Map<String, Object?>.unmodifiable(sanitized);
+}
+
+Object? _safeDiagnosticValue(Object? value) {
+  return switch (value) {
+    String text when text.trim().isNotEmpty && !_containsSensitiveText(text) =>
+      text.trim(),
+    bool value => value,
+    num value => value,
+    List value => [
+      for (final item in value)
+        if (_safeDiagnosticValue(item) case final safeItem?) safeItem,
+    ],
+    Map<String, dynamic> value => _safeDiagnostics(value),
+    _ => null,
+  };
 }
 
 List<Map<String, dynamic>> _listOfMaps(Object? value) {

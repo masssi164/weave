@@ -268,6 +268,9 @@ class HttpWeaveApiClient implements WeaveApiClient {
     try {
       final payload = jsonDecode(response.body);
       if (payload is! Map<String, dynamic>) {
+        if (failClosed) {
+          return const _HttpJsonPayload(json: {}, failClosed: true);
+        }
         throw AppFailure.unknown(invalidPayloadMessage);
       }
 
@@ -275,6 +278,9 @@ class HttpWeaveApiClient implements WeaveApiClient {
     } on AppFailure {
       rethrow;
     } catch (error) {
+      if (failClosed) {
+        return const _HttpJsonPayload(json: {}, failClosed: true);
+      }
       throw AppFailure.unknown(decodeFailureMessage, cause: error);
     }
   }
