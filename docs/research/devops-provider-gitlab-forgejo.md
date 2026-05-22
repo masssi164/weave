@@ -1,7 +1,7 @@
 # DevOps-Provider: GitLab CE/FOSS self-managed vs. Forgejo
 
-Status: research recommendation for issue #232  
-Date: 2026-05-22  
+Status: research recommendation for issue #232
+Date: 2026-05-22
 Scope: free-to-run, commercially usable, self-hostable DevOps providers behind Weave backend facades
 
 ## 1. Recommendation summary
