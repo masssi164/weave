@@ -66,21 +66,3 @@ String _section(String markdown, String heading) {
 
   return markdown.substring(start, nextHeading ?? markdown.length);
 }
-
-String _subsection(String markdown, String heading) {
-  final start = markdown.indexOf(heading);
-  if (start == -1) {
-    fail('Missing README heading: $heading');
-  }
-
-  int? nextHeading;
-  for (final match in RegExp(
-    r'^### ',
-    multiLine: true,
-  ).allMatches(markdown, start + heading.length)) {
-    nextHeading = match.start;
-    break;
-  }
-
-  return markdown.substring(start, nextHeading ?? markdown.length);
-}
