@@ -1597,6 +1597,54 @@ class AppLocalizationsEn extends AppLocalizations {
       'Archived messages are hidden from this timeline.';
 
   @override
+  String get chatRoomContextPackTitle => 'Context for this room';
+
+  @override
+  String get chatRoomContextPackDescription =>
+      'Weave will only include scoped context that you can see here, such as this room, selected files, linked tasks, and recent decisions.';
+
+  @override
+  String chatRoomContextPackCounts(int includedCount, int availableCount) {
+    String _temp0 = intl.Intl.pluralLogic(
+      includedCount,
+      locale: localeName,
+      other: '$includedCount sources included',
+      one: '1 source included',
+      zero: 'No sources included',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      availableCount,
+      locale: localeName,
+      other: '$availableCount optional sources available',
+      one: '1 optional source available',
+      zero: 'No optional sources available',
+    );
+    return '$_temp0. $_temp1.';
+  }
+
+  @override
+  String get chatRoomContextPackNoBackgroundReading =>
+      'No agent is reading this room in the background.';
+
+  @override
+  String get chatRoomContextCurrentRoomLabel => 'Current room';
+
+  @override
+  String get chatRoomContextSelectedFilesLabel => 'Selected files';
+
+  @override
+  String get chatRoomContextLinkedTasksLabel => 'Linked tasks';
+
+  @override
+  String get chatRoomContextRecentDecisionsLabel => 'Recent decisions';
+
+  @override
+  String get chatRoomContextIncludedStatus => 'Included';
+
+  @override
+  String get chatRoomContextAvailableStatus => 'Available when selected';
+
+  @override
   String get filesEmptyMessage => 'No files yet';
 
   @override

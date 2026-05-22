@@ -10,8 +10,10 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
+import 'package:weave/features/chat/domain/entities/context_graph.dart';
 import 'package:weave/features/chat/presentation/providers/archived_message_store_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
+import 'package:weave/features/chat/presentation/providers/context_pack_preview_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 class ChatRoomScreen extends ConsumerStatefulWidget {
@@ -322,6 +324,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final canSend =
         !_showingArchivedMessages &&
         (timeline?.canSendMessages ?? !widget.conversation.isInvite);
+    final contextPack = ref
+        .watch(contextPackPreviewFacadeProvider)
+        .previewForRoom(widget.conversation);
 
     return Scaffold(
       appBar: AppBar(
@@ -349,185 +354,205 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_failure != null && !_loading)
-            MaterialBanner(
-              content: Text(_failure!.message),
-              actions: [
-                TextButton(
-                  onPressed: _loadTimeline,
-                  child: Text(l10n.retryButton),
-                ),
-              ],
-            ),
-          if (_draftRestored && !_loading)
-            MaterialBanner(
-              leading: const Icon(Icons.edit_note_outlined),
-              content: Text(l10n.chatRoomDraftRestoredMessage),
-              actions: [
-                TextButton(
-                  onPressed: () => setState(() {
-                    _draftRestored = false;
-                  }),
-                  child: Text(l10n.semanticCloseButton),
-                ),
-              ],
-            ),
-          if (_showingArchivedMessages && !_loading)
-            _ArchivedMessagesNotice(
-              archivedCount: archivedMessages.length,
-              onShowActiveTimeline: () => setState(() {
-                _showingArchivedMessages = false;
-              }),
-            ),
-          if (displayPendingMessage?.failure case final failure?)
-            MaterialBanner(
-              content: Semantics(
-                container: true,
-                liveRegion: true,
-                child: Text(failure.message),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: _sending
-                      ? null
-                      : () => _sendMessage(
-                          retryingMessage: displayPendingMessage,
-                        ),
-                  child: Text(l10n.chatRoomRetrySendAction),
-                ),
-              ],
-            ),
-          Expanded(
-            child: switch ((_loading, timeline, _failure)) {
-              (true, _, _) => LoadingState(message: l10n.chatRoomLoadingLabel),
-              (false, null, final failure?) => ErrorState(
-                message: failure.message,
-                onRetry: _loadTimeline,
-              ),
-              (false, final timeline?, _)
-                  when visibleMessages.isEmpty &&
-                      displayPendingMessage == null =>
-                RefreshIndicator(
-                  onRefresh: _loadTimeline,
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(
-                        height: MediaQuery.sizeOf(context).height * 0.5,
-                        child: Center(
-                          child: EmptyState(
-                            message: _showingArchivedMessages
-                                ? l10n.chatRoomArchivedReviewEmptyMessage
-                                : timeline.messages.isEmpty
-                                ? l10n.chatRoomEmptyMessage
-                                : l10n.chatRoomArchivedEmptyMessage,
-                            icon: _showingArchivedMessages
-                                ? Icons.archive_outlined
-                                : Icons.chat_bubble_outline,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              (false, final ChatRoomTimeline _, _) => RefreshIndicator(
-                onRefresh: _loadTimeline,
-                child: ListView.separated(
-                  reverse: true,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                  itemCount:
-                      visibleMessages.length +
-                      (displayPendingMessage == null ? 0 : 1),
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    if (displayPendingMessage != null && index == 0) {
-                      return _MessageBubble(
-                        message: displayPendingMessage.toChatMessage(context),
-                        onRetry:
-                            displayPendingMessage.deliveryState ==
-                                    ChatMessageDeliveryState.failed &&
-                                !_sending
-                            ? () => _sendMessage(
-                                retryingMessage: displayPendingMessage,
-                              )
-                            : null,
-                      );
-                    }
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final compactContextPreview = constraints.maxHeight < 480;
 
-                    final messageIndex =
-                        visibleMessages.length -
-                        1 -
-                        (index - (displayPendingMessage == null ? 0 : 1));
-                    final message = visibleMessages[messageIndex];
-                    return _MessageBubble(
-                      message: message,
-                      archived: _showingArchivedMessages,
-                      onArchive: _archiving || _showingArchivedMessages
-                          ? null
-                          : () => _archiveMessage(message),
-                      onRestore: _archiving || !_showingArchivedMessages
-                          ? null
-                          : () => _restoreArchivedMessage(message),
-                    );
-                  },
-                ),
-              ),
-              _ => const SizedBox.shrink(),
-            },
-          ),
-          if (_showingArchivedMessages)
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: OutlinedButton.icon(
-                  onPressed: () => setState(() {
-                    _showingArchivedMessages = false;
-                  }),
-                  icon: const Icon(Icons.forum_outlined),
-                  label: Text(l10n.chatRoomActiveTimelineAction),
-                ),
-              ),
-            )
-          else
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _composerController,
-                        minLines: 1,
-                        maxLines: 4,
-                        enabled: canSend && !_sending,
-                        decoration: InputDecoration(
-                          hintText: canSend
-                              ? l10n.chatRoomComposerHint
-                              : l10n.chatRoomComposerDisabledHint,
-                        ),
-                        onSubmitted: (_) => _sendMessage(),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    FilledButton(
-                      onPressed: canSend && !_sending ? _sendMessage : null,
-                      child: Text(
-                        _sending
-                            ? l10n.chatRoomSendingButton
-                            : l10n.chatRoomSendButton,
-                      ),
+          return Column(
+            children: [
+              if (_failure != null && !_loading)
+                MaterialBanner(
+                  content: Text(_failure!.message),
+                  actions: [
+                    TextButton(
+                      onPressed: _loadTimeline,
+                      child: Text(l10n.retryButton),
                     ),
                   ],
                 ),
+              if (_draftRestored && !_loading)
+                MaterialBanner(
+                  leading: const Icon(Icons.edit_note_outlined),
+                  content: Text(l10n.chatRoomDraftRestoredMessage),
+                  actions: [
+                    TextButton(
+                      onPressed: () => setState(() {
+                        _draftRestored = false;
+                      }),
+                      child: Text(l10n.semanticCloseButton),
+                    ),
+                  ],
+                ),
+              if (_showingArchivedMessages && !_loading)
+                _ArchivedMessagesNotice(
+                  archivedCount: archivedMessages.length,
+                  onShowActiveTimeline: () => setState(() {
+                    _showingArchivedMessages = false;
+                  }),
+                ),
+              if (displayPendingMessage?.failure case final failure?)
+                MaterialBanner(
+                  content: Semantics(
+                    container: true,
+                    liveRegion: true,
+                    child: Text(failure.message),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: _sending
+                          ? null
+                          : () => _sendMessage(
+                              retryingMessage: displayPendingMessage,
+                            ),
+                      child: Text(l10n.chatRoomRetrySendAction),
+                    ),
+                  ],
+                ),
+              if (!_loading &&
+                  !_showingArchivedMessages &&
+                  constraints.maxHeight >= 480)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: _RoomContextPackPreviewCard(
+                    contextPack: contextPack,
+                    compact: compactContextPreview,
+                  ),
+                ),
+              Expanded(
+                child: switch ((_loading, timeline, _failure)) {
+                  (true, _, _) => LoadingState(
+                    message: l10n.chatRoomLoadingLabel,
+                  ),
+                  (false, null, final failure?) => ErrorState(
+                    message: failure.message,
+                    onRetry: _loadTimeline,
+                  ),
+                  (false, final timeline?, _)
+                      when visibleMessages.isEmpty &&
+                          displayPendingMessage == null =>
+                    RefreshIndicator(
+                      onRefresh: _loadTimeline,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.sizeOf(context).height * 0.5,
+                            child: Center(
+                              child: EmptyState(
+                                message: _showingArchivedMessages
+                                    ? l10n.chatRoomArchivedReviewEmptyMessage
+                                    : timeline.messages.isEmpty
+                                    ? l10n.chatRoomEmptyMessage
+                                    : l10n.chatRoomArchivedEmptyMessage,
+                                icon: _showingArchivedMessages
+                                    ? Icons.archive_outlined
+                                    : Icons.chat_bubble_outline,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  (false, final ChatRoomTimeline _, _) => RefreshIndicator(
+                    onRefresh: _loadTimeline,
+                    child: ListView.separated(
+                      reverse: true,
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      itemCount:
+                          visibleMessages.length +
+                          (displayPendingMessage == null ? 0 : 1),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        if (displayPendingMessage != null && index == 0) {
+                          return _MessageBubble(
+                            message: displayPendingMessage.toChatMessage(
+                              context,
+                            ),
+                            onRetry:
+                                displayPendingMessage.deliveryState ==
+                                        ChatMessageDeliveryState.failed &&
+                                    !_sending
+                                ? () => _sendMessage(
+                                    retryingMessage: displayPendingMessage,
+                                  )
+                                : null,
+                          );
+                        }
+
+                        final messageIndex =
+                            visibleMessages.length -
+                            1 -
+                            (index - (displayPendingMessage == null ? 0 : 1));
+                        final message = visibleMessages[messageIndex];
+                        return _MessageBubble(
+                          message: message,
+                          archived: _showingArchivedMessages,
+                          onArchive: _archiving || _showingArchivedMessages
+                              ? null
+                              : () => _archiveMessage(message),
+                          onRestore: _archiving || !_showingArchivedMessages
+                              ? null
+                              : () => _restoreArchivedMessage(message),
+                        );
+                      },
+                    ),
+                  ),
+                  _ => const SizedBox.shrink(),
+                },
               ),
-            ),
-        ],
+              if (_showingArchivedMessages)
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: OutlinedButton.icon(
+                      onPressed: () => setState(() {
+                        _showingArchivedMessages = false;
+                      }),
+                      icon: const Icon(Icons.forum_outlined),
+                      label: Text(l10n.chatRoomActiveTimelineAction),
+                    ),
+                  ),
+                )
+              else
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _composerController,
+                            minLines: 1,
+                            maxLines: 4,
+                            enabled: canSend && !_sending,
+                            decoration: InputDecoration(
+                              hintText: canSend
+                                  ? l10n.chatRoomComposerHint
+                                  : l10n.chatRoomComposerDisabledHint,
+                            ),
+                            onSubmitted: (_) => _sendMessage(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: canSend && !_sending ? _sendMessage : null,
+                          child: Text(
+                            _sending
+                                ? l10n.chatRoomSendingButton
+                                : l10n.chatRoomSendButton,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -568,6 +593,148 @@ class _ArchivedMessagesNotice extends StatelessWidget {
       ],
     );
   }
+}
+
+class _RoomContextPackPreviewCard extends StatelessWidget {
+  const _RoomContextPackPreviewCard({
+    required this.contextPack,
+    this.compact = false,
+  });
+
+  final ContextPackPreview contextPack;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final includedCount = contextPack.includedItems.length;
+    final availableCount = contextPack.availableItems.length;
+    final semanticsLabel = [
+      l10n.chatRoomContextPackTitle,
+      l10n.chatRoomContextPackDescription,
+      l10n.chatRoomContextPackCounts(includedCount, availableCount),
+      l10n.chatRoomContextPackNoBackgroundReading,
+      ...contextPack.items.map(
+        (item) =>
+            '${_contextItemLabel(l10n, item.scope)}. '
+            '${item.includedInPreview ? l10n.chatRoomContextIncludedStatus : l10n.chatRoomContextAvailableStatus}',
+      ),
+    ].join('. ');
+
+    return Semantics(
+      container: true,
+      label: semanticsLabel,
+      child: ExcludeSemantics(
+        child: Card(
+          elevation: 0,
+          color: theme.colorScheme.surfaceContainerHighest,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.fact_check_outlined,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.chatRoomContextPackTitle,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.chatRoomContextPackDescription,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (!compact) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: contextPack.items
+                        .map((item) => _RoomContextChip(item: item))
+                        .toList(growable: false),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  l10n.chatRoomContextPackNoBackgroundReading,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoomContextChip extends StatelessWidget {
+  const _RoomContextChip({required this.item});
+
+  final ContextGraphItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final included = item.includedInPreview;
+
+    return Chip(
+      avatar: Icon(
+        included ? Icons.check_circle_outline : Icons.add_circle_outline,
+        size: 18,
+      ),
+      label: Text(_contextItemLabel(l10n, item.scope)),
+      side: BorderSide(
+        color: included
+            ? theme.colorScheme.primary
+            : theme.colorScheme.outlineVariant,
+      ),
+      backgroundColor: included
+          ? theme.colorScheme.primaryContainer
+          : theme.colorScheme.surface,
+      labelStyle: theme.textTheme.labelLarge?.copyWith(
+        color: included
+            ? theme.colorScheme.onPrimaryContainer
+            : theme.colorScheme.onSurface,
+      ),
+    );
+  }
+}
+
+String _contextItemLabel(AppLocalizations l10n, ContextGraphScope scope) {
+  return switch (scope) {
+    ContextGraphScope.currentRoom => l10n.chatRoomContextCurrentRoomLabel,
+    ContextGraphScope.selectedFiles => l10n.chatRoomContextSelectedFilesLabel,
+    ContextGraphScope.linkedTasks => l10n.chatRoomContextLinkedTasksLabel,
+    ContextGraphScope.recentDecisions =>
+      l10n.chatRoomContextRecentDecisionsLabel,
+  };
 }
 
 class _MessageBubble extends StatelessWidget {

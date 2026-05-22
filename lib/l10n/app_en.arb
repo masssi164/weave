@@ -1313,6 +1313,33 @@
   "chatRoomArchivedEmptyMessage": "Archived messages are hidden from this timeline.",
   "@chatRoomArchivedEmptyMessage": { "description": "Empty state shown when all loaded messages have been archived from the main timeline" },
 
+  "chatRoomContextPackTitle": "Context for this room",
+  "@chatRoomContextPackTitle": { "description": "Heading for the explicit context preview shown in a chat room" },
+  "chatRoomContextPackDescription": "Weave will only include scoped context that you can see here, such as this room, selected files, linked tasks, and recent decisions.",
+  "@chatRoomContextPackDescription": { "description": "Description for the explicit context preview shown in a chat room" },
+  "chatRoomContextPackCounts": "{includedCount, plural, =0 {No sources included} =1 {1 source included} other {{includedCount} sources included}}. {availableCount, plural, =0 {No optional sources available} =1 {1 optional source available} other {{availableCount} optional sources available}}.",
+  "@chatRoomContextPackCounts": {
+    "description": "Accessibility summary of included and available context sources in a room",
+    "placeholders": {
+      "includedCount": { "type": "int" },
+      "availableCount": { "type": "int" }
+    }
+  },
+  "chatRoomContextPackNoBackgroundReading": "No agent is reading this room in the background.",
+  "@chatRoomContextPackNoBackgroundReading": { "description": "Safety note for the explicit context preview in a chat room" },
+  "chatRoomContextCurrentRoomLabel": "Current room",
+  "@chatRoomContextCurrentRoomLabel": { "description": "Context chip label for the currently opened chat room" },
+  "chatRoomContextSelectedFilesLabel": "Selected files",
+  "@chatRoomContextSelectedFilesLabel": { "description": "Context chip label for files explicitly selected by the user" },
+  "chatRoomContextLinkedTasksLabel": "Linked tasks",
+  "@chatRoomContextLinkedTasksLabel": { "description": "Context chip label for tasks linked to a room" },
+  "chatRoomContextRecentDecisionsLabel": "Recent decisions",
+  "@chatRoomContextRecentDecisionsLabel": { "description": "Context chip label for recent decisions linked to a room" },
+  "chatRoomContextIncludedStatus": "Included",
+  "@chatRoomContextIncludedStatus": { "description": "Accessibility status for context that is included in the preview" },
+  "chatRoomContextAvailableStatus": "Available when selected",
+  "@chatRoomContextAvailableStatus": { "description": "Accessibility status for optional context that is not included yet" },
+
   "filesEmptyMessage": "No files yet",
   "@filesEmptyMessage": { "description": "Empty state message for the files screen" },
   "filesEmptyGuidance": "Upload a file or create a folder when you are ready to add workspace files.",

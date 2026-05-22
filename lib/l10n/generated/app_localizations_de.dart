@@ -1622,6 +1622,54 @@ class AppLocalizationsDe extends AppLocalizations {
       'Archivierte Nachrichten sind in dieser Zeitleiste ausgeblendet.';
 
   @override
+  String get chatRoomContextPackTitle => 'Kontext für diesen Raum';
+
+  @override
+  String get chatRoomContextPackDescription =>
+      'Weave nimmt nur begrenzten Kontext auf, den du hier sehen kannst, zum Beispiel diesen Raum, ausgewählte Dateien, verknüpfte Aufgaben und aktuelle Entscheidungen.';
+
+  @override
+  String chatRoomContextPackCounts(int includedCount, int availableCount) {
+    String _temp0 = intl.Intl.pluralLogic(
+      includedCount,
+      locale: localeName,
+      other: '$includedCount Quellen enthalten',
+      one: '1 Quelle enthalten',
+      zero: 'Keine Quellen enthalten',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      availableCount,
+      locale: localeName,
+      other: '$availableCount optionale Quellen verfügbar',
+      one: '1 optionale Quelle verfügbar',
+      zero: 'Keine optionalen Quellen verfügbar',
+    );
+    return '$_temp0. $_temp1.';
+  }
+
+  @override
+  String get chatRoomContextPackNoBackgroundReading =>
+      'Kein Agent liest diesen Raum im Hintergrund mit.';
+
+  @override
+  String get chatRoomContextCurrentRoomLabel => 'Aktueller Raum';
+
+  @override
+  String get chatRoomContextSelectedFilesLabel => 'Ausgewählte Dateien';
+
+  @override
+  String get chatRoomContextLinkedTasksLabel => 'Verknüpfte Aufgaben';
+
+  @override
+  String get chatRoomContextRecentDecisionsLabel => 'Aktuelle Entscheidungen';
+
+  @override
+  String get chatRoomContextIncludedStatus => 'Enthalten';
+
+  @override
+  String get chatRoomContextAvailableStatus => 'Verfügbar nach Auswahl';
+
+  @override
   String get filesEmptyMessage => 'Noch keine Dateien';
 
   @override
