@@ -371,6 +371,7 @@ class OfficeLaunchSnapshot {
     this.sessionId,
     this.launchMode,
     this.providerKey,
+    this.expiresAt,
     this.grantedPermissions = const <String>[],
     this.errorCode,
     this.message,
@@ -382,12 +383,14 @@ class OfficeLaunchSnapshot {
     required String launchMode,
     required String providerKey,
     required List<String> grantedPermissions,
+    DateTime? expiresAt,
   }) : this._(
          launched: true,
          failClosed: false,
          sessionId: sessionId,
          launchMode: launchMode,
          providerKey: providerKey,
+         expiresAt: expiresAt,
          grantedPermissions: grantedPermissions,
        );
 
@@ -408,6 +411,7 @@ class OfficeLaunchSnapshot {
   final String? sessionId;
   final String? launchMode;
   final String? providerKey;
+  final DateTime? expiresAt;
   final List<String> grantedPermissions;
   final String? errorCode;
   final String? message;

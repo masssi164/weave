@@ -732,6 +732,7 @@ class OfficeLaunchResponseDto {
     required this.launchMode,
     required this.providerKey,
     required this.grantedPermissions,
+    required this.expiresAt,
   });
 
   factory OfficeLaunchResponseDto.fromJson(Map<String, dynamic> json) {
@@ -740,6 +741,7 @@ class OfficeLaunchResponseDto {
       launchMode: _string(json['launchMode'], fallback: 'disabled'),
       providerKey: _safeProviderKey(json['providerKey']),
       grantedPermissions: _safeStringList(json['grantedPermissions']),
+      expiresAt: _dateTime(json['expiresAt']),
     );
   }
 
@@ -747,12 +749,14 @@ class OfficeLaunchResponseDto {
   final String launchMode;
   final String providerKey;
   final List<String> grantedPermissions;
+  final DateTime? expiresAt;
 
   OfficeLaunchSnapshot toSnapshot() => OfficeLaunchSnapshot.launched(
     sessionId: sessionId,
     launchMode: launchMode,
     providerKey: providerKey,
     grantedPermissions: grantedPermissions,
+    expiresAt: expiresAt,
   );
 }
 

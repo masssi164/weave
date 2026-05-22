@@ -9,6 +9,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/integrations/weave_api/data/dtos/platform_status_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/provider_stack_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
+import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
 
 abstract interface class WeaveApiClient {
   Future<WorkspaceCapabilitySnapshot> fetchWorkspaceCapabilities({
@@ -279,26 +280,20 @@ class HttpWeaveApiClient implements WeaveApiClient {
   }
 
   Uri _workspaceCapabilitiesUri(Uri baseUrl) {
-    return baseUrl.replace(
-      pathSegments: _apiPath(baseUrl, const [
-        'api',
-        'v1',
-        'workspace',
-        'capabilities',
-      ]),
-    );
+    return weaveApiUri(baseUrl, const [
+      'api',
+      'v1',
+      'workspace',
+      'capabilities',
+    ]);
   }
 
   Uri _platformStatusUri(Uri baseUrl) {
-    return baseUrl.replace(
-      pathSegments: _apiPath(baseUrl, const ['api', 'platform', 'status']),
-    );
+    return weaveApiUri(baseUrl, const ['api', 'platform', 'status']);
   }
 
   Uri _providerStatusUri(Uri baseUrl) {
-    return baseUrl.replace(
-      pathSegments: _apiPath(baseUrl, const ['api', 'providers', 'status']),
-    );
+    return weaveApiUri(baseUrl, const ['api', 'providers', 'status']);
   }
 
   Uri _devopsSummaryUri(
@@ -306,43 +301,23 @@ class HttpWeaveApiClient implements WeaveApiClient {
     required String workspaceId,
     required String channelId,
   }) {
-    return baseUrl.replace(
-      pathSegments: _apiPath(baseUrl, [
-        'api',
-        'workspaces',
-        workspaceId,
-        'channels',
-        channelId,
-        'devops',
-        'summary',
-      ]),
-    );
+    return weaveApiUri(baseUrl, [
+      'api',
+      'workspaces',
+      workspaceId,
+      'channels',
+      channelId,
+      'devops',
+      'summary',
+    ]);
   }
 
   Uri _officeCapabilitiesUri(Uri baseUrl) {
-    return baseUrl.replace(
-      pathSegments: _apiPath(baseUrl, const ['api', 'office', 'capabilities']),
-    );
+    return weaveApiUri(baseUrl, const ['api', 'office', 'capabilities']);
   }
 
   Uri _officeLaunchUri(Uri baseUrl) {
-    return baseUrl.replace(
-      pathSegments: _apiPath(baseUrl, const ['api', 'office', 'launch']),
-    );
-  }
-
-  List<String> _apiPath(Uri baseUrl, List<String> pathSegments) {
-    final baseSegments = baseUrl.pathSegments
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-    if (baseSegments.isNotEmpty &&
-        pathSegments.isNotEmpty &&
-        baseSegments.last == 'api' &&
-        pathSegments.first == 'api') {
-      return [...baseSegments, ...pathSegments.skip(1)];
-    }
-
-    return [...baseSegments, ...pathSegments];
+    return weaveApiUri(baseUrl, const ['api', 'office', 'launch']);
   }
 }
 

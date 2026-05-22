@@ -334,6 +334,64 @@ void main() {
       );
     });
 
+    test('maps Office launch 503 errors to fail-closed results', () async {
+      late http.BaseRequest capturedRequest;
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          return _jsonResponse({
+            'code': 'office-provider-not-configured',
+            'message':
+                'Office launch is fail-closed until the backend provider is configured.',
+            'requestId': 'request-123',
+          }, statusCode: 503);
+        }),
+      );
+
+      final launch = await client.launchOfficeSession(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+        fileId: 'file-1',
+        requestedMode: 'view',
+      );
+
+      expect(capturedRequest.method, 'POST');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.weave.local/api/office/launch',
+      );
+      expect(launch.launched, isFalse);
+      expect(launch.failClosed, isTrue);
+      expect(launch.errorCode, 'office-provider-not-configured');
+      expect(launch.message, isNot(contains('token-123')));
+    });
+
+    test('maps successful Office launch sessions', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          return _jsonResponse({
+            'sessionId': 'session-1',
+            'launchMode': 'view',
+            'providerKey': 'onlyoffice-community',
+            'expiresAt': '2026-05-22T20:00:00Z',
+            'grantedPermissions': ['view'],
+          });
+        }),
+      );
+
+      final launch = await client.launchOfficeSession(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+        fileId: 'file-1',
+        requestedMode: 'view',
+      );
+
+      expect(launch.launched, isTrue);
+      expect(launch.providerKey, 'onlyoffice-community');
+      expect(launch.expiresAt, DateTime.parse('2026-05-22T20:00:00Z'));
+      expect(launch.grantedPermissions, ['view']);
+    });
+
     test(
       'rejects unauthorized backend sessions with a dedicated failure',
       () async {

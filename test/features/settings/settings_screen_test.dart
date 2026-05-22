@@ -592,7 +592,10 @@ void main() {
         find.text('Flutter provider calls: Blocked', findRichText: true),
         findsOneWidget,
       );
-      expect(find.textContaining('Flutter never calls GitLab'), findsOneWidget);
+      expect(
+        find.textContaining('Flutter does not call GitLab'),
+        findsOneWidget,
+      );
       expect(find.text('Office readiness'), findsOneWidget);
       expect(find.text('not configured'), findsWidgets);
       expect(find.text('fail-closed'), findsWidgets);
