@@ -374,6 +374,87 @@ class AppLocalizationsEn extends AppLocalizations {
       'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.';
 
   @override
+  String get chatAgentGovernanceTitle =>
+      'Agent chats are governed by your workspace';
+
+  @override
+  String get chatAgentGovernanceDescription =>
+      'Agents can help inside Weave only after an owner or admin enables a package, chooses scopes, and keeps consent and audit visible.';
+
+  @override
+  String get chatAgentContextPackTitle => 'Context pack before action';
+
+  @override
+  String get chatAgentContextPackDescription =>
+      'When an agent is available, Weave will show what context is sent for this request before the agent uses it.';
+
+  @override
+  String get chatAgentContextPackScopedBullet =>
+      'Context is scoped to a selected chat, file, calendar event, board, or explicit workspace source.';
+
+  @override
+  String get chatAgentContextPackConsentBullet =>
+      'You will see permission hints before starting or approving an agent action.';
+
+  @override
+  String get chatAgentContextPackNoSurveillanceBullet =>
+      'Agents do not continuously read rooms in the background.';
+
+  @override
+  String get chatAgentGovernanceAuditNote =>
+      'Audit placeholders are part of this preview: agent creation, context access, tool/action execution, approval, and revocation must be recorded before runtime promotion.';
+
+  @override
+  String get chatAgentAvailabilityPreview => 'Preview only';
+
+  @override
+  String get chatAgentAvailabilityAdminSetup => 'Admin setup required';
+
+  @override
+  String get chatAgentAvailabilityBlocked => 'Blocked by policy';
+
+  @override
+  String get chatAgentPersonalAssistantTitle => 'Personal assistant';
+
+  @override
+  String get chatAgentPersonalAssistantDescription =>
+      'A future private assistant chat for drafting, summaries, and reminders inside Weave.';
+
+  @override
+  String get chatAgentChannelAgentTitle => 'Channel agent';
+
+  @override
+  String get chatAgentChannelAgentDescription =>
+      'A future helper for a channel or project space, governed by an admin-approved package.';
+
+  @override
+  String get chatAgentPersonalScope =>
+      'Uses only context you choose for the current request; workspace policy decides which skills are available.';
+
+  @override
+  String get chatAgentPersonalBoundary =>
+      'No continuous room reading; a context pack is assembled only after you start or approve a request.';
+
+  @override
+  String get chatAgentPersonalAudit =>
+      'Creation, context access, tool use, and permission changes will be auditable before runtime use.';
+
+  @override
+  String get chatAgentChannelScope =>
+      'An owner or admin must enable the package and choose allowed chat, files, calendar, and board scopes.';
+
+  @override
+  String get chatAgentChannelBoundary =>
+      'The agent sees named spaces and explicit context packs, not every message in the workspace.';
+
+  @override
+  String get chatAgentChannelAudit =>
+      'Approvals, revocations, and action attempts stay visible to admins without exposing secrets to the app.';
+
+  @override
+  String get chatAgentStartDisabledButton => 'Unavailable until enabled';
+
+  @override
   String get chatLoadingLabel => 'Loading conversations…';
 
   @override
