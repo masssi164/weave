@@ -23,6 +23,7 @@ void main() {
       ChannelWorkspaceSurfaceKind.files,
       ChannelWorkspaceSurfaceKind.boards,
       ChannelWorkspaceSurfaceKind.calendar,
+      ChannelWorkspaceSurfaceKind.meetings,
     ]);
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.chat).availability,
@@ -39,6 +40,25 @@ void main() {
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.calendar).availability,
       ChannelWorkspaceSurfaceAvailability.gated,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.meetings).providerContractId,
+      'weave-meetings-channel-preview',
+    );
+    expect(preview.meetingPreview.contextId, preview.contextId);
+    expect(preview.meetingPreview.isFailClosed, isTrue);
+    expect(preview.meetingPreview.requiresExplicitConsent, isTrue);
+    expect(preview.meetingPreview.backgroundRoomReadingEnabled, isFalse);
+    expect(preview.meetingPreview.contextItems.map((item) => item.kind), [
+      ChannelMeetingContextItemKind.agenda,
+      ChannelMeetingContextItemKind.files,
+      ChannelMeetingContextItemKind.decisions,
+      ChannelMeetingContextItemKind.tasks,
+      ChannelMeetingContextItemKind.followUpEvidence,
+    ]);
+    expect(
+      preview.meetingPreview.controls.every((control) => !control.enabled),
+      isTrue,
     );
   });
 

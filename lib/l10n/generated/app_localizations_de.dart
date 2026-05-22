@@ -494,7 +494,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceSummaryDescription =>
-      'Dieser Channel ist ein Arbeitsraum mit Tabs für Chat, Dateien, Boards und Kalender, wenn der Arbeitsbereich sie aktiviert hat.';
+      'Dieser Channel ist ein Arbeitsraum mit Tabs für Chat, Dateien, Boards, Kalender und Meetings, wenn der Arbeitsbereich sie aktiviert hat.';
 
   @override
   String get channelWorkspaceGovernanceNote =>
@@ -518,6 +518,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelWorkspaceCalendarTab => 'Kalender';
 
   @override
+  String get channelWorkspaceMeetingsTab => 'Meetings';
+
+  @override
   String get channelWorkspaceChatTitle => 'Channel-Chat';
 
   @override
@@ -528,6 +531,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceCalendarTitle => 'Channel-Kalender';
+
+  @override
+  String get channelWorkspaceMeetingsTitle => 'Channel-Meeting-Vorschau';
 
   @override
   String get channelWorkspaceChatDescription =>
@@ -544,6 +550,64 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get channelWorkspaceCalendarDescription =>
       'Channel-Termine bleiben gesperrt, bis die Kalender-Scope-Fähigkeit für diesen Arbeitsbereich verfügbar ist.';
+
+  @override
+  String get channelWorkspaceMeetingsDescription =>
+      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft. Ein Live-Video-Meeting-Backend ist noch nicht angebunden.';
+
+  @override
+  String get channelWorkspaceMeetingsCapabilityTitle =>
+      'Video- und Verschlüsselungsfähigkeit nicht angebunden';
+
+  @override
+  String get channelWorkspaceMeetingsCapabilityBody =>
+      'Beitreten und Starten bleiben deaktiviert, bis Weave einen dokumentierten Meeting-Anbieter und Nachweise für Signaling, Medien, Untertitel, Aufzeichnungen und Metadatengrenzen hat. Diese Vorschau behauptet nicht, dass sichere oder verschlüsselte Anrufe verfügbar sind.';
+
+  @override
+  String get channelWorkspaceMeetingsPrivacyTitle =>
+      'Nur ausdrücklicher Meeting-Kontext';
+
+  @override
+  String channelWorkspaceMeetingsPrivacyBody(String channelName) {
+    return 'Nur ausdrücklich aus $channelName ausgewählter Kontext wird für ein Meeting vorbereitet. Weave liest, zeichnet oder transkribiert den Raum nicht dauerhaft im Hintergrund.';
+  }
+
+  @override
+  String get channelWorkspaceMeetingsRecordingOff =>
+      'Aufzeichnung und Transkription aus';
+
+  @override
+  String get channelWorkspaceMeetingsContextTitle =>
+      'Kontextpaket für dieses Meeting';
+
+  @override
+  String get channelWorkspaceMeetingsContextBody =>
+      'Ein Meeting-Paket ist ausdrücklich und vor dem Beitritt prüfbar.';
+
+  @override
+  String get channelWorkspaceMeetingsContextAgenda => 'Agenda';
+
+  @override
+  String get channelWorkspaceMeetingsContextFiles => 'Dateien';
+
+  @override
+  String get channelWorkspaceMeetingsContextDecisions => 'Entscheidungen';
+
+  @override
+  String get channelWorkspaceMeetingsContextTasks => 'Aufgaben';
+
+  @override
+  String get channelWorkspaceMeetingsContextEvidence => 'Folge-Nachweise';
+
+  @override
+  String get channelWorkspaceMeetingsJoinButton => 'Meeting beitreten';
+
+  @override
+  String get channelWorkspaceMeetingsStartButton => 'Meeting starten';
+
+  @override
+  String get channelWorkspaceMeetingsBackendUnavailableReason =>
+      'Meeting-Anbieterfähigkeit ist noch nicht verfügbar.';
 
   @override
   String get channelWorkspaceStatusAvailable => 'Verfügbar';

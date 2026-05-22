@@ -118,6 +118,7 @@ void main() {
     expect(find.text('Files'), findsOneWidget);
     expect(find.text('Boards'), findsOneWidget);
     expect(find.text('Calendar'), findsOneWidget);
+    expect(find.text('Meetings'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) =>
@@ -151,6 +152,42 @@ void main() {
     expect(
       find.text('Provider seam: weave-calendar-channel-scope'),
       findsOneWidget,
+    );
+
+    await tester.tap(find.text('Meetings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Channel meeting preview'), findsOneWidget);
+    expect(
+      find.text('Video and encryption capability not connected'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('does not claim secure or encrypted calls'),
+      findsOneWidget,
+    );
+    expect(find.text('Context pack for this meeting'), findsOneWidget);
+    expect(find.text('Agenda'), findsOneWidget);
+    expect(find.text('Follow-up evidence'), findsOneWidget);
+    expect(find.text('Recording and transcription off'), findsOneWidget);
+    expect(
+      find.text('Provider seam: weave-meetings-channel-preview'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Join meeting'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Start meeting'),
+          )
+          .onPressed,
+      isNull,
     );
     semantics.dispose();
   });
