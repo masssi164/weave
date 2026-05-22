@@ -749,6 +749,138 @@ abstract class AppLocalizations {
   /// **'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.'**
   String get chatAiChatsSectionEmpty;
 
+  /// Title for the governed agent chat preview panel
+  ///
+  /// In en, this message translates to:
+  /// **'Agent chats are governed by your workspace'**
+  String get chatAgentGovernanceTitle;
+
+  /// Description for the governed agent chat preview panel
+  ///
+  /// In en, this message translates to:
+  /// **'Agents can help inside Weave only after an owner or admin enables a package, chooses scopes, and keeps consent and audit visible.'**
+  String get chatAgentGovernanceDescription;
+
+  /// Title for the agent context pack explanation card
+  ///
+  /// In en, this message translates to:
+  /// **'Context pack before action'**
+  String get chatAgentContextPackTitle;
+
+  /// Description for the agent context pack explanation card
+  ///
+  /// In en, this message translates to:
+  /// **'When an agent is available, Weave will show what context is sent for this request before the agent uses it.'**
+  String get chatAgentContextPackDescription;
+
+  /// Bullet explaining scoped agent context
+  ///
+  /// In en, this message translates to:
+  /// **'Context is scoped to a selected chat, file, calendar event, board, or explicit workspace source.'**
+  String get chatAgentContextPackScopedBullet;
+
+  /// Bullet explaining consent and permission hints for agent context
+  ///
+  /// In en, this message translates to:
+  /// **'You will see permission hints before starting or approving an agent action.'**
+  String get chatAgentContextPackConsentBullet;
+
+  /// Bullet explaining that agents are not surveillance-aware
+  ///
+  /// In en, this message translates to:
+  /// **'Agents do not continuously read rooms in the background.'**
+  String get chatAgentContextPackNoSurveillanceBullet;
+
+  /// Audit and approval note for the governed agent chat preview panel
+  ///
+  /// In en, this message translates to:
+  /// **'Audit placeholders are part of this preview: agent creation, context access, tool/action execution, approval, and revocation must be recorded before runtime promotion.'**
+  String get chatAgentGovernanceAuditNote;
+
+  /// Agent availability label for a preview-only agent
+  ///
+  /// In en, this message translates to:
+  /// **'Preview only'**
+  String get chatAgentAvailabilityPreview;
+
+  /// Agent availability label when setup must be done by an admin
+  ///
+  /// In en, this message translates to:
+  /// **'Admin setup required'**
+  String get chatAgentAvailabilityAdminSetup;
+
+  /// Agent availability label when policy blocks an agent
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked by policy'**
+  String get chatAgentAvailabilityBlocked;
+
+  /// Title for the personal assistant preview tile
+  ///
+  /// In en, this message translates to:
+  /// **'Personal assistant'**
+  String get chatAgentPersonalAssistantTitle;
+
+  /// Description for the personal assistant preview tile
+  ///
+  /// In en, this message translates to:
+  /// **'A future private assistant chat for drafting, summaries, and reminders inside Weave.'**
+  String get chatAgentPersonalAssistantDescription;
+
+  /// Title for the channel agent preview tile
+  ///
+  /// In en, this message translates to:
+  /// **'Channel agent'**
+  String get chatAgentChannelAgentTitle;
+
+  /// Description for the channel agent preview tile
+  ///
+  /// In en, this message translates to:
+  /// **'A future helper for a channel or project space, governed by an admin-approved package.'**
+  String get chatAgentChannelAgentDescription;
+
+  /// Scope explanation for personal assistant preview
+  ///
+  /// In en, this message translates to:
+  /// **'Uses only context you choose for the current request; workspace policy decides which skills are available.'**
+  String get chatAgentPersonalScope;
+
+  /// Boundary explanation for personal assistant preview
+  ///
+  /// In en, this message translates to:
+  /// **'No continuous room reading; a context pack is assembled only after you start or approve a request.'**
+  String get chatAgentPersonalBoundary;
+
+  /// Audit explanation for personal assistant preview
+  ///
+  /// In en, this message translates to:
+  /// **'Creation, context access, tool use, and permission changes will be auditable before runtime use.'**
+  String get chatAgentPersonalAudit;
+
+  /// Scope explanation for channel agent preview
+  ///
+  /// In en, this message translates to:
+  /// **'An owner or admin must enable the package and choose allowed chat, files, calendar, and board scopes.'**
+  String get chatAgentChannelScope;
+
+  /// Boundary explanation for channel agent preview
+  ///
+  /// In en, this message translates to:
+  /// **'The agent sees named spaces and explicit context packs, not every message in the workspace.'**
+  String get chatAgentChannelBoundary;
+
+  /// Audit explanation for channel agent preview
+  ///
+  /// In en, this message translates to:
+  /// **'Approvals, revocations, and action attempts stay visible to admins without exposing secrets to the app.'**
+  String get chatAgentChannelAudit;
+
+  /// Disabled action label for preview agent chats
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable until enabled'**
+  String get chatAgentStartDisabledButton;
+
   /// Message shown while the chat room list is loading
   ///
   /// In en, this message translates to:

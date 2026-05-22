@@ -426,6 +426,20 @@ void main() {
           find.textContaining('Agents use scoped context on demand'),
           findsOneWidget,
         );
+        expect(
+          find.text('Agent chats are governed by your workspace'),
+          findsOneWidget,
+        );
+        expect(find.text('Context pack before action'), findsOneWidget);
+        expect(
+          find.text('Agents do not continuously read rooms in the background.'),
+          findsOneWidget,
+        );
+        expect(find.text('Personal assistant'), findsOneWidget);
+        expect(find.text('Channel agent'), findsOneWidget);
+        expect(find.text('Preview only'), findsOneWidget);
+        expect(find.text('Admin setup required'), findsOneWidget);
+        expect(find.text('Unavailable until enabled'), findsNWidgets(2));
         expect(find.text('Favorites'), findsOneWidget);
         expect(find.text('Personal messages'), findsOneWidget);
         expect(find.text('Channels'), findsOneWidget);

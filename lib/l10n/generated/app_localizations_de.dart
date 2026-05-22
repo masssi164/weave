@@ -377,6 +377,87 @@ class AppLocalizationsDe extends AppLocalizations {
       'Noch keine KI-Chats verbunden. Künftige spezialisierte Agenten erscheinen hier, statt zwischen persönlichen Nachrichten zu verschwinden.';
 
   @override
+  String get chatAgentGovernanceTitle =>
+      'Agentenchats werden von deinem Workspace gesteuert';
+
+  @override
+  String get chatAgentGovernanceDescription =>
+      'Agenten können in Weave erst helfen, wenn Owner oder Admins ein Paket aktivieren, Bereiche auswählen und Einwilligung sowie Audit sichtbar bleiben.';
+
+  @override
+  String get chatAgentContextPackTitle => 'Kontextpaket vor der Aktion';
+
+  @override
+  String get chatAgentContextPackDescription =>
+      'Wenn ein Agent verfügbar ist, zeigt Weave vorab, welcher Kontext für diese Anfrage gesendet wird.';
+
+  @override
+  String get chatAgentContextPackScopedBullet =>
+      'Kontext ist auf ausgewählte Chats, Dateien, Kalendertermine, Boards oder ausdrücklich gewählte Workspace-Quellen begrenzt.';
+
+  @override
+  String get chatAgentContextPackConsentBullet =>
+      'Vor dem Start oder der Freigabe einer Agentenaktion siehst du Hinweise zu Berechtigungen.';
+
+  @override
+  String get chatAgentContextPackNoSurveillanceBullet =>
+      'Agenten lesen Räume nicht dauerhaft im Hintergrund mit.';
+
+  @override
+  String get chatAgentGovernanceAuditNote =>
+      'Audit-Platzhalter gehören zu dieser Vorschau: Agentenerstellung, Kontextzugriff, Tool-/Aktionsausführung, Freigabe und Widerruf müssen vor einer Laufzeitfreigabe protokollierbar sein.';
+
+  @override
+  String get chatAgentAvailabilityPreview => 'Nur Vorschau';
+
+  @override
+  String get chatAgentAvailabilityAdminSetup => 'Admin-Einrichtung nötig';
+
+  @override
+  String get chatAgentAvailabilityBlocked => 'Durch Policy blockiert';
+
+  @override
+  String get chatAgentPersonalAssistantTitle => 'Persönlicher Assistent';
+
+  @override
+  String get chatAgentPersonalAssistantDescription =>
+      'Ein künftiger privater Assistentenchat für Entwürfe, Zusammenfassungen und Erinnerungen in Weave.';
+
+  @override
+  String get chatAgentChannelAgentTitle => 'Kanal-Agent';
+
+  @override
+  String get chatAgentChannelAgentDescription =>
+      'Ein künftiger Helfer für einen Kanal oder Projektraum, gesteuert durch ein von Admins freigegebenes Paket.';
+
+  @override
+  String get chatAgentPersonalScope =>
+      'Nutzt nur Kontext, den du für die aktuelle Anfrage auswählst; Workspace-Policies entscheiden, welche Fähigkeiten verfügbar sind.';
+
+  @override
+  String get chatAgentPersonalBoundary =>
+      'Kein dauerhaftes Mitlesen von Räumen; ein Kontextpaket wird erst nach deinem Start oder deiner Freigabe zusammengestellt.';
+
+  @override
+  String get chatAgentPersonalAudit =>
+      'Erstellung, Kontextzugriff, Tool-Nutzung und Berechtigungsänderungen werden vor Laufzeitnutzung auditierbar.';
+
+  @override
+  String get chatAgentChannelScope =>
+      'Owner oder Admins müssen das Paket aktivieren und erlaubte Chat-, Datei-, Kalender- und Board-Bereiche auswählen.';
+
+  @override
+  String get chatAgentChannelBoundary =>
+      'Der Agent sieht benannte Bereiche und explizite Kontextpakete, nicht jede Nachricht im Workspace.';
+
+  @override
+  String get chatAgentChannelAudit =>
+      'Freigaben, Widerrufe und Aktionsversuche bleiben für Admins sichtbar, ohne Secrets in der App offenzulegen.';
+
+  @override
+  String get chatAgentStartDisabledButton => 'Nicht verfügbar, bis aktiviert';
+
+  @override
   String get chatLoadingLabel => 'Unterhaltungen werden geladen…';
 
   @override
