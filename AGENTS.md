@@ -6,15 +6,15 @@ This repository contains one runnable workspace under `weave-workspace/`.
 
 - `.gitignore`: ignores Terraform state, generated runtime assets, and local work directories.
 - `Makefile`: local operator helpers such as printing default host entries.
-- `README.md`: operator-focused overview, local bootstrap instructions, and Release 1 deployment summary.
+- `README.md`: operator-focused overview, local bootstrap instructions, and single-host operator path deployment summary.
 - `KEYCLOAK_CONTRACT.md`: local realm, client, scope, claim, and audience contract.
-- `docs/release-1-single-host.md`: non-local Release 1 target, required inputs, and operator runbook notes.
+- `docs/single-host-operator-guide.md`: non-local single-host operator path target, required inputs, and operator runbook notes.
 - `docs/matrix-default-workspace.md`: Matrix default workspace aliases, access policy, and verification notes.
 - `.github/AGENTS.md`: GitHub automation and workflow navigation notes.
 - `weave-workspace/.env.example`: local hostname, port, and Caddy mount defaults.
-- `weave-workspace/release.env.example`: single-host Release 1 env template with explicit production-facing placeholders.
+- `weave-workspace/release.env.example`: single-host env template with explicit production-facing placeholders.
 - `weave-workspace/release-verify.sh`: public endpoint verification script for release operators.
-- `weave-workspace/backup.sh`: manually runnable Release 1 backup helper for Postgres dumps, required data volumes, and generated config/secrets.
+- `weave-workspace/backup.sh`: manually runnable backup helper for Postgres dumps, required data volumes, and generated config/secrets.
 - `weave-workspace/restore-smoke.sh`: non-destructive post-restore/reprovisioning smoke wrapper around the recovery readiness checks.
 - `weave-workspace/provision-matrix-default-workspace.sh`: idempotent default Matrix space/room provisioner invoked by install.
 - `weave-workspace/docker-compose.yml`: Caddy service definition for proxy-only iteration against the Terraform-created network.

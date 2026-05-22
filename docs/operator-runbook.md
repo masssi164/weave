@@ -1,6 +1,6 @@
 # Operator runbook
 
-This is the minimum operator layer for `weave-infra` operator baseline.
+This is the minimum operator layer for the `weave-infra` single-host path.
 It is meant to remove the remaining tribal knowledge around install, verify, recovery, and routine maintenance.
 
 ## 1. Before install
@@ -24,7 +24,7 @@ Recommended file permissions on the host:
 
 ## 2. Secrets inventory and rotation
 
-operator baseline secrets are file-managed, not generated on the fly.
+Single-host operator secrets are file-managed, not generated on the fly.
 At minimum track ownership and rotation dates for:
 
 - `TF_VAR_db_admin_password`
@@ -198,7 +198,7 @@ Escalate quickly when any of these fail:
 - Nextcloud `status.php` is not installed/healthy
 - Matrix delegated auth discovery, client versions, or `/authorize` is unavailable
 
-## 9. Known operator baseline limits
+## 9. Known single-host limits
 
 These are still intentionally out of scope for this repo slice:
 

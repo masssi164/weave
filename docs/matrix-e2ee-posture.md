@@ -6,7 +6,7 @@ Matrix E2EE is active Weave scope, but the local/dev stack must not claim end-to
 
 - `WEAVE_CHAT_E2EE=active-architecture-gated` documents that the architecture must remain compatible with Matrix E2EE.
 - Backend platform config must continue to expose `features.chatE2ee=false` until encrypted rooms and recovery UX are validated.
-- The default workspace space plus `announcements`, `general`, and `help` rooms are intentionally unencrypted in the current operator baseline.
+- The default workspace space plus `announcements`, `general`, and `help` rooms are intentionally unencrypted in the current single-host operator path.
 - Matrix federation remains disabled by default for MVP.
 
 `operator-check.sh` and `smoke-test.sh` now verify this honest posture by querying default room state with the private Matrix provisioner token:
