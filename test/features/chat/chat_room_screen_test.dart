@@ -80,9 +80,62 @@ void main() {
       find.text('No agent is reading this room in the background.'),
       findsOneWidget,
     );
+    expect(
+      find.text('Decisions, risks, questions, and evidence'),
+      findsOneWidget,
+    );
+    expect(find.text('Decisions: 0'), findsOneWidget);
+    expect(find.text('Risks: 0'), findsOneWidget);
+    expect(find.text('Open questions: 0'), findsOneWidget);
+    expect(find.text('Evidence: 0'), findsOneWidget);
+    expect(
+      find.textContaining('no automatic continuous room reading'),
+      findsOneWidget,
+    );
     expect(find.text('Alex'), findsOneWidget);
     expect(find.text('Hey there'), findsOneWidget);
     expect(repository.markRoomReadCalls, 1);
+  });
+
+  testWidgets('captures a message as a source-linked decision record', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(),
+    );
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectSemanticTapAction(
+      tester,
+      find.byTooltip('Message actions'),
+      label: 'Message actions',
+    );
+
+    await tester.tap(find.byTooltip('Message actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Capture as decision'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Decision'), findsOneWidget);
+    expect(find.text('Decisions: 1'), findsOneWidget);
+    expect(find.text('Hey there'), findsAtLeastNWidgets(1));
+    expect(
+      find.text('Active. Captured by You. Source: message from Alex.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Captured as decision. Source linked to this message.'),
+      findsOneWidget,
+    );
+    semantics.dispose();
   });
 
   testWidgets('sends a message and reloads the timeline', (tester) async {

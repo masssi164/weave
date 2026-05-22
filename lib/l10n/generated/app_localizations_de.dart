@@ -1670,6 +1670,108 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatRoomContextAvailableStatus => 'Verfügbar nach Auswahl';
 
   @override
+  String get chatDecisionEvidencePanelTitle =>
+      'Entscheidungen, Risiken, Fragen und Evidenz';
+
+  @override
+  String get chatDecisionEvidencePanelDescription =>
+      'Erfasse wichtige Nachrichten bewusst, damit der Raum die Gründe hinter der Arbeit behält. Nichts hier entsteht durch verstecktes Mitlesen.';
+
+  @override
+  String get chatDecisionEvidenceNoBackgroundReading =>
+      'Einträge entstehen aus Nachrichtenaktionen, die du auswählst; es läuft kein automatisches dauerhaftes Mitlesen.';
+
+  @override
+  String get chatDecisionEvidenceEmptyState =>
+      'Noch keine Einträge erfasst. Nutze eine Nachrichtenaktion, um eine Entscheidung, ein Risiko, eine offene Frage oder Evidenz mit Quelle zu erfassen.';
+
+  @override
+  String chatDecisionEvidenceCountLabel(String label, int count) {
+    return '$label: $count';
+  }
+
+  @override
+  String get chatDecisionEvidenceDecisionLabel => 'Entscheidung';
+
+  @override
+  String get chatDecisionEvidenceDecisionsLabel => 'Entscheidungen';
+
+  @override
+  String get chatDecisionEvidenceRiskLabel => 'Risiko';
+
+  @override
+  String get chatDecisionEvidenceRisksLabel => 'Risiken';
+
+  @override
+  String get chatDecisionEvidenceOpenQuestionLabel => 'Offene Frage';
+
+  @override
+  String get chatDecisionEvidenceOpenQuestionsLabel => 'Offene Fragen';
+
+  @override
+  String get chatDecisionEvidenceEvidenceLabel => 'Evidenz';
+
+  @override
+  String get chatDecisionEvidenceEvidencePluralLabel => 'Evidenz';
+
+  @override
+  String get chatDecisionEvidenceOwnerYou => 'Du';
+
+  @override
+  String get chatDecisionEvidenceStatusActive => 'Aktiv';
+
+  @override
+  String get chatDecisionEvidenceStatusResolved => 'Erledigt';
+
+  @override
+  String get chatDecisionEvidenceStatusArchived => 'Archiviert';
+
+  @override
+  String chatDecisionEvidenceRecordMeta(
+    String status,
+    String owner,
+    String sender,
+  ) {
+    return '$status. Erfasst von $owner. Quelle: Nachricht von $sender.';
+  }
+
+  @override
+  String chatDecisionEvidenceSourceLabel(String sender) {
+    return 'Quelle: Nachricht von $sender';
+  }
+
+  @override
+  String chatDecisionEvidenceCapturedMessage(String kind) {
+    return 'Als $kind erfasst. Quelle mit dieser Nachricht verknüpft.';
+  }
+
+  @override
+  String chatDecisionEvidenceMoreRecords(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count weitere Einträge',
+      one: '1 weiterer Eintrag',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDecisionEvidenceCaptureDecisionAction =>
+      'Als Entscheidung erfassen';
+
+  @override
+  String get chatDecisionEvidenceCaptureRiskAction => 'Als Risiko erfassen';
+
+  @override
+  String get chatDecisionEvidenceCaptureQuestionAction =>
+      'Als offene Frage erfassen';
+
+  @override
+  String get chatDecisionEvidenceCaptureEvidenceAction =>
+      'Als Evidenz erfassen';
+
+  @override
   String get filesEmptyMessage => 'Noch keine Dateien';
 
   @override

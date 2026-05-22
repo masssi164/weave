@@ -1340,6 +1340,79 @@
   "chatRoomContextAvailableStatus": "Available when selected",
   "@chatRoomContextAvailableStatus": { "description": "Accessibility status for optional context that is not included yet" },
 
+  "chatDecisionEvidencePanelTitle": "Decisions, risks, questions, and evidence",
+  "@chatDecisionEvidencePanelTitle": { "description": "Heading for the room decision and evidence snapshot panel" },
+  "chatDecisionEvidencePanelDescription": "Capture important messages explicitly so the room keeps the reason behind the work. Nothing here is created by hidden room scanning.",
+  "@chatDecisionEvidencePanelDescription": { "description": "Description for the explicit decision and evidence capture panel" },
+  "chatDecisionEvidenceNoBackgroundReading": "Records come from message actions you choose; no automatic continuous room reading is running.",
+  "@chatDecisionEvidenceNoBackgroundReading": { "description": "Safety note for explicit decision and evidence records" },
+  "chatDecisionEvidenceEmptyState": "No records captured yet. Use a message action to capture a decision, risk, open question, or evidence with its source.",
+  "@chatDecisionEvidenceEmptyState": { "description": "Empty state for a room with no captured decision or evidence records" },
+  "chatDecisionEvidenceCountLabel": "{label}: {count}",
+  "@chatDecisionEvidenceCountLabel": {
+    "description": "Count label for a decision/evidence kind",
+    "placeholders": {
+      "label": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "chatDecisionEvidenceDecisionLabel": "Decision",
+  "@chatDecisionEvidenceDecisionLabel": { "description": "Singular label for a captured decision" },
+  "chatDecisionEvidenceDecisionsLabel": "Decisions",
+  "@chatDecisionEvidenceDecisionsLabel": { "description": "Plural label for captured decisions" },
+  "chatDecisionEvidenceRiskLabel": "Risk",
+  "@chatDecisionEvidenceRiskLabel": { "description": "Singular label for a captured risk" },
+  "chatDecisionEvidenceRisksLabel": "Risks",
+  "@chatDecisionEvidenceRisksLabel": { "description": "Plural label for captured risks" },
+  "chatDecisionEvidenceOpenQuestionLabel": "Open question",
+  "@chatDecisionEvidenceOpenQuestionLabel": { "description": "Singular label for a captured open question" },
+  "chatDecisionEvidenceOpenQuestionsLabel": "Open questions",
+  "@chatDecisionEvidenceOpenQuestionsLabel": { "description": "Plural label for captured open questions" },
+  "chatDecisionEvidenceEvidenceLabel": "Evidence",
+  "@chatDecisionEvidenceEvidenceLabel": { "description": "Singular label for captured evidence" },
+  "chatDecisionEvidenceEvidencePluralLabel": "Evidence",
+  "@chatDecisionEvidenceEvidencePluralLabel": { "description": "Plural label for captured evidence" },
+  "chatDecisionEvidenceOwnerYou": "You",
+  "@chatDecisionEvidenceOwnerYou": { "description": "Owner label for records captured by the current user" },
+  "chatDecisionEvidenceStatusActive": "Active",
+  "@chatDecisionEvidenceStatusActive": { "description": "Lifecycle status for active decision/evidence records" },
+  "chatDecisionEvidenceStatusResolved": "Resolved",
+  "@chatDecisionEvidenceStatusResolved": { "description": "Lifecycle status for resolved decision/evidence records" },
+  "chatDecisionEvidenceStatusArchived": "Archived",
+  "@chatDecisionEvidenceStatusArchived": { "description": "Lifecycle status for archived decision/evidence records" },
+  "chatDecisionEvidenceRecordMeta": "{status}. Captured by {owner}. Source: message from {sender}.",
+  "@chatDecisionEvidenceRecordMeta": {
+    "description": "Metadata shown for a captured decision/evidence record",
+    "placeholders": {
+      "status": { "type": "String" },
+      "owner": { "type": "String" },
+      "sender": { "type": "String" }
+    }
+  },
+  "chatDecisionEvidenceSourceLabel": "Source: message from {sender}",
+  "@chatDecisionEvidenceSourceLabel": {
+    "description": "Short source label for a captured decision/evidence record",
+    "placeholders": { "sender": { "type": "String" } }
+  },
+  "chatDecisionEvidenceCapturedMessage": "Captured as {kind}. Source linked to this message.",
+  "@chatDecisionEvidenceCapturedMessage": {
+    "description": "Snackbar shown after a message is captured as a decision/evidence record",
+    "placeholders": { "kind": { "type": "String" } }
+  },
+  "chatDecisionEvidenceMoreRecords": "{count, plural, =1 {1 more record} other {{count} more records}}",
+  "@chatDecisionEvidenceMoreRecords": {
+    "description": "Summary shown when the panel hides additional records",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "chatDecisionEvidenceCaptureDecisionAction": "Capture as decision",
+  "@chatDecisionEvidenceCaptureDecisionAction": { "description": "Message menu action to capture a message as a decision" },
+  "chatDecisionEvidenceCaptureRiskAction": "Capture as risk",
+  "@chatDecisionEvidenceCaptureRiskAction": { "description": "Message menu action to capture a message as a risk" },
+  "chatDecisionEvidenceCaptureQuestionAction": "Capture as open question",
+  "@chatDecisionEvidenceCaptureQuestionAction": { "description": "Message menu action to capture a message as an open question" },
+  "chatDecisionEvidenceCaptureEvidenceAction": "Capture as evidence",
+  "@chatDecisionEvidenceCaptureEvidenceAction": { "description": "Message menu action to capture a message as evidence" },
+
   "filesEmptyMessage": "No files yet",
   "@filesEmptyMessage": { "description": "Empty state message for the files screen" },
   "filesEmptyGuidance": "Upload a file or create a folder when you are ready to add workspace files.",
