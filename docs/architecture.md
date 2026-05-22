@@ -45,6 +45,17 @@ Shell destinations:
 - Tasks/Boards (feature-gated active scope; provider-neutral Weave model, not a Nextcloud Deck product dependency)
 - Settings
 
+## Weave Home and chat information architecture
+
+`/chat` is the first Weave Home surface. It is intentionally more structured than a flat Matrix room list:
+
+- **Favorites** collect pinned/favorited people, channels, and AI chats once that metadata is available.
+- **Personal messages** contain direct human-to-human conversations.
+- **Channels** contain team/topic rooms and remain the main collaboration spine for future channel workspaces.
+- **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
+
+The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest placeholders for favorites and AI chats until backend/product metadata is ready. Future channel workspace tabs for files, boards/tasks, and calendar should attach to channel context rather than becoming unrelated top-level app islands.
+
 ## Shared server configuration
 `features/server_config/` owns the shared configuration model used by both onboarding and settings.
 

@@ -324,6 +324,56 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatScreenTitle => 'Chat';
 
   @override
+  String get chatOverviewTitle => 'Weave Home';
+
+  @override
+  String get chatOverviewDescription =>
+      'Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.';
+
+  @override
+  String get chatFavoritesSectionTitle => 'Favorites';
+
+  @override
+  String get chatFavoritesSectionDescription =>
+      'Pinned people, channels, and AI chats you want to reach first.';
+
+  @override
+  String get chatFavoritesSectionEmpty =>
+      'No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.';
+
+  @override
+  String get chatPersonalMessagesSectionTitle => 'Personal messages';
+
+  @override
+  String get chatPersonalMessagesSectionDescription =>
+      'Direct conversations with people in your workspace.';
+
+  @override
+  String get chatPersonalMessagesSectionEmpty =>
+      'No personal messages are available yet.';
+
+  @override
+  String get chatChannelsSectionTitle => 'Channels';
+
+  @override
+  String get chatChannelsSectionDescription =>
+      'Team and topic rooms for shared work.';
+
+  @override
+  String get chatChannelsSectionEmpty => 'No channels are available yet.';
+
+  @override
+  String get chatAiChatsSectionTitle => 'AI chats';
+
+  @override
+  String get chatAiChatsSectionDescription =>
+      'Specialized assistant and agent chats live in their own area.';
+
+  @override
+  String get chatAiChatsSectionEmpty =>
+      'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.';
+
+  @override
   String get chatLoadingLabel => 'Loading conversations…';
 
   @override
@@ -2116,4 +2166,73 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get boardsPreviewActionNoNextColumn =>
       'This task is already in the last preview column.';
+
+  @override
+  String get settingsAdminSetupTitle => 'Owner and admin setup';
+
+  @override
+  String get settingsAdminSetupDescription =>
+      'Workspace owners and admins manage OIDC, realm, organization, and service endpoints here. Members and guests only see sign-in and product settings.';
+
+  @override
+  String get settingsAdminPermissionTitle => 'Admin controls unlocked';
+
+  @override
+  String settingsAdminPermissionDescription(String roles) {
+    return 'Visible because your Weave roles are: $roles. Backend APIs remain the authority for every write.';
+  }
+
+  @override
+  String settingsAdminPermissionSemantic(String roles) {
+    return 'Admin controls unlocked. Visible because your Weave roles are: $roles. Backend APIs remain the authority for every write.';
+  }
+
+  @override
+  String get settingsAdminBoundaryTitle => 'Workspace setup is admin-only';
+
+  @override
+  String get settingsAdminBoundaryDescription =>
+      'OIDC, realm, organization, and service endpoint setup is handled by workspace owners or admins. Normal users can keep using Weave without Matrix, Nextcloud, or realm details.';
+
+  @override
+  String get settingsAdminPermissionLoading => 'Checking admin permissions…';
+
+  @override
+  String get chatContextCardTitle => 'Context for this workspace';
+
+  @override
+  String get chatContextCardDescription =>
+      'Weave can prepare focused context from channels, decisions, and shared work when you ask for help. It does not show a database diagram or continuously read everything.';
+
+  @override
+  String get chatContextCardPolicy =>
+      'Agents use scoped context on demand, show what context was used, and stay inside admin-defined boundaries.';
+
+  @override
+  String get chatContextChannelHintTitle => 'Channel context';
+
+  @override
+  String get chatContextChannelHintDescription =>
+      'Recent room signals can become a small context card for the current task.';
+
+  @override
+  String get chatContextEvidenceHintTitle => 'Decisions and evidence';
+
+  @override
+  String get chatContextEvidenceHintDescription =>
+      'Decision notes and supporting links can be cited without exposing graph internals.';
+
+  @override
+  String get chatContextAgentHintTitle => 'Agent context packs';
+
+  @override
+  String get chatContextAgentHintDescription =>
+      'Assistants receive only the scoped pack for the request, mention, or schedule.';
+
+  @override
+  String get firstRunAdminSetupTitle => 'Owner/admin setup responsibilities';
+
+  @override
+  String get firstRunAdminSetupDescription =>
+      'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.';
 }

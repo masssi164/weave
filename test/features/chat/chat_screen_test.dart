@@ -366,6 +366,142 @@ void main() {
       );
     });
 
+    testWidgets(
+      'groups conversations into favorites, personal messages, channels, and AI chats',
+      (tester) async {
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async => const <ChatConversation>[
+            ChatConversation(
+              id: '@sam:home.internal',
+              title: 'Sam',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Can you review this?',
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: true,
+            ),
+            ChatConversation(
+              id: '!project:home.internal',
+              title: 'Project channel',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Build is green',
+              unreadCount: 3,
+              isInvite: false,
+              isDirectMessage: false,
+              isFavorite: true,
+            ),
+            ChatConversation(
+              id: 'agent:release-coach',
+              title: 'Release coach',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Ready to prepare notes',
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: true,
+              isAiChat: true,
+            ),
+          ],
+        );
+        final securityRepository = buildSecurityRepository();
+
+        await tester.pumpWidget(
+          createTestApp(
+            const ChatScreen(),
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              chatSecurityRepositoryProvider.overrideWithValue(
+                securityRepository,
+              ),
+              firstRunStatusProvider.overrideWith((ref) async => null),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Weave Home'), findsOneWidget);
+        expect(find.text('Context for this workspace'), findsOneWidget);
+        expect(find.text('Channel context'), findsOneWidget);
+        expect(find.text('Agent context packs'), findsOneWidget);
+        expect(
+          find.textContaining('Agents use scoped context on demand'),
+          findsOneWidget,
+        );
+        expect(find.text('Favorites'), findsOneWidget);
+        expect(find.text('Personal messages'), findsOneWidget);
+        expect(find.text('Channels'), findsOneWidget);
+        expect(find.text('Project channel'), findsNWidgets(2));
+        expect(find.text('Sam'), findsOneWidget);
+
+        await tester.ensureVisible(find.text('AI chats'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('AI chats'), findsOneWidget);
+        expect(find.text('Release coach'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'keeps favorites and AI areas visible when backend data is not ready',
+      (tester) async {
+        final repository = FakeChatRepository(
+          loadConversationsHandler: () async => const <ChatConversation>[
+            ChatConversation(
+              id: '@sam:home.internal',
+              title: 'Sam',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'See you soon',
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: true,
+            ),
+            ChatConversation(
+              id: '!project:home.internal',
+              title: 'Project channel',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Build is green',
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ],
+        );
+        final securityRepository = buildSecurityRepository();
+
+        await tester.pumpWidget(
+          createTestApp(
+            const ChatScreen(),
+            overrides: [
+              chatRepositoryProvider.overrideWithValue(repository),
+              chatSecurityRepositoryProvider.overrideWithValue(
+                securityRepository,
+              ),
+              firstRunStatusProvider.overrideWith((ref) async => null),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Favorites'), findsOneWidget);
+        expect(
+          find.text(
+            'No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.',
+          ),
+          findsOneWidget,
+        );
+
+        await tester.ensureVisible(find.text('AI chats'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('AI chats'), findsOneWidget);
+        expect(
+          find.text(
+            'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
     testWidgets('shows the Matrix security banner when attention is needed', (
       tester,
     ) async {

@@ -17,6 +17,7 @@ import 'package:weave/features/files/domain/entities/files_connection_state.dart
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -134,6 +135,18 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
   }
 }
 
+const _memberProfile = UserProfile(
+  userId: 'member-1',
+  username: 'member',
+  email: 'member@example.test',
+  emailVerified: true,
+  displayName: 'Workspace Member',
+  locale: 'en',
+  timezone: 'Europe/Berlin',
+  roles: ['member'],
+  groups: ['workspace-default'],
+);
+
 void main() {
   testWidgets(
     'consumes backend capabilities and reflects merged readiness in settings',
@@ -210,7 +223,7 @@ void main() {
                 ),
               ),
             ),
-            userProfileProvider.overrideWith((ref) async => null),
+            userProfileProvider.overrideWith((ref) async => _memberProfile),
             firstRunStatusProvider.overrideWith(
               (ref) async => buildTestFirstRunStatus(),
             ),
@@ -242,7 +255,8 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Server Configuration'), findsOneWidget);
+      expect(find.text('Workspace setup is admin-only'), findsOneWidget);
+      expect(find.text('Server Configuration'), findsNothing);
       expect(
         find.text('Readiness: Ready', findRichText: true),
         findsNWidgets(2),

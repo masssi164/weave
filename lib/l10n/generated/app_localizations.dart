@@ -665,6 +665,90 @@ abstract class AppLocalizations {
   /// **'Chat'**
   String get chatScreenTitle;
 
+  /// Title for the chat overview/home surface
+  ///
+  /// In en, this message translates to:
+  /// **'Weave Home'**
+  String get chatOverviewTitle;
+
+  /// Description for the chat overview/home surface
+  ///
+  /// In en, this message translates to:
+  /// **'Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.'**
+  String get chatOverviewDescription;
+
+  /// Title for the favorites section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get chatFavoritesSectionTitle;
+
+  /// Description for the favorites section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned people, channels, and AI chats you want to reach first.'**
+  String get chatFavoritesSectionDescription;
+
+  /// Empty state for the favorites section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.'**
+  String get chatFavoritesSectionEmpty;
+
+  /// Title for the personal messages section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Personal messages'**
+  String get chatPersonalMessagesSectionTitle;
+
+  /// Description for the personal messages section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Direct conversations with people in your workspace.'**
+  String get chatPersonalMessagesSectionDescription;
+
+  /// Empty state for the personal messages section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'No personal messages are available yet.'**
+  String get chatPersonalMessagesSectionEmpty;
+
+  /// Title for the channel section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Channels'**
+  String get chatChannelsSectionTitle;
+
+  /// Description for the channel section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Team and topic rooms for shared work.'**
+  String get chatChannelsSectionDescription;
+
+  /// Empty state for the channel section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'No channels are available yet.'**
+  String get chatChannelsSectionEmpty;
+
+  /// Title for the AI chats section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'AI chats'**
+  String get chatAiChatsSectionTitle;
+
+  /// Description for the AI chats section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'Specialized assistant and agent chats live in their own area.'**
+  String get chatAiChatsSectionDescription;
+
+  /// Empty state for the AI chats section in the chat overview
+  ///
+  /// In en, this message translates to:
+  /// **'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.'**
+  String get chatAiChatsSectionEmpty;
+
   /// Message shown while the chat room list is loading
   ///
   /// In en, this message translates to:
@@ -3563,6 +3647,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This task is already in the last preview column.'**
   String get boardsPreviewActionNoNextColumn;
+
+  /// Title for the owner/admin setup card in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Owner and admin setup'**
+  String get settingsAdminSetupTitle;
+
+  /// Description for owner/admin setup responsibilities
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace owners and admins manage OIDC, realm, organization, and service endpoints here. Members and guests only see sign-in and product settings.'**
+  String get settingsAdminSetupDescription;
+
+  /// Title confirming admin controls are visible
+  ///
+  /// In en, this message translates to:
+  /// **'Admin controls unlocked'**
+  String get settingsAdminPermissionTitle;
+
+  /// Admin permission explanation with role list
+  ///
+  /// In en, this message translates to:
+  /// **'Visible because your Weave roles are: {roles}. Backend APIs remain the authority for every write.'**
+  String settingsAdminPermissionDescription(String roles);
+
+  /// Screen-reader label for admin permission summary
+  ///
+  /// In en, this message translates to:
+  /// **'Admin controls unlocked. Visible because your Weave roles are: {roles}. Backend APIs remain the authority for every write.'**
+  String settingsAdminPermissionSemantic(String roles);
+
+  /// Title for hidden admin setup boundary card
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace setup is admin-only'**
+  String get settingsAdminBoundaryTitle;
+
+  /// Explanation shown to non-admin users instead of server configuration controls
+  ///
+  /// In en, this message translates to:
+  /// **'OIDC, realm, organization, and service endpoint setup is handled by workspace owners or admins. Normal users can keep using Weave without Matrix, Nextcloud, or realm details.'**
+  String get settingsAdminBoundaryDescription;
+
+  /// Loading label while profile roles are being resolved
+  ///
+  /// In en, this message translates to:
+  /// **'Checking admin permissions…'**
+  String get settingsAdminPermissionLoading;
+
+  /// Title for the implicit context card on Weave Home
+  ///
+  /// In en, this message translates to:
+  /// **'Context for this workspace'**
+  String get chatContextCardTitle;
+
+  /// Explanation for context-aware chat UX
+  ///
+  /// In en, this message translates to:
+  /// **'Weave can prepare focused context from channels, decisions, and shared work when you ask for help. It does not show a database diagram or continuously read everything.'**
+  String get chatContextCardDescription;
+
+  /// Agent context privacy policy copy
+  ///
+  /// In en, this message translates to:
+  /// **'Agents use scoped context on demand, show what context was used, and stay inside admin-defined boundaries.'**
+  String get chatContextCardPolicy;
+
+  /// Context hint title for channel history
+  ///
+  /// In en, this message translates to:
+  /// **'Channel context'**
+  String get chatContextChannelHintTitle;
+
+  /// Context hint body for channel history
+  ///
+  /// In en, this message translates to:
+  /// **'Recent room signals can become a small context card for the current task.'**
+  String get chatContextChannelHintDescription;
+
+  /// Context hint title for decisions/evidence
+  ///
+  /// In en, this message translates to:
+  /// **'Decisions and evidence'**
+  String get chatContextEvidenceHintTitle;
+
+  /// Context hint body for decision/evidence layer
+  ///
+  /// In en, this message translates to:
+  /// **'Decision notes and supporting links can be cited without exposing graph internals.'**
+  String get chatContextEvidenceHintDescription;
+
+  /// Context hint title for agent context packs
+  ///
+  /// In en, this message translates to:
+  /// **'Agent context packs'**
+  String get chatContextAgentHintTitle;
+
+  /// Context hint body for scoped agent context packs
+  ///
+  /// In en, this message translates to:
+  /// **'Assistants receive only the scoped pack for the request, mention, or schedule.'**
+  String get chatContextAgentHintDescription;
+
+  /// Title for first-run admin setup guidance
+  ///
+  /// In en, this message translates to:
+  /// **'Owner/admin setup responsibilities'**
+  String get firstRunAdminSetupTitle;
+
+  /// First-run guidance for owner/admin users
+  ///
+  /// In en, this message translates to:
+  /// **'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.'**
+  String get firstRunAdminSetupDescription;
 }
 
 class _AppLocalizationsDelegate
