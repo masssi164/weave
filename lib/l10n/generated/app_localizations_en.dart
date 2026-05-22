@@ -2406,4 +2406,63 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get firstRunAdminSetupDescription =>
       'Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.';
+
+  @override
+  String get agentCapabilityPolicyTitle => 'AI agent capability governance';
+
+  @override
+  String get agentCapabilityPolicyAdminDescription =>
+      'Owners and admins decide which agent packages and connectors can be used. This preview stays off until permission, consent, and audit controls are connected.';
+
+  @override
+  String get agentCapabilityPolicyUserDescription =>
+      'AI agent chats are not enabled for this workspace yet. You can keep using Weave normally; an owner or admin must turn this on first.';
+
+  @override
+  String get agentCapabilityPolicyFailClosedNotice =>
+      'Agent capabilities are blocked until Weave can confirm your role and the workspace policy.';
+
+  @override
+  String get agentCapabilityPolicyManageDisabledButton =>
+      'Management unavailable in this preview';
+
+  @override
+  String get agentCapabilityPolicyAskAdminHint =>
+      'Need an agent for your team? Ask a workspace owner or admin to review agent capabilities when they are available.';
+
+  @override
+  String get agentCapabilityPolicyAdminStateHint =>
+      'Current state: off by default. Future controls will require owner/admin review before users can start an agent.';
+
+  @override
+  String get agentCapabilityPersonalAssistantTitle => 'Personal assistant';
+
+  @override
+  String get agentCapabilityPersonalAssistantDescription =>
+      'Will only use context you choose for a request, after your workspace enables the capability.';
+
+  @override
+  String get agentCapabilityChannelAgentTitle => 'Channel agent';
+
+  @override
+  String get agentCapabilityChannelAgentDescription =>
+      'Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.';
+
+  @override
+  String get agentCapabilityAvailabilityPreviewOnly => 'Preview only';
+
+  @override
+  String get agentCapabilityAvailabilityAdminSetupRequired =>
+      'Admin setup required';
+
+  @override
+  String get agentCapabilityAvailabilityBlocked => 'Blocked';
+
+  @override
+  String get agentCapabilityPolicyErrorTitle =>
+      'Agent capability policy is unavailable.';
+
+  @override
+  String get agentCapabilityPolicyLoading =>
+      'Checking agent capability policy…';
 }

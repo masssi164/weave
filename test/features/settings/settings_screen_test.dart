@@ -231,6 +231,23 @@ void main() {
         findsOneWidget,
       );
       await tester.scrollUntilVisible(
+        find.text('AI agent capability governance'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('AI agent capability governance'), findsOneWidget);
+      expect(
+        find.textContaining('Owners and admins decide which agent packages'),
+        findsOneWidget,
+      );
+      expect(find.text('Personal assistant'), findsOneWidget);
+      expect(find.text('Channel agent'), findsOneWidget);
+      expect(
+        find.text('Management unavailable in this preview'),
+        findsOneWidget,
+      );
+
+      await tester.scrollUntilVisible(
         find.text('Help and user handbook'),
         300,
         scrollable: find.byType(Scrollable).first,
@@ -312,6 +329,26 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.scrollUntilVisible(
+        find.text('AI agent capability governance'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('AI agent capability governance'), findsOneWidget);
+      expect(
+        find.textContaining('AI agent chats are not enabled'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Ask a workspace owner or admin'),
+        findsOneWidget,
+      );
+
+      await tester.scrollUntilVisible(
+        find.text('Workspace setup is admin-only'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Workspace setup is admin-only'), findsOneWidget);
       expect(
         find.textContaining('Normal users can keep using Weave'),

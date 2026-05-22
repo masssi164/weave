@@ -2442,4 +2442,64 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get firstRunAdminSetupDescription =>
       'Deine Rolle darf die Workspace-Einrichtung verwalten. OIDC-, Realm-, Organisations-, Einladungs- und Dienstendpunkt-Änderungen gehören hier oder in die Einstellungen; normale Nutzer sollen nur eine Weave-Anmeldung brauchen.';
+
+  @override
+  String get agentCapabilityPolicyTitle =>
+      'Governance für KI-Agenten-Funktionen';
+
+  @override
+  String get agentCapabilityPolicyAdminDescription =>
+      'Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Vorschau bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.';
+
+  @override
+  String get agentCapabilityPolicyUserDescription =>
+      'KI-Agentenchats sind für diesen Workspace noch nicht aktiviert. Du kannst Weave normal weiter nutzen; zuerst müssen Owner oder Admins diese Funktion freigeben.';
+
+  @override
+  String get agentCapabilityPolicyFailClosedNotice =>
+      'Agenten-Funktionen sind blockiert, bis Weave deine Rolle und die Workspace-Richtlinie bestätigen kann.';
+
+  @override
+  String get agentCapabilityPolicyManageDisabledButton =>
+      'Verwaltung in dieser Vorschau nicht verfügbar';
+
+  @override
+  String get agentCapabilityPolicyAskAdminHint =>
+      'Braucht dein Team einen Agenten? Bitte Owner oder Admins, Agenten-Funktionen zu prüfen, sobald sie verfügbar sind.';
+
+  @override
+  String get agentCapabilityPolicyAdminStateHint =>
+      'Aktueller Zustand: standardmäßig aus. Künftige Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.';
+
+  @override
+  String get agentCapabilityPersonalAssistantTitle => 'Persönlicher Assistent';
+
+  @override
+  String get agentCapabilityPersonalAssistantDescription =>
+      'Nutzt nur Kontext, den du für eine Anfrage auswählst, nachdem dein Workspace die Funktion aktiviert hat.';
+
+  @override
+  String get agentCapabilityChannelAgentTitle => 'Kanal-Agent';
+
+  @override
+  String get agentCapabilityChannelAgentDescription =>
+      'Erfordert, dass Owner oder Admins auswählen, welche Kanäle, Dateien, Kalendertermine oder Boards der Agent nutzen darf.';
+
+  @override
+  String get agentCapabilityAvailabilityPreviewOnly => 'Nur Vorschau';
+
+  @override
+  String get agentCapabilityAvailabilityAdminSetupRequired =>
+      'Admin-Einrichtung nötig';
+
+  @override
+  String get agentCapabilityAvailabilityBlocked => 'Blockiert';
+
+  @override
+  String get agentCapabilityPolicyErrorTitle =>
+      'Agenten-Funktionsrichtlinie ist nicht verfügbar.';
+
+  @override
+  String get agentCapabilityPolicyLoading =>
+      'Agenten-Funktionsrichtlinie wird geprüft…';
 }
