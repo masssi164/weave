@@ -29,7 +29,7 @@ The live-stack contract now proves selected end-to-end behavior through CI artif
 
 ## Product screenshots
 
-A first look at the current product-maturity experience: guided setup, service review, custom chat, basic files, and workspace settings in one self-hosted product shell. These screenshots are deterministic SVGs generated from checked-in source, so the README stays reviewable and reproducible without turning documentation into image-only content.
+A first look at the active product-maturity experience: guided setup, service review, custom chat, basic files, and workspace settings in one self-hosted product shell. These screenshots are deterministic SVGs generated from checked-in source, so the README stays reviewable and reproducible without turning documentation into image-only content.
 
 ### Setup and service review
 
@@ -47,7 +47,7 @@ A first look at the current product-maturity experience: guided setup, service r
 
 [<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">](docs/assets/marketing/05-settings.svg)
 
-Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing. Calendar and boards/tasks are documented separately in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md) so the main showcase does not overclaim unfinished product areas.
+Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing. Additional gated surfaces are documented separately in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md) so the main showcase does not overclaim unfinished product areas.
 
 ## Quick start for contributors
 
