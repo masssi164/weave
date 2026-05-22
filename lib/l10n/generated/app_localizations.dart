@@ -4275,6 +4275,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Checking agent capability policy…'**
   String get agentCapabilityPolicyLoading;
+
+  /// Title for the context-driven workflow preview panel
+  ///
+  /// In en, this message translates to:
+  /// **'Active workflows'**
+  String get workflowPreviewTitle;
+
+  /// Description for accessible workflow preview panel
+  ///
+  /// In en, this message translates to:
+  /// **'A linear view of current steps, owners, blockers, and evidence. Diagrams can come later; this view must work with keyboard and screen readers first.'**
+  String get workflowPreviewDescription;
+
+  /// Chip saying workflows are shown linearly first
+  ///
+  /// In en, this message translates to:
+  /// **'Linear view first'**
+  String get workflowPreviewLinearViewChip;
+
+  /// Chip saying workflow context is explicit
+  ///
+  /// In en, this message translates to:
+  /// **'Explicit context only'**
+  String get workflowPreviewExplicitContextChip;
+
+  /// Chip saying workflow actions are governed
+  ///
+  /// In en, this message translates to:
+  /// **'Governed actions'**
+  String get workflowPreviewGovernedActionsChip;
+
+  /// Safety note for workflow context collection
+  ///
+  /// In en, this message translates to:
+  /// **'Workflow context is attached deliberately; Weave does not continuously read rooms in the background.'**
+  String get workflowPreviewNoBackgroundReading;
+
+  /// Screen-reader summary for workflow preview panel
+  ///
+  /// In en, this message translates to:
+  /// **'{workflowCount, plural, =0{No active workflows} one{1 active workflow} other{{workflowCount} active workflows}}. {activeStepCount, plural, =0{No active steps} one{1 active step} other{{activeStepCount} active steps}}. {blockerCount, plural, =0{No blockers} one{1 blocker} other{{blockerCount} blockers}}.'**
+  String workflowPreviewSemanticSummary(
+    int workflowCount,
+    int activeStepCount,
+    int blockerCount,
+  );
+
+  /// Screen-reader summary for one workflow run
+  ///
+  /// In en, this message translates to:
+  /// **'Workflow {title}. Context {context}. {stepCount, plural, one{1 step} other{{stepCount} steps}}. {blockerCount, plural, =0{No blockers} one{1 blocker} other{{blockerCount} blockers}}.'**
+  String workflowPreviewRunSemantic(
+    String title,
+    String context,
+    int stepCount,
+    int blockerCount,
+  );
+
+  /// Workflow context label
+  ///
+  /// In en, this message translates to:
+  /// **'Context: {context}'**
+  String workflowPreviewContextLabel(String context);
+
+  /// Workflow next action text
+  ///
+  /// In en, this message translates to:
+  /// **'Next action: {stepTitle} — {action}'**
+  String workflowPreviewNextAction(String stepTitle, String action);
+
+  /// Screen-reader label for a workflow step
+  ///
+  /// In en, this message translates to:
+  /// **'Step {title}. Type {kind}. Status {status}. Owner {owner}. Due {due}. Next action {nextAction}. Blocked: {blockers}. Evidence: {evidence}.'**
+  String workflowPreviewStepSemantic(
+    String title,
+    String kind,
+    String status,
+    String owner,
+    String due,
+    String nextAction,
+    String blockers,
+    String evidence,
+  );
+
+  /// Workflow step kind label
+  ///
+  /// In en, this message translates to:
+  /// **'Step'**
+  String get workflowPreviewKindStep;
+
+  /// Workflow gate kind label
+  ///
+  /// In en, this message translates to:
+  /// **'Check'**
+  String get workflowPreviewKindGate;
+
+  /// Workflow approval kind label
+  ///
+  /// In en, this message translates to:
+  /// **'Approval'**
+  String get workflowPreviewKindApproval;
+
+  /// Workflow ready status
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get workflowPreviewStatusReady;
+
+  /// Workflow in-progress status
+  ///
+  /// In en, this message translates to:
+  /// **'In progress'**
+  String get workflowPreviewStatusInProgress;
+
+  /// Workflow blocked status
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get workflowPreviewStatusBlocked;
+
+  /// Workflow waiting-for-approval status
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for approval'**
+  String get workflowPreviewStatusWaiting;
+
+  /// Workflow done status
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get workflowPreviewStatusDone;
+
+  /// Workflow owner fact
+  ///
+  /// In en, this message translates to:
+  /// **'Owner: {owner}'**
+  String workflowPreviewOwner(String owner);
+
+  /// Workflow due/next timing fact
+  ///
+  /// In en, this message translates to:
+  /// **'Due: {due}'**
+  String workflowPreviewDue(String due);
+
+  /// Workflow step next action fact
+  ///
+  /// In en, this message translates to:
+  /// **'Next action: {action}'**
+  String workflowPreviewStepNextAction(String action);
+
+  /// Workflow no-blockers label
+  ///
+  /// In en, this message translates to:
+  /// **'No blockers'**
+  String get workflowPreviewNoBlockers;
+
+  /// Workflow blocker fact
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked: {blockers}'**
+  String workflowPreviewBlockers(String blockers);
+
+  /// Workflow evidence fact
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence: {evidence}'**
+  String workflowPreviewEvidence(String evidence);
+
+  /// Workflow approval-required note
+  ///
+  /// In en, this message translates to:
+  /// **'Owner approval is required before this action can run.'**
+  String get workflowPreviewApprovalRequired;
+
+  /// Workflow governed-agent note
+  ///
+  /// In en, this message translates to:
+  /// **'Agent help is dry-run only until admin policy and approval are connected.'**
+  String get workflowPreviewAgentDryRunOnly;
+
+  /// Disabled placeholder action for opening a workflow step
+  ///
+  /// In en, this message translates to:
+  /// **'Open step'**
+  String get workflowPreviewOpenStepButton;
+
+  /// Disabled placeholder action for reviewing workflow evidence
+  ///
+  /// In en, this message translates to:
+  /// **'Review evidence'**
+  String get workflowPreviewReviewEvidenceButton;
 }
 
 class _AppLocalizationsDelegate
