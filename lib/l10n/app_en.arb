@@ -538,6 +538,69 @@
   "settingsBrandSectionDescription": "Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.",
   "@settingsBrandSectionDescription": { "description": "Subtle branded copy shown in the settings header card" },
 
+  "settingsHelpTitle": "Help and user handbook",
+  "@settingsHelpTitle": { "description": "Title for the settings entry point to in-app help" },
+
+  "settingsHelpDescription": "Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.",
+  "@settingsHelpDescription": { "description": "Description for the settings entry point to in-app help" },
+
+  "helpScreenTitle": "Help",
+  "@helpScreenTitle": { "description": "Title for the in-app help screen app bar" },
+
+  "helpHandbookTitle": "User handbook",
+  "@helpHandbookTitle": { "description": "Hero title for the in-app user handbook" },
+
+  "helpHandbookDescription": "This handbook explains the everyday Weave app in plain language. It is available offline with the app and will grow as more surfaces become ready.",
+  "@helpHandbookDescription": { "description": "Introductory text for the in-app user handbook" },
+
+  "helpWhatIsWeaveTitle": "What Weave is",
+  "@helpWhatIsWeaveTitle": { "description": "Help section title explaining the product" },
+
+  "helpWhatIsWeaveBody": "Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and future collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.",
+  "@helpWhatIsWeaveBody": { "description": "Help copy explaining what Weave is" },
+
+  "helpSignInTitle": "Sign in basics",
+  "@helpSignInTitle": { "description": "Help section title for sign-in basics" },
+
+  "helpSignInBody": "Use the workspace address provided by your admin, then sign in once with Weave SSO. You should not need separate Matrix or Nextcloud passwords for normal use. If sign-in loops or fails, check your connection, confirm the server address in Settings, and ask an admin whether your invite or account is active.",
+  "@helpSignInBody": { "description": "Help copy for sign-in basics and recovery" },
+
+  "helpChatTitle": "Chat",
+  "@helpChatTitle": { "description": "Help section title for chat" },
+
+  "helpChatBody": "Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.",
+  "@helpChatBody": { "description": "Help copy for chat basics" },
+
+  "helpFilesTitle": "Files",
+  "@helpFilesTitle": { "description": "Help section title for files" },
+
+  "helpFilesBody": "Files lets you browse workspace documents through the Weave app. Open Files from the main navigation, move through folders, and retry if the folder could not refresh. The underlying storage is provided by your workspace services, but everyday browsing should stay inside Weave.",
+  "@helpFilesBody": { "description": "Help copy for files basics" },
+
+  "helpSettingsTitle": "Settings, account, and session",
+  "@helpSettingsTitle": { "description": "Help section title for settings and account basics" },
+
+  "helpSettingsBody": "Settings shows your profile summary, workspace readiness, server configuration, Matrix security information, and sign-out control. Use it to check whether Chat, Files, Calendar, or other modules are ready, and sign out before handing a device to someone else.",
+  "@helpSettingsBody": { "description": "Help copy for settings, account, and session basics" },
+
+  "helpCalendarBoardsTitle": "Calendar and Boards availability",
+  "@helpCalendarBoardsTitle": { "description": "Help section title for gated Calendar and Boards availability" },
+
+  "helpCalendarBoardsBody": "Calendar and Boards are active Weave product scope, but they may be hidden or marked unavailable until your workspace has the required backend contracts and feature gates enabled. If they are not visible in navigation, use Chat, Files, and Settings for now and watch workspace readiness for changes.",
+  "@helpCalendarBoardsBody": { "description": "Help copy honestly explaining gated Calendar and Boards availability" },
+
+  "helpTroubleshootingTitle": "Troubleshooting and recovery",
+  "@helpTroubleshootingTitle": { "description": "Help section title for troubleshooting and recovery" },
+
+  "helpTroubleshootingBody": "When something does not load, use Retry first. If a stale chat room list or folder remains visible, Weave is preserving your place while refresh fails. Persistent setup, sign-in, Matrix, files, or backend errors should be shared with your admin together with the visible message and the server address from Settings.",
+  "@helpTroubleshootingBody": { "description": "Help copy for troubleshooting and recovery states" },
+
+  "helpPrivacySecurityTitle": "Privacy and security basics",
+  "@helpPrivacySecurityTitle": { "description": "Help section title for privacy and security basics" },
+
+  "helpPrivacySecurityBody": "Your workspace controls its own services and data. Weave uses SSO for access and shows Matrix security status honestly. Do not assume chat is fully end-to-end encrypted unless Weave says the Matrix encryption, recovery, and device-trust gates are healthy. Keep recovery keys in a safe place and report lost devices to your admin.",
+  "@helpPrivacySecurityBody": { "description": "Help copy for privacy and security basics" },
+
   "settingsShellModulesTitle": "Shell modules",
   "@settingsShellModulesTitle": { "description": "Section title for user-configurable shell module visibility" },
 

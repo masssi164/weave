@@ -1145,6 +1145,132 @@ abstract class AppLocalizations {
   /// **'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.'**
   String get settingsBrandSectionDescription;
 
+  /// Title for the settings entry point to in-app help
+  ///
+  /// In en, this message translates to:
+  /// **'Help and user handbook'**
+  String get settingsHelpTitle;
+
+  /// Description for the settings entry point to in-app help
+  ///
+  /// In en, this message translates to:
+  /// **'Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.'**
+  String get settingsHelpDescription;
+
+  /// Title for the in-app help screen app bar
+  ///
+  /// In en, this message translates to:
+  /// **'Help'**
+  String get helpScreenTitle;
+
+  /// Hero title for the in-app user handbook
+  ///
+  /// In en, this message translates to:
+  /// **'User handbook'**
+  String get helpHandbookTitle;
+
+  /// Introductory text for the in-app user handbook
+  ///
+  /// In en, this message translates to:
+  /// **'This handbook explains the everyday Weave app in plain language. It is available offline with the app and will grow as more surfaces become ready.'**
+  String get helpHandbookDescription;
+
+  /// Help section title explaining the product
+  ///
+  /// In en, this message translates to:
+  /// **'What Weave is'**
+  String get helpWhatIsWeaveTitle;
+
+  /// Help copy explaining what Weave is
+  ///
+  /// In en, this message translates to:
+  /// **'Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and future collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.'**
+  String get helpWhatIsWeaveBody;
+
+  /// Help section title for sign-in basics
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in basics'**
+  String get helpSignInTitle;
+
+  /// Help copy for sign-in basics and recovery
+  ///
+  /// In en, this message translates to:
+  /// **'Use the workspace address provided by your admin, then sign in once with Weave SSO. You should not need separate Matrix or Nextcloud passwords for normal use. If sign-in loops or fails, check your connection, confirm the server address in Settings, and ask an admin whether your invite or account is active.'**
+  String get helpSignInBody;
+
+  /// Help section title for chat
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get helpChatTitle;
+
+  /// Help copy for chat basics
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.'**
+  String get helpChatBody;
+
+  /// Help section title for files
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get helpFilesTitle;
+
+  /// Help copy for files basics
+  ///
+  /// In en, this message translates to:
+  /// **'Files lets you browse workspace documents through the Weave app. Open Files from the main navigation, move through folders, and retry if the folder could not refresh. The underlying storage is provided by your workspace services, but everyday browsing should stay inside Weave.'**
+  String get helpFilesBody;
+
+  /// Help section title for settings and account basics
+  ///
+  /// In en, this message translates to:
+  /// **'Settings, account, and session'**
+  String get helpSettingsTitle;
+
+  /// Help copy for settings, account, and session basics
+  ///
+  /// In en, this message translates to:
+  /// **'Settings shows your profile summary, workspace readiness, server configuration, Matrix security information, and sign-out control. Use it to check whether Chat, Files, Calendar, or other modules are ready, and sign out before handing a device to someone else.'**
+  String get helpSettingsBody;
+
+  /// Help section title for gated Calendar and Boards availability
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar and Boards availability'**
+  String get helpCalendarBoardsTitle;
+
+  /// Help copy honestly explaining gated Calendar and Boards availability
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar and Boards are active Weave product scope, but they may be hidden or marked unavailable until your workspace has the required backend contracts and feature gates enabled. If they are not visible in navigation, use Chat, Files, and Settings for now and watch workspace readiness for changes.'**
+  String get helpCalendarBoardsBody;
+
+  /// Help section title for troubleshooting and recovery
+  ///
+  /// In en, this message translates to:
+  /// **'Troubleshooting and recovery'**
+  String get helpTroubleshootingTitle;
+
+  /// Help copy for troubleshooting and recovery states
+  ///
+  /// In en, this message translates to:
+  /// **'When something does not load, use Retry first. If a stale chat room list or folder remains visible, Weave is preserving your place while refresh fails. Persistent setup, sign-in, Matrix, files, or backend errors should be shared with your admin together with the visible message and the server address from Settings.'**
+  String get helpTroubleshootingBody;
+
+  /// Help section title for privacy and security basics
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy and security basics'**
+  String get helpPrivacySecurityTitle;
+
+  /// Help copy for privacy and security basics
+  ///
+  /// In en, this message translates to:
+  /// **'Your workspace controls its own services and data. Weave uses SSO for access and shows Matrix security status honestly. Do not assume chat is fully end-to-end encrypted unless Weave says the Matrix encryption, recovery, and device-trust gates are healthy. Keep recovery keys in a safe place and report lost devices to your admin.'**
+  String get helpPrivacySecurityBody;
+
   /// Section title for user-configurable shell module visibility
   ///
   /// In en, this message translates to:

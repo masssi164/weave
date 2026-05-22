@@ -9,6 +9,7 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
 import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
+import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
@@ -87,6 +88,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.firstRun,
         builder: (context, state) => const FirstRunScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.help,
+        builder: (context, state) => const HelpScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
