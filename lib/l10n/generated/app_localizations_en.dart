@@ -1645,6 +1645,106 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatRoomContextAvailableStatus => 'Available when selected';
 
   @override
+  String get chatDecisionEvidencePanelTitle =>
+      'Decisions, risks, questions, and evidence';
+
+  @override
+  String get chatDecisionEvidencePanelDescription =>
+      'Capture important messages explicitly so the room keeps the reason behind the work. Nothing here is created by hidden room scanning.';
+
+  @override
+  String get chatDecisionEvidenceNoBackgroundReading =>
+      'Records come from message actions you choose; no automatic continuous room reading is running.';
+
+  @override
+  String get chatDecisionEvidenceEmptyState =>
+      'No records captured yet. Use a message action to capture a decision, risk, open question, or evidence with its source.';
+
+  @override
+  String chatDecisionEvidenceCountLabel(String label, int count) {
+    return '$label: $count';
+  }
+
+  @override
+  String get chatDecisionEvidenceDecisionLabel => 'Decision';
+
+  @override
+  String get chatDecisionEvidenceDecisionsLabel => 'Decisions';
+
+  @override
+  String get chatDecisionEvidenceRiskLabel => 'Risk';
+
+  @override
+  String get chatDecisionEvidenceRisksLabel => 'Risks';
+
+  @override
+  String get chatDecisionEvidenceOpenQuestionLabel => 'Open question';
+
+  @override
+  String get chatDecisionEvidenceOpenQuestionsLabel => 'Open questions';
+
+  @override
+  String get chatDecisionEvidenceEvidenceLabel => 'Evidence';
+
+  @override
+  String get chatDecisionEvidenceEvidencePluralLabel => 'Evidence';
+
+  @override
+  String get chatDecisionEvidenceOwnerYou => 'You';
+
+  @override
+  String get chatDecisionEvidenceStatusActive => 'Active';
+
+  @override
+  String get chatDecisionEvidenceStatusResolved => 'Resolved';
+
+  @override
+  String get chatDecisionEvidenceStatusArchived => 'Archived';
+
+  @override
+  String chatDecisionEvidenceRecordMeta(
+    String status,
+    String owner,
+    String sender,
+  ) {
+    return '$status. Captured by $owner. Source: message from $sender.';
+  }
+
+  @override
+  String chatDecisionEvidenceSourceLabel(String sender) {
+    return 'Source: message from $sender';
+  }
+
+  @override
+  String chatDecisionEvidenceCapturedMessage(String kind) {
+    return 'Captured as $kind. Source linked to this message.';
+  }
+
+  @override
+  String chatDecisionEvidenceMoreRecords(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count more records',
+      one: '1 more record',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatDecisionEvidenceCaptureDecisionAction => 'Capture as decision';
+
+  @override
+  String get chatDecisionEvidenceCaptureRiskAction => 'Capture as risk';
+
+  @override
+  String get chatDecisionEvidenceCaptureQuestionAction =>
+      'Capture as open question';
+
+  @override
+  String get chatDecisionEvidenceCaptureEvidenceAction => 'Capture as evidence';
+
+  @override
   String get filesEmptyMessage => 'No files yet';
 
   @override

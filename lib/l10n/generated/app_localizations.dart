@@ -2825,6 +2825,160 @@ abstract class AppLocalizations {
   /// **'Available when selected'**
   String get chatRoomContextAvailableStatus;
 
+  /// Heading for the room decision and evidence snapshot panel
+  ///
+  /// In en, this message translates to:
+  /// **'Decisions, risks, questions, and evidence'**
+  String get chatDecisionEvidencePanelTitle;
+
+  /// Description for the explicit decision and evidence capture panel
+  ///
+  /// In en, this message translates to:
+  /// **'Capture important messages explicitly so the room keeps the reason behind the work. Nothing here is created by hidden room scanning.'**
+  String get chatDecisionEvidencePanelDescription;
+
+  /// Safety note for explicit decision and evidence records
+  ///
+  /// In en, this message translates to:
+  /// **'Records come from message actions you choose; no automatic continuous room reading is running.'**
+  String get chatDecisionEvidenceNoBackgroundReading;
+
+  /// Empty state for a room with no captured decision or evidence records
+  ///
+  /// In en, this message translates to:
+  /// **'No records captured yet. Use a message action to capture a decision, risk, open question, or evidence with its source.'**
+  String get chatDecisionEvidenceEmptyState;
+
+  /// Count label for a decision/evidence kind
+  ///
+  /// In en, this message translates to:
+  /// **'{label}: {count}'**
+  String chatDecisionEvidenceCountLabel(String label, int count);
+
+  /// Singular label for a captured decision
+  ///
+  /// In en, this message translates to:
+  /// **'Decision'**
+  String get chatDecisionEvidenceDecisionLabel;
+
+  /// Plural label for captured decisions
+  ///
+  /// In en, this message translates to:
+  /// **'Decisions'**
+  String get chatDecisionEvidenceDecisionsLabel;
+
+  /// Singular label for a captured risk
+  ///
+  /// In en, this message translates to:
+  /// **'Risk'**
+  String get chatDecisionEvidenceRiskLabel;
+
+  /// Plural label for captured risks
+  ///
+  /// In en, this message translates to:
+  /// **'Risks'**
+  String get chatDecisionEvidenceRisksLabel;
+
+  /// Singular label for a captured open question
+  ///
+  /// In en, this message translates to:
+  /// **'Open question'**
+  String get chatDecisionEvidenceOpenQuestionLabel;
+
+  /// Plural label for captured open questions
+  ///
+  /// In en, this message translates to:
+  /// **'Open questions'**
+  String get chatDecisionEvidenceOpenQuestionsLabel;
+
+  /// Singular label for captured evidence
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence'**
+  String get chatDecisionEvidenceEvidenceLabel;
+
+  /// Plural label for captured evidence
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence'**
+  String get chatDecisionEvidenceEvidencePluralLabel;
+
+  /// Owner label for records captured by the current user
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get chatDecisionEvidenceOwnerYou;
+
+  /// Lifecycle status for active decision/evidence records
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get chatDecisionEvidenceStatusActive;
+
+  /// Lifecycle status for resolved decision/evidence records
+  ///
+  /// In en, this message translates to:
+  /// **'Resolved'**
+  String get chatDecisionEvidenceStatusResolved;
+
+  /// Lifecycle status for archived decision/evidence records
+  ///
+  /// In en, this message translates to:
+  /// **'Archived'**
+  String get chatDecisionEvidenceStatusArchived;
+
+  /// Metadata shown for a captured decision/evidence record
+  ///
+  /// In en, this message translates to:
+  /// **'{status}. Captured by {owner}. Source: message from {sender}.'**
+  String chatDecisionEvidenceRecordMeta(
+    String status,
+    String owner,
+    String sender,
+  );
+
+  /// Short source label for a captured decision/evidence record
+  ///
+  /// In en, this message translates to:
+  /// **'Source: message from {sender}'**
+  String chatDecisionEvidenceSourceLabel(String sender);
+
+  /// Snackbar shown after a message is captured as a decision/evidence record
+  ///
+  /// In en, this message translates to:
+  /// **'Captured as {kind}. Source linked to this message.'**
+  String chatDecisionEvidenceCapturedMessage(String kind);
+
+  /// Summary shown when the panel hides additional records
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {1 more record} other {{count} more records}}'**
+  String chatDecisionEvidenceMoreRecords(int count);
+
+  /// Message menu action to capture a message as a decision
+  ///
+  /// In en, this message translates to:
+  /// **'Capture as decision'**
+  String get chatDecisionEvidenceCaptureDecisionAction;
+
+  /// Message menu action to capture a message as a risk
+  ///
+  /// In en, this message translates to:
+  /// **'Capture as risk'**
+  String get chatDecisionEvidenceCaptureRiskAction;
+
+  /// Message menu action to capture a message as an open question
+  ///
+  /// In en, this message translates to:
+  /// **'Capture as open question'**
+  String get chatDecisionEvidenceCaptureQuestionAction;
+
+  /// Message menu action to capture a message as evidence
+  ///
+  /// In en, this message translates to:
+  /// **'Capture as evidence'**
+  String get chatDecisionEvidenceCaptureEvidenceAction;
+
   /// Empty state message for the files screen
   ///
   /// In en, this message translates to:

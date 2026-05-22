@@ -11,9 +11,11 @@ import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/context_graph.dart';
+import 'package:weave/features/chat/domain/entities/decision_evidence.dart';
 import 'package:weave/features/chat/presentation/providers/archived_message_store_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/context_pack_preview_provider.dart';
+import 'package:weave/features/chat/presentation/providers/decision_evidence_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 class ChatRoomScreen extends ConsumerStatefulWidget {
@@ -300,6 +302,32 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
   }
 
+  void _captureDecisionEvidence(
+    ChatMessage message,
+    DecisionEvidenceKind kind,
+  ) {
+    final l10n = AppLocalizations.of(context);
+    final record = ref
+        .read(decisionEvidenceProvider.notifier)
+        .captureMessage(
+          roomId: widget.conversation.id,
+          message: message,
+          kind: kind,
+          capturedAt: DateTime.now(),
+          ownerLabel: l10n.chatDecisionEvidenceOwnerYou,
+        );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n.chatDecisionEvidenceCapturedMessage(
+            _decisionEvidenceKindLabel(l10n, record.kind).toLowerCase(),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -327,6 +355,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     final contextPack = ref
         .watch(contextPackPreviewFacadeProvider)
         .previewForRoom(widget.conversation);
+    final decisionEvidenceRecords = ref.watch(decisionEvidenceProvider);
+    final decisionEvidenceSnapshot = RoomDecisionEvidenceSnapshot(
+      roomId: widget.conversation.id,
+      records: List<DecisionEvidenceRecord>.unmodifiable(
+        decisionEvidenceRecords[widget.conversation.id] ??
+            const <DecisionEvidenceRecord>[],
+      ),
+      backgroundRoomReadingEnabled: false,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -408,14 +445,30 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     ),
                   ],
                 ),
-              if (!_loading &&
-                  !_showingArchivedMessages &&
-                  constraints.maxHeight >= 480)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: _RoomContextPackPreviewCard(
-                    contextPack: contextPack,
-                    compact: compactContextPreview,
+              if (!_loading && !_showingArchivedMessages)
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: constraints.maxHeight >= 480
+                        ? constraints.maxHeight * 0.42
+                        : constraints.maxHeight * 0.32,
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                    child: Column(
+                      children: [
+                        if (constraints.maxHeight >= 480)
+                          _RoomContextPackPreviewCard(
+                            contextPack: contextPack,
+                            compact: compactContextPreview,
+                          ),
+                        if (constraints.maxHeight >= 480)
+                          const SizedBox(height: 8),
+                        _RoomDecisionEvidenceCard(
+                          snapshot: decisionEvidenceSnapshot,
+                          compact: compactContextPreview,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               Expanded(
@@ -491,6 +544,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                           onArchive: _archiving || _showingArchivedMessages
                               ? null
                               : () => _archiveMessage(message),
+                          onCapture: _archiving || _showingArchivedMessages
+                              ? null
+                              : (kind) =>
+                                    _captureDecisionEvidence(message, kind),
                           onRestore: _archiving || !_showingArchivedMessages
                               ? null
                               : () => _restoreArchivedMessage(message),
@@ -737,11 +794,262 @@ String _contextItemLabel(AppLocalizations l10n, ContextGraphScope scope) {
   };
 }
 
+class _RoomDecisionEvidenceCard extends StatelessWidget {
+  const _RoomDecisionEvidenceCard({
+    required this.snapshot,
+    required this.compact,
+  });
+
+  final RoomDecisionEvidenceSnapshot snapshot;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final counts = DecisionEvidenceKind.values
+        .map(
+          (kind) => l10n.chatDecisionEvidenceCountLabel(
+            _decisionEvidenceKindPluralLabel(l10n, kind),
+            snapshot.countFor(kind),
+          ),
+        )
+        .join(', ');
+    final recordSummary = snapshot.records.isEmpty
+        ? l10n.chatDecisionEvidenceEmptyState
+        : snapshot.records
+              .map(
+                (record) =>
+                    '${_decisionEvidenceKindLabel(l10n, record.kind)}: '
+                    '${record.title}. '
+                    '${l10n.chatDecisionEvidenceSourceLabel(record.source.senderDisplayName)}.',
+              )
+              .join(' ');
+
+    return Semantics(
+      container: true,
+      label: [
+        l10n.chatDecisionEvidencePanelTitle,
+        counts,
+        recordSummary,
+        l10n.chatDecisionEvidenceNoBackgroundReading,
+      ].join('. '),
+      child: ExcludeSemantics(
+        child: Card(
+          elevation: 0,
+          color: theme.colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.assignment_turned_in_outlined,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.chatDecisionEvidencePanelTitle,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.chatDecisionEvidencePanelDescription,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: DecisionEvidenceKind.values
+                      .map(
+                        (kind) => _DecisionEvidenceCountChip(
+                          kind: kind,
+                          count: snapshot.countFor(kind),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+                const SizedBox(height: 12),
+                if (snapshot.records.isEmpty)
+                  Text(
+                    l10n.chatDecisionEvidenceEmptyState,
+                    style: theme.textTheme.bodyMedium,
+                  )
+                else ...[
+                  for (final record in snapshot.records.take(compact ? 2 : 4))
+                    _DecisionEvidenceRecordTile(record: record),
+                  if (snapshot.records.length > (compact ? 2 : 4))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        l10n.chatDecisionEvidenceMoreRecords(
+                          snapshot.records.length - (compact ? 2 : 4),
+                        ),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  l10n.chatDecisionEvidenceNoBackgroundReading,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DecisionEvidenceCountChip extends StatelessWidget {
+  const _DecisionEvidenceCountChip({required this.kind, required this.count});
+
+  final DecisionEvidenceKind kind;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Chip(
+      avatar: Icon(_decisionEvidenceKindIcon(kind), size: 18),
+      label: Text(
+        l10n.chatDecisionEvidenceCountLabel(
+          _decisionEvidenceKindPluralLabel(l10n, kind),
+          count,
+        ),
+      ),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _DecisionEvidenceRecordTile extends StatelessWidget {
+  const _DecisionEvidenceRecordTile({required this.record});
+
+  final DecisionEvidenceRecord record;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            _decisionEvidenceKindIcon(record.kind),
+            size: 20,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _decisionEvidenceKindLabel(l10n, record.kind),
+                  style: theme.textTheme.labelLarge,
+                ),
+                Text(record.title, style: theme.textTheme.bodyMedium),
+                Text(
+                  l10n.chatDecisionEvidenceRecordMeta(
+                    _decisionEvidenceStatusLabel(l10n, record.status),
+                    record.ownerLabel,
+                    record.source.senderDisplayName,
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+IconData _decisionEvidenceKindIcon(DecisionEvidenceKind kind) {
+  return switch (kind) {
+    DecisionEvidenceKind.decision => Icons.check_circle_outline,
+    DecisionEvidenceKind.risk => Icons.warning_amber_outlined,
+    DecisionEvidenceKind.openQuestion => Icons.help_outline,
+    DecisionEvidenceKind.evidence => Icons.link_outlined,
+  };
+}
+
+String _decisionEvidenceKindLabel(
+  AppLocalizations l10n,
+  DecisionEvidenceKind kind,
+) {
+  return switch (kind) {
+    DecisionEvidenceKind.decision => l10n.chatDecisionEvidenceDecisionLabel,
+    DecisionEvidenceKind.risk => l10n.chatDecisionEvidenceRiskLabel,
+    DecisionEvidenceKind.openQuestion =>
+      l10n.chatDecisionEvidenceOpenQuestionLabel,
+    DecisionEvidenceKind.evidence => l10n.chatDecisionEvidenceEvidenceLabel,
+  };
+}
+
+String _decisionEvidenceKindPluralLabel(
+  AppLocalizations l10n,
+  DecisionEvidenceKind kind,
+) {
+  return switch (kind) {
+    DecisionEvidenceKind.decision => l10n.chatDecisionEvidenceDecisionsLabel,
+    DecisionEvidenceKind.risk => l10n.chatDecisionEvidenceRisksLabel,
+    DecisionEvidenceKind.openQuestion =>
+      l10n.chatDecisionEvidenceOpenQuestionsLabel,
+    DecisionEvidenceKind.evidence =>
+      l10n.chatDecisionEvidenceEvidencePluralLabel,
+  };
+}
+
+String _decisionEvidenceStatusLabel(
+  AppLocalizations l10n,
+  DecisionEvidenceStatus status,
+) {
+  return switch (status) {
+    DecisionEvidenceStatus.active => l10n.chatDecisionEvidenceStatusActive,
+    DecisionEvidenceStatus.resolved => l10n.chatDecisionEvidenceStatusResolved,
+    DecisionEvidenceStatus.archived => l10n.chatDecisionEvidenceStatusArchived,
+  };
+}
+
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     required this.message,
     this.archived = false,
     this.onArchive,
+    this.onCapture,
     this.onRestore,
     this.onRetry,
   });
@@ -749,6 +1057,7 @@ class _MessageBubble extends StatelessWidget {
   final ChatMessage message;
   final bool archived;
   final VoidCallback? onArchive;
+  final ValueChanged<DecisionEvidenceKind>? onCapture;
   final VoidCallback? onRestore;
   final VoidCallback? onRetry;
 
@@ -829,7 +1138,9 @@ class _MessageBubble extends StatelessWidget {
                           icon: const Icon(Icons.refresh),
                           color: foregroundColor.withValues(alpha: 0.85),
                         )
-                      else if (onArchive != null || onRestore != null)
+                      else if (onArchive != null ||
+                          onCapture != null ||
+                          onRestore != null)
                         PopupMenuButton<_MessageAction>(
                           tooltip: AppLocalizations.of(
                             context,
@@ -837,11 +1148,58 @@ class _MessageBubble extends StatelessWidget {
                           onSelected: (value) {
                             if (value == _MessageAction.archive) {
                               onArchive?.call();
+                            } else if (value ==
+                                _MessageAction.captureDecision) {
+                              onCapture?.call(DecisionEvidenceKind.decision);
+                            } else if (value == _MessageAction.captureRisk) {
+                              onCapture?.call(DecisionEvidenceKind.risk);
+                            } else if (value ==
+                                _MessageAction.captureOpenQuestion) {
+                              onCapture?.call(
+                                DecisionEvidenceKind.openQuestion,
+                              );
+                            } else if (value ==
+                                _MessageAction.captureEvidence) {
+                              onCapture?.call(DecisionEvidenceKind.evidence);
                             } else if (value == _MessageAction.restore) {
                               onRestore?.call();
                             }
                           },
                           itemBuilder: (context) => [
+                            if (onCapture != null) ...[
+                              PopupMenuItem<_MessageAction>(
+                                value: _MessageAction.captureDecision,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  ).chatDecisionEvidenceCaptureDecisionAction,
+                                ),
+                              ),
+                              PopupMenuItem<_MessageAction>(
+                                value: _MessageAction.captureRisk,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  ).chatDecisionEvidenceCaptureRiskAction,
+                                ),
+                              ),
+                              PopupMenuItem<_MessageAction>(
+                                value: _MessageAction.captureOpenQuestion,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  ).chatDecisionEvidenceCaptureQuestionAction,
+                                ),
+                              ),
+                              PopupMenuItem<_MessageAction>(
+                                value: _MessageAction.captureEvidence,
+                                child: Text(
+                                  AppLocalizations.of(
+                                    context,
+                                  ).chatDecisionEvidenceCaptureEvidenceAction,
+                                ),
+                              ),
+                            ],
                             if (onArchive != null)
                               PopupMenuItem<_MessageAction>(
                                 value: _MessageAction.archive,
@@ -977,4 +1335,11 @@ class _PendingOutgoingMessage {
   }
 }
 
-enum _MessageAction { archive, restore }
+enum _MessageAction {
+  archive,
+  captureDecision,
+  captureRisk,
+  captureOpenQuestion,
+  captureEvidence,
+  restore,
+}
