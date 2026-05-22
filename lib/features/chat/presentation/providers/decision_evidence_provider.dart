@@ -30,7 +30,7 @@ class DecisionEvidenceController
     required ChatMessage message,
     required DecisionEvidenceKind kind,
     required DateTime capturedAt,
-    String ownerLabel = 'You',
+    required String ownerLabel,
   }) {
     final record = DecisionEvidenceRecord.fromMessage(
       id: 'decision-evidence:${Uri.encodeComponent(roomId)}:${Uri.encodeComponent(message.id)}:${kind.name}:${capturedAt.microsecondsSinceEpoch}',
