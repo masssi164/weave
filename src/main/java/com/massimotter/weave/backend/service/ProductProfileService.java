@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.service;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.AuthenticatedUserResponse;
 import com.massimotter.weave.backend.model.ModuleSyncStatusResponse;
+import com.massimotter.weave.backend.model.ProfileReadinessResponse;
 import com.massimotter.weave.backend.model.ProductProfileResponse;
 import com.massimotter.weave.backend.model.UpdateProductProfileRequest;
 import java.time.DateTimeException;
@@ -50,6 +51,22 @@ public class ProductProfileService {
 
     public ProductProfileResponse profile(Jwt jwt) {
         return snapshot(jwt).toResponse();
+    }
+
+    public ProfileReadinessResponse readiness(Jwt jwt) {
+        requireSubject(jwt);
+        return new ProfileReadinessResponse(
+                "CEFACADE",
+                "/profile/readiness",
+                true,
+                false,
+                true,
+                "ready",
+                List.of(
+                        "direct-frontend-keycloak-admin",
+                        "direct-flutter-nextcloud-profile-api",
+                        "credential-export",
+                        "raw-provider-errors"));
     }
 
     public ProductProfileResponse update(Jwt jwt, UpdateProductProfileRequest request) {

@@ -23,6 +23,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -123,6 +124,19 @@ class ProfileControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.matrix").value("not_configured"))
                 .andExpect(jsonPath("$.nextcloud").value("not_configured"));
+    }
+
+    @Test
+    void exposesSupportSafeProfileReadinessContract() throws Exception {
+        mockMvc.perform(get("/api/profile/readiness").with(profileJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contractId").value("CEFACADE"))
+                .andExpect(jsonPath("$.endpoint").value("/profile/readiness"))
+                .andExpect(jsonPath("$.backendOwnedFacade").value(true))
+                .andExpect(jsonPath("$.directProviderCallsAllowed").value(false))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.readiness").value("ready"))
+                .andExpect(jsonPath("$.unsupportedOperations", hasItem("direct-frontend-keycloak-admin")));
     }
 
     @Test

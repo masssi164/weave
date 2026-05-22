@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.ModuleSyncStatusResponse;
+import com.massimotter.weave.backend.model.ProfileReadinessResponse;
 import com.massimotter.weave.backend.model.ProductProfileResponse;
 import com.massimotter.weave.backend.model.UpdateProductProfileRequest;
 import com.massimotter.weave.backend.service.ProductProfileService;
@@ -71,5 +72,15 @@ public class ProfileController {
             content = @Content(schema = @Schema(implementation = ModuleSyncStatusResponse.class)))
     public ModuleSyncStatusResponse syncStatus(@AuthenticationPrincipal Jwt jwt) {
         return productProfileService.syncStatus(jwt);
+    }
+
+    @GetMapping("/api/profile/readiness")
+    @Operation(
+            summary = "Get product profile facade readiness",
+            description = "Returns support-safe readiness for the backend-owned profile facade without exposing provider credentials or upstream URLs.")
+    @ApiResponse(responseCode = "200", description = "Profile facade readiness.",
+            content = @Content(schema = @Schema(implementation = ProfileReadinessResponse.class)))
+    public ProfileReadinessResponse readiness(@AuthenticationPrincipal Jwt jwt) {
+        return productProfileService.readiness(jwt);
     }
 }
