@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
@@ -132,6 +133,64 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
       connectorWritePolicy:
           'fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented',
     );
+  }
+
+  @override
+  Future<ProviderStackSnapshot> fetchProviderStackStatus({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return const ProviderStackSnapshot(
+      releaseStatus: 'test',
+      backendOwnedFacades: true,
+      flutterDirectProviderCallsAllowed: false,
+      supportSafe: true,
+      providers: [],
+    );
+  }
+
+  @override
+  Future<DevopsProviderSummarySnapshot> fetchDevopsSummary({
+    required Uri baseUrl,
+    required String accessToken,
+    required String workspaceId,
+    required String channelId,
+  }) async {
+    return DevopsProviderSummarySnapshot(
+      workspaceId: workspaceId,
+      channelId: channelId,
+      releaseStatus: 'test',
+      readOnly: true,
+      paidFeaturesRequired: false,
+      supportSafe: true,
+      providerReadiness: const [],
+    );
+  }
+
+  @override
+  Future<OfficeCapabilitiesSnapshot> fetchOfficeCapabilities({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return const OfficeCapabilitiesSnapshot(
+      releaseStatus: 'test',
+      enabled: false,
+      configured: false,
+      supportSafe: true,
+      launchMode: 'disabled',
+      defaultProvider: 'none',
+      providerReadiness: [],
+      supportedFileTypes: [],
+    );
+  }
+
+  @override
+  Future<OfficeLaunchSnapshot> launchOfficeSession({
+    required Uri baseUrl,
+    required String accessToken,
+    required String documentId,
+  }) async {
+    throw UnimplementedError('Office launch is not used by this test fake.');
   }
 }
 

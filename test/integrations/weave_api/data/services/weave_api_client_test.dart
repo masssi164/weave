@@ -188,6 +188,153 @@ void main() {
     });
 
     test(
+      'fetches provider stack readiness without direct provider URLs',
+      () async {
+        late http.BaseRequest capturedRequest;
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            capturedRequest = request;
+            return _jsonResponse({
+              'releaseStatus': 'contract-preview',
+              'backendOwnedFacades': true,
+              'flutterDirectProviderCallsAllowed': false,
+              'supportSafe': true,
+              'providers': [
+                {
+                  'module': 'office',
+                  'providerKey': 'onlyoffice-community',
+                  'state': 'disabled',
+                  'readiness': 'fail-closed',
+                  'enabled': false,
+                  'configured': false,
+                  'readOnly': true,
+                  'failClosed': true,
+                  'supportSafe': true,
+                  'paidFeaturesRequired': false,
+                  'summary': 'Disabled until configured behind backend facade.',
+                  'supportedCapabilities': ['documents'],
+                  'unsupportedOperations': ['launch'],
+                  'supportSafeErrorCodes': ['PROVIDER_DISABLED'],
+                  'redactionPolicy': 'no raw provider errors',
+                  'candidates': ['ONLYOFFICE Docs Community'],
+                },
+              ],
+            });
+          }),
+        );
+
+        final snapshot = await client.fetchProviderStackStatus(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(
+          capturedRequest.url.toString(),
+          'https://api.weave.local/api/providers/status',
+        );
+        expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+        expect(snapshot.failClosed, isTrue);
+        expect(snapshot.providers.single.module, 'office');
+        expect(snapshot.providers.single.failClosed, isTrue);
+      },
+    );
+
+    test('redacts sensitive provider summary text from DTOs', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          return _jsonResponse({
+            'releaseStatus': 'contract-preview',
+            'backendOwnedFacades': true,
+            'flutterDirectProviderCallsAllowed': false,
+            'supportSafe': true,
+            'providers': [
+              {
+                'module': 'source-control',
+                'providerKey': 'gitlab-ce-foss',
+                'state': 'not_configured',
+                'readiness': 'fail-closed',
+                'enabled': false,
+                'configured': false,
+                'readOnly': true,
+                'failClosed': true,
+                'supportSafe': true,
+                'paidFeaturesRequired': false,
+                'summary': 'token leaked from https://gitlab.example.test',
+                'redactionPolicy': 'secret should not be visible',
+              },
+            ],
+          });
+        }),
+      );
+
+      final snapshot = await client.fetchProviderStackStatus(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+      );
+
+      expect(snapshot.providers.single.summary, isNot(contains('token')));
+      expect(snapshot.providers.single.summary, isNot(contains('https://')));
+      expect(
+        snapshot.providers.single.redactionPolicy,
+        isNot(contains('secret')),
+      );
+    });
+
+    test('fetches DevOps and Office readiness through backend facades', () async {
+      final requests = <String>[];
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          requests.add(request.url.toString());
+          if (request.url.path.endsWith('/devops/summary')) {
+            return _jsonResponse({
+              'workspaceId': 'workspace-1',
+              'channelId': 'channel-1',
+              'releaseStatus': 'contract-preview',
+              'readOnly': true,
+              'paidFeaturesRequired': false,
+              'supportSafe': true,
+              'providerReadiness': [],
+            });
+          }
+          return _jsonResponse({
+            'releaseStatus': 'contract-preview',
+            'enabled': false,
+            'configured': false,
+            'supportSafe': true,
+            'launchMode': 'disabled',
+            'defaultProvider': 'onlyoffice-community',
+            'providerReadiness': [],
+            'supportedFileTypes': [],
+          });
+        }),
+      );
+
+      final devops = await client.fetchDevopsSummary(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+        workspaceId: 'workspace-1',
+        channelId: 'channel-1',
+      );
+      final office = await client.fetchOfficeCapabilities(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+      );
+
+      expect(devops.supportSafe, isTrue);
+      expect(office.launchAvailable, isFalse);
+      expect(
+        requests,
+        contains(
+          'https://api.weave.local/api/workspaces/workspace-1/channels/channel-1/devops/summary',
+        ),
+      );
+      expect(
+        requests,
+        contains('https://api.weave.local/api/office/capabilities'),
+      );
+    });
+
+    test(
       'rejects unauthorized backend sessions with a dedicated failure',
       () async {
         for (final statusCode in [401, 403]) {

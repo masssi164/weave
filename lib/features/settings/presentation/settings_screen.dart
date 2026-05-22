@@ -15,6 +15,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
@@ -830,6 +831,7 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
     final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
+    final providerStack = ref.watch(weaveApiProviderStackSnapshotProvider);
 
     return Card(
       elevation: 0,
@@ -877,6 +879,10 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   _workspaceSummary(l10n, workspaceState),
                   style: theme.textTheme.bodyMedium,
                 ),
+                if (providerStack.asData?.value case final stack?) ...[
+                  const SizedBox(height: 20),
+                  _ProviderStackReadinessSummary(stack: stack),
+                ],
                 const SizedBox(height: 20),
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceShellAccessLabel,
@@ -961,6 +967,95 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
         l10n.settingsWorkspaceSummaryNeedsSignIn,
       IntegrationConnectionStatus.connected =>
         l10n.settingsWorkspaceSummaryConnected,
+    };
+  }
+}
+
+class _ProviderStackReadinessSummary extends StatelessWidget {
+  const _ProviderStackReadinessSummary({required this.stack});
+
+  final ProviderStackSnapshot stack;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final providers = stack.providers.take(6).toList(growable: false);
+
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      label:
+          'Provider stack readiness. Backend-owned facades: ${stack.backendOwnedFacades ? 'yes' : 'no'}. Flutter direct provider calls: ${stack.flutterDirectProviderCallsAllowed ? 'allowed' : 'blocked'}.',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Provider stack readiness',
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                stack.failClosed
+                    ? 'Provider access is backend-owned and fail-closed; Flutter never calls GitLab, Forgejo, Nextcloud, ONLYOFFICE or Keycloak directly.'
+                    : 'Provider stack needs review before enabling provider-backed features.',
+                style: theme.textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _StatusPill(
+                    label: 'Backend facades',
+                    value: stack.backendOwnedFacades ? 'Owned' : 'Missing',
+                  ),
+                  _StatusPill(
+                    label: 'Flutter provider calls',
+                    value: stack.flutterDirectProviderCallsAllowed
+                        ? 'Needs review'
+                        : 'Blocked',
+                  ),
+                  _StatusPill(
+                    label: 'Support safety',
+                    value: stack.supportSafe ? 'Redacted' : 'Needs review',
+                  ),
+                ],
+              ),
+              if (providers.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (final provider in providers)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      '${provider.module}: ${_providerStateLabel(provider.state)} — ${provider.summary}',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _providerStateLabel(ProviderState state) {
+    return switch (state) {
+      ProviderState.disabled => 'disabled',
+      ProviderState.notConfigured => 'not configured',
+      ProviderState.configured => 'configured',
+      ProviderState.ready => 'ready',
+      ProviderState.degraded => 'degraded',
+      ProviderState.unsupported => 'unsupported',
+      ProviderState.unknown => 'unknown',
     };
   }
 }
