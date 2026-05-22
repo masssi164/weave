@@ -536,6 +536,40 @@ void main() {
               ],
             ),
           ),
+          weaveApiOfficeCapabilitiesSnapshotProvider.overrideWith(
+            (ref) async => const OfficeCapabilitiesSnapshot(
+              releaseStatus: 'contract-preview',
+              enabled: false,
+              configured: false,
+              supportSafe: true,
+              launchMode: 'disabled',
+              defaultProvider: 'onlyoffice-community',
+              providerReadiness: [],
+              supportedFileTypes: [],
+              candidates: [],
+              capabilities: OfficeCapabilityFlagsSnapshot(
+                view: false,
+                edit: false,
+                comment: false,
+                review: false,
+                formFill: false,
+              ),
+              permissions: OfficePermissionModelSnapshot(
+                canView: false,
+                canEdit: false,
+                canComment: false,
+                canReview: false,
+                canFillForms: false,
+                reason: 'token leaked from https://office.example.test',
+              ),
+              lockSessionReadiness: OfficeLockSessionReadinessSnapshot(
+                documentLocks: 'unavailable',
+                sessionTokens: 'unavailable',
+                callbackVerification: 'unavailable',
+                supportSafe: true,
+              ),
+            ),
+          ),
           userProfileProvider.overrideWith((ref) async => _ownerProfile),
         ],
       );
@@ -559,8 +593,16 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Flutter never calls GitLab'), findsOneWidget);
+      expect(find.text('Office readiness'), findsOneWidget);
+      expect(find.text('not configured'), findsWidgets);
+      expect(find.text('fail-closed'), findsWidgets);
+      expect(
+        find.textContaining('Office launch is fail-closed'),
+        findsOneWidget,
+      );
       expect(find.textContaining('provider-token-123'), findsNothing);
       expect(find.textContaining('https://gitlab.example.test'), findsNothing);
+      expect(find.textContaining('https://office.example.test'), findsNothing);
     });
 
     testWidgets(

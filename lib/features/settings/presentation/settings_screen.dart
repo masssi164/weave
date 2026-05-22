@@ -874,6 +874,11 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                       ref.invalidate(
                         weaveApiWorkspaceCapabilitySnapshotProvider,
                       );
+                      ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
+                      ref.invalidate(weaveApiProviderStackSnapshotProvider);
+                      ref.invalidate(
+                        weaveApiOfficeCapabilitiesSnapshotProvider,
+                      );
                     },
                   ),
                 ],
@@ -926,6 +931,10 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
               ref.invalidate(appAuthIntegrationConnectionProvider);
               ref.invalidate(matrixIntegrationConnectionProvider);
               ref.invalidate(nextcloudIntegrationConnectionProvider);
+              ref.invalidate(weaveApiWorkspaceCapabilitySnapshotProvider);
+              ref.invalidate(weaveApiMatrixE2eeDiagnosticProvider);
+              ref.invalidate(weaveApiProviderStackSnapshotProvider);
+              ref.invalidate(weaveApiOfficeCapabilitiesSnapshotProvider);
             },
           ),
           _ => LoadingState(message: l10n.loadingLabel),
@@ -988,14 +997,22 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final providers = stack.providers.take(6).toList(growable: false);
+    final flutterCalls = stack.flutterDirectProviderCallsAllowed
+        ? l10n.settingsProviderStackFlutterCallsAllowed
+        : l10n.settingsProviderStackFlutterCallsBlocked;
 
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label:
-          'Provider stack readiness. Backend-owned facades: ${stack.backendOwnedFacades ? 'yes' : 'no'}. Flutter direct provider calls: ${stack.flutterDirectProviderCallsAllowed ? 'allowed' : 'blocked'}.',
+      label: l10n.settingsProviderStackSemanticLabel(
+        stack.backendOwnedFacades
+            ? l10n.settingsProviderStackYes
+            : l10n.settingsProviderStackNo,
+        flutterCalls,
+      ),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.22),
@@ -1008,14 +1025,14 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Provider stack readiness',
+                l10n.settingsProviderStackTitle,
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 6),
               Text(
                 stack.failClosed
-                    ? 'Provider access is backend-owned and fail-closed; Flutter never calls GitLab, Forgejo, Nextcloud, ONLYOFFICE or Keycloak directly.'
-                    : 'Provider stack needs review before enabling provider-backed features.',
+                    ? l10n.settingsProviderStackFailClosedDescription
+                    : l10n.settingsProviderStackNeedsReviewDescription,
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 12),
@@ -1024,18 +1041,22 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   _StatusPill(
-                    label: 'Backend facades',
-                    value: stack.backendOwnedFacades ? 'Owned' : 'Missing',
+                    label: l10n.settingsProviderStackBackendFacadesLabel,
+                    value: stack.backendOwnedFacades
+                        ? l10n.settingsProviderStackOwned
+                        : l10n.settingsProviderStackMissing,
                   ),
                   _StatusPill(
-                    label: 'Flutter provider calls',
+                    label: l10n.settingsProviderStackFlutterCallsLabel,
                     value: stack.flutterDirectProviderCallsAllowed
-                        ? 'Needs review'
-                        : 'Blocked',
+                        ? l10n.settingsProviderStackNeedsReview
+                        : l10n.settingsProviderStackBlocked,
                   ),
                   _StatusPill(
-                    label: 'Support safety',
-                    value: stack.supportSafe ? 'Redacted' : 'Needs review',
+                    label: l10n.settingsProviderStackSupportSafetyLabel,
+                    value: stack.supportSafe
+                        ? l10n.settingsProviderStackRedacted
+                        : l10n.settingsProviderStackNeedsReview,
                   ),
                 ],
               ),
@@ -1054,22 +1075,31 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          '${_providerModuleLabel(provider.module)}: ${_providerStateLabel(provider.state)}',
+                          '${_providerModuleLabel(l10n, provider.module)}: ${_providerStateLabel(l10n, provider.state)}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         if (provider.disabled)
-                          const _CompactStatusBadge(label: 'disabled'),
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStateDisabled,
+                          ),
                         if (provider.unconfigured)
-                          const _CompactStatusBadge(label: 'unconfigured'),
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStateNotConfigured,
+                          ),
                         if (provider.failClosed)
-                          const _CompactStatusBadge(label: 'fail-closed'),
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStackFailClosedBadge,
+                          ),
                         if (provider.readOnly)
-                          const _CompactStatusBadge(label: 'read-only'),
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStackReadOnlyBadge,
+                          ),
                         if (provider.paidFeaturesRequired)
-                          const _CompactStatusBadge(
-                            label: 'paid features required',
+                          _CompactStatusBadge(
+                            label: l10n
+                                .settingsProviderStackPaidFeaturesRequiredBadge,
                           ),
                       ],
                     ),
@@ -1082,32 +1112,32 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
     );
   }
 
-  String _providerModuleLabel(String module) {
+  String _providerModuleLabel(AppLocalizations l10n, String module) {
     return switch (module) {
-      'identity-realm' => 'Identity realm',
-      'source-control' => 'Source control',
-      'issue-tracker' => 'Issue tracker',
-      'ci' => 'CI',
-      'release' => 'Release',
-      'office' => 'Office',
-      'files' => 'Files',
-      'calendar' => 'Calendar',
-      'contacts' => 'Contacts',
-      'forms' => 'Forms',
-      'boards' => 'Boards',
-      _ => 'Provider',
+      'identity-realm' => l10n.settingsProviderModuleIdentityRealm,
+      'source-control' => l10n.settingsProviderModuleSourceControl,
+      'issue-tracker' => l10n.settingsProviderModuleIssueTracker,
+      'ci' => l10n.settingsProviderModuleCi,
+      'release' => l10n.settingsProviderModuleRelease,
+      'office' => l10n.settingsProviderModuleOffice,
+      'files' => l10n.settingsProviderModuleFiles,
+      'calendar' => l10n.settingsProviderModuleCalendar,
+      'contacts' => l10n.settingsProviderModuleContacts,
+      'forms' => l10n.settingsProviderModuleForms,
+      'boards' => l10n.settingsProviderModuleBoards,
+      _ => l10n.settingsProviderModuleProvider,
     };
   }
 
-  String _providerStateLabel(ProviderState state) {
+  String _providerStateLabel(AppLocalizations l10n, ProviderState state) {
     return switch (state) {
-      ProviderState.disabled => 'disabled',
-      ProviderState.notConfigured => 'not configured',
-      ProviderState.configured => 'configured',
-      ProviderState.ready => 'ready',
-      ProviderState.degraded => 'degraded',
-      ProviderState.unsupported => 'unsupported',
-      ProviderState.unknown => 'unknown',
+      ProviderState.disabled => l10n.settingsProviderStateDisabled,
+      ProviderState.notConfigured => l10n.settingsProviderStateNotConfigured,
+      ProviderState.configured => l10n.settingsProviderStateConfigured,
+      ProviderState.ready => l10n.settingsProviderStateReady,
+      ProviderState.degraded => l10n.settingsProviderStateDegraded,
+      ProviderState.unsupported => l10n.settingsProviderStateUnsupported,
+      ProviderState.unknown => l10n.settingsProviderStateUnknown,
     };
   }
 }
@@ -1119,22 +1149,32 @@ class _OfficeProviderReadinessSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final enabledModes = office.capabilities.enabledModes;
 
     return Semantics(
       container: true,
-      label:
-          'Office readiness. Launch is ${office.launchFailClosed ? 'fail-closed' : 'available'}. Provider is ${office.configured ? 'configured' : 'unconfigured'}.',
+      label: l10n.settingsOfficeReadinessSemanticLabel(
+        office.launchFailClosed
+            ? l10n.settingsProviderStackFailClosedBadge
+            : l10n.settingsOfficeReadinessAvailable,
+        office.configured
+            ? l10n.settingsProviderStateConfigured
+            : l10n.settingsProviderStateNotConfigured,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Office readiness', style: theme.textTheme.titleSmall),
+          Text(
+            l10n.settingsOfficeReadinessTitle,
+            style: theme.textTheme.titleSmall,
+          ),
           const SizedBox(height: 6),
           Text(
             office.launchFailClosed
-                ? 'Office launch is fail-closed until a backend-owned provider adapter, session tokens, callbacks and permissions are configured.'
-                : 'Office launch is available through the backend facade.',
+                ? l10n.settingsOfficeReadinessFailClosedDescription
+                : l10n.settingsOfficeReadinessAvailableDescription,
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
@@ -1143,17 +1183,25 @@ class _OfficeProviderReadinessSummary extends StatelessWidget {
             runSpacing: 8,
             children: [
               _CompactStatusBadge(
-                label: office.enabled ? 'enabled' : 'disabled',
+                label: office.enabled
+                    ? l10n.settingsOfficeReadinessEnabled
+                    : l10n.settingsProviderStateDisabled,
               ),
               _CompactStatusBadge(
-                label: office.configured ? 'configured' : 'unconfigured',
+                label: office.configured
+                    ? l10n.settingsProviderStateConfigured
+                    : l10n.settingsProviderStateNotConfigured,
               ),
               if (office.launchFailClosed)
-                const _CompactStatusBadge(label: 'fail-closed'),
+                _CompactStatusBadge(
+                  label: l10n.settingsProviderStackFailClosedBadge,
+                ),
               _CompactStatusBadge(
                 label: enabledModes.isEmpty
-                    ? 'no launch modes'
-                    : 'modes: ${enabledModes.join(', ')}',
+                    ? l10n.settingsOfficeReadinessNoLaunchModes
+                    : l10n.settingsOfficeReadinessModes(
+                        enabledModes.join(', '),
+                      ),
               ),
             ],
           ),

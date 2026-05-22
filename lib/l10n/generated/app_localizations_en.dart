@@ -1562,6 +1562,161 @@ class AppLocalizationsEn extends AppLocalizations {
       'Backend API URL changed';
 
   @override
+  String get settingsProviderStackTitle => 'Provider stack readiness';
+
+  @override
+  String settingsProviderStackSemanticLabel(
+    String backendOwnedFacades,
+    String flutterCalls,
+  ) {
+    return 'Provider stack readiness. Backend-owned facades: $backendOwnedFacades. Flutter provider calls: $flutterCalls.';
+  }
+
+  @override
+  String get settingsProviderStackFailClosedDescription =>
+      'Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call GitLab, Office, or other provider APIs directly.';
+
+  @override
+  String get settingsProviderStackNeedsReviewDescription =>
+      'Provider readiness needs review before enabling direct launch or workspace actions.';
+
+  @override
+  String get settingsProviderStackBackendFacadesLabel => 'Backend facades';
+
+  @override
+  String get settingsProviderStackFlutterCallsLabel => 'Flutter provider calls';
+
+  @override
+  String get settingsProviderStackSupportSafetyLabel => 'Support safety';
+
+  @override
+  String get settingsProviderStackOwned => 'Owned by backend';
+
+  @override
+  String get settingsProviderStackMissing => 'Missing';
+
+  @override
+  String get settingsProviderStackNeedsReview => 'Needs review';
+
+  @override
+  String get settingsProviderStackBlocked => 'Blocked';
+
+  @override
+  String get settingsProviderStackRedacted => 'Redacted';
+
+  @override
+  String get settingsProviderStackYes => 'Yes';
+
+  @override
+  String get settingsProviderStackNo => 'No';
+
+  @override
+  String get settingsProviderStackFlutterCallsAllowed => 'Allowed';
+
+  @override
+  String get settingsProviderStackFlutterCallsBlocked => 'Blocked';
+
+  @override
+  String get settingsProviderStackFailClosedBadge => 'fail-closed';
+
+  @override
+  String get settingsProviderStackReadOnlyBadge => 'read-only';
+
+  @override
+  String get settingsProviderStackPaidFeaturesRequiredBadge =>
+      'paid features required';
+
+  @override
+  String get settingsProviderModuleIdentityRealm => 'Identity realm';
+
+  @override
+  String get settingsProviderModuleSourceControl => 'Source control';
+
+  @override
+  String get settingsProviderModuleIssueTracker => 'Issue tracker';
+
+  @override
+  String get settingsProviderModuleCi => 'CI';
+
+  @override
+  String get settingsProviderModuleRelease => 'Release';
+
+  @override
+  String get settingsProviderModuleOffice => 'Office';
+
+  @override
+  String get settingsProviderModuleFiles => 'Files';
+
+  @override
+  String get settingsProviderModuleCalendar => 'Calendar';
+
+  @override
+  String get settingsProviderModuleContacts => 'Contacts';
+
+  @override
+  String get settingsProviderModuleForms => 'Forms';
+
+  @override
+  String get settingsProviderModuleBoards => 'Boards';
+
+  @override
+  String get settingsProviderModuleProvider => 'Provider';
+
+  @override
+  String get settingsProviderStateDisabled => 'disabled';
+
+  @override
+  String get settingsProviderStateNotConfigured => 'unconfigured';
+
+  @override
+  String get settingsProviderStateConfigured => 'configured';
+
+  @override
+  String get settingsProviderStateReady => 'ready';
+
+  @override
+  String get settingsProviderStateDegraded => 'degraded';
+
+  @override
+  String get settingsProviderStateUnsupported => 'unsupported';
+
+  @override
+  String get settingsProviderStateUnknown => 'unknown';
+
+  @override
+  String get settingsOfficeReadinessTitle => 'Office readiness';
+
+  @override
+  String settingsOfficeReadinessSemanticLabel(
+    String launchState,
+    String providerState,
+  ) {
+    return 'Office readiness. Launch is $launchState. Provider is $providerState.';
+  }
+
+  @override
+  String get settingsOfficeReadinessFailClosedDescription =>
+      'Office launch is fail-closed until a backend-owned provider adapter, session tokens, callbacks, and permissions are configured.';
+
+  @override
+  String get settingsOfficeReadinessAvailableDescription =>
+      'Office launch is available through the backend facade.';
+
+  @override
+  String get settingsOfficeReadinessAvailable => 'available';
+
+  @override
+  String get settingsOfficeReadinessEnabled => 'enabled';
+
+  @override
+  String get settingsOfficeReadinessNoLaunchModes => 'no launch modes';
+
+  @override
+  String settingsOfficeReadinessModes(String modes) {
+    return 'modes: $modes';
+  }
+
+  @override
   String get settingsServerConfigurationDescription =>
       'Update the provider and service URLs Weave should use for your self-hosted environment.';
 

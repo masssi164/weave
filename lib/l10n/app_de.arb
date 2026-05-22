@@ -27,7 +27,6 @@
   "bootstrapLoadingHint": "Arbeitsbereichsdienste werden geprüft und die Shell vorbereitet.",
   "shellErrorTitle": "Weave konnte nicht vorbereitet werden",
   "shellErrorGuidance": "Versuche es erneut. Wenn das weiterhin passiert, prüfe, ob deine Arbeitsbereichsdienste erreichbar sind.",
-
   "shellRecentActivityTitle": "Letzte Aktivität",
   "shellRecentActivityDescription": "Schnellzugriff auf aktuelle Räume und Dateiänderungen.",
   "shellRecentActivitySemanticLabel": "Schnellzugriffe für letzte Aktivität",
@@ -60,7 +59,6 @@
   "semanticDeckIcon": "Boards-Vorschau",
   "semanticSettingsIcon": "App-Einstellungen",
   "semanticWeaveLogo": "Weave-Logo",
-
   "firstRunAppBarTitle": "Erststart-Status",
   "firstRunLoadingLabel": "Weave-Arbeitsbereich wird geprüft…",
   "firstRunLoadingHint": "Profil, Rolle und Modulbereitschaft werden vom Weave-Backend geladen.",
@@ -89,13 +87,11 @@
   "firstRunNextStepsTitle": "Nächste Schritte",
   "firstRunRefreshButton": "Status aktualisieren",
   "firstRunContinueButton": "Weiter zum Chat",
-
   "chatProvisioningReadyTitle": "Chat ist bereit",
   "chatProvisioningPendingTitle": "Chaträume werden noch vorbereitet",
   "chatProvisioningDegradedTitle": "Chat ist eingeschränkt verfügbar",
   "chatProvisioningActionNeededTitle": "Chat-Einrichtung benötigt Admin-Hilfe",
   "chatProvisioningRetryButton": "Status erneut prüfen",
-
   "chatScreenTitle": "Chat",
   "chatOverviewTitle": "Weave Home",
   "chatOverviewDescription": "Deine persönlichen Nachrichten, Favoriten, Kanäle und KI-Chats sind hier gruppiert, damit der Workspace nach Absicht startet statt als flache Raumliste.",
@@ -146,12 +142,17 @@
   "filesLoadingLabel": "Dateien werden geladen…",
   "filesLoadingHint": "Der aktuelle Ordner wird aktualisiert und auf Änderungen geprüft.",
   "filesStaleDirectoryTitle": "Letzten bekannten Ordner anzeigen",
-  "@filesStaleDirectoryTitle": {"description": "Title for a Files notice shown when refresh failed but the previous directory listing remains visible"},
+  "@filesStaleDirectoryTitle": {
+    "description": "Title for a Files notice shown when refresh failed but the previous directory listing remains visible"
+  },
   "filesStaleDirectoryGuidance": "Weave konnte Dateien gerade nicht aktualisieren. Die letzte Ordnerliste bleibt sichtbar, damit du deinen Platz behältst und es erneut versuchen kannst, sobald die Verbindung wieder da ist.",
-  "@filesStaleDirectoryGuidance": {"description": "Guidance for a Files notice shown when refresh failed but cached folder contents remain visible"},
+  "@filesStaleDirectoryGuidance": {
+    "description": "Guidance for a Files notice shown when refresh failed but cached folder contents remain visible"
+  },
   "filesStaleDirectoryRetryButton": "Ordner aktualisieren",
-  "@filesStaleDirectoryRetryButton": {"description": "Button label for retrying a stale Files directory refresh"},
-
+  "@filesStaleDirectoryRetryButton": {
+    "description": "Button label for retrying a stale Files directory refresh"
+  },
   "filesNextcloudTitle": "Weave-Dateien",
   "filesProductTitle": "Weave-Dateien",
   "filesProductBoundaryTitle": "Weave-Produktgrenze",
@@ -252,13 +253,10 @@
   "helpPrivacySecurityBody": "Dein Workspace kontrolliert seine eigenen Dienste und Daten. Weave nutzt SSO für den Zugriff und zeigt den Matrix-Sicherheitsstatus ehrlich an. Gehe nicht davon aus, dass Chat vollständig Ende-zu-Ende-verschlüsselt ist, solange Weave nicht meldet, dass Matrix-Verschlüsselung, Wiederherstellung und Gerätevertrauen gesund sind. Bewahre Wiederherstellungsschlüssel sicher auf und melde verlorene Geräte deinem Admin.",
   "settingsShellModulesTitle": "Shell-Module",
   "settingsShellModulesDescription": "Wähle, welche Workspace-Shell-Module sichtbar bleiben. Die Navigation bleibt verfügbar, auch wenn ein Modul ausgeblendet ist.",
-
   "settingsShellWorkspaceStatusToggleTitle": "Workspace-Statusübersicht",
   "settingsShellWorkspaceStatusToggleDescription": "Zeigt Dienstbereitschaft und Wiederherstellungsabkürzungen oberhalb der unteren Navigation an.",
   "settingsShellMoveModuleUp": "{moduleName} nach oben verschieben",
   "settingsShellMoveModuleDown": "{moduleName} nach unten verschieben",
-
-
   "settingsPreviewSurfacesTitle": "Vorschau-Oberflächen",
   "settingsPreviewSurfacesDescription": "Diese feature-gegateten Bereiche bleiben ehrlich darüber, was aktiv, blockiert oder noch von Backend-Verträgen abhängig ist.",
   "settingsGuestPortalPreviewTitle": "Gastportal",
@@ -267,7 +265,6 @@
   "settingsInteropAdminPreviewDescription": "Der Status externer Anbieter erklärt Datenbewegung und Einwilligung; Anbieter-Secrets werden in diesem Client nie erfasst.",
   "settingsMigrationDryRunPreviewTitle": "Migrationsbericht als Trockenlauf",
   "settingsMigrationDryRunPreviewDescription": "Admins können Inventar, Risiken, Berechtigungsbereiche und Zuordnungen prüfen, bevor ein Import startet.",
-
   "settingsShellRecentActivityToggleTitle": "Schnellzugriffe für letzte Aktivität",
   "settingsShellRecentActivityToggleDescription": "Zeigt aktuelle Räume und Dateiänderungen oberhalb der unteren Navigation an.",
   "settingsShellModulesLoading": "Shell-Modul-Einstellungen werden geladen…",
@@ -311,7 +308,7 @@
   "settingsWorkspaceInvalidationNextcloudBaseUrlChanged": "Nextcloud-Basis-URL geändert",
   "settingsWorkspaceInvalidationExplicitSignOut": "Manuell abgemeldet",
   "settingsWorkspaceInvalidationRestartSetup": "Einrichtung neu gestartet",
-  "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend-API-URL ge\u00e4ndert",
+  "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend-API-URL geändert",
   "chatSecuritySectionTitle": "Matrix-Sicherheit",
   "chatSecuritySectionDescription": "Weave behandelt Matrix-Verschlüsselung nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.",
   "chatSecurityRecoveryKeyTitle": "Diesen Matrix-Wiederherstellungsschlüssel jetzt sichern",
@@ -406,6 +403,52 @@
   "chatSecurityEmojiSummaryLabel": "Sicherheits-Emojis",
   "chatSecurityNumbersSummaryLabel": "Sicherheitszahlen {value}",
   "settingsServerConfigurationTitle": "Serverkonfiguration",
+  "settingsProviderStackTitle": "Provider-Stack-Bereitschaft",
+  "settingsProviderStackSemanticLabel": "Bereitschaft des Provider-Stacks. Backend-Fassaden: {backendOwnedFacades}. Flutter-Provider-Aufrufe: {flutterCalls}.",
+  "settingsProviderStackFailClosedDescription": "Provider-Integrationen bleiben fail-closed hinter Backend-eigenen Fassaden. Flutter ruft GitLab, Office oder andere Provider-APIs nicht direkt auf.",
+  "settingsProviderStackNeedsReviewDescription": "Die Provider-Bereitschaft muss geprüft werden, bevor direkte Starts oder Workspace-Aktionen aktiviert werden.",
+  "settingsProviderStackBackendFacadesLabel": "Backend-Fassaden",
+  "settingsProviderStackFlutterCallsLabel": "Flutter-Provider-Aufrufe",
+  "settingsProviderStackSupportSafetyLabel": "Support-Sicherheit",
+  "settingsProviderStackOwned": "Backend-eigen",
+  "settingsProviderStackMissing": "Fehlt",
+  "settingsProviderStackNeedsReview": "Prüfung nötig",
+  "settingsProviderStackBlocked": "Blockiert",
+  "settingsProviderStackRedacted": "Redigiert",
+  "settingsProviderStackYes": "Ja",
+  "settingsProviderStackNo": "Nein",
+  "settingsProviderStackFlutterCallsAllowed": "Erlaubt",
+  "settingsProviderStackFlutterCallsBlocked": "Blockiert",
+  "settingsProviderStackFailClosedBadge": "fail-closed",
+  "settingsProviderStackReadOnlyBadge": "nur lesend",
+  "settingsProviderStackPaidFeaturesRequiredBadge": "kostenpflichtige Features nötig",
+  "settingsProviderModuleIdentityRealm": "Identity-Realm",
+  "settingsProviderModuleSourceControl": "Quellcodeverwaltung",
+  "settingsProviderModuleIssueTracker": "Issue-Tracker",
+  "settingsProviderModuleCi": "CI",
+  "settingsProviderModuleRelease": "Release",
+  "settingsProviderModuleOffice": "Office",
+  "settingsProviderModuleFiles": "Dateien",
+  "settingsProviderModuleCalendar": "Kalender",
+  "settingsProviderModuleContacts": "Kontakte",
+  "settingsProviderModuleForms": "Formulare",
+  "settingsProviderModuleBoards": "Boards",
+  "settingsProviderModuleProvider": "Provider",
+  "settingsProviderStateDisabled": "deaktiviert",
+  "settingsProviderStateNotConfigured": "unkonfiguriert",
+  "settingsProviderStateConfigured": "konfiguriert",
+  "settingsProviderStateReady": "bereit",
+  "settingsProviderStateDegraded": "eingeschränkt",
+  "settingsProviderStateUnsupported": "nicht unterstützt",
+  "settingsProviderStateUnknown": "unbekannt",
+  "settingsOfficeReadinessTitle": "Office-Bereitschaft",
+  "settingsOfficeReadinessSemanticLabel": "Office-Bereitschaft. Start ist {launchState}. Provider ist {providerState}.",
+  "settingsOfficeReadinessFailClosedDescription": "Office-Start bleibt fail-closed, bis ein Backend-eigener Provider-Adapter, Session-Tokens, Callbacks und Berechtigungen konfiguriert sind.",
+  "settingsOfficeReadinessAvailableDescription": "Office-Start ist über die Backend-Fassade verfügbar.",
+  "settingsOfficeReadinessAvailable": "verfügbar",
+  "settingsOfficeReadinessEnabled": "aktiviert",
+  "settingsOfficeReadinessNoLaunchModes": "keine Startmodi",
+  "settingsOfficeReadinessModes": "Modi: {modes}",
   "settingsServerConfigurationDescription": "Aktualisiere den Anbieter und die Dienst-URLs, die Weave für deine selbst gehostete Umgebung verwenden soll.",
   "settingsSaveButton": "Änderungen speichern",
   "settingsSaveInProgress": "Wird gespeichert…",
@@ -573,8 +616,7 @@
   "signInInProgress": "Melde an…",
   "signInBackToSetupButton": "Zurück zur Einrichtung",
   "signInMissingConfigurationTitle": "Einrichtung abschließen, um dich anzumelden",
-  "signInMissingConfigurationDescription": "Weave benötigt noch eine gültige Issuer-URL und Client-ID, bevor der Browser-Anmeldefluss gestartet werden kann."
-,
+  "signInMissingConfigurationDescription": "Weave benötigt noch eine gültige Issuer-URL und Client-ID, bevor der Browser-Anmeldefluss gestartet werden kann.",
   "profileSectionTitle": "Weave-Profil",
   "profileSectionDescription": "Dieses Profil kommt aus der Weave-Backend-Identitätsfassade und wird von Produktmodulen gemeinsam genutzt.",
   "profileLoadFailure": "Das Weave-Profil konnte gerade nicht geladen werden.",
@@ -618,25 +660,55 @@
   "calendarClientSetupPrincipalUrlLabel": "Principal-URL",
   "calendarClientSetupCredentialPolicyTitle": "Zugangsdaten-Sicherheit",
   "calendarClientSetupAccessModelTitle": "Zugriffsmodell",
-  "@calendarClientSetupAccessModelTitle": {"description": "Heading for the calendar external client access model"},
+  "@calendarClientSetupAccessModelTitle": {
+    "description": "Heading for the calendar external client access model"
+  },
   "calendarClientSetupPrivateCalendarsAvailable": "Private Benutzerkalender verfügbar",
-  "@calendarClientSetupPrivateCalendarsAvailable": {"description": "Status text when private personal calendars are available"},
+  "@calendarClientSetupPrivateCalendarsAvailable": {
+    "description": "Status text when private personal calendars are available"
+  },
   "calendarClientSetupPrivateCalendarsBlocked": "Private Benutzerkalender blockiert",
-  "@calendarClientSetupPrivateCalendarsBlocked": {"description": "Status text when private personal calendars are blocked"},
+  "@calendarClientSetupPrivateCalendarsBlocked": {
+    "description": "Status text when private personal calendars are blocked"
+  },
   "calendarClientSetupExternalCredentialModel": "Externes Zugangsdatenmodell: {model}",
-  "@calendarClientSetupExternalCredentialModel": {"description": "Calendar external credential model label", "placeholders": {"model": {"type": "String"}}},
+  "@calendarClientSetupExternalCredentialModel": {
+    "description": "Calendar external credential model label",
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
   "calendarClientSetupCredentialReadinessTitle": "Bereitschaft der Zugangsdaten",
-  "@calendarClientSetupCredentialReadinessTitle": {"description": "Heading for calendar credential readiness details"},
+  "@calendarClientSetupCredentialReadinessTitle": {
+    "description": "Heading for calendar credential readiness details"
+  },
   "calendarClientSetupCredentialReadinessStatus": "Status: {status}",
-  "@calendarClientSetupCredentialReadinessStatus": {"description": "Calendar credential readiness status", "placeholders": {"status": {"type": "String"}}},
+  "@calendarClientSetupCredentialReadinessStatus": {
+    "description": "Calendar credential readiness status",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
   "calendarClientSetupAppleProfileBlocked": "Apple-Profile bleiben deaktiviert, bis Profile signiert sind und sichere Zugangsdaten existieren.",
-  "@calendarClientSetupAppleProfileBlocked": {"description": "Blocked state explanation for Apple calendar profiles"},
+  "@calendarClientSetupAppleProfileBlocked": {
+    "description": "Blocked state explanation for Apple calendar profiles"
+  },
   "calendarClientSetupSubscriptionsBlocked": "Webcal/ICS-Abos bleiben deaktiviert, bis widerrufbare Read-only-Tokens existieren.",
-  "@calendarClientSetupSubscriptionsBlocked": {"description": "Blocked state explanation for calendar subscriptions"},
+  "@calendarClientSetupSubscriptionsBlocked": {
+    "description": "Blocked state explanation for calendar subscriptions"
+  },
   "calendarClientSetupCredentialsSafe": "Backend-Actor-Zugangsdaten werden nicht in Client-Einrichtungsdaten offengelegt.",
-  "@calendarClientSetupCredentialsSafe": {"description": "Safe credential boundary statement for calendar client setup"},
+  "@calendarClientSetupCredentialsSafe": {
+    "description": "Safe credential boundary statement for calendar client setup"
+  },
   "calendarClientSetupCredentialsUnsafe": "Die Einrichtung ist blockiert, weil Backend-Actor-Zugangsdaten offengelegt würden.",
-  "@calendarClientSetupCredentialsUnsafe": {"description": "Unsafe credential boundary warning for calendar client setup"},
+  "@calendarClientSetupCredentialsUnsafe": {
+    "description": "Unsafe credential boundary warning for calendar client setup"
+  },
   "calendarClientSetupPlatformsTitle": "Plattform-Einrichtung",
   "calendarClientSetupAvailableStatus": "verfügbar",
   "calendarClientSetupPlannedStatus": "geplant",
@@ -675,8 +747,7 @@
   "calendarCreateSuccess": "Kalendertermin erstellt.",
   "calendarUpdateSuccess": "Kalendertermin aktualisiert.",
   "calendarDeleteSuccess": "Kalendertermin gelöscht.",
-  "calendarOperationFailure": "Der Kalender konnte diese Änderung gerade nicht speichern."
-,
+  "calendarOperationFailure": "Der Kalender konnte diese Änderung gerade nicht speichern.",
   "boardsPreviewScreenTitle": "Boards-Vorschau",
   "boardsPreviewIconSemantic": "Boards-Vorschau",
   "boardsPreviewBoundaryTitle": "Zukünftige Boards-/Aufgaben-Vorschau",
@@ -720,7 +791,6 @@
   "boardsPreviewActionCompleted": "Aufgabe über die Backend-Fassade als erledigt markiert.",
   "boardsPreviewActionFailed": "Die Backend-Fassade konnte diese Boards-Vorschau-Aktion nicht speichern.",
   "boardsPreviewActionNoNextColumn": "Diese Aufgabe ist bereits in der letzten Vorschau-Spalte.",
-
   "settingsAdminSetupTitle": "Owner- und Admin-Einrichtung",
   "settingsAdminSetupDescription": "Workspace-Owner und Admins verwalten hier OIDC, Realm, Organisation und Dienstendpunkte. Mitglieder und Gäste sehen nur Anmeldung und Produkteinstellungen.",
   "settingsAdminPermissionTitle": "Admin-Steuerung freigeschaltet",
@@ -739,41 +809,71 @@
   "chatContextAgentHintTitle": "Agent-Kontextpakete",
   "chatContextAgentHintDescription": "Assistenten erhalten nur das begrenzte Paket für Anfrage, Erwähnung oder Zeitplan.",
   "firstRunAdminSetupTitle": "Owner-/Admin-Verantwortung bei der Einrichtung",
-  "firstRunAdminSetupDescription": "Deine Rolle darf die Workspace-Einrichtung verwalten. OIDC-, Realm-, Organisations-, Einladungs- und Dienstendpunkt-Änderungen gehören hier oder in die Einstellungen; normale Nutzer sollen nur eine Weave-Anmeldung brauchen."
-,
+  "firstRunAdminSetupDescription": "Deine Rolle darf die Workspace-Einrichtung verwalten. OIDC-, Realm-, Organisations-, Einladungs- und Dienstendpunkt-Änderungen gehören hier oder in die Einstellungen; normale Nutzer sollen nur eine Weave-Anmeldung brauchen.",
   "agentCapabilityPolicyTitle": "Governance für KI-Agenten-Funktionen",
-  "@agentCapabilityPolicyTitle": { "description": "Settings card title for AI agent capability governance" },
+  "@agentCapabilityPolicyTitle": {
+    "description": "Settings card title for AI agent capability governance"
+  },
   "agentCapabilityPolicyAdminDescription": "Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Vorschau bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.",
-  "@agentCapabilityPolicyAdminDescription": { "description": "Admin-facing description for AI agent capability governance" },
+  "@agentCapabilityPolicyAdminDescription": {
+    "description": "Admin-facing description for AI agent capability governance"
+  },
   "agentCapabilityPolicyUserDescription": "KI-Agentenchats sind für diesen Workspace noch nicht aktiviert. Du kannst Weave normal weiter nutzen; zuerst müssen Owner oder Admins diese Funktion freigeben.",
-  "@agentCapabilityPolicyUserDescription": { "description": "Member-facing description for AI agent capability governance" },
+  "@agentCapabilityPolicyUserDescription": {
+    "description": "Member-facing description for AI agent capability governance"
+  },
   "agentCapabilityPolicyFailClosedNotice": "Agenten-Funktionen sind blockiert, bis Weave deine Rolle und die Workspace-Richtlinie bestätigen kann.",
-  "@agentCapabilityPolicyFailClosedNotice": { "description": "Fail-closed notice when policy cannot be trusted" },
+  "@agentCapabilityPolicyFailClosedNotice": {
+    "description": "Fail-closed notice when policy cannot be trusted"
+  },
   "agentCapabilityPolicyManageDisabledButton": "Verwaltung in dieser Vorschau nicht verfügbar",
-  "@agentCapabilityPolicyManageDisabledButton": { "description": "Disabled button label for future agent capability management" },
+  "@agentCapabilityPolicyManageDisabledButton": {
+    "description": "Disabled button label for future agent capability management"
+  },
   "agentCapabilityPolicyAskAdminHint": "Braucht dein Team einen Agenten? Bitte Owner oder Admins, Agenten-Funktionen zu prüfen, sobald sie verfügbar sind.",
-  "@agentCapabilityPolicyAskAdminHint": { "description": "Hint for non-admin users" },
+  "@agentCapabilityPolicyAskAdminHint": {
+    "description": "Hint for non-admin users"
+  },
   "agentCapabilityPolicyAdminStateHint": "Aktueller Zustand: standardmäßig aus. Künftige Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.",
-  "@agentCapabilityPolicyAdminStateHint": { "description": "Admin state hint for disabled agent capabilities" },
+  "@agentCapabilityPolicyAdminStateHint": {
+    "description": "Admin state hint for disabled agent capabilities"
+  },
   "agentCapabilityPersonalAssistantTitle": "Persönlicher Assistent",
-  "@agentCapabilityPersonalAssistantTitle": { "description": "Agent capability title for personal assistant" },
+  "@agentCapabilityPersonalAssistantTitle": {
+    "description": "Agent capability title for personal assistant"
+  },
   "agentCapabilityPersonalAssistantDescription": "Nutzt nur Kontext, den du für eine Anfrage auswählst, nachdem dein Workspace die Funktion aktiviert hat.",
-  "@agentCapabilityPersonalAssistantDescription": { "description": "Agent capability description for personal assistant" },
+  "@agentCapabilityPersonalAssistantDescription": {
+    "description": "Agent capability description for personal assistant"
+  },
   "agentCapabilityChannelAgentTitle": "Kanal-Agent",
-  "@agentCapabilityChannelAgentTitle": { "description": "Agent capability title for channel agent" },
+  "@agentCapabilityChannelAgentTitle": {
+    "description": "Agent capability title for channel agent"
+  },
   "agentCapabilityChannelAgentDescription": "Erfordert, dass Owner oder Admins auswählen, welche Kanäle, Dateien, Kalendertermine oder Boards der Agent nutzen darf.",
-  "@agentCapabilityChannelAgentDescription": { "description": "Agent capability description for channel agent" },
+  "@agentCapabilityChannelAgentDescription": {
+    "description": "Agent capability description for channel agent"
+  },
   "agentCapabilityAvailabilityPreviewOnly": "Nur Vorschau",
-  "@agentCapabilityAvailabilityPreviewOnly": { "description": "Agent capability availability label for preview-only state" },
+  "@agentCapabilityAvailabilityPreviewOnly": {
+    "description": "Agent capability availability label for preview-only state"
+  },
   "agentCapabilityAvailabilityAdminSetupRequired": "Admin-Einrichtung nötig",
-  "@agentCapabilityAvailabilityAdminSetupRequired": { "description": "Agent capability availability label when admin setup is required" },
+  "@agentCapabilityAvailabilityAdminSetupRequired": {
+    "description": "Agent capability availability label when admin setup is required"
+  },
   "agentCapabilityAvailabilityBlocked": "Blockiert",
-  "@agentCapabilityAvailabilityBlocked": { "description": "Agent capability availability label for blocked state" },
+  "@agentCapabilityAvailabilityBlocked": {
+    "description": "Agent capability availability label for blocked state"
+  },
   "agentCapabilityPolicyErrorTitle": "Agenten-Funktionsrichtlinie ist nicht verfügbar.",
-  "@agentCapabilityPolicyErrorTitle": { "description": "Error message for AI agent capability policy settings section" },
+  "@agentCapabilityPolicyErrorTitle": {
+    "description": "Error message for AI agent capability policy settings section"
+  },
   "agentCapabilityPolicyLoading": "Agenten-Funktionsrichtlinie wird geprüft…",
-  "@agentCapabilityPolicyLoading": { "description": "Loading message for AI agent capability policy settings section" }
-,
+  "@agentCapabilityPolicyLoading": {
+    "description": "Loading message for AI agent capability policy settings section"
+  },
   "workflowPreviewTitle": "Aktive Workflows",
   "workflowPreviewDescription": "Eine lineare Ansicht der aktuellen Schritte, Verantwortlichen, Blockaden und Evidenz. Diagramme können später dazukommen; diese Ansicht muss zuerst mit Tastatur und Screenreadern funktionieren.",
   "workflowPreviewLinearViewChip": "Lineare Ansicht zuerst",
@@ -802,7 +902,35 @@
   "workflowPreviewApprovalRequired": "Owner-Freigabe ist nötig, bevor diese Aktion ausgeführt werden kann.",
   "workflowPreviewAgentDryRunOnly": "Agentenhilfe bleibt ein Trockenlauf, bis Admin-Richtlinie und Freigabe verbunden sind.",
   "workflowPreviewOpenStepButton": "Schritt öffnen",
-  "workflowPreviewReviewEvidenceButton": "Evidenz prüfen"
-
-
+  "workflowPreviewReviewEvidenceButton": "Evidenz prüfen",
+  "@settingsProviderStackSemanticLabel": {
+    "description": "Accessibility label for provider readiness summary",
+    "placeholders": {
+      "backendOwnedFacades": {
+        "type": "String"
+      },
+      "flutterCalls": {
+        "type": "String"
+      }
+    }
+  },
+  "@settingsOfficeReadinessSemanticLabel": {
+    "description": "Accessibility label for Office readiness summary",
+    "placeholders": {
+      "launchState": {
+        "type": "String"
+      },
+      "providerState": {
+        "type": "String"
+      }
+    }
+  },
+  "@settingsOfficeReadinessModes": {
+    "description": "Enabled Office launch modes",
+    "placeholders": {
+      "modes": {
+        "type": "String"
+      }
+    }
+  }
 }
