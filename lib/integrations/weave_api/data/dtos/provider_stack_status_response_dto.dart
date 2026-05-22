@@ -25,13 +25,7 @@ class ProviderStackStatusResponseDto {
         json['flutterDirectProviderCallsAllowed'],
       ),
       supportSafe: _bool(json['supportSafe']),
-      providers: providers
-          .map(
-            (provider) => ProviderReadinessDto.fromJson(
-              (provider as Map).cast<String, dynamic>(),
-            ),
-          )
-          .toList(growable: false),
+      providers: providers.map(_providerReadinessDto).toList(growable: false),
     );
   }
 
@@ -311,10 +305,15 @@ List<ProviderReadiness> _providerReadinessList(Object? value) {
     );
   }
   return value
-      .map(
-        (provider) => ProviderReadinessDto.fromJson(
-          (provider as Map).cast<String, dynamic>(),
-        ).toEntity(),
-      )
+      .map((provider) => _providerReadinessDto(provider).toEntity())
       .toList(growable: false);
+}
+
+ProviderReadinessDto _providerReadinessDto(Object? provider) {
+  if (provider is! Map) {
+    throw const AppFailure.unknown(
+      'The backend returned an invalid provider readiness response.',
+    );
+  }
+  return ProviderReadinessDto.fromJson(provider.cast<String, dynamic>());
 }

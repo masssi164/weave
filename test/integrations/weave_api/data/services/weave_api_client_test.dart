@@ -247,6 +247,28 @@ void main() {
       },
     );
 
+    test('rejects malformed provider stack readiness entries', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((_) async {
+          return _jsonResponse({
+            'releaseStatus': 'provider-stack-contract-preview',
+            'backendOwnedFacades': true,
+            'flutterDirectProviderCallsAllowed': false,
+            'supportSafe': true,
+            'providers': ['not-a-provider-object'],
+          });
+        }),
+      );
+
+      await expectLater(
+        client.fetchProviderStackStatus(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
     test('fetches DevOps summary through the backend facade', () async {
       late http.BaseRequest capturedRequest;
       final client = HttpWeaveApiClient(
@@ -293,6 +315,32 @@ void main() {
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(summary.isUnavailableFailClosed, isTrue);
       expect(summary.providerReadiness.single.providerKey, 'gitlab-ce');
+    });
+
+    test('rejects malformed DevOps provider readiness entries', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((_) async {
+          return _jsonResponse({
+            'workspaceId': 'workspace-default',
+            'channelId': 'general',
+            'releaseStatus': 'provider-stack-contract-preview',
+            'readOnly': true,
+            'paidFeaturesRequired': false,
+            'supportSafe': true,
+            'providerReadiness': ['not-a-provider-object'],
+          });
+        }),
+      );
+
+      await expectLater(
+        client.fetchDevopsSummary(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+          workspaceId: 'workspace-default',
+          channelId: 'general',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
     });
 
     test(

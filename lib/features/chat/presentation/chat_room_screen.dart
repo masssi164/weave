@@ -590,11 +590,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
 
     final workspaceFacade = ref.watch(channelWorkspacePreviewFacadeProvider);
-    final providerStack = ref.watch(weaveApiProviderStackStatusProvider);
-    final workspace = workspaceFacade.supportsWorkspaceTabs(widget.conversation)
+    final supportsTabs = workspaceFacade.supportsWorkspaceTabs(
+      widget.conversation,
+    );
+    final providerStack = supportsTabs
+        ? ref.watch(weaveApiProviderStackStatusProvider).asData?.value
+        : null;
+    final workspace = supportsTabs
         ? workspaceFacade.previewForChannel(
             widget.conversation,
-            providerStack: providerStack.asData?.value,
+            providerStack: providerStack,
           )
         : null;
     final scaffold = Scaffold(
@@ -898,7 +903,10 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
                         ),
                       ),
                       Chip(
-                        avatar: const Icon(Icons.health_and_safety_outlined, size: 18),
+                        avatar: const Icon(
+                          Icons.health_and_safety_outlined,
+                          size: 18,
+                        ),
                         label: Text(
                           l10n.channelWorkspaceProviderReadiness(
                             surface.providerReadinessId,
