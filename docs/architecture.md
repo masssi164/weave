@@ -109,6 +109,10 @@ Slack, Teams, guest collaboration, migration tooling, and connectors must attach
 
 Tasks/boards are active Weave scope behind feature gates. Build a Weave-owned, accessibility-first board/task model with provider adapters rather than exposing Nextcloud Deck or any other upstream tool as the product model. See [Product scope: calendar hierarchy, Matrix E2EE, and Boards](product-calendar-e2ee-boards-scope.md), [Boards and Tasks Provider Strategy](research/boards-task-module-provider-strategy.md), and [Boards and Tasks Domain Contract](research/boards-task-domain-contract.md).
 
+## Office provider scope
+
+Office editing is planned behind a backend-owned provider facade. ONLYOFFICE Docs Community is the default provider candidate; Collabora is a non-default/later adapter candidate until licensing/product-use ambiguity is resolved. Flutter must stay fail-closed and consume only normalized product state until the backend verifies provider health, file support, permissions, and launch readiness. See [Office Provider Architecture: ONLYOFFICE Community Default](research/office-provider-architecture-235.md).
+
 ## Feature and integration layering
 Each feature follows the same three layers:
 
