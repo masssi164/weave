@@ -1,8 +1,36 @@
 import 'dart:convert';
 import 'dart:io';
 
-const _sensitiveKeyPattern =
-    r'(token|secret|password|authorization|cookie|session|credential|username|userid|displayname|roomid|eventid|threadid|filename|access)';
+const _sensitiveKeyNames = <String>{
+  'token',
+  'secret',
+  'password',
+  'authorization',
+  'cookie',
+  'session',
+  'credential',
+  'username',
+  'userid',
+  'displayname',
+  'roomid',
+  'eventid',
+  'threadid',
+  'filename',
+  'accesstoken',
+  'accesskey',
+  'apikey',
+};
+
+const _sensitiveKeySuffixes = <String>{
+  'token',
+  'secret',
+  'password',
+  'authorization',
+  'cookie',
+  'credential',
+  'accesskey',
+  'apikey',
+};
 
 void main(List<String> args) {
   if (args.isEmpty || args.first == '--help' || args.first == '-h') {
@@ -90,9 +118,9 @@ List<FeatureScenario> parseFeatureFile(Directory root, File file) {
   for (var index = 0; index < lines.length; index += 1) {
     final line = lines[index].trim();
     if (line.startsWith('@')) {
-      pendingTags
-        ..clear()
-        ..addAll(line.split(RegExp(r'\s+')).where((part) => part.isNotEmpty));
+      pendingTags.addAll(
+        line.split(RegExp(r'\s+')).where((part) => part.isNotEmpty),
+      );
       continue;
     }
     if (line.startsWith('Scenario: ')) {
@@ -443,12 +471,11 @@ bool _lineContainsMarker(String line, String marker) =>
 Map<String, String> _sanitizeMarkerFields(String line) {
   final fields = <String, String>{};
   final keyValuePattern = RegExp(r'([A-Za-z][A-Za-z0-9_]*)=([^\s]+)');
-  final sensitive = RegExp(_sensitiveKeyPattern, caseSensitive: false);
   for (final match in keyValuePattern.allMatches(line)) {
     final key = match.group(1)!;
     final value = match.group(2)!;
     final lowerKey = key.toLowerCase();
-    if (sensitive.hasMatch(key) ||
+    if (_isSensitiveMarkerKey(key) ||
         lowerKey == 'id' ||
         lowerKey.endsWith('id') ||
         lowerKey.endsWith('name')) {
@@ -460,6 +487,14 @@ Map<String, String> _sanitizeMarkerFields(String line) {
     fields[key] = value;
   }
   return fields;
+}
+
+bool _isSensitiveMarkerKey(String key) {
+  final normalizedKey = key.toLowerCase().replaceAll(RegExp(r'[_-]'), '');
+  if (_sensitiveKeyNames.contains(normalizedKey)) {
+    return true;
+  }
+  return _sensitiveKeySuffixes.any(normalizedKey.endsWith);
 }
 
 Map<String, String> _parseOptions(List<String> args) {
@@ -497,17 +532,23 @@ Options:
 }
 
 String _join(String first, String second) {
-  if (second.startsWith('/')) {
+  if (File(second).isAbsolute) {
     return second;
   }
-  return '$first/$second';
+  if (first.endsWith(Platform.pathSeparator)) {
+    return '$first$second';
+  }
+  return '$first${Platform.pathSeparator}$second';
 }
 
 String _relativePath(String rootPath, String path) {
-  final normalizedRoot = rootPath.endsWith('/') ? rootPath : '$rootPath/';
-  return path.startsWith(normalizedRoot)
+  final normalizedRoot = rootPath.endsWith(Platform.pathSeparator)
+      ? rootPath
+      : '$rootPath${Platform.pathSeparator}';
+  final relativePath = path.startsWith(normalizedRoot)
       ? path.substring(normalizedRoot.length)
       : path;
+  return relativePath.replaceAll(Platform.pathSeparator, '/');
 }
 
 String _escapeMarkdown(String value) => value.replaceAll('|', r'\|');

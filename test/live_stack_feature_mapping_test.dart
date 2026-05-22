@@ -129,4 +129,64 @@ void main() {
       );
     },
   );
+
+  test('feature parser accumulates consecutive tag lines', () {
+    final directory = Directory.systemTemp.createTempSync(
+      'weave_feature_tags_',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final featureFile =
+        File('${directory.path}${Platform.pathSeparator}tags.feature')
+          ..writeAsStringSync('''
+Feature: Split tags
+
+@weave-live @acceptance
+@critical
+Scenario: Tagged over several lines
+  Given something useful
+''');
+
+    final scenarios = acceptance.parseFeatureFile(directory, featureFile);
+
+    expect(scenarios, hasLength(1));
+    expect(scenarios.single.tags, <String>[
+      '@weave-live',
+      '@acceptance',
+      '@critical',
+    ]);
+  });
+
+  test('runtime evidence sanitizer keeps accessibility fields', () {
+    final directory = Directory.systemTemp.createTempSync('weave_evidence_');
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final logFile = File('${directory.path}${Platform.pathSeparator}e2e.log')
+      ..writeAsStringSync('''
+ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted accessKey=redacted apiKey=redacted token=redacted accessTokenPresent=true durationMs=42 id=123 displayName=Massimo
+''');
+    const mapping = acceptance.ScenarioMapping(
+      tag: '@weave-live-a11y',
+      scenario: 'Accessibility evidence is useful',
+      featurePath: 'acceptance/live_stack_app.feature',
+      executableTest: 'integration_test/live_stack_e2e_test.dart',
+      evidenceMarkers: <String>['ACCESSIBILITY_RESULT'],
+      additionalEvidence: <acceptance.AdditionalEvidenceMapping>[],
+    );
+
+    final evidence = acceptance.extractRuntimeEvidence(
+      logFile,
+      <acceptance.ScenarioMapping>[mapping],
+    );
+    final sanitized = evidence.markers['ACCESSIBILITY_RESULT']!.sanitizedFields;
+
+    expect(sanitized['accessible'], 'true');
+    expect(sanitized['accessibility'], 'ok');
+    expect(sanitized['accessTokenPresent'], 'true');
+    expect(sanitized['durationMs'], '42');
+    expect(sanitized, isNot(contains('accessToken')));
+    expect(sanitized, isNot(contains('accessKey')));
+    expect(sanitized, isNot(contains('apiKey')));
+    expect(sanitized, isNot(contains('token')));
+    expect(sanitized, isNot(contains('id')));
+    expect(sanitized, isNot(contains('displayName')));
+  });
 }
