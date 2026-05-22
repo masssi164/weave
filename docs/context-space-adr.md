@@ -12,7 +12,7 @@ A Context is a product-owned collaboration boundary that can link chat, calendar
 
 ## Why now
 
-Massimo's latest product answers shift Weave from a hard workspace/team/channel tree toward an integration-capable suite with flexible spaces. The current backend already has strong facade foundations for Calendar, Boards/Tasks, Files, connector guardrails, and audit-aware operations, but several docs and tests still phrase the model as a Teams-like hierarchy. This ADR creates a small executable seam before broad implementation so future work can align without breaking active preview gates.
+Weave is moving from a hard workspace/team/channel tree toward flexible contexts/spaces while preserving familiar workspace, team, and channel templates. The backend already has facade foundations for Calendar, Boards/Tasks, Files, connector guardrails, and audit-aware operations. This ADR records the executable seam that lets future work align without breaking active feature gates.
 
 ## Vocabulary
 
@@ -65,7 +65,7 @@ The backend should introduce Context-compatible seams before adding large runtim
 ## First implementation slices enabled by this ADR
 
 1. Backend contract artifact for the Context schema and a test that keeps it from drifting back into hard team/channel assumptions.
-2. Workspace spec update to replace hard hierarchy language with Context/Space language while preserving Teams-like templates.
+2. Workspace spec update to replace hard hierarchy language with Context/Space language while preserving workspace/team/channel templates.
 3. Backend DTO/API spike for read-only context discovery, behind feature gates, with Calendar scopes and Boards preview linked by context IDs.
 4. Frontend naming pass: user-facing `Space`/`Context` copy where appropriate; retain `Team`/`Channel` as setup templates and labels when useful.
 5. Consent/audit schema slice for connector and assistant writes, explicitly context-scoped and source-scoped.

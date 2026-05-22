@@ -84,7 +84,7 @@ The older `/api/v1/workspace/capabilities` and `/api/v1/workspace/release-readin
 
 ## Logging and audit baseline
 
-For the core operator baseline, keep at least:
+For the core operator path, keep at least:
 
 - reverse proxy access logs with request path, status, latency, and request id
 - application logs from stdout/stderr collected by the deployment target

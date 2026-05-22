@@ -59,6 +59,20 @@ Capability readiness is intentionally conservative:
 - `files` follows `WEAVE_WORKSPACE_FILES_READINESS` when set; otherwise it is `ready` when `WEAVE_NEXTCLOUD_BASE_URL` is configured, `degraded` without that route, and `blocked` if shell access is blocked.
 - `calendar` and `boards` are stable contract slots. They are `unavailable` when disabled and may advertise rollout state through explicit readiness overrides.
 
+## Provider stack readiness
+
+`GET /api/providers/status` exposes the backend-owned provider registry for app and operator readiness views. It is a product contract, not a raw provider proxy.
+
+The registry currently reports modules such as files, calendar, boards, office, contacts, forms, source control, issue tracking, CI, release, and identity realm. Disabled or unconfigured optional providers must remain support-safe:
+
+- `enabled=false` and `configured=false` when no runtime is configured;
+- `failClosed=true` for unsafe or missing provider paths;
+- `supportSafe=true` for diagnostics that can be shown to users/operators;
+- no raw provider URLs, response bodies, tokens, passwords, cookies, app passwords, authorization headers, or signing secrets;
+- unsupported operations listed as product-safe capability labels rather than downstream errors.
+
+The app must retry this state through the Weave backend and must not call provider runtimes directly.
+
 ## Boards/OpenProject runtime gates
 
 Boards remains a Weave product facade. OpenProject is the first provider-backed read-sync engine, not the visible product UX. Runtime defaults are fail-closed and local-preview unless explicitly configured by infra/operator env.

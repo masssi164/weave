@@ -2,69 +2,81 @@
 
 [![CI](https://github.com/masssi164/weave-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/masssi164/weave-backend/actions/workflows/ci.yml)
 
-`weave-backend` is the Spring Boot product API for Weave. It keeps active client contracts small and supportable, avoids pushing backend-owned secrets or raw downstream protocols into clients, and leaves room for the broader Weave vision: accessible workspaces, open operator control, data sovereignty, and a later Weaver intelligence layer for assistants, agents, automation, and connectors.
+**Product API/BFF for safe Weave collaboration surfaces.**
 
-The backend is intentionally **not** a generic proxy for Matrix, Nextcloud, or Keycloak. Flutter can use native OIDC/PKCE and Matrix client flows where that is the right protocol boundary. This service owns the workflows that benefit from a server-side product layer: normalized Weave APIs, stable error envelopes, release-readiness checks, backend-owned integrations, and orchestration that should not live in the app.
+`weave-backend` is the Spring Boot product boundary between Weave clients and the self-hosted provider stack. It validates Weave access tokens, exposes stable product APIs, normalizes readiness/errors, keeps backend-owned credentials server-side, and refuses unsafe provider paths by default.
 
-## Active product/API scope
+It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenProject, GitLab, Forgejo, ONLYOFFICE, Collabora, or future connectors. Flutter may use native OIDC and Matrix flows where those are the correct client protocols; everything that needs product orchestration, provider secrets, support-safe diagnostics, or fail-closed behavior belongs here.
 
-The backend is an active product facade for the MVP collaboration surfaces. Some runtime slices remain feature-gated while contracts, auth, accessibility, and operator validation mature. The backend currently provides:
+## What the backend owns
 
-- public health and platform bootstrap endpoints for gateway and smoke checks
-- first-party JWT issuer, audience, client, and `weave:workspace` scope validation
-- a stable `/api/me` caller snapshot for contract testing
-- product profile facade endpoints at `GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status`
-- first-run onboarding status at `/api/onboarding/status`
-- workspace capability and release-readiness snapshots at `/api/workspace/capabilities` and `/api/workspace/release-readiness`
-- Nextcloud-backed Files facade endpoints when a backend-owned actor is configured; otherwise they fail closed
-- Calendar facade endpoints mapped to backend-owned Nextcloud CalDAV workspace/team/channel collections while flexible Context/Space scheduling evolves; unsafe private-personal calendar templates fail closed
-- secret-free Calendar client setup metadata at `GET /api/calendar/client-setup` for feature-gated native-client setup; it does not return credentials or generate profiles yet
-- internal Audit/Consent seam for future connector/assistant writes, consent grant/revocation events, support-safe redaction, and fail-closed missing-audit behavior; it does not enable live provider writes
-- OpenAPI JSON at `/v3/api-docs`
-- Actuator health/info endpoints, Gradle wrapper, Dockerfile, and GitHub Actions CI
+- JWT issuer, audience, client, and `weave:workspace` scope validation.
+- Product APIs for profile, onboarding, workspace capabilities, readiness, files, calendar, office launch, DevOps readiness, and provider-stack status.
+- Backend-held actors and provider credentials for server-side facades.
+- Support-safe error envelopes, request IDs, redaction, and diagnostics.
+- Feature gates for unsafe or incomplete provider paths.
+- Internal audit/consent seams for future connector or assistant writes.
+- OpenAPI and deterministic test contracts.
 
-The current backend does **not** yet claim a complete Teams/Slack replacement, end-user credential brokering, full Matrix/Nextcloud provisioning automation, recurrence-rich calendar UX, sharing/move policy, live Boards/Tasks provider runtime, or the later Weaver intelligence layer. Those remain product-roadmap items behind explicit contracts. The hidden Boards/Tasks preview contract is documented separately in [docs/boards-preview-contract.md](docs/boards-preview-contract.md) and must not be treated as a live-provider-enabled surface.
+## What the backend does not own
 
-## Product boundary
+- Raw provider UI embedding as a normal Weave product surface.
+- Generic credential brokering or bearer-token forwarding to clients.
+- A custom login proxy in front of standards-based OIDC/Matrix flows.
+- Direct Flutter-to-provider contracts for Nextcloud WebDAV/OCS/CalDAV, OpenProject, GitLab, Forgejo, ONLYOFFICE, Collabora, Slack, Teams, or other provider runtimes.
+- Provider writes until authorization, audit, consent, smoke/E2E, export/recovery, and accessibility gates are promoted.
 
-Use the backend when Weave needs one of these guarantees:
+## Active API scope
 
-- validate first-party Weave access tokens and workspace scope
-- expose product-specific REST APIs rather than raw downstream protocols
-- normalize errors, request ids, and readiness signals for clients and operators
-- orchestrate server-owned workflows across identity, chat, files, and calendar
-- keep backend-owned service credentials out of apps and logs
+Currently implemented or contract-backed surfaces:
 
-Avoid using it to replace standards-based native flows by default:
+- Public health/platform bootstrap endpoints for gateways and smoke checks.
+- `GET /api/me` caller snapshot.
+- `GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status`.
+- `GET /api/onboarding/status`.
+- `GET /api/workspace/capabilities` and `GET /api/workspace/release-readiness`.
+- Files facade backed by Nextcloud when a backend actor is configured; otherwise fail-closed.
+- Calendar facade for workspace/team/channel collections; unsafe private-personal calendar templates fail closed.
+- Secret-free calendar client setup metadata at `GET /api/calendar/client-setup`.
+- Provider stack readiness at `GET /api/providers/status`.
+- DevOps readiness through backend facades; disabled/unconfigured providers expose support-safe, read-only, fail-closed status.
+- Office capabilities/launch through backend facades; launch errors stay support-safe and fail closed.
+- Hidden Boards/Tasks preview and OpenProject read-only validation contracts behind explicit gates.
+- OpenAPI JSON at `/v3/api-docs`.
 
-- no custom server-side login proxy in front of Matrix Native OAuth 2.0
-- no assumption that a mobile OIDC bearer token can be reused as a Matrix access token
-- no direct Flutter-to-Nextcloud WebDAV/OCS/CalDAV contract as the default live product API
+## Provider and readiness posture
 
-## Repo compass
+The provider stack is backend-owned by design:
 
-- `src/main/java/...`: Spring Boot API, auth, product facade, and adapter code.
-- `src/main/resources/application.yml`: runtime defaults and environment-variable bindings.
-- `src/test/java/...`: contract and service tests for auth, profiles, readiness, files, and calendar behavior.
-- `docs/runtime-configuration.md`: complete environment-variable reference and fail-closed adapter behavior.
-- `docs/release-operations.md`: Backend API operations guide and minimum operator checks.
-- `docs/calendar-client-setup.md`: active research and phased plan for Apple `.mobileconfig`, Android DAVx5, desktop CalDAV, and read-only webcal/ICS setup.
-- `docs/context-space-adr.md`: proposed flexible Context/Space contract seam; team/channel stay useful templates, not the hard backend hierarchy.
-- `docs/architecture-alignment.md`: cross-repo responsibility split for app, backend, and infrastructure.
-- `docs/boards-preview-contract.md`: active feature-gated Boards/Tasks provider-neutral contract notes, now OpenProject-first for read sync with Vikunja/Deck as comparison/fallback; not a Product screenshots or live product surface.
-- `src/main/resources/contracts/connector-manifest.schema.json`: internal connector skeleton contract for capabilities, cursors, webhook refs, redaction, and read-only/fail-closed provider seams.
-- `src/main/resources/contracts/audit-consent.schema.json` and `docs/audit-consent-seam.md`: internal append-only Audit/Consent seam for future connector/assistant writes; provider writes remain disabled.
-- `docs/issues/`: historical alignment issue drafts.
+- Missing credentials produce unavailable/degraded readiness instead of insecure fallback behavior.
+- Optional providers default off or not configured.
+- Diagnostics must not expose raw provider URLs, response bodies, bearer tokens, API tokens, cookies, app passwords, or signing secrets.
+- DevOps provider modules expose no linked projects, repositories, issues, merge requests, pipelines, or releases while disabled.
+- Office launch refuses unsafe states with stable error codes instead of leaking downstream details.
+- Boards/OpenProject stays read-only and hidden until promotion gates pass.
 
-## Quick start
+## Runtime and operations docs
 
-Run tests locally when Java 17 is installed:
+- [Runtime configuration](docs/runtime-configuration.md): environment variables, adapter gates, fail-closed behavior.
+- [Release operations](docs/release-operations.md): smoke checks, readiness, OpenAPI, and operator notes.
+- [Architecture alignment](docs/architecture-alignment.md): cross-repo responsibility split.
+- [Calendar client setup](docs/calendar-client-setup.md): secret-free setup metadata and blocked profile/credential flows.
+- [Context/Space ADR](docs/context-space-adr.md): flexible collaboration context model and authorization seam.
+- [Boards preview contract](docs/boards-preview-contract.md): provider-neutral Boards/Tasks contract; OpenProject is read-only validation, not a live product UX.
+- [Audit/Consent seam](docs/audit-consent-seam.md): internal safety layer for future writes.
+- `src/main/resources/contracts/`: contract artifacts for boards preview, connector manifests, context/space, and audit/consent.
+
+Historical issue drafts live under `docs/issues/`; do not treat them as current public product docs without checking the active contracts above.
+
+## Local development
+
+Run tests with Java 17:
 
 ```bash
 ./gradlew test
 ```
 
-Or run the same suite in Docker:
+Or run them in Docker:
 
 ```bash
 docker run --rm \
@@ -77,7 +89,7 @@ docker run --rm \
   ./gradlew test
 ```
 
-Build the local backend image used by `weave-infra` integration runs:
+Build the local image used by `weave-infra` live-stack runs:
 
 ```bash
 docker build -t weave-backend:e2e .
@@ -92,11 +104,14 @@ docker build -t weave-backend:e2e .
 - Weave files/calendar product routes: `https://weave.local/files` and `https://weave.local/calendar`
 - Raw Nextcloud technical/admin/protocol fallback: `https://files.weave.local`
 
-Protected `/api/**` routes require a bearer token whose `iss`, `aud`, `azp`/`client_id`, and `scope` match the first-party Weave app contract. Public health, platform config/status, and OpenAPI endpoints are used for bootstrap and diagnostics. Matrix E2EE diagnostics are intentionally conservative: `/api/platform/status` does not claim E2EE completion until every encrypted-room/device/recovery/multi-device/accessibility gate is validated, and it states that encrypted message bodies are opaque to backend diagnostics.
+Protected `/api/**` routes require a bearer token whose issuer, audience, authorized party/client id, and scope match the first-party Weave app contract. Public health, platform config/status, and OpenAPI endpoints support bootstrap and diagnostics.
 
-## Operator notes
+Matrix E2EE diagnostics are conservative by design: `/api/platform/status` does not claim E2EE completion until encrypted-room, device, recovery, multi-device, metadata-boundary, and accessibility gates are validated.
 
-- Runtime variables and backend-owned actor credentials are documented in [docs/runtime-configuration.md](docs/runtime-configuration.md).
-- workspace readiness, stable auth errors, and minimum smoke checks are documented in [docs/release-operations.md](docs/release-operations.md).
-- Keep issuer/JWKS/client/audience values aligned with the public auth contract exposed to the app.
-- Do not log raw bearer tokens, Nextcloud actor tokens, app passwords, or CalDAV credentials.
+## Security rules
+
+- Do not log bearer tokens, provider API tokens, app passwords, cookies, signing secrets, raw provider errors, or raw provider URLs.
+- Keep backend actors and provider credentials out of Flutter, generated app config, support bundles, and user-visible diagnostics.
+- Prefer stable Weave error codes and support-safe summaries over downstream exception text.
+- Fail closed when provider state is unknown, disabled, not configured, or unsafe.
+- Treat provider writes as unavailable until an explicit promotion contract says otherwise.
