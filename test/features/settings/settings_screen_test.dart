@@ -196,6 +196,18 @@ void main() {
         find.text('Agent writes: Blocked/fail-closed', findRichText: true),
         findsOneWidget,
       );
+      await tester.scrollUntilVisible(
+        find.text('Help and user handbook'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Help and user handbook'), findsOneWidget);
+      expect(
+        find.text(
+          'Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
       expect(find.text('weave-app'), findsWidgets);

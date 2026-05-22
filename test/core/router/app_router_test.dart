@@ -16,6 +16,7 @@ import 'package:weave/features/app/presentation/providers/workspace_connection_p
 import 'package:weave/features/auth/presentation/sign_in_screen.dart';
 import 'package:weave/features/files/domain/entities/files_connection_state.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
+import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
@@ -296,6 +297,35 @@ void main() {
             .path,
         AppRoutes.chat,
       );
+    });
+
+    testWidgets('opens the routed help handbook for ready users', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      container.read(appRouterProvider).go(AppRoutes.help);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(HelpScreen), findsOneWidget);
+      expect(find.text('User handbook'), findsOneWidget);
     });
 
     testWidgets('redirects shell routes back to welcome when setup is needed', (

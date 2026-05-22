@@ -635,6 +635,79 @@ class AppLocalizationsEn extends AppLocalizations {
       'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.';
 
   @override
+  String get settingsHelpTitle => 'Help and user handbook';
+
+  @override
+  String get settingsHelpDescription =>
+      'Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.';
+
+  @override
+  String get helpScreenTitle => 'Help';
+
+  @override
+  String get helpHandbookTitle => 'User handbook';
+
+  @override
+  String get helpHandbookDescription =>
+      'This handbook explains the everyday Weave app in plain language. It is available offline with the app and will grow as more surfaces become ready.';
+
+  @override
+  String get helpWhatIsWeaveTitle => 'What Weave is';
+
+  @override
+  String get helpWhatIsWeaveBody =>
+      'Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and future collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.';
+
+  @override
+  String get helpSignInTitle => 'Sign in basics';
+
+  @override
+  String get helpSignInBody =>
+      'Use the workspace address provided by your admin, then sign in once with Weave SSO. You should not need separate Matrix or Nextcloud passwords for normal use. If sign-in loops or fails, check your connection, confirm the server address in Settings, and ask an admin whether your invite or account is active.';
+
+  @override
+  String get helpChatTitle => 'Chat';
+
+  @override
+  String get helpChatBody =>
+      'Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.';
+
+  @override
+  String get helpFilesTitle => 'Files';
+
+  @override
+  String get helpFilesBody =>
+      'Files lets you browse workspace documents through the Weave app. Open Files from the main navigation, move through folders, and retry if the folder could not refresh. The underlying storage is provided by your workspace services, but everyday browsing should stay inside Weave.';
+
+  @override
+  String get helpSettingsTitle => 'Settings, account, and session';
+
+  @override
+  String get helpSettingsBody =>
+      'Settings shows your profile summary, workspace readiness, server configuration, Matrix security information, and sign-out control. Use it to check whether Chat, Files, Calendar, or other modules are ready, and sign out before handing a device to someone else.';
+
+  @override
+  String get helpCalendarBoardsTitle => 'Calendar and Boards availability';
+
+  @override
+  String get helpCalendarBoardsBody =>
+      'Calendar and Boards are active Weave product scope, but they may be hidden or marked unavailable until your workspace has the required backend contracts and feature gates enabled. If they are not visible in navigation, use Chat, Files, and Settings for now and watch workspace readiness for changes.';
+
+  @override
+  String get helpTroubleshootingTitle => 'Troubleshooting and recovery';
+
+  @override
+  String get helpTroubleshootingBody =>
+      'When something does not load, use Retry first. If a stale chat room list or folder remains visible, Weave is preserving your place while refresh fails. Persistent setup, sign-in, Matrix, files, or backend errors should be shared with your admin together with the visible message and the server address from Settings.';
+
+  @override
+  String get helpPrivacySecurityTitle => 'Privacy and security basics';
+
+  @override
+  String get helpPrivacySecurityBody =>
+      'Your workspace controls its own services and data. Weave uses SSO for access and shows Matrix security status honestly. Do not assume chat is fully end-to-end encrypted unless Weave says the Matrix encryption, recovery, and device-trust gates are healthy. Keep recovery keys in a safe place and report lost devices to your admin.';
+
+  @override
   String get settingsShellModulesTitle => 'Shell modules';
 
   @override

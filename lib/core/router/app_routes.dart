@@ -12,6 +12,7 @@ abstract final class AppRoutes {
   static const calendar = '/calendar';
   static const deck = '/deck';
   static const settings = '/settings';
+  static const help = '/help';
 
   static String chatRoom(String roomId) {
     return '$chat/rooms/${Uri.encodeComponent(roomId)}';

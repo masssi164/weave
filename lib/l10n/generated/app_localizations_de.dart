@@ -640,6 +640,80 @@ class AppLocalizationsDe extends AppLocalizations {
       'Weave bringt Nachrichten, Dateien und Kalender in einem Workspace zusammen, während auf diesem Bildschirm die Serververbindung dahinter verwaltet wird.';
 
   @override
+  String get settingsHelpTitle => 'Hilfe und Benutzerhandbuch';
+
+  @override
+  String get settingsHelpDescription =>
+      'Öffne praktische Hilfe zur Nutzung von Weave, zur Wiederherstellung bei Problemen und zu Datenschutz-Grundlagen.';
+
+  @override
+  String get helpScreenTitle => 'Hilfe';
+
+  @override
+  String get helpHandbookTitle => 'Benutzerhandbuch';
+
+  @override
+  String get helpHandbookDescription =>
+      'Dieses Handbuch erklärt die tägliche Weave-App in klarer Sprache. Es ist offline mit der App verfügbar und wächst, wenn weitere Bereiche bereit werden.';
+
+  @override
+  String get helpWhatIsWeaveTitle => 'Was Weave ist';
+
+  @override
+  String get helpWhatIsWeaveBody =>
+      'Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und künftige Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste wie Matrix, Nextcloud, Keycloak und das Weave-Backend im Hintergrund arbeiten.';
+
+  @override
+  String get helpSignInTitle => 'Anmelden: Grundlagen';
+
+  @override
+  String get helpSignInBody =>
+      'Nutze die Workspace-Adresse deines Admins und melde dich dann einmal mit Weave-SSO an. Für die normale Nutzung solltest du keine separaten Matrix- oder Nextcloud-Passwörter brauchen. Wenn die Anmeldung scheitert oder in einer Schleife hängt, prüfe deine Verbindung, bestätige die Serveradresse in den Einstellungen und frage einen Admin, ob deine Einladung oder dein Konto aktiv ist.';
+
+  @override
+  String get helpChatTitle => 'Chat';
+
+  @override
+  String get helpChatBody =>
+      'Chat ist der tägliche Ort für Räume und Nachrichten. Öffne Chat über die Hauptnavigation, verbinde Matrix, falls Weave danach fragt, und wähle dann einen Raum. Weave zeigt Raum- und Wiederherstellungszustände sichtbar an, damit du erkennst, ob Chat verbunden ist, wartet, beeinträchtigt ist oder Admin-Aufmerksamkeit braucht.';
+
+  @override
+  String get helpFilesTitle => 'Dateien';
+
+  @override
+  String get helpFilesBody =>
+      'Dateien lässt dich Workspace-Dokumente in der Weave-App durchsuchen. Öffne Dateien über die Hauptnavigation, wechsle durch Ordner und versuche es erneut, wenn ein Ordner nicht aktualisiert werden konnte. Der Speicher liegt in den Diensten deines Workspaces, aber das alltägliche Durchsuchen soll in Weave bleiben.';
+
+  @override
+  String get helpSettingsTitle => 'Einstellungen, Konto und Sitzung';
+
+  @override
+  String get helpSettingsBody =>
+      'Einstellungen zeigt deine Profilübersicht, den Workspace-Status, die Serverkonfiguration, Matrix-Sicherheitsinformationen und die Abmeldeaktion. Nutze diesen Bereich, um zu prüfen, ob Chat, Dateien, Kalender oder andere Module bereit sind, und melde dich ab, bevor du ein Gerät an jemand anderen weitergibst.';
+
+  @override
+  String get helpCalendarBoardsTitle => 'Verfügbarkeit von Kalender und Boards';
+
+  @override
+  String get helpCalendarBoardsBody =>
+      'Kalender und Boards gehören zum aktiven Weave-Produktscope, können aber ausgeblendet oder als nicht verfügbar markiert sein, bis dein Workspace die nötigen Backend-Verträge und Feature-Gates aktiviert hat. Wenn sie nicht in der Navigation erscheinen, nutze vorerst Chat, Dateien und Einstellungen und achte auf Änderungen im Workspace-Status.';
+
+  @override
+  String get helpTroubleshootingTitle => 'Fehlersuche und Wiederherstellung';
+
+  @override
+  String get helpTroubleshootingBody =>
+      'Wenn etwas nicht lädt, nutze zuerst Erneut versuchen. Wenn eine alte Chat-Raumliste oder ein alter Ordner sichtbar bleibt, bewahrt Weave deinen Kontext, während die Aktualisierung fehlschlägt. Dauerhafte Einrichtungs-, Anmelde-, Matrix-, Datei- oder Backend-Fehler solltest du deinem Admin zusammen mit der sichtbaren Meldung und der Serveradresse aus den Einstellungen melden.';
+
+  @override
+  String get helpPrivacySecurityTitle =>
+      'Datenschutz und Sicherheit: Grundlagen';
+
+  @override
+  String get helpPrivacySecurityBody =>
+      'Dein Workspace kontrolliert seine eigenen Dienste und Daten. Weave nutzt SSO für den Zugriff und zeigt den Matrix-Sicherheitsstatus ehrlich an. Gehe nicht davon aus, dass Chat vollständig Ende-zu-Ende-verschlüsselt ist, solange Weave nicht meldet, dass Matrix-Verschlüsselung, Wiederherstellung und Gerätevertrauen gesund sind. Bewahre Wiederherstellungsschlüssel sicher auf und melde verlorene Geräte deinem Admin.';
+
+  @override
   String get settingsShellModulesTitle => 'Shell-Module';
 
   @override

@@ -27,6 +27,16 @@ Weave is on an active product-maturity track. The showcased client surfaces are 
 
 The live-stack contract now proves selected end-to-end behavior through CI artifacts, while the default pull-request path stays offline and inexpensive. See [Quality and acceptance evidence](docs/quality-and-evidence.md) for what each gate proves and how to interpret failures.
 
+Current focus areas:
+
+- **Dependable Chat + Matrix E2EE architecture** — a custom Weave Matrix client surface with accessible message states, explicit retry/recovery affordances, and native Matrix E2EE as active architecture scope. E2EE claims stay tied to real device, verification, key backup/recovery, and metadata-boundary validation.
+- **Explorer-grade Files** — a Weave files experience backed by the product backend and Nextcloud/WebDAV/OCS contracts, with clearer metadata, actions, and recovery states.
+- **Consistent recovery UX** — shared loading, empty, error, success, and retry patterns so setup, chat, files, settings, and gated surfaces do not end in cryptic dead states.
+- **Teams-like shared Calendar** — Calendar follows the collaboration hierarchy: workspace/org calendar, team calendars, and channel events/meeting threads. The guarded live-stack path now validates shared scope metadata and channel event CRUD through the backend facade; private personal calendar ingestion is not a product goal.
+- **Settings, OIDC sign-in, and in-app Help** — setup, authentication, stored server configuration, account/session controls, and the localized Help/user handbook remain part of the daily product shell.
+
+Weave still does **not** claim a complete Teams/Slack replacement, public connector SDK, production Slack/Teams bridge, private personal calendar provisioning, or Weaver PA. Matrix E2EE and Boards are active scope behind explicit contracts and feature flags; claims must remain tied to validated implementation state.
+
 ## Product screenshots
 
 A first look at the active product-maturity experience: guided setup, service review, custom chat, basic files, and workspace settings in one self-hosted product shell. These screenshots are deterministic SVGs generated from checked-in source, so the README stays reviewable and reproducible without turning documentation into image-only content.
