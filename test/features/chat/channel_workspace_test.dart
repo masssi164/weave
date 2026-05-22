@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/chat/domain/entities/channel_workspace.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/presentation/providers/channel_workspace_preview_provider.dart';
@@ -24,6 +25,8 @@ void main() {
       ChannelWorkspaceSurfaceKind.boards,
       ChannelWorkspaceSurfaceKind.calendar,
       ChannelWorkspaceSurfaceKind.meetings,
+      ChannelWorkspaceSurfaceKind.devops,
+      ChannelWorkspaceSurfaceKind.office,
     ]);
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.chat).availability,
@@ -59,6 +62,119 @@ void main() {
     expect(
       preview.meetingPreview.controls.every((control) => !control.enabled),
       isTrue,
+    );
+  });
+
+  test('fails closed for unavailable DevOps and Office provider facades', () {
+    final preview = ChannelWorkspacePreview.forConversation(channel);
+
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.devops).availability,
+      ChannelWorkspaceSurfaceAvailability.gated,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.devops).failClosed,
+      isTrue,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.office).availability,
+      ChannelWorkspaceSurfaceAvailability.gated,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.office).failClosed,
+      isTrue,
+    );
+  });
+
+  test('opens DevOps and Office surfaces only through backend readiness', () {
+    final preview = ChannelWorkspacePreview.forConversation(
+      channel,
+      devopsSummary: const DevopsSummary(
+        workspaceId: 'workspace-default',
+        channelId: 'general-home.internal',
+        releaseStatus: 'preview',
+        readOnly: true,
+        paidFeaturesRequired: false,
+        supportSafe: true,
+        providerReadiness: [
+          ProviderStatus(
+            module: ProviderModule.sourceControl,
+            providerKey: 'forgejo',
+            state: ProviderState.ready,
+            readiness: 'ready',
+            enabled: true,
+            configured: true,
+            readOnly: true,
+            failClosed: true,
+            supportSafe: true,
+            paidFeaturesRequired: false,
+            summary: 'Source control is ready.',
+          ),
+        ],
+      ),
+      officeCapabilities: const OfficeCapabilities(
+        releaseStatus: 'preview',
+        enabled: true,
+        configured: true,
+        supportSafe: true,
+        launchMode: 'view',
+        defaultProvider: 'onlyoffice',
+        providerReadiness: [
+          ProviderStatus(
+            module: ProviderModule.office,
+            providerKey: 'onlyoffice',
+            state: ProviderState.ready,
+            readiness: 'ready',
+            enabled: true,
+            configured: true,
+            readOnly: false,
+            failClosed: true,
+            supportSafe: true,
+            paidFeaturesRequired: false,
+            summary: 'Office is ready.',
+          ),
+        ],
+        candidates: [],
+        capabilities: OfficeCapabilityFlags(
+          view: true,
+          edit: false,
+          comment: false,
+          review: false,
+          formFill: false,
+        ),
+        supportedFileTypes: ['docx'],
+        permissions: OfficePermissions(
+          canView: true,
+          canEdit: false,
+          canComment: false,
+          canReview: false,
+          canFillForms: false,
+          reason: 'view-only',
+        ),
+        lockSessionReadiness: OfficeLockSessionReadiness(
+          documentLocks: 'ready',
+          sessionTokens: 'ready',
+          callbackVerification: 'ready',
+          supportSafe: true,
+        ),
+      ),
+    );
+
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.devops).availability,
+      ChannelWorkspaceSurfaceAvailability.available,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.devops).failClosed,
+      isFalse,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.office).availability,
+      ChannelWorkspaceSurfaceAvailability.available,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.office).failClosed,
+      isFalse,
     );
   });
 

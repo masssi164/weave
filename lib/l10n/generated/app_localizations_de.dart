@@ -2912,4 +2912,128 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get workflowPreviewReviewEvidenceButton => 'Evidenz prüfen';
+
+  @override
+  String get channelWorkspaceDevopsTab => 'DevOps';
+
+  @override
+  String get channelWorkspaceOfficeTab => 'Office';
+
+  @override
+  String get channelWorkspaceDevopsTitle => 'DevOps-Übersicht';
+
+  @override
+  String get channelWorkspaceOfficeTitle => 'Office-Dokumente';
+
+  @override
+  String get channelWorkspaceDevopsDescription =>
+      'Zeigt schreibgeschützte Bereitschaft für Source-Control, Issues, Pipelines und Releases aus der Weave-Backend-Fassade. Direkte GitLab- oder Forgejo-Aufrufe bleiben in der App gesperrt.';
+
+  @override
+  String get channelWorkspaceOfficeDescription =>
+      'Zeigt die Bereitschaft für Dokument-Kollaboration aus der Weave-Backend-Fassade. Starten bleibt deaktiviert, bis ein support-sicherer Office-Provider konfiguriert ist.';
+
+  @override
+  String get channelWorkspaceFailClosedChip => 'Fail-closed';
+
+  @override
+  String get settingsProviderStackTitle => 'Provider-Stack-Bereitschaft';
+
+  @override
+  String get settingsProviderStackDescription =>
+      'Backend-eigene Fassadenstatus für optionale Provider. Die App zeigt nur support-sichere Zusammenfassungen und hält deaktivierte oder unkonfigurierte Provider geschlossen.';
+
+  @override
+  String get settingsProviderStackBoundaryLabel => 'Grenze';
+
+  @override
+  String get settingsProviderStackBoundaryBackendOwned =>
+      'Backend-Fassaden erzwungen';
+
+  @override
+  String get settingsProviderStackBoundaryReview => 'Backend-Grenze prüfen';
+
+  @override
+  String get settingsProviderStackReleaseLabel => 'Release-Status';
+
+  @override
+  String get settingsProviderStackLoading => 'Provider-Stack wird geprüft…';
+
+  @override
+  String get settingsProviderStackUnconfigured =>
+      'Konfiguriere das Weave-Backend, um Provider-Stack-Bereitschaft zu lesen. Bis dahin bleiben optionale Provider nicht verfügbar.';
+
+  @override
+  String get settingsProviderStackUnavailable =>
+      'Provider-Stack-Bereitschaft ist nicht verfügbar.';
+
+  @override
+  String get settingsOfficeCapabilitiesUnavailable =>
+      'Office-Bereitschaft ist nicht verfügbar; Dokumentstart bleibt deshalb deaktiviert.';
+
+  @override
+  String get settingsOfficeLaunchModeLabel => 'Office-Start';
+
+  @override
+  String get settingsOfficeViewLabel => 'Ansehen';
+
+  @override
+  String get settingsOfficeEditLabel => 'Bearbeiten';
+
+  @override
+  String get providerModuleIdentityRealm => 'Identitäts-Realm';
+
+  @override
+  String get providerModuleFiles => 'Dateien';
+
+  @override
+  String get providerModuleOffice => 'Office';
+
+  @override
+  String get providerModuleCalendar => 'Kalender';
+
+  @override
+  String get providerModuleContacts => 'Kontakte';
+
+  @override
+  String get providerModuleForms => 'Formulare';
+
+  @override
+  String get providerModuleBoards => 'Boards';
+
+  @override
+  String get providerModuleSourceControl => 'Source-Control';
+
+  @override
+  String get providerModuleCi => 'CI';
+
+  @override
+  String get providerModuleIssueTracker => 'Issue-Tracker';
+
+  @override
+  String get providerModuleRelease => 'Release';
+
+  @override
+  String get providerModuleUnknown => 'Unbekannter Provider';
+
+  @override
+  String get providerStateDisabled => 'Deaktiviert';
+
+  @override
+  String get providerStateNotConfigured => 'Nicht konfiguriert';
+
+  @override
+  String get providerStateConfigured => 'Konfiguriert';
+
+  @override
+  String get providerStateReady => 'Bereit';
+
+  @override
+  String get providerStateDegraded => 'Eingeschränkt';
+
+  @override
+  String get providerStateUnsupported => 'Nicht unterstützt';
+
+  @override
+  String get providerStateUnknown => 'Unbekannt';
 }

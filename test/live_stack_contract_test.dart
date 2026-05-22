@@ -91,6 +91,35 @@ void main() {
     });
 
     test(
+      'provider stack readiness endpoints map to live-stack backend facade paths',
+      () {
+        final apiConfig = liveConfig.copyWith(
+          backendApiBaseUrl: Uri.parse('https://api.weave.local/api'),
+        );
+
+        expect(
+          apiConfig.apiUri('/api/providers/status').toString(),
+          'https://api.weave.local/api/providers/status',
+        );
+        expect(
+          apiConfig
+              .apiUri(
+                '/api/workspaces/workspace-default/channels/general-home.internal/devops/summary',
+              )
+              .toString(),
+          'https://api.weave.local/api/workspaces/workspace-default/channels/general-home.internal/devops/summary',
+        );
+        expect(
+          apiConfig.apiUri('/api/office/capabilities').toString(),
+          'https://api.weave.local/api/office/capabilities',
+        );
+        expect(
+          apiConfig.apiUri('/api/office/launch').toString(),
+          'https://api.weave.local/api/office/launch',
+        );
+      },
+    );
+    test(
       'shell readiness contract can be exercised without live auth',
       () async {
         final session = AuthSession(

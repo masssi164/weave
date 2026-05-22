@@ -15,6 +15,7 @@ import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
@@ -830,6 +831,8 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
     final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
+    final providerRegistry = ref.watch(weaveApiProviderRegistryProvider);
+    final officeCapabilities = ref.watch(weaveApiOfficeCapabilitiesProvider);
 
     return Card(
       elevation: 0,
@@ -902,6 +905,15 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   capability: capabilitySnapshot.calendar,
                   connection: workspaceState.nextcloud,
                 ),
+                const Divider(height: 32),
+                _ProviderStackReadinessSection(
+                  registry: providerRegistry,
+                  officeCapabilities: officeCapabilities,
+                  onRetry: () {
+                    ref.invalidate(weaveApiProviderRegistryProvider);
+                    ref.invalidate(weaveApiOfficeCapabilitiesProvider);
+                  },
+                ),
               ],
             ),
           (AsyncError(), _) || (_, AsyncError()) => ErrorState(
@@ -963,6 +975,226 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
         l10n.settingsWorkspaceSummaryConnected,
     };
   }
+}
+
+class _ProviderStackReadinessSection extends StatelessWidget {
+  const _ProviderStackReadinessSection({
+    required this.registry,
+    required this.officeCapabilities,
+    required this.onRetry,
+  });
+
+  final AsyncValue<ProviderRegistryStatus?> registry;
+  final AsyncValue<OfficeCapabilities?> officeCapabilities;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.settingsProviderStackTitle,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          l10n.settingsProviderStackDescription,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 12),
+        switch (registry) {
+          AsyncData(value: final status?) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  _StatusPill(
+                    label: l10n.settingsProviderStackBoundaryLabel,
+                    value: status.enforcesBackendFacades
+                        ? l10n.settingsProviderStackBoundaryBackendOwned
+                        : l10n.settingsProviderStackBoundaryReview,
+                  ),
+                  _StatusPill(
+                    label: l10n.settingsProviderStackReleaseLabel,
+                    value: status.releaseStatus,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              for (final provider in status.providers)
+                _ProviderReadinessTile(provider: provider),
+              switch (officeCapabilities) {
+                AsyncData(value: final office?) => _OfficeReadinessTile(
+                  capabilities: office,
+                ),
+                AsyncError() => _ProviderUnavailableText(
+                  message: l10n.settingsOfficeCapabilitiesUnavailable,
+                ),
+                AsyncLoading() => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(l10n.settingsProviderStackLoading),
+                ),
+                _ => const SizedBox.shrink(),
+              },
+            ],
+          ),
+          AsyncData(value: null) => _ProviderUnavailableText(
+            message: l10n.settingsProviderStackUnconfigured,
+          ),
+          AsyncError() => ErrorState(
+            message: l10n.settingsProviderStackUnavailable,
+            retryLabel: l10n.retryButton,
+            onRetry: onRetry,
+          ),
+          _ => Text(l10n.settingsProviderStackLoading),
+        },
+      ],
+    );
+  }
+}
+
+class _ProviderReadinessTile extends StatelessWidget {
+  const _ProviderReadinessTile({required this.provider});
+
+  final ProviderStatus provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: MergeSemantics(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: ExcludeSemantics(
+            child: Icon(_providerIcon(provider.module)),
+          ),
+          title: Text(_providerModuleLabel(l10n, provider.module)),
+          subtitle: Text(provider.summary),
+          trailing: Chip(
+            label: Text(_providerStateLabel(l10n, provider.state)),
+            side: BorderSide(
+              color: provider.isUsable
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OfficeReadinessTile extends StatelessWidget {
+  const _OfficeReadinessTile({required this.capabilities});
+
+  final OfficeCapabilities capabilities;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          _StatusPill(
+            label: l10n.settingsOfficeLaunchModeLabel,
+            value: capabilities.launchMode,
+          ),
+          _StatusPill(
+            label: l10n.settingsOfficeViewLabel,
+            value: capabilities.canLaunchView
+                ? l10n.settingsWorkspaceCapabilityReady
+                : l10n.settingsWorkspaceCapabilityBlocked,
+          ),
+          _StatusPill(
+            label: l10n.settingsOfficeEditLabel,
+            value: capabilities.canLaunchEdit
+                ? l10n.settingsWorkspaceCapabilityReady
+                : l10n.settingsWorkspaceCapabilityBlocked,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProviderUnavailableText extends StatelessWidget {
+  const _ProviderUnavailableText({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        message,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+}
+
+IconData _providerIcon(ProviderModule module) {
+  return switch (module) {
+    ProviderModule.identityRealm => Icons.verified_user_outlined,
+    ProviderModule.files => Icons.folder_outlined,
+    ProviderModule.office => Icons.description_outlined,
+    ProviderModule.calendar => Icons.event_outlined,
+    ProviderModule.contacts => Icons.contacts_outlined,
+    ProviderModule.forms => Icons.fact_check_outlined,
+    ProviderModule.boards => Icons.view_kanban_outlined,
+    ProviderModule.sourceControl => Icons.account_tree_outlined,
+    ProviderModule.ci => Icons.playlist_play_outlined,
+    ProviderModule.issueTracker => Icons.bug_report_outlined,
+    ProviderModule.release => Icons.rocket_launch_outlined,
+    ProviderModule.unknown => Icons.extension_outlined,
+  };
+}
+
+String _providerModuleLabel(AppLocalizations l10n, ProviderModule module) {
+  return switch (module) {
+    ProviderModule.identityRealm => l10n.providerModuleIdentityRealm,
+    ProviderModule.files => l10n.providerModuleFiles,
+    ProviderModule.office => l10n.providerModuleOffice,
+    ProviderModule.calendar => l10n.providerModuleCalendar,
+    ProviderModule.contacts => l10n.providerModuleContacts,
+    ProviderModule.forms => l10n.providerModuleForms,
+    ProviderModule.boards => l10n.providerModuleBoards,
+    ProviderModule.sourceControl => l10n.providerModuleSourceControl,
+    ProviderModule.ci => l10n.providerModuleCi,
+    ProviderModule.issueTracker => l10n.providerModuleIssueTracker,
+    ProviderModule.release => l10n.providerModuleRelease,
+    ProviderModule.unknown => l10n.providerModuleUnknown,
+  };
+}
+
+String _providerStateLabel(AppLocalizations l10n, ProviderState state) {
+  return switch (state) {
+    ProviderState.disabled => l10n.providerStateDisabled,
+    ProviderState.notConfigured => l10n.providerStateNotConfigured,
+    ProviderState.configured => l10n.providerStateConfigured,
+    ProviderState.ready => l10n.providerStateReady,
+    ProviderState.degraded => l10n.providerStateDegraded,
+    ProviderState.unsupported => l10n.providerStateUnsupported,
+    ProviderState.unknown => l10n.providerStateUnknown,
+  };
 }
 
 class _WorkspaceReadinessRow extends StatelessWidget {

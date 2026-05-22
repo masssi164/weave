@@ -1,6 +1,15 @@
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 
-enum ChannelWorkspaceSurfaceKind { chat, files, boards, calendar, meetings }
+enum ChannelWorkspaceSurfaceKind {
+  chat,
+  files,
+  boards,
+  calendar,
+  meetings,
+  devops,
+  office,
+}
 
 enum ChannelWorkspaceSurfaceAvailability { available, preview, gated }
 
@@ -10,17 +19,25 @@ class ChannelWorkspaceSurface {
     required this.availability,
     required this.providerContractId,
     required this.contextId,
+    this.statusSummary,
+    this.failClosed = false,
+    this.supportSafe = true,
   });
 
   final ChannelWorkspaceSurfaceKind kind;
   final ChannelWorkspaceSurfaceAvailability availability;
   final String providerContractId;
   final String contextId;
+  final String? statusSummary;
+  final bool failClosed;
+  final bool supportSafe;
 
   bool get isAvailable =>
       availability == ChannelWorkspaceSurfaceAvailability.available;
 
   bool get isGated => availability == ChannelWorkspaceSurfaceAvailability.gated;
+
+  bool get isUnavailable => failClosed || isGated || !supportSafe;
 }
 
 enum ChannelMeetingContextItemKind {
@@ -157,8 +174,12 @@ class ChannelWorkspacePreview {
   });
 
   factory ChannelWorkspacePreview.forConversation(
-    ChatConversation conversation,
-  ) {
+    ChatConversation conversation, {
+    DevopsSummary? devopsSummary,
+    OfficeCapabilities? officeCapabilities,
+    bool providerReadinessLoading = false,
+    bool providerReadinessUnavailable = false,
+  }) {
     final contextId = 'channel:${conversation.id}';
     return ChannelWorkspacePreview(
       channelId: conversation.id,
@@ -194,6 +215,20 @@ class ChannelWorkspacePreview {
           availability: ChannelWorkspaceSurfaceAvailability.gated,
           providerContractId: 'weave-meetings-channel-preview',
           contextId: contextId,
+          statusSummary: 'Video backend capability is unavailable.',
+          failClosed: true,
+        ),
+        _devopsSurface(
+          contextId: contextId,
+          summary: devopsSummary,
+          loading: providerReadinessLoading,
+          unavailable: providerReadinessUnavailable,
+        ),
+        _officeSurface(
+          contextId: contextId,
+          capabilities: officeCapabilities,
+          loading: providerReadinessLoading,
+          unavailable: providerReadinessUnavailable,
         ),
       ],
       meetingPreview: ChannelMeetingPreview.forConversation(
@@ -223,4 +258,78 @@ class ChannelWorkspacePreview {
   ChannelWorkspaceSurface surface(ChannelWorkspaceSurfaceKind kind) {
     return surfaces.singleWhere((surface) => surface.kind == kind);
   }
+}
+
+ChannelWorkspaceSurface _devopsSurface({
+  required String contextId,
+  required DevopsSummary? summary,
+  required bool loading,
+  required bool unavailable,
+}) {
+  if (summary == null) {
+    return ChannelWorkspaceSurface(
+      kind: ChannelWorkspaceSurfaceKind.devops,
+      availability: ChannelWorkspaceSurfaceAvailability.gated,
+      providerContractId: 'weave-devops-channel-summary',
+      contextId: contextId,
+      statusSummary: loading
+          ? 'Checking backend-owned DevOps provider readiness.'
+          : unavailable
+          ? 'DevOps readiness is unavailable from the backend.'
+          : 'DevOps providers are not configured for this channel.',
+      failClosed: !loading,
+      supportSafe: true,
+    );
+  }
+
+  return ChannelWorkspaceSurface(
+    kind: ChannelWorkspaceSurfaceKind.devops,
+    availability: summary.isAvailable
+        ? ChannelWorkspaceSurfaceAvailability.available
+        : ChannelWorkspaceSurfaceAvailability.gated,
+    providerContractId: 'weave-devops-channel-summary',
+    contextId: contextId,
+    statusSummary: summary.isAvailable
+        ? 'Read-only DevOps summary available via backend facade.'
+        : 'DevOps providers are disabled, unconfigured, or not support-safe.',
+    failClosed: summary.shouldFailClosed,
+    supportSafe: summary.supportSafe,
+  );
+}
+
+ChannelWorkspaceSurface _officeSurface({
+  required String contextId,
+  required OfficeCapabilities? capabilities,
+  required bool loading,
+  required bool unavailable,
+}) {
+  if (capabilities == null) {
+    return ChannelWorkspaceSurface(
+      kind: ChannelWorkspaceSurfaceKind.office,
+      availability: ChannelWorkspaceSurfaceAvailability.gated,
+      providerContractId: 'weave-office-facade',
+      contextId: contextId,
+      statusSummary: loading
+          ? 'Checking backend-owned Office provider readiness.'
+          : unavailable
+          ? 'Office readiness is unavailable from the backend.'
+          : 'Office providers are not configured.',
+      failClosed: !loading,
+      supportSafe: true,
+    );
+  }
+
+  return ChannelWorkspaceSurface(
+    kind: ChannelWorkspaceSurfaceKind.office,
+    availability: capabilities.isAvailable
+        ? ChannelWorkspaceSurfaceAvailability.available
+        : ChannelWorkspaceSurfaceAvailability.gated,
+    providerContractId: 'weave-office-facade',
+    contextId: contextId,
+    statusSummary: capabilities.isAvailable
+        ? 'Office document launch is available via backend facade.'
+        : 'Office launch is disabled until a support-safe provider is configured.',
+    failClosed: capabilities.shouldFailClosed,
+    supportSafe: capabilities.supportSafe,
+  );
 }

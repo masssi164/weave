@@ -187,6 +187,195 @@ void main() {
       expect(diagnostic.keepsAgentsAndConnectorsFailClosed, isTrue);
     });
 
+    test('fetches provider stack status from backend-owned facade', () async {
+      late http.BaseRequest capturedRequest;
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          return _jsonResponse({
+            'releaseStatus': 'preview',
+            'backendOwnedFacades': true,
+            'flutterDirectProviderCallsAllowed': false,
+            'supportSafe': true,
+            'generatedAt': '2026-05-22T18:00:00Z',
+            'providers': [
+              _providerJson(
+                module: 'office',
+                providerKey: 'onlyoffice-disabled',
+                state: 'not_configured',
+                enabled: false,
+                configured: false,
+                summary: 'Office provider is not configured.',
+              ),
+            ],
+          });
+        }),
+      );
+
+      final status = await client.fetchProviderStatus(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+      );
+
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.weave.local/api/providers/status',
+      );
+      expect(status.enforcesBackendFacades, isTrue);
+      expect(status.providers.single.shouldFailClosed, isTrue);
+      expect(status.providers.single.summary, isNot(contains('token')));
+    });
+
+    test('fetches DevOps summary without direct provider endpoints', () async {
+      late http.BaseRequest capturedRequest;
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          return _jsonResponse({
+            'workspaceId': 'workspace-default',
+            'channelId': 'general-home.internal',
+            'releaseStatus': 'preview',
+            'readOnly': true,
+            'paidFeaturesRequired': false,
+            'supportSafe': true,
+            'providerReadiness': [
+              _providerJson(
+                module: 'source-control',
+                providerKey: 'forgejo',
+                state: 'ready',
+                summary: 'Source control summary is ready.',
+              ),
+            ],
+            'linkedProjects': [
+              {'id': 'project-1'},
+            ],
+            'repositories': [],
+            'openIssues': [],
+            'mergeRequests': [],
+            'pipelines': [],
+            'releases': [],
+          });
+        }),
+      );
+
+      final summary = await client.fetchDevopsSummary(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+        workspaceId: 'workspace-default',
+        channelId: 'general-home.internal',
+      );
+
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.weave.local/api/workspaces/workspace-default/channels/general-home.internal/devops/summary',
+      );
+      expect(summary.isAvailable, isTrue);
+      expect(summary.linkedProjectCount, 1);
+    });
+
+    test(
+      'fetches Office capabilities and fails closed when disabled',
+      () async {
+        late http.BaseRequest capturedRequest;
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            capturedRequest = request;
+            return _jsonResponse({
+              'releaseStatus': 'preview',
+              'enabled': false,
+              'configured': false,
+              'supportSafe': true,
+              'launchMode': 'disabled',
+              'defaultProvider': 'onlyoffice',
+              'providerReadiness': [
+                _providerJson(
+                  module: 'office',
+                  providerKey: 'onlyoffice',
+                  state: 'not_configured',
+                  enabled: false,
+                  configured: false,
+                  summary: 'Office provider is disabled.',
+                ),
+              ],
+              'candidates': [],
+              'capabilities': {
+                'view': false,
+                'edit': false,
+                'comment': false,
+                'review': false,
+                'formFill': false,
+              },
+              'supportedFileTypes': [],
+              'permissions': {
+                'canView': false,
+                'canEdit': false,
+                'canComment': false,
+                'canReview': false,
+                'canFillForms': false,
+                'reason': 'office-provider-disabled',
+              },
+              'lockSessionReadiness': {
+                'documentLocks': 'disabled',
+                'sessionTokens': 'disabled',
+                'callbackVerification': 'disabled',
+                'supportSafe': true,
+              },
+            });
+          }),
+        );
+
+        final capabilities = await client.fetchOfficeCapabilities(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(
+          capturedRequest.url.toString(),
+          'https://api.weave.local/api/office/capabilities',
+        );
+        expect(capabilities.shouldFailClosed, isTrue);
+        expect(capabilities.canLaunchEdit, isFalse);
+      },
+    );
+
+    test('posts Office launch through backend facade', () async {
+      late http.BaseRequest capturedRequest;
+      late String capturedBody;
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          capturedRequest = request;
+          capturedBody = await request
+              .finalize()
+              .transform(utf8.decoder)
+              .join();
+          return _jsonResponse({
+            'sessionId': 'office-session-1',
+            'launchMode': 'view',
+            'providerKey': 'onlyoffice',
+            'expiresAt': '2026-05-22T18:10:00Z',
+            'grantedPermissions': ['view'],
+          });
+        }),
+      );
+
+      final session = await client.launchOfficeSession(
+        baseUrl: Uri.parse('https://api.weave.local/api'),
+        accessToken: 'token-123',
+        fileId: 'file-1',
+        requestedMode: 'view',
+      );
+
+      expect(capturedRequest.method, 'POST');
+      expect(
+        capturedRequest.url.toString(),
+        'https://api.weave.local/api/office/launch',
+      );
+      expect(jsonDecode(capturedBody), {
+        'fileId': 'file-1',
+        'requestedMode': 'view',
+      });
+      expect(session.sessionId, 'office-session-1');
+    });
     test(
       'rejects unauthorized backend sessions with a dedicated failure',
       () async {
@@ -232,4 +421,33 @@ void main() {
       );
     });
   });
+}
+
+Map<String, Object?> _providerJson({
+  required String module,
+  required String providerKey,
+  required String state,
+  required String summary,
+  bool enabled = true,
+  bool configured = true,
+}) {
+  return {
+    'module': module,
+    'providerKey': providerKey,
+    'state': state,
+    'readiness': state,
+    'enabled': enabled,
+    'configured': configured,
+    'readOnly': true,
+    'failClosed': true,
+    'supportSafe': true,
+    'paidFeaturesRequired': false,
+    'summary': summary,
+    'supportedCapabilities': [],
+    'unsupportedOperations': [],
+    'supportSafeErrorCodes': [],
+    'redactionPolicy': 'support-safe',
+    'candidates': [],
+    'diagnostics': {},
+  };
 }

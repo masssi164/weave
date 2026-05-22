@@ -2873,4 +2873,128 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get workflowPreviewReviewEvidenceButton => 'Review evidence';
+
+  @override
+  String get channelWorkspaceDevopsTab => 'DevOps';
+
+  @override
+  String get channelWorkspaceOfficeTab => 'Office';
+
+  @override
+  String get channelWorkspaceDevopsTitle => 'DevOps summary';
+
+  @override
+  String get channelWorkspaceOfficeTitle => 'Office documents';
+
+  @override
+  String get channelWorkspaceDevopsDescription =>
+      'Shows read-only source control, issue, pipeline, and release readiness from the Weave backend facade. Direct GitLab or Forgejo calls stay blocked in the app.';
+
+  @override
+  String get channelWorkspaceOfficeDescription =>
+      'Shows document collaboration readiness from the Weave backend facade. Launch stays disabled until a support-safe Office provider is configured.';
+
+  @override
+  String get channelWorkspaceFailClosedChip => 'Fail-closed';
+
+  @override
+  String get settingsProviderStackTitle => 'Provider stack readiness';
+
+  @override
+  String get settingsProviderStackDescription =>
+      'Backend-owned facade status for optional providers. The app shows support-safe summaries only and keeps disabled or unconfigured providers closed.';
+
+  @override
+  String get settingsProviderStackBoundaryLabel => 'Boundary';
+
+  @override
+  String get settingsProviderStackBoundaryBackendOwned =>
+      'Backend facades enforced';
+
+  @override
+  String get settingsProviderStackBoundaryReview => 'Review backend boundary';
+
+  @override
+  String get settingsProviderStackReleaseLabel => 'Release status';
+
+  @override
+  String get settingsProviderStackLoading => 'Checking provider stack…';
+
+  @override
+  String get settingsProviderStackUnconfigured =>
+      'Configure the Weave backend to read provider-stack readiness. Until then optional providers stay unavailable.';
+
+  @override
+  String get settingsProviderStackUnavailable =>
+      'Provider stack readiness is unavailable.';
+
+  @override
+  String get settingsOfficeCapabilitiesUnavailable =>
+      'Office capability readiness is unavailable, so document launch remains disabled.';
+
+  @override
+  String get settingsOfficeLaunchModeLabel => 'Office launch';
+
+  @override
+  String get settingsOfficeViewLabel => 'View';
+
+  @override
+  String get settingsOfficeEditLabel => 'Edit';
+
+  @override
+  String get providerModuleIdentityRealm => 'Identity realm';
+
+  @override
+  String get providerModuleFiles => 'Files';
+
+  @override
+  String get providerModuleOffice => 'Office';
+
+  @override
+  String get providerModuleCalendar => 'Calendar';
+
+  @override
+  String get providerModuleContacts => 'Contacts';
+
+  @override
+  String get providerModuleForms => 'Forms';
+
+  @override
+  String get providerModuleBoards => 'Boards';
+
+  @override
+  String get providerModuleSourceControl => 'Source control';
+
+  @override
+  String get providerModuleCi => 'CI';
+
+  @override
+  String get providerModuleIssueTracker => 'Issue tracker';
+
+  @override
+  String get providerModuleRelease => 'Release';
+
+  @override
+  String get providerModuleUnknown => 'Unknown provider';
+
+  @override
+  String get providerStateDisabled => 'Disabled';
+
+  @override
+  String get providerStateNotConfigured => 'Not configured';
+
+  @override
+  String get providerStateConfigured => 'Configured';
+
+  @override
+  String get providerStateReady => 'Ready';
+
+  @override
+  String get providerStateDegraded => 'Degraded';
+
+  @override
+  String get providerStateUnsupported => 'Unsupported';
+
+  @override
+  String get providerStateUnknown => 'Unknown';
 }

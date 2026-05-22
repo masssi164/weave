@@ -5,6 +5,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/auth/domain/entities/auth_configuration.dart';
@@ -70,6 +71,62 @@ final weaveApiMatrixE2eeDiagnosticProvider =
         return client.fetchMatrixE2eeDiagnostic(
           baseUrl: baseUrl,
           accessToken: accessToken,
+        );
+      });
+    });
+
+final weaveApiProviderRegistryProvider =
+    FutureProvider<ProviderRegistryStatus?>((ref) async {
+      return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+        return client.fetchProviderStatus(
+          baseUrl: baseUrl,
+          accessToken: accessToken,
+        );
+      });
+    });
+
+final weaveApiOfficeCapabilitiesProvider = FutureProvider<OfficeCapabilities?>((
+  ref,
+) async {
+  return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+    return client.fetchOfficeCapabilities(
+      baseUrl: baseUrl,
+      accessToken: accessToken,
+    );
+  });
+});
+
+class ChannelDevopsSummaryRequest {
+  const ChannelDevopsSummaryRequest({
+    required this.workspaceId,
+    required this.channelId,
+  });
+
+  final String workspaceId;
+  final String channelId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is ChannelDevopsSummaryRequest &&
+        other.workspaceId == workspaceId &&
+        other.channelId == channelId;
+  }
+
+  @override
+  int get hashCode => Object.hash(workspaceId, channelId);
+}
+
+final weaveApiDevopsSummaryProvider =
+    FutureProvider.family<DevopsSummary?, ChannelDevopsSummaryRequest>((
+      ref,
+      request,
+    ) async {
+      return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+        return client.fetchDevopsSummary(
+          baseUrl: baseUrl,
+          accessToken: accessToken,
+          workspaceId: request.workspaceId,
+          channelId: request.channelId,
         );
       });
     });

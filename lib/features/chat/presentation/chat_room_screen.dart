@@ -18,6 +18,7 @@ import 'package:weave/features/chat/presentation/providers/channel_workspace_pre
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/context_pack_preview_provider.dart';
 import 'package:weave/features/chat/presentation/providers/decision_evidence_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 class ChatRoomScreen extends ConsumerStatefulWidget {
@@ -589,8 +590,35 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     }
 
     final workspaceFacade = ref.watch(channelWorkspacePreviewFacadeProvider);
-    final workspace = workspaceFacade.supportsWorkspaceTabs(widget.conversation)
-        ? workspaceFacade.previewForChannel(widget.conversation)
+    final supportsWorkspace = workspaceFacade.supportsWorkspaceTabs(
+      widget.conversation,
+    );
+    final providerChannelId = _backendProviderChannelId(widget.conversation.id);
+    final devopsSummary = supportsWorkspace
+        ? ref.watch(
+            weaveApiDevopsSummaryProvider(
+              ChannelDevopsSummaryRequest(
+                workspaceId: 'workspace-default',
+                channelId: providerChannelId,
+              ),
+            ),
+          )
+        : null;
+    final officeCapabilities = supportsWorkspace
+        ? ref.watch(weaveApiOfficeCapabilitiesProvider)
+        : null;
+    final workspace = supportsWorkspace
+        ? workspaceFacade.previewForChannel(
+            widget.conversation,
+            devopsSummary: devopsSummary?.asData?.value,
+            officeCapabilities: officeCapabilities?.asData?.value,
+            providerReadinessLoading:
+                (devopsSummary?.isLoading ?? false) ||
+                (officeCapabilities?.isLoading ?? false),
+            providerReadinessUnavailable:
+                (devopsSummary?.hasError ?? false) ||
+                (officeCapabilities?.hasError ?? false),
+          )
         : null;
     final scaffold = Scaffold(
       appBar: AppBar(
@@ -635,6 +663,15 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       child: scaffold,
     );
   }
+}
+
+String _backendProviderChannelId(String roomId) {
+  final safe = roomId.replaceAll(RegExp('[^A-Za-z0-9._:-]+'), '-');
+  final trimmed = safe.replaceAll(RegExp('^-+|-+\$'), '');
+  if (trimmed.isEmpty) {
+    return 'channel';
+  }
+  return trimmed.length <= 128 ? trimmed : trimmed.substring(0, 128);
 }
 
 class _ChannelWorkspaceTabs extends StatelessWidget {
@@ -827,6 +864,7 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
       title,
       status,
       body,
+      if (surface.statusSummary != null) surface.statusSummary!,
       l10n.channelWorkspaceProviderContract(surface.providerContractId),
       l10n.channelWorkspaceExplicitContextNote(workspace.channelTitle),
     ].join('. ');
@@ -891,8 +929,22 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (surface.failClosed)
+                        Chip(
+                          avatar: const Icon(Icons.lock_outline, size: 18),
+                          label: Text(l10n.channelWorkspaceFailClosedChip),
+                        ),
                     ],
                   ),
+                  if (surface.statusSummary case final statusSummary?) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      statusSummary,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   MergeSemantics(
                     child: Row(
@@ -935,6 +987,8 @@ IconData _channelSurfaceIcon(ChannelWorkspaceSurfaceKind kind) {
     ChannelWorkspaceSurfaceKind.boards => Icons.view_kanban_outlined,
     ChannelWorkspaceSurfaceKind.calendar => Icons.event_outlined,
     ChannelWorkspaceSurfaceKind.meetings => Icons.video_call_outlined,
+    ChannelWorkspaceSurfaceKind.devops => Icons.account_tree_outlined,
+    ChannelWorkspaceSurfaceKind.office => Icons.description_outlined,
   };
 }
 
@@ -948,6 +1002,8 @@ String _channelSurfaceTabLabel(
     ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTab,
     ChannelWorkspaceSurfaceKind.calendar => l10n.channelWorkspaceCalendarTab,
     ChannelWorkspaceSurfaceKind.meetings => l10n.channelWorkspaceMeetingsTab,
+    ChannelWorkspaceSurfaceKind.devops => l10n.channelWorkspaceDevopsTab,
+    ChannelWorkspaceSurfaceKind.office => l10n.channelWorkspaceOfficeTab,
   };
 }
 
@@ -961,6 +1017,8 @@ String _channelSurfacePanelTitle(
     ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTitle,
     ChannelWorkspaceSurfaceKind.calendar => l10n.channelWorkspaceCalendarTitle,
     ChannelWorkspaceSurfaceKind.meetings => l10n.channelWorkspaceMeetingsTitle,
+    ChannelWorkspaceSurfaceKind.devops => l10n.channelWorkspaceDevopsTitle,
+    ChannelWorkspaceSurfaceKind.office => l10n.channelWorkspaceOfficeTitle,
   };
 }
 
@@ -977,6 +1035,10 @@ String _channelSurfacePanelDescription(
       l10n.channelWorkspaceCalendarDescription,
     ChannelWorkspaceSurfaceKind.meetings =>
       l10n.channelWorkspaceMeetingsDescription,
+    ChannelWorkspaceSurfaceKind.devops =>
+      l10n.channelWorkspaceDevopsDescription,
+    ChannelWorkspaceSurfaceKind.office =>
+      l10n.channelWorkspaceOfficeDescription,
   };
 }
 

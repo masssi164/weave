@@ -4707,6 +4707,240 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Review evidence'**
   String get workflowPreviewReviewEvidenceButton;
+
+  /// channelWorkspaceDevopsTab
+  ///
+  /// In en, this message translates to:
+  /// **'DevOps'**
+  String get channelWorkspaceDevopsTab;
+
+  /// channelWorkspaceOfficeTab
+  ///
+  /// In en, this message translates to:
+  /// **'Office'**
+  String get channelWorkspaceOfficeTab;
+
+  /// channelWorkspaceDevopsTitle
+  ///
+  /// In en, this message translates to:
+  /// **'DevOps summary'**
+  String get channelWorkspaceDevopsTitle;
+
+  /// channelWorkspaceOfficeTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Office documents'**
+  String get channelWorkspaceOfficeTitle;
+
+  /// channelWorkspaceDevopsDescription
+  ///
+  /// In en, this message translates to:
+  /// **'Shows read-only source control, issue, pipeline, and release readiness from the Weave backend facade. Direct GitLab or Forgejo calls stay blocked in the app.'**
+  String get channelWorkspaceDevopsDescription;
+
+  /// channelWorkspaceOfficeDescription
+  ///
+  /// In en, this message translates to:
+  /// **'Shows document collaboration readiness from the Weave backend facade. Launch stays disabled until a support-safe Office provider is configured.'**
+  String get channelWorkspaceOfficeDescription;
+
+  /// channelWorkspaceFailClosedChip
+  ///
+  /// In en, this message translates to:
+  /// **'Fail-closed'**
+  String get channelWorkspaceFailClosedChip;
+
+  /// settingsProviderStackTitle
+  ///
+  /// In en, this message translates to:
+  /// **'Provider stack readiness'**
+  String get settingsProviderStackTitle;
+
+  /// settingsProviderStackDescription
+  ///
+  /// In en, this message translates to:
+  /// **'Backend-owned facade status for optional providers. The app shows support-safe summaries only and keeps disabled or unconfigured providers closed.'**
+  String get settingsProviderStackDescription;
+
+  /// settingsProviderStackBoundaryLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Boundary'**
+  String get settingsProviderStackBoundaryLabel;
+
+  /// settingsProviderStackBoundaryBackendOwned
+  ///
+  /// In en, this message translates to:
+  /// **'Backend facades enforced'**
+  String get settingsProviderStackBoundaryBackendOwned;
+
+  /// settingsProviderStackBoundaryReview
+  ///
+  /// In en, this message translates to:
+  /// **'Review backend boundary'**
+  String get settingsProviderStackBoundaryReview;
+
+  /// settingsProviderStackReleaseLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Release status'**
+  String get settingsProviderStackReleaseLabel;
+
+  /// settingsProviderStackLoading
+  ///
+  /// In en, this message translates to:
+  /// **'Checking provider stack…'**
+  String get settingsProviderStackLoading;
+
+  /// settingsProviderStackUnconfigured
+  ///
+  /// In en, this message translates to:
+  /// **'Configure the Weave backend to read provider-stack readiness. Until then optional providers stay unavailable.'**
+  String get settingsProviderStackUnconfigured;
+
+  /// settingsProviderStackUnavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Provider stack readiness is unavailable.'**
+  String get settingsProviderStackUnavailable;
+
+  /// settingsOfficeCapabilitiesUnavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Office capability readiness is unavailable, so document launch remains disabled.'**
+  String get settingsOfficeCapabilitiesUnavailable;
+
+  /// settingsOfficeLaunchModeLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Office launch'**
+  String get settingsOfficeLaunchModeLabel;
+
+  /// settingsOfficeViewLabel
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get settingsOfficeViewLabel;
+
+  /// settingsOfficeEditLabel
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get settingsOfficeEditLabel;
+
+  /// providerModuleIdentityRealm
+  ///
+  /// In en, this message translates to:
+  /// **'Identity realm'**
+  String get providerModuleIdentityRealm;
+
+  /// providerModuleFiles
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get providerModuleFiles;
+
+  /// providerModuleOffice
+  ///
+  /// In en, this message translates to:
+  /// **'Office'**
+  String get providerModuleOffice;
+
+  /// providerModuleCalendar
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar'**
+  String get providerModuleCalendar;
+
+  /// providerModuleContacts
+  ///
+  /// In en, this message translates to:
+  /// **'Contacts'**
+  String get providerModuleContacts;
+
+  /// providerModuleForms
+  ///
+  /// In en, this message translates to:
+  /// **'Forms'**
+  String get providerModuleForms;
+
+  /// providerModuleBoards
+  ///
+  /// In en, this message translates to:
+  /// **'Boards'**
+  String get providerModuleBoards;
+
+  /// providerModuleSourceControl
+  ///
+  /// In en, this message translates to:
+  /// **'Source control'**
+  String get providerModuleSourceControl;
+
+  /// providerModuleCi
+  ///
+  /// In en, this message translates to:
+  /// **'CI'**
+  String get providerModuleCi;
+
+  /// providerModuleIssueTracker
+  ///
+  /// In en, this message translates to:
+  /// **'Issue tracker'**
+  String get providerModuleIssueTracker;
+
+  /// providerModuleRelease
+  ///
+  /// In en, this message translates to:
+  /// **'Release'**
+  String get providerModuleRelease;
+
+  /// providerModuleUnknown
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown provider'**
+  String get providerModuleUnknown;
+
+  /// providerStateDisabled
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get providerStateDisabled;
+
+  /// providerStateNotConfigured
+  ///
+  /// In en, this message translates to:
+  /// **'Not configured'**
+  String get providerStateNotConfigured;
+
+  /// providerStateConfigured
+  ///
+  /// In en, this message translates to:
+  /// **'Configured'**
+  String get providerStateConfigured;
+
+  /// providerStateReady
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get providerStateReady;
+
+  /// providerStateDegraded
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded'**
+  String get providerStateDegraded;
+
+  /// providerStateUnsupported
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported'**
+  String get providerStateUnsupported;
+
+  /// providerStateUnknown
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown'**
+  String get providerStateUnknown;
 }
 
 class _AppLocalizationsDelegate

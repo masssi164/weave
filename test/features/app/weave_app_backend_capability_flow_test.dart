@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_status.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
@@ -133,6 +135,52 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
           'fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented',
     );
   }
+
+  @override
+  Future<ProviderRegistryStatus> fetchProviderStatus({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return _disabledProviderRegistryStatus;
+  }
+
+  @override
+  Future<DevopsSummary> fetchDevopsSummary({
+    required Uri baseUrl,
+    required String accessToken,
+    required String workspaceId,
+    required String channelId,
+  }) async {
+    return DevopsSummary(
+      workspaceId: workspaceId,
+      channelId: channelId,
+      releaseStatus: 'preview',
+      readOnly: true,
+      paidFeaturesRequired: false,
+      supportSafe: true,
+      providerReadiness: const [_disabledDevopsProviderStatus],
+    );
+  }
+
+  @override
+  Future<OfficeCapabilities> fetchOfficeCapabilities({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return _disabledOfficeCapabilities;
+  }
+
+  @override
+  Future<OfficeLaunchSession> launchOfficeSession({
+    required Uri baseUrl,
+    required String accessToken,
+    required String fileId,
+    required String requestedMode,
+  }) async {
+    throw const AppFailure.unknown(
+      'Office launch is disabled in tests until provider facade is ready.',
+    );
+  }
 }
 
 const _memberProfile = UserProfile(
@@ -145,6 +193,76 @@ const _memberProfile = UserProfile(
   timezone: 'Europe/Berlin',
   roles: ['member'],
   groups: ['workspace-default'],
+);
+
+const _disabledOfficeProviderStatus = ProviderStatus(
+  module: ProviderModule.office,
+  providerKey: 'onlyoffice-disabled',
+  state: ProviderState.notConfigured,
+  readiness: 'not_configured',
+  enabled: false,
+  configured: false,
+  readOnly: true,
+  failClosed: true,
+  supportSafe: true,
+  paidFeaturesRequired: false,
+  summary: 'Office provider is not configured.',
+);
+
+const _disabledDevopsProviderStatus = ProviderStatus(
+  module: ProviderModule.sourceControl,
+  providerKey: 'forgejo-disabled',
+  state: ProviderState.notConfigured,
+  readiness: 'not_configured',
+  enabled: false,
+  configured: false,
+  readOnly: true,
+  failClosed: true,
+  supportSafe: true,
+  paidFeaturesRequired: false,
+  summary: 'DevOps provider is not configured.',
+);
+
+const _disabledProviderRegistryStatus = ProviderRegistryStatus(
+  releaseStatus: 'preview',
+  backendOwnedFacades: true,
+  flutterDirectProviderCallsAllowed: false,
+  supportSafe: true,
+  generatedAt: null,
+  providers: [_disabledOfficeProviderStatus, _disabledDevopsProviderStatus],
+);
+
+const _disabledOfficeCapabilities = OfficeCapabilities(
+  releaseStatus: 'preview',
+  enabled: false,
+  configured: false,
+  supportSafe: true,
+  launchMode: 'disabled',
+  defaultProvider: 'onlyoffice',
+  providerReadiness: [_disabledOfficeProviderStatus],
+  candidates: [],
+  capabilities: OfficeCapabilityFlags(
+    view: false,
+    edit: false,
+    comment: false,
+    review: false,
+    formFill: false,
+  ),
+  supportedFileTypes: [],
+  permissions: OfficePermissions(
+    canView: false,
+    canEdit: false,
+    canComment: false,
+    canReview: false,
+    canFillForms: false,
+    reason: 'office-provider-disabled',
+  ),
+  lockSessionReadiness: OfficeLockSessionReadiness(
+    documentLocks: 'disabled',
+    sessionTokens: 'disabled',
+    callbackVerification: 'disabled',
+    supportSafe: true,
+  ),
 );
 
 void main() {
