@@ -22,7 +22,10 @@ import 'package:weave/features/connectors/presentation/providers/connector_previ
 import 'package:weave/features/connectors/presentation/widgets/connector_settings_preview_card.dart';
 import 'package:weave/features/guests/presentation/providers/guest_preview_provider.dart';
 import 'package:weave/features/guests/presentation/widgets/guest_access_preview_card.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/profile/presentation/widgets/profile_summary_card.dart';
+import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
@@ -70,28 +73,7 @@ class SettingsScreen extends ConsumerWidget {
                     const _FeaturePreviewSurfacesSection(),
                   ],
                   const SizedBox(height: 32),
-                  Text(
-                    l10n.settingsServerConfigurationTitle,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.settingsServerConfigurationDescription,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  ServerConfigurationForm(
-                    layout: ServerConfigurationFormLayout.full,
-                    initialConfiguration: configuration,
-                    submitLabel: l10n.settingsSaveButton,
-                    onSaved: (result) async {
-                      await ref
-                          .read(authFlowControllerProvider.notifier)
-                          .handleConfigurationSaved(result);
-                    },
-                  ),
+                  _AdminSetupSection(configuration: configuration),
                   const SizedBox(height: 32),
                   const ChatSecuritySettingsSection(),
                   const SizedBox(height: 32),
@@ -136,6 +118,233 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AdminSetupSection extends ConsumerWidget {
+  const _AdminSetupSection({required this.configuration});
+
+  final ServerConfiguration? configuration;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(userProfileProvider);
+
+    return switch (profile) {
+      AsyncData(value: final user) =>
+        user != null && user.canAdministerWorkspace
+            ? _AdminSetupConfigurationCard(
+                configuration: configuration,
+                profile: user,
+              )
+            : const _AdminSetupBoundaryCard(),
+      AsyncError() => const _AdminSetupBoundaryCard(showRetry: true),
+      _ => const _AdminSetupLoadingCard(),
+    };
+  }
+}
+
+class _AdminSetupConfigurationCard extends ConsumerWidget {
+  const _AdminSetupConfigurationCard({
+    required this.configuration,
+    required this.profile,
+  });
+
+  final ServerConfiguration? configuration;
+  final UserProfile profile;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.primary),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                l10n.settingsAdminSetupTitle,
+                style: theme.textTheme.headlineSmall,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.settingsAdminSetupDescription,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _AdminPermissionSummary(profile: profile),
+            const SizedBox(height: 24),
+            Text(
+              l10n.settingsServerConfigurationTitle,
+              style: theme.textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.settingsServerConfigurationDescription,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ServerConfigurationForm(
+              layout: ServerConfigurationFormLayout.full,
+              initialConfiguration: configuration,
+              submitLabel: l10n.settingsSaveButton,
+              onSaved: (result) async {
+                await ref
+                    .read(authFlowControllerProvider.notifier)
+                    .handleConfigurationSaved(result);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminPermissionSummary extends StatelessWidget {
+  const _AdminPermissionSummary({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final roles = profile.roles.isEmpty ? '—' : profile.roles.join(', ');
+
+    return Semantics(
+      container: true,
+      label: l10n.settingsAdminPermissionSemantic(roles),
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.28),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: theme.colorScheme.primary.withValues(alpha: 0.45),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.admin_panel_settings_outlined,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.settingsAdminPermissionTitle,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.settingsAdminPermissionDescription(roles),
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminSetupBoundaryCard extends ConsumerWidget {
+  const _AdminSetupBoundaryCard({this.showRetry = false});
+
+  final bool showRetry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Semantics(
+          container: true,
+          explicitChildNodes: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.settingsAdminBoundaryTitle,
+                  style: theme.textTheme.titleLarge,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                l10n.settingsAdminBoundaryDescription,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (showRetry) ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () => ref.invalidate(userProfileProvider),
+                  icon: const Icon(Icons.refresh),
+                  label: Text(l10n.retryButton),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminSetupLoadingCard extends StatelessWidget {
+  const _AdminSetupLoadingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: LoadingState(
+          message: l10n.settingsAdminPermissionLoading,
+          icon: Icons.admin_panel_settings_outlined,
+        ),
+      ),
     );
   }
 }

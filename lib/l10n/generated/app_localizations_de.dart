@@ -2198,4 +2198,76 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get boardsPreviewActionNoNextColumn =>
       'Diese Aufgabe ist bereits in der letzten Vorschau-Spalte.';
+
+  @override
+  String get settingsAdminSetupTitle => 'Owner- und Admin-Einrichtung';
+
+  @override
+  String get settingsAdminSetupDescription =>
+      'Workspace-Owner und Admins verwalten hier OIDC, Realm, Organisation und Dienstendpunkte. Mitglieder und Gäste sehen nur Anmeldung und Produkteinstellungen.';
+
+  @override
+  String get settingsAdminPermissionTitle => 'Admin-Steuerung freigeschaltet';
+
+  @override
+  String settingsAdminPermissionDescription(String roles) {
+    return 'Sichtbar, weil deine Weave-Rollen sind: $roles. Backend-APIs bleiben die Autorität für jeden Schreibvorgang.';
+  }
+
+  @override
+  String settingsAdminPermissionSemantic(String roles) {
+    return 'Admin-Steuerung freigeschaltet. Sichtbar, weil deine Weave-Rollen sind: $roles. Backend-APIs bleiben die Autorität für jeden Schreibvorgang.';
+  }
+
+  @override
+  String get settingsAdminBoundaryTitle =>
+      'Workspace-Einrichtung ist nur für Admins';
+
+  @override
+  String get settingsAdminBoundaryDescription =>
+      'OIDC-, Realm-, Organisations- und Dienstendpunkt-Einrichtung wird von Workspace-Ownern oder Admins verwaltet. Normale Nutzer können Weave ohne Matrix-, Nextcloud- oder Realm-Details verwenden.';
+
+  @override
+  String get settingsAdminPermissionLoading =>
+      'Admin-Berechtigungen werden geprüft…';
+
+  @override
+  String get chatContextCardTitle => 'Kontext für diesen Workspace';
+
+  @override
+  String get chatContextCardDescription =>
+      'Weave kann fokussierten Kontext aus Kanälen, Entscheidungen und gemeinsamer Arbeit vorbereiten, wenn du Hilfe anforderst. Es zeigt kein Datenbankdiagramm und liest nicht ständig alles mit.';
+
+  @override
+  String get chatContextCardPolicy =>
+      'Agenten nutzen begrenzten Kontext nur bei Bedarf, zeigen den verwendeten Kontext und bleiben innerhalb der Admin-Grenzen.';
+
+  @override
+  String get chatContextChannelHintTitle => 'Kanalkontext';
+
+  @override
+  String get chatContextChannelHintDescription =>
+      'Aktuelle Raumsignale können zu einer kleinen Kontextkarte für die Aufgabe werden.';
+
+  @override
+  String get chatContextEvidenceHintTitle => 'Entscheidungen und Evidenz';
+
+  @override
+  String get chatContextEvidenceHintDescription =>
+      'Entscheidungsnotizen und Links können zitiert werden, ohne Graph-Interna offenzulegen.';
+
+  @override
+  String get chatContextAgentHintTitle => 'Agent-Kontextpakete';
+
+  @override
+  String get chatContextAgentHintDescription =>
+      'Assistenten erhalten nur das begrenzte Paket für Anfrage, Erwähnung oder Zeitplan.';
+
+  @override
+  String get firstRunAdminSetupTitle =>
+      'Owner-/Admin-Verantwortung bei der Einrichtung';
+
+  @override
+  String get firstRunAdminSetupDescription =>
+      'Deine Rolle darf die Workspace-Einrichtung verwalten. OIDC-, Realm-, Organisations-, Einladungs- und Dienstendpunkt-Änderungen gehören hier oder in die Einstellungen; normale Nutzer sollen nur eine Weave-Anmeldung brauchen.';
 }

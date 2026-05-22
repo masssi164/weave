@@ -76,6 +76,10 @@ class _FirstRunStatusView extends ConsumerWidget {
               ),
               const SizedBox(height: 24),
               _IdentityCard(status: status),
+              if (status.access.canAdministerWorkspace) ...[
+                const SizedBox(height: 24),
+                const _FirstRunAdminSetupCard(),
+              ],
               const SizedBox(height: 24),
               Semantics(
                 header: true,
@@ -245,6 +249,61 @@ class _IdentityCard extends StatelessWidget {
                   _DetailRow(
                     label: l10n.firstRunInviteStatusLabel,
                     value: status.invite.status,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FirstRunAdminSetupCard extends StatelessWidget {
+  const _FirstRunAdminSetupCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.24),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(
+          color: theme.colorScheme.primary.withValues(alpha: 0.42),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.admin_panel_settings_outlined,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      l10n.firstRunAdminSetupTitle,
+                      style: theme.textTheme.titleLarge,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.firstRunAdminSetupDescription,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),

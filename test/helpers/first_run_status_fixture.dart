@@ -15,6 +15,14 @@ FirstRunStatus buildTestFirstRunStatus({
     state: FirstRunProvisioningState.ready,
     message: 'Nextcloud files/calendar provisioning is ready for this user.',
   ),
+  FirstRunAccess access = const FirstRunAccess(
+    primaryRole: 'member',
+    roles: ['member'],
+    groups: ['workspace-default'],
+    canAdministerWorkspace: false,
+    canInviteUsers: false,
+    canUseWorkspaceModules: true,
+  ),
   List<String> actions = const [],
 }) {
   final profileModule = FirstRunModuleStatus(
@@ -41,14 +49,7 @@ FirstRunStatus buildTestFirstRunStatus({
       status: 'active',
       message: 'The invite has been accepted and the account is active.',
     ),
-    access: const FirstRunAccess(
-      primaryRole: 'member',
-      roles: ['member'],
-      groups: ['workspace-default'],
-      canAdministerWorkspace: false,
-      canInviteUsers: false,
-      canUseWorkspaceModules: true,
-    ),
+    access: access,
     profile: profile,
     moduleProvisioning: FirstRunModuleProvisioning(
       identity: const FirstRunModuleStatus(

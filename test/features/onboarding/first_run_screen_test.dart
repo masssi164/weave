@@ -36,6 +36,37 @@ void main() {
       );
     });
 
+    testWidgets('shows owner/admin setup responsibilities only to admins', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createTestApp(
+          const FirstRunScreen(),
+          overrides: [
+            firstRunStatusProvider.overrideWith(
+              (ref) async => buildTestFirstRunStatus(
+                access: const FirstRunAccess(
+                  primaryRole: 'owner',
+                  roles: ['owner'],
+                  groups: ['workspace-default'],
+                  canAdministerWorkspace: true,
+                  canInviteUsers: true,
+                  canUseWorkspaceModules: true,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Owner/admin setup responsibilities'), findsOneWidget);
+      expect(
+        find.textContaining('normal users should only need'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('shows pending and degraded module actions accessibly', (
       tester,
     ) async {
