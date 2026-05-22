@@ -2765,6 +2765,66 @@ abstract class AppLocalizations {
   /// **'Archived messages are hidden from this timeline.'**
   String get chatRoomArchivedEmptyMessage;
 
+  /// Heading for the explicit context preview shown in a chat room
+  ///
+  /// In en, this message translates to:
+  /// **'Context for this room'**
+  String get chatRoomContextPackTitle;
+
+  /// Description for the explicit context preview shown in a chat room
+  ///
+  /// In en, this message translates to:
+  /// **'Weave will only include scoped context that you can see here, such as this room, selected files, linked tasks, and recent decisions.'**
+  String get chatRoomContextPackDescription;
+
+  /// Accessibility summary of included and available context sources in a room
+  ///
+  /// In en, this message translates to:
+  /// **'{includedCount, plural, =0 {No sources included} =1 {1 source included} other {{includedCount} sources included}}. {availableCount, plural, =0 {No optional sources available} =1 {1 optional source available} other {{availableCount} optional sources available}}.'**
+  String chatRoomContextPackCounts(int includedCount, int availableCount);
+
+  /// Safety note for the explicit context preview in a chat room
+  ///
+  /// In en, this message translates to:
+  /// **'No agent is reading this room in the background.'**
+  String get chatRoomContextPackNoBackgroundReading;
+
+  /// Context chip label for the currently opened chat room
+  ///
+  /// In en, this message translates to:
+  /// **'Current room'**
+  String get chatRoomContextCurrentRoomLabel;
+
+  /// Context chip label for files explicitly selected by the user
+  ///
+  /// In en, this message translates to:
+  /// **'Selected files'**
+  String get chatRoomContextSelectedFilesLabel;
+
+  /// Context chip label for tasks linked to a room
+  ///
+  /// In en, this message translates to:
+  /// **'Linked tasks'**
+  String get chatRoomContextLinkedTasksLabel;
+
+  /// Context chip label for recent decisions linked to a room
+  ///
+  /// In en, this message translates to:
+  /// **'Recent decisions'**
+  String get chatRoomContextRecentDecisionsLabel;
+
+  /// Accessibility status for context that is included in the preview
+  ///
+  /// In en, this message translates to:
+  /// **'Included'**
+  String get chatRoomContextIncludedStatus;
+
+  /// Accessibility status for optional context that is not included yet
+  ///
+  /// In en, this message translates to:
+  /// **'Available when selected'**
+  String get chatRoomContextAvailableStatus;
+
   /// Empty state message for the files screen
   ///
   /// In en, this message translates to:
