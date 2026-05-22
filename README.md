@@ -32,6 +32,7 @@ Current focus areas:
 - **Consistent recovery UX** — shared loading, empty, error, success, and retry patterns so setup, chat, files, settings, and preview surfaces do not end in cryptic dead states.
 - **Teams-like shared Calendar** — Calendar follows the collaboration hierarchy: workspace/org calendar, team calendars, and channel events/meeting threads. The guarded live-stack path now validates shared scope metadata and channel event CRUD through the backend facade; private personal calendar ingestion is not a product goal.
 - **Settings and OIDC sign-in** — setup, authentication, stored server configuration, and account/session controls remain part of the daily product shell.
+- **In-app Help / user handbook** — Settings links to a localized Help surface with initial English and German guidance for sign-in, Chat, Files, account/session basics, honest Calendar/Boards availability, recovery, and privacy/security basics.
 
 Weave still does **not** claim a complete Teams/Slack replacement, public connector SDK, production Slack/Teams bridge, private personal calendar provisioning, or Weaver PA. Matrix E2EE and Boards are active scope behind explicit contracts and feature flags; claims must remain tied to validated implementation state.
 

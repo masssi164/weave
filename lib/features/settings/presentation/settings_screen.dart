@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
+import 'package:weave/core/a11y/semantic_list_tile.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/config/feature_flags.dart';
+import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
@@ -58,6 +61,8 @@ class SettingsScreen extends ConsumerWidget {
                   const ProfileSummaryCard(),
                   const SizedBox(height: 32),
                   const _WorkspaceReadinessCard(),
+                  const SizedBox(height: 32),
+                  const _SettingsHelpCard(),
                   const SizedBox(height: 32),
                   const _ShellModuleVisibilitySettingsSection(),
                   if (FeatureFlags.hasFeatureGatedSurfaces) ...[
@@ -411,6 +416,32 @@ class _SettingsBrandCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SettingsHelpCard extends StatelessWidget {
+  const _SettingsHelpCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: AccessibleListTile(
+        leading: const Icon(Icons.help_outline),
+        title: Text(l10n.settingsHelpTitle),
+        subtitle: Text(l10n.settingsHelpDescription),
+        trailing: const ExcludeSemantics(child: Icon(Icons.chevron_right)),
+        onTap: () => context.push(AppRoutes.help),
       ),
     );
   }
