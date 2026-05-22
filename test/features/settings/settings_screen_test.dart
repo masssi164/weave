@@ -597,7 +597,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Office readiness'), findsOneWidget);
-      expect(find.text('not configured'), findsWidgets);
+      expect(find.text('unconfigured'), findsWidgets);
       expect(find.text('fail-closed'), findsWidgets);
       expect(
         find.textContaining('Office launch is fail-closed'),
