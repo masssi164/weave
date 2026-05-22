@@ -685,6 +685,48 @@ class AppLocalizationsEn extends AppLocalizations {
       'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.';
 
   @override
+  String get settingsThemeTitle => 'Appearance';
+
+  @override
+  String get settingsThemeDescription =>
+      'Choose the visual style for this profile. Workspace brand defaults stay separate, so your personal choice is not overwritten by admin setup.';
+
+  @override
+  String get settingsThemeSystemTitle => 'Use device setting';
+
+  @override
+  String get settingsThemeSystemDescription =>
+      'Follow your device light or dark appearance.';
+
+  @override
+  String get settingsThemeLightTitle => 'Light';
+
+  @override
+  String get settingsThemeLightDescription =>
+      'Use a bright professional palette.';
+
+  @override
+  String get settingsThemeDarkTitle => 'Dark';
+
+  @override
+  String get settingsThemeDarkDescription =>
+      'Use a darker palette for low-light work.';
+
+  @override
+  String get settingsThemeHighContrastTitle => 'High contrast';
+
+  @override
+  String get settingsThemeHighContrastDescription =>
+      'Use stronger contrast while still following your device light or dark appearance.';
+
+  @override
+  String get settingsThemeLoading => 'Loading appearance preferences…';
+
+  @override
+  String get settingsThemeError =>
+      'Appearance preferences could not be saved. Try changing the setting again.';
+
+  @override
   String get settingsHelpTitle => 'Help and user handbook';
 
   @override

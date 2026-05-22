@@ -1229,6 +1229,78 @@ abstract class AppLocalizations {
   /// **'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.'**
   String get settingsBrandSectionDescription;
 
+  /// Settings section title for personal theme selection
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsThemeTitle;
+
+  /// Settings description explaining personal theme selection and workspace defaults
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the visual style for this profile. Workspace brand defaults stay separate, so your personal choice is not overwritten by admin setup.'**
+  String get settingsThemeDescription;
+
+  /// Theme option title for system/default mode
+  ///
+  /// In en, this message translates to:
+  /// **'Use device setting'**
+  String get settingsThemeSystemTitle;
+
+  /// Theme option description for system/default mode
+  ///
+  /// In en, this message translates to:
+  /// **'Follow your device light or dark appearance.'**
+  String get settingsThemeSystemDescription;
+
+  /// Theme option title for light mode
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsThemeLightTitle;
+
+  /// Theme option description for light mode
+  ///
+  /// In en, this message translates to:
+  /// **'Use a bright professional palette.'**
+  String get settingsThemeLightDescription;
+
+  /// Theme option title for dark mode
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get settingsThemeDarkTitle;
+
+  /// Theme option description for dark mode
+  ///
+  /// In en, this message translates to:
+  /// **'Use a darker palette for low-light work.'**
+  String get settingsThemeDarkDescription;
+
+  /// Theme option title for high-contrast mode
+  ///
+  /// In en, this message translates to:
+  /// **'High contrast'**
+  String get settingsThemeHighContrastTitle;
+
+  /// Theme option description for high-contrast mode
+  ///
+  /// In en, this message translates to:
+  /// **'Use stronger contrast while still following your device light or dark appearance.'**
+  String get settingsThemeHighContrastDescription;
+
+  /// Loading state for theme preference settings
+  ///
+  /// In en, this message translates to:
+  /// **'Loading appearance preferences…'**
+  String get settingsThemeLoading;
+
+  /// Error shown when theme preferences cannot load or save
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance preferences could not be saved. Try changing the setting again.'**
+  String get settingsThemeError;
+
   /// Title for the settings entry point to in-app help
   ///
   /// In en, this message translates to:
