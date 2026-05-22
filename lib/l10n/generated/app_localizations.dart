@@ -944,7 +944,7 @@ abstract class AppLocalizations {
   /// Description for the channel workspace summary card
   ///
   /// In en, this message translates to:
-  /// **'This channel is a work room with tabs for chat, files, boards, and calendar where the workspace has enabled them.'**
+  /// **'This channel is a work room with tabs for chat, files, boards, calendar, and meetings where the workspace has enabled them.'**
   String get channelWorkspaceSummaryDescription;
 
   /// Governance note for channel workspace tabs
@@ -983,6 +983,12 @@ abstract class AppLocalizations {
   /// **'Calendar'**
   String get channelWorkspaceCalendarTab;
 
+  /// Channel workspace meetings tab label
+  ///
+  /// In en, this message translates to:
+  /// **'Meetings'**
+  String get channelWorkspaceMeetingsTab;
+
   /// Title for the chat surface in a channel workspace
   ///
   /// In en, this message translates to:
@@ -1007,6 +1013,12 @@ abstract class AppLocalizations {
   /// **'Channel calendar'**
   String get channelWorkspaceCalendarTitle;
 
+  /// Title for the meetings preview surface in a channel workspace
+  ///
+  /// In en, this message translates to:
+  /// **'Channel meeting preview'**
+  String get channelWorkspaceMeetingsTitle;
+
   /// Description for the channel chat surface
   ///
   /// In en, this message translates to:
@@ -1030,6 +1042,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Channel events stay gated until calendar scope capability is available for this workspace.'**
   String get channelWorkspaceCalendarDescription;
+
+  /// Description for the gated channel meetings preview placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Meetings will attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence. No live video meeting backend is connected yet.'**
+  String get channelWorkspaceMeetingsDescription;
+
+  /// Title explaining that channel meetings are fail-closed until backend and encryption evidence exist
+  ///
+  /// In en, this message translates to:
+  /// **'Video and encryption capability not connected'**
+  String get channelWorkspaceMeetingsCapabilityTitle;
+
+  /// Body explaining honest fail-closed channel meeting capability state
+  ///
+  /// In en, this message translates to:
+  /// **'Join and start stay disabled until Weave has a documented meeting provider plus evidence for signaling, media, captions, recordings, and metadata boundaries. This preview does not claim secure or encrypted calls are available.'**
+  String get channelWorkspaceMeetingsCapabilityBody;
+
+  /// Title for the explicit context rule in the channel meetings preview
+  ///
+  /// In en, this message translates to:
+  /// **'Explicit meeting context only'**
+  String get channelWorkspaceMeetingsPrivacyTitle;
+
+  /// Privacy/context note for the channel meetings preview
+  ///
+  /// In en, this message translates to:
+  /// **'Only context explicitly selected from {channelName} is prepared for a meeting. Weave does not continuously read, record, or transcribe the room in the background.'**
+  String channelWorkspaceMeetingsPrivacyBody(String channelName);
+
+  /// Status chip for recording/transcription off in channel meetings preview
+  ///
+  /// In en, this message translates to:
+  /// **'Recording and transcription off'**
+  String get channelWorkspaceMeetingsRecordingOff;
+
+  /// Title for the channel meeting context pack preview
+  ///
+  /// In en, this message translates to:
+  /// **'Context pack for this meeting'**
+  String get channelWorkspaceMeetingsContextTitle;
+
+  /// Body for the channel meeting context pack preview
+  ///
+  /// In en, this message translates to:
+  /// **'A meeting pack is explicit and reviewable before anyone joins.'**
+  String get channelWorkspaceMeetingsContextBody;
+
+  /// Meeting context chip for agenda
+  ///
+  /// In en, this message translates to:
+  /// **'Agenda'**
+  String get channelWorkspaceMeetingsContextAgenda;
+
+  /// Meeting context chip for files
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get channelWorkspaceMeetingsContextFiles;
+
+  /// Meeting context chip for decisions
+  ///
+  /// In en, this message translates to:
+  /// **'Decisions'**
+  String get channelWorkspaceMeetingsContextDecisions;
+
+  /// Meeting context chip for tasks
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks'**
+  String get channelWorkspaceMeetingsContextTasks;
+
+  /// Meeting context chip for follow-up evidence
+  ///
+  /// In en, this message translates to:
+  /// **'Follow-up evidence'**
+  String get channelWorkspaceMeetingsContextEvidence;
+
+  /// Disabled join button in channel meetings preview
+  ///
+  /// In en, this message translates to:
+  /// **'Join meeting'**
+  String get channelWorkspaceMeetingsJoinButton;
+
+  /// Disabled start button in channel meetings preview
+  ///
+  /// In en, this message translates to:
+  /// **'Start meeting'**
+  String get channelWorkspaceMeetingsStartButton;
+
+  /// Disabled reason for meeting controls when backend capability is absent
+  ///
+  /// In en, this message translates to:
+  /// **'Meeting provider capability is not available yet.'**
+  String get channelWorkspaceMeetingsBackendUnavailableReason;
 
   /// Status label for an available channel workspace surface
   ///

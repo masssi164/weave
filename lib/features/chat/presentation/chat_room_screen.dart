@@ -681,6 +681,10 @@ class _ChannelWorkspaceTabs extends StatelessWidget {
                     return chatChild;
                   }
 
+                  if (surface.kind == ChannelWorkspaceSurfaceKind.meetings) {
+                    return _ChannelMeetingsPreviewPanel(workspace: workspace);
+                  }
+
                   return _ChannelWorkspaceSurfacePanel(
                     workspace: workspace,
                     surface: surface,
@@ -930,6 +934,7 @@ IconData _channelSurfaceIcon(ChannelWorkspaceSurfaceKind kind) {
     ChannelWorkspaceSurfaceKind.files => Icons.folder_outlined,
     ChannelWorkspaceSurfaceKind.boards => Icons.view_kanban_outlined,
     ChannelWorkspaceSurfaceKind.calendar => Icons.event_outlined,
+    ChannelWorkspaceSurfaceKind.meetings => Icons.video_call_outlined,
   };
 }
 
@@ -942,6 +947,7 @@ String _channelSurfaceTabLabel(
     ChannelWorkspaceSurfaceKind.files => l10n.channelWorkspaceFilesTab,
     ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTab,
     ChannelWorkspaceSurfaceKind.calendar => l10n.channelWorkspaceCalendarTab,
+    ChannelWorkspaceSurfaceKind.meetings => l10n.channelWorkspaceMeetingsTab,
   };
 }
 
@@ -954,6 +960,7 @@ String _channelSurfacePanelTitle(
     ChannelWorkspaceSurfaceKind.files => l10n.channelWorkspaceFilesTitle,
     ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTitle,
     ChannelWorkspaceSurfaceKind.calendar => l10n.channelWorkspaceCalendarTitle,
+    ChannelWorkspaceSurfaceKind.meetings => l10n.channelWorkspaceMeetingsTitle,
   };
 }
 
@@ -968,6 +975,8 @@ String _channelSurfacePanelDescription(
       l10n.channelWorkspaceBoardsDescription,
     ChannelWorkspaceSurfaceKind.calendar =>
       l10n.channelWorkspaceCalendarDescription,
+    ChannelWorkspaceSurfaceKind.meetings =>
+      l10n.channelWorkspaceMeetingsDescription,
   };
 }
 
@@ -982,6 +991,280 @@ String _channelSurfaceStatusLabel(
       l10n.channelWorkspaceStatusPreview,
     ChannelWorkspaceSurfaceAvailability.gated =>
       l10n.channelWorkspaceStatusGated,
+  };
+}
+
+class _ChannelMeetingsPreviewPanel extends StatelessWidget {
+  const _ChannelMeetingsPreviewPanel({required this.workspace});
+
+  final ChannelWorkspacePreview workspace;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final meeting = workspace.meetingPreview;
+    final semanticsLabel = [
+      l10n.channelWorkspaceMeetingsTitle,
+      l10n.channelWorkspaceStatusGated,
+      l10n.channelWorkspaceMeetingsDescription,
+      l10n.channelWorkspaceMeetingsCapabilityBody,
+      l10n.channelWorkspaceMeetingsPrivacyBody(workspace.channelTitle),
+      l10n.channelWorkspaceMeetingsRecordingOff,
+      l10n.channelWorkspaceProviderContract(meeting.providerContractId),
+    ].join('. ');
+
+    return Semantics(
+      container: true,
+      label: semanticsLabel,
+      child: ExcludeSemantics(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Card(
+                elevation: 0,
+                color: theme.colorScheme.surfaceContainerHighest,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: BorderSide(color: theme.colorScheme.outlineVariant),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.video_call_outlined,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  l10n.channelWorkspaceMeetingsTitle,
+                                  style: theme.textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  l10n.channelWorkspaceMeetingsDescription,
+                                  style: theme.textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.lock_outline, size: 18),
+                            label: Text(l10n.channelWorkspaceStatusGated),
+                          ),
+                          Chip(
+                            avatar: const Icon(Icons.hub_outlined, size: 18),
+                            label: Text(
+                              l10n.channelWorkspaceProviderContract(
+                                meeting.providerContractId,
+                              ),
+                            ),
+                          ),
+                          Chip(
+                            avatar: const Icon(
+                              Icons.no_accounts_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              l10n.channelWorkspaceMeetingsRecordingOff,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      _ChannelMeetingInfoBlock(
+                        icon: Icons.verified_user_outlined,
+                        title: l10n.channelWorkspaceMeetingsCapabilityTitle,
+                        body: l10n.channelWorkspaceMeetingsCapabilityBody,
+                      ),
+                      const SizedBox(height: 14),
+                      _ChannelMeetingInfoBlock(
+                        icon: Icons.privacy_tip_outlined,
+                        title: l10n.channelWorkspaceMeetingsPrivacyTitle,
+                        body: l10n.channelWorkspaceMeetingsPrivacyBody(
+                          workspace.channelTitle,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        l10n.channelWorkspaceMeetingsContextTitle,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.channelWorkspaceMeetingsContextBody,
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: meeting.contextItems
+                            .map(
+                              (item) => Chip(
+                                avatar: Icon(
+                                  _meetingContextItemIcon(item.kind),
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  _meetingContextItemLabel(l10n, item.kind),
+                                ),
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: meeting.controls
+                            .map(
+                              (control) => _ChannelMeetingControlButton(
+                                control: control,
+                              ),
+                            )
+                            .toList(growable: false),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelMeetingInfoBlock extends StatelessWidget {
+  const _ChannelMeetingInfoBlock({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return MergeSemantics(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleSmall),
+                const SizedBox(height: 2),
+                Text(
+                  body,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelMeetingControlButton extends StatelessWidget {
+  const _ChannelMeetingControlButton({required this.control});
+
+  final ChannelMeetingControl control;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final label = switch (control.kind) {
+      ChannelMeetingControlKind.join => l10n.channelWorkspaceMeetingsJoinButton,
+      ChannelMeetingControlKind.start =>
+        l10n.channelWorkspaceMeetingsStartButton,
+    };
+    final reason = _meetingControlDisabledReason(l10n, control.disabledReason);
+
+    return Tooltip(
+      message: reason,
+      child: Semantics(
+        button: true,
+        enabled: control.enabled,
+        label: '$label. $reason',
+        child: FilledButton.tonalIcon(
+          onPressed: control.enabled ? () {} : null,
+          icon: Icon(
+            control.kind == ChannelMeetingControlKind.join
+                ? Icons.login_outlined
+                : Icons.add_call,
+          ),
+          label: Text(label),
+        ),
+      ),
+    );
+  }
+}
+
+IconData _meetingContextItemIcon(ChannelMeetingContextItemKind kind) {
+  return switch (kind) {
+    ChannelMeetingContextItemKind.agenda => Icons.format_list_bulleted,
+    ChannelMeetingContextItemKind.files => Icons.attach_file,
+    ChannelMeetingContextItemKind.decisions => Icons.fact_check_outlined,
+    ChannelMeetingContextItemKind.tasks => Icons.task_alt,
+    ChannelMeetingContextItemKind.followUpEvidence => Icons.plagiarism_outlined,
+  };
+}
+
+String _meetingContextItemLabel(
+  AppLocalizations l10n,
+  ChannelMeetingContextItemKind kind,
+) {
+  return switch (kind) {
+    ChannelMeetingContextItemKind.agenda =>
+      l10n.channelWorkspaceMeetingsContextAgenda,
+    ChannelMeetingContextItemKind.files =>
+      l10n.channelWorkspaceMeetingsContextFiles,
+    ChannelMeetingContextItemKind.decisions =>
+      l10n.channelWorkspaceMeetingsContextDecisions,
+    ChannelMeetingContextItemKind.tasks =>
+      l10n.channelWorkspaceMeetingsContextTasks,
+    ChannelMeetingContextItemKind.followUpEvidence =>
+      l10n.channelWorkspaceMeetingsContextEvidence,
+  };
+}
+
+String _meetingControlDisabledReason(AppLocalizations l10n, String reason) {
+  return switch (reason) {
+    'meeting-backend-capability-unavailable' =>
+      l10n.channelWorkspaceMeetingsBackendUnavailableReason,
+    _ => reason,
   };
 }
 
