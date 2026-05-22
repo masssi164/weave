@@ -1,0 +1,65 @@
+# Quality and acceptance evidence
+
+Weave uses layered evidence so contributors can move quickly while release claims stay tied to proof. This page explains what each layer proves, where artifacts are produced, and where to look when something fails.
+
+## Evidence layers
+
+| Layer | What it proves | Where to find it |
+| --- | --- | --- |
+| Offline Flutter checks | Formatting, static analysis, unit/widget behavior, generated code consistency, and no-network contract checks. | `.github/workflows/ci.yml`, local `flutter` commands, `make offline-contract-test`. |
+| Accessibility gate | Automated checks and the manual assistive-technology evidence required before release sign-off. | [Release 1 Accessibility Gate](release-1-accessibility-gate.md). |
+| Deterministic screenshots | README and roadmap SVG assets match the checked-in generator and do not drift silently. | `make marketing-screenshots`, `docs/assets/marketing/`, `docs/assets/roadmap/`, CI screenshot drift step. |
+| Acceptance contract guard | Gherkin acceptance scenarios stay mapped to executable frontend/live-stack tests. | [Acceptance contracts](acceptance-contracts.md), [Product acceptance flows](product-acceptance-flows.md), `test/live_stack_feature_mapping_test.dart`. |
+| Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
+
+## Default PR validation
+
+For most Flutter-only changes, run:
+
+```sh
+flutter pub get
+flutter gen-l10n
+dart run build_runner build --delete-conflicting-outputs
+dart format --output=none --set-exit-if-changed .
+flutter analyze --fatal-infos
+flutter test
+make offline-contract-test
+```
+
+For README or screenshot changes, also run:
+
+```sh
+make marketing-screenshots
+git diff --exit-code -- docs/assets/marketing docs/assets/roadmap
+```
+
+These checks are intentionally cheap enough for normal pull requests and do not require live credentials.
+
+## Live-stack evidence
+
+The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Use it when a change affects sign-in, backend facade contracts, Matrix/files/calendar live behavior, acceptance scenarios, or integration boundaries.
+
+The workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads artifacts such as logs and acceptance evidence from the run. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, and the PR evidence instead.
+
+## Interpreting pass/fail states
+
+- **Offline Flutter failure**: inspect the failing command first. Re-run locally after regenerating l10n/build output.
+- **Screenshot drift**: run `make marketing-screenshots`, review the SVG diff as product copy, and commit the regenerated assets if intentional.
+- **Acceptance mapping failure**: update the scenario-to-test mapping or remove stale scenario claims. Do not leave product acceptance text unmapped.
+- **Live-stack contract failure**: confirm the stack bootstrapped correctly, then inspect backend/API, auth, and app logs. Treat credential or runner-budget problems as infrastructure blockers, not product proof.
+- **Accessibility evidence gap**: do not promote the flow as release-ready until the automated and manual evidence in the accessibility gate is complete.
+
+## Artifact hygiene
+
+- Never commit live credentials, generated secret files, or raw logs that contain tokens/passwords.
+- Prefer redacted summaries in docs and PR bodies.
+- Keep evidence explanations screen-reader friendly; do not make images or badge colors the only source of truth.
+- For permanent docs, link to workflow files and evidence procedures rather than transient artifact URLs.
+
+## Related docs
+
+- [Developer handbook](developer-handbook.md)
+- [Acceptance contracts](acceptance-contracts.md)
+- [Product acceptance flows](product-acceptance-flows.md)
+- [Release 1 Accessibility Gate](release-1-accessibility-gate.md)
+- [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md)

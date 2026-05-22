@@ -35,12 +35,14 @@ jobs:
       - name: Verify generated marketing screenshots
         run: |
           make marketing-screenshots
-          git diff --exit-code -- docs/assets/marketing
+          git diff --exit-code -- docs/assets/marketing docs/assets/roadmap
       - name: Upload marketing screenshots
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_marketing_screenshots == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: weave-marketing-screenshots
-          path: docs/assets/marketing
+          path: |
+            docs/assets/marketing
+            docs/assets/roadmap
           if-no-files-found: error
       - run: make offline-contract-test

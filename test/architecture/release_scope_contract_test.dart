@@ -35,7 +35,7 @@ void main() {
   );
 
   test(
-    'README screenshots keep current product surfaces separate from guarded active previews',
+    'README screenshots keep current product surfaces separate from roadmap surfaces',
     () async {
       final readme = await File('README.md').readAsString();
       final screenshotSection = _section(readme, '## Product screenshots');
@@ -71,13 +71,14 @@ void main() {
       expect(lowerSection, isNot(contains('boards')));
       expect(lowerSection, isNot(contains('tasks')));
 
-      final guardedPreviewSection = _section(
-        readme,
-        '## Guarded previews and roadmap screenshots',
-      ).toLowerCase();
-      expect(guardedPreviewSection, contains('calendar setup readiness'));
-      expect(guardedPreviewSection, contains('active preview'));
-      expect(guardedPreviewSection, contains('does not claim a live vikunja'));
+      final roadmap = await File(
+        'docs/roadmap-and-guarded-surfaces.md',
+      ).readAsString();
+      final lowerRoadmap = roadmap.toLowerCase();
+      expect(lowerRoadmap, contains('06-calendar-roadmap-readiness.svg'));
+      expect(lowerRoadmap, contains('07-boards-feature-gate.svg'));
+      expect(lowerRoadmap, contains('must not claim a live vikunja'));
+      expect(lowerRoadmap, isNot(contains('preview')));
     },
   );
 }

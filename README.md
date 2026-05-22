@@ -9,7 +9,7 @@
   <a href="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml"><img src="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml/badge.svg" alt="Live Stack E2E workflow status"></a>
 </p>
 
-Weave is an accessibility-first collaboration client for teams that want modern work tools without giving up data sovereignty. It brings chat, files, identity, and workspace settings into one Flutter app backed by self-hosted services such as Matrix, Nextcloud, Keycloak, and the Weave backend.
+Weave is an accessibility-first collaboration client for teams that want modern work tools without giving up data sovereignty. It brings setup, sign-in, chat, files, and workspace settings into one Flutter app backed by self-hosted services such as Matrix, Nextcloud, Keycloak, and the Weave backend.
 
 The goal is simple: give teams and organizations a humane migration path away from closed team suites while keeping the product experience cohesive, professional, and understandable for admins and end users.
 
@@ -21,24 +21,25 @@ The goal is simple: give teams and organizations a humane migration path away fr
 - **Migration-friendly** — Slack and Microsoft Teams interop are planned as controlled backend-owned migration and bridge paths, not as client-side shortcuts.
 - **Built for later personal agents** — the long-term direction includes Weaver PA: an OpenClaw-style per-user agent runtime with organization-governed skills, connectors, and group-chat agents. This is later scope, not part of the current active product track.
 
-## Product maturity track
+## Current status
 
-Weave is past the old Release 1-only framing. The active product track is to make the collaboration surfaces dependable, accessible, and honest enough for everyday evaluation by a small team while keeping unfinished capabilities clearly feature-gated.
+Weave is on an active product-maturity track. The showcased client surfaces are the parts that contributors can evaluate directly today: guided setup, service endpoint review, custom chat, basic files, and workspace settings. Calendar, Matrix E2EE completion, boards/tasks, production bridges, public connector SDKs, and Weaver PA remain behind explicit contracts, feature gates, or later roadmap boundaries until their evidence is complete.
+
+The live-stack contract now proves selected end-to-end behavior through CI artifacts, while the default pull-request path stays offline and inexpensive. See [Quality and acceptance evidence](docs/quality-and-evidence.md) for what each gate proves and how to interpret failures.
 
 Current focus areas:
 
 - **Dependable Chat + Matrix E2EE architecture** — a custom Weave Matrix client surface with accessible message states, explicit retry/recovery affordances, and native Matrix E2EE as active architecture scope. E2EE claims stay tied to real device, verification, key backup/recovery, and metadata-boundary validation.
 - **Explorer-grade Files** — a Weave files experience backed by the product backend and Nextcloud/WebDAV/OCS contracts, with clearer metadata, actions, and recovery states.
-- **Consistent recovery UX** — shared loading, empty, error, success, and retry patterns so setup, chat, files, settings, and preview surfaces do not end in cryptic dead states.
+- **Consistent recovery UX** — shared loading, empty, error, success, and retry patterns so setup, chat, files, settings, and gated surfaces do not end in cryptic dead states.
 - **Teams-like shared Calendar** — Calendar follows the collaboration hierarchy: workspace/org calendar, team calendars, and channel events/meeting threads. The guarded live-stack path now validates shared scope metadata and channel event CRUD through the backend facade; private personal calendar ingestion is not a product goal.
-- **Settings and OIDC sign-in** — setup, authentication, stored server configuration, and account/session controls remain part of the daily product shell.
-- **In-app Help / user handbook** — Settings links to a localized Help surface with initial English and German guidance for sign-in, Chat, Files, account/session basics, honest Calendar/Boards availability, recovery, and privacy/security basics.
+- **Settings, OIDC sign-in, and in-app Help** — setup, authentication, stored server configuration, account/session controls, and the localized Help/user handbook remain part of the daily product shell.
 
 Weave still does **not** claim a complete Teams/Slack replacement, public connector SDK, production Slack/Teams bridge, private personal calendar provisioning, or Weaver PA. Matrix E2EE and Boards are active scope behind explicit contracts and feature flags; claims must remain tied to validated implementation state.
 
 ## Product screenshots
 
-A first look at the active product-maturity experience: guided setup, dependable chat, explorer-grade files, and workspace settings in one self-hosted product shell. The screenshots are generated from checked-in SVG assets, so the README stays reviewable and reproducible without turning documentation into image-only content.
+A first look at the active product-maturity experience: guided setup, service review, custom chat, basic files, and workspace settings in one self-hosted product shell. These screenshots are deterministic SVGs generated from checked-in source, so the README stays reviewable and reproducible without turning documentation into image-only content.
 
 ### Setup and service review
 
@@ -56,23 +57,27 @@ A first look at the active product-maturity experience: guided setup, dependable
 
 [<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">](docs/assets/marketing/05-settings.svg)
 
-## Guarded previews and roadmap screenshots
+Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing. Additional gated surfaces are documented separately in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md) so the main showcase does not overclaim unfinished product areas.
 
-These checked-in preview screenshots document in-progress shapes only. They are not unconditional product promises and must stay clearly labelled when a surface is hidden, blocked, or future-scoped.
+## Quick start for contributors
 
-### Guarded active preview: Teams-like calendar
+Start with the [Developer handbook](docs/developer-handbook.md) for the complete workflow. The minimal offline path is:
 
-The checked-in Calendar setup readiness preview documents the guarded Teams-like calendar path: Weave-owned workspace/org, team, and channel calendars backed by the backend facade, with channel event create/read/update/delete covered by the live-stack gate. Meeting-thread attachment remains gated follow-up work, and private personal calendar ingestion is out of scope.
+```sh
+flutter pub get
+flutter gen-l10n
+dart run build_runner build --delete-conflicting-outputs
+dart format --output=none --set-exit-if-changed .
+flutter analyze --fatal-infos
+flutter test
+make offline-contract-test
+```
 
-[<img src="docs/assets/marketing/06-calendar-setup-readiness-preview.svg" alt="Weave calendar preview showing workspace, team, and channel scopes with channel event CRUD validated through the backend facade." width="560">](docs/assets/marketing/06-calendar-setup-readiness-preview.svg)
+Use [`weave-infra`](https://github.com/masssi164/weave-infra) only when a change requires live-stack validation. The expensive live path and its acceptance artifacts are described in [Quality and acceptance evidence](docs/quality-and-evidence.md) and [Acceptance contracts](docs/acceptance-contracts.md).
 
-### Active preview: boards/tasks
+## Roadmap honesty
 
-Boards/tasks are active Weave scope behind feature gates. The preview uses Weave-owned provider-neutral language, includes keyboard and screen-reader alternatives to drag-and-drop, and does not claim a live Vikunja, Deck, or other provider integration.
-
-[<img src="docs/assets/marketing/07-boards-preview.svg" alt="Active Weave boards preview screenshot showing provider-neutral task columns and non-drag movement actions." width="560">](docs/assets/marketing/07-boards-preview.svg)
-
-Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing.
+Weave does **not** claim a complete Teams/Slack replacement, public connector SDK, production Slack/Teams bridge, private personal calendar provisioning, completed Matrix E2EE UX, or Weaver PA. Current roadmap surfaces and gated evidence are kept in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md) and [Product scope: calendar hierarchy, Matrix E2EE, and Boards](docs/product-calendar-e2ee-boards-scope.md).
 
 ## Product architecture
 
@@ -175,6 +180,8 @@ Accessibility is a release requirement, not polish:
 
 ## Development
 
+For the full contributor workflow, read the [Developer handbook](docs/developer-handbook.md). It covers local setup, generated code, l10n, clean architecture conventions, accessibility, acceptance evidence, screenshot generation, and cross-repo boundaries.
+
 ### Prerequisites
 
 - [Flutter SDK](https://docs.flutter.dev/get-started/install)
@@ -207,7 +214,7 @@ Marketing/README screenshots are deterministic SVG assets generated from a small
 make marketing-screenshots
 ```
 
-The command regenerates the product-maturity setup, endpoint review, chat, files, and settings images plus clearly labelled guarded/active-preview images, including the Calendar setup-readiness preview, in `docs/assets/marketing/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
+The command regenerates the product-maturity setup, endpoint review, chat, files, and settings images in `docs/assets/marketing/`, plus guarded roadmap visuals in `docs/assets/roadmap/`. CI runs the generator and fails if the checked-in assets drift. In GitHub Actions, run the `CI` workflow manually with `capture_marketing_screenshots=true` to also download the `weave-marketing-screenshots` artifact.
 
 When adding selected images to the README or docs, keep nearby prose and descriptive `alt` text so the documentation is not image-only.
 
@@ -257,4 +264,4 @@ Supported overrides:
 
 ## Status and roadmap honesty
 
-Weave is under active development. The active product track focuses on making the core client shell, chat, files, recovery states, Teams-like calendar, Matrix E2EE architecture, and boards preview honest and product-ready behind clear gates before broadening the surface. The roadmap is ambitious, but README claims should stay tied to implemented or explicitly future-scoped capabilities.
+Weave is under active development. The active product track focuses on making the core client shell, chat, files, recovery states, Teams-like calendar, Matrix E2EE architecture, and boards/tasks honest and product-ready behind clear gates before broadening the surface. The roadmap is ambitious, but README claims should stay tied to implemented or explicitly future-scoped capabilities.

@@ -23,37 +23,29 @@ void main() {
     },
   );
 
-  test('README preview screenshots keep active gates explicit', () async {
-    final readme = await File('README.md').readAsString();
-    final calendarPreview = _subsection(
-      readme,
-      '### Guarded active preview: Teams-like calendar',
+  test('roadmap page keeps gated surfaces honest', () async {
+    final roadmap = await File(
+      'docs/roadmap-and-guarded-surfaces.md',
+    ).readAsString();
+    final calendarRoadmap = _section(roadmap, '## Teams-like calendar');
+    final boardsRoadmap = _section(roadmap, '## Boards/tasks');
+
+    expect(calendarRoadmap, contains('06-calendar-roadmap-readiness.svg'));
+    expect(calendarRoadmap.toLowerCase(), isNot(contains('preview')));
+    expect(
+      calendarRoadmap,
+      contains('workspace/org, team, and channel scheduling'),
     );
-    final boardsPreview = _subsection(
-      readme,
-      '### Active preview: boards/tasks',
+    expect(
+      calendarRoadmap,
+      contains('Private personal calendar ingestion is not a product goal'),
     );
 
-    expect(
-      calendarPreview,
-      contains('06-calendar-setup-readiness-preview.svg'),
-    );
-    expect(calendarPreview.toLowerCase(), contains('preview'));
-    expect(
-      calendarPreview,
-      contains('workspace/org, team, and channel calendars'),
-    );
-    expect(
-      calendarPreview,
-      contains('private personal calendar ingestion is out of scope'),
-    );
-
-    expect(boardsPreview, contains('07-boards-preview.svg'));
-    expect(boardsPreview.toLowerCase(), contains('preview'));
-    expect(boardsPreview, contains('active Weave scope behind feature gates'));
-    expect(boardsPreview, contains('provider-neutral'));
-    expect(boardsPreview, contains('does not claim a live Vikunja'));
-    expect(boardsPreview, contains('Deck'));
+    expect(boardsRoadmap, contains('07-boards-feature-gate.svg'));
+    expect(boardsRoadmap.toLowerCase(), isNot(contains('preview')));
+    expect(boardsRoadmap, contains('active Weave scope behind feature gates'));
+    expect(boardsRoadmap, contains('provider-neutral'));
+    expect(boardsRoadmap, contains('must not claim a live Vikunja'));
   });
 }
 
@@ -66,24 +58,6 @@ String _section(String markdown, String heading) {
   int? nextHeading;
   for (final match in RegExp(
     r'^## ',
-    multiLine: true,
-  ).allMatches(markdown, start + heading.length)) {
-    nextHeading = match.start;
-    break;
-  }
-
-  return markdown.substring(start, nextHeading ?? markdown.length);
-}
-
-String _subsection(String markdown, String heading) {
-  final start = markdown.indexOf(heading);
-  if (start == -1) {
-    fail('Missing README heading: $heading');
-  }
-
-  int? nextHeading;
-  for (final match in RegExp(
-    r'^### ',
     multiLine: true,
   ).allMatches(markdown, start + heading.length)) {
     nextHeading = match.start;
