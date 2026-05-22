@@ -433,6 +433,10 @@ void main() {
           find.textContaining('Agents use scoped context on demand'),
           findsOneWidget,
         );
+        expect(find.text('Active workflows'), findsOneWidget);
+        expect(find.text('Linear view first'), findsOneWidget);
+        expect(find.text('Prepare a release'), findsOneWidget);
+        expect(find.text('Clear release blockers'), findsOneWidget);
         expect(
           find.text('Agent chats are governed by your workspace'),
           findsOneWidget,

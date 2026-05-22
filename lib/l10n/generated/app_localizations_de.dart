@@ -2604,4 +2604,167 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get agentCapabilityPolicyLoading =>
       'Agenten-Funktionsrichtlinie wird geprüft…';
+
+  @override
+  String get workflowPreviewTitle => 'Aktive Workflows';
+
+  @override
+  String get workflowPreviewDescription =>
+      'Eine lineare Ansicht der aktuellen Schritte, Verantwortlichen, Blockaden und Evidenz. Diagramme können später dazukommen; diese Ansicht muss zuerst mit Tastatur und Screenreadern funktionieren.';
+
+  @override
+  String get workflowPreviewLinearViewChip => 'Lineare Ansicht zuerst';
+
+  @override
+  String get workflowPreviewExplicitContextChip => 'Nur expliziter Kontext';
+
+  @override
+  String get workflowPreviewGovernedActionsChip => 'Gesteuerte Aktionen';
+
+  @override
+  String get workflowPreviewNoBackgroundReading =>
+      'Workflow-Kontext wird bewusst angehängt; Weave liest Räume nicht dauerhaft im Hintergrund mit.';
+
+  @override
+  String workflowPreviewSemanticSummary(
+    int workflowCount,
+    int activeStepCount,
+    int blockerCount,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      workflowCount,
+      locale: localeName,
+      other: '$workflowCount aktive Workflows',
+      one: '1 aktiver Workflow',
+      zero: 'Keine aktiven Workflows',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      activeStepCount,
+      locale: localeName,
+      other: '$activeStepCount aktive Schritte',
+      one: '1 aktiver Schritt',
+      zero: 'Keine aktiven Schritte',
+    );
+    String _temp2 = intl.Intl.pluralLogic(
+      blockerCount,
+      locale: localeName,
+      other: '$blockerCount Blockaden',
+      one: '1 Blockade',
+      zero: 'Keine Blockaden',
+    );
+    return '$_temp0. $_temp1. $_temp2.';
+  }
+
+  @override
+  String workflowPreviewRunSemantic(
+    String title,
+    String context,
+    int stepCount,
+    int blockerCount,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      stepCount,
+      locale: localeName,
+      other: '$stepCount Schritte',
+      one: '1 Schritt',
+    );
+    String _temp1 = intl.Intl.pluralLogic(
+      blockerCount,
+      locale: localeName,
+      other: '$blockerCount Blockaden',
+      one: '1 Blockade',
+      zero: 'Keine Blockaden',
+    );
+    return 'Workflow $title. Kontext $context. $_temp0. $_temp1.';
+  }
+
+  @override
+  String workflowPreviewContextLabel(String context) {
+    return 'Kontext: $context';
+  }
+
+  @override
+  String workflowPreviewNextAction(String stepTitle, String action) {
+    return 'Nächste Aktion: $stepTitle — $action';
+  }
+
+  @override
+  String workflowPreviewStepSemantic(
+    String title,
+    String kind,
+    String status,
+    String owner,
+    String due,
+    String nextAction,
+    String blockers,
+    String evidence,
+  ) {
+    return 'Schritt $title. Typ $kind. Status $status. Verantwortlich $owner. Fällig $due. Nächste Aktion $nextAction. Blockiert: $blockers. Evidenz: $evidence.';
+  }
+
+  @override
+  String get workflowPreviewKindStep => 'Schritt';
+
+  @override
+  String get workflowPreviewKindGate => 'Gate';
+
+  @override
+  String get workflowPreviewKindApproval => 'Freigabe';
+
+  @override
+  String get workflowPreviewStatusReady => 'Bereit';
+
+  @override
+  String get workflowPreviewStatusInProgress => 'In Arbeit';
+
+  @override
+  String get workflowPreviewStatusBlocked => 'Blockiert';
+
+  @override
+  String get workflowPreviewStatusWaiting => 'Wartet auf Freigabe';
+
+  @override
+  String get workflowPreviewStatusDone => 'Erledigt';
+
+  @override
+  String workflowPreviewOwner(String owner) {
+    return 'Verantwortlich: $owner';
+  }
+
+  @override
+  String workflowPreviewDue(String due) {
+    return 'Fällig: $due';
+  }
+
+  @override
+  String workflowPreviewStepNextAction(String action) {
+    return 'Nächste Aktion: $action';
+  }
+
+  @override
+  String get workflowPreviewNoBlockers => 'Keine Blockaden';
+
+  @override
+  String workflowPreviewBlockers(String blockers) {
+    return 'Blockiert: $blockers';
+  }
+
+  @override
+  String workflowPreviewEvidence(String evidence) {
+    return 'Evidenz: $evidence';
+  }
+
+  @override
+  String get workflowPreviewApprovalRequired =>
+      'Owner-Freigabe ist nötig, bevor diese Aktion ausgeführt werden kann.';
+
+  @override
+  String get workflowPreviewAgentDryRunOnly =>
+      'Agentenhilfe bleibt ein Trockenlauf, bis Admin-Richtlinie und Freigabe verbunden sind.';
+
+  @override
+  String get workflowPreviewOpenStepButton => 'Schritt öffnen';
+
+  @override
+  String get workflowPreviewReviewEvidenceButton => 'Evidenz prüfen';
 }

@@ -15,6 +15,8 @@ import 'package:weave/features/chat/presentation/providers/chat_security_provide
 import 'package:weave/features/chat/presentation/widgets/chat_security_banner.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
+import 'package:weave/features/workflows/presentation/providers/workflow_preview_provider.dart';
+import 'package:weave/features/workflows/presentation/widgets/workflow_preview_panel.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The Chat feature screen.
@@ -342,7 +344,7 @@ class _ChatErrorState extends StatelessWidget {
   }
 }
 
-class _ChatOverviewSliver extends StatelessWidget {
+class _ChatOverviewSliver extends ConsumerWidget {
   const _ChatOverviewSliver({
     required this.conversations,
     required this.agentPreviews,
@@ -354,9 +356,14 @@ class _ChatOverviewSliver extends StatelessWidget {
   final ValueChanged<ChatConversation> onOpenConversation;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final overview = ChatOverview.fromConversations(conversations);
+    final workflowPreview = ref
+        .watch(workflowPreviewFacadeProvider)
+        .previewForWorkspace(
+          contexts: _workflowContextSeedsForConversations(conversations),
+        );
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -418,11 +425,31 @@ class _ChatOverviewSliver extends StatelessWidget {
               conversations: overview.aiChats,
               onOpenConversation: onOpenConversation,
             ),
+            const SizedBox(height: 20),
+            WorkflowPreviewPanel(snapshot: workflowPreview),
           ],
         ),
       ),
     );
   }
+}
+
+List<WorkflowContextSeed> _workflowContextSeedsForConversations(
+  List<ChatConversation> conversations,
+) {
+  return conversations
+      .where(
+        (conversation) =>
+            !conversation.isDirectMessage && !conversation.isAiChat,
+      )
+      .map(
+        (conversation) => WorkflowContextSeed(
+          id: conversation.id,
+          kind: WorkflowContextSeedKind.channel,
+          label: conversation.title,
+        ),
+      )
+      .toList(growable: false);
 }
 
 class _AgentChatGovernancePanel extends StatelessWidget {
