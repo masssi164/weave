@@ -85,6 +85,16 @@ final weaveApiProviderStackSnapshotProvider =
       });
     });
 
+final weaveApiOfficeCapabilitiesSnapshotProvider =
+    FutureProvider<OfficeCapabilitiesSnapshot?>((ref) async {
+      return _withWeaveApiSession(ref, (client, baseUrl, accessToken) {
+        return client.fetchOfficeCapabilities(
+          baseUrl: baseUrl,
+          accessToken: accessToken,
+        );
+      });
+    });
+
 Future<T?> _withWeaveApiSession<T>(
   Ref ref,
   Future<T> Function(WeaveApiClient client, Uri baseUrl, String accessToken)

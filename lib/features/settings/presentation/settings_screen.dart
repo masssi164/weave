@@ -832,6 +832,9 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
     final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
     final providerStack = ref.watch(weaveApiProviderStackSnapshotProvider);
+    final officeCapabilities = ref.watch(
+      weaveApiOfficeCapabilitiesSnapshotProvider,
+    );
 
     return Card(
       elevation: 0,
@@ -881,7 +884,10 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                 ),
                 if (providerStack.asData?.value case final stack?) ...[
                   const SizedBox(height: 20),
-                  _ProviderStackReadinessSummary(stack: stack),
+                  _ProviderStackReadinessSummary(
+                    stack: stack,
+                    officeCapabilities: officeCapabilities.asData?.value,
+                  ),
                 ],
                 const SizedBox(height: 20),
                 _WorkspaceReadinessRow(
@@ -972,9 +978,13 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
 }
 
 class _ProviderStackReadinessSummary extends StatelessWidget {
-  const _ProviderStackReadinessSummary({required this.stack});
+  const _ProviderStackReadinessSummary({
+    required this.stack,
+    this.officeCapabilities,
+  });
 
   final ProviderStackSnapshot stack;
+  final OfficeCapabilitiesSnapshot? officeCapabilities;
 
   @override
   Widget build(BuildContext context) {
@@ -1029,14 +1039,39 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
                   ),
                 ],
               ),
+              if (officeCapabilities case final office?) ...[
+                const SizedBox(height: 12),
+                _OfficeProviderReadinessSummary(office: office),
+              ],
               if (providers.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 for (final provider in providers)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      '${provider.module}: ${_providerStateLabel(provider.state)} — ${provider.summary}',
-                      style: theme.textTheme.bodySmall,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '${_providerModuleLabel(provider.module)}: ${_providerStateLabel(provider.state)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (provider.disabled)
+                          const _CompactStatusBadge(label: 'disabled'),
+                        if (provider.unconfigured)
+                          const _CompactStatusBadge(label: 'unconfigured'),
+                        if (provider.failClosed)
+                          const _CompactStatusBadge(label: 'fail-closed'),
+                        if (provider.readOnly)
+                          const _CompactStatusBadge(label: 'read-only'),
+                        if (provider.paidFeaturesRequired)
+                          const _CompactStatusBadge(
+                            label: 'paid features required',
+                          ),
+                      ],
                     ),
                   ),
               ],
@@ -1045,6 +1080,23 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _providerModuleLabel(String module) {
+    return switch (module) {
+      'identity-realm' => 'Identity realm',
+      'source-control' => 'Source control',
+      'issue-tracker' => 'Issue tracker',
+      'ci' => 'CI',
+      'release' => 'Release',
+      'office' => 'Office',
+      'files' => 'Files',
+      'calendar' => 'Calendar',
+      'contacts' => 'Contacts',
+      'forms' => 'Forms',
+      'boards' => 'Boards',
+      _ => 'Provider',
+    };
   }
 
   String _providerStateLabel(ProviderState state) {
@@ -1057,6 +1109,79 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
       ProviderState.unsupported => 'unsupported',
       ProviderState.unknown => 'unknown',
     };
+  }
+}
+
+class _OfficeProviderReadinessSummary extends StatelessWidget {
+  const _OfficeProviderReadinessSummary({required this.office});
+
+  final OfficeCapabilitiesSnapshot office;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final enabledModes = office.capabilities.enabledModes;
+
+    return Semantics(
+      container: true,
+      label:
+          'Office readiness. Launch is ${office.launchFailClosed ? 'fail-closed' : 'available'}. Provider is ${office.configured ? 'configured' : 'unconfigured'}.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Office readiness', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 6),
+          Text(
+            office.launchFailClosed
+                ? 'Office launch is fail-closed until a backend-owned provider adapter, session tokens, callbacks and permissions are configured.'
+                : 'Office launch is available through the backend facade.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _CompactStatusBadge(
+                label: office.enabled ? 'enabled' : 'disabled',
+              ),
+              _CompactStatusBadge(
+                label: office.configured ? 'configured' : 'unconfigured',
+              ),
+              if (office.launchFailClosed)
+                const _CompactStatusBadge(label: 'fail-closed'),
+              _CompactStatusBadge(
+                label: enabledModes.isEmpty
+                    ? 'no launch modes'
+                    : 'modes: ${enabledModes.join(', ')}',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompactStatusBadge extends StatelessWidget {
+  const _CompactStatusBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(label, style: theme.textTheme.labelSmall),
+      ),
+    );
   }
 }
 

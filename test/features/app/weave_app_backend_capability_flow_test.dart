@@ -181,6 +181,28 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
       defaultProvider: 'none',
       providerReadiness: [],
       supportedFileTypes: [],
+      candidates: [],
+      capabilities: OfficeCapabilityFlagsSnapshot(
+        view: false,
+        edit: false,
+        comment: false,
+        review: false,
+        formFill: false,
+      ),
+      permissions: OfficePermissionModelSnapshot(
+        canView: false,
+        canEdit: false,
+        canComment: false,
+        canReview: false,
+        canFillForms: false,
+        reason: 'not-used',
+      ),
+      lockSessionReadiness: OfficeLockSessionReadinessSnapshot(
+        documentLocks: 'disabled',
+        sessionTokens: 'disabled',
+        callbackVerification: 'disabled',
+        supportSafe: true,
+      ),
     );
   }
 
@@ -188,7 +210,8 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
   Future<OfficeLaunchSnapshot> launchOfficeSession({
     required Uri baseUrl,
     required String accessToken,
-    required String documentId,
+    required String fileId,
+    required String requestedMode,
   }) async {
     throw UnimplementedError('Office launch is not used by this test fake.');
   }

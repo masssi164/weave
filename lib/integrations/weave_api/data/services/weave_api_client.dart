@@ -41,7 +41,8 @@ abstract interface class WeaveApiClient {
   Future<OfficeLaunchSnapshot> launchOfficeSession({
     required Uri baseUrl,
     required String accessToken,
-    required String documentId,
+    required String fileId,
+    required String requestedMode,
   });
 }
 
@@ -152,20 +153,26 @@ class HttpWeaveApiClient implements WeaveApiClient {
   Future<OfficeLaunchSnapshot> launchOfficeSession({
     required Uri baseUrl,
     required String accessToken,
-    required String documentId,
+    required String fileId,
+    required String requestedMode,
   }) async {
     final payload = await _postJson(
       requestUri: _officeLaunchUri(baseUrl),
       accessToken: accessToken,
-      body: {'documentId': documentId},
+      body: {'fileId': fileId, 'requestedMode': requestedMode},
       failureMessage: 'The Weave backend refused the Office launch request.',
       invalidPayloadMessage:
           'The Weave backend returned an invalid Office launch payload.',
       decodeFailureMessage:
           'Unable to decode Office launch from the Weave backend.',
+      failClosedStatusCodes: const {503},
     );
 
-    return OfficeLaunchResponseDto.fromJson(payload).toSnapshot();
+    if (payload.failClosed) {
+      return OfficeLaunchErrorResponseDto.fromJson(payload.json).toSnapshot();
+    }
+
+    return OfficeLaunchResponseDto.fromJson(payload.json).toSnapshot();
   }
 
   Future<Map<String, dynamic>> _getJson({
@@ -217,58 +224,6 @@ class HttpWeaveApiClient implements WeaveApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> _postJson({
-    required Uri requestUri,
-    required String accessToken,
-    required Map<String, Object?> body,
-    required String failureMessage,
-    required String invalidPayloadMessage,
-    required String decodeFailureMessage,
-  }) async {
-    late http.Response response;
-    try {
-      response = await _httpClient
-          .post(
-            requestUri,
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-            body: jsonEncode(body),
-          )
-          .timeout(const Duration(seconds: 5));
-    } catch (error) {
-      throw AppFailure.unknown(
-        'Unable to reach the Weave backend right now.',
-        cause: error,
-      );
-    }
-
-    if (response.statusCode == 401 || response.statusCode == 403) {
-      throw const AppFailure.unknown(
-        'The Weave backend rejected the current session.',
-      );
-    }
-
-    if (response.statusCode != 200) {
-      throw AppFailure.unknown(failureMessage, cause: response.statusCode);
-    }
-
-    try {
-      final payload = jsonDecode(response.body);
-      if (payload is! Map<String, dynamic>) {
-        throw AppFailure.unknown(invalidPayloadMessage);
-      }
-
-      return payload;
-    } on AppFailure {
-      rethrow;
-    } catch (error) {
-      throw AppFailure.unknown(decodeFailureMessage, cause: error);
-    }
-  }
-
   Future<_HttpJsonPayload> _postJson({
     required Uri requestUri,
     required String accessToken,
@@ -285,8 +240,8 @@ class HttpWeaveApiClient implements WeaveApiClient {
             requestUri,
             headers: {
               'Accept': 'application/json',
-              'Content-Type': 'application/json',
               'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
             },
             body: jsonEncode(body),
           )
