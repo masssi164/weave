@@ -15,6 +15,7 @@ import 'package:weave/features/app/domain/entities/workspace_capability_snapshot
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
 import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/data/repositories/shared_preferences_server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
@@ -91,6 +92,28 @@ const _matrixDiagnostic = MatrixE2eeDiagnostic(
       'fail_closed_until_audit_consent_and_matrix_e2ee_client_identity_are_implemented',
 );
 
+const _ownerProfile = UserProfile(
+  userId: 'owner-1',
+  username: 'owner',
+  displayName: 'Workspace Owner',
+  locale: 'en',
+  timezone: 'Europe/Berlin',
+  emailVerified: true,
+  roles: ['owner'],
+  groups: ['workspace-default'],
+);
+
+const _memberProfile = UserProfile(
+  userId: 'member-1',
+  username: 'member',
+  displayName: 'Workspace Member',
+  locale: 'en',
+  timezone: 'Europe/Berlin',
+  emailVerified: true,
+  roles: ['member'],
+  groups: ['workspace-default'],
+);
+
 AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
   return const AsyncData(
     WorkspaceCapabilitySnapshot(
@@ -146,7 +169,7 @@ void main() {
           weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
             (ref) async => _matrixDiagnostic,
           ),
-          userProfileProvider.overrideWith((ref) async => null),
+          userProfileProvider.overrideWith((ref) async => _ownerProfile),
         ],
       );
       addTearDown(container.dispose);
@@ -239,6 +262,55 @@ void main() {
       expect(json['backendApiBaseUrl'], 'https://api.home.internal/api');
     });
 
+    testWidgets('hides OIDC and service endpoint setup from members', (
+      tester,
+    ) async {
+      final store = InMemoryPreferencesStore(buildStoredConfiguration());
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith((ref) => store),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
+          ),
+          userProfileProvider.overrideWith((ref) async => _memberProfile),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Workspace setup is admin-only'), findsOneWidget);
+      expect(
+        find.textContaining('Normal users can keep using Weave'),
+        findsOneWidget,
+      );
+      expect(find.text('Server Configuration'), findsNothing);
+      expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
+      expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
+    });
+
     testWidgets('preserves overridden service URLs when the issuer changes', (
       tester,
     ) async {
@@ -266,7 +338,7 @@ void main() {
           weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
             (ref) async => _matrixDiagnostic,
           ),
-          userProfileProvider.overrideWith((ref) async => null),
+          userProfileProvider.overrideWith((ref) async => _ownerProfile),
         ],
       );
       addTearDown(container.dispose);

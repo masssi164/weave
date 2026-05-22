@@ -1,3 +1,5 @@
+import 'package:weave/core/permissions/workspace_role.dart';
+
 class UserProfile {
   const UserProfile({
     required this.userId,
@@ -20,6 +22,14 @@ class UserProfile {
   final String timezone;
   final List<String> roles;
   final List<String> groups;
+}
+
+extension UserProfilePermissions on UserProfile {
+  bool get canAdministerWorkspace => roles.canAdministerWorkspace;
+
+  bool get canInviteUsers => roles.canInviteUsers;
+
+  String get primaryWorkspaceRole => roles.primaryWorkspaceRole;
 }
 
 class UserProfileUpdate {

@@ -610,6 +610,26 @@
   "boardsPreviewActionMoved": "Aufgabe über die Backend-Fassade verschoben.",
   "boardsPreviewActionCompleted": "Aufgabe über die Backend-Fassade als erledigt markiert.",
   "boardsPreviewActionFailed": "Die Backend-Fassade konnte diese Boards-Vorschau-Aktion nicht speichern.",
-  "boardsPreviewActionNoNextColumn": "Diese Aufgabe ist bereits in der letzten Vorschau-Spalte."
+  "boardsPreviewActionNoNextColumn": "Diese Aufgabe ist bereits in der letzten Vorschau-Spalte.",
+
+  "settingsAdminSetupTitle": "Owner- und Admin-Einrichtung",
+  "settingsAdminSetupDescription": "Workspace-Owner und Admins verwalten hier OIDC, Realm, Organisation und Dienstendpunkte. Mitglieder und Gäste sehen nur Anmeldung und Produkteinstellungen.",
+  "settingsAdminPermissionTitle": "Admin-Steuerung freigeschaltet",
+  "settingsAdminPermissionDescription": "Sichtbar, weil deine Weave-Rollen sind: {roles}. Backend-APIs bleiben die Autorität für jeden Schreibvorgang.",
+  "settingsAdminPermissionSemantic": "Admin-Steuerung freigeschaltet. Sichtbar, weil deine Weave-Rollen sind: {roles}. Backend-APIs bleiben die Autorität für jeden Schreibvorgang.",
+  "settingsAdminBoundaryTitle": "Workspace-Einrichtung ist nur für Admins",
+  "settingsAdminBoundaryDescription": "OIDC-, Realm-, Organisations- und Dienstendpunkt-Einrichtung wird von Workspace-Ownern oder Admins verwaltet. Normale Nutzer können Weave ohne Matrix-, Nextcloud- oder Realm-Details verwenden.",
+  "settingsAdminPermissionLoading": "Admin-Berechtigungen werden geprüft…",
+  "chatContextCardTitle": "Kontext für diesen Workspace",
+  "chatContextCardDescription": "Weave kann fokussierten Kontext aus Kanälen, Entscheidungen und gemeinsamer Arbeit vorbereiten, wenn du Hilfe anforderst. Es zeigt kein Datenbankdiagramm und liest nicht ständig alles mit.",
+  "chatContextCardPolicy": "Agenten nutzen begrenzten Kontext nur bei Bedarf, zeigen den verwendeten Kontext und bleiben innerhalb der Admin-Grenzen.",
+  "chatContextChannelHintTitle": "Kanalkontext",
+  "chatContextChannelHintDescription": "Aktuelle Raumsignale können zu einer kleinen Kontextkarte für die Aufgabe werden.",
+  "chatContextEvidenceHintTitle": "Entscheidungen und Evidenz",
+  "chatContextEvidenceHintDescription": "Entscheidungsnotizen und Links können zitiert werden, ohne Graph-Interna offenzulegen.",
+  "chatContextAgentHintTitle": "Agent-Kontextpakete",
+  "chatContextAgentHintDescription": "Assistenten erhalten nur das begrenzte Paket für Anfrage, Erwähnung oder Zeitplan.",
+  "firstRunAdminSetupTitle": "Owner-/Admin-Verantwortung bei der Einrichtung",
+  "firstRunAdminSetupDescription": "Deine Rolle darf die Workspace-Einrichtung verwalten. OIDC-, Realm-, Organisations-, Einladungs- und Dienstendpunkt-Änderungen gehören hier oder in die Einstellungen; normale Nutzer sollen nur eine Weave-Anmeldung brauchen."
 
 }

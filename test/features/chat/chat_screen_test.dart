@@ -419,6 +419,13 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Weave Home'), findsOneWidget);
+        expect(find.text('Context for this workspace'), findsOneWidget);
+        expect(find.text('Channel context'), findsOneWidget);
+        expect(find.text('Agent context packs'), findsOneWidget);
+        expect(
+          find.textContaining('Agents use scoped context on demand'),
+          findsOneWidget,
+        );
         expect(find.text('Favorites'), findsOneWidget);
         expect(find.text('Personal messages'), findsOneWidget);
         expect(find.text('Channels'), findsOneWidget);

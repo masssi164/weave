@@ -373,6 +373,8 @@ class _ChatOverviewSliver extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+            const _ChatContextCard(),
+            const SizedBox(height: 20),
             _ChatOverviewSection(
               title: l10n.chatFavoritesSectionTitle,
               description: l10n.chatFavoritesSectionDescription,
@@ -410,6 +412,140 @@ class _ChatOverviewSliver extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ChatContextCard extends StatelessWidget {
+  const _ChatContextCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final hints = <({IconData icon, String title, String description})>[
+      (
+        icon: Icons.forum_outlined,
+        title: l10n.chatContextChannelHintTitle,
+        description: l10n.chatContextChannelHintDescription,
+      ),
+      (
+        icon: Icons.fact_check_outlined,
+        title: l10n.chatContextEvidenceHintTitle,
+        description: l10n.chatContextEvidenceHintDescription,
+      ),
+      (
+        icon: Icons.psychology_alt_outlined,
+        title: l10n.chatContextAgentHintTitle,
+        description: l10n.chatContextAgentHintDescription,
+      ),
+    ];
+
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.24),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(
+            color: theme.colorScheme.primary.withValues(alpha: 0.42),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.hub_outlined, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(
+                            l10n.chatContextCardTitle,
+                            style: theme.textTheme.titleLarge,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          l10n.chatContextCardDescription,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...hints.map(
+                (hint) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _ChatContextHintTile(
+                    icon: hint.icon,
+                    title: hint.title,
+                    description: hint.description,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                l10n.chatContextCardPolicy,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatContextHintTile extends StatelessWidget {
+  const _ChatContextHintTile({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return MergeSemantics(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: theme.textTheme.titleSmall),
+                const SizedBox(height: 2),
+                Text(description, style: theme.textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

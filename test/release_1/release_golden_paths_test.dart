@@ -34,6 +34,8 @@ import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/presentation/providers/files_repository_provider.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
+import 'package:weave/features/profile/domain/entities/user_profile.dart';
+import 'package:weave/features/profile/presentation/providers/user_profile_provider.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
@@ -78,6 +80,7 @@ void main() {
             firstRunStatusProvider.overrideWith(
               (ref) async => _releaseFirstRunStatus(),
             ),
+            userProfileProvider.overrideWith((ref) async => _ownerProfile),
             workspaceConnectionStateProvider.overrideWithValue(
               _workspaceConnectionState(),
             ),
@@ -267,6 +270,18 @@ Future<void> _continueFirstRunIfPresent(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+const _ownerProfile = UserProfile(
+  userId: 'release-owner',
+  username: 'alex',
+  email: 'alex@example.test',
+  emailVerified: true,
+  displayName: 'Alex Doe',
+  locale: 'en',
+  timezone: 'Europe/Berlin',
+  roles: <String>['owner'],
+  groups: <String>['workspace-default'],
+);
+
 FirstRunStatus _releaseFirstRunStatus() {
   const profile = FirstRunProfileStatus(
     status: 'ready',
@@ -288,7 +303,7 @@ FirstRunStatus _releaseFirstRunStatus() {
       displayName: 'Alex Doe',
       locale: 'en',
       timezone: 'Europe/Berlin',
-      roles: <String>['member'],
+      roles: <String>['owner'],
       groups: <String>['workspace-default'],
     ),
     invite: FirstRunInviteStatus(
@@ -296,11 +311,11 @@ FirstRunStatus _releaseFirstRunStatus() {
       message: 'The invite has been accepted and the account is active.',
     ),
     access: FirstRunAccess(
-      primaryRole: 'member',
-      roles: <String>['member'],
+      primaryRole: 'owner',
+      roles: <String>['owner'],
       groups: <String>['workspace-default'],
-      canAdministerWorkspace: false,
-      canInviteUsers: false,
+      canAdministerWorkspace: true,
+      canInviteUsers: true,
       canUseWorkspaceModules: true,
     ),
     profile: profile,
