@@ -488,6 +488,83 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatStaleRoomsRetryButton => 'Räume aktualisieren';
 
   @override
+  String channelWorkspaceSummaryTitle(String channelName) {
+    return 'Arbeitsraum $channelName';
+  }
+
+  @override
+  String get channelWorkspaceSummaryDescription =>
+      'Dieser Channel ist ein Arbeitsraum mit Tabs für Chat, Dateien, Boards und Kalender, wenn der Arbeitsbereich sie aktiviert hat.';
+
+  @override
+  String get channelWorkspaceGovernanceNote =>
+      'Kontext bleibt ausdrücklich: kein verstecktes dauerhaftes Mitlesen und kein Admin-Setup für normale Mitglieder.';
+
+  @override
+  String channelWorkspaceTabsSemanticLabel(String channelName) {
+    return 'Channel-Arbeitsraum-Tabs für $channelName';
+  }
+
+  @override
+  String get channelWorkspaceChatTab => 'Chat';
+
+  @override
+  String get channelWorkspaceFilesTab => 'Dateien';
+
+  @override
+  String get channelWorkspaceBoardsTab => 'Boards';
+
+  @override
+  String get channelWorkspaceCalendarTab => 'Kalender';
+
+  @override
+  String get channelWorkspaceChatTitle => 'Channel-Chat';
+
+  @override
+  String get channelWorkspaceFilesTitle => 'Channel-Dateien';
+
+  @override
+  String get channelWorkspaceBoardsTitle => 'Channel-Boards und Aufgaben';
+
+  @override
+  String get channelWorkspaceCalendarTitle => 'Channel-Kalender';
+
+  @override
+  String get channelWorkspaceChatDescription =>
+      'Nachrichten bleiben der standardmäßige Live-Kontext für diesen Channel.';
+
+  @override
+  String get channelWorkspaceFilesDescription =>
+      'Channel-Dateiverknüpfung ist eine Vorschau-Nahtstelle. Dateien werden über die Weave-Datei-Fassade statt über rohe Anbieterpfade angebunden, sobald der Backend-Vertrag bereit ist.';
+
+  @override
+  String get channelWorkspaceBoardsDescription =>
+      'Verknüpfte Boards und Aufgaben erscheinen als ehrliche Vorschau, bis anbieterneutraler Board-Status mit diesem Channel-Kontext verbunden ist.';
+
+  @override
+  String get channelWorkspaceCalendarDescription =>
+      'Channel-Termine bleiben gesperrt, bis die Kalender-Scope-Fähigkeit für diesen Arbeitsbereich verfügbar ist.';
+
+  @override
+  String get channelWorkspaceStatusAvailable => 'Verfügbar';
+
+  @override
+  String get channelWorkspaceStatusPreview => 'Vorschau-Vertrag';
+
+  @override
+  String get channelWorkspaceStatusGated => 'Durch Fähigkeit gesperrt';
+
+  @override
+  String channelWorkspaceProviderContract(String contractId) {
+    return 'Anbieter-Nahtstelle: $contractId';
+  }
+
+  @override
+  String channelWorkspaceExplicitContextNote(String channelName) {
+    return 'Hier wird nur ausdrücklicher Kontext aus $channelName gezeigt; Weave liest den Raum nicht dauerhaft im Hintergrund mit.';
+  }
+
+  @override
   String get filesScreenTitle => 'Dateien';
 
   @override
@@ -1489,6 +1566,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatConversationDirectMessageLabel => 'Direkte Unterhaltung';
+
+  @override
+  String get chatConversationOpensChannelWorkspaceLabel =>
+      'Öffnet den Channel-Arbeitsraum';
 
   @override
   String get chatConversationRecentNow => 'Gerade aktiv';

@@ -10,9 +10,11 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
+import 'package:weave/features/chat/domain/entities/channel_workspace.dart';
 import 'package:weave/features/chat/domain/entities/context_graph.dart';
 import 'package:weave/features/chat/domain/entities/decision_evidence.dart';
 import 'package:weave/features/chat/presentation/providers/archived_message_store_provider.dart';
+import 'package:weave/features/chat/presentation/providers/channel_workspace_preview_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/context_pack_preview_provider.dart';
 import 'package:weave/features/chat/presentation/providers/decision_evidence_provider.dart';
@@ -365,35 +367,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       backgroundRoomReadingEnabled: false,
     );
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(roomTitle),
-        actions: [
-          IconButton(
-            onPressed: _loading
-                ? null
-                : () => setState(() {
-                    _showingArchivedMessages = !_showingArchivedMessages;
-                  }),
-            icon: Icon(
-              _showingArchivedMessages
-                  ? Icons.forum_outlined
-                  : Icons.archive_outlined,
-            ),
-            tooltip: _showingArchivedMessages
-                ? l10n.chatRoomActiveTimelineAction
-                : l10n.chatRoomArchivedMessagesAction,
-          ),
-          IconButton(
-            onPressed: _loading ? null : _loadTimeline,
-            icon: const Icon(Icons.refresh),
-            tooltip: l10n.retryButton,
-          ),
-        ],
-      ),
-      body: LayoutBuilder(
+    Widget buildChatTimelineBody() {
+      return LayoutBuilder(
         builder: (context, constraints) {
-          final compactContextPreview = constraints.maxHeight < 480;
+          const compactContextPreview = false;
 
           return Column(
             children: [
@@ -456,13 +433,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: Column(
                       children: [
-                        if (constraints.maxHeight >= 480)
-                          _RoomContextPackPreviewCard(
-                            contextPack: contextPack,
-                            compact: compactContextPreview,
-                          ),
-                        if (constraints.maxHeight >= 480)
-                          const SizedBox(height: 8),
+                        _RoomContextPackPreviewCard(
+                          contextPack: contextPack,
+                          compact: compactContextPreview,
+                        ),
+                        const SizedBox(height: 8),
                         _RoomDecisionEvidenceCard(
                           snapshot: decisionEvidenceSnapshot,
                           compact: compactContextPreview,
@@ -610,9 +585,404 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             ],
           );
         },
+      );
+    }
+
+    final workspaceFacade = ref.watch(channelWorkspacePreviewFacadeProvider);
+    final workspace = workspaceFacade.supportsWorkspaceTabs(widget.conversation)
+        ? workspaceFacade.previewForChannel(widget.conversation)
+        : null;
+    final scaffold = Scaffold(
+      appBar: AppBar(
+        title: Text(roomTitle),
+        actions: [
+          IconButton(
+            onPressed: _loading
+                ? null
+                : () => setState(() {
+                    _showingArchivedMessages = !_showingArchivedMessages;
+                  }),
+            icon: Icon(
+              _showingArchivedMessages
+                  ? Icons.forum_outlined
+                  : Icons.archive_outlined,
+            ),
+            tooltip: _showingArchivedMessages
+                ? l10n.chatRoomActiveTimelineAction
+                : l10n.chatRoomArchivedMessagesAction,
+          ),
+          IconButton(
+            onPressed: _loading ? null : _loadTimeline,
+            icon: const Icon(Icons.refresh),
+            tooltip: l10n.retryButton,
+          ),
+        ],
+      ),
+      body: workspace == null
+          ? buildChatTimelineBody()
+          : _ChannelWorkspaceTabs(
+              workspace: workspace,
+              chatChild: buildChatTimelineBody(),
+            ),
+    );
+
+    if (workspace == null) {
+      return scaffold;
+    }
+
+    return DefaultTabController(
+      length: workspace.surfaces.length,
+      child: scaffold,
+    );
+  }
+}
+
+class _ChannelWorkspaceTabs extends StatelessWidget {
+  const _ChannelWorkspaceTabs({
+    required this.workspace,
+    required this.chatChild,
+  });
+
+  final ChannelWorkspacePreview workspace;
+  final Widget chatChild;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: _ChannelWorkspaceSummary(workspace: workspace),
+        ),
+        Material(
+          color: theme.colorScheme.surface,
+          child: Semantics(
+            container: true,
+            label: l10n.channelWorkspaceTabsSemanticLabel(
+              workspace.channelTitle,
+            ),
+            child: TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: workspace.surfaces
+                  .map((surface) => _ChannelWorkspaceTab(surface: surface))
+                  .toList(growable: false),
+            ),
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            children: workspace.surfaces
+                .map((surface) {
+                  if (surface.kind == ChannelWorkspaceSurfaceKind.chat) {
+                    return chatChild;
+                  }
+
+                  return _ChannelWorkspaceSurfacePanel(
+                    workspace: workspace,
+                    surface: surface,
+                  );
+                })
+                .toList(growable: false),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ChannelWorkspaceSummary extends StatelessWidget {
+  const _ChannelWorkspaceSummary({required this.workspace});
+
+  final ChannelWorkspacePreview workspace;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Semantics(
+      container: true,
+      label:
+          '${l10n.channelWorkspaceSummaryTitle(workspace.channelTitle)}. '
+          '${l10n.channelWorkspaceSummaryDescription}. '
+          '${l10n.channelWorkspaceGovernanceNote}',
+      child: ExcludeSemantics(
+        child: Card(
+          elevation: 0,
+          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.24),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: theme.colorScheme.primary.withValues(alpha: 0.36),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.workspaces_outline,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            l10n.channelWorkspaceSummaryTitle(
+                              workspace.channelTitle,
+                            ),
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.channelWorkspaceSummaryDescription,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  l10n.channelWorkspaceGovernanceNote,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
+}
+
+class _ChannelWorkspaceTab extends StatelessWidget {
+  const _ChannelWorkspaceTab({required this.surface});
+
+  final ChannelWorkspaceSurface surface;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return Tab(
+      child: SizedBox(
+        height: 48,
+        child: Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_channelSurfaceIcon(surface.kind), size: 20),
+              const SizedBox(width: 8),
+              Text(_channelSurfaceTabLabel(l10n, surface.kind)),
+              if (surface.isGated) ...[
+                const SizedBox(width: 6),
+                const Icon(Icons.lock_outline, size: 16),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
+  const _ChannelWorkspaceSurfacePanel({
+    required this.workspace,
+    required this.surface,
+  });
+
+  final ChannelWorkspacePreview workspace;
+  final ChannelWorkspaceSurface surface;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final title = _channelSurfacePanelTitle(l10n, surface.kind);
+    final body = _channelSurfacePanelDescription(l10n, surface.kind);
+    final status = _channelSurfaceStatusLabel(l10n, surface.availability);
+    final semanticsLabel = [
+      title,
+      status,
+      body,
+      l10n.channelWorkspaceProviderContract(surface.providerContractId),
+      l10n.channelWorkspaceExplicitContextNote(workspace.channelTitle),
+    ].join('. ');
+
+    return Semantics(
+      container: true,
+      label: semanticsLabel,
+      child: ExcludeSemantics(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Card(
+            elevation: 0,
+            color: theme.colorScheme.surfaceContainerHighest,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(color: theme.colorScheme.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        _channelSurfaceIcon(surface.kind),
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(title, style: theme.textTheme.titleLarge),
+                            const SizedBox(height: 6),
+                            Text(body, style: theme.textTheme.bodyMedium),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      Chip(
+                        avatar: Icon(
+                          surface.isGated
+                              ? Icons.lock_outline
+                              : Icons.visibility_outlined,
+                          size: 18,
+                        ),
+                        label: Text(status),
+                      ),
+                      Chip(
+                        avatar: const Icon(Icons.hub_outlined, size: 18),
+                        label: Text(
+                          l10n.channelWorkspaceProviderContract(
+                            surface.providerContractId,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  MergeSemantics(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.privacy_tip_outlined,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            l10n.channelWorkspaceExplicitContextNote(
+                              workspace.channelTitle,
+                            ),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+IconData _channelSurfaceIcon(ChannelWorkspaceSurfaceKind kind) {
+  return switch (kind) {
+    ChannelWorkspaceSurfaceKind.chat => Icons.chat_bubble_outline,
+    ChannelWorkspaceSurfaceKind.files => Icons.folder_outlined,
+    ChannelWorkspaceSurfaceKind.boards => Icons.view_kanban_outlined,
+    ChannelWorkspaceSurfaceKind.calendar => Icons.event_outlined,
+  };
+}
+
+String _channelSurfaceTabLabel(
+  AppLocalizations l10n,
+  ChannelWorkspaceSurfaceKind kind,
+) {
+  return switch (kind) {
+    ChannelWorkspaceSurfaceKind.chat => l10n.channelWorkspaceChatTab,
+    ChannelWorkspaceSurfaceKind.files => l10n.channelWorkspaceFilesTab,
+    ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTab,
+    ChannelWorkspaceSurfaceKind.calendar => l10n.channelWorkspaceCalendarTab,
+  };
+}
+
+String _channelSurfacePanelTitle(
+  AppLocalizations l10n,
+  ChannelWorkspaceSurfaceKind kind,
+) {
+  return switch (kind) {
+    ChannelWorkspaceSurfaceKind.chat => l10n.channelWorkspaceChatTitle,
+    ChannelWorkspaceSurfaceKind.files => l10n.channelWorkspaceFilesTitle,
+    ChannelWorkspaceSurfaceKind.boards => l10n.channelWorkspaceBoardsTitle,
+    ChannelWorkspaceSurfaceKind.calendar => l10n.channelWorkspaceCalendarTitle,
+  };
+}
+
+String _channelSurfacePanelDescription(
+  AppLocalizations l10n,
+  ChannelWorkspaceSurfaceKind kind,
+) {
+  return switch (kind) {
+    ChannelWorkspaceSurfaceKind.chat => l10n.channelWorkspaceChatDescription,
+    ChannelWorkspaceSurfaceKind.files => l10n.channelWorkspaceFilesDescription,
+    ChannelWorkspaceSurfaceKind.boards =>
+      l10n.channelWorkspaceBoardsDescription,
+    ChannelWorkspaceSurfaceKind.calendar =>
+      l10n.channelWorkspaceCalendarDescription,
+  };
+}
+
+String _channelSurfaceStatusLabel(
+  AppLocalizations l10n,
+  ChannelWorkspaceSurfaceAvailability availability,
+) {
+  return switch (availability) {
+    ChannelWorkspaceSurfaceAvailability.available =>
+      l10n.channelWorkspaceStatusAvailable,
+    ChannelWorkspaceSurfaceAvailability.preview =>
+      l10n.channelWorkspaceStatusPreview,
+    ChannelWorkspaceSurfaceAvailability.gated =>
+      l10n.channelWorkspaceStatusGated,
+  };
 }
 
 class _ArchivedMessagesNotice extends StatelessWidget {

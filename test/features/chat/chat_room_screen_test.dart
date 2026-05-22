@@ -97,6 +97,64 @@ void main() {
     expect(repository.markRoomReadCalls, 1);
   });
 
+  testWidgets('renders accessible channel workspace tabs with gated surfaces', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(),
+    );
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Project workspace'), findsOneWidget);
+    expect(find.text('Chat'), findsOneWidget);
+    expect(find.text('Files'), findsOneWidget);
+    expect(find.text('Boards'), findsOneWidget);
+    expect(find.text('Calendar'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == 'Channel workspace tabs for Project',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Files'));
+    await tester.pumpAndSettle();
+    expect(find.text('Channel files'), findsOneWidget);
+    expect(find.text('Preview contract'), findsOneWidget);
+    expect(
+      find.text('Provider seam: weave-files-channel-link'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Boards'));
+    await tester.pumpAndSettle();
+    expect(find.text('Channel boards and tasks'), findsOneWidget);
+    expect(
+      find.text('Provider seam: weave-boards-channel-link'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Calendar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Channel calendar'), findsOneWidget);
+    expect(find.text('Gated by capability'), findsOneWidget);
+    expect(
+      find.text('Provider seam: weave-calendar-channel-scope'),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
+
   testWidgets('captures a message as a source-linked decision record', (
     tester,
   ) async {

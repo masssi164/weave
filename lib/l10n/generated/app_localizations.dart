@@ -935,6 +935,132 @@ abstract class AppLocalizations {
   /// **'Refresh rooms'**
   String get chatStaleRoomsRetryButton;
 
+  /// Title for the channel workspace summary card
+  ///
+  /// In en, this message translates to:
+  /// **'{channelName} workspace'**
+  String channelWorkspaceSummaryTitle(String channelName);
+
+  /// Description for the channel workspace summary card
+  ///
+  /// In en, this message translates to:
+  /// **'This channel is a work room with tabs for chat, files, boards, and calendar where the workspace has enabled them.'**
+  String get channelWorkspaceSummaryDescription;
+
+  /// Governance note for channel workspace tabs
+  ///
+  /// In en, this message translates to:
+  /// **'Context stays explicit: no hidden continuous room reading and no ordinary member access to admin setup.'**
+  String get channelWorkspaceGovernanceNote;
+
+  /// Semantic label for the channel workspace tab list
+  ///
+  /// In en, this message translates to:
+  /// **'Channel workspace tabs for {channelName}'**
+  String channelWorkspaceTabsSemanticLabel(String channelName);
+
+  /// Channel workspace chat tab label
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get channelWorkspaceChatTab;
+
+  /// Channel workspace files tab label
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get channelWorkspaceFilesTab;
+
+  /// Channel workspace boards tab label
+  ///
+  /// In en, this message translates to:
+  /// **'Boards'**
+  String get channelWorkspaceBoardsTab;
+
+  /// Channel workspace calendar tab label
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar'**
+  String get channelWorkspaceCalendarTab;
+
+  /// Title for the chat surface in a channel workspace
+  ///
+  /// In en, this message translates to:
+  /// **'Channel chat'**
+  String get channelWorkspaceChatTitle;
+
+  /// Title for the files surface in a channel workspace
+  ///
+  /// In en, this message translates to:
+  /// **'Channel files'**
+  String get channelWorkspaceFilesTitle;
+
+  /// Title for the boards/tasks surface in a channel workspace
+  ///
+  /// In en, this message translates to:
+  /// **'Channel boards and tasks'**
+  String get channelWorkspaceBoardsTitle;
+
+  /// Title for the calendar surface in a channel workspace
+  ///
+  /// In en, this message translates to:
+  /// **'Channel calendar'**
+  String get channelWorkspaceCalendarTitle;
+
+  /// Description for the channel chat surface
+  ///
+  /// In en, this message translates to:
+  /// **'Messages remain the default live context for this channel.'**
+  String get channelWorkspaceChatDescription;
+
+  /// Description for the channel files preview placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Channel file linking is a preview seam. Files will attach through the Weave files facade instead of raw provider paths once the backend contract is ready.'**
+  String get channelWorkspaceFilesDescription;
+
+  /// Description for the channel boards/tasks preview placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Linked boards and tasks are shown as an honest preview until provider-neutral board state is connected to this channel context.'**
+  String get channelWorkspaceBoardsDescription;
+
+  /// Description for the gated channel calendar placeholder
+  ///
+  /// In en, this message translates to:
+  /// **'Channel events stay gated until calendar scope capability is available for this workspace.'**
+  String get channelWorkspaceCalendarDescription;
+
+  /// Status label for an available channel workspace surface
+  ///
+  /// In en, this message translates to:
+  /// **'Available'**
+  String get channelWorkspaceStatusAvailable;
+
+  /// Status label for a preview-only channel workspace surface
+  ///
+  /// In en, this message translates to:
+  /// **'Preview contract'**
+  String get channelWorkspaceStatusPreview;
+
+  /// Status label for a gated channel workspace surface
+  ///
+  /// In en, this message translates to:
+  /// **'Gated by capability'**
+  String get channelWorkspaceStatusGated;
+
+  /// Provider/domain seam label for a channel workspace surface
+  ///
+  /// In en, this message translates to:
+  /// **'Provider seam: {contractId}'**
+  String channelWorkspaceProviderContract(String contractId);
+
+  /// Privacy/context note for a channel workspace surface
+  ///
+  /// In en, this message translates to:
+  /// **'Only explicit context from {channelName} is shown here; Weave does not continuously read the room in the background.'**
+  String channelWorkspaceExplicitContextNote(String channelName);
+
   /// Title for the files screen app bar
   ///
   /// In en, this message translates to:
@@ -2560,6 +2686,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Direct conversation'**
   String get chatConversationDirectMessageLabel;
+
+  /// Accessibility hint for channel conversation tiles that open the channel workspace
+  ///
+  /// In en, this message translates to:
+  /// **'Opens channel workspace'**
+  String get chatConversationOpensChannelWorkspaceLabel;
 
   /// Recency badge for a chat conversation with activity in the last hour
   ///

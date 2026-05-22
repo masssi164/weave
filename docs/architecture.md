@@ -54,7 +54,7 @@ Shell destinations:
 - **Channels** contain team/topic rooms and remain the main collaboration spine for future channel workspaces.
 - **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
 
-The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest placeholders for favorites and AI chats until backend/product metadata is ready. Future channel workspace tabs for files, boards/tasks, and calendar should attach to channel context rather than becoming unrelated top-level app islands.
+The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest placeholders for favorites and AI chats until backend/product metadata is ready. Channel detail now treats a channel as a workspace container: Chat is the default tab, while Files, Boards/Tasks, and Calendar are exposed as accessible tabs with fail-closed preview/gated states until backend capability contracts connect them. Files, board/task, and calendar surfaces attach to explicit channel context/provider seams rather than becoming unrelated top-level app islands or hidden continuous room-reading flows.
 
 ## Shared server configuration
 `features/server_config/` owns the shared configuration model used by both onboarding and settings.
