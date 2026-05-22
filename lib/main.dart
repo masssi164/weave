@@ -6,6 +6,8 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/router/app_router.dart';
 import 'package:weave/core/theme/app_theme.dart';
+import 'package:weave/core/theme/app_theme_preference.dart';
+import 'package:weave/core/theme/app_theme_preference_provider.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 void main() => runApp(const ProviderScope(child: WeaveApp()));
@@ -44,11 +46,18 @@ class WeaveApp extends ConsumerWidget {
     }
 
     final router = ref.watch(appRouterProvider);
+    final themeSelection = ref
+        .watch(appThemePreferenceProvider)
+        .maybeWhen(
+          data: (selection) => selection,
+          orElse: () => const AppThemeSelection(),
+        );
     return MaterialApp.router(
       title: 'Weave',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      theme: AppTheme.lightFor(themeSelection),
+      darkTheme: AppTheme.darkFor(themeSelection),
+      themeMode: themeSelection.themeMode,
       routerConfig: router,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -61,6 +70,7 @@ class WeaveApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: home,

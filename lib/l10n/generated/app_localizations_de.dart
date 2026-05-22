@@ -690,6 +690,49 @@ class AppLocalizationsDe extends AppLocalizations {
       'Weave bringt Nachrichten, Dateien und Kalender in einem Workspace zusammen, während auf diesem Bildschirm die Serververbindung dahinter verwaltet wird.';
 
   @override
+  String get settingsThemeTitle => 'Darstellung';
+
+  @override
+  String get settingsThemeDescription =>
+      'Wähle den visuellen Stil für dieses Profil. Workspace-Branding bleibt getrennt, damit deine persönliche Auswahl nicht von der Admin-Einrichtung überschrieben wird.';
+
+  @override
+  String get settingsThemeSystemTitle => 'Geräteeinstellung nutzen';
+
+  @override
+  String get settingsThemeSystemDescription =>
+      'Folgt der hellen oder dunklen Darstellung deines Geräts.';
+
+  @override
+  String get settingsThemeLightTitle => 'Hell';
+
+  @override
+  String get settingsThemeLightDescription =>
+      'Nutzt eine helle professionelle Farbpalette.';
+
+  @override
+  String get settingsThemeDarkTitle => 'Dunkel';
+
+  @override
+  String get settingsThemeDarkDescription =>
+      'Nutzt eine dunklere Farbpalette für Arbeit bei wenig Licht.';
+
+  @override
+  String get settingsThemeHighContrastTitle => 'Hoher Kontrast';
+
+  @override
+  String get settingsThemeHighContrastDescription =>
+      'Nutzt stärkere Kontraste und folgt weiter der hellen oder dunklen Geräteeinstellung.';
+
+  @override
+  String get settingsThemeLoading =>
+      'Darstellungseinstellungen werden geladen…';
+
+  @override
+  String get settingsThemeError =>
+      'Darstellungseinstellungen konnten nicht gespeichert werden. Versuche, die Einstellung erneut zu ändern.';
+
+  @override
   String get settingsHelpTitle => 'Hilfe und Benutzerhandbuch';
 
   @override

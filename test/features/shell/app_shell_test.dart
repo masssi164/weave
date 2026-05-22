@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/core/theme/shared_preferences_app_theme_preference_repository.dart';
 import 'package:weave/features/auth/data/dtos/auth_session_dto.dart';
 import 'package:weave/features/auth/data/repositories/oidc_auth_session_repository.dart';
 import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.dart';
@@ -157,6 +158,22 @@ void main() {
       expect(find.byIcon(Icons.calendar_today_outlined), findsNothing);
       expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
       expect(find.byIcon(Icons.dashboard_outlined), findsNothing);
+    });
+
+    testWidgets('applies the persisted personal theme across the shell', (
+      tester,
+    ) async {
+      await pumpReadyShell(
+        tester,
+        preferencesStore: InMemoryPreferencesStore({
+          appThemePreferenceStorageKey: 'dark',
+        }),
+      );
+
+      final navigationContext = tester.element(find.byType(NavigationBar));
+      expect(Theme.of(navigationContext).brightness, Brightness.dark);
+      expect(find.byIcon(Icons.chat_bubble), findsOneWidget);
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     });
 
     testWidgets(

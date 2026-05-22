@@ -8,6 +8,8 @@ import 'package:weave/core/a11y/semantic_list_tile.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/router/app_routes.dart';
+import 'package:weave/core/theme/app_theme_preference.dart';
+import 'package:weave/core/theme/app_theme_preference_provider.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
@@ -60,6 +62,8 @@ class SettingsScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const _SettingsBrandCard(),
+                  const SizedBox(height: 32),
+                  const _ThemePreferenceSection(),
                   const SizedBox(height: 32),
                   const ProfileSummaryCard(),
                   const SizedBox(height: 32),
@@ -627,6 +631,138 @@ class _SettingsBrandCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ThemePreferenceSection extends ConsumerWidget {
+  const _ThemePreferenceSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final selection = ref.watch(appThemePreferenceProvider);
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              header: true,
+              child: Text(
+                l10n.settingsThemeTitle,
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.settingsThemeDescription,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            switch (selection) {
+              AsyncData(value: final value) => RadioGroup<AppThemePreference>(
+                groupValue: value.effectivePreference,
+                onChanged: (preference) {
+                  if (preference == null) {
+                    return;
+                  }
+                  unawaited(
+                    ref
+                        .read(appThemePreferenceProvider.notifier)
+                        .setUserPreference(preference),
+                  );
+                },
+                child: Column(
+                  children: [
+                    for (final preference in AppThemePreference.values)
+                      _ThemePreferenceTile(
+                        preference: preference,
+                        selected: value.effectivePreference == preference,
+                      ),
+                  ],
+                ),
+              ),
+              AsyncError() => ErrorState(
+                message: l10n.settingsThemeError,
+                retryLabel: l10n.retryButton,
+                onRetry: () => ref.invalidate(appThemePreferenceProvider),
+              ),
+              _ => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  l10n.settingsThemeLoading,
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+            },
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemePreferenceTile extends StatelessWidget {
+  const _ThemePreferenceTile({
+    required this.preference,
+    required this.selected,
+  });
+
+  final AppThemePreference preference;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return RadioListTile<AppThemePreference>.adaptive(
+      contentPadding: EdgeInsets.zero,
+      value: preference,
+      selected: selected,
+      title: Text(_title(l10n)),
+      subtitle: Text(_description(l10n)),
+      controlAffinity: ListTileControlAffinity.leading,
+      secondary: ExcludeSemantics(child: Icon(_icon)),
+    );
+  }
+
+  IconData get _icon {
+    return switch (preference) {
+      AppThemePreference.system => Icons.brightness_auto_outlined,
+      AppThemePreference.light => Icons.light_mode_outlined,
+      AppThemePreference.dark => Icons.dark_mode_outlined,
+      AppThemePreference.highContrast => Icons.contrast_outlined,
+    };
+  }
+
+  String _title(AppLocalizations l10n) {
+    return switch (preference) {
+      AppThemePreference.system => l10n.settingsThemeSystemTitle,
+      AppThemePreference.light => l10n.settingsThemeLightTitle,
+      AppThemePreference.dark => l10n.settingsThemeDarkTitle,
+      AppThemePreference.highContrast => l10n.settingsThemeHighContrastTitle,
+    };
+  }
+
+  String _description(AppLocalizations l10n) {
+    return switch (preference) {
+      AppThemePreference.system => l10n.settingsThemeSystemDescription,
+      AppThemePreference.light => l10n.settingsThemeLightDescription,
+      AppThemePreference.dark => l10n.settingsThemeDarkDescription,
+      AppThemePreference.highContrast =>
+        l10n.settingsThemeHighContrastDescription,
+    };
   }
 }
 

@@ -8,6 +8,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/config/feature_flags.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/shared_preferences_store.dart';
+import 'package:weave/core/theme/shared_preferences_app_theme_preference_repository.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
@@ -187,6 +188,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(WeaveLogo), findsOneWidget);
+      expect(find.text('Appearance'), findsOneWidget);
+      expect(find.text('Use device setting'), findsOneWidget);
+      expect(find.text('Dark'), findsOneWidget);
+
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -260));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dark'));
+      await tester.pump();
+
+      expect(store.rawString(appThemePreferenceStorageKey), 'dark');
       expect(
         find.text(
           'Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.',
@@ -493,7 +504,7 @@ void main() {
           findsNothing,
         );
 
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -200));
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, -760));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Retry'));
         await tester.pumpAndSettle();

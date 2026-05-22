@@ -567,6 +567,42 @@
   "settingsBrandSectionDescription": "Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.",
   "@settingsBrandSectionDescription": { "description": "Subtle branded copy shown in the settings header card" },
 
+  "settingsThemeTitle": "Appearance",
+  "@settingsThemeTitle": { "description": "Settings section title for personal theme selection" },
+
+  "settingsThemeDescription": "Choose the visual style for this profile. Workspace brand defaults stay separate, so your personal choice is not overwritten by admin setup.",
+  "@settingsThemeDescription": { "description": "Settings description explaining personal theme selection and workspace defaults" },
+
+  "settingsThemeSystemTitle": "Use device setting",
+  "@settingsThemeSystemTitle": { "description": "Theme option title for system/default mode" },
+
+  "settingsThemeSystemDescription": "Follow your device light or dark appearance.",
+  "@settingsThemeSystemDescription": { "description": "Theme option description for system/default mode" },
+
+  "settingsThemeLightTitle": "Light",
+  "@settingsThemeLightTitle": { "description": "Theme option title for light mode" },
+
+  "settingsThemeLightDescription": "Use a bright professional palette.",
+  "@settingsThemeLightDescription": { "description": "Theme option description for light mode" },
+
+  "settingsThemeDarkTitle": "Dark",
+  "@settingsThemeDarkTitle": { "description": "Theme option title for dark mode" },
+
+  "settingsThemeDarkDescription": "Use a darker palette for low-light work.",
+  "@settingsThemeDarkDescription": { "description": "Theme option description for dark mode" },
+
+  "settingsThemeHighContrastTitle": "High contrast",
+  "@settingsThemeHighContrastTitle": { "description": "Theme option title for high-contrast mode" },
+
+  "settingsThemeHighContrastDescription": "Use stronger contrast while still following your device light or dark appearance.",
+  "@settingsThemeHighContrastDescription": { "description": "Theme option description for high-contrast mode" },
+
+  "settingsThemeLoading": "Loading appearance preferences…",
+  "@settingsThemeLoading": { "description": "Loading state for theme preference settings" },
+
+  "settingsThemeError": "Appearance preferences could not be saved. Try changing the setting again.",
+  "@settingsThemeError": { "description": "Error shown when theme preferences cannot load or save" },
+
   "settingsHelpTitle": "Help and user handbook",
   "@settingsHelpTitle": { "description": "Title for the settings entry point to in-app help" },
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/theme/app_theme.dart';
+import 'package:weave/core/theme/app_theme_preference.dart';
 
 void main() {
   group('AppTheme', () {
@@ -19,6 +20,20 @@ void main() {
       expect(
         AppTheme.dark.visualDensity,
         equals(VisualDensity.adaptivePlatformDensity),
+      );
+    });
+
+    test('resolves high-contrast palettes from the user selection', () {
+      const selection = AppThemeSelection(
+        userPreference: AppThemePreference.highContrast,
+      );
+
+      expect(selection.themeMode, ThemeMode.system);
+      expect(AppTheme.lightFor(selection).brightness, Brightness.light);
+      expect(AppTheme.darkFor(selection).brightness, Brightness.dark);
+      expect(
+        AppTheme.lightFor(selection).colorScheme.primary,
+        isNot(AppTheme.light.colorScheme.primary),
       );
     });
   });
