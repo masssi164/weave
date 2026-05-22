@@ -41,7 +41,7 @@ Shell destinations:
 
 - Chat
 - Files
-- Calendar (feature-gated active scope; Teams-like workspace/team/channel calendar hierarchy)
+- Calendar (feature-gated active scope; shared workspace/team/channel calendar hierarchy)
 - Tasks/Boards (feature-gated active scope; provider-neutral Weave model, not a Nextcloud Deck product dependency)
 - Settings
 
@@ -174,7 +174,7 @@ This keeps the current Files UX intact while making the same Nextcloud platform 
 
 ## Calendar backend facade scope
 
-Calendar is active shared-scheduling scope and remains wired through the Weave backend product facade rather than direct CalDAV. The product model is Teams-like: workspace/org calendar, team calendars, and channel calendars/events/meeting threads. The backend currently exposes the first safe slice as `scope.type = "workspace"`: a shared Weave workspace calendar owned/provisioned through the backend actor. The frontend parses that scope metadata and labels the surface as the first shared workspace scope, not as a private-personal calendar.
+Calendar is active shared-scheduling scope and remains wired through the Weave backend product facade rather than direct CalDAV. The product model is shared scheduling: workspace calendar, team calendars, and channel calendars/events/meeting threads. The backend currently exposes the first safe slice as `scope.type = "workspace"`: a shared Weave workspace calendar owned/provisioned through the backend actor. The frontend parses that scope metadata and labels the surface as the first shared workspace scope, not as a private-personal calendar.
 
 Private personal calendars are out of scope for the current product path. Frontend code must continue to fail through the backend facade and must not add a direct private-personal CalDAV fallback or secret-bearing client setup path.
 

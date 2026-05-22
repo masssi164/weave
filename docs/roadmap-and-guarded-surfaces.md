@@ -1,10 +1,10 @@
 # Roadmap and guarded surfaces
 
-The README showcase is limited to product surfaces that contributors can evaluate directly today: setup, service review, chat, files, and settings. This page keeps in-progress product areas visible without marketing them as fully shipped.
+The README showcase is limited to product surfaces that contributors can evaluate directly today: setup, service review, chat, files, readiness, and settings. This page keeps in-progress product areas visible without marketing them as fully shipped.
 
-## Teams-like calendar
+## Shared calendars
 
-Calendar is active product scope, but it is not promoted as a normal finished surface in the README showcase. The target product model is workspace/org, team, and channel scheduling backed by the Weave backend calendar facade and Nextcloud/CalDAV. Private personal calendar ingestion is not a product goal for the current MVP path.
+Calendar is active product scope, but it is not promoted as a finished everyday surface in the README showcase. The target product model is shared workspace, team, and channel scheduling backed by the Weave backend calendar facade and Nextcloud/CalDAV storage foundations. Private personal calendar ingestion is not a product goal for the current path.
 
 [<img src="assets/roadmap/06-calendar-roadmap-readiness.svg" alt="Weave calendar roadmap visual showing workspace, team, and channel scheduling scopes with channel event CRUD validated through the backend facade." width="560">](assets/roadmap/06-calendar-roadmap-readiness.svg)
 
@@ -13,7 +13,7 @@ Current evidence and boundaries:
 - Shared scope metadata and channel event create/read/update/delete are live-stack contract scope.
 - Meeting-thread attachment is follow-up work.
 - Raw Nextcloud Calendar is not the normal product UX.
-- Backend actor credentials must not leak into generated setup artifacts.
+- Backend actor credentials must not leak into generated setup artifacts, app config, logs, or support bundles.
 
 ## Boards/tasks
 
@@ -24,12 +24,24 @@ Boards/tasks are active Weave scope behind feature gates and provider-neutral ba
 Current evidence and boundaries:
 
 - Flutter may render provider-neutral board/task DTOs and accessible non-drag actions.
+- OpenProject is the preferred read-only provider validation path, not the visible product UX.
+- Vikunja and Deck remain comparison/fallback research unless a later contract promotes them.
 - Provider auth, pagination, sync, webhook validation, export/import, and error translation belong behind backend or connector adapters.
 - Any provider-specific claim must be tied to a validated runtime and documented capability boundary.
 
 ## Matrix E2EE
 
-Matrix E2EE is active chat architecture scope, not a completed product claim. Weave must not claim chat is end-to-end encrypted until encrypted-room behavior, device verification, key backup/recovery, lost-device handling, multi-device behavior, and accessible verification/recovery UX are implemented and validated.
+Matrix E2EE is active chat architecture scope, not a completed product claim. Weave must not claim chat is end-to-end encrypted until encrypted-room behavior, device verification, key backup/recovery, lost-device handling, multi-device behavior, metadata boundaries, and accessible verification/recovery UX are implemented and validated.
+
+## Provider stack readiness
+
+Provider stack readiness is visible in Settings so users and operators can understand whether files, calendar, office, DevOps, boards, identity, and other modules are ready, disabled, degraded, or intentionally unsupported. The app must keep this support-safe:
+
+- no raw provider URLs;
+- no bearer tokens, API tokens, app passwords, cookies, or secrets;
+- no raw downstream error bodies;
+- no direct Flutter provider calls;
+- retry paths must rebuild backend readiness through Weave APIs.
 
 ## Related contracts
 

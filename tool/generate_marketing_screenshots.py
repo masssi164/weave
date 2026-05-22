@@ -148,10 +148,10 @@ SCREENS: tuple[Screen, ...] = (
         output_dir=ROADMAP_OUTPUT_DIR,
         file_name="06-calendar-roadmap-readiness.svg",
         title="Weave calendar roadmap readiness screen",
-        description="The guarded Calendar roadmap shows active workspace/team/channel readiness copy for the Teams-like shared scheduling path.",
+        description="The guarded Calendar roadmap shows active workspace/team/channel readiness copy for the shared scheduling path.",
         active_nav="Calendar",
         hero="Calendar channel schedule readiness",
-        subhero="The shared Calendar path is Teams-like: workspace, team, and channel scopes are visible; channel event CRUD is validated through the backend Calendar facade.",
+        subhero="The shared Calendar path uses workspace, team, and channel scopes; channel event CRUD is validated through the backend Calendar facade.",
         metrics=(
             Metric("Scope", "Workspace · team · channel"),
             Metric("Access", "Private calendars blocked"),

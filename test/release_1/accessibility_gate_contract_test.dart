@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('Release 1 accessibility gate', () {
-    final checklist = File('docs/release-1-accessibility-gate.md');
+  group('accessibility release gate', () {
+    final checklist = File('docs/accessibility-release-gate.md');
 
     test('documents automated and manual evidence for every critical flow', () {
       expect(checklist.existsSync(), isTrue);
@@ -13,7 +13,7 @@ void main() {
 
       for (final requiredSection in <String>[
         'Automated CI evidence',
-        'Manual assistive-technology evidence required before Release 1 sign-off',
+        'Manual assistive-technology evidence required before release sign-off',
         'Non-negotiable pass criteria',
         'Release accounting',
       ]) {
@@ -36,7 +36,7 @@ void main() {
         expect(
           markdown,
           contains(flow),
-          reason: 'Missing Release 1 accessibility flow: $flow',
+          reason: 'Missing current release accessibility flow: $flow',
         );
       }
 
@@ -69,7 +69,7 @@ void main() {
           markdown,
           contains(command),
           reason:
-              'Missing Release 1 accessibility validation command: $command',
+              'Missing current release accessibility validation command: $command',
         );
       }
     });

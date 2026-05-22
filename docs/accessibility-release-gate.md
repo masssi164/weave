@@ -1,14 +1,14 @@
-# Release 1 Accessibility Gate
+# Accessibility Release Gate
 
 Status: Release-1 gate checklist  
 Owner: `weave` frontend, with admin/recovery evidence from `weave-infra`  
 Baseline: WCAG 2.1 AA for critical user and admin flows
 
-This checklist is the release evidence index for issue #112. It does not replace live assistive-technology testing; it makes the automated and manual evidence required before Release 1 explicit and auditable.
+This checklist is the release evidence index for issue #112. It does not replace live assistive-technology testing; it makes the automated and manual evidence required before current release explicit and auditable.
 
 ## Automated CI evidence
 
-Run these before requesting Release 1 approval:
+Run these before requesting release approval:
 
 ```bash
 flutter gen-l10n
@@ -33,7 +33,7 @@ The automated suite must include widget or contract coverage for these accessibi
 | Shared controls | minimum target sizing and explicit semantic labels for reusable buttons | `test/core/a11y/semantic_button_test.dart`, `test/core/widgets/core_widgets_test.dart` |
 | Release-1 journey | setup, sign-in, chat, files, settings recovery remain coherent in one flow | `test/release_1/release_golden_paths_test.dart` |
 
-## Manual assistive-technology evidence required before Release 1 sign-off
+## Manual assistive-technology evidence required before release sign-off
 
 Record the tester, date, platform, assistive technology, result, and evidence link in the release issue or runbook. Manual-only checks are a gate; they may not be inferred from green widget tests.
 
@@ -61,6 +61,6 @@ Record the tester, date, platform, assistive technology, result, and evidence li
 ## Release accounting
 
 - Automated evidence is attached by CI run URL and local command output.
-- Manual evidence is attached to the Release 1 gate issue with platform/device notes.
-- Any failed row creates or links a blocking issue and prevents Release 1 sign-off until fixed or explicitly deferred by product decision.
-- Calendar and admin/recovery rows may remain marked `blocked` only when the corresponding backend/infra live-stack gate is also explicitly blocked; do not call Release 1 accessibility complete while those flows lack evidence.
+- Manual evidence is attached to the release gate issue with platform/device notes.
+- Any failed row creates or links a blocking issue and prevents release sign-off until fixed or explicitly deferred by product decision.
+- Calendar and admin/recovery rows may remain marked `blocked` only when the corresponding backend/infra live-stack gate is also explicitly blocked; do not call current release accessibility complete while those flows lack evidence.

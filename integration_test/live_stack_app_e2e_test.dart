@@ -528,7 +528,7 @@ void main() {
       final calendarDraft = CalendarEventDraft(
         title: calendarTitle,
         description:
-            'Created by the live-stack Teams-like channel calendar E2E gate.',
+            'Created by the live-stack shared channel calendar E2E gate.',
         startTime: calendarStart,
         endTime: calendarStart.add(const Duration(minutes: 30)),
         timezone: 'UTC',

@@ -7,7 +7,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | Layer | What it proves | Where to find it |
 | --- | --- | --- |
 | Offline Flutter checks | Formatting, static analysis, unit/widget behavior, generated code consistency, and no-network contract checks. | `.github/workflows/ci.yml`, local `flutter` commands, `make offline-contract-test`. |
-| Accessibility gate | Automated checks and the manual assistive-technology evidence required before release sign-off. | [Release 1 Accessibility Gate](release-1-accessibility-gate.md). |
+| Accessibility gate | Automated checks and the manual assistive-technology evidence required before release sign-off. | [Accessibility Release Gate](accessibility-release-gate.md). |
 | Deterministic screenshots | README and roadmap SVG assets match the checked-in generator and do not drift silently. | `make marketing-screenshots`, `docs/assets/marketing/`, `docs/assets/roadmap/`, CI screenshot drift step. |
 | Acceptance contract guard | Gherkin acceptance scenarios stay mapped to executable frontend/live-stack tests. | [Acceptance contracts](acceptance-contracts.md), [Product acceptance flows](product-acceptance-flows.md), `test/live_stack_feature_mapping_test.dart`. |
 | Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
@@ -61,5 +61,5 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 - [Developer handbook](developer-handbook.md)
 - [Acceptance contracts](acceptance-contracts.md)
 - [Product acceptance flows](product-acceptance-flows.md)
-- [Release 1 Accessibility Gate](release-1-accessibility-gate.md)
+- [Accessibility Release Gate](accessibility-release-gate.md)
 - [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md)

@@ -89,7 +89,7 @@ Accessibility is release scope, not polish:
 - Do not communicate state by color alone.
 - Keep keyboard and screen-reader paths in mind for setup, sign-in, chat, files, settings, and live-stack error states.
 
-See [Release 1 Accessibility Gate](release-1-accessibility-gate.md) for the current automated and manual evidence model.
+See [Accessibility Release Gate](accessibility-release-gate.md) for the current automated and manual evidence model.
 
 ## Acceptance contract workflow
 
