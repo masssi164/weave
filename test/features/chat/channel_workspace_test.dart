@@ -43,7 +43,7 @@ void main() {
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.meetings).providerContractId,
-      'weave-meetings-channel-preview',
+      'livekit-meetings-channel-preview',
     );
     expect(preview.meetingPreview.contextId, preview.contextId);
     expect(preview.meetingPreview.isFailClosed, isTrue);

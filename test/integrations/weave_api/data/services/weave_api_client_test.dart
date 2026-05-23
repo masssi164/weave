@@ -218,6 +218,34 @@ void main() {
                   'redactionPolicy': 'no raw provider errors',
                   'candidates': ['ONLYOFFICE Docs Community'],
                 },
+                {
+                  'module': 'meetings',
+                  'providerKey': 'livekit',
+                  'state': 'not_configured',
+                  'readiness': 'fail-closed',
+                  'enabled': false,
+                  'configured': false,
+                  'readOnly': false,
+                  'failClosed': true,
+                  'supportSafe': true,
+                  'paidFeaturesRequired': false,
+                  'summary': 'LiveKit readiness is fail-closed.',
+                  'supportedCapabilities': ['join-token-broker'],
+                  'unsupportedOperations': ['livekit-api-secret-exposure'],
+                  'supportSafeErrorCodes': ['meetings-token-unavailable'],
+                  'redactionPolicy': 'booleans only',
+                  'candidates': ['livekit'],
+                  'diagnostics': {
+                    'activeProvider': 'livekit',
+                    'livekitUrlConfigured': true,
+                    'apiKeyConfigured': true,
+                    'apiSecretConfigured': true,
+                    'tokenEndpointConfigured': true,
+                    'tokenEndpoint': 'https://token-broker.internal/livekit',
+                    'rawProviderError': 'Authorization: Bearer leaked',
+                    'secretsReturned': false,
+                  },
+                },
               ],
             });
           }),
@@ -234,8 +262,18 @@ void main() {
         );
         expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
         expect(snapshot.failClosed, isTrue);
-        expect(snapshot.providers.single.module, 'office');
-        expect(snapshot.providers.single.failClosed, isTrue);
+        expect(snapshot.providers.first.module, 'office');
+        expect(snapshot.providers.first.failClosed, isTrue);
+        final meetings = snapshot.providers.singleWhere(
+          (provider) => provider.module == 'meetings',
+        );
+        expect(meetings.providerKey, 'livekit');
+        expect(meetings.diagnostics['livekitUrlConfigured'], isTrue);
+        expect(meetings.diagnostics['apiSecretConfigured'], isTrue);
+        expect(meetings.diagnostics['tokenEndpointConfigured'], isTrue);
+        expect(meetings.diagnostics['secretsReturned'], isFalse);
+        expect(meetings.diagnostics, isNot(contains('tokenEndpoint')));
+        expect(meetings.diagnostics, isNot(contains('rawProviderError')));
       },
     );
 

@@ -46,6 +46,7 @@ These areas are active product scope but deliberately gated:
 
 - **Shared calendars:** workspace, team, and channel scheduling through backend facades. Private personal calendar ingestion is not a product goal.
 - **Boards/tasks:** provider-neutral Weave UX and backend contracts first. OpenProject is the preferred read-only provider validation path; Vikunja and Deck stay comparison/fallback research until a later contract promotes them.
+- **Meetings/video calls:** LiveKit is the provider contract; join/start remain fail-closed until backend token, media, metadata, and encryption evidence gates are configured and validated.
 - **Matrix E2EE:** active architecture path, not a completed claim. Weave must validate encrypted rooms, device verification, key backup/recovery, multi-device behavior, metadata boundaries, and accessibility before claiming production readiness.
 - **Interop/connectors:** Slack/Teams/connector routes default off and remain backend-owned. No client-side provider shortcuts.
 - **Personal agents/automation:** later roadmap, not README hero scope.

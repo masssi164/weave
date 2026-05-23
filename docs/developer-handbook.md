@@ -134,7 +134,7 @@ make marketing-screenshots
 The generator is `tool/generate_marketing_screenshots.py`.
 
 - Main product showcase assets live in `docs/assets/marketing/`.
-- Calendar and boards/tasks guarded roadmap visuals live in `docs/assets/roadmap/`.
+- Calendar, boards/tasks, and LiveKit meetings guarded roadmap visuals live in `docs/assets/roadmap/`.
 - Keep SVG `<title>` and `<desc>` meaningful.
 - Keep README and docs `alt` text descriptive.
 - Regenerate and review the SVG diff whenever copy, filenames, or visuals change.

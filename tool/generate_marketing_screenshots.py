@@ -184,6 +184,26 @@ SCREENS: tuple[Screen, ...] = (
         ),
         status="Feature gate",
     ),
+    Screen(
+        output_dir=ROADMAP_OUTPUT_DIR,
+        file_name="08-livekit-meetings-readiness.svg",
+        title="Weave LiveKit meetings readiness screen",
+        description="A guarded Meetings roadmap visual showing LiveKit as the active provider contract while join/start remain fail-closed until backend token and encryption evidence exists.",
+        active_nav="Meetings",
+        hero="LiveKit meetings readiness",
+        subhero="LiveKit is the meeting/video-call provider contract. Join and start stay behind the backend token facade until media, metadata, and encryption evidence are validated.",
+        metrics=(
+            Metric("Provider", "LiveKit"),
+            Metric("Control path", "Backend token facade"),
+            Metric("Default", "Fail-closed"),
+        ),
+        cards=(
+            ("🎥", "Classic calls", "Channel meetings attach to calendar, agenda, tasks, files, and follow-up evidence."),
+            ("🔐", "Encryption gate", "The app does not claim encrypted LiveKit calls until evidence is documented and tested."),
+            ("🧯", "Support-safe", "Status reports booleans only; no server URLs, API keys, secrets, room tokens, or raw provider errors."),
+        ),
+        status="Guarded roadmap",
+    ),
 )
 
 
@@ -229,8 +249,8 @@ def content_card(icon: str, title: str, body: str, x: int, y: int) -> str:
 
 def render(screen: Screen) -> str:
     nav = "\n".join(
-        nav_item(label, 86 + index * 198, 116, screen.active_nav == label)
-        for index, label in enumerate(("Setup", "Chat", "Files", "Settings"))
+        nav_item(label, 78 + index * 184, 116, screen.active_nav == label)
+        for index, label in enumerate(("Setup", "Chat", "Files", "Settings", "Calendar", "Boards", "Meetings"))
     )
     metrics = "\n".join(metric_card(metric, 104 + index * 376, 402) for index, metric in enumerate(screen.metrics))
     cards = "\n".join(content_card(*card, x=104 + index * 376, y=566) for index, card in enumerate(screen.cards))
