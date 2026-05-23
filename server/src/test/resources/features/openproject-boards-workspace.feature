@@ -1,0 +1,47 @@
+Feature: OpenProject Boards workspace-sync runtime through Weave
+  Weave exposes OpenProject as a backend-owned Boards workspace-sync provider while
+  keeping Weave as the product API, preserving Context/Space authorization, and
+  refusing unsupported provider writes until audit and consent promotion exists.
+
+  @backend-openproject-disabled-fail-closed
+  Scenario: OpenProject provider disabled fails closed support-safely
+    Given the OpenProject Boards provider is disabled
+    When a workspace member opens Boards through Weave
+    Then the Boards request fails with "boards-provider_unavailable"
+    And the error is support-safe
+    And the response does not leak provider secrets or raw OpenProject URLs
+
+  @backend-openproject-enabled-workspace-sync
+  Scenario: OpenProject provider enabled shows workspace-synced boards and tasks through Weave
+    Given the OpenProject Boards provider is enabled with backend-held credentials
+    And OpenProject has a project "Apollo Launch" with a completed work package "Ship backend seam"
+    When a workspace member opens Boards through Weave
+    Then Weave returns an OpenProject workspace Boards snapshot
+    And the snapshot contains board "Apollo Launch" and task "Ship backend seam"
+    And sync metadata is support-safe and user-write audited
+    And the response does not leak provider secrets or raw OpenProject URLs
+
+  @backend-openproject-context-space-gate
+  Scenario: Missing Context Space authorization exposes no provider data
+    Given the OpenProject Boards provider is enabled with backend-held credentials
+    And OpenProject has a project "Apollo Launch" with a completed work package "Ship backend seam"
+    And the workspace member has no Boards permission for the Context Space
+    When a workspace member opens Boards through Weave
+    Then the Boards request fails with "boards-forbidden"
+    And the error is support-safe
+    And OpenProject was not contacted
+
+  @backend-openproject-support-safe-metadata
+  Scenario: Provider cursors and metadata stay support-safe
+    Given the OpenProject Boards provider is enabled with backend-held credentials
+    And OpenProject has a second page of projects
+    When a workspace member opens Boards through Weave
+    Then sync metadata contains an opaque OpenProject cursor
+    And the response does not leak provider secrets or raw OpenProject URLs
+
+  @backend-openproject-write-refusals
+  Scenario: Writes comments archive and agent actions are refused until audit consent promotion
+    Given the OpenProject Boards provider is enabled with backend-held credentials
+    When a workspace member tries unsupported OpenProject provider actions
+    Then provider writes are refused support-safely
+    And comments attachments archive and agent automation are refused support-safely

@@ -6,8 +6,8 @@ machine-readable mapping to executable evidence.
 
 ## Current frontend live-stack contract
 
-- Product scenarios live in `acceptance/live_stack_app.feature`.
-- Stable scenario mappings live in `acceptance/scenario_mappings.json`.
+- Product scenarios live in `e2e/features/live_stack_app.feature`.
+- Stable scenario mappings live in `e2e/scenario_mappings.json`.
 - The mapping guard is `test/live_stack_feature_mapping_test.dart` and can also
   be run directly with `dart run tool/acceptance_contract.dart guard`.
 - Live CI writes audit artifacts to `weave-live-stack-acceptance-evidence`:
@@ -24,7 +24,7 @@ secrets, tokens, cookies, private keys, or full live E2E logs.
 For new product behavior:
 
 1. Write or update the product-language Gherkin scenario first.
-2. Add the scenario to `acceptance/scenario_mappings.json` with an executable
+2. Add the scenario to `e2e/scenario_mappings.json` with an executable
    test path and evidence marker. The guard should be red until the executable
    evidence exists.
 3. Drive the implementation with focused unit, provider, widget, integration, or

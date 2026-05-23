@@ -1,0 +1,22 @@
+.agents/
+.commandcode/
+skills-lock.json
+
+weave-workspace/.generated/
+weave-workspace/.env
+weave-workspace/**/.generated/
+weave-workspace/**/.terraform/
+weave-workspace/**/*.tfstate
+weave-workspace/**/*.tfstate.*
+weave-workspace/**/*.tfvars
+weave-workspace/**/*.tfvars.json
+weave-workspace/**/crash.log
+
+# Local assistant state
+.openclaw/
+memory/
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md

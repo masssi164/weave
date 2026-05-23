@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "description": "Stable mapping from product-language Gherkin scenarios to executable Live Stack E2E evidence. Every feature scenario must appear here, and every marker must exist in the mapped executable test.",
+  "scenarios": [
+    {
+      "tag": "@weave-live-auth-shell",
+      "scenario": "Sign-in restores the Weave workspace and profile",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": [
+        "AUTH_RESULT",
+        "PROFILE_RESULT"
+      ]
+    },
+    {
+      "tag": "@weave-live-matrix-content",
+      "scenario": "Matrix chat sends and reads a workspace message",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": [
+        "CHAT_RESULT",
+        "MATRIX_RESULT"
+      ]
+    },
+    {
+      "tag": "@weave-live-matrix-e2ee",
+      "scenario": "Matrix encryption status is proved honestly",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": [
+        "E2EE_RESULT"
+      ]
+    },
+    {
+      "tag": "@weave-live-files-boundary",
+      "scenario": "Files are uploaded, shown, downloaded, and cleaned up in Weave",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": [
+        "FILES_RESULT"
+      ]
+    },
+    {
+      "tag": "@weave-live-calendar-threadrefs",
+      "scenario": "Channel calendar events keep their meeting thread reference",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": [
+        "CALENDAR_RESULT"
+      ]
+    },
+    {
+      "tag": "@weave-live-boards-workspace-nondrag",
+      "scenario": "Boards workspace supports accessible non-drag task work",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": [
+        "BOARDS_RESULT"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/boards/boards_workspace_screen_test.dart",
+          "fragments": [
+            "offers non-drag task actions with gated feedback",
+            "exposes screen-reader summaries for board, columns, and tasks",
+            "meets tap-target accessibility guidelines",
+            "keeps critical workspace copy reachable with large text"
+          ]
+        },
+        {
+          "path": "client/test/features/boards/data/backend_boards_workspace_repository_test.dart",
+          "fragments": [
+            "posts accessible non-drag move, status, decision-link, and complete actions to backend facade",
+            "\"targetColumnId\":\"done\",\"targetPosition\":2"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-v01-home-daily-loop",
+      "scenario": "Weave Home starts the daily work loop",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "V01_HOME_DAILY_LOOP"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/release-v0.1-dogfood-plan.md",
+          "fragments": [
+            "Weave Home",
+            "Open tasks",
+            "Upcoming events/meetings",
+            "Recent decisions"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-v01-channel-workspace",
+      "scenario": "A channel is the primary workspace surface",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "V01_CHANNEL_WORKSPACE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/release-v0.1-dogfood-plan.md",
+          "fragments": [
+            "Tabs for Chat, Files, Board, Calendar, Meetings, Decisions",
+            "Backend facade only"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-v01-board-write-audit",
+      "scenario": "A user board write is authorized and audited",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "V01_BOARD_WRITE_AUDIT"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/release-v0.1-dogfood-plan.md",
+          "fragments": [
+            "Boards with user writes",
+            "Authorization and audit before provider mutation",
+            "Fail closed"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-v01-meeting-capsule",
+      "scenario": "A meeting capsule keeps work connected",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "V01_MEETING_CAPSULE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/release-v0.1-dogfood-plan.md",
+          "fragments": [
+            "Meeting Capsule includes agenda, files, decisions, and follow-up tasks",
+            "LiveKit token facade only"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-v01-decision-ledger",
+      "scenario": "Decisions are captured as product records",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "V01_DECISION_LEDGER"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/release-v0.1-dogfood-plan.md",
+          "fragments": [
+            "Record decisions with context, evidence, risks, questions, and follow-up tasks",
+            "Link decisions to channels, meetings, events, files, and board items"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-v01-operator-release-path",
+      "scenario": "Operators can deploy, verify, back up, restore, and diagnose safely",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "V01_OPERATOR_RELEASE_PATH"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/release-v0.1-dogfood-plan.md",
+          "fragments": [
+            "Install runbook",
+            "Backup runbook",
+            "Restore test",
+            "support bundle is redacted"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -22,9 +22,9 @@ How will we know this is done?
 
 What needs to stay accessible and localizable?
 
-## Cross-repo or contract impact
+## Monorepo or contract impact
 
-Does this require `weave-backend`, `weave-infra`, or workspace `specs/` changes?
+Does this require coordinated `client/`, `server/`, `infra/`, `e2e/`, `docs/`, or release metadata changes?
 
 ## Related docs
 

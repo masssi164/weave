@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/task-board-event.schema.json",
+  "title": "TaskBoardEvent",
+  "description": "Provider-neutral normalized Boards/Tasks event envelope for support-safe audit and sync evidence. Publication remains feature-gated until runtime semantics pass.",
+  "type": "object",
+  "required": [
+    "idempotencyKey",
+    "type",
+    "actorRef",
+    "occurredAt",
+    "workspaceId",
+    "redactionLevel",
+    "payload"
+  ],
+  "properties": {
+    "idempotencyKey": { "type": "string", "minLength": 1 },
+    "type": {
+      "type": "string",
+      "enum": [
+        "task.created",
+        "task.updated",
+        "task.completed",
+        "task.archived",
+        "task.moved",
+        "assignment.changed",
+        "label.changed",
+        "priority.changed",
+        "due_date.changed",
+        "comment.added",
+        "attachment.changed",
+        "sync.conflict_detected"
+      ]
+    },
+    "actorRef": { "type": "string", "minLength": 1 },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "workspaceId": { "type": "string", "minLength": 1 },
+    "projectId": { "type": "string" },
+    "boardId": { "type": "string" },
+    "taskId": { "type": "string" },
+    "providerRef": {
+      "type": "object",
+      "required": ["provider", "externalId"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["vikunja", "openproject", "nextcloud-deck", "in-memory", "unknown"]
+        },
+        "externalId": { "type": "string", "minLength": 1 },
+        "externalUrl": { "type": "string", "format": "uri" },
+        "version": { "type": "string" },
+        "etag": { "type": "string" },
+        "lastSyncedAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "redactionLevel": {
+      "type": "string",
+      "enum": ["public_metadata", "workspace_internal", "support_safe", "private_content"]
+    },
+    "payload": {
+      "type": "object",
+      "description": "Provider-neutral, redacted activity details. Normalized payloads may include sourceProvider, sourceEventId, eventType, changed field identifiers, ordering/cursor hints, and support-safe conflict details.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

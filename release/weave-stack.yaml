@@ -1,0 +1,51 @@
+version: 1
+release: v0.1-dogfood
+status: foundation
+components:
+  client:
+    path: client
+    source: monorepo
+    required_gates:
+      - flutter pub get
+      - flutter gen-l10n
+      - dart run build_runner build --delete-conflicting-outputs
+      - dart format --output=none --set-exit-if-changed .
+      - flutter analyze --fatal-infos
+      - flutter test
+      - make offline-contract-test
+  server:
+    path: server
+    source: monorepo
+    required_gates:
+      - ./gradlew test
+  infra:
+    path: infra
+    source: monorepo
+    iac: opentofu-preferred
+    required_gates:
+      - tofu fmt -check
+      - tofu validate
+      - infra/weave-workspace/tests/*-test.sh
+  e2e:
+    path: e2e
+    required_gates:
+      - make acceptance-contract
+      - Live Stack E2E with explicit runner budget
+scope:
+  required:
+    - weave-home
+    - channel-workspaces
+    - chat
+    - files
+    - calendar
+    - boards-user-writes-with-audit
+    - meeting-capsules
+    - decision-ledger
+    - workspace-health
+    - deploy-backup-restore-rollback
+  excluded:
+    - product-agent-runtime
+    - autonomous-agent-writes
+    - public-connector-sdk
+    - teams-slack-migration
+    - broad-saas-admin-console

@@ -4,17 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       weave_backend_image:
-        description: "Backend image to boot inside the infra stack; ghcr.io/* is pulled as the published backend image, other refs are built from weave_backend_ref"
+        description: "Backend image to boot inside the infra stack; ghcr.io/* is pulled, other refs are built from monorepo server/"
         required: false
         default: "weave-backend:live-stack-ci"
-      weave_backend_ref:
-        description: "Git ref to use for weave-backend when building the live-stack backend image"
-        required: false
-        default: "main"
-      weave_infra_ref:
-        description: "Git ref to use for weave-infra"
-        required: false
-        default: "main"
       power_storage_confirmation:
         description: "Type I_HAVE_SOLAR_STORAGE_BUDGET to confirm the self-hosted runner has enough power/storage budget for expensive live E2E"
         required: true
@@ -25,14 +17,6 @@ on:
         type: string
         required: false
         default: "weave-backend:live-stack-ci"
-      weave_backend_ref:
-        type: string
-        required: false
-        default: "main"
-      weave_infra_ref:
-        type: string
-        required: false
-        default: "main"
     secrets:
       WEAVE_TEST_PASSWORD:
         required: true
@@ -57,8 +41,6 @@ jobs:
     timeout-minutes: 75
     env:
       WEAVE_BACKEND_IMAGE: ${{ inputs.weave_backend_image || github.event.inputs.weave_backend_image || 'weave-backend:live-stack-ci' }}
-      WEAVE_INFRA_REF: ${{ inputs.weave_infra_ref || github.event.inputs.weave_infra_ref || 'main' }}
-      WEAVE_BACKEND_REF: ${{ inputs.weave_backend_ref || github.event.inputs.weave_backend_ref || 'main' }}
       WEAVE_TEST_PASSWORD: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_test_user_password: ${{ secrets.WEAVE_TEST_PASSWORD }}
       TF_VAR_db_admin_password: ci-db-admin-password
@@ -75,7 +57,8 @@ jobs:
       TF_VAR_synapse_macaroon_secret_key: ci-synapse-macaroon-secret-key
       TF_VAR_synapse_form_secret: ci-synapse-form-secret
       TF_VAR_create_test_user: 'true'
-      TF_VAR_boards_preview_runtime_enabled: 'true'
+      TF_VAR_boards_runtime_enabled: 'true'
+      TF_VAR_boards_provider: local-workspace
       TF_VAR_tenant_domain: weave.local
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
@@ -98,20 +81,6 @@ jobs:
         uses: actions/checkout@v5
         with:
           path: weave
-
-      - name: Check out weave-infra
-        uses: actions/checkout@v5
-        with:
-          repository: masssi164/weave-infra
-          ref: ${{ env.WEAVE_INFRA_REF }}
-          path: weave-infra
-
-      - name: Check out weave-backend
-        uses: actions/checkout@v5
-        with:
-          repository: masssi164/weave-backend
-          ref: ${{ env.WEAVE_BACKEND_REF }}
-          path: weave-backend
 
       - name: Prepare acceptance evidence directory
         run: |
@@ -151,16 +120,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v4
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
         with:
-          terraform_version: 1.9.8
-          terraform_wrapper: false
+          tofu_version: 1.10.6
+          tofu_wrapper: false
 
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
           set -euo pipefail
-          hosts=(weave.local auth.weave.local files.weave.local matrix.weave.local)
+          hosts=(weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local)
           missing=()
           for host in "${hosts[@]}"; do
             if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1'; then
@@ -187,7 +156,7 @@ jobs:
           done
 
       - name: Clean up stale stack state before bootstrap
-        working-directory: weave-infra/weave-workspace
+        working-directory: weave/infra/weave-workspace
         run: bash ./teardown.sh
 
       - name: Prepare backend image
@@ -197,12 +166,12 @@ jobs:
             echo "Pulling published backend image for live-stack evidence."
             docker --config "${DOCKER_CONFIG}" pull "${WEAVE_BACKEND_IMAGE}"
           else
-            echo "Building backend image from ${WEAVE_BACKEND_REF} for live-stack evidence."
-            docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" weave-backend
+            echo "Building backend image from monorepo server/ for live-stack evidence."
+            docker buildx build --load -t "${WEAVE_BACKEND_IMAGE}" weave/server
           fi
 
       - name: Bootstrap local stack
-        working-directory: weave-infra/weave-workspace
+        working-directory: weave/infra/weave-workspace
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
         run: ./install.sh
@@ -210,7 +179,7 @@ jobs:
       - name: Verify local test hostnames resolve on the runner
         run: |
           set -euo pipefail
-          for host in weave.local auth.weave.local files.weave.local matrix.weave.local; do
+          for host in weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local; do
             dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || {
               echo "Runner cannot resolve $host to loopback" >&2
               exit 1
@@ -218,13 +187,13 @@ jobs:
           done
 
       - name: Verify stack readiness before Flutter work
-        working-directory: weave-infra/weave-workspace
+        working-directory: weave/infra/weave-workspace
         run: bash ./operator-check.sh
 
       - name: Trust local Weave CA for this runner user
         run: |
           set -euo pipefail
-          CA_FILE="$GITHUB_WORKSPACE/weave-infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
+          CA_FILE="$GITHUB_WORKSPACE/weave/infra/weave-workspace/01-infrastructure/.generated/caddy/certs/weave-local-ca.pem"
           if [ ! -s "$CA_FILE" ]; then
             echo "::error::Weave local CA certificate not found at $CA_FILE"
             exit 1
@@ -240,33 +209,34 @@ jobs:
           fi
 
       - name: Install Flutter dependencies
-        working-directory: weave
+        working-directory: weave/client
         run: flutter pub get
 
       - name: Generate l10n
-        working-directory: weave
+        working-directory: weave/client
         run: flutter gen-l10n
 
       - name: Generate code
-        working-directory: weave
+        working-directory: weave/client
         run: dart run build_runner build --delete-conflicting-outputs
 
       - name: Run live stack integration tests
-        working-directory: weave
+        working-directory: weave/client
         env:
-          WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave-infra/weave-workspace/.generated/bootstrap.env
+          WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/weave/infra/weave-workspace/.generated/bootstrap.env
         run: |
           set -euo pipefail
           make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
 
       - name: Generate live stack acceptance evidence
         if: always()
-        working-directory: weave
+        working-directory: weave/client
         run: |
           set -euo pipefail
           dart run tool/acceptance_contract.dart guard \
-            --features acceptance \
-            --mapping acceptance/scenario_mappings.json \
+            --root .. \
+            --features e2e/features \
+            --mapping e2e/scenario_mappings.json \
             --out "$WEAVE_ACCEPTANCE_EVIDENCE_DIR" \
             --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
             --append-summary "$GITHUB_STEP_SUMMARY"
@@ -274,7 +244,7 @@ jobs:
       - name: Dump stack logs on failure
         if: failure()
         run: |
-          bash weave-infra/weave-workspace/operator-check.sh || true
+          bash weave/infra/weave-workspace/operator-check.sh || true
           docker ps -a
           for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
             echo "--- ${container}"
@@ -283,7 +253,7 @@ jobs:
 
       - name: Destroy stack and scrub stale resources
         if: always()
-        working-directory: weave-infra/weave-workspace
+        working-directory: weave/infra/weave-workspace
         run: bash ./teardown.sh
 
       - name: Upload live stack acceptance evidence

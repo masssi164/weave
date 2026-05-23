@@ -18,24 +18,51 @@ permissions:
   contents: read
 
 jobs:
-  offline-flutter-checks:
-    name: Offline Flutter Checks
+  acceptance-contract:
+    name: Acceptance Contract
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - run: flutter pub get
-      - run: flutter gen-l10n
-      - run: dart run build_runner build --delete-conflicting-outputs
-      - run: dart format --output=none --set-exit-if-changed .
-      - run: flutter analyze --fatal-infos
-      - run: flutter test
+      - name: Install client dependencies
+        working-directory: client
+        run: flutter pub get
+      - name: Verify Gherkin mappings
+        run: make acceptance-contract
+
+  client-offline-checks:
+    name: Client Offline Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install dependencies
+        working-directory: client
+        run: flutter pub get
+      - name: Generate l10n
+        working-directory: client
+        run: flutter gen-l10n
+      - name: Generate code
+        working-directory: client
+        run: dart run build_runner build --delete-conflicting-outputs
+      - name: Format check
+        working-directory: client
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Analyze
+        working-directory: client
+        run: flutter analyze --fatal-infos
+      - name: Test
+        working-directory: client
+        run: flutter test
       - name: Verify generated marketing screenshots
+        working-directory: client
         run: |
           make marketing-screenshots
-          git diff --exit-code -- docs/assets/marketing docs/assets/roadmap
+          git diff --exit-code -- ../docs/assets/marketing ../docs/assets/roadmap
       - name: Upload marketing screenshots
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_marketing_screenshots == 'true' }}
         uses: actions/upload-artifact@v4
@@ -45,4 +72,48 @@ jobs:
             docs/assets/marketing
             docs/assets/roadmap
           if-no-files-found: error
-      - run: make offline-contract-test
+      - name: Offline contract test
+        working-directory: client
+        run: make offline-contract-test
+
+  server-checks:
+    name: Server Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Test server
+        working-directory: server
+        run: ./gradlew test
+
+  infra-static-checks:
+    name: Infra Static Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.10.6
+          tofu_wrapper: false
+      - name: OpenTofu infrastructure format check
+        working-directory: infra/weave-workspace/01-infrastructure
+        run: tofu fmt -check -recursive
+      - name: OpenTofu infrastructure validate
+        working-directory: infra/weave-workspace/01-infrastructure
+        run: |
+          tofu init -backend=false
+          tofu validate
+      - name: OpenTofu Keycloak setup format check
+        working-directory: infra/weave-workspace/02-keycloak-setup
+        run: tofu fmt -check -recursive
+      - name: OpenTofu Keycloak setup validate
+        working-directory: infra/weave-workspace/02-keycloak-setup
+        run: |
+          tofu init -backend=false
+          tofu validate
+      - name: Infra script tests
+        run: make infra-static

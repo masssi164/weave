@@ -1,0 +1,3678 @@
+{
+  "@@locale": "en",
+  "appTitle": "Weave",
+  "@appTitle": {
+    "description": "Application title shown in the app bar and system task switcher"
+  },
+  "welcomeTitle": "Welcome to Weave",
+  "@welcomeTitle": {
+    "description": "Main heading on the welcome screen"
+  },
+  "welcomeSubtitle": "Your unified collaboration hub for messaging, files, and secure self-hosted access.",
+  "@welcomeSubtitle": {
+    "description": "Subtitle text below the welcome heading"
+  },
+  "continueButton": "Get Started",
+  "@continueButton": {
+    "description": "Label for the primary CTA on the welcome screen"
+  },
+  "setupTitle": "Setup",
+  "@setupTitle": {
+    "description": "Title for the setup flow screen"
+  },
+  "setupProviderStepTitle": "Connect Your Server",
+  "@setupProviderStepTitle": {
+    "description": "Title for the setup provider and issuer step"
+  },
+  "setupProviderStepDescription": "Choose your OIDC provider and enter the issuer URL for your self-hosted setup.",
+  "@setupProviderStepDescription": {
+    "description": "Description shown in the setup provider step"
+  },
+  "setupServicesStepTitle": "Review Service Endpoints",
+  "@setupServicesStepTitle": {
+    "description": "Title for the setup services step"
+  },
+  "setupServicesStepDescription": "Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.",
+  "@setupServicesStepDescription": {
+    "description": "Description shown in the setup services step"
+  },
+  "setupLanguageStepTitle": "Your Language",
+  "@setupLanguageStepTitle": {
+    "description": "Title for the language preference step"
+  },
+  "setupLanguageStepDescription": "Weave uses your device language. You can change it later in settings.",
+  "@setupLanguageStepDescription": {
+    "description": "Description shown in the language step"
+  },
+  "setupConfirmStepTitle": "You're All Set",
+  "@setupConfirmStepTitle": {
+    "description": "Title for the confirmation step"
+  },
+  "setupConfirmStepDescription": "Tap Finish to start using Weave.",
+  "@setupConfirmStepDescription": {
+    "description": "Description shown in the confirmation step"
+  },
+  "setupNextButton": "Next",
+  "@setupNextButton": {
+    "description": "Button to advance to the next setup step"
+  },
+  "setupFinishButton": "Finish",
+  "@setupFinishButton": {
+    "description": "Button to complete setup"
+  },
+  "setupBackButton": "Back",
+  "@setupBackButton": {
+    "description": "Button to go back to the previous setup step"
+  },
+  "setupStepIndicator": "Step {current} of {total}",
+  "@setupStepIndicator": {
+    "description": "Accessibility label for setup step progress",
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "navChat": "Chat",
+  "@navChat": {
+    "description": "Label for the Chat navigation destination"
+  },
+  "navFiles": "Files",
+  "@navFiles": {
+    "description": "Label for the Files navigation destination"
+  },
+  "navCalendar": "Calendar",
+  "@navCalendar": {
+    "description": "Label for the Calendar navigation destination"
+  },
+  "navDeck": "Boards workspace",
+  "@navDeck": {
+    "description": "Label for the hidden legacy Deck route, now provider-neutral boards workspace"
+  },
+  "navSettings": "Settings",
+  "@navSettings": {
+    "description": "Label for the Settings navigation destination"
+  },
+  "loadingLabel": "Loading…",
+  "@loadingLabel": {
+    "description": "Screen reader label for loading indicators"
+  },
+  "bootstrapLoadingLabel": "Preparing Weave…",
+  "@bootstrapLoadingLabel": {
+    "description": "Message shown while bootstrap state is resolving"
+  },
+  "bootstrapLoadingHint": "Checking your workspace services and getting the shell ready.",
+  "@bootstrapLoadingHint": {
+    "description": "Supporting copy shown while the workspace bootstrap state is resolving"
+  },
+  "shellErrorTitle": "We could not get Weave ready",
+  "@shellErrorTitle": {
+    "description": "Friendly error-state title shown when the app shell cannot finish bootstrap"
+  },
+  "shellErrorGuidance": "Try again. If this keeps happening, check that your workspace services are reachable.",
+  "@shellErrorGuidance": {
+    "description": "Friendly recovery guidance shown when app shell bootstrap fails"
+  },
+  "shellRecentActivityTitle": "Recent activity",
+  "@shellRecentActivityTitle": {
+    "description": "Title for the compact recent activity card in the app shell"
+  },
+  "shellRecentActivityDescription": "Quick links to recent rooms and file changes.",
+  "@shellRecentActivityDescription": {
+    "description": "Description for the recent activity card in the app shell"
+  },
+  "shellRecentActivitySemanticLabel": "Recent activity quick links",
+  "@shellRecentActivitySemanticLabel": {
+    "description": "Semantic label for the recent activity card"
+  },
+  "shellRecentRoomsTitle": "Rooms",
+  "@shellRecentRoomsTitle": {
+    "description": "Section title for recent room quick links in the app shell"
+  },
+  "shellRecentFilesTitle": "Files",
+  "@shellRecentFilesTitle": {
+    "description": "Section title for recent file quick links in the app shell"
+  },
+  "shellRecentRoomsLoading": "Loading recent rooms…",
+  "@shellRecentRoomsLoading": {
+    "description": "Loading label for recent room quick links"
+  },
+  "shellRecentRoomsEmpty": "No recent rooms yet.",
+  "@shellRecentRoomsEmpty": {
+    "description": "Empty state for recent room quick links"
+  },
+  "shellRecentRoomsUnavailable": "Recent rooms are unavailable until chat is connected.",
+  "@shellRecentRoomsUnavailable": {
+    "description": "Unavailable/error state for recent room quick links"
+  },
+  "shellRecentFilesLoading": "Loading recent file changes…",
+  "@shellRecentFilesLoading": {
+    "description": "Loading label for recent file quick links"
+  },
+  "shellRecentFilesEmpty": "No recent file changes yet.",
+  "@shellRecentFilesEmpty": {
+    "description": "Empty state for recent file quick links"
+  },
+  "shellRecentFilesError": "Recent file changes could not be loaded.",
+  "@shellRecentFilesError": {
+    "description": "Error state for recent file quick links"
+  },
+  "shellRecentFilesUnavailable": "Recent files are unavailable until files are connected.",
+  "@shellRecentFilesUnavailable": {
+    "description": "Unavailable state for recent file quick links"
+  },
+  "shellRecentActivityUnknownRecency": "recent",
+  "@shellRecentActivityUnknownRecency": {
+    "description": "Fallback recency hint for activity items without a timestamp"
+  },
+  "shellRecentActivityNow": "now",
+  "@shellRecentActivityNow": {
+    "description": "Recency hint for activity that just happened"
+  },
+  "shellRecentActivityMinutesAgo": "{minutes}m ago",
+  "@shellRecentActivityMinutesAgo": {
+    "description": "Recency hint for activity from the past hour",
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "shellRecentActivityToday": "today",
+  "@shellRecentActivityToday": {
+    "description": "Recency hint for activity from today"
+  },
+  "shellRecentActivityYesterday": "yesterday",
+  "@shellRecentActivityYesterday": {
+    "description": "Recency hint for activity from yesterday"
+  },
+  "shellRecentRoomItemSemantic": "Open room {roomName}. Latest activity: {preview}. {recency}.",
+  "@shellRecentRoomItemSemantic": {
+    "description": "Semantic label for a recent room quick link",
+    "placeholders": {
+      "roomName": {
+        "type": "String"
+      },
+      "preview": {
+        "type": "String"
+      },
+      "recency": {
+        "type": "String"
+      }
+    }
+  },
+  "shellRecentFileItemSemantic": "Open {itemType} {itemName} in {path}. Changed {recency}.",
+  "@shellRecentFileItemSemantic": {
+    "description": "Semantic label for a recent file quick link",
+    "placeholders": {
+      "itemType": {
+        "type": "String"
+      },
+      "itemName": {
+        "type": "String"
+      },
+      "path": {
+        "type": "String"
+      },
+      "recency": {
+        "type": "String"
+      }
+    }
+  },
+  "shellRecentFileFolderType": "folder",
+  "@shellRecentFileFolderType": {
+    "description": "File activity type label for folders"
+  },
+  "shellRecentFileFileType": "file",
+  "@shellRecentFileFileType": {
+    "description": "File activity type label for files"
+  },
+  "emptyStateLabel": "Nothing here yet",
+  "@emptyStateLabel": {
+    "description": "Message shown when a list has no items"
+  },
+  "errorStateLabel": "Something went wrong",
+  "@errorStateLabel": {
+    "description": "Message shown when an error occurs"
+  },
+  "retryButton": "Retry",
+  "@retryButton": {
+    "description": "Label for the retry action button"
+  },
+  "semanticBackButton": "Go back",
+  "@semanticBackButton": {
+    "description": "Semantic label for back navigation buttons"
+  },
+  "semanticCloseButton": "Close",
+  "@semanticCloseButton": {
+    "description": "Semantic label for close buttons"
+  },
+  "semanticChatIcon": "Chat messages",
+  "@semanticChatIcon": {
+    "description": "Semantic label for the chat icon"
+  },
+  "semanticFilesIcon": "File browser",
+  "@semanticFilesIcon": {
+    "description": "Semantic label for the files icon"
+  },
+  "semanticCalendarIcon": "Calendar events",
+  "@semanticCalendarIcon": {
+    "description": "Semantic label for the calendar icon"
+  },
+  "semanticDeckIcon": "Boards workspace",
+  "@semanticDeckIcon": {
+    "description": "Semantic label for the hidden future boards workspace icon"
+  },
+  "semanticSettingsIcon": "Application settings",
+  "@semanticSettingsIcon": {
+    "description": "Semantic label for the settings icon"
+  },
+  "semanticWeaveLogo": "Weave logo",
+  "@semanticWeaveLogo": {
+    "description": "Semantic label for the Weave brand logo image"
+  },
+  "firstRunAppBarTitle": "First-run status",
+  "firstRunLoadingLabel": "Checking your Weave workspace…",
+  "firstRunLoadingHint": "Loading your profile, role, and module readiness from the Weave backend.",
+  "firstRunLoadFailure": "We could not load your first-run status from the Weave backend.",
+  "firstRunSignedOutMessage": "Sign in to view your Weave first-run status.",
+  "firstRunReadyTitle": "Your Weave workspace is ready",
+  "firstRunNeedsAttentionTitle": "Your Weave workspace is being prepared",
+  "firstRunDescription": "You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Matrix or Nextcloud credentials are needed.",
+  "firstRunIdentitySectionTitle": "Your Weave identity",
+  "firstRunIdentitySectionDescription": "This profile and role come from the Weave backend contract after SSO.",
+  "firstRunDisplayNameLabel": "Name",
+  "firstRunUsernameLabel": "Username",
+  "firstRunEmailLabel": "Email",
+  "firstRunRoleLabel": "Role",
+  "firstRunInviteStatusLabel": "Invite",
+  "firstRunModuleSectionTitle": "Module readiness",
+  "firstRunProfileModuleTitle": "Profile",
+  "firstRunChatModuleTitle": "Chat",
+  "firstRunFilesModuleTitle": "Files",
+  "firstRunCalendarModuleTitle": "Calendar",
+  "firstRunStateReady": "Ready",
+  "firstRunStatePending": "Pending",
+  "firstRunStateUnavailable": "Unavailable",
+  "firstRunStateDegraded": "Degraded",
+  "firstRunStateActionNeeded": "Action needed",
+  "firstRunNextStepsTitle": "Next steps",
+  "firstRunRefreshButton": "Refresh status",
+  "firstRunContinueButton": "Continue to chat",
+  "chatProvisioningReadyTitle": "Chat is ready",
+  "chatProvisioningPendingTitle": "Chat rooms are still being prepared",
+  "chatProvisioningDegradedTitle": "Chat is available with degraded setup",
+  "chatProvisioningActionNeededTitle": "Chat setup needs admin attention",
+  "chatProvisioningRetryButton": "Retry status",
+  "chatScreenTitle": "Chat",
+  "@chatScreenTitle": {
+    "description": "Title for the chat screen app bar"
+  },
+  "chatOverviewTitle": "Weave Home",
+  "@chatOverviewTitle": {
+    "description": "Title for the chat overview/home surface"
+  },
+  "chatOverviewDescription": "Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.",
+  "@chatOverviewDescription": {
+    "description": "Description for the chat overview/home surface"
+  },
+  "chatFavoritesSectionTitle": "Favorites",
+  "@chatFavoritesSectionTitle": {
+    "description": "Title for the favorites section in the chat overview"
+  },
+  "chatFavoritesSectionDescription": "Pinned people, channels, and AI chats you want to reach first.",
+  "@chatFavoritesSectionDescription": {
+    "description": "Description for the favorites section in the chat overview"
+  },
+  "chatFavoritesSectionEmpty": "No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.",
+  "@chatFavoritesSectionEmpty": {
+    "description": "Empty state for the favorites section in the chat overview"
+  },
+  "chatPersonalMessagesSectionTitle": "Personal messages",
+  "@chatPersonalMessagesSectionTitle": {
+    "description": "Title for the personal messages section in the chat overview"
+  },
+  "chatPersonalMessagesSectionDescription": "Direct conversations with people in your workspace.",
+  "@chatPersonalMessagesSectionDescription": {
+    "description": "Description for the personal messages section in the chat overview"
+  },
+  "chatPersonalMessagesSectionEmpty": "No personal messages are available yet.",
+  "@chatPersonalMessagesSectionEmpty": {
+    "description": "Empty state for the personal messages section in the chat overview"
+  },
+  "chatChannelsSectionTitle": "Channels",
+  "@chatChannelsSectionTitle": {
+    "description": "Title for the channel section in the chat overview"
+  },
+  "chatChannelsSectionDescription": "Team and topic rooms for shared work.",
+  "@chatChannelsSectionDescription": {
+    "description": "Description for the channel section in the chat overview"
+  },
+  "chatChannelsSectionEmpty": "No channels are available yet.",
+  "@chatChannelsSectionEmpty": {
+    "description": "Empty state for the channel section in the chat overview"
+  },
+  "chatAiChatsSectionTitle": "AI chats",
+  "@chatAiChatsSectionTitle": {
+    "description": "Title for the AI chats section in the chat overview"
+  },
+  "chatAiChatsSectionDescription": "Specialized assistant and agent chats live in their own area.",
+  "@chatAiChatsSectionDescription": {
+    "description": "Description for the AI chats section in the chat overview"
+  },
+  "chatAiChatsSectionEmpty": "No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.",
+  "@chatAiChatsSectionEmpty": {
+    "description": "Empty state for the AI chats section in the chat overview"
+  },
+  "chatAgentGovernanceTitle": "Agent chats are governed by your workspace",
+  "@chatAgentGovernanceTitle": {
+    "description": "Title for the governed agent chat preview panel"
+  },
+  "chatAgentGovernanceDescription": "Agents can help inside Weave only after an owner or admin enables a package, chooses scopes, and keeps consent and audit visible.",
+  "@chatAgentGovernanceDescription": {
+    "description": "Description for the governed agent chat preview panel"
+  },
+  "chatAgentContextPackTitle": "Context pack before action",
+  "@chatAgentContextPackTitle": {
+    "description": "Title for the agent context pack explanation card"
+  },
+  "chatAgentContextPackDescription": "When an agent is available, Weave will show what context is sent for this request before the agent uses it.",
+  "@chatAgentContextPackDescription": {
+    "description": "Description for the agent context pack explanation card"
+  },
+  "chatAgentContextPackScopedBullet": "Context is scoped to a selected chat, file, calendar event, board, or explicit workspace source.",
+  "@chatAgentContextPackScopedBullet": {
+    "description": "Bullet explaining scoped agent context"
+  },
+  "chatAgentContextPackConsentBullet": "You will see permission hints before starting or approving an agent action.",
+  "@chatAgentContextPackConsentBullet": {
+    "description": "Bullet explaining consent and permission hints for agent context"
+  },
+  "chatAgentContextPackNoSurveillanceBullet": "Agents do not continuously read rooms in the background.",
+  "@chatAgentContextPackNoSurveillanceBullet": {
+    "description": "Bullet explaining that agents are not surveillance-aware"
+  },
+  "chatAgentGovernanceAuditNote": "Audit placeholders are part of this preview: agent creation, context access, tool/action execution, approval, and revocation must be recorded before runtime promotion.",
+  "@chatAgentGovernanceAuditNote": {
+    "description": "Audit and approval note for the governed agent chat preview panel"
+  },
+  "chatAgentAvailabilityPreview": "Preview only",
+  "@chatAgentAvailabilityPreview": {
+    "description": "Agent availability label for a gated agent"
+  },
+  "chatAgentAvailabilityAdminSetup": "Admin setup required",
+  "@chatAgentAvailabilityAdminSetup": {
+    "description": "Agent availability label when setup must be done by an admin"
+  },
+  "chatAgentAvailabilityBlocked": "Blocked by policy",
+  "@chatAgentAvailabilityBlocked": {
+    "description": "Agent availability label when policy blocks an agent"
+  },
+  "chatAgentPersonalAssistantTitle": "Personal assistant",
+  "@chatAgentPersonalAssistantTitle": {
+    "description": "Title for the personal assistant preview tile"
+  },
+  "chatAgentPersonalAssistantDescription": "A future private assistant chat for drafting, summaries, and reminders inside Weave.",
+  "@chatAgentPersonalAssistantDescription": {
+    "description": "Description for the personal assistant preview tile"
+  },
+  "chatAgentChannelAgentTitle": "Channel agent",
+  "@chatAgentChannelAgentTitle": {
+    "description": "Title for the channel agent preview tile"
+  },
+  "chatAgentChannelAgentDescription": "A future helper for a channel or project space, governed by an admin-approved package.",
+  "@chatAgentChannelAgentDescription": {
+    "description": "Description for the channel agent preview tile"
+  },
+  "chatAgentPersonalScope": "Uses only context you choose for the current request; workspace policy decides which skills are available.",
+  "@chatAgentPersonalScope": {
+    "description": "Scope explanation for personal assistant preview"
+  },
+  "chatAgentPersonalBoundary": "No continuous room reading; a context pack is assembled only after you start or approve a request.",
+  "@chatAgentPersonalBoundary": {
+    "description": "Boundary explanation for personal assistant preview"
+  },
+  "chatAgentPersonalAudit": "Creation, context access, tool use, and permission changes will be auditable before runtime use.",
+  "@chatAgentPersonalAudit": {
+    "description": "Audit explanation for personal assistant preview"
+  },
+  "chatAgentChannelScope": "An owner or admin must enable the package and choose allowed chat, files, calendar, and board scopes.",
+  "@chatAgentChannelScope": {
+    "description": "Scope explanation for channel agent preview"
+  },
+  "chatAgentChannelBoundary": "The agent sees named spaces and explicit context packs, not every message in the workspace.",
+  "@chatAgentChannelBoundary": {
+    "description": "Boundary explanation for channel agent preview"
+  },
+  "chatAgentChannelAudit": "Approvals, revocations, and action attempts stay visible to admins without exposing secrets to the app.",
+  "@chatAgentChannelAudit": {
+    "description": "Audit explanation for channel agent preview"
+  },
+  "chatAgentStartDisabledButton": "Unavailable until enabled",
+  "@chatAgentStartDisabledButton": {
+    "description": "Disabled action label for preview agent chats"
+  },
+  "chatLoadingLabel": "Loading conversations…",
+  "@chatLoadingLabel": {
+    "description": "Message shown while the chat room list is loading"
+  },
+  "chatLoadingHint": "Gathering your latest rooms and recent conversation state.",
+  "@chatLoadingHint": {
+    "description": "Supporting copy shown while the chat conversation list is loading"
+  },
+  "chatConnectingLabel": "Connecting to Matrix…",
+  "@chatConnectingLabel": {
+    "description": "Message shown while Matrix OAuth sign-in is in progress"
+  },
+  "chatConnectingHint": "We are opening your secure Matrix session and syncing the first room list.",
+  "@chatConnectingHint": {
+    "description": "Supporting copy shown while Matrix sign-in is connecting"
+  },
+  "chatConnectButton": "Connect Matrix",
+  "@chatConnectButton": {
+    "description": "Button label to start or retry Matrix sign-in"
+  },
+  "chatRefreshingRoomsLabel": "Refreshing chat rooms",
+  "@chatRefreshingRoomsLabel": {
+    "description": "Accessibility label for the progress indicator shown while the existing chat room list is refreshing"
+  },
+  "chatStaleRoomsTitle": "Showing last known rooms",
+  "@chatStaleRoomsTitle": {
+    "description": "Title for a chat notice shown when refresh failed but cached conversations remain visible"
+  },
+  "chatStaleRoomsGuidance": "We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.",
+  "@chatStaleRoomsGuidance": {
+    "description": "Guidance for a chat notice shown when refresh failed but cached conversations remain visible"
+  },
+  "chatStaleRoomsRetryButton": "Refresh rooms",
+  "@chatStaleRoomsRetryButton": {
+    "description": "Button label for retrying a stale chat room list refresh"
+  },
+  "channelWorkspaceSummaryTitle": "{channelName} workspace",
+  "@channelWorkspaceSummaryTitle": {
+    "description": "Title for the channel workspace summary card",
+    "placeholders": {
+      "channelName": {
+        "type": "String"
+      }
+    }
+  },
+  "channelWorkspaceSummaryDescription": "This channel is a work room with tabs for chat, files, boards, calendar, and meetings where the workspace has enabled them.",
+  "@channelWorkspaceSummaryDescription": {
+    "description": "Description for the channel workspace summary card"
+  },
+  "channelWorkspaceGovernanceNote": "Context stays explicit: no hidden continuous room reading and no ordinary member access to admin setup.",
+  "@channelWorkspaceGovernanceNote": {
+    "description": "Governance note for channel workspace tabs"
+  },
+  "channelWorkspaceTabsSemanticLabel": "Channel workspace tabs for {channelName}",
+  "@channelWorkspaceTabsSemanticLabel": {
+    "description": "Semantic label for the channel workspace tab list",
+    "placeholders": {
+      "channelName": {
+        "type": "String"
+      }
+    }
+  },
+  "channelWorkspaceChatTab": "Chat",
+  "@channelWorkspaceChatTab": {
+    "description": "Channel workspace chat tab label"
+  },
+  "channelWorkspaceFilesTab": "Files",
+  "@channelWorkspaceFilesTab": {
+    "description": "Channel workspace files tab label"
+  },
+  "channelWorkspaceBoardsTab": "Boards",
+  "@channelWorkspaceBoardsTab": {
+    "description": "Channel workspace boards tab label"
+  },
+  "channelWorkspaceCalendarTab": "Calendar",
+  "@channelWorkspaceCalendarTab": {
+    "description": "Channel workspace calendar tab label"
+  },
+  "channelWorkspaceMeetingsTab": "Meetings",
+  "@channelWorkspaceMeetingsTab": {
+    "description": "Channel workspace meetings tab label"
+  },
+  "channelWorkspaceChatTitle": "Channel chat",
+  "@channelWorkspaceChatTitle": {
+    "description": "Title for the chat surface in a channel workspace"
+  },
+  "channelWorkspaceFilesTitle": "Channel files",
+  "@channelWorkspaceFilesTitle": {
+    "description": "Title for the files surface in a channel workspace"
+  },
+  "channelWorkspaceBoardsTitle": "Channel boards and tasks",
+  "@channelWorkspaceBoardsTitle": {
+    "description": "Title for the boards/tasks surface in a channel workspace"
+  },
+  "channelWorkspaceCalendarTitle": "Channel calendar",
+  "@channelWorkspaceCalendarTitle": {
+    "description": "Title for the calendar surface in a channel workspace"
+  },
+  "channelWorkspaceMeetingsTitle": "Channel meeting preview",
+  "@channelWorkspaceMeetingsTitle": {
+    "description": "Title for the meetings preview surface in a channel workspace"
+  },
+  "channelWorkspaceChatDescription": "Messages remain the default live context for this channel.",
+  "@channelWorkspaceChatDescription": {
+    "description": "Description for the channel chat surface"
+  },
+  "channelWorkspaceFilesDescription": "Channel file linking is a preview seam. Files will attach through the Weave files facade instead of raw provider paths once the backend contract is ready.",
+  "@channelWorkspaceFilesDescription": {
+    "description": "Description for the channel files preview placeholder"
+  },
+  "channelWorkspaceBoardsDescription": "Linked boards and tasks are shown as an honest preview until provider-neutral board state is connected to this channel context.",
+  "@channelWorkspaceBoardsDescription": {
+    "description": "Description for the channel boards/tasks preview placeholder"
+  },
+  "channelWorkspaceCalendarDescription": "Channel events stay gated until calendar scope capability is available for this workspace.",
+  "@channelWorkspaceCalendarDescription": {
+    "description": "Description for the gated channel calendar placeholder"
+  },
+  "channelWorkspaceMeetingsDescription": "Meetings attach to this channel's calendar, agenda, decisions, tasks, files, and follow-up evidence. LiveKit is the media provider contract; join and start remain gated until backend tokens, media encryption evidence, and accessibility evidence are configured.",
+  "@channelWorkspaceMeetingsDescription": {
+    "description": "Description for the gated channel meetings preview placeholder"
+  },
+  "channelWorkspaceMeetingsCapabilityTitle": "LiveKit readiness is fail-closed",
+  "@channelWorkspaceMeetingsCapabilityTitle": {
+    "description": "Title explaining that channel meetings are fail-closed until backend and encryption evidence exist"
+  },
+  "channelWorkspaceMeetingsCapabilityBody": "LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls. This preview does not claim that encrypted LiveKit calls are available.",
+  "@channelWorkspaceMeetingsCapabilityBody": {
+    "description": "Body explaining honest fail-closed channel meeting capability state"
+  },
+  "channelWorkspaceMeetingsPrivacyTitle": "Explicit meeting context only",
+  "@channelWorkspaceMeetingsPrivacyTitle": {
+    "description": "Title for the explicit context rule in the channel meetings preview"
+  },
+  "channelWorkspaceMeetingsPrivacyBody": "Only context explicitly selected from {channelName} is prepared for a meeting. Weave does not continuously read, record, or transcribe the room in the background.",
+  "@channelWorkspaceMeetingsPrivacyBody": {
+    "description": "Privacy/context note for the channel meetings preview",
+    "placeholders": {
+      "channelName": {
+        "type": "String"
+      }
+    }
+  },
+  "channelWorkspaceMeetingsRecordingOff": "Recording and transcription off",
+  "@channelWorkspaceMeetingsRecordingOff": {
+    "description": "Status chip for recording/transcription off in channel meetings preview"
+  },
+  "channelWorkspaceMeetingsContextTitle": "Context pack for this meeting",
+  "@channelWorkspaceMeetingsContextTitle": {
+    "description": "Title for the channel meeting context pack preview"
+  },
+  "channelWorkspaceMeetingsContextBody": "A meeting pack is explicit and reviewable before anyone joins.",
+  "@channelWorkspaceMeetingsContextBody": {
+    "description": "Body for the channel meeting context pack preview"
+  },
+  "channelWorkspaceMeetingsContextAgenda": "Agenda",
+  "@channelWorkspaceMeetingsContextAgenda": {
+    "description": "Meeting context chip for agenda"
+  },
+  "channelWorkspaceMeetingsContextFiles": "Files",
+  "@channelWorkspaceMeetingsContextFiles": {
+    "description": "Meeting context chip for files"
+  },
+  "channelWorkspaceMeetingsContextDecisions": "Decisions",
+  "@channelWorkspaceMeetingsContextDecisions": {
+    "description": "Meeting context chip for decisions"
+  },
+  "channelWorkspaceMeetingsContextTasks": "Tasks",
+  "@channelWorkspaceMeetingsContextTasks": {
+    "description": "Meeting context chip for tasks"
+  },
+  "channelWorkspaceMeetingsContextEvidence": "Follow-up evidence",
+  "@channelWorkspaceMeetingsContextEvidence": {
+    "description": "Meeting context chip for follow-up evidence"
+  },
+  "channelWorkspaceMeetingsJoinButton": "Join meeting",
+  "@channelWorkspaceMeetingsJoinButton": {
+    "description": "Disabled join button in channel meetings preview"
+  },
+  "channelWorkspaceMeetingsStartButton": "Start meeting",
+  "@channelWorkspaceMeetingsStartButton": {
+    "description": "Disabled start button in channel meetings preview"
+  },
+  "channelWorkspaceMeetingsBackendUnavailableReason": "Meeting provider capability is not available yet.",
+  "@channelWorkspaceMeetingsBackendUnavailableReason": {
+    "description": "Disabled reason for meeting controls when backend capability is absent"
+  },
+  "channelWorkspaceStatusAvailable": "Available",
+  "@channelWorkspaceStatusAvailable": {
+    "description": "Status label for an available channel workspace surface"
+  },
+  "channelWorkspaceStatusPreview": "Preview contract",
+  "@channelWorkspaceStatusPreview": {
+    "description": "Status label for a gated channel workspace surface"
+  },
+  "channelWorkspaceStatusGated": "Gated by capability",
+  "@channelWorkspaceStatusGated": {
+    "description": "Status label for a gated channel workspace surface"
+  },
+  "channelWorkspaceProviderContract": "Provider seam: {contractId}",
+  "@channelWorkspaceProviderContract": {
+    "description": "Provider/domain seam label for a channel workspace surface",
+    "placeholders": {
+      "contractId": {
+        "type": "String"
+      }
+    }
+  },
+  "channelWorkspaceExplicitContextNote": "Only explicit context from {channelName} is shown here; Weave does not continuously read the room in the background.",
+  "@channelWorkspaceExplicitContextNote": {
+    "description": "Privacy/context note for a channel workspace surface",
+    "placeholders": {
+      "channelName": {
+        "type": "String"
+      }
+    }
+  },
+  "filesScreenTitle": "Files",
+  "@filesScreenTitle": {
+    "description": "Title for the files screen app bar"
+  },
+  "filesLoadingLabel": "Loading files…",
+  "@filesLoadingLabel": {
+    "description": "Message shown while the Files screen is loading the current directory"
+  },
+  "filesLoadingHint": "Refreshing the current folder and checking what changed.",
+  "@filesLoadingHint": {
+    "description": "Supporting copy shown while the Files screen is loading the current directory"
+  },
+  "filesStaleDirectoryTitle": "Showing last known folder",
+  "@filesStaleDirectoryTitle": {
+    "description": "Title for a Files notice shown when refresh failed but the previous directory listing remains visible"
+  },
+  "filesStaleDirectoryGuidance": "We could not refresh Files just now. The last folder listing stays visible so you can keep your place and retry when the connection is back.",
+  "@filesStaleDirectoryGuidance": {
+    "description": "Guidance for a Files notice shown when refresh failed but cached folder contents remain visible"
+  },
+  "filesStaleDirectoryRetryButton": "Refresh folder",
+  "@filesStaleDirectoryRetryButton": {
+    "description": "Button label for retrying a stale Files directory refresh"
+  },
+  "filesNextcloudTitle": "Weave Files",
+  "@filesNextcloudTitle": {
+    "description": "Deprecated alias for the Weave Files connection card title"
+  },
+  "filesProductTitle": "Weave Files",
+  "@filesProductTitle": {
+    "description": "Section title for the Weave Files connection card"
+  },
+  "filesProductBoundaryTitle": "Weave product boundary",
+  "@filesProductBoundaryTitle": {
+    "description": "Title for a Files card explaining the product/provider boundary"
+  },
+  "filesProductBoundaryBody": "Files actions use the Weave backend facade. Nextcloud remains the storage provider and admin/fallback surface; raw provider paths and credentials are not part of the normal Files UX.",
+  "@filesProductBoundaryBody": {
+    "description": "Body for a Files card explaining the product/provider boundary"
+  },
+  "filesConnectButton": "Connect Files",
+  "@filesConnectButton": {
+    "description": "Button label used to start the Files connection flow"
+  },
+  "filesReconnectButton": "Reconnect Files",
+  "@filesReconnectButton": {
+    "description": "Button label used to reconnect an invalid Files session"
+  },
+  "filesDisconnectButton": "Disconnect",
+  "@filesDisconnectButton": {
+    "description": "Button label used to disconnect the saved Files session"
+  },
+  "filesRefreshButton": "Refresh",
+  "@filesRefreshButton": {
+    "description": "Button label used to refresh the current Nextcloud directory"
+  },
+  "filesUpButton": "Up",
+  "@filesUpButton": {
+    "description": "Button label used to open the parent Nextcloud directory"
+  },
+  "filesRootBreadcrumb": "Root",
+  "@filesRootBreadcrumb": {
+    "description": "Label for the root breadcrumb in the files browser"
+  },
+  "filesOpenFolderSemantic": "Open folder: {name}",
+  "@filesOpenFolderSemantic": {
+    "description": "Semantic label for a breadcrumb that opens a folder in the files browser",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesCurrentFolderSemantic": "Current folder: {name}",
+  "@filesCurrentFolderSemantic": {
+    "description": "Semantic label for the current breadcrumb in the files browser",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesDirectorySummary": "{folderCount, plural, =0{No folders} one{1 folder} other{{folderCount} folders}} • {fileCount, plural, =0{no files} one{1 file} other{{fileCount} files}}",
+  "@filesDirectorySummary": {
+    "description": "Summary for the current directory contents",
+    "placeholders": {
+      "folderCount": {
+        "type": "int"
+      },
+      "fileCount": {
+        "type": "int"
+      }
+    }
+  },
+  "filesDisconnectedMessage": "Connect Weave Files to browse workspace files.",
+  "@filesDisconnectedMessage": {
+    "description": "Message shown when the Files screen is disconnected"
+  },
+  "filesInvalidSessionMessage": "Reconnect Files because the Weave session is no longer valid.",
+  "@filesInvalidSessionMessage": {
+    "description": "Message shown when the saved Files session is no longer valid"
+  },
+  "filesMisconfiguredMessage": "Finish Weave server setup before connecting files.",
+  "@filesMisconfiguredMessage": {
+    "description": "Message shown when the Files feature is missing required server setup"
+  },
+  "filesConnectionConnected": "Connected as {accountLabel}",
+  "@filesConnectionConnected": {
+    "description": "Status message shown when the Files feature is connected through Weave",
+    "placeholders": {
+      "accountLabel": {
+        "type": "String"
+      }
+    }
+  },
+  "filesConnectionDisconnected": "Files are not connected for this Weave session.",
+  "@filesConnectionDisconnected": {
+    "description": "Status message shown when Files are not connected"
+  },
+  "filesConnectionInvalid": "The Weave Files session needs attention.",
+  "@filesConnectionInvalid": {
+    "description": "Status message shown when the Files session is invalid"
+  },
+  "filesConnectionMisconfigured": "Server setup is incomplete for Weave Files.",
+  "@filesConnectionMisconfigured": {
+    "description": "Status message shown when Weave Files server setup is incomplete"
+  },
+  "filesOpenParentSemantic": "Open parent folder",
+  "@filesOpenParentSemantic": {
+    "description": "Semantic label for the action that opens the parent Nextcloud directory"
+  },
+  "filesRefreshCurrentFolderSemantic": "Refresh the current folder",
+  "@filesRefreshCurrentFolderSemantic": {
+    "description": "Semantic label for the action that refreshes the current Nextcloud directory"
+  },
+  "filesUploadButton": "Upload",
+  "@filesUploadButton": {
+    "description": "Button label for uploading a file to the current folder"
+  },
+  "filesUploadCurrentFolderSemantic": "Upload a file to the current folder",
+  "@filesUploadCurrentFolderSemantic": {
+    "description": "Semantic label for the action that uploads a file to the current folder"
+  },
+  "filesCreateFolderButton": "New folder",
+  "@filesCreateFolderButton": {
+    "description": "Button label for creating a folder in the current files directory"
+  },
+  "filesCreateFolderCurrentFolderSemantic": "Create a folder in the current folder",
+  "@filesCreateFolderCurrentFolderSemantic": {
+    "description": "Semantic label for the action that creates a folder in the current directory"
+  },
+  "filesCreateFolderDialogTitle": "Create folder",
+  "@filesCreateFolderDialogTitle": {
+    "description": "Title for the create-folder dialog"
+  },
+  "filesCreateFolderNameLabel": "Folder name",
+  "@filesCreateFolderNameLabel": {
+    "description": "Input label for a new folder name"
+  },
+  "filesCreateFolderNameHint": "e.g. Project docs",
+  "@filesCreateFolderNameHint": {
+    "description": "Input hint for a new folder name"
+  },
+  "filesCreateFolderConfirmButton": "Create",
+  "@filesCreateFolderConfirmButton": {
+    "description": "Button label to confirm folder creation"
+  },
+  "filesCancelButton": "Cancel",
+  "@filesCancelButton": {
+    "description": "Button label to cancel a files action"
+  },
+  "filesDeleteButton": "Delete",
+  "@filesDeleteButton": {
+    "description": "Button label to confirm deletion of a file or folder"
+  },
+  "filesExportEntrySemantic": "Export {name} to native files",
+  "@filesExportEntrySemantic": {
+    "description": "Tooltip/semantic label for exporting a file to native platform file surfaces",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesExportProgressMessage": "Exporting {name}…",
+  "@filesExportProgressMessage": {
+    "description": "Status message while a file is exported",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesExportProgressUnknownMessage": "Exporting file…",
+  "@filesExportProgressUnknownMessage": {
+    "description": "Status message while an unnamed file is exported"
+  },
+  "filesExportCompletedMessage": "Exported {name} to {destination}.",
+  "@filesExportCompletedMessage": {
+    "description": "Status message after a file is exported to a native file surface",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "destination": {
+        "type": "String"
+      }
+    }
+  },
+  "filesExportCompletedUnknownMessage": "Exported file to native files.",
+  "@filesExportCompletedUnknownMessage": {
+    "description": "Status message after an unnamed file is exported"
+  },
+  "filesExportUserVisibleFallback": "a user-visible files location",
+  "@filesExportUserVisibleFallback": {
+    "description": "Fallback destination label when the platform does not expose an export path"
+  },
+  "filesDeleteEntrySemantic": "Delete {name}",
+  "@filesDeleteEntrySemantic": {
+    "description": "Semantic label for deleting a file or folder",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesDeleteEntryDialogTitle": "Delete {name}?",
+  "@filesDeleteEntryDialogTitle": {
+    "description": "Title for the delete confirmation dialog",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesDeleteEntryDialogMessage": "This removes it from Weave files for everyone with access. This cannot be undone.",
+  "@filesDeleteEntryDialogMessage": {
+    "description": "Warning shown before deleting a file or folder"
+  },
+  "filesCreateFolderProgressUnknownMessage": "Creating folder…",
+  "@filesCreateFolderProgressUnknownMessage": {
+    "description": "Status shown while creating a folder when no name is available"
+  },
+  "filesCreateFolderProgressMessage": "Creating folder {folderName}…",
+  "@filesCreateFolderProgressMessage": {
+    "description": "Status shown while creating a folder",
+    "placeholders": {
+      "folderName": {
+        "type": "String"
+      }
+    }
+  },
+  "filesCreateFolderCompletedUnknownMessage": "Folder created.",
+  "@filesCreateFolderCompletedUnknownMessage": {
+    "description": "Status shown after creating a folder when no name is available"
+  },
+  "filesCreateFolderCompletedMessage": "Created folder {folderName}.",
+  "@filesCreateFolderCompletedMessage": {
+    "description": "Status shown after creating a folder",
+    "placeholders": {
+      "folderName": {
+        "type": "String"
+      }
+    }
+  },
+  "filesDeleteProgressUnknownMessage": "Deleting item…",
+  "@filesDeleteProgressUnknownMessage": {
+    "description": "Status shown while deleting a file or folder when no name is available"
+  },
+  "filesDeleteProgressMessage": "Deleting {name}…",
+  "@filesDeleteProgressMessage": {
+    "description": "Status shown while deleting a file or folder",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesDeleteCompletedUnknownMessage": "Item deleted.",
+  "@filesDeleteCompletedUnknownMessage": {
+    "description": "Status shown after deleting a file or folder when no name is available"
+  },
+  "filesDeleteCompletedMessage": "Deleted {name}.",
+  "@filesDeleteCompletedMessage": {
+    "description": "Status shown after deleting a file or folder",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesEntryActionFailedMessage": "File action failed.",
+  "@filesEntryActionFailedMessage": {
+    "description": "Fallback status shown when a file operation fails"
+  },
+  "filesUploadPickingMessage": "Choose a file to upload…",
+  "@filesUploadPickingMessage": {
+    "description": "Status shown while the native file picker is open"
+  },
+  "filesUploadProgressUnknownMessage": "Uploading file…",
+  "@filesUploadProgressUnknownMessage": {
+    "description": "Status shown while uploading when no filename is available"
+  },
+  "filesUploadProgressIndeterminateMessage": "Uploading {fileName}…",
+  "@filesUploadProgressIndeterminateMessage": {
+    "description": "Status shown while uploading when total progress is unavailable",
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "filesUploadProgressMessage": "Uploading {fileName}: {percent}%",
+  "@filesUploadProgressMessage": {
+    "description": "Status shown while a file upload is in progress",
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "filesUploadProgressSemantic": "Upload progress for {fileName}: {percent} percent",
+  "@filesUploadProgressSemantic": {
+    "description": "Semantic label for file upload progress",
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "filesUploadCompletedUnknownMessage": "Upload complete.",
+  "@filesUploadCompletedUnknownMessage": {
+    "description": "Status shown after an upload completes when no filename is available"
+  },
+  "filesUploadCompletedMessage": "Uploaded {fileName}.",
+  "@filesUploadCompletedMessage": {
+    "description": "Status shown after a file upload completes",
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "filesUploadFailedUnknownMessage": "Upload failed.",
+  "@filesUploadFailedUnknownMessage": {
+    "description": "Status shown after an upload fails when no filename is available"
+  },
+  "filesUploadFailedMessage": "Upload failed for {fileName}.",
+  "@filesUploadFailedMessage": {
+    "description": "Status shown after a file upload fails",
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "filesFolderSemantic": "{name}, folder",
+  "@filesFolderSemantic": {
+    "description": "Semantic label for a folder row in the Files list",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesFileSemantic": "{name}, file",
+  "@filesFileSemantic": {
+    "description": "Semantic label for a file row in the Files list",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarScreenTitle": "Calendar",
+  "@calendarScreenTitle": {
+    "description": "Title for the calendar screen app bar"
+  },
+  "deckScreenTitle": "Boards workspace",
+  "@deckScreenTitle": {
+    "description": "Compatibility title for the hidden legacy Deck route"
+  },
+  "settingsScreenTitle": "Settings",
+  "@settingsScreenTitle": {
+    "description": "Title for the settings screen app bar"
+  },
+  "settingsBrandSectionDescription": "Weave focuses on accessible, data-sovereign collaboration: chat, files, shared calendars, E2EE architecture, and boards behind clear gates.",
+  "@settingsBrandSectionDescription": {
+    "description": "Subtle branded copy shown in the settings header card"
+  },
+  "settingsThemeTitle": "Appearance",
+  "@settingsThemeTitle": {
+    "description": "Settings section title for personal theme selection"
+  },
+  "settingsThemeDescription": "Choose the visual style for this profile. Workspace brand defaults stay separate, so your personal choice is not overwritten by admin setup.",
+  "@settingsThemeDescription": {
+    "description": "Settings description explaining personal theme selection and workspace defaults"
+  },
+  "settingsThemeSystemTitle": "Use device setting",
+  "@settingsThemeSystemTitle": {
+    "description": "Theme option title for system/default mode"
+  },
+  "settingsThemeSystemDescription": "Follow your device light or dark appearance.",
+  "@settingsThemeSystemDescription": {
+    "description": "Theme option description for system/default mode"
+  },
+  "settingsThemeLightTitle": "Light",
+  "@settingsThemeLightTitle": {
+    "description": "Theme option title for light mode"
+  },
+  "settingsThemeLightDescription": "Use a bright professional palette.",
+  "@settingsThemeLightDescription": {
+    "description": "Theme option description for light mode"
+  },
+  "settingsThemeDarkTitle": "Dark",
+  "@settingsThemeDarkTitle": {
+    "description": "Theme option title for dark mode"
+  },
+  "settingsThemeDarkDescription": "Use a darker palette for low-light work.",
+  "@settingsThemeDarkDescription": {
+    "description": "Theme option description for dark mode"
+  },
+  "settingsThemeHighContrastTitle": "High contrast",
+  "@settingsThemeHighContrastTitle": {
+    "description": "Theme option title for high-contrast mode"
+  },
+  "settingsThemeHighContrastDescription": "Use stronger contrast while still following your device light or dark appearance.",
+  "@settingsThemeHighContrastDescription": {
+    "description": "Theme option description for high-contrast mode"
+  },
+  "settingsThemeLoading": "Loading appearance preferences…",
+  "@settingsThemeLoading": {
+    "description": "Loading state for theme preference settings"
+  },
+  "settingsThemeError": "Appearance preferences could not be saved. Try changing the setting again.",
+  "@settingsThemeError": {
+    "description": "Error shown when theme preferences cannot load or save"
+  },
+  "settingsHelpTitle": "Help and user handbook",
+  "@settingsHelpTitle": {
+    "description": "Title for the settings entry point to in-app help"
+  },
+  "settingsHelpDescription": "Open practical guidance for using Weave, recovering from issues, and understanding privacy basics.",
+  "@settingsHelpDescription": {
+    "description": "Description for the settings entry point to in-app help"
+  },
+  "helpScreenTitle": "Help",
+  "@helpScreenTitle": {
+    "description": "Title for the in-app help screen app bar"
+  },
+  "helpHandbookTitle": "User handbook",
+  "@helpHandbookTitle": {
+    "description": "Hero title for the in-app user handbook"
+  },
+  "helpHandbookDescription": "This handbook explains the everyday Weave app in plain language. It is available offline with the app and will grow as more surfaces become ready.",
+  "@helpHandbookDescription": {
+    "description": "Introductory text for the in-app user handbook"
+  },
+  "helpWhatIsWeaveTitle": "What Weave is",
+  "@helpWhatIsWeaveTitle": {
+    "description": "Help section title explaining the product"
+  },
+  "helpWhatIsWeaveBody": "Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and future collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.",
+  "@helpWhatIsWeaveBody": {
+    "description": "Help copy explaining what Weave is"
+  },
+  "helpSignInTitle": "Sign in basics",
+  "@helpSignInTitle": {
+    "description": "Help section title for sign-in basics"
+  },
+  "helpSignInBody": "Use the workspace address provided by your admin, then sign in once with Weave SSO. You should not need separate Matrix or Nextcloud passwords for normal use. If sign-in loops or fails, check your connection, confirm the server address in Settings, and ask an admin whether your invite or account is active.",
+  "@helpSignInBody": {
+    "description": "Help copy for sign-in basics and recovery"
+  },
+  "helpChatTitle": "Chat",
+  "@helpChatTitle": {
+    "description": "Help section title for chat"
+  },
+  "helpChatBody": "Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.",
+  "@helpChatBody": {
+    "description": "Help copy for chat basics"
+  },
+  "helpFilesTitle": "Files",
+  "@helpFilesTitle": {
+    "description": "Help section title for files"
+  },
+  "helpFilesBody": "Files lets you browse workspace documents through the Weave app. Open Files from the main navigation, move through folders, and retry if the folder could not refresh. The underlying storage is provided by your workspace services, but everyday browsing should stay inside Weave.",
+  "@helpFilesBody": {
+    "description": "Help copy for files basics"
+  },
+  "helpSettingsTitle": "Settings, account, and session",
+  "@helpSettingsTitle": {
+    "description": "Help section title for settings and account basics"
+  },
+  "helpSettingsBody": "Settings shows your profile summary, workspace readiness, server configuration, Matrix security information, and sign-out control. Use it to check whether Chat, Files, Calendar, or other modules are ready, and sign out before handing a device to someone else.",
+  "@helpSettingsBody": {
+    "description": "Help copy for settings, account, and session basics"
+  },
+  "helpCalendarBoardsTitle": "Calendar and Boards availability",
+  "@helpCalendarBoardsTitle": {
+    "description": "Help section title for gated Calendar and Boards availability"
+  },
+  "helpCalendarBoardsBody": "Calendar and Boards are active Weave product scope, but they may be hidden or marked unavailable until your workspace has the required backend contracts and feature gates enabled. If they are not visible in navigation, use Chat, Files, and Settings for now and watch workspace readiness for changes.",
+  "@helpCalendarBoardsBody": {
+    "description": "Help copy honestly explaining gated Calendar and Boards availability"
+  },
+  "helpTroubleshootingTitle": "Troubleshooting and recovery",
+  "@helpTroubleshootingTitle": {
+    "description": "Help section title for troubleshooting and recovery"
+  },
+  "helpTroubleshootingBody": "When something does not load, use Retry first. If a stale chat room list or folder remains visible, Weave is preserving your place while refresh fails. Persistent setup, sign-in, Matrix, files, or backend errors should be shared with your admin together with the visible message and the server address from Settings.",
+  "@helpTroubleshootingBody": {
+    "description": "Help copy for troubleshooting and recovery states"
+  },
+  "helpPrivacySecurityTitle": "Privacy and security basics",
+  "@helpPrivacySecurityTitle": {
+    "description": "Help section title for privacy and security basics"
+  },
+  "helpPrivacySecurityBody": "Your workspace controls its own services and data. Weave uses SSO for access and shows Matrix security status honestly. Do not assume chat is fully end-to-end encrypted unless Weave says the Matrix encryption, recovery, and device-trust gates are healthy. Keep recovery keys in a safe place and report lost devices to your admin.",
+  "@helpPrivacySecurityBody": {
+    "description": "Help copy for privacy and security basics"
+  },
+  "settingsShellModulesTitle": "Shell modules",
+  "@settingsShellModulesTitle": {
+    "description": "Section title for user-configurable shell module visibility"
+  },
+  "settingsShellModulesDescription": "Choose which workspace shell modules stay visible. Navigation remains available even when a module is hidden.",
+  "@settingsShellModulesDescription": {
+    "description": "Description for shell module visibility settings"
+  },
+  "settingsShellWorkspaceStatusToggleTitle": "Workspace status summary",
+  "@settingsShellWorkspaceStatusToggleTitle": {
+    "description": "Switch title for the workspace status shell module visibility preference"
+  },
+  "settingsShellWorkspaceStatusToggleDescription": "Show service readiness and recovery shortcuts above the bottom navigation.",
+  "@settingsShellWorkspaceStatusToggleDescription": {
+    "description": "Switch description for the workspace status shell module visibility preference"
+  },
+  "settingsShellMoveModuleUp": "Move {moduleName} up",
+  "@settingsShellMoveModuleUp": {
+    "description": "Tooltip for moving a shell module earlier in the shell order",
+    "placeholders": {
+      "moduleName": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsShellMoveModuleDown": "Move {moduleName} down",
+  "@settingsShellMoveModuleDown": {
+    "description": "Tooltip for moving a shell module later in the shell order",
+    "placeholders": {
+      "moduleName": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsShellRecentActivityToggleTitle": "Recent activity quick links",
+  "@settingsShellRecentActivityToggleTitle": {
+    "description": "Switch title for the recent activity shell module visibility preference"
+  },
+  "settingsShellRecentActivityToggleDescription": "Show recent rooms and file changes above the bottom navigation.",
+  "@settingsShellRecentActivityToggleDescription": {
+    "description": "Switch description for the recent activity shell module visibility preference"
+  },
+  "settingsShellModulesLoading": "Loading shell module preferences…",
+  "@settingsShellModulesLoading": {
+    "description": "Loading state for shell module visibility settings"
+  },
+  "settingsShellModulesError": "Shell module preferences could not be saved. Try changing the setting again.",
+  "@settingsShellModulesError": {
+    "description": "Error shown when shell module preferences cannot load or save"
+  },
+  "chatSecuritySectionTitle": "Matrix security",
+  "@chatSecuritySectionTitle": {
+    "description": "Section title for Matrix security status and actions in settings"
+  },
+  "chatSecuritySectionDescription": "Weave only treats Matrix encryption as healthy when secret storage, cross-signing, recovery, and device trust are all in place.",
+  "@chatSecuritySectionDescription": {
+    "description": "Description shown above the Matrix security section in settings"
+  },
+  "chatSecurityRecoveryKeyTitle": "Save this Matrix recovery key now",
+  "@chatSecurityRecoveryKeyTitle": {
+    "description": "Title shown when the app displays the generated Matrix recovery key"
+  },
+  "chatSecurityRecoveryKeyDescription": "Weave does not rely on app-only storage for this key because secure storage can disappear after reinstall, device replacement, or some platform restores. Keep it in your password manager or another secure place.",
+  "@chatSecurityRecoveryKeyDescription": {
+    "description": "Warning text shown alongside the generated Matrix recovery key"
+  },
+  "chatSecurityBannerTitle": "Matrix security needs attention",
+  "@chatSecurityBannerTitle": {
+    "description": "Title for the in-chat warning banner about Matrix security"
+  },
+  "chatSecurityBannerSetupMessage": "Encrypted Matrix rooms are available, but this account still needs initial security setup.",
+  "@chatSecurityBannerSetupMessage": {
+    "description": "Banner body when Matrix encryption setup has not been completed yet"
+  },
+  "chatSecurityBannerRecoveryMessage": "This device needs your Matrix recovery key before older encrypted messages can be trusted again.",
+  "@chatSecurityBannerRecoveryMessage": {
+    "description": "Banner body when Matrix recovery is required on the current device"
+  },
+  "chatSecurityBannerVerificationMessage": "This device or account is not fully verified yet. Compare security emoji with another signed-in Matrix device.",
+  "@chatSecurityBannerVerificationMessage": {
+    "description": "Banner body when Matrix device or account verification still needs attention"
+  },
+  "chatSecurityBannerMissingBackupMessage": "Matrix key backup is still missing. Set it up before relying on encrypted chat recovery.",
+  "@chatSecurityBannerMissingBackupMessage": {
+    "description": "Banner body when Matrix key backup has not been configured"
+  },
+  "chatSecurityOpenSettingsButton": "Open security settings",
+  "@chatSecurityOpenSettingsButton": {
+    "description": "Button label that opens settings from the Matrix security banner"
+  },
+  "chatSecuritySetupCardTitle": "Setup",
+  "@chatSecuritySetupCardTitle": {
+    "description": "Title for the Matrix security setup status card"
+  },
+  "chatSecurityCurrentDeviceCardTitle": "Current device",
+  "@chatSecurityCurrentDeviceCardTitle": {
+    "description": "Title for the Matrix security current device status card"
+  },
+  "chatSecurityRecoveryCardTitle": "Recovery and key backup",
+  "@chatSecurityRecoveryCardTitle": {
+    "description": "Title for the Matrix security recovery status card"
+  },
+  "chatSecurityRecoveryCardBody": "The recovery key is needed when this device is replaced, reinstalled, or loses local crypto secrets.",
+  "@chatSecurityRecoveryCardBody": {
+    "description": "Description in the Matrix recovery card"
+  },
+  "chatSecurityEncryptedRoomsCardTitle": "Encrypted rooms",
+  "@chatSecurityEncryptedRoomsCardTitle": {
+    "description": "Title for the Matrix encrypted rooms status card"
+  },
+  "chatSecurityEncryptedRoomsCardBodyExisting": "Encrypted rooms already exist on this account. Warnings stay visible until trust and recovery are healthy.",
+  "@chatSecurityEncryptedRoomsCardBodyExisting": {
+    "description": "Description when encrypted rooms exist on the Matrix account"
+  },
+  "chatSecurityEncryptedRoomsCardBodyNone": "No encrypted rooms are known yet, but the account security state is still tracked here.",
+  "@chatSecurityEncryptedRoomsCardBodyNone": {
+    "description": "Description when no encrypted rooms are known yet"
+  },
+  "chatSecurityBoundaryCardTitle": "Backend and agent boundary",
+  "@chatSecurityBoundaryCardTitle": {
+    "description": "Matrix E2EE diagnostics card title explaining backend and agent boundaries"
+  },
+  "chatSecurityBoundaryCardValue": "Blocked until consent/audit",
+  "@chatSecurityBoundaryCardValue": {
+    "description": "Matrix E2EE diagnostics card status for agent or connector participation"
+  },
+  "chatSecurityBoundaryCardBody": "Encrypted message contents stay on Matrix devices. Backend diagnostics may use support-safe metadata such as room ID, encryption status, device trust, and timestamps, but not decrypted message bodies. Bots and connectors stay blocked from encrypted rooms until consent, audit, device-trust, and client-identity gates are implemented.",
+  "@chatSecurityBoundaryCardBody": {
+    "description": "Matrix E2EE diagnostics card body explaining server-readable metadata and bot connector limits"
+  },
+  "chatSecurityRecoveryGuidanceCardTitle": "Device recovery checklist",
+  "@chatSecurityRecoveryGuidanceCardTitle": {
+    "description": "Matrix E2EE recovery checklist card title"
+  },
+  "chatSecurityRecoveryGuidanceValueActionRequired": "Action required",
+  "@chatSecurityRecoveryGuidanceValueActionRequired": {
+    "description": "Matrix E2EE recovery checklist status when user action is required"
+  },
+  "chatSecurityRecoveryGuidanceValueReady": "Ready for device changes",
+  "@chatSecurityRecoveryGuidanceValueReady": {
+    "description": "Matrix E2EE recovery checklist status when recovery and verification are healthy"
+  },
+  "chatSecurityRecoveryGuidanceIntro": "Before relying on encrypted chat across devices:",
+  "@chatSecurityRecoveryGuidanceIntro": {
+    "description": "Intro text for Matrix E2EE device recovery checklist"
+  },
+  "chatSecurityRecoveryGuidanceSaveRecovery": "Save the recovery key or passphrase outside Weave, preferably in a password manager.",
+  "@chatSecurityRecoveryGuidanceSaveRecovery": {
+    "description": "Matrix E2EE recovery checklist item about saving recovery material"
+  },
+  "chatSecurityRecoveryGuidanceVerifyDevice": "Verify this device with another signed-in Matrix device when possible.",
+  "@chatSecurityRecoveryGuidanceVerifyDevice": {
+    "description": "Matrix E2EE recovery checklist item about device verification"
+  },
+  "chatSecurityRecoveryGuidanceNewDevice": "On a new or reinstalled device, use the recovery key first, then verify the device.",
+  "@chatSecurityRecoveryGuidanceNewDevice": {
+    "description": "Matrix E2EE recovery checklist item about new device recovery order"
+  },
+  "chatSecurityRecoveryGuidanceLostDevice": "If a device is lost, remove or distrust it from Matrix before trusting new encrypted rooms.",
+  "@chatSecurityRecoveryGuidanceLostDevice": {
+    "description": "Matrix E2EE recovery checklist item about lost device handling"
+  },
+  "chatSecurityRecoveryGuidanceServerCannotRecover": "Weave servers can report safe metadata, but cannot recover encrypted message contents for you.",
+  "@chatSecurityRecoveryGuidanceServerCannotRecover": {
+    "description": "Matrix E2EE recovery checklist item explaining server recovery limits"
+  },
+  "chatSecurityStatusSignedOut": "Matrix not connected",
+  "@chatSecurityStatusSignedOut": {
+    "description": "Status label when Matrix is not connected"
+  },
+  "chatSecurityStatusSetupRequired": "Setup required",
+  "@chatSecurityStatusSetupRequired": {
+    "description": "Status label when Matrix encrypted chat setup is required"
+  },
+  "chatSecurityStatusSetupIncomplete": "Setup incomplete",
+  "@chatSecurityStatusSetupIncomplete": {
+    "description": "Status label when Matrix encrypted chat setup is only partially complete"
+  },
+  "chatSecurityStatusRecoveryRequired": "Recovery required",
+  "@chatSecurityStatusRecoveryRequired": {
+    "description": "Status label when Matrix recovery is required"
+  },
+  "chatSecurityStatusHealthy": "Healthy",
+  "@chatSecurityStatusHealthy": {
+    "description": "Status label when Matrix security is healthy"
+  },
+  "chatSecurityStatusUnavailable": "Unavailable",
+  "@chatSecurityStatusUnavailable": {
+    "description": "Generic status label when Matrix security data is unavailable"
+  },
+  "chatSecurityStatusVerified": "Verified",
+  "@chatSecurityStatusVerified": {
+    "description": "Status label for a verified Matrix device"
+  },
+  "chatSecurityStatusUnverified": "Unverified",
+  "@chatSecurityStatusUnverified": {
+    "description": "Status label for an unverified Matrix device"
+  },
+  "chatSecurityStatusBlocked": "Blocked",
+  "@chatSecurityStatusBlocked": {
+    "description": "Status label for a blocked Matrix device"
+  },
+  "chatSecurityStatusMissing": "Missing",
+  "@chatSecurityStatusMissing": {
+    "description": "Status label when Matrix key backup is missing"
+  },
+  "chatSecurityStatusNeedsReconnect": "Needs reconnect",
+  "@chatSecurityStatusNeedsReconnect": {
+    "description": "Status label when Matrix recovery material needs to be reconnected on the device"
+  },
+  "chatSecurityStatusReady": "Ready",
+  "@chatSecurityStatusReady": {
+    "description": "Status label when a Matrix security feature is ready"
+  },
+  "chatSecurityEncryptedRoomsStatusNone": "No encrypted rooms yet",
+  "@chatSecurityEncryptedRoomsStatusNone": {
+    "description": "Status label when there are no encrypted Matrix rooms yet"
+  },
+  "chatSecurityEncryptedRoomsStatusAttention": "Encrypted rooms need attention",
+  "@chatSecurityEncryptedRoomsStatusAttention": {
+    "description": "Status label when encrypted Matrix rooms need user attention"
+  },
+  "chatSecuritySetupDescriptionSignedOut": "Open Chat and connect Matrix before managing encryption.",
+  "@chatSecuritySetupDescriptionSignedOut": {
+    "description": "Setup card description when Matrix is not connected"
+  },
+  "chatSecuritySetupDescriptionNotInitialized": "Set up secret storage, cross-signing, and online key backup before trusting encrypted rooms.",
+  "@chatSecuritySetupDescriptionNotInitialized": {
+    "description": "Setup card description when Matrix encryption has not been initialized"
+  },
+  "chatSecuritySetupDescriptionPartiallyInitialized": "Some encryption parts exist, but recovery or cross-signing is still incomplete.",
+  "@chatSecuritySetupDescriptionPartiallyInitialized": {
+    "description": "Setup card description when Matrix encryption setup is incomplete"
+  },
+  "chatSecuritySetupDescriptionRecoveryRequired": "This account was set up before, but this device needs the recovery key or passphrase to reconnect safely.",
+  "@chatSecuritySetupDescriptionRecoveryRequired": {
+    "description": "Setup card description when Matrix recovery is required"
+  },
+  "chatSecuritySetupDescriptionReady": "This device can use the current Matrix crypto identity and recovery setup.",
+  "@chatSecuritySetupDescriptionReady": {
+    "description": "Setup card description when Matrix setup is healthy"
+  },
+  "chatSecuritySetupDescriptionUnavailable": "Matrix encryption is not available on this platform.",
+  "@chatSecuritySetupDescriptionUnavailable": {
+    "description": "Setup card description when Matrix encryption is unavailable"
+  },
+  "chatSecurityCurrentDeviceDescriptionVerified": "Another trusted Matrix device has verified this session.",
+  "@chatSecurityCurrentDeviceDescriptionVerified": {
+    "description": "Current device card description when the device is verified"
+  },
+  "chatSecurityCurrentDeviceDescriptionUnverified": "Compare security emoji or numbers with another signed-in Matrix device.",
+  "@chatSecurityCurrentDeviceDescriptionUnverified": {
+    "description": "Current device card description when the device is unverified"
+  },
+  "chatSecurityCurrentDeviceDescriptionBlocked": "This device is blocked or its trust chain is broken.",
+  "@chatSecurityCurrentDeviceDescriptionBlocked": {
+    "description": "Current device card description when the device is blocked"
+  },
+  "chatSecurityCurrentDeviceDescriptionUnavailable": "The current device key is not available yet.",
+  "@chatSecurityCurrentDeviceDescriptionUnavailable": {
+    "description": "Current device card description when the device key is unavailable"
+  },
+  "chatSecurityActionsUnavailableSignedOut": "Matrix security actions unlock after the Matrix session is connected.",
+  "@chatSecurityActionsUnavailableSignedOut": {
+    "description": "Message shown instead of actions when Matrix is not connected"
+  },
+  "chatSecurityWorkingButton": "Working…",
+  "@chatSecurityWorkingButton": {
+    "description": "Button label shown while a Matrix security action is running"
+  },
+  "chatSecuritySetupButton": "Set up encrypted chat",
+  "@chatSecuritySetupButton": {
+    "description": "Button label to initialize Matrix encrypted chat"
+  },
+  "chatSecurityReconnectButton": "Reconnect with recovery key",
+  "@chatSecurityReconnectButton": {
+    "description": "Button label to reconnect Matrix encrypted chat with recovery material"
+  },
+  "chatSecurityVerifyDeviceButton": "Verify this device",
+  "@chatSecurityVerifyDeviceButton": {
+    "description": "Button label to start Matrix device verification"
+  },
+  "chatSecurityAcceptVerificationButton": "Accept verification",
+  "@chatSecurityAcceptVerificationButton": {
+    "description": "Button label to accept a Matrix verification request"
+  },
+  "chatSecurityDeclineVerificationButton": "Decline",
+  "@chatSecurityDeclineVerificationButton": {
+    "description": "Button label to decline a Matrix verification request"
+  },
+  "chatSecurityCompareEmojiButton": "Compare security emoji",
+  "@chatSecurityCompareEmojiButton": {
+    "description": "Button label to continue Matrix verification with SAS emoji"
+  },
+  "chatSecurityUnlockVerificationButton": "Continue verification with recovery key",
+  "@chatSecurityUnlockVerificationButton": {
+    "description": "Button label to continue Matrix verification by unlocking existing secret storage"
+  },
+  "chatSecurityEmojiMatchButton": "Emoji match",
+  "@chatSecurityEmojiMatchButton": {
+    "description": "Button label confirming the Matrix SAS emoji match"
+  },
+  "chatSecurityEmojiMismatchButton": "They do not match",
+  "@chatSecurityEmojiMismatchButton": {
+    "description": "Button label when the Matrix SAS emoji do not match"
+  },
+  "chatSecurityDismissButton": "Dismiss",
+  "@chatSecurityDismissButton": {
+    "description": "Button label to dismiss a Matrix verification result"
+  },
+  "chatSecurityNoActionNeeded": "No action is needed right now.",
+  "@chatSecurityNoActionNeeded": {
+    "description": "Message shown when there are no Matrix security actions to take"
+  },
+  "chatSecurityGenericFailure": "Unable to update Matrix security right now.",
+  "@chatSecurityGenericFailure": {
+    "description": "Fallback error shown when Matrix security actions fail without a more specific message"
+  },
+  "chatSecurityNoticeSetupComplete": "Encrypted chat is now set up. Save your recovery key before closing this screen.",
+  "@chatSecurityNoticeSetupComplete": {
+    "description": "Feedback message shown after encrypted chat setup completes"
+  },
+  "chatSecurityNoticeRecoveryRestored": "Encrypted chat was reconnected for this device.",
+  "@chatSecurityNoticeRecoveryRestored": {
+    "description": "Feedback message shown after Matrix recovery succeeds"
+  },
+  "chatSecurityNoticeVerificationRequestSent": "Verification request sent. Continue on your other Matrix device.",
+  "@chatSecurityNoticeVerificationRequestSent": {
+    "description": "Feedback message shown after starting Matrix device verification"
+  },
+  "chatSecurityNoticeVerificationCancelled": "Verification cancelled.",
+  "@chatSecurityNoticeVerificationCancelled": {
+    "description": "Feedback message shown after cancelling Matrix verification"
+  },
+  "chatSecurityVerificationIncomingMessage": "Another device wants to verify this session.",
+  "@chatSecurityVerificationIncomingMessage": {
+    "description": "Message shown for an incoming Matrix verification request"
+  },
+  "chatSecurityVerificationChooseMethodMessage": "Choose a verification method to compare both devices.",
+  "@chatSecurityVerificationChooseMethodMessage": {
+    "description": "Message shown when the user should choose a Matrix verification method"
+  },
+  "chatSecurityVerificationWaitingMessage": "Waiting for the other device to continue verification.",
+  "@chatSecurityVerificationWaitingMessage": {
+    "description": "Message shown while Matrix verification waits for the other device"
+  },
+  "chatSecurityVerificationRecoveryMessage": "This verification needs your Matrix recovery key or passphrase before it can continue.",
+  "@chatSecurityVerificationRecoveryMessage": {
+    "description": "Message shown when Matrix verification needs access to secret storage before continuing"
+  },
+  "chatSecurityVerificationRecoveryHelp": "Unlock the existing Matrix secret storage to let this device complete verification safely.",
+  "@chatSecurityVerificationRecoveryHelp": {
+    "description": "Help text shown when Matrix verification needs secret storage access"
+  },
+  "chatSecurityVerificationCompareMessage": "Compare the security emoji or numbers on both devices.",
+  "@chatSecurityVerificationCompareMessage": {
+    "description": "Message shown while Matrix SAS values should be compared"
+  },
+  "chatSecurityVerificationDoneMessage": "This device is now verified.",
+  "@chatSecurityVerificationDoneMessage": {
+    "description": "Message shown after Matrix verification succeeds"
+  },
+  "chatSecurityVerificationCancelledMessage": "Verification was cancelled before it finished.",
+  "@chatSecurityVerificationCancelledMessage": {
+    "description": "Message shown after Matrix verification is cancelled"
+  },
+  "chatSecurityVerificationFailedMessage": "Verification could not be completed.",
+  "@chatSecurityVerificationFailedMessage": {
+    "description": "Message shown after Matrix verification fails"
+  },
+  "chatSecuritySetupDialogTitle": "Set up encrypted chat",
+  "@chatSecuritySetupDialogTitle": {
+    "description": "Dialog title for initializing Matrix encrypted chat"
+  },
+  "chatSecuritySetupDialogDescription": "You can optionally protect the Matrix recovery key with a memorable passphrase. Leave this blank to use a generated recovery key instead.",
+  "@chatSecuritySetupDialogDescription": {
+    "description": "Dialog description for the Matrix encrypted chat setup flow"
+  },
+  "chatSecurityOptionalPassphraseLabel": "Optional passphrase",
+  "@chatSecurityOptionalPassphraseLabel": {
+    "description": "Field label for an optional Matrix recovery passphrase"
+  },
+  "chatSecurityDialogCancelButton": "Cancel",
+  "@chatSecurityDialogCancelButton": {
+    "description": "Generic cancel button for Matrix security dialogs"
+  },
+  "chatSecurityDialogContinueButton": "Continue",
+  "@chatSecurityDialogContinueButton": {
+    "description": "Continue button for the Matrix security setup dialog"
+  },
+  "chatSecurityRestoreDialogTitle": "Reconnect encrypted chat",
+  "@chatSecurityRestoreDialogTitle": {
+    "description": "Dialog title for reconnecting Matrix encrypted chat"
+  },
+  "chatSecurityRestoreDialogDescription": "Enter the Matrix recovery key or recovery passphrase that was created when encrypted chat was first set up.",
+  "@chatSecurityRestoreDialogDescription": {
+    "description": "Dialog description for reconnecting Matrix encrypted chat"
+  },
+  "chatSecurityVerificationRecoveryDialogTitle": "Continue verification",
+  "@chatSecurityVerificationRecoveryDialogTitle": {
+    "description": "Dialog title for continuing Matrix verification with recovery material"
+  },
+  "chatSecurityVerificationRecoveryDialogDescription": "Enter your Matrix recovery key or passphrase to continue this verification. This unlocks the secrets needed for verification rather than reconnecting the whole account.",
+  "@chatSecurityVerificationRecoveryDialogDescription": {
+    "description": "Dialog description for continuing Matrix verification with recovery material"
+  },
+  "chatSecurityRecoveryKeyFieldLabel": "Recovery key or passphrase",
+  "@chatSecurityRecoveryKeyFieldLabel": {
+    "description": "Field label for Matrix recovery material"
+  },
+  "chatSecurityRecoveryKeyDismissButton": "I saved it",
+  "@chatSecurityRecoveryKeyDismissButton": {
+    "description": "Button label confirming the Matrix recovery key was saved"
+  },
+  "chatSecurityEmojiSummaryLabel": "Security emoji",
+  "@chatSecurityEmojiSummaryLabel": {
+    "description": "Accessibility label prefix for Matrix SAS emoji"
+  },
+  "chatSecurityNumbersSummaryLabel": "Security numbers {value}",
+  "@chatSecurityNumbersSummaryLabel": {
+    "description": "Accessibility label for Matrix SAS numbers",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPreviewSurfacesTitle": "Preview surfaces",
+  "@settingsPreviewSurfacesTitle": {
+    "description": "Settings section title for feature-flagged feature-gated product surfaces"
+  },
+  "settingsPreviewSurfacesDescription": "These feature-gated surfaces stay honest about what is active, blocked, or still waiting for backend contracts.",
+  "@settingsPreviewSurfacesDescription": {
+    "description": "Description for feature-flagged feature-gated surfaces"
+  },
+  "settingsGuestPortalPreviewTitle": "Guest Portal",
+  "@settingsGuestPortalPreviewTitle": {
+    "description": "Feature-flagged Guest Portal preview title"
+  },
+  "settingsGuestPortalPreviewDescription": "Guest invitations and constrained access will appear here without exposing member-only affordances.",
+  "@settingsGuestPortalPreviewDescription": {
+    "description": "Feature-flagged Guest Portal preview description"
+  },
+  "settingsInteropAdminPreviewTitle": "External connections admin status",
+  "@settingsInteropAdminPreviewTitle": {
+    "description": "Feature-flagged interop admin status preview title"
+  },
+  "settingsInteropAdminPreviewDescription": "External provider status will explain data movement and consent; provider secrets are never collected in this client.",
+  "@settingsInteropAdminPreviewDescription": {
+    "description": "Feature-flagged interop admin preview description"
+  },
+  "settingsMigrationDryRunPreviewTitle": "Migration dry-run report",
+  "@settingsMigrationDryRunPreviewTitle": {
+    "description": "Feature-flagged migration dry-run preview title"
+  },
+  "settingsMigrationDryRunPreviewDescription": "Admins will be able to review inventory, risks, scopes, and mappings before any import starts.",
+  "@settingsMigrationDryRunPreviewDescription": {
+    "description": "Feature-flagged migration dry-run preview description"
+  },
+  "settingsServerConfigurationTitle": "Server Configuration",
+  "@settingsServerConfigurationTitle": {
+    "description": "Section title for server configuration in settings"
+  },
+  "settingsWorkspaceReadinessTitle": "Workspace Readiness",
+  "@settingsWorkspaceReadinessTitle": {
+    "description": "Section title for the shared workspace readiness summary in settings"
+  },
+  "settingsWorkspaceReadinessDescription": "Shell access is tracked separately from each service connection so Weave can show degraded integrations honestly.",
+  "@settingsWorkspaceReadinessDescription": {
+    "description": "Description for the shared workspace readiness summary in settings"
+  },
+  "settingsWorkspaceBackendUnreachable": "Backend API is unreachable. Check that the Weave stack is running and the configured backend URL is correct.",
+  "@settingsWorkspaceBackendUnreachable": {
+    "description": "Error shown when the Weave backend API cannot be reached from the app"
+  },
+  "settingsWorkspaceBackendUnauthorized": "Backend API rejected the current session. Sign in again before retrying.",
+  "@settingsWorkspaceBackendUnauthorized": {
+    "description": "Error shown when the Weave backend API rejects the current session"
+  },
+  "settingsWorkspaceBackendServerError": "Backend API returned an unexpected response. Check the Weave stack logs before retrying.",
+  "@settingsWorkspaceBackendServerError": {
+    "description": "Error shown when the Weave backend API returns an unexpected error"
+  },
+  "settingsWorkspaceSummaryConnected": "Shell access and the mapped services are ready.",
+  "@settingsWorkspaceSummaryConnected": {
+    "description": "Summary shown when shell access and mapped services are all ready"
+  },
+  "settingsWorkspaceSummaryDegraded": "Shell access is ready, but one or more services still need attention.",
+  "@settingsWorkspaceSummaryDegraded": {
+    "description": "Summary shown when shell access is available but one or more services are degraded"
+  },
+  "settingsWorkspaceSummaryNeedsSetup": "Finish setup before the workspace shell can become available.",
+  "@settingsWorkspaceSummaryNeedsSetup": {
+    "description": "Summary shown when workspace shell access is blocked by missing setup"
+  },
+  "settingsWorkspaceSummaryNeedsSignIn": "Sign in again to restore workspace shell access.",
+  "@settingsWorkspaceSummaryNeedsSignIn": {
+    "description": "Summary shown when workspace shell access needs another sign-in"
+  },
+  "settingsWorkspaceShellAccessLabel": "Shell access",
+  "@settingsWorkspaceShellAccessLabel": {
+    "description": "Row label for workspace shell access in the readiness summary"
+  },
+  "settingsWorkspaceChatLabel": "Chat",
+  "@settingsWorkspaceChatLabel": {
+    "description": "Row label for chat readiness in the workspace readiness summary"
+  },
+  "settingsWorkspaceFilesLabel": "Files",
+  "@settingsWorkspaceFilesLabel": {
+    "description": "Row label for files readiness in the workspace readiness summary"
+  },
+  "settingsWorkspaceCapabilityLabel": "Readiness",
+  "@settingsWorkspaceCapabilityLabel": {
+    "description": "Label used for readiness pills in the workspace summary"
+  },
+  "settingsWorkspaceConnectionLabel": "Connection",
+  "@settingsWorkspaceConnectionLabel": {
+    "description": "Label used for connection-state pills in the workspace summary"
+  },
+  "settingsWorkspaceLastChangeLabel": "Last change",
+  "@settingsWorkspaceLastChangeLabel": {
+    "description": "Label used for invalidation-reason pills in the workspace summary"
+  },
+  "settingsWorkspaceMatrixE2eeGateLabel": "E2EE gate",
+  "@settingsWorkspaceMatrixE2eeGateLabel": {
+    "description": "Label for Matrix E2EE validation status in workspace readiness"
+  },
+  "settingsWorkspaceMatrixE2eeValidated": "Validated",
+  "@settingsWorkspaceMatrixE2eeValidated": {
+    "description": "Value when all Matrix E2EE validation gates are complete"
+  },
+  "settingsWorkspaceMatrixE2eeNotValidated": "Not validated",
+  "@settingsWorkspaceMatrixE2eeNotValidated": {
+    "description": "Value when Matrix E2EE validation gates are not complete"
+  },
+  "settingsWorkspaceMatrixServerBodiesLabel": "Server-readable bodies",
+  "@settingsWorkspaceMatrixServerBodiesLabel": {
+    "description": "Label for whether backend diagnostics can read Matrix message bodies"
+  },
+  "settingsWorkspaceMatrixServerBodiesOpaque": "No",
+  "@settingsWorkspaceMatrixServerBodiesOpaque": {
+    "description": "Value when encrypted Matrix message bodies remain opaque to backend diagnostics"
+  },
+  "settingsWorkspaceMatrixServerBodiesReadable": "Review",
+  "@settingsWorkspaceMatrixServerBodiesReadable": {
+    "description": "Value shown if backend diagnostics claim Matrix message bodies are server-readable"
+  },
+  "settingsWorkspaceMatrixAgentWritesLabel": "Agent writes",
+  "@settingsWorkspaceMatrixAgentWritesLabel": {
+    "description": "Label for bot, assistant, or connector write policy in Matrix readiness"
+  },
+  "settingsWorkspaceMatrixAgentWritesBlocked": "Blocked/fail-closed",
+  "@settingsWorkspaceMatrixAgentWritesBlocked": {
+    "description": "Value when Matrix bot/connector writes are blocked or fail closed"
+  },
+  "settingsWorkspaceMatrixAgentWritesReview": "Review policy",
+  "@settingsWorkspaceMatrixAgentWritesReview": {
+    "description": "Value shown when Matrix bot/connector write policy is not clearly fail-closed"
+  },
+  "settingsWorkspaceCapabilityReady": "Ready",
+  "@settingsWorkspaceCapabilityReady": {
+    "description": "Readiness label for a ready capability"
+  },
+  "settingsWorkspaceCapabilityDegraded": "Degraded",
+  "@settingsWorkspaceCapabilityDegraded": {
+    "description": "Readiness label for a degraded capability"
+  },
+  "settingsWorkspaceCapabilityBlocked": "Blocked",
+  "@settingsWorkspaceCapabilityBlocked": {
+    "description": "Readiness label for a blocked capability"
+  },
+  "settingsWorkspaceCapabilityUnavailable": "Unavailable",
+  "@settingsWorkspaceCapabilityUnavailable": {
+    "description": "Readiness label for an unavailable capability"
+  },
+  "settingsWorkspaceConnectionConnected": "Connected",
+  "@settingsWorkspaceConnectionConnected": {
+    "description": "Connection label for a connected integration"
+  },
+  "settingsWorkspaceConnectionDisconnected": "Disconnected",
+  "@settingsWorkspaceConnectionDisconnected": {
+    "description": "Connection label for a disconnected integration"
+  },
+  "settingsWorkspaceConnectionDegraded": "Degraded",
+  "@settingsWorkspaceConnectionDegraded": {
+    "description": "Connection label for a degraded integration"
+  },
+  "settingsWorkspaceConnectionMisconfigured": "Misconfigured",
+  "@settingsWorkspaceConnectionMisconfigured": {
+    "description": "Connection label for a misconfigured integration"
+  },
+  "settingsWorkspaceConnectionRequiresReauthentication": "Needs sign-in",
+  "@settingsWorkspaceConnectionRequiresReauthentication": {
+    "description": "Connection label for an integration that requires another sign-in"
+  },
+  "settingsWorkspaceConnectionUnavailableOnPlatform": "Unavailable on this platform",
+  "@settingsWorkspaceConnectionUnavailableOnPlatform": {
+    "description": "Connection label for an integration that is unavailable on the current platform"
+  },
+  "settingsWorkspaceInvalidationAuthConfigurationChanged": "Auth configuration changed",
+  "@settingsWorkspaceInvalidationAuthConfigurationChanged": {
+    "description": "Invalidation label for auth configuration changes"
+  },
+  "settingsWorkspaceInvalidationMatrixHomeserverChanged": "Matrix homeserver changed",
+  "@settingsWorkspaceInvalidationMatrixHomeserverChanged": {
+    "description": "Invalidation label for Matrix homeserver changes"
+  },
+  "settingsWorkspaceInvalidationNextcloudBaseUrlChanged": "Nextcloud base URL changed",
+  "@settingsWorkspaceInvalidationNextcloudBaseUrlChanged": {
+    "description": "Invalidation label for Nextcloud base URL changes"
+  },
+  "settingsWorkspaceInvalidationExplicitSignOut": "Explicit sign-out",
+  "@settingsWorkspaceInvalidationExplicitSignOut": {
+    "description": "Invalidation label for explicit sign-outs"
+  },
+  "settingsWorkspaceInvalidationRestartSetup": "Restarted setup",
+  "@settingsWorkspaceInvalidationRestartSetup": {
+    "description": "Invalidation label for restart-setup actions"
+  },
+  "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend API URL changed",
+  "@settingsWorkspaceInvalidationBackendApiBaseUrlChanged": {
+    "description": "Invalidation label for backend API base URL changes"
+  },
+  "settingsProviderStackTitle": "Provider stack readiness",
+  "@settingsProviderStackTitle": {
+    "description": "Title for provider stack readiness summary in settings"
+  },
+  "settingsProviderStackSemanticLabel": "Provider stack readiness. Backend-owned facades: {backendOwnedFacades}. Flutter provider calls: {flutterCalls}.",
+  "@settingsProviderStackSemanticLabel": {
+    "description": "Accessibility label for provider readiness summary",
+    "placeholders": {
+      "backendOwnedFacades": {
+        "type": "String"
+      },
+      "flutterCalls": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsProviderStackFailClosedDescription": "Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call Nextcloud, Matrix auth, OpenProject, Office, or other provider APIs directly.",
+  "@settingsProviderStackFailClosedDescription": {
+    "description": "Provider stack description when backend facade and fail-closed rules are satisfied"
+  },
+  "settingsProviderStackNeedsReviewDescription": "Provider readiness needs review before enabling direct launch or workspace actions.",
+  "@settingsProviderStackNeedsReviewDescription": {
+    "description": "Provider stack description when readiness needs review"
+  },
+  "settingsProviderStackBackendFacadesLabel": "Backend facades",
+  "@settingsProviderStackBackendFacadesLabel": {
+    "description": "Pill label for backend-owned provider facades"
+  },
+  "settingsProviderStackFlutterCallsLabel": "Flutter provider calls",
+  "@settingsProviderStackFlutterCallsLabel": {
+    "description": "Pill label for whether Flutter calls provider APIs directly"
+  },
+  "settingsProviderStackSupportSafetyLabel": "Support safety",
+  "@settingsProviderStackSupportSafetyLabel": {
+    "description": "Pill label for support-safe provider diagnostics"
+  },
+  "settingsProviderStackOwned": "Owned by backend",
+  "@settingsProviderStackOwned": {
+    "description": "Value when provider facades are backend-owned"
+  },
+  "settingsProviderStackMissing": "Missing",
+  "@settingsProviderStackMissing": {
+    "description": "Value when provider facades are missing"
+  },
+  "settingsProviderStackNeedsReview": "Needs review",
+  "@settingsProviderStackNeedsReview": {
+    "description": "Value when provider stack needs review"
+  },
+  "settingsProviderStackBlocked": "Blocked",
+  "@settingsProviderStackBlocked": {
+    "description": "Value when direct provider calls are blocked"
+  },
+  "settingsProviderStackRedacted": "Redacted",
+  "@settingsProviderStackRedacted": {
+    "description": "Value when provider diagnostics are support-safe/redacted"
+  },
+  "settingsProviderStackYes": "Yes",
+  "@settingsProviderStackYes": {
+    "description": "Short yes value in provider stack semantics"
+  },
+  "settingsProviderStackNo": "No",
+  "@settingsProviderStackNo": {
+    "description": "Short no value in provider stack semantics"
+  },
+  "settingsProviderStackFlutterCallsAllowed": "Allowed",
+  "@settingsProviderStackFlutterCallsAllowed": {
+    "description": "Semantics value when Flutter direct provider calls are allowed"
+  },
+  "settingsProviderStackFlutterCallsBlocked": "Blocked",
+  "@settingsProviderStackFlutterCallsBlocked": {
+    "description": "Semantics value when Flutter direct provider calls are blocked"
+  },
+  "settingsProviderStackFailClosedBadge": "fail-closed",
+  "@settingsProviderStackFailClosedBadge": {
+    "description": "Provider status badge for fail-closed behavior"
+  },
+  "settingsProviderStackReadOnlyBadge": "read-only",
+  "@settingsProviderStackReadOnlyBadge": {
+    "description": "Provider status badge for read-only behavior"
+  },
+  "settingsProviderStackPaidFeaturesRequiredBadge": "paid features required",
+  "@settingsProviderStackPaidFeaturesRequiredBadge": {
+    "description": "Provider status badge for paid feature requirements"
+  },
+  "settingsProviderModuleIdentityRealm": "Identity realm",
+  "@settingsProviderModuleIdentityRealm": {
+    "description": "Provider module label for identity realm"
+  },
+  "settingsProviderModuleSourceControl": "Source control",
+  "@settingsProviderModuleSourceControl": {
+    "description": "Provider module label for source control"
+  },
+  "settingsProviderModuleIssueTracker": "Issue tracker",
+  "@settingsProviderModuleIssueTracker": {
+    "description": "Provider module label for issue tracker"
+  },
+  "settingsProviderModuleCi": "CI",
+  "@settingsProviderModuleCi": {
+    "description": "Provider module label for CI"
+  },
+  "settingsProviderModuleRelease": "Release",
+  "@settingsProviderModuleRelease": {
+    "description": "Provider module label for releases"
+  },
+  "settingsProviderModuleOffice": "Office",
+  "@settingsProviderModuleOffice": {
+    "description": "Provider module label for Office"
+  },
+  "settingsProviderModuleFiles": "Files",
+  "@settingsProviderModuleFiles": {
+    "description": "Provider module label for files"
+  },
+  "settingsProviderModuleCalendar": "Calendar",
+  "@settingsProviderModuleCalendar": {
+    "description": "Provider module label for calendar"
+  },
+  "settingsProviderModuleContacts": "Contacts",
+  "@settingsProviderModuleContacts": {
+    "description": "Provider module label for contacts"
+  },
+  "settingsProviderModuleForms": "Forms",
+  "@settingsProviderModuleForms": {
+    "description": "Provider module label for forms"
+  },
+  "settingsProviderModuleMatrix": "Matrix chat",
+  "@settingsProviderModuleMatrix": {
+    "description": "Provider module label for Matrix/Synapse chat"
+  },
+  "settingsProviderModuleMatrixAuth": "Matrix auth",
+  "@settingsProviderModuleMatrixAuth": {
+    "description": "Provider module label for Matrix Authentication Service"
+  },
+  "settingsProviderModuleMeetings": "Meetings",
+  "@settingsProviderModuleMeetings": {
+    "description": "Provider module label for meetings and video calls"
+  },
+  "settingsProviderModuleBoards": "Boards",
+  "@settingsProviderModuleBoards": {
+    "description": "Provider module label for boards"
+  },
+  "settingsProviderModuleProvider": "Provider",
+  "@settingsProviderModuleProvider": {
+    "description": "Fallback provider module label"
+  },
+  "settingsProviderStateDisabled": "disabled",
+  "@settingsProviderStateDisabled": {
+    "description": "Provider state label for disabled providers"
+  },
+  "settingsProviderStateNotConfigured": "unconfigured",
+  "@settingsProviderStateNotConfigured": {
+    "description": "Provider state label for unconfigured providers"
+  },
+  "settingsProviderStateConfigured": "configured",
+  "@settingsProviderStateConfigured": {
+    "description": "Provider state label for configured providers"
+  },
+  "settingsProviderStateReady": "ready",
+  "@settingsProviderStateReady": {
+    "description": "Provider state label for ready providers"
+  },
+  "settingsProviderStateDegraded": "degraded",
+  "@settingsProviderStateDegraded": {
+    "description": "Provider state label for degraded providers"
+  },
+  "settingsProviderStateUnsupported": "unsupported",
+  "@settingsProviderStateUnsupported": {
+    "description": "Provider state label for unsupported providers"
+  },
+  "settingsProviderStateUnknown": "unknown",
+  "@settingsProviderStateUnknown": {
+    "description": "Provider state label for unknown provider state"
+  },
+  "settingsOfficeReadinessTitle": "Office readiness",
+  "@settingsOfficeReadinessTitle": {
+    "description": "Title for Office provider readiness summary"
+  },
+  "settingsOfficeReadinessSemanticLabel": "Office readiness. Launch is {launchState}. Provider is {providerState}.",
+  "@settingsOfficeReadinessSemanticLabel": {
+    "description": "Accessibility label for Office readiness summary",
+    "placeholders": {
+      "launchState": {
+        "type": "String"
+      },
+      "providerState": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOfficeReadinessFailClosedDescription": "Office launch is fail-closed until a backend-owned provider adapter, session tokens, callbacks, and permissions are configured.",
+  "@settingsOfficeReadinessFailClosedDescription": {
+    "description": "Office readiness description when launch is fail-closed"
+  },
+  "settingsOfficeReadinessAvailableDescription": "Office launch is available through the backend facade.",
+  "@settingsOfficeReadinessAvailableDescription": {
+    "description": "Office readiness description when launch is available"
+  },
+  "settingsOfficeReadinessAvailable": "available",
+  "@settingsOfficeReadinessAvailable": {
+    "description": "Office launch availability value"
+  },
+  "settingsOfficeReadinessEnabled": "enabled",
+  "@settingsOfficeReadinessEnabled": {
+    "description": "Office provider enabled value"
+  },
+  "settingsOfficeReadinessNoLaunchModes": "no launch modes",
+  "@settingsOfficeReadinessNoLaunchModes": {
+    "description": "Office readiness value when no launch modes are available"
+  },
+  "settingsOfficeReadinessModes": "modes: {modes}",
+  "@settingsOfficeReadinessModes": {
+    "description": "Enabled Office launch modes",
+    "placeholders": {
+      "modes": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsServerConfigurationDescription": "Update the provider and service URLs Weave should use for your self-hosted environment.",
+  "@settingsServerConfigurationDescription": {
+    "description": "Description for the settings server configuration section"
+  },
+  "settingsSaveButton": "Save Changes",
+  "@settingsSaveButton": {
+    "description": "Label for the settings save button"
+  },
+  "settingsSaveInProgress": "Saving…",
+  "@settingsSaveInProgress": {
+    "description": "Label used while the settings form is saving"
+  },
+  "settingsSignOutTitle": "Session",
+  "@settingsSignOutTitle": {
+    "description": "Section title for session management in settings"
+  },
+  "settingsSignOutDescription": "Sign out of the current server session and return to the sign-in gate.",
+  "@settingsSignOutDescription": {
+    "description": "Description for the sign-out section in settings"
+  },
+  "settingsSignOutButton": "Sign Out",
+  "@settingsSignOutButton": {
+    "description": "Label for the settings sign-out button"
+  },
+  "settingsSignOutInProgress": "Signing out…",
+  "@settingsSignOutInProgress": {
+    "description": "Label shown while sign-out is in progress"
+  },
+  "chatEmptyMessage": "No conversations yet",
+  "@chatEmptyMessage": {
+    "description": "Empty state message for the chat screen"
+  },
+  "chatEmptyGuidance": "Workspace rooms and direct messages will appear here when chat is ready.",
+  "@chatEmptyGuidance": {
+    "description": "Guidance shown below the chat empty-state title"
+  },
+  "chatErrorTitle": "Chat is not available right now",
+  "@chatErrorTitle": {
+    "description": "Friendly error-state title shown when the chat list cannot load"
+  },
+  "chatConversationNoPreview": "No recent messages",
+  "@chatConversationNoPreview": {
+    "description": "Fallback preview text for a conversation without a recent event"
+  },
+  "chatConversationEncryptedPreview": "Encrypted message",
+  "@chatConversationEncryptedPreview": {
+    "description": "Fallback preview label for encrypted Matrix events"
+  },
+  "chatConversationUnsupportedPreview": "Unsupported message",
+  "@chatConversationUnsupportedPreview": {
+    "description": "Fallback preview label for Matrix events that cannot be rendered yet"
+  },
+  "chatConversationInviteLabel": "Invitation",
+  "@chatConversationInviteLabel": {
+    "description": "Accessibility label for invited chat rooms"
+  },
+  "chatConversationDirectMessageLabel": "Direct conversation",
+  "@chatConversationDirectMessageLabel": {
+    "description": "Accessibility label for direct conversations"
+  },
+  "chatConversationOpensChannelWorkspaceLabel": "Opens channel workspace",
+  "@chatConversationOpensChannelWorkspaceLabel": {
+    "description": "Accessibility hint for channel conversation tiles that open the channel workspace"
+  },
+  "chatConversationRecentNow": "Active now",
+  "@chatConversationRecentNow": {
+    "description": "Recency badge for a chat conversation with activity in the last hour"
+  },
+  "chatConversationRecentToday": "Today",
+  "@chatConversationRecentToday": {
+    "description": "Recency badge for a chat conversation with activity earlier today"
+  },
+  "chatConversationRecentYesterday": "Yesterday",
+  "@chatConversationRecentYesterday": {
+    "description": "Recency badge for a chat conversation with activity yesterday"
+  },
+  "chatConversationRecentThisWeek": "This week",
+  "@chatConversationRecentThisWeek": {
+    "description": "Recency badge for a chat conversation with activity in the last week"
+  },
+  "chatConversationUnreadCount": "{count, plural, =0 {No unread messages} =1 {1 unread message} other {{count} unread messages}}",
+  "@chatConversationUnreadCount": {
+    "description": "Accessibility label describing how many unread messages a conversation has",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRoomLoadingLabel": "Loading conversation…",
+  "@chatRoomLoadingLabel": {
+    "description": "Message shown while a room timeline is loading"
+  },
+  "chatRoomEmptyMessage": "No messages yet",
+  "@chatRoomEmptyMessage": {
+    "description": "Empty state message for a room without timeline events"
+  },
+  "chatRoomDraftRestoredMessage": "Draft restored from this device.",
+  "@chatRoomDraftRestoredMessage": {
+    "description": "Banner shown when a local unsent chat draft is restored"
+  },
+  "chatRoomComposerHint": "Write a message",
+  "@chatRoomComposerHint": {
+    "description": "Hint text for the room composer when sending is allowed"
+  },
+  "chatRoomComposerDisabledHint": "Messages are unavailable in this room right now",
+  "@chatRoomComposerDisabledHint": {
+    "description": "Hint text for the room composer when sending is disabled"
+  },
+  "chatRoomSendButton": "Send",
+  "@chatRoomSendButton": {
+    "description": "Primary button label for sending a room message"
+  },
+  "chatRoomSendingButton": "Sending…",
+  "@chatRoomSendingButton": {
+    "description": "Button label shown while a room message is sending"
+  },
+  "chatRoomRetrySendAction": "Retry send",
+  "@chatRoomRetrySendAction": {
+    "description": "Action label for retrying a failed room message send"
+  },
+  "chatRoomYouLabel": "You",
+  "@chatRoomYouLabel": {
+    "description": "Sender label used for locally pending outgoing messages"
+  },
+  "chatRoomMessageSendingStatus": "Sending…",
+  "@chatRoomMessageSendingStatus": {
+    "description": "Status label shown on a message bubble while the message is sending"
+  },
+  "chatRoomMessageFailedStatus": "Not sent",
+  "@chatRoomMessageFailedStatus": {
+    "description": "Friendly status label shown on a message bubble when sending failed"
+  },
+  "chatRoomEncryptedMessageLabel": "Encrypted message",
+  "@chatRoomEncryptedMessageLabel": {
+    "description": "Fallback label for encrypted messages in the room timeline"
+  },
+  "chatRoomUnsupportedMessageLabel": "Unsupported message",
+  "@chatRoomUnsupportedMessageLabel": {
+    "description": "Fallback label for unsupported messages in the room timeline"
+  },
+  "chatRoomMessageActionsLabel": "Message actions",
+  "@chatRoomMessageActionsLabel": {
+    "description": "Tooltip for the message actions menu"
+  },
+  "chatRoomArchiveAction": "Archive",
+  "@chatRoomArchiveAction": {
+    "description": "Action label for archiving a message from the room timeline"
+  },
+  "chatRoomArchiveDialogTitle": "Archive message?",
+  "@chatRoomArchiveDialogTitle": {
+    "description": "Dialog title shown before a chat message is archived"
+  },
+  "chatRoomArchiveDialogMessage": "This hides the message from your main timeline on this device. You can review or restore it from Archived messages.",
+  "@chatRoomArchiveDialogMessage": {
+    "description": "Dialog body shown before a chat message is archived"
+  },
+  "chatRoomArchivedMessagesAction": "Review archived messages",
+  "@chatRoomArchivedMessagesAction": {
+    "description": "App bar action that opens the archived messages review view"
+  },
+  "chatRoomActiveTimelineAction": "Back to active timeline",
+  "@chatRoomActiveTimelineAction": {
+    "description": "Action that returns from archived messages to the active room timeline"
+  },
+  "chatRoomArchivedReviewTitle": "Archived messages",
+  "@chatRoomArchivedReviewTitle": {
+    "description": "Heading shown above the archived messages review view"
+  },
+  "chatRoomArchivedReviewDescription": "{count, plural, =0 {Archived messages from this room appear here, separate from the active timeline.} =1 {1 archived message is shown separately from the active timeline.} other {{count} archived messages are shown separately from the active timeline.}}",
+  "@chatRoomArchivedReviewDescription": {
+    "description": "Description shown above the archived messages review view",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRoomArchivedReviewEmptyMessage": "No archived messages yet.",
+  "@chatRoomArchivedReviewEmptyMessage": {
+    "description": "Empty state shown when the archived messages review view has no messages"
+  },
+  "chatRoomArchivedMessageLabel": "Archived",
+  "@chatRoomArchivedMessageLabel": {
+    "description": "Label shown on messages in the archived messages review view"
+  },
+  "chatRoomRestoreAction": "Restore to timeline",
+  "@chatRoomRestoreAction": {
+    "description": "Action label for restoring an archived message to the active room timeline"
+  },
+  "chatRoomRestoreSuccessMessage": "Message restored to the active timeline.",
+  "@chatRoomRestoreSuccessMessage": {
+    "description": "Snackbar confirmation after restoring an archived message"
+  },
+  "chatRoomRestoreFailureMessage": "This message could not be restored right now.",
+  "@chatRoomRestoreFailureMessage": {
+    "description": "Snackbar error shown when restoring an archived message fails"
+  },
+  "chatRoomArchiveSuccessMessage": "Message archived.",
+  "@chatRoomArchiveSuccessMessage": {
+    "description": "Snackbar confirmation after archiving a message"
+  },
+  "chatRoomArchiveFailureMessage": "This message could not be archived right now.",
+  "@chatRoomArchiveFailureMessage": {
+    "description": "Snackbar error shown when archiving a message fails"
+  },
+  "chatRoomArchivedEmptyMessage": "Archived messages are hidden from this timeline.",
+  "@chatRoomArchivedEmptyMessage": {
+    "description": "Empty state shown when all loaded messages have been archived from the main timeline"
+  },
+  "chatRoomContextPackTitle": "Context for this room",
+  "@chatRoomContextPackTitle": {
+    "description": "Heading for the explicit context preview shown in a chat room"
+  },
+  "chatRoomContextPackDescription": "Weave will only include scoped context that you can see here, such as this room, selected files, linked tasks, and recent decisions.",
+  "@chatRoomContextPackDescription": {
+    "description": "Description for the explicit context preview shown in a chat room"
+  },
+  "chatRoomContextPackCounts": "{includedCount, plural, =0 {No sources included} =1 {1 source included} other {{includedCount} sources included}}. {availableCount, plural, =0 {No optional sources available} =1 {1 optional source available} other {{availableCount} optional sources available}}.",
+  "@chatRoomContextPackCounts": {
+    "description": "Accessibility summary of included and available context sources in a room",
+    "placeholders": {
+      "includedCount": {
+        "type": "int"
+      },
+      "availableCount": {
+        "type": "int"
+      }
+    }
+  },
+  "chatRoomContextPackNoBackgroundReading": "No agent is reading this room in the background.",
+  "@chatRoomContextPackNoBackgroundReading": {
+    "description": "Safety note for the explicit context preview in a chat room"
+  },
+  "chatRoomContextCurrentRoomLabel": "Current room",
+  "@chatRoomContextCurrentRoomLabel": {
+    "description": "Context chip label for the currently opened chat room"
+  },
+  "chatRoomContextSelectedFilesLabel": "Selected files",
+  "@chatRoomContextSelectedFilesLabel": {
+    "description": "Context chip label for files explicitly selected by the user"
+  },
+  "chatRoomContextLinkedTasksLabel": "Linked tasks",
+  "@chatRoomContextLinkedTasksLabel": {
+    "description": "Context chip label for tasks linked to a room"
+  },
+  "chatRoomContextRecentDecisionsLabel": "Recent decisions",
+  "@chatRoomContextRecentDecisionsLabel": {
+    "description": "Context chip label for recent decisions linked to a room"
+  },
+  "chatRoomContextIncludedStatus": "Included",
+  "@chatRoomContextIncludedStatus": {
+    "description": "Accessibility status for context that is included in the preview"
+  },
+  "chatRoomContextAvailableStatus": "Available when selected",
+  "@chatRoomContextAvailableStatus": {
+    "description": "Accessibility status for optional context that is not included yet"
+  },
+  "chatDecisionEvidencePanelTitle": "Decisions, risks, questions, and evidence",
+  "@chatDecisionEvidencePanelTitle": {
+    "description": "Heading for the room decision and evidence snapshot panel"
+  },
+  "chatDecisionEvidencePanelDescription": "Capture important messages explicitly so the room keeps the reason behind the work. Nothing here is created by hidden room scanning.",
+  "@chatDecisionEvidencePanelDescription": {
+    "description": "Description for the explicit decision and evidence capture panel"
+  },
+  "chatDecisionEvidenceNoBackgroundReading": "Records come from message actions you choose; no automatic continuous room reading is running.",
+  "@chatDecisionEvidenceNoBackgroundReading": {
+    "description": "Safety note for explicit decision and evidence records"
+  },
+  "chatDecisionEvidenceEmptyState": "No records captured yet. Use a message action to capture a decision, risk, open question, or evidence with its source.",
+  "@chatDecisionEvidenceEmptyState": {
+    "description": "Empty state for a room with no captured decision or evidence records"
+  },
+  "chatDecisionEvidenceCountLabel": "{label}: {count}",
+  "@chatDecisionEvidenceCountLabel": {
+    "description": "Count label for a decision/evidence kind",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatDecisionEvidenceDecisionLabel": "Decision",
+  "@chatDecisionEvidenceDecisionLabel": {
+    "description": "Singular label for a captured decision"
+  },
+  "chatDecisionEvidenceDecisionsLabel": "Decisions",
+  "@chatDecisionEvidenceDecisionsLabel": {
+    "description": "Plural label for captured decisions"
+  },
+  "chatDecisionEvidenceRiskLabel": "Risk",
+  "@chatDecisionEvidenceRiskLabel": {
+    "description": "Singular label for a captured risk"
+  },
+  "chatDecisionEvidenceRisksLabel": "Risks",
+  "@chatDecisionEvidenceRisksLabel": {
+    "description": "Plural label for captured risks"
+  },
+  "chatDecisionEvidenceOpenQuestionLabel": "Open question",
+  "@chatDecisionEvidenceOpenQuestionLabel": {
+    "description": "Singular label for a captured open question"
+  },
+  "chatDecisionEvidenceOpenQuestionsLabel": "Open questions",
+  "@chatDecisionEvidenceOpenQuestionsLabel": {
+    "description": "Plural label for captured open questions"
+  },
+  "chatDecisionEvidenceEvidenceLabel": "Evidence",
+  "@chatDecisionEvidenceEvidenceLabel": {
+    "description": "Singular label for captured evidence"
+  },
+  "chatDecisionEvidenceEvidencePluralLabel": "Evidence",
+  "@chatDecisionEvidenceEvidencePluralLabel": {
+    "description": "Plural label for captured evidence"
+  },
+  "chatDecisionEvidenceOwnerYou": "You",
+  "@chatDecisionEvidenceOwnerYou": {
+    "description": "Owner label for records captured by the current user"
+  },
+  "chatDecisionEvidenceStatusActive": "Active",
+  "@chatDecisionEvidenceStatusActive": {
+    "description": "Lifecycle status for active decision/evidence records"
+  },
+  "chatDecisionEvidenceStatusResolved": "Resolved",
+  "@chatDecisionEvidenceStatusResolved": {
+    "description": "Lifecycle status for resolved decision/evidence records"
+  },
+  "chatDecisionEvidenceStatusArchived": "Archived",
+  "@chatDecisionEvidenceStatusArchived": {
+    "description": "Lifecycle status for archived decision/evidence records"
+  },
+  "chatDecisionEvidenceRecordMeta": "{status}. Captured by {owner}. Source: message from {sender}.",
+  "@chatDecisionEvidenceRecordMeta": {
+    "description": "Metadata shown for a captured decision/evidence record",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "owner": {
+        "type": "String"
+      },
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "chatDecisionEvidenceSourceLabel": "Source: message from {sender}",
+  "@chatDecisionEvidenceSourceLabel": {
+    "description": "Short source label for a captured decision/evidence record",
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "chatDecisionEvidenceCapturedMessage": "Captured as {kind}. Source linked to this message.",
+  "@chatDecisionEvidenceCapturedMessage": {
+    "description": "Snackbar shown after a message is captured as a decision/evidence record",
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "chatDecisionEvidenceMoreRecords": "{count, plural, =1 {1 more record} other {{count} more records}}",
+  "@chatDecisionEvidenceMoreRecords": {
+    "description": "Summary shown when the panel hides additional records",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatDecisionEvidenceCaptureDecisionAction": "Capture as decision",
+  "@chatDecisionEvidenceCaptureDecisionAction": {
+    "description": "Message menu action to capture a message as a decision"
+  },
+  "chatDecisionEvidenceCaptureRiskAction": "Capture as risk",
+  "@chatDecisionEvidenceCaptureRiskAction": {
+    "description": "Message menu action to capture a message as a risk"
+  },
+  "chatDecisionEvidenceCaptureQuestionAction": "Capture as open question",
+  "@chatDecisionEvidenceCaptureQuestionAction": {
+    "description": "Message menu action to capture a message as an open question"
+  },
+  "chatDecisionEvidenceCaptureEvidenceAction": "Capture as evidence",
+  "@chatDecisionEvidenceCaptureEvidenceAction": {
+    "description": "Message menu action to capture a message as evidence"
+  },
+  "filesEmptyMessage": "No files yet",
+  "@filesEmptyMessage": {
+    "description": "Empty state message for the files screen"
+  },
+  "filesEmptyGuidance": "Upload a file or create a folder when you are ready to add workspace files.",
+  "@filesEmptyGuidance": {
+    "description": "Guidance shown below the files empty-state title"
+  },
+  "filesDisconnectedTitle": "Files are not connected",
+  "@filesDisconnectedTitle": {
+    "description": "Friendly empty-state title shown when files require a connection"
+  },
+  "filesSetupNeededTitle": "Files need setup",
+  "@filesSetupNeededTitle": {
+    "description": "Friendly empty-state title shown when files are misconfigured"
+  },
+  "filesSessionExpiredTitle": "Files need to reconnect",
+  "@filesSessionExpiredTitle": {
+    "description": "Friendly error-state title shown when the files session is invalid"
+  },
+  "filesLoadErrorTitle": "Files could not be loaded",
+  "@filesLoadErrorTitle": {
+    "description": "Friendly error-state title shown when files fail to load"
+  },
+  "filesErrorGuidance": "Try again. If this keeps happening, check the workspace files status in setup or diagnostics.",
+  "@filesErrorGuidance": {
+    "description": "Friendly recovery guidance shown when files fail before detailed state is available"
+  },
+  "calendarEmptyMessage": "No events yet",
+  "@calendarEmptyMessage": {
+    "description": "Empty state message for the calendar screen"
+  },
+  "deckEmptyMessage": "No boards in this dogfood production yet",
+  "@deckEmptyMessage": {
+    "description": "Legacy hidden Deck empty state message retained for compatibility"
+  },
+  "deviceLanguageLabel": "Device Language",
+  "@deviceLanguageLabel": {
+    "description": "Label for the detected device language display"
+  },
+  "serverConfigurationProviderLabel": "OIDC Provider",
+  "@serverConfigurationProviderLabel": {
+    "description": "Section title for choosing an OIDC provider"
+  },
+  "serverConfigurationProviderFieldLabel": "Provider type",
+  "@serverConfigurationProviderFieldLabel": {
+    "description": "Label for the provider selection field"
+  },
+  "oidcProviderAuthentik": "Authentik",
+  "@oidcProviderAuthentik": {
+    "description": "Label for the Authentik provider option"
+  },
+  "oidcProviderKeycloak": "Keycloak",
+  "@oidcProviderKeycloak": {
+    "description": "Label for the Keycloak provider option"
+  },
+  "serverConfigurationIssuerLabel": "OIDC Issuer URL",
+  "@serverConfigurationIssuerLabel": {
+    "description": "Label for the issuer URL field"
+  },
+  "serverConfigurationIssuerHelper": "This must be the absolute issuer URL for your OIDC provider.",
+  "@serverConfigurationIssuerHelper": {
+    "description": "Helper text for the issuer URL field"
+  },
+  "serverConfigurationClientIdLabel": "OIDC Client ID",
+  "@serverConfigurationClientIdLabel": {
+    "description": "Label for the OIDC client ID field"
+  },
+  "serverConfigurationClientIdHelper": "Enter the public/native client ID registered for Weave on this issuer.",
+  "@serverConfigurationClientIdHelper": {
+    "description": "Helper text for the OIDC client ID field"
+  },
+  "serverConfigurationServicesLabel": "Service Endpoints",
+  "@serverConfigurationServicesLabel": {
+    "description": "Section title for derived service endpoints"
+  },
+  "serverConfigurationServicesHelper": "Defaults for Matrix, Nextcloud, and the backend API are derived from the issuer host. Edit them if your services live elsewhere.",
+  "@serverConfigurationServicesHelper": {
+    "description": "Helper text for the service endpoints section"
+  },
+  "serverConfigurationMatrixLabel": "Matrix Homeserver URL",
+  "@serverConfigurationMatrixLabel": {
+    "description": "Label for the Matrix homeserver URL field"
+  },
+  "serverConfigurationNextcloudLabel": "Nextcloud Base URL",
+  "@serverConfigurationNextcloudLabel": {
+    "description": "Label for the Nextcloud base URL field"
+  },
+  "serverConfigurationBackendApiLabel": "Backend API Base URL",
+  "@serverConfigurationBackendApiLabel": {
+    "description": "Label for the backend API base URL field"
+  },
+  "serverConfigurationDerivedHint": "Derived default: {value}",
+  "@serverConfigurationDerivedHint": {
+    "description": "Helper text showing the derived default for a service endpoint",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "oidcRegistrationHelpTitle": "Register Weave as a native/public client",
+  "@oidcRegistrationHelpTitle": {
+    "description": "Title for the OIDC client registration help card"
+  },
+  "oidcRegistrationHelpDescription": "Use Authorization Code + PKCE with the system browser, and allow the Weave redirect URIs below on the provider-side client registration.",
+  "@oidcRegistrationHelpDescription": {
+    "description": "General description for the OIDC client registration help card"
+  },
+  "oidcRegistrationHelpNoSecret": "Do not create or paste a client secret here. Weave uses a public native-client flow.",
+  "@oidcRegistrationHelpNoSecret": {
+    "description": "Warning that Weave should not use a client secret"
+  },
+  "oidcRegistrationHelpAuthentikSteps": "In Authentik, create an OAuth2/OpenID Connect provider for Weave, add these redirect URIs to the provider, and ensure the client is configured for Authorization Code flow with `offline_access` available if you want refresh tokens.",
+  "@oidcRegistrationHelpAuthentikSteps": {
+    "description": "Provider-specific OIDC registration guidance for Authentik"
+  },
+  "oidcRegistrationHelpKeycloakSteps": "In Keycloak, create a public OpenID Connect client for Weave, add these redirect URIs and post-logout redirect URIs, and enable Standard Flow with PKCE (S256) so Weave can sign in without a client secret.",
+  "@oidcRegistrationHelpKeycloakSteps": {
+    "description": "Provider-specific OIDC registration guidance for Keycloak"
+  },
+  "oidcRegistrationHelpRedirectsTitle": "Register these redirect URIs",
+  "@oidcRegistrationHelpRedirectsTitle": {
+    "description": "Title shown above the redirect URI values"
+  },
+  "oidcRegistrationHelpRedirectValue": "Sign-in redirect: {value}",
+  "@oidcRegistrationHelpRedirectValue": {
+    "description": "Text showing the sign-in redirect URI",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "oidcRegistrationHelpPostLogoutRedirectValue": "Post-logout redirect: {value}",
+  "@oidcRegistrationHelpPostLogoutRedirectValue": {
+    "description": "Text showing the post-logout redirect URI",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "signInScreenTitle": "Sign In",
+  "@signInScreenTitle": {
+    "description": "App bar title for the sign-in screen"
+  },
+  "signInTitle": "Sign in to continue",
+  "@signInTitle": {
+    "description": "Main heading on the sign-in screen"
+  },
+  "signInDescription": "Weave is configured. Use your provider account in the system browser to open the authenticated app shell.",
+  "@signInDescription": {
+    "description": "Description text on the sign-in screen"
+  },
+  "signInConfigurationTitle": "Current sign-in configuration",
+  "@signInConfigurationTitle": {
+    "description": "Title for the sign-in configuration summary card"
+  },
+  "signInConfigurationProvider": "Provider: {value}",
+  "@signInConfigurationProvider": {
+    "description": "Summary line showing the provider label on the sign-in screen",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "signInConfigurationIssuer": "Issuer: {value}",
+  "@signInConfigurationIssuer": {
+    "description": "Summary line showing the issuer URL on the sign-in screen",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "signInConfigurationClientId": "Client ID: {value}",
+  "@signInConfigurationClientId": {
+    "description": "Summary line showing the client ID on the sign-in screen",
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "signInButton": "Sign In",
+  "@signInButton": {
+    "description": "Primary sign-in button label"
+  },
+  "signInInProgress": "Signing in…",
+  "@signInInProgress": {
+    "description": "Label shown while sign-in is in progress"
+  },
+  "signInBackToSetupButton": "Back to Setup",
+  "@signInBackToSetupButton": {
+    "description": "Secondary action label to return to setup from the sign-in screen"
+  },
+  "signInMissingConfigurationTitle": "Finish setup to sign in",
+  "@signInMissingConfigurationTitle": {
+    "description": "Heading shown when auth configuration is incomplete"
+  },
+  "signInMissingConfigurationDescription": "Weave still needs a valid issuer URL and client ID before it can open the browser sign-in flow.",
+  "@signInMissingConfigurationDescription": {
+    "description": "Description shown when auth configuration is incomplete"
+  },
+  "profileSectionTitle": "Weave profile",
+  "@profileSectionTitle": {
+    "description": "Settings section title for the authenticated Weave profile"
+  },
+  "profileSectionDescription": "This profile comes from the Weave backend identity facade and is shared by product modules.",
+  "@profileSectionDescription": {
+    "description": "Settings description for the profile card"
+  },
+  "profileLoadFailure": "The Weave profile could not be loaded right now.",
+  "@profileLoadFailure": {
+    "description": "Profile card error message"
+  },
+  "profileSignedOutMessage": "Sign in to view your Weave profile.",
+  "@profileSignedOutMessage": {
+    "description": "Profile card message when there is no authenticated session"
+  },
+  "profileDisplayNameLabel": "Display name",
+  "@profileDisplayNameLabel": {
+    "description": "Profile display name field label"
+  },
+  "profileUsernameLabel": "Username",
+  "@profileUsernameLabel": {
+    "description": "Profile username field label"
+  },
+  "profileEmailLabel": "Email",
+  "@profileEmailLabel": {
+    "description": "Profile email field label"
+  },
+  "profileEmailVerifiedLabel": "Email verified",
+  "@profileEmailVerifiedLabel": {
+    "description": "Profile email verification field label"
+  },
+  "profileEmailVerifiedYes": "Yes",
+  "@profileEmailVerifiedYes": {
+    "description": "Yes value for verified email"
+  },
+  "profileEmailVerifiedNo": "No",
+  "@profileEmailVerifiedNo": {
+    "description": "No value for unverified email"
+  },
+  "profileLocaleLabel": "Locale",
+  "@profileLocaleLabel": {
+    "description": "Profile locale field label"
+  },
+  "profileTimezoneLabel": "Timezone",
+  "@profileTimezoneLabel": {
+    "description": "Profile timezone field label"
+  },
+  "profileRolesLabel": "Roles",
+  "@profileRolesLabel": {
+    "description": "Profile roles field label"
+  },
+  "profileGroupsLabel": "Groups",
+  "@profileGroupsLabel": {
+    "description": "Profile groups field label"
+  },
+  "profileEditingBlockedMessage": "Profile editing is prepared in the app, but saving changes is blocked until the backend exposes PATCH /api/profile.",
+  "@profileEditingBlockedMessage": {
+    "description": "Deprecated message explaining why profile editing was not yet enabled"
+  },
+  "profileEditSectionTitle": "Edit profile",
+  "@profileEditSectionTitle": {
+    "description": "Title for the editable profile form"
+  },
+  "profileEditSectionDescription": "Save changes through the Weave backend profile facade so every product module sees the same profile.",
+  "@profileEditSectionDescription": {
+    "description": "Description for the editable profile form"
+  },
+  "profileDisplayNameHelper": "Shown to workspace members in Weave surfaces.",
+  "@profileDisplayNameHelper": {
+    "description": "Helper text for the profile display name field"
+  },
+  "profileLocaleHelper": "Use a locale code such as en or de.",
+  "@profileLocaleHelper": {
+    "description": "Helper text for the profile locale field"
+  },
+  "profileTimezoneHelper": "Use an IANA timezone such as Europe/Berlin.",
+  "@profileTimezoneHelper": {
+    "description": "Helper text for the profile timezone field"
+  },
+  "profileEditRequiredFieldError": "This field is required.",
+  "@profileEditRequiredFieldError": {
+    "description": "Validation error for empty editable profile fields"
+  },
+  "profileEditSaveButton": "Save profile",
+  "@profileEditSaveButton": {
+    "description": "Button label for saving profile edits"
+  },
+  "profileEditSavingButton": "Saving profile…",
+  "@profileEditSavingButton": {
+    "description": "Busy button label while saving profile edits"
+  },
+  "profileEditSavedMessage": "Profile saved.",
+  "@profileEditSavedMessage": {
+    "description": "Live-region success message after saving profile edits"
+  },
+  "settingsWorkspaceCalendarLabel": "Calendar",
+  "@settingsWorkspaceCalendarLabel": {
+    "description": "Row label for calendar readiness in the workspace readiness summary"
+  },
+  "settingsWorkspaceBoardsLabel": "Boards",
+  "@settingsWorkspaceBoardsLabel": {
+    "description": "Row label for boards readiness in the workspace readiness summary"
+  },
+  "calendarWorkspaceScopeTitle": "Workspace calendar",
+  "@calendarWorkspaceScopeTitle": {
+    "description": "Title for the workspace-scoped calendar banner"
+  },
+  "calendarWorkspaceScopeDescription": "This first Calendar slice is the workspace scope of Weave shared scheduling. Team and channel calendars are the next product scopes; private personal calendars are out of scope.",
+  "@calendarWorkspaceScopeDescription": {
+    "description": "Description explaining that the current calendar surface is workspace-scoped rather than private-personal scoped"
+  },
+  "calendarGenericScopeDescription": "Events are shown from {scopeLabel}.",
+  "@calendarGenericScopeDescription": {
+    "description": "Description for non-workspace calendar scope metadata returned by the backend",
+    "placeholders": {
+      "scopeLabel": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarClientSetupTitle": "Use Calendar in other apps",
+  "@calendarClientSetupTitle": {
+    "description": "Title for the external calendar client setup card"
+  },
+  "calendarClientSetupDescription": "Weave can hand native clients secret-free setup details. Weave still owns the product calendar UI.",
+  "@calendarClientSetupDescription": {
+    "description": "Description for the external calendar client setup card"
+  },
+  "calendarClientSetupIconSemantic": "External calendar setup",
+  "@calendarClientSetupIconSemantic": {
+    "description": "Semantic label for the external calendar setup icon"
+  },
+  "calendarClientSetupLoading": "Loading setup options…",
+  "@calendarClientSetupLoading": {
+    "description": "Loading message for external calendar setup options"
+  },
+  "calendarClientSetupUnavailable": "Calendar setup options are unavailable right now.",
+  "@calendarClientSetupUnavailable": {
+    "description": "Error message when external calendar setup options cannot be loaded"
+  },
+  "calendarCapabilityLoading": "Checking Calendar availability…",
+  "@calendarCapabilityLoading": {
+    "description": "Loading message while checking whether the backend reports Calendar as available"
+  },
+  "calendarCapabilityError": "Calendar availability could not be checked right now.",
+  "@calendarCapabilityError": {
+    "description": "Error shown when Calendar capability status cannot be loaded"
+  },
+  "calendarUnavailableTitle": "Calendar is unavailable",
+  "@calendarUnavailableTitle": {
+    "description": "Title for the Calendar module unavailable state"
+  },
+  "calendarUnavailableDescription": "Backend readiness is {readiness}. Event changes stay disabled until the Weave backend reports Calendar ready.",
+  "@calendarUnavailableDescription": {
+    "description": "Description for the Calendar module unavailable state",
+    "placeholders": {
+      "readiness": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarClientSetupUsernameLabel": "Username",
+  "@calendarClientSetupUsernameLabel": {
+    "description": "Label for the external CalDAV username"
+  },
+  "calendarClientSetupDiscoveryUrlLabel": "CalDAV discovery URL",
+  "@calendarClientSetupDiscoveryUrlLabel": {
+    "description": "Label for the CalDAV discovery URL"
+  },
+  "calendarClientSetupPrincipalUrlLabel": "Principal URL",
+  "@calendarClientSetupPrincipalUrlLabel": {
+    "description": "Label for the CalDAV principal URL"
+  },
+  "calendarClientSetupCredentialPolicyTitle": "Credential safety",
+  "@calendarClientSetupCredentialPolicyTitle": {
+    "description": "Heading for the external calendar credential safety policy"
+  },
+  "calendarClientSetupAccessModelTitle": "Access model",
+  "@calendarClientSetupAccessModelTitle": {
+    "description": "Heading for the calendar external client access model"
+  },
+  "calendarClientSetupPrivateCalendarsAvailable": "Private personal calendars out of scope",
+  "@calendarClientSetupPrivateCalendarsAvailable": {
+    "description": "Status text when private personal calendars are available"
+  },
+  "calendarClientSetupPrivateCalendarsBlocked": "Private personal calendars out of scope",
+  "@calendarClientSetupPrivateCalendarsBlocked": {
+    "description": "Status text when private personal calendars are blocked"
+  },
+  "calendarClientSetupExternalCredentialModel": "External credential model: {model}",
+  "@calendarClientSetupExternalCredentialModel": {
+    "description": "Calendar external credential model label",
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarClientSetupCredentialReadinessTitle": "Credential readiness",
+  "@calendarClientSetupCredentialReadinessTitle": {
+    "description": "Heading for calendar credential readiness details"
+  },
+  "calendarClientSetupCredentialReadinessStatus": "Status: {status}",
+  "@calendarClientSetupCredentialReadinessStatus": {
+    "description": "Calendar credential readiness status",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarClientSetupAppleProfileBlocked": "Apple profiles stay disabled until profiles are signed and safe credentials exist.",
+  "@calendarClientSetupAppleProfileBlocked": {
+    "description": "Blocked state explanation for Apple calendar profiles"
+  },
+  "calendarClientSetupSubscriptionsBlocked": "Webcal/ICS subscriptions stay disabled until revocable read-only tokens exist.",
+  "@calendarClientSetupSubscriptionsBlocked": {
+    "description": "Blocked state explanation for calendar subscriptions"
+  },
+  "calendarClientSetupCredentialsSafe": "Backend actor credentials are not exposed to client setup artifacts.",
+  "@calendarClientSetupCredentialsSafe": {
+    "description": "Safe credential boundary statement for calendar client setup"
+  },
+  "calendarClientSetupCredentialsUnsafe": "Setup is blocked because backend actor credentials would be exposed.",
+  "@calendarClientSetupCredentialsUnsafe": {
+    "description": "Unsafe credential boundary warning for calendar client setup"
+  },
+  "calendarClientSetupPlatformsTitle": "Platform setup",
+  "@calendarClientSetupPlatformsTitle": {
+    "description": "Heading for external calendar platform setup options"
+  },
+  "calendarClientSetupAvailableStatus": "available",
+  "@calendarClientSetupAvailableStatus": {
+    "description": "Status label for an available external calendar setup option"
+  },
+  "calendarClientSetupPlannedStatus": "planned",
+  "@calendarClientSetupPlannedStatus": {
+    "description": "Status label for a planned external calendar setup option"
+  },
+  "calendarClientSetupPlannedFallback": "This setup path is feature-gated until revocation, provisioning, and platform profile tests are complete.",
+  "@calendarClientSetupPlannedFallback": {
+    "description": "Fallback explanation for a planned external calendar setup option"
+  },
+  "calendarClientSetupOptionTitle": "{platform} via {method}: {status}",
+  "@calendarClientSetupOptionTitle": {
+    "description": "External calendar setup option summary",
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      },
+      "method": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarClientSetupCopyTooltip": "Copy {label}",
+  "@calendarClientSetupCopyTooltip": {
+    "description": "Tooltip for copying an external calendar setup value",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarClientSetupCopied": "Calendar setup value copied.",
+  "@calendarClientSetupCopied": {
+    "description": "Snackbar after copying an external calendar setup value"
+  },
+  "calendarCreateButton": "Create event",
+  "@calendarCreateButton": {
+    "description": "Button label for opening the create calendar event form"
+  },
+  "calendarCreateDialogTitle": "Create calendar event",
+  "@calendarCreateDialogTitle": {
+    "description": "Dialog title for creating a calendar event"
+  },
+  "calendarEditDialogTitle": "Edit calendar event",
+  "@calendarEditDialogTitle": {
+    "description": "Dialog title for editing a calendar event"
+  },
+  "calendarTitleFieldLabel": "Title",
+  "@calendarTitleFieldLabel": {
+    "description": "Calendar event title field label"
+  },
+  "calendarDescriptionFieldLabel": "Description",
+  "@calendarDescriptionFieldLabel": {
+    "description": "Calendar event description field label"
+  },
+  "calendarLocationFieldLabel": "Location",
+  "@calendarLocationFieldLabel": {
+    "description": "Calendar event location field label"
+  },
+  "calendarTitleRequired": "Enter an event title.",
+  "@calendarTitleRequired": {
+    "description": "Validation message when a calendar event title is missing"
+  },
+  "calendarCancelButton": "Cancel",
+  "@calendarCancelButton": {
+    "description": "Button label for closing the calendar create dialog"
+  },
+  "calendarSaveButton": "Save event",
+  "@calendarSaveButton": {
+    "description": "Button label for saving a calendar event"
+  },
+  "calendarDeleteEventTooltip": "Delete {title}",
+  "@calendarDeleteEventTooltip": {
+    "description": "Tooltip for deleting a calendar event",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarEditEventTooltip": "Edit {title}",
+  "@calendarEditEventTooltip": {
+    "description": "Tooltip for editing a calendar event",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarViewEventTooltip": "View {title}",
+  "@calendarViewEventTooltip": {
+    "description": "Tooltip for opening a calendar event detail view",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarEventSemantic": "{title}, starts {startsAt}, ends {endsAt}",
+  "@calendarEventSemantic": {
+    "description": "Semantic label for a calendar event row",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "startsAt": {
+        "type": "String"
+      },
+      "endsAt": {
+        "type": "String"
+      }
+    }
+  },
+  "calendarDetailsDialogTitle": "Calendar event details",
+  "@calendarDetailsDialogTitle": {
+    "description": "Title for the calendar event details dialog"
+  },
+  "calendarDetailsLoading": "Loading event details…",
+  "@calendarDetailsLoading": {
+    "description": "Loading message while a calendar event is read from the backend"
+  },
+  "calendarDetailsError": "Calendar event details are unavailable right now.",
+  "@calendarDetailsError": {
+    "description": "Error shown when reading a calendar event from the backend fails"
+  },
+  "calendarDetailsTimeLabel": "Time",
+  "@calendarDetailsTimeLabel": {
+    "description": "Label for the calendar event time range in the details dialog"
+  },
+  "calendarDetailsScopeLabel": "Calendar scope",
+  "@calendarDetailsScopeLabel": {
+    "description": "Label for the calendar scope in the event details dialog"
+  },
+  "calendarDetailsContextLabel": "Context",
+  "@calendarDetailsContextLabel": {
+    "description": "Label for the Weave Context/Space id in the event details dialog"
+  },
+  "calendarDetailsMeetingThreadLabel": "Meeting thread",
+  "@calendarDetailsMeetingThreadLabel": {
+    "description": "Label for meeting thread metadata in the event details dialog"
+  },
+  "calendarDetailsMeetingThreadPending": "Safe context metadata is available; chat thread linkage is not configured yet.",
+  "@calendarDetailsMeetingThreadPending": {
+    "description": "Calendar details text when the backend exposes safe context metadata but not a Matrix thread id"
+  },
+  "calendarDetailsAttendeesLabel": "Attendees",
+  "@calendarDetailsAttendeesLabel": {
+    "description": "Label for safe attendee metadata in the calendar event details dialog"
+  },
+  "calendarDetailsProviderLabel": "Provider reference",
+  "@calendarDetailsProviderLabel": {
+    "description": "Label for safe provider metadata in the calendar event details dialog"
+  },
+  "calendarDetailsProviderPathHidden": "raw provider path hidden",
+  "@calendarDetailsProviderPathHidden": {
+    "description": "Calendar details text explaining that raw provider paths are not exposed"
+  },
+  "calendarDetailsUpdatedLabel": "Updated",
+  "@calendarDetailsUpdatedLabel": {
+    "description": "Label for the last known calendar event update timestamp in the details dialog"
+  },
+  "calendarDetailsLocationLabel": "Location",
+  "@calendarDetailsLocationLabel": {
+    "description": "Label for the calendar event location in the details dialog"
+  },
+  "calendarDetailsDescriptionLabel": "Description",
+  "@calendarDetailsDescriptionLabel": {
+    "description": "Label for the calendar event description in the details dialog"
+  },
+  "calendarCloseButton": "Close",
+  "@calendarCloseButton": {
+    "description": "Button label for closing the calendar details dialog"
+  },
+  "calendarCreateSuccess": "Calendar event created.",
+  "@calendarCreateSuccess": {
+    "description": "Snackbar message after a calendar event is created"
+  },
+  "calendarUpdateSuccess": "Calendar event updated.",
+  "@calendarUpdateSuccess": {
+    "description": "Snackbar message after a calendar event is updated"
+  },
+  "calendarDeleteSuccess": "Calendar event deleted.",
+  "@calendarDeleteSuccess": {
+    "description": "Snackbar message after a calendar event is deleted"
+  },
+  "calendarOperationFailure": "The calendar could not save that change right now.",
+  "@calendarOperationFailure": {
+    "description": "Snackbar message when a calendar operation fails"
+  },
+  "boardsWorkspaceScreenTitle": "Boards workspace",
+  "@boardsWorkspaceScreenTitle": {
+    "description": "Title for the feature-gated boards/tasks workspace screen"
+  },
+  "boardsWorkspaceIconSemantic": "Boards workspace",
+  "@boardsWorkspaceIconSemantic": {
+    "description": "Semantic label for the boards workspace icon"
+  },
+  "boardsWorkspaceBoundaryTitle": "Dogfood boards/tasks workspace",
+  "@boardsWorkspaceBoundaryTitle": {
+    "description": "Title for the banner that marks boards/tasks as active gated scope"
+  },
+  "boardsWorkspaceBoundaryDescription": "This dogfood production shows the Weave-owned board model, accessible task movement alternatives, and backend-owned provider seams. User task writes require the authenticated workspace backend with audit and Context/Space authorization.",
+  "@boardsWorkspaceBoundaryDescription": {
+    "description": "Description explaining that boards/tasks are active scope but not provider-connected"
+  },
+  "boardsWorkspaceBoundarySemantic": "Dogfood boards/tasks workspace. Provider-neutral Weave model with keyboard and screen-reader alternatives; user task writes require the audited workspace backend.",
+  "@boardsWorkspaceBoundarySemantic": {
+    "description": "Semantic summary for the dogfood-production boundary banner"
+  },
+  "boardsWorkspaceActiveDogfoodChip": "Dogfood production",
+  "@boardsWorkspaceActiveDogfoodChip": {
+    "description": "Chip label stating boards/tasks are dogfood production scope"
+  },
+  "boardsWorkspaceProviderNeutralChip": "Provider-neutral model",
+  "@boardsWorkspaceProviderNeutralChip": {
+    "description": "Chip label stating the boards model is provider-neutral"
+  },
+  "boardsWorkspaceKeyboardChip": "No drag required",
+  "@boardsWorkspaceKeyboardChip": {
+    "description": "Chip label stating board operations have non-drag alternatives"
+  },
+  "boardsWorkspaceColumnCount": "{count, plural, =0{No columns} one{1 column} other{{count} columns}}",
+  "@boardsWorkspaceColumnCount": {
+    "description": "Number of workspace board columns",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "boardsWorkspaceTaskCount": "{count, plural, =0{No tasks} one{1 task} other{{count} tasks}}",
+  "@boardsWorkspaceTaskCount": {
+    "description": "Number of workspace tasks",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "boardsWorkspaceNonDragMovement": "Move menu instead of drag-only",
+  "@boardsWorkspaceNonDragMovement": {
+    "description": "Summary chip for accessible non-drag movement"
+  },
+  "boardsWorkspaceBoardSemantic": "Board {boardName}, {columnCount, plural, one{1 column} other{{columnCount} columns}}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.",
+  "@boardsWorkspaceBoardSemantic": {
+    "description": "Semantic label for the board workspace summary",
+    "placeholders": {
+      "boardName": {
+        "type": "String"
+      },
+      "columnCount": {
+        "type": "int"
+      },
+      "taskCount": {
+        "type": "int"
+      }
+    }
+  },
+  "boardsWorkspaceColumnSemantic": "Column {columnName}, status {status}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.",
+  "@boardsWorkspaceColumnSemantic": {
+    "description": "Semantic label for a board column",
+    "placeholders": {
+      "columnName": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      },
+      "taskCount": {
+        "type": "int"
+      }
+    }
+  },
+  "boardsWorkspaceColumnTaskSummary": "{count, plural, =0{No tasks in this column} one{1 task in this column} other{{count} tasks in this column}}",
+  "@boardsWorkspaceColumnTaskSummary": {
+    "description": "Visible task count summary for a column",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "boardsWorkspaceColumnWipSummary": "{count, plural, =0{No tasks} one{1 task} other{{count} tasks}} · WIP limit {limit}",
+  "@boardsWorkspaceColumnWipSummary": {
+    "description": "Visible task count and WIP limit summary for a column",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "boardsWorkspaceTaskSemantic": "Task {taskTitle}. Column {columnName}. Status {status}. Assignee {assignee}. Due {due}. Priority {priority}.",
+  "@boardsWorkspaceTaskSemantic": {
+    "description": "Semantic label for a board task card",
+    "placeholders": {
+      "taskTitle": {
+        "type": "String"
+      },
+      "columnName": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      },
+      "assignee": {
+        "type": "String"
+      },
+      "due": {
+        "type": "String"
+      },
+      "priority": {
+        "type": "String"
+      }
+    }
+  },
+  "boardsWorkspaceTaskActionsTooltip": "Task actions for {taskTitle}",
+  "@boardsWorkspaceTaskActionsTooltip": {
+    "description": "Tooltip for the task action menu",
+    "placeholders": {
+      "taskTitle": {
+        "type": "String"
+      }
+    }
+  },
+  "boardsWorkspaceMoveTaskAction": "Move to another column",
+  "@boardsWorkspaceMoveTaskAction": {
+    "description": "Workspace task action for non-drag column movement"
+  },
+  "boardsWorkspaceMarkDoneAction": "Mark done",
+  "@boardsWorkspaceMarkDoneAction": {
+    "description": "Workspace task action for marking a task done"
+  },
+  "boardsWorkspaceBlockTaskAction": "Mark blocked",
+  "@boardsWorkspaceBlockTaskAction": {
+    "description": "Workspace task action for marking a task blocked"
+  },
+  "boardsWorkspaceActionBackendRequired": "Connect to the workspace backend to apply task changes.",
+  "@boardsWorkspaceActionBackendRequired": {
+    "description": "Snackbar shown when a workspace task action is selected"
+  },
+  "boardsWorkspaceStatusNotStarted": "Not started",
+  "@boardsWorkspaceStatusNotStarted": {
+    "description": "Board task status label"
+  },
+  "boardsWorkspaceStatusInProgress": "In progress",
+  "@boardsWorkspaceStatusInProgress": {
+    "description": "Board task status label"
+  },
+  "boardsWorkspaceStatusBlocked": "Blocked",
+  "@boardsWorkspaceStatusBlocked": {
+    "description": "Board task status label"
+  },
+  "boardsWorkspaceStatusDone": "Done",
+  "@boardsWorkspaceStatusDone": {
+    "description": "Board task status label"
+  },
+  "boardsWorkspaceStatusSemantic": "Status: {status}",
+  "@boardsWorkspaceStatusSemantic": {
+    "description": "Semantic label for task/column status pills",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "boardsWorkspaceBackendFedChip": "Backend facade fed",
+  "@boardsWorkspaceBackendFedChip": {
+    "description": "Chip label indicating the workspace snapshot came from the backend facade"
+  },
+  "boardsWorkspaceProviderBlockedChip": "Provider runtime blocked",
+  "@boardsWorkspaceProviderBlockedChip": {
+    "description": "Chip label indicating the backend provider runtime is blocked/unavailable"
+  },
+  "boardsWorkspaceStaticFixtureChip": "Static fixture workspace",
+  "@boardsWorkspaceStaticFixtureChip": {
+    "description": "Chip label indicating the workspace is still using local fixtures"
+  },
+  "boardsWorkspaceProviderCapabilitySummary": "Provider: {provider}",
+  "@boardsWorkspaceProviderCapabilitySummary": {
+    "description": "Visible provider capability summary",
+    "placeholders": {
+      "provider": {
+        "type": "String"
+      }
+    }
+  },
+  "boardsWorkspaceCapabilityNonDragReady": "Backend non-drag actions ready",
+  "@boardsWorkspaceCapabilityNonDragReady": {
+    "description": "Capability label when accessible non-drag backend actions are available"
+  },
+  "boardsWorkspaceCapabilityNonDragBlocked": "Backend non-drag actions blocked",
+  "@boardsWorkspaceCapabilityNonDragBlocked": {
+    "description": "Capability label when accessible non-drag backend actions are unavailable"
+  },
+  "boardsWorkspaceProviderInMemory": "in-memory backend facade",
+  "@boardsWorkspaceProviderInMemory": {
+    "description": "Provider label for the local backend facade"
+  },
+  "boardsWorkspaceProviderVikunja": "Vikunja adapter",
+  "@boardsWorkspaceProviderVikunja": {
+    "description": "Provider label for Vikunja"
+  },
+  "boardsWorkspaceProviderOpenProject": "OpenProject adapter",
+  "@boardsWorkspaceProviderOpenProject": {
+    "description": "Provider label for OpenProject"
+  },
+  "boardsWorkspaceProviderNextcloudDeck": "Nextcloud Deck adapter",
+  "@boardsWorkspaceProviderNextcloudDeck": {
+    "description": "Provider label for Nextcloud Deck"
+  },
+  "boardsWorkspaceProviderNone": "no backend provider",
+  "@boardsWorkspaceProviderNone": {
+    "description": "Provider label when only static fixtures are available"
+  },
+  "boardsWorkspaceProviderUnavailable": "backend unavailable",
+  "@boardsWorkspaceProviderUnavailable": {
+    "description": "Provider label when the backend facade is unavailable"
+  },
+  "boardsWorkspaceProviderUnknown": "unknown provider",
+  "@boardsWorkspaceProviderUnknown": {
+    "description": "Provider label for an unrecognized backend provider"
+  },
+  "boardsWorkspaceActionMoved": "Task moved through the backend facade.",
+  "@boardsWorkspaceActionMoved": {
+    "description": "Snackbar after a backend move task action succeeds"
+  },
+  "boardsWorkspaceActionCompleted": "Task marked done through the backend facade.",
+  "@boardsWorkspaceActionCompleted": {
+    "description": "Snackbar after a backend complete task action succeeds"
+  },
+  "boardsWorkspaceActionBlocked": "Task marked blocked through the backend facade.",
+  "@boardsWorkspaceActionBlocked": {
+    "description": "Snackbar after a backend block task action succeeds"
+  },
+  "boardsWorkspaceActionFailed": "The backend facade could not save that Boards workspace action.",
+  "@boardsWorkspaceActionFailed": {
+    "description": "Snackbar after a backend Boards action fails"
+  },
+  "boardsWorkspaceActionNoNextColumn": "This task is already in the last workspace column.",
+  "@boardsWorkspaceActionNoNextColumn": {
+    "description": "Snackbar when moving to the next workspace column is not possible"
+  },
+  "settingsAdminSetupTitle": "Owner and admin setup",
+  "@settingsAdminSetupTitle": {
+    "description": "Title for the owner/admin setup card in settings"
+  },
+  "settingsAdminSetupDescription": "Workspace owners and admins manage OIDC, realm, organization, and service endpoints here. Members and guests only see sign-in and product settings.",
+  "@settingsAdminSetupDescription": {
+    "description": "Description for owner/admin setup responsibilities"
+  },
+  "settingsAdminPermissionTitle": "Admin controls unlocked",
+  "@settingsAdminPermissionTitle": {
+    "description": "Title confirming admin controls are visible"
+  },
+  "settingsAdminPermissionDescription": "Visible because your Weave roles are: {roles}. Backend APIs remain the authority for every write.",
+  "@settingsAdminPermissionDescription": {
+    "description": "Admin permission explanation with role list",
+    "placeholders": {
+      "roles": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAdminPermissionSemantic": "Admin controls unlocked. Visible because your Weave roles are: {roles}. Backend APIs remain the authority for every write.",
+  "@settingsAdminPermissionSemantic": {
+    "description": "Screen-reader label for admin permission summary",
+    "placeholders": {
+      "roles": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAdminBoundaryTitle": "Workspace setup is admin-only",
+  "@settingsAdminBoundaryTitle": {
+    "description": "Title for hidden admin setup boundary card"
+  },
+  "settingsAdminBoundaryDescription": "OIDC, realm, organization, and service endpoint setup is handled by workspace owners or admins. Normal users can keep using Weave without Matrix, Nextcloud, or realm details.",
+  "@settingsAdminBoundaryDescription": {
+    "description": "Explanation shown to non-admin users instead of server configuration controls"
+  },
+  "settingsAdminPermissionLoading": "Checking admin permissions…",
+  "@settingsAdminPermissionLoading": {
+    "description": "Loading label while profile roles are being resolved"
+  },
+  "chatContextCardTitle": "Context for this workspace",
+  "@chatContextCardTitle": {
+    "description": "Title for the implicit context card on Weave Home"
+  },
+  "chatContextCardDescription": "Weave can prepare focused context from channels, decisions, and shared work when you ask for help. It does not show a database diagram or continuously read everything.",
+  "@chatContextCardDescription": {
+    "description": "Explanation for context-aware chat UX"
+  },
+  "chatContextCardPolicy": "Agents use scoped context on demand, show what context was used, and stay inside admin-defined boundaries.",
+  "@chatContextCardPolicy": {
+    "description": "Agent context privacy policy copy"
+  },
+  "chatContextChannelHintTitle": "Channel context",
+  "@chatContextChannelHintTitle": {
+    "description": "Context hint title for channel history"
+  },
+  "chatContextChannelHintDescription": "Recent room signals can become a small context card for the current task.",
+  "@chatContextChannelHintDescription": {
+    "description": "Context hint body for channel history"
+  },
+  "chatContextEvidenceHintTitle": "Decisions and evidence",
+  "@chatContextEvidenceHintTitle": {
+    "description": "Context hint title for decisions/evidence"
+  },
+  "chatContextEvidenceHintDescription": "Decision notes and supporting links can be cited without exposing graph internals.",
+  "@chatContextEvidenceHintDescription": {
+    "description": "Context hint body for decision/evidence layer"
+  },
+  "chatContextAgentHintTitle": "Agent context packs",
+  "@chatContextAgentHintTitle": {
+    "description": "Context hint title for agent context packs"
+  },
+  "chatContextAgentHintDescription": "Assistants receive only the scoped pack for the request, mention, or schedule.",
+  "@chatContextAgentHintDescription": {
+    "description": "Context hint body for scoped agent context packs"
+  },
+  "firstRunAdminSetupTitle": "Owner/admin setup responsibilities",
+  "@firstRunAdminSetupTitle": {
+    "description": "Title for first-run admin setup guidance"
+  },
+  "firstRunAdminSetupDescription": "Your role can administer workspace setup. Keep OIDC, realm, organization, invite, and service endpoint changes here or in Settings; normal users should only need one Weave sign-in.",
+  "@firstRunAdminSetupDescription": {
+    "description": "First-run guidance for owner/admin users"
+  },
+  "agentCapabilityPolicyTitle": "AI agent capability governance",
+  "@agentCapabilityPolicyTitle": {
+    "description": "Settings card title for AI agent capability governance"
+  },
+  "agentCapabilityPolicyAdminDescription": "Owners and admins decide which agent packages and connectors can be used. This preview stays off until permission, consent, and audit controls are connected.",
+  "@agentCapabilityPolicyAdminDescription": {
+    "description": "Admin-facing description for AI agent capability governance"
+  },
+  "agentCapabilityPolicyUserDescription": "AI agent chats are not enabled for this workspace yet. You can keep using Weave normally; an owner or admin must turn this on first.",
+  "@agentCapabilityPolicyUserDescription": {
+    "description": "Member-facing description for AI agent capability governance"
+  },
+  "agentCapabilityPolicyFailClosedNotice": "Agent capabilities are blocked until Weave can confirm your role and the workspace policy.",
+  "@agentCapabilityPolicyFailClosedNotice": {
+    "description": "Fail-closed notice when policy cannot be trusted"
+  },
+  "agentCapabilityPolicyManageDisabledButton": "Management unavailable in this preview",
+  "@agentCapabilityPolicyManageDisabledButton": {
+    "description": "Disabled button label for future agent capability management"
+  },
+  "agentCapabilityPolicyAskAdminHint": "Need an agent for your team? Ask a workspace owner or admin to review agent capabilities when they are available.",
+  "@agentCapabilityPolicyAskAdminHint": {
+    "description": "Hint for non-admin users"
+  },
+  "agentCapabilityPolicyAdminStateHint": "Current state: off by default. Future controls will require owner/admin review before users can start an agent.",
+  "@agentCapabilityPolicyAdminStateHint": {
+    "description": "Admin state hint for disabled agent capabilities"
+  },
+  "agentCapabilityPersonalAssistantTitle": "Personal assistant",
+  "@agentCapabilityPersonalAssistantTitle": {
+    "description": "Agent capability title for personal assistant"
+  },
+  "agentCapabilityPersonalAssistantDescription": "Will only use context you choose for a request, after your workspace enables the capability.",
+  "@agentCapabilityPersonalAssistantDescription": {
+    "description": "Agent capability description for personal assistant"
+  },
+  "agentCapabilityChannelAgentTitle": "Channel agent",
+  "@agentCapabilityChannelAgentTitle": {
+    "description": "Agent capability title for channel agent"
+  },
+  "agentCapabilityChannelAgentDescription": "Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.",
+  "@agentCapabilityChannelAgentDescription": {
+    "description": "Agent capability description for channel agent"
+  },
+  "agentCapabilityAvailabilityPreviewOnly": "Preview only",
+  "@agentCapabilityAvailabilityPreviewOnly": {
+    "description": "Agent capability availability label for gated state"
+  },
+  "agentCapabilityAvailabilityAdminSetupRequired": "Admin setup required",
+  "@agentCapabilityAvailabilityAdminSetupRequired": {
+    "description": "Agent capability availability label when admin setup is required"
+  },
+  "agentCapabilityAvailabilityBlocked": "Blocked",
+  "@agentCapabilityAvailabilityBlocked": {
+    "description": "Agent capability availability label for blocked state"
+  },
+  "agentCapabilityPolicyErrorTitle": "Agent capability policy is unavailable.",
+  "@agentCapabilityPolicyErrorTitle": {
+    "description": "Error message for AI agent capability policy settings section"
+  },
+  "agentCapabilityPolicyLoading": "Checking agent capability policy…",
+  "@agentCapabilityPolicyLoading": {
+    "description": "Loading message for AI agent capability policy settings section"
+  },
+  "workflowPreviewTitle": "Active workflows",
+  "@workflowPreviewTitle": {
+    "description": "Title for the context-driven workflow preview panel"
+  },
+  "workflowPreviewDescription": "A linear view of current steps, owners, blockers, and evidence. Diagrams can come later; this view must work with keyboard and screen readers first.",
+  "@workflowPreviewDescription": {
+    "description": "Description for accessible workflow preview panel"
+  },
+  "workflowPreviewLinearViewChip": "Linear view first",
+  "@workflowPreviewLinearViewChip": {
+    "description": "Chip saying workflows are shown linearly first"
+  },
+  "workflowPreviewExplicitContextChip": "Explicit context only",
+  "@workflowPreviewExplicitContextChip": {
+    "description": "Chip saying workflow context is explicit"
+  },
+  "workflowPreviewGovernedActionsChip": "Governed actions",
+  "@workflowPreviewGovernedActionsChip": {
+    "description": "Chip saying workflow actions are governed"
+  },
+  "workflowPreviewNoBackgroundReading": "Workflow context is attached deliberately; Weave does not continuously read rooms in the background.",
+  "@workflowPreviewNoBackgroundReading": {
+    "description": "Safety note for workflow context collection"
+  },
+  "workflowPreviewSemanticSummary": "{workflowCount, plural, =0{No active workflows} one{1 active workflow} other{{workflowCount} active workflows}}. {activeStepCount, plural, =0{No active steps} one{1 active step} other{{activeStepCount} active steps}}. {blockerCount, plural, =0{No blockers} one{1 blocker} other{{blockerCount} blockers}}.",
+  "@workflowPreviewSemanticSummary": {
+    "description": "Screen-reader summary for workflow preview panel",
+    "placeholders": {
+      "workflowCount": {
+        "type": "int"
+      },
+      "activeStepCount": {
+        "type": "int"
+      },
+      "blockerCount": {
+        "type": "int"
+      }
+    }
+  },
+  "workflowPreviewRunSemantic": "Workflow {title}. Context {context}. {stepCount, plural, one{1 step} other{{stepCount} steps}}. {blockerCount, plural, =0{No blockers} one{1 blocker} other{{blockerCount} blockers}}.",
+  "@workflowPreviewRunSemantic": {
+    "description": "Screen-reader summary for one workflow run",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "context": {
+        "type": "String"
+      },
+      "stepCount": {
+        "type": "int"
+      },
+      "blockerCount": {
+        "type": "int"
+      }
+    }
+  },
+  "workflowPreviewContextLabel": "Context: {context}",
+  "@workflowPreviewContextLabel": {
+    "description": "Workflow context label",
+    "placeholders": {
+      "context": {
+        "type": "String"
+      }
+    }
+  },
+  "workflowPreviewNextAction": "Next action: {stepTitle} — {action}",
+  "@workflowPreviewNextAction": {
+    "description": "Workflow next action text",
+    "placeholders": {
+      "stepTitle": {
+        "type": "String"
+      },
+      "action": {
+        "type": "String"
+      }
+    }
+  },
+  "workflowPreviewStepSemantic": "Step {title}. Type {kind}. Status {status}. Owner {owner}. Due {due}. Next action {nextAction}. Blocked: {blockers}. Evidence: {evidence}.",
+  "@workflowPreviewStepSemantic": {
+    "description": "Screen-reader label for a workflow step",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "kind": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      },
+      "owner": {
+        "type": "String"
+      },
+      "due": {
+        "type": "String"
+      },
+      "nextAction": {
+        "type": "String"
+      },
+      "blockers": {
+        "type": "String"
+      },
+      "evidence": {
+        "type": "String"
+      }
+    }
+  },
+  "workflowPreviewKindStep": "Step",
+  "@workflowPreviewKindStep": {
+    "description": "Workflow step kind label"
+  },
+  "workflowPreviewKindGate": "Gate",
+  "@workflowPreviewKindGate": {
+    "description": "Workflow gate kind label"
+  },
+  "workflowPreviewKindApproval": "Approval",
+  "@workflowPreviewKindApproval": {
+    "description": "Workflow approval kind label"
+  },
+  "workflowPreviewStatusReady": "Ready",
+  "@workflowPreviewStatusReady": {
+    "description": "Workflow ready status"
+  },
+  "workflowPreviewStatusInProgress": "In progress",
+  "@workflowPreviewStatusInProgress": {
+    "description": "Workflow in-progress status"
+  },
+  "workflowPreviewStatusBlocked": "Blocked",
+  "@workflowPreviewStatusBlocked": {
+    "description": "Workflow blocked status"
+  },
+  "workflowPreviewStatusWaiting": "Waiting for approval",
+  "@workflowPreviewStatusWaiting": {
+    "description": "Workflow waiting-for-approval status"
+  },
+  "workflowPreviewStatusDone": "Done",
+  "@workflowPreviewStatusDone": {
+    "description": "Workflow done status"
+  },
+  "workflowPreviewOwner": "Owner: {owner}",
+  "@workflowPreviewOwner": {
+    "description": "Workflow owner fact",
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "workflowPreviewDue": "Due: {due}",
+  "@workflowPreviewDue": {
+    "description": "Workflow due/next timing fact",
+    "placeholders": {
+      "due": {
+        "type": "String"
+      }
+    }
+  },
+  "workflowPreviewStepNextAction": "Next action: {action}",
+  "@workflowPreviewStepNextAction": {
+    "description": "Workflow step next action fact",
+    "placeholders": {
+      "action": {
+        "type": "String"
+      }
+    }
+  },
+  "workflowPreviewNoBlockers": "No blockers",
+  "@workflowPreviewNoBlockers": {
+    "description": "Workflow no-blockers label"
+  },
+  "workflowPreviewBlockers": "Blocked: {blockers}",
+  "@workflowPreviewBlockers": {
+    "description": "Workflow blocker fact",
+    "placeholders": {
+      "blockers": {
+        "type": "String"
+      }
+    }
+  },
+  "workflowPreviewEvidence": "Evidence: {evidence}",
+  "@workflowPreviewEvidence": {
+    "description": "Workflow evidence fact",
+    "placeholders": {
+      "evidence": {
+        "type": "String"
+      }
+    }
+  },
+  "workflowPreviewApprovalRequired": "Owner approval is required before this action can run.",
+  "@workflowPreviewApprovalRequired": {
+    "description": "Workflow approval-required note"
+  },
+  "workflowPreviewAgentDryRunOnly": "Agent help is dry-run only until admin policy and approval are connected.",
+  "@workflowPreviewAgentDryRunOnly": {
+    "description": "Workflow governed-agent note"
+  },
+  "workflowPreviewOpenStepButton": "Open step",
+  "@workflowPreviewOpenStepButton": {
+    "description": "Disabled placeholder action for opening a workflow step"
+  },
+  "workflowPreviewReviewEvidenceButton": "Review evidence",
+  "@workflowPreviewReviewEvidenceButton": {
+    "description": "Disabled placeholder action for reviewing workflow evidence"
+  }
+}

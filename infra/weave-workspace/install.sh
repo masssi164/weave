@@ -1,0 +1,1294 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# shellcheck disable=SC2154
+
+set -euo pipefail
+
+: "${WEAVE_IAC_BIN:=tofu}"
+export WEAVE_IAC_BIN
+
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly ROOT_DIR
+readonly INFRA_DIR="${ROOT_DIR}/01-infrastructure"
+readonly KEYCLOAK_DIR="${ROOT_DIR}/02-keycloak-setup"
+readonly BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
+readonly APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
+readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/bootstrap.env"
+readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
+readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
+readonly LOOPBACK_HOST="127.0.0.1"
+readonly TEST_USER_EMAIL="test@weave.local"
+readonly PERSISTED_TF_VARS=(
+  TF_VAR_docker_host
+  TF_VAR_docker_network_name
+  TF_VAR_tenant_slug
+  TF_VAR_tenant_domain
+  TF_VAR_create_test_user
+  TF_VAR_test_user_password
+  TF_VAR_auth_subdomain
+  TF_VAR_api_subdomain
+  TF_VAR_matrix_subdomain
+  TF_VAR_nextcloud_subdomain
+  TF_VAR_public_scheme
+  TF_VAR_proxy_host_port
+  TF_VAR_proxy_http_host_port
+  TF_VAR_keycloak_host_port
+  TF_VAR_keycloak_management_host_port
+  TF_VAR_mas_host_port
+  TF_VAR_synapse_host_port
+  TF_VAR_nextcloud_host_port
+  TF_VAR_nextcloud_trusted_proxies
+  TF_VAR_caddy_tls_cert_file
+  TF_VAR_caddy_tls_key_file
+  TF_VAR_caddy_tls_ca_file
+  TF_VAR_backend_host_port
+  TF_VAR_backend_container_port
+  TF_VAR_weave_backend_image
+  TF_VAR_provider_stack_profile
+  TF_VAR_provider_stack_readiness
+  TF_VAR_devops_primary_provider
+  TF_VAR_devops_alternative_provider
+  TF_VAR_devops_gitlab_runtime_enabled
+  TF_VAR_devops_gitlab_base_url
+  TF_VAR_devops_gitlab_writes_enabled
+  TF_VAR_devops_forgejo_runtime_enabled
+  TF_VAR_devops_forgejo_base_url
+  TF_VAR_devops_forgejo_writes_enabled
+  TF_VAR_office_primary_provider
+  TF_VAR_office_onlyoffice_runtime_enabled
+  TF_VAR_office_onlyoffice_document_server_url
+  TF_VAR_office_nextcloud_integration_mode
+  TF_VAR_office_collabora_runtime_enabled
+  TF_VAR_groupware_contacts_runtime_enabled
+  TF_VAR_groupware_forms_runtime_enabled
+  TF_VAR_livekit_runtime_enabled
+  TF_VAR_livekit_url
+  TF_VAR_livekit_token_endpoint
+  TF_VAR_livekit_image
+  TF_VAR_livekit_host_port
+  TF_VAR_livekit_rtc_tcp_host_port
+  TF_VAR_livekit_rtc_udp_host_port
+  TF_VAR_boards_runtime_enabled
+  TF_VAR_boards_provider
+  TF_VAR_boards_openproject_runtime_enabled
+  TF_VAR_boards_openproject_read_sync_enabled
+  TF_VAR_boards_openproject_context_authorization_enabled
+  TF_VAR_boards_openproject_audit_consent_enabled
+  TF_VAR_boards_openproject_provider_writes_enabled
+  TF_VAR_boards_nextcloud_deck_runtime_enabled
+  TF_VAR_boards_openproject_auth_mode
+  TF_VAR_boards_openproject_base_url
+  TF_VAR_context_authorization_tenant_claim
+  TF_VAR_context_authorization_tenant_fallback_claim
+  TF_VAR_context_authorization_default_tenant_id
+  TF_VAR_context_authorization_principal_claim
+  TF_VAR_context_authorization_principal_ref_prefix
+  TF_VAR_context_authorization_bootstrap_enabled
+  TF_VAR_context_authorization_bootstrap_context_id
+  TF_VAR_context_authorization_bootstrap_principal_ref
+  TF_VAR_context_authorization_bootstrap_role
+  TF_VAR_openproject_image
+  TF_VAR_openproject_host_port
+  TF_VAR_openproject_secret_key_base
+  TF_VAR_synapse_uid
+  TF_VAR_synapse_gid
+  TF_VAR_db_name
+  TF_VAR_db_admin_username
+  TF_VAR_db_admin_password
+  TF_VAR_keycloak_admin_username
+  TF_VAR_keycloak_admin_password
+  TF_VAR_keycloak_db_username
+  TF_VAR_keycloak_db_password
+  TF_VAR_mas_db_username
+  TF_VAR_mas_db_password
+  TF_VAR_synapse_db_username
+  TF_VAR_synapse_db_password
+  TF_VAR_nextcloud_db_username
+  TF_VAR_nextcloud_db_password
+  TF_VAR_nextcloud_admin_username
+  TF_VAR_nextcloud_admin_password
+  TF_VAR_nextcloud_backend_actor_username
+  TF_VAR_nextcloud_backend_actor_token
+  TF_VAR_matrix_mas_client_secret
+  TF_VAR_mas_encryption_secret
+  TF_VAR_mas_signing_key_pem
+  TF_VAR_mas_matrix_secret
+  TF_VAR_synapse_registration_shared_secret
+  TF_VAR_synapse_macaroon_secret_key
+  TF_VAR_synapse_form_secret
+  WEAVE_MATRIX_PROVISIONER_LOCALPART
+  WEAVE_MATRIX_PROVISIONER_PASSWORD
+  WEAVE_MATRIX_PROVISIONER_ACCESS_TOKEN
+  WEAVE_MATRIX_DEFAULT_MEMBER_LOCALPART
+  WEAVE_MATRIX_DEFAULT_MEMBER_PASSWORD
+  WEAVE_MATRIX_DEFAULT_MEMBER_ACCESS_TOKEN
+  WEAVE_MATRIX_WORKSPACE_ALIAS_LOCALPART
+  WEAVE_MATRIX_WORKSPACE_NAME
+  WEAVE_MATRIX_ANNOUNCEMENTS_ALIAS_LOCALPART
+  WEAVE_MATRIX_GENERAL_ALIAS_LOCALPART
+  WEAVE_MATRIX_HELP_ALIAS_LOCALPART
+  WEAVE_MATRIX_DEFAULT_SPACE_ID
+  WEAVE_MATRIX_DEFAULT_ANNOUNCEMENTS_ID
+  WEAVE_MATRIX_DEFAULT_GENERAL_ID
+  WEAVE_MATRIX_DEFAULT_HELP_ID
+)
+
+log() {
+  printf '%s\n' "$*"
+}
+
+fail() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+detect_docker_host() {
+  if [[ -n "${DOCKER_HOST:-}" ]]; then
+    printf '%s\n' "${DOCKER_HOST}"
+    return
+  fi
+
+  docker context inspect "$(docker context show)" --format '{{ (index .Endpoints "docker").Host }}'
+}
+
+set_default_var() {
+  local name="$1"
+  local value="$2"
+
+  if [[ -z "${!name:-}" ]]; then
+    export "${name}=${value}"
+  fi
+}
+
+set_default_secret() {
+  local name="$1"
+  local value="$2"
+
+  if [[ -z "${!name:-}" ]]; then
+    export "${name}=${value}"
+  fi
+}
+
+random_base64() {
+  local bytes="$1"
+  openssl rand -base64 "${bytes}" | tr -d '\n'
+}
+
+random_hex() {
+  local bytes="$1"
+  openssl rand -hex "${bytes}"
+}
+
+normalize_repo_local_cert_path_var() {
+  local name="$1"
+  local value="${!name:-}"
+  local repo_generated_suffix="/weave-workspace/01-infrastructure/.generated/caddy/certs/"
+
+  if [[ -z "${value}" || "${value}" != *"${repo_generated_suffix}"* ]]; then
+    return
+  fi
+
+  export "${name}=${INFRA_DIR}/.generated/caddy/certs/$(basename -- "${value}")"
+}
+
+normalize_repo_local_paths() {
+  normalize_repo_local_cert_path_var TF_VAR_caddy_tls_cert_file
+  normalize_repo_local_cert_path_var TF_VAR_caddy_tls_key_file
+  normalize_repo_local_cert_path_var TF_VAR_caddy_tls_ca_file
+}
+
+load_persisted_env() {
+  if [[ ! -f "${BOOTSTRAP_ENV_FILE}" ]]; then
+    return
+  fi
+
+  local var
+  local index
+  local -a preset_names=()
+  local -a preset_values=()
+
+  for var in "${PERSISTED_TF_VARS[@]}"; do
+    if [[ "${!var+x}" == "x" ]]; then
+      preset_names+=("${var}")
+      preset_values+=("${!var}")
+    fi
+  done
+
+  # shellcheck disable=SC1090
+  source "${BOOTSTRAP_ENV_FILE}"
+  normalize_repo_local_paths
+
+  for ((index = 0; index < ${#preset_names[@]}; index++)); do
+    export "${preset_names[$index]}=${preset_values[$index]}"
+  done
+
+}
+
+persist_bootstrap_env() {
+  local var
+
+  mkdir -p "$(dirname -- "${BOOTSTRAP_ENV_FILE}")" "$(dirname -- "${RUNNER_BOOTSTRAP_ENV_FILE}")"
+  : > "${BOOTSTRAP_ENV_FILE}"
+  chmod 600 "${BOOTSTRAP_ENV_FILE}"
+
+  for var in "${PERSISTED_TF_VARS[@]}"; do
+    if [[ "${!var+x}" == "x" ]]; then
+      printf 'export %s=%q\n' "${var}" "${!var}" >> "${BOOTSTRAP_ENV_FILE}"
+    fi
+  done
+
+  {
+    printf 'export WEAVE_PUBLIC_BASE_URL=%q\n' "$(product_public_url)"
+    printf 'export WEAVE_API_ORIGIN=%q\n' "$(api_public_url)"
+    printf 'export WEAVE_API_BASE_URL=%q\n' "$(integration_test_base_url)"
+    printf 'export WEAVE_BASE_URL=%q\n' "$(integration_test_base_url)"
+    printf 'export WEAVE_AUTH_BASE_URL=%q\n' "$(auth_public_url)"
+    printf 'export WEAVE_FILES_PRODUCT_URL=%q\n' "$(product_public_url)/files"
+    printf 'export WEAVE_CALENDAR_PRODUCT_URL=%q\n' "$(product_public_url)/calendar"
+    printf 'export WEAVE_NEXTCLOUD_BASE_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)"
+    printf 'export WEAVE_NEXTCLOUD_TECHNICAL_BASE_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)"
+    printf 'export WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL=%q\n' "backend-service-account"
+    printf 'export WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME=%q\n' "${TF_VAR_nextcloud_backend_actor_username}"
+    printf 'export WEAVE_NEXTCLOUD_FILES_ACTOR_TOKEN=%q\n' "${TF_VAR_nextcloud_backend_actor_token}"
+    printf 'export WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH=%q\n' "/remote.php/dav/files"
+    printf 'export WEAVE_CALDAV_BASE_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)"
+    printf 'export WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE=%q\n' "/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/personal/"
+    printf 'export WEAVE_CALDAV_AUTH_MODE=%q\n' "BASIC"
+    printf 'export WEAVE_CALDAV_BACKEND_USERNAME=%q\n' "${TF_VAR_nextcloud_backend_actor_username}"
+    printf 'export WEAVE_CALDAV_BACKEND_TOKEN=%q\n' "${TF_VAR_nextcloud_backend_actor_token}"
+    printf 'export WEAVE_CALDAV_REQUEST_TIMEOUT_SECONDS=%q\n' "10"
+    printf 'export WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)/remote.php/dav"
+    printf 'export WEAVE_CALDAV_EXTERNAL_CREDENTIAL_MODE=%q\n' "nextcloud-login-flow-app-password"
+    printf 'export WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE=%q\n' "omit"
+    printf 'export WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS=%q\n' "disabled"
+    printf 'export WEAVE_PROVIDER_STACK_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
+    printf 'export WEAVE_PROVIDER_STACK_READINESS=%q\n' "${TF_VAR_provider_stack_readiness}"
+    printf 'export WEAVE_DEVOPS_PRIMARY_PROVIDER=%q\n' "${TF_VAR_devops_primary_provider}"
+    printf 'export WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=%q\n' "${TF_VAR_devops_alternative_provider}"
+    printf 'export WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_gitlab_runtime_enabled}"
+    printf 'export WEAVE_DEVOPS_GITLAB_BASE_URL=%q\n' "${TF_VAR_devops_gitlab_base_url}"
+    printf 'export WEAVE_DEVOPS_GITLAB_WRITES_ENABLED=%q\n' "${TF_VAR_devops_gitlab_writes_enabled}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_forgejo_runtime_enabled}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_BASE_URL=%q\n' "${TF_VAR_devops_forgejo_base_url}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED=%q\n' "${TF_VAR_devops_forgejo_writes_enabled}"
+    printf 'export WEAVE_OFFICE_PRIMARY_PROVIDER=%q\n' "${TF_VAR_office_primary_provider}"
+    printf 'export WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_onlyoffice_runtime_enabled}"
+    printf 'export WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL=%q\n' "${TF_VAR_office_onlyoffice_document_server_url}"
+    printf 'export WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE=%q\n' "${TF_VAR_office_nextcloud_integration_mode}"
+    printf 'export WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_collabora_runtime_enabled}"
+    printf 'export WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_contacts_runtime_enabled}"
+    printf 'export WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_forms_runtime_enabled}"
+    printf 'export WEAVE_LIVEKIT_ENABLED=%q\n' "${TF_VAR_livekit_runtime_enabled}"
+    printf 'export WEAVE_LIVEKIT_URL=%q\n' "${TF_VAR_livekit_url}"
+    printf 'export WEAVE_LIVEKIT_TOKEN_ENDPOINT=%q\n' "${TF_VAR_livekit_token_endpoint}"
+    printf 'export WEAVE_BOARDS_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_PROVIDER=%q\n' "${TF_VAR_boards_provider}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=%q\n' "${TF_VAR_boards_openproject_read_sync_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=%q\n' "${TF_VAR_boards_openproject_context_authorization_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED=%q\n' "${TF_VAR_boards_openproject_audit_consent_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=%q\n' "${TF_VAR_boards_openproject_provider_writes_enabled}"
+    printf 'export WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_nextcloud_deck_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=%q\n' "${TF_VAR_boards_openproject_auth_mode}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_BASE_URL=%q\n' "${TF_VAR_boards_openproject_base_url}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_TENANT_CLAIM=%q\n' "${TF_VAR_context_authorization_tenant_claim}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_TENANT_FALLBACK_CLAIM=%q\n' "${TF_VAR_context_authorization_tenant_fallback_claim}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_DEFAULT_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_CLAIM=%q\n' "${TF_VAR_context_authorization_principal_claim}"
+    printf 'export WEAVE_CONTEXT_AUTHORIZATION_PRINCIPAL_REF_PREFIX=%q\n' "${TF_VAR_context_authorization_principal_ref_prefix}"
+    if [[ "${TF_VAR_context_authorization_bootstrap_enabled}" == "true" ]]; then
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_TENANT_ID=%q\n' "${TF_VAR_context_authorization_default_tenant_id}"
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_CONTEXT_ID=%q\n' "${TF_VAR_context_authorization_bootstrap_context_id}"
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_PRINCIPAL_REF=%q\n' "${TF_VAR_context_authorization_bootstrap_principal_ref}"
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
+      printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=%q\n' "local-dev-bootstrap"
+    fi
+    printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")$(public_port_suffix)"
+    printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
+    printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' "weave-app"
+    printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
+    printf 'export WEAVE_TARGET_DESKTOP=%q\n' "true"
+    printf 'export WEAVE_TARGET_WEB=%q\n' "false"
+    printf 'export WEAVE_MATRIX_FEDERATION=%q\n' "disabled"
+    printf 'export WEAVE_CHAT_E2EE=%q\n' "active-architecture-gated"
+  } >> "${BOOTSTRAP_ENV_FILE}"
+
+  if create_test_user_enabled; then
+    {
+      printf 'export WEAVE_TEST_USERNAME=%q\n' "${TEST_USER_EMAIL}"
+      printf 'export WEAVE_TEST_PASSWORD=%q\n' "${TF_VAR_test_user_password}"
+    } >> "${BOOTSTRAP_ENV_FILE}"
+  fi
+
+  cp "${BOOTSTRAP_ENV_FILE}" "${RUNNER_BOOTSTRAP_ENV_FILE}"
+  chmod 600 "${RUNNER_BOOTSTRAP_ENV_FILE}"
+
+  write_app_config_summary
+}
+
+ensure_mas_signing_key() {
+  if [[ -n "${TF_VAR_mas_signing_key_pem:-}" ]]; then
+    export TF_VAR_mas_signing_key_pem
+    return
+  fi
+
+  local key_file
+  key_file="$(mktemp)"
+
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "${key_file}" >/dev/null 2>&1
+  TF_VAR_mas_signing_key_pem="$(<"${key_file}")"
+  export TF_VAR_mas_signing_key_pem
+  rm -f -- "${key_file}"
+}
+
+wait_for_http_200() {
+  local name="$1"
+  local url="$2"
+  local attempts="${3:-120}"
+  local sleep_seconds="${4:-5}"
+  local status_code
+
+  for ((i = 1; i <= attempts; i++)); do
+    status_code="$(curl -s -o /dev/null -w '%{http_code}' "${url}" || true)"
+    if [[ "${status_code}" == "200" ]]; then
+      return 0
+    fi
+    sleep "${sleep_seconds}"
+  done
+
+  fail "${name} never became ready at ${url}"
+}
+
+wait_for_keycloak_admin_login() {
+  local attempts="${1:-60}"
+  local sleep_seconds="${2:-2}"
+  local token_url="http://${LOOPBACK_HOST}:${TF_VAR_keycloak_host_port}/realms/master/protocol/openid-connect/token"
+  local response
+
+  for ((i = 1; i <= attempts; i++)); do
+    response="$(curl -sS -X POST "${token_url}"       -H 'Content-Type: application/x-www-form-urlencoded'       --data-urlencode 'client_id=admin-cli'       --data-urlencode "username=${TF_VAR_keycloak_admin_username}"       --data-urlencode "password=${TF_VAR_keycloak_admin_password}"       --data-urlencode 'grant_type=password' || true)"
+    if [[ "${response}" == *'"access_token"'* ]]; then
+      return 0
+    fi
+    sleep "${sleep_seconds}"
+  done
+
+  fail "Keycloak admin login never became ready at ${token_url} for user ${TF_VAR_keycloak_admin_username}"
+}
+
+wait_for_nextcloud() {
+  local attempts="${1:-120}"
+  local sleep_seconds="${2:-5}"
+
+  for ((i = 1; i <= attempts; i++)); do
+    if docker exec --user www-data weave-nextcloud php occ status --output=json >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "${sleep_seconds}"
+  done
+
+  fail "Nextcloud did not finish bootstrapping in time."
+}
+
+occ() {
+  docker exec --user www-data weave-nextcloud php occ "$@"
+}
+
+nextcloud_is_installed() {
+  occ status --output=json 2>/dev/null | grep -q '"installed":true'
+}
+
+terraform_apply() {
+  local dir="$1"
+
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" init -input=false
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" apply -refresh=false -input=false -auto-approve
+}
+
+ensure_terraform_network_state() {
+  local existing_network_id=""
+
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+
+  if "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state show docker_network.weave_network >/dev/null 2>&1; then
+    return
+  fi
+
+  if docker network inspect "${TF_VAR_docker_network_name}" >/dev/null 2>&1; then
+    existing_network_id="$(docker network inspect --format '{{.ID}}' "${TF_VAR_docker_network_name}")"
+    log "Importing existing Docker network ${TF_VAR_docker_network_name} into Terraform state..."
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false docker_network.weave_network "${existing_network_id}"
+  fi
+}
+
+terraform_output_raw() {
+  local dir="$1"
+  local name="$2"
+
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" output -raw "${name}"
+}
+
+refresh_backend_container_if_image_changed() {
+  local desired_image="${TF_VAR_weave_backend_image:-}"
+  local desired_image_id
+  local current_image_id
+
+  if [[ -z "${desired_image}" ]]; then
+    return
+  fi
+
+  if ! docker image inspect "${desired_image}" >/dev/null 2>&1; then
+    return
+  fi
+
+  if ! docker container inspect weave-backend >/dev/null 2>&1; then
+    log "Recreating missing Weave backend container for image ${desired_image}..."
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
+    return
+  fi
+
+  desired_image_id="$(docker image inspect --format '{{.Id}}' "${desired_image}")"
+  current_image_id="$(docker inspect --format '{{.Image}}' weave-backend)"
+
+  if [[ "${desired_image_id}" == "${current_image_id}" ]]; then
+    return
+  fi
+
+  log "Refreshing Weave backend container to match image ${desired_image}..."
+  docker rm -f weave-backend >/dev/null
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
+}
+
+ensure_postgres_bootstrap_applied() {
+  local sql_file="${INFRA_DIR}/.generated/db/001-init.sql"
+
+  log "Ensuring PostgreSQL bootstrap state is applied..."
+
+  for _attempt in $(seq 1 30); do
+    if docker exec weave-db pg_isready -U "${TF_VAR_db_admin_username}" -d postgres >/dev/null 2>&1; then
+      docker exec -e PGPASSWORD="${TF_VAR_db_admin_password}" -i weave-db \
+        psql -v ON_ERROR_STOP=1 -U "${TF_VAR_db_admin_username}" -d postgres < "${sql_file}"
+      return 0
+    fi
+    sleep 2
+  done
+
+  fail "PostgreSQL bootstrap did not become ready in time for SQL initialization."
+}
+
+public_port_suffix() {
+  if [[ "${TF_VAR_public_scheme}" == "http" && "${TF_VAR_proxy_host_port}" == "80" ]] ||
+    [[ "${TF_VAR_public_scheme}" == "https" && "${TF_VAR_proxy_host_port}" == "443" ]]; then
+    printf ''
+  else
+    printf ':%s' "${TF_VAR_proxy_host_port}"
+  fi
+}
+
+public_host() {
+  local subdomain="$1"
+  printf '%s.%s' "${subdomain}" "${TF_VAR_tenant_domain}"
+}
+
+api_public_url() {
+  printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_api_subdomain}")" "$(public_port_suffix)"
+}
+
+auth_public_url() {
+  printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_auth_subdomain}")" "$(public_port_suffix)"
+}
+
+product_public_url() {
+  printf '%s://%s%s' "${TF_VAR_public_scheme}" "${TF_VAR_tenant_domain}" "$(public_port_suffix)"
+}
+
+nextcloud_public_url() {
+  printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_nextcloud_subdomain}")" "$(public_port_suffix)"
+}
+
+host_port_from_url() {
+  local url="$1"
+  local host_port
+
+  host_port="${url#*://}"
+  host_port="${host_port%%/*}"
+  if [[ "${host_port}" != *:* ]]; then
+    case "${url%%://*}" in
+      https) host_port="${host_port}:443" ;;
+      http) host_port="${host_port}:80" ;;
+    esac
+  fi
+
+  printf '%s\n' "${host_port}"
+}
+
+curl_nextcloud_actor_calendar_status() {
+  local method="$1"
+  local url="$2"
+  local host_port
+  local -a args=(--silent --show-error)
+
+  host_port="$(host_port_from_url "${url}")"
+  args+=(--resolve "${host_port}:127.0.0.1")
+  if [[ "${TF_VAR_public_scheme}" == "https" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then
+    args+=(--cacert "${TF_VAR_caddy_tls_ca_file}")
+  fi
+
+  curl "${args[@]}" \
+    --user "${TF_VAR_nextcloud_backend_actor_username}:${TF_VAR_nextcloud_backend_actor_token}" \
+    --request "${method}" \
+    --header 'Depth: 0' \
+    -o /dev/null \
+    -w '%{http_code}' \
+    "${url}"
+}
+
+create_test_user_enabled() {
+  case "${TF_VAR_create_test_user:-false}" in
+    true | TRUE | True | 1)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+integration_test_base_url() {
+  printf '%s/api' "$(api_public_url)"
+}
+
+integration_test_oidc_issuer_url() {
+  printf '%s://%s%s/realms/%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_auth_subdomain}")" "$(public_port_suffix)" "${TF_VAR_tenant_slug}"
+}
+
+write_app_config_summary() {
+  local api_base_url
+  local auth_base_url
+  local matrix_url
+  local nextcloud_url
+  local product_url
+
+  api_base_url="$(integration_test_base_url)"
+  auth_base_url="$(auth_public_url)"
+  matrix_url="${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")$(public_port_suffix)"
+  nextcloud_url="$(nextcloud_public_url)"
+  product_url="$(product_public_url)"
+
+  mkdir -p "$(dirname -- "${APP_CONFIG_ENV_FILE}")"
+  {
+    printf '%s\n' '# Generated by weave-workspace/install.sh. Safe to share with local app/backend test runs; no secrets are included.'
+    printf '%s\n' '# Product files/calendar routes are Weave product routes backed by backend facades.'
+    printf '%s\n' '# Raw Nextcloud is a technical/admin/protocol fallback only, not the product files/calendar origin.'
+    printf 'export WEAVE_PUBLIC_BASE_URL=%q\n' "${product_url}"
+    printf 'export WEAVE_API_ORIGIN=%q\n' "$(api_public_url)"
+    printf 'export WEAVE_API_BASE_URL=%q\n' "${api_base_url}"
+    printf 'export WEAVE_BASE_URL=%q\n' "${api_base_url}"
+    printf 'export WEAVE_AUTH_BASE_URL=%q\n' "${auth_base_url}"
+    printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
+    printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' 'weave-app'
+    printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${matrix_url}"
+    printf 'export WEAVE_FILES_PRODUCT_URL=%q\n' "${product_url}/files"
+    printf 'export WEAVE_CALENDAR_PRODUCT_URL=%q\n' "${product_url}/calendar"
+    printf 'export WEAVE_NEXTCLOUD_TECHNICAL_BASE_URL=%q\n' "${nextcloud_url}"
+    printf 'export WEAVE_NEXTCLOUD_BASE_URL=%q\n' "${nextcloud_url}"
+    printf 'export WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL=%q\n' "${nextcloud_url}/remote.php/dav"
+    printf 'export WEAVE_CALDAV_EXTERNAL_CREDENTIAL_MODE=%q\n' "nextcloud-login-flow-app-password"
+    printf 'export WEAVE_CALDAV_EXTERNAL_PROFILE_PASSWORD_MODE=%q\n' "omit"
+    printf 'export WEAVE_CALDAV_EXTERNAL_PRIVATE_USER_CALENDARS=%q\n' "disabled"
+    printf 'export WEAVE_PROVIDER_STACK_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
+    printf 'export WEAVE_PROVIDER_STACK_READINESS=%q\n' "${TF_VAR_provider_stack_readiness}"
+    printf 'export WEAVE_DEVOPS_PRIMARY_PROVIDER=%q\n' "${TF_VAR_devops_primary_provider}"
+    printf 'export WEAVE_DEVOPS_ALTERNATIVE_PROVIDER=%q\n' "${TF_VAR_devops_alternative_provider}"
+    printf 'export WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_gitlab_runtime_enabled}"
+    printf 'export WEAVE_DEVOPS_GITLAB_BASE_URL=%q\n' "${TF_VAR_devops_gitlab_base_url}"
+    printf 'export WEAVE_DEVOPS_GITLAB_WRITES_ENABLED=%q\n' "${TF_VAR_devops_gitlab_writes_enabled}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED=%q\n' "${TF_VAR_devops_forgejo_runtime_enabled}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_BASE_URL=%q\n' "${TF_VAR_devops_forgejo_base_url}"
+    printf 'export WEAVE_DEVOPS_FORGEJO_WRITES_ENABLED=%q\n' "${TF_VAR_devops_forgejo_writes_enabled}"
+    printf 'export WEAVE_OFFICE_PRIMARY_PROVIDER=%q\n' "${TF_VAR_office_primary_provider}"
+    printf 'export WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_onlyoffice_runtime_enabled}"
+    printf 'export WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL=%q\n' "${TF_VAR_office_onlyoffice_document_server_url}"
+    printf 'export WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE=%q\n' "${TF_VAR_office_nextcloud_integration_mode}"
+    printf 'export WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_collabora_runtime_enabled}"
+    printf 'export WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_contacts_runtime_enabled}"
+    printf 'export WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_forms_runtime_enabled}"
+    printf 'export WEAVE_LIVEKIT_ENABLED=%q\n' "${TF_VAR_livekit_runtime_enabled}"
+    printf 'export WEAVE_LIVEKIT_TOKEN_ENDPOINT_CONFIGURED=%q\n' "$([[ -n "${TF_VAR_livekit_token_endpoint}" ]] && printf true || printf false)"
+    printf 'export WEAVE_BOARDS_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_PROVIDER=%q\n' "${TF_VAR_boards_provider}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=%q\n' "${TF_VAR_boards_openproject_read_sync_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=%q\n' "${TF_VAR_boards_openproject_context_authorization_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_AUDIT_CONSENT_ENABLED=%q\n' "${TF_VAR_boards_openproject_audit_consent_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED=%q\n' "${TF_VAR_boards_openproject_provider_writes_enabled}"
+    printf 'export WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_nextcloud_deck_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_AUTH_MODE=%q\n' "${TF_VAR_boards_openproject_auth_mode}"
+    printf 'export WEAVE_BOARDS_OPENPROJECT_BASE_URL=%q\n' "${TF_VAR_boards_openproject_base_url}"
+    printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
+    printf 'export WEAVE_TARGET_DESKTOP=%q\n' "true"
+    printf 'export WEAVE_TARGET_WEB=%q\n' "false"
+    printf 'export WEAVE_MATRIX_FEDERATION=%q\n' "disabled"
+    printf 'export WEAVE_CHAT_E2EE=%q\n' "active-architecture-gated"
+  } > "${APP_CONFIG_ENV_FILE}"
+  chmod 0644 "${APP_CONFIG_ENV_FILE}"
+}
+
+preflight_checks() {
+  log "Running preflight checks..."
+
+  if ! docker info >/dev/null 2>&1; then
+    fail "Docker daemon is not reachable. Start Docker Desktop or Docker Engine, then rerun ./install.sh."
+  fi
+
+  local host
+  local unresolved_hosts=()
+  local hosts=(
+    "${TF_VAR_tenant_domain}"
+    "$(public_host "${TF_VAR_api_subdomain}")"
+    "$(public_host "${TF_VAR_auth_subdomain}")"
+    "$(public_host "${TF_VAR_nextcloud_subdomain}")"
+    "$(public_host "${TF_VAR_matrix_subdomain}")"
+  )
+
+  for host in "${hosts[@]}"; do
+    if command -v getent >/dev/null 2>&1; then
+      getent hosts "${host}" >/dev/null 2>&1 && continue
+    fi
+    if command -v dscacheutil >/dev/null 2>&1; then
+      dscacheutil -q host -a name "${host}" >/dev/null 2>&1 && continue
+    fi
+    if command -v getent >/dev/null 2>&1 || command -v dscacheutil >/dev/null 2>&1; then
+      unresolved_hosts+=("${host}")
+    fi
+  done
+
+  if (( ${#unresolved_hosts[@]} > 0 )); then
+    log "Preflight warning: these canonical hosts do not resolve yet: ${unresolved_hosts[*]}"
+    log "Add this /etc/hosts line before opening browser/native-client URLs:"
+    log "127.0.0.1 ${hosts[*]}"
+  fi
+
+  if command -v lsof >/dev/null 2>&1; then
+    local port
+    local ports=(
+      "${TF_VAR_proxy_http_host_port}"
+      "${TF_VAR_proxy_host_port}"
+      "${TF_VAR_keycloak_host_port}"
+      "${TF_VAR_keycloak_management_host_port}"
+      "${TF_VAR_mas_host_port}"
+      "${TF_VAR_synapse_host_port}"
+      "${TF_VAR_nextcloud_host_port}"
+      "${TF_VAR_backend_host_port}"
+    )
+
+    for port in "${ports[@]}"; do
+      if lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; then
+        log "Preflight note: TCP port ${port} is already listening. If this is an existing Weave rerun, this is expected; otherwise stop the conflicting service or choose another TF_VAR_*_host_port."
+      fi
+    done
+  else
+    log "Preflight note: lsof is not installed, so port-conflict detection was skipped."
+  fi
+
+  log "Preflight checks completed."
+}
+
+ensure_generated_directories() {
+  mkdir -p \
+    "${ROOT_DIR}/.generated" \
+    "${INFRA_DIR}/.generated/db" \
+    "${INFRA_DIR}/.generated/caddy/certs" \
+    "${INFRA_DIR}/.generated/mas" \
+    "${INFRA_DIR}/.generated/synapse"
+}
+
+maybe_prepare_runner_hygiene() {
+  if [[ "${WEAVE_RUNNER_HYGIENE:-false}" != "true" ]]; then
+    return
+  fi
+
+  if [[ ! -x "${TEARDOWN_SCRIPT}" && ! -f "${TEARDOWN_SCRIPT}" ]]; then
+    fail "Expected teardown helper at ${TEARDOWN_SCRIPT}"
+  fi
+
+  log "Running shared-host hygiene cleanup before bootstrap..."
+  WEAVE_REMOVE_VOLUMES="${WEAVE_REMOVE_VOLUMES:-false}" bash "${TEARDOWN_SCRIPT}"
+}
+
+cleanup_partial_weave_containers() {
+  local name
+  local state
+  local removed_any=false
+  local containers=(
+    weave-proxy
+    weave-db
+    weave-keycloak
+    weave-backend
+    weave-mas
+    weave-synapse
+    weave-nextcloud
+  )
+
+  for name in "${containers[@]}"; do
+    if ! docker container inspect "${name}" >/dev/null 2>&1; then
+      continue
+    fi
+
+    state="$(docker inspect --format '{{.State.Status}}' "${name}" 2>/dev/null || true)"
+    case "${state}" in
+      created|dead|exited)
+        log "Removing leftover ${state} container ${name} before bootstrap..."
+        docker rm -f "${name}" >/dev/null
+        removed_any=true
+        ;;
+    esac
+  done
+
+  if [[ "${removed_any}" == true ]]; then
+    log "Removed stale partial Weave containers."
+  fi
+}
+
+ensure_default_inputs() {
+  local defaults=(
+    "TF_VAR_docker_network_name=weave_network"
+    "TF_VAR_tenant_slug=weave"
+    "TF_VAR_tenant_domain=weave.local"
+    "TF_VAR_auth_subdomain=auth"
+    "TF_VAR_api_subdomain=api"
+    "TF_VAR_matrix_subdomain=matrix"
+    "TF_VAR_nextcloud_subdomain=files"
+    "TF_VAR_public_scheme=https"
+    "TF_VAR_proxy_host_port=44443"
+    "TF_VAR_proxy_http_host_port=44080"
+    "TF_VAR_keycloak_host_port=48080"
+    "TF_VAR_keycloak_management_host_port=49000"
+    "TF_VAR_mas_host_port=48082"
+    "TF_VAR_synapse_host_port=48008"
+    "TF_VAR_nextcloud_host_port=48083"
+    "TF_VAR_nextcloud_trusted_proxies=172.16.0.0/12"
+    "TF_VAR_backend_host_port=48084"
+    "TF_VAR_backend_container_port=8080"
+    "TF_VAR_weave_backend_image=weave-backend:local"
+    "TF_VAR_provider_stack_profile=fail-closed"
+    "TF_VAR_provider_stack_readiness=fail-closed"
+    "TF_VAR_devops_primary_provider=gitlab-ce-foss"
+    "TF_VAR_devops_alternative_provider=forgejo"
+    "TF_VAR_devops_gitlab_runtime_enabled=false"
+    "TF_VAR_devops_gitlab_base_url="
+    "TF_VAR_devops_gitlab_writes_enabled=false"
+    "TF_VAR_devops_forgejo_runtime_enabled=false"
+    "TF_VAR_devops_forgejo_base_url="
+    "TF_VAR_devops_forgejo_writes_enabled=false"
+    "TF_VAR_office_primary_provider=onlyoffice-community"
+    "TF_VAR_office_onlyoffice_runtime_enabled=false"
+    "TF_VAR_office_onlyoffice_document_server_url="
+    "TF_VAR_office_nextcloud_integration_mode=nextcloud-onlyoffice-app-behind-backend-facade"
+    "TF_VAR_office_collabora_runtime_enabled=false"
+    "TF_VAR_groupware_contacts_runtime_enabled=false"
+    "TF_VAR_groupware_forms_runtime_enabled=false"
+    "TF_VAR_livekit_runtime_enabled=false"
+    "TF_VAR_livekit_url="
+    "TF_VAR_livekit_token_endpoint="
+    "TF_VAR_livekit_image=livekit/livekit-server:v1.8"
+    "TF_VAR_livekit_host_port=48091"
+    "TF_VAR_livekit_rtc_tcp_host_port=48092"
+    "TF_VAR_livekit_rtc_udp_host_port=48092"
+    "TF_VAR_boards_runtime_enabled=false"
+    "TF_VAR_boards_provider=local-workspace"
+    "TF_VAR_boards_openproject_runtime_enabled=false"
+    "TF_VAR_boards_openproject_read_sync_enabled=false"
+    "TF_VAR_boards_openproject_context_authorization_enabled=false"
+    "TF_VAR_boards_openproject_audit_consent_enabled=false"
+    "TF_VAR_boards_openproject_provider_writes_enabled=false"
+    "TF_VAR_boards_nextcloud_deck_runtime_enabled=false"
+    "TF_VAR_boards_openproject_auth_mode=disabled"
+    "TF_VAR_boards_openproject_base_url="
+    "TF_VAR_context_authorization_tenant_claim=weave_tenant_id"
+    "TF_VAR_context_authorization_tenant_fallback_claim=tenant_id"
+    "TF_VAR_context_authorization_default_tenant_id=tenant-default"
+    "TF_VAR_context_authorization_principal_claim=preferred_username"
+    "TF_VAR_context_authorization_principal_ref_prefix=user:"
+    "TF_VAR_context_authorization_bootstrap_context_id=workspace-default"
+    "TF_VAR_context_authorization_bootstrap_principal_ref=user:test"
+    "TF_VAR_context_authorization_bootstrap_role=MEMBER"
+    "TF_VAR_openproject_image=openproject/openproject:15"
+    "TF_VAR_openproject_host_port=48086"
+    "TF_VAR_synapse_uid=991"
+    "TF_VAR_synapse_gid=991"
+    "TF_VAR_db_name=weave"
+    "TF_VAR_keycloak_admin_username=admin"
+    "TF_VAR_db_admin_username=weave_admin"
+    "TF_VAR_keycloak_db_username=keycloak"
+    "TF_VAR_mas_db_username=mas"
+    "TF_VAR_synapse_db_username=synapse"
+    "TF_VAR_nextcloud_db_username=nextcloud"
+    "TF_VAR_nextcloud_admin_username=admin"
+    "TF_VAR_nextcloud_backend_actor_username=weave-backend"
+  )
+
+  local entry
+  for entry in "${defaults[@]}"; do
+    set_default_var "${entry%%=*}" "${entry#*=}"
+  done
+
+  if create_test_user_enabled; then
+    set_default_var TF_VAR_context_authorization_bootstrap_enabled true
+  else
+    set_default_var TF_VAR_context_authorization_bootstrap_enabled false
+  fi
+
+  set_default_var TF_VAR_caddy_tls_cert_file "${INFRA_DIR}/.generated/caddy/certs/weave.local.pem"
+  set_default_var TF_VAR_caddy_tls_key_file "${INFRA_DIR}/.generated/caddy/certs/weave.local-key.pem"
+  set_default_var TF_VAR_caddy_tls_ca_file "${INFRA_DIR}/.generated/caddy/certs/weave-local-ca.pem"
+}
+
+ensure_docker_provider_inputs() {
+  if [[ -z "${TF_VAR_docker_host:-}" ]]; then
+    export TF_VAR_docker_host
+    TF_VAR_docker_host="$(detect_docker_host)"
+  fi
+}
+
+ensure_generated_secrets() {
+  set_default_secret TF_VAR_db_admin_password "$(random_base64 24)"
+  set_default_secret TF_VAR_keycloak_admin_password "$(random_base64 24)"
+  set_default_secret TF_VAR_keycloak_db_password "$(random_base64 24)"
+  set_default_secret TF_VAR_mas_db_password "$(random_base64 24)"
+  set_default_secret TF_VAR_synapse_db_password "$(random_base64 24)"
+  set_default_secret TF_VAR_nextcloud_db_password "$(random_base64 24)"
+  set_default_secret TF_VAR_nextcloud_admin_password "$(random_base64 24)"
+  set_default_secret TF_VAR_nextcloud_backend_actor_token "$(random_base64 24)"
+  set_default_var TF_VAR_devops_gitlab_api_token ""
+  set_default_var TF_VAR_devops_forgejo_api_token ""
+  set_default_var TF_VAR_office_onlyoffice_jwt_secret ""
+  set_default_var TF_VAR_livekit_api_key ""
+  set_default_var TF_VAR_livekit_api_secret ""
+  set_default_var TF_VAR_boards_openproject_api_token ""
+  set_default_var TF_VAR_openproject_secret_key_base ""
+  set_default_secret TF_VAR_matrix_mas_client_secret "$(random_base64 32)"
+  set_default_secret TF_VAR_mas_encryption_secret "$(random_hex 32)"
+  set_default_secret TF_VAR_mas_matrix_secret "$(random_base64 32)"
+  set_default_secret TF_VAR_synapse_registration_shared_secret "$(random_base64 32)"
+  set_default_secret TF_VAR_synapse_macaroon_secret_key "$(random_base64 32)"
+  set_default_secret TF_VAR_synapse_form_secret "$(random_base64 32)"
+  if create_test_user_enabled; then
+    set_default_secret TF_VAR_test_user_password "$(random_base64 16)"
+  fi
+  ensure_mas_signing_key
+  export TF_VAR_mas_signing_key_pem
+}
+
+certificate_alt_names() {
+  local index=1
+  local host
+  local hosts=(
+    "${TF_VAR_tenant_domain}"
+    "$(public_host "${TF_VAR_api_subdomain}")"
+    "$(public_host "${TF_VAR_auth_subdomain}")"
+    "$(public_host "${TF_VAR_nextcloud_subdomain}")"
+    "$(public_host "${TF_VAR_matrix_subdomain}")"
+  )
+
+  for host in "${hosts[@]}"; do
+    printf 'DNS.%d = %s\n' "${index}" "${host}"
+    index=$((index + 1))
+  done
+}
+
+ensure_local_tls_certificates() {
+  local cert_file="${TF_VAR_caddy_tls_cert_file}"
+  local key_file="${TF_VAR_caddy_tls_key_file}"
+  local ca_file="${TF_VAR_caddy_tls_ca_file}"
+  local cert_dir
+  local key_dir
+  local ca_dir
+  local ca_key_file
+  local csr_file
+  local ext_file
+
+  ca_key_file="${ca_file%.*}-key.pem"
+
+  if [[ -f "${cert_file}" && -f "${key_file}" && -f "${ca_file}" ]]; then
+    local host
+    local missing_hosts=()
+    local required_hosts=(
+      "${TF_VAR_tenant_domain}"
+      "$(public_host "${TF_VAR_api_subdomain}")"
+      "$(public_host "${TF_VAR_auth_subdomain}")"
+      "$(public_host "${TF_VAR_nextcloud_subdomain}")"
+      "$(public_host "${TF_VAR_matrix_subdomain}")"
+    )
+
+    for host in "${required_hosts[@]}"; do
+      if ! openssl x509 -in "${cert_file}" -noout -checkhost "${host}" 2>/dev/null | grep -q 'does match'; then
+        missing_hosts+=("${host}")
+      fi
+    done
+
+    if (( ${#missing_hosts[@]} == 0 )); then
+      return
+    fi
+
+    if [[ ! -f "${ca_key_file}" ]]; then
+      fail "Existing local TLS certificate at ${cert_file} does not cover required hosts: ${missing_hosts[*]}. Provide a replacement cert/key that includes the canonical public hostnames, or restore ${ca_key_file} so install.sh can regenerate the leaf certificate."
+    fi
+
+    log "Regenerating local TLS leaf certificate to cover: ${missing_hosts[*]}"
+    rm -f -- "${cert_file}" "${key_file}"
+  fi
+
+  if [[ -f "${cert_file}" || -f "${key_file}" ]] &&
+    [[ ! -f "${cert_file}" || ! -f "${key_file}" || ! -f "${ca_file}" ]]; then
+    fail "Local TLS cert, key, and CA files must all exist together. Check TF_VAR_caddy_tls_cert_file, TF_VAR_caddy_tls_key_file, and TF_VAR_caddy_tls_ca_file."
+  fi
+
+  cert_dir="$(dirname -- "${cert_file}")"
+  key_dir="$(dirname -- "${key_file}")"
+  ca_dir="$(dirname -- "${ca_file}")"
+
+  if [[ "${cert_dir}" != "${key_dir}" && "${cert_dir}" != "${ca_dir}" ]]; then
+    fail "Caddy TLS cert, key, and CA files must be in the same directory so the Docker cert mount contains all three files."
+  fi
+
+  mkdir -p "${cert_dir}" "${key_dir}" "${ca_dir}"
+
+  if [[ -f "${ca_file}" && ! -f "${ca_key_file}" ]]; then
+    fail "Existing local CA certificate found at ${ca_file}, but the CA private key is missing at ${ca_key_file}. Provide a matching leaf cert/key or restore the CA key."
+  fi
+
+  if [[ ! -f "${ca_file}" ]]; then
+    openssl genrsa -out "${ca_key_file}" 4096
+    chmod 600 "${ca_key_file}"
+    openssl req -x509 -new -nodes \
+      -key "${ca_key_file}" \
+      -sha256 \
+      -days 3650 \
+      -out "${ca_file}" \
+      -subj "/CN=Weave Local Development CA"
+    chmod 644 "${ca_file}"
+  fi
+
+  csr_file="$(mktemp)"
+  ext_file="$(mktemp)"
+
+  openssl genrsa -out "${key_file}" 2048
+  chmod 600 "${key_file}"
+  openssl req -new \
+    -key "${key_file}" \
+    -out "${csr_file}" \
+    -subj "/CN=$(public_host "${TF_VAR_auth_subdomain}")"
+
+  {
+    printf '%s\n' "authorityKeyIdentifier=keyid,issuer"
+    printf '%s\n' "basicConstraints=CA:FALSE"
+    printf '%s\n' "keyUsage = digitalSignature, keyEncipherment"
+    printf '%s\n' "extendedKeyUsage = serverAuth"
+    printf '%s\n' "subjectAltName = @alt_names"
+    printf '%s\n' ""
+    printf '%s\n' "[alt_names]"
+    certificate_alt_names
+  } > "${ext_file}"
+
+  openssl x509 -req \
+    -in "${csr_file}" \
+    -CA "${ca_file}" \
+    -CAkey "${ca_key_file}" \
+    -CAcreateserial \
+    -out "${cert_file}" \
+    -days 825 \
+    -sha256 \
+    -extfile "${ext_file}"
+  chmod 644 "${cert_file}"
+
+  rm -f -- "${csr_file}" "${ext_file}"
+}
+
+ensure_nextcloud_installed() {
+  local nextcloud_database_name
+
+  if nextcloud_is_installed; then
+    return
+  fi
+
+  nextcloud_database_name="$(terraform_output_raw "${INFRA_DIR}" nextcloud_database_name)"
+
+  occ maintenance:install \
+    --database=pgsql \
+    --database-host="weave-db" \
+    --database-name="${nextcloud_database_name}" \
+    --database-user="${TF_VAR_nextcloud_db_username}" \
+    --database-pass="${TF_VAR_nextcloud_db_password}" \
+    --admin-user="${TF_VAR_nextcloud_admin_username}" \
+    --admin-pass="${TF_VAR_nextcloud_admin_password}"
+}
+
+configure_nextcloud_base_url() {
+  local nextcloud_host
+  local nextcloud_url
+
+  nextcloud_host="$(public_host "${TF_VAR_nextcloud_subdomain}")"
+  nextcloud_url="${TF_VAR_public_scheme}://${nextcloud_host}$(public_port_suffix)"
+
+  occ config:system:set trusted_domains 0 --value="${nextcloud_host}"
+  occ config:system:set trusted_domains 1 --value="localhost"
+  occ config:system:set trusted_domains 2 --value="127.0.0.1"
+  occ config:system:delete trusted_domains 3 >/dev/null 2>&1 || true
+  occ config:system:set overwritehost --value="${nextcloud_host}$(public_port_suffix)"
+  occ config:system:set overwrite.cli.url --value="${nextcloud_url}"
+  occ config:system:set overwriteprotocol --value="${TF_VAR_public_scheme}"
+}
+
+install_nextcloud_tls_ca() {
+  local ca_filename
+
+  ca_filename="$(basename -- "${TF_VAR_caddy_tls_ca_file}")"
+  docker exec --user 0 weave-nextcloud \
+    install -m 0644 "/certs/${ca_filename}" "/usr/local/share/ca-certificates/weave-local-ca.crt"
+  docker exec --user 0 weave-nextcloud update-ca-certificates
+}
+
+configure_nextcloud_oidc() {
+  local issuer_url
+  local nextcloud_client_id
+  local nextcloud_client_secret
+  local allow_insecure_http
+
+  issuer_url="$(terraform_output_raw "${KEYCLOAK_DIR}" keycloak_issuer_url)"
+  nextcloud_client_id="$(terraform_output_raw "${KEYCLOAK_DIR}" nextcloud_client_id)"
+  nextcloud_client_secret="$(terraform_output_raw "${KEYCLOAK_DIR}" nextcloud_client_secret)"
+
+  if ! occ app:enable user_oidc >/dev/null 2>&1; then
+    occ app:install user_oidc
+    occ app:enable user_oidc
+  fi
+
+  allow_insecure_http=0
+  if [[ "${TF_VAR_public_scheme}" == "http" ]]; then
+    allow_insecure_http=1
+  fi
+
+  # The OIDC provider is reached via the local reverse proxy hostname on the Docker network.
+  # Nextcloud blocks RFC1918 / local-address targets by default, which breaks discovery in local dev.
+  occ config:system:set allow_local_remote_servers --type=bool --value=true
+  # user_oidc must validate bearer tokens for direct OCS/WebDAV access from
+  # Weave clients. The system flag enables Nextcloud OIDC-provider validation
+  # when available; the provider flags enable validation/provisioning for the
+  # external Keycloak provider used by Weave's live stack.
+  occ config:system:set user_oidc oidc_provider_bearer_validation --type=boolean --value=true
+  occ config:app:set --type=boolean --value="${allow_insecure_http}" user_oidc allow_insecure_http
+  occ user_oidc:provider keycloak \
+    --clientid="${nextcloud_client_id}" \
+    --clientsecret="${nextcloud_client_secret}" \
+    --discoveryuri="${issuer_url}/.well-known/openid-configuration" \
+    --group-provisioning=1 \
+    --check-bearer=1 \
+    --bearer-provisioning=1
+}
+
+nextcloud_backend_actor_exists() {
+  occ user:info "${TF_VAR_nextcloud_backend_actor_username}" >/dev/null 2>&1
+}
+
+set_nextcloud_backend_actor_password() {
+  docker exec \
+    --user www-data \
+    -e OC_PASS="${TF_VAR_nextcloud_backend_actor_token}" \
+    weave-nextcloud \
+    php occ user:resetpassword --password-from-env "${TF_VAR_nextcloud_backend_actor_username}" >/dev/null
+}
+
+create_nextcloud_backend_actor() {
+  docker exec \
+    --user www-data \
+    -e OC_PASS="${TF_VAR_nextcloud_backend_actor_token}" \
+    weave-nextcloud \
+    php occ user:add \
+      --password-from-env \
+      --display-name="Weave Backend Service Account" \
+      "${TF_VAR_nextcloud_backend_actor_username}" >/dev/null
+}
+
+ensure_nextcloud_backend_actor_calendar() {
+  local calendar_id
+  local calendar_url
+  local create_status
+  local read_status
+  local -a calendar_ids=(
+    personal
+    weave-team-engineering
+    weave-channel-engineering-general
+  )
+
+  for calendar_id in "${calendar_ids[@]}"; do
+    if occ list --format=txt | grep -q '^  dav:create-calendar' && \
+      occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" >/dev/null 2>&1; then
+      continue
+    fi
+
+    calendar_url="$(nextcloud_public_url)/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/${calendar_id}/"
+    read_status="$(curl_nextcloud_actor_calendar_status PROPFIND "${calendar_url}" || true)"
+    case "${read_status}" in
+      200 | 207) continue ;;
+      404) ;;
+      *) fail "Nextcloud backend actor calendar ${calendar_id} is not readable before creation, HTTP ${read_status}" ;;
+    esac
+
+    create_status="$(curl_nextcloud_actor_calendar_status MKCALENDAR "${calendar_url}" || true)"
+    case "${create_status}" in
+      200 | 201 | 204) ;;
+      *) fail "Nextcloud backend actor calendar ${calendar_id} could not be created through CalDAV, HTTP ${create_status}" ;;
+    esac
+
+    read_status="$(curl_nextcloud_actor_calendar_status PROPFIND "${calendar_url}" || true)"
+    case "${read_status}" in
+      200 | 207) ;;
+      *) fail "Nextcloud backend actor calendar ${calendar_id} is not readable after creation, HTTP ${read_status}" ;;
+    esac
+  done
+}
+
+ensure_nextcloud_backend_actor() {
+  [[ -n "${TF_VAR_nextcloud_backend_actor_username:-}" ]] || fail "TF_VAR_nextcloud_backend_actor_username must be set."
+  [[ -n "${TF_VAR_nextcloud_backend_actor_token:-}" ]] || fail "TF_VAR_nextcloud_backend_actor_token must be set."
+
+  if nextcloud_backend_actor_exists; then
+    set_nextcloud_backend_actor_password
+  else
+    create_nextcloud_backend_actor
+  fi
+
+  ensure_nextcloud_backend_actor_calendar
+}
+
+print_summary() {
+  local suffix
+  local weave_client_id
+
+  suffix="$(public_port_suffix)"
+  weave_client_id="$(terraform_output_raw "${KEYCLOAK_DIR}" weave_app_client_id)"
+
+  log
+  log "Weave local/dev is ready."
+  log
+  log "Public URLs:"
+  log "- App/Admin: ${TF_VAR_public_scheme}://${TF_VAR_tenant_domain}${suffix}"
+  log "- API:       $(integration_test_base_url)"
+  log "- Auth:      $(auth_public_url)"
+  log "- Files UX:  $(product_public_url)/files"
+  log "- Calendar:  $(product_public_url)/calendar"
+  log "- Files raw: $(nextcloud_public_url)  (Nextcloud admin/protocol fallback, not normal end-user UX)"
+  log "- Matrix:    ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")${suffix}"
+  log
+  log "App config file (no secrets): ${APP_CONFIG_ENV_FILE}"
+  log "Host entries: 127.0.0.1 ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}")"
+  log "Trust this local TLS CA certificate on the host before opening browser/native-client URLs: ${TF_VAR_caddy_tls_ca_file}"
+  log
+  log "MVP feature flags:"
+  log "- Mobile:            enabled"
+  log "- Desktop:           enabled"
+  log "- Browser/Web:       later"
+  log "- Matrix federation: disabled"
+  log "- Chat E2EE:         active architecture, gated until encrypted-room/device validation"
+  log
+  log "Health checks:"
+  log "- Backend ready: $(integration_test_base_url)/health/ready"
+  log "- Keycloak discovery: $(integration_test_oidc_issuer_url)/.well-known/openid-configuration"
+  log "- Matrix versions: ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")${suffix}/_matrix/client/versions"
+  log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
+  log "- Raw Nextcloud: $(nextcloud_public_url)/"
+  log
+  log "Admin credentials (local/dev only):"
+  log "- Keycloak admin user: ${TF_VAR_keycloak_admin_username} (password stored in ${BOOTSTRAP_ENV_FILE})"
+  log "- Nextcloud admin user: ${TF_VAR_nextcloud_admin_username} (password stored in ${BOOTSTRAP_ENV_FILE})"
+  log "- Nextcloud backend actor user: ${TF_VAR_nextcloud_backend_actor_username} (token stored in ${BOOTSTRAP_ENV_FILE})"
+  log "- Weave app client ID: ${weave_client_id}"
+  log
+  log "Next steps:"
+  log "- Open $(product_public_url) or launch the configured native client."
+  log "- Run: TF_VAR_create_test_user=true ./install.sh && ./smoke-test.sh"
+  log "- For diagnostics, run: ./operator-check.sh"
+  log "- Weave backend image: ${TF_VAR_weave_backend_image}"
+
+  if create_test_user_enabled; then
+    log "- Test user: ${TEST_USER_EMAIL} (password stored in ${BOOTSTRAP_ENV_FILE})"
+  fi
+}
+
+main() {
+  require_command curl
+  require_command docker
+  require_command openssl
+  require_command python3
+  require_command terraform
+
+  ensure_generated_directories
+  load_persisted_env
+  ensure_default_inputs
+  preflight_checks
+  maybe_prepare_runner_hygiene
+  cleanup_partial_weave_containers
+  ensure_docker_provider_inputs
+  ensure_generated_secrets
+  ensure_local_tls_certificates
+  persist_bootstrap_env
+  # shellcheck disable=SC1090
+  source "${SYNAPSE_VOLUME_HELPER}"
+  ensure_terraform_network_state
+  synapse_reconcile_terraform_state
+
+  log "Applying infrastructure module..."
+  terraform_apply "${INFRA_DIR}"
+  synapse_repair_volume_permissions
+  synapse_verify_volume_writable
+  ensure_postgres_bootstrap_applied
+  refresh_backend_container_if_image_changed
+
+  log "Waiting for Keycloak management readiness..."
+  wait_for_http_200 "Keycloak management" "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_management_host_port}/health/ready"
+
+  log "Waiting for Keycloak admin login readiness..."
+  wait_for_keycloak_admin_login 90 2
+
+  log "Applying Keycloak configuration module..."
+  terraform_apply "${KEYCLOAK_DIR}"
+
+  log "Waiting for Weave backend readiness..."
+  wait_for_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port}/api/health/ready"
+
+  log "Waiting for Matrix Authentication Service readiness..."
+  wait_for_http_200 "Matrix Authentication Service" "http://${LOOPBACK_HOST}:${TF_VAR_mas_host_port}/health"
+
+  log "Waiting for Synapse readiness..."
+  wait_for_http_200 "Synapse" "http://${LOOPBACK_HOST}:${TF_VAR_synapse_host_port}/_matrix/client/versions"
+
+  log "Provisioning default Matrix workspace space and rooms..."
+  bash "${ROOT_DIR}/provision-matrix-default-workspace.sh"
+
+  log "Waiting for Nextcloud OCC availability..."
+  wait_for_nextcloud 120 5
+
+  log "Installing and configuring Nextcloud..."
+  ensure_nextcloud_installed
+  install_nextcloud_tls_ca
+  configure_nextcloud_base_url
+
+  log "Configuring Nextcloud OIDC provider..."
+  configure_nextcloud_oidc
+
+  log "Ensuring backend-owned Nextcloud actor for files/calendar facades..."
+  ensure_nextcloud_backend_actor
+
+  print_summary
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

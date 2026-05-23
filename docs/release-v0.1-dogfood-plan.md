@@ -1,0 +1,164 @@
+# Weave v0.1 Dogfood Production Release Plan
+
+Status: implementation baseline for the monorepo refoundation.
+
+## Goal
+
+Ship Weave as a daily work tool for a real project, not as a demo stack.
+
+v0.1 must support a complete project loop:
+
+1. Open Weave Home.
+2. Enter a workspace/channel.
+3. Chat, handle files, plan events, run meetings, move board tasks, and record decisions.
+4. Inspect health/readiness when something is broken.
+5. Deploy, update, backup, restore, and roll back the stack with operator evidence.
+
+## Non-goals for v0.1
+
+- Product agent runtime integration.
+- Autonomous, group, or team-scoped agent writes.
+- Public connector SDK.
+- Teams/Slack migration tooling.
+- Broad SaaS administration beyond safe self-hosted boundaries.
+
+Agent integration requires a separate research/ADR track covering OpenClaw sandboxing, tool whitelisting, organization-wide policy, Matrix-plugin policy surfaces, consent, audit, and secret handling.
+
+## Phase 1 — Monorepo foundation
+
+Deliverables:
+
+- `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `release/` are in one repository.
+- Backend and infra history are imported under stable prefixes.
+- Root `Makefile` coordinates client/server/infra/e2e gates.
+- Root/client/server/infra/e2e `AGENTS.md` files encode monorepo rules.
+- CI runs acceptance, client, server, and infra static gates from the monorepo.
+- Live Stack E2E consumes monorepo paths.
+
+Exit gate:
+
+- `make acceptance-contract`
+- `make infra-static`
+- client/server CI green in GitHub
+- Live Stack E2E manually green with explicit runner budget
+
+## Phase 2 — OpenTofu-first infra
+
+Deliverables:
+
+- Operator scripts default to `${WEAVE_IAC_BIN:-tofu}`.
+- CI sets up OpenTofu and runs format validation.
+- Infrastructure docs use OpenTofu-first language.
+- State migration/compatibility notes are explicit.
+
+Exit gate:
+
+- `tofu fmt -check -recursive`
+- `tofu init -backend=false`
+- `tofu validate`
+- support-bundle redaction tests pass
+
+## Phase 3 — Professional ATDD spine
+
+Deliverables:
+
+- Gherkin scenarios under `e2e/features/` describe v0.1 user behavior.
+- `e2e/scenario_mappings.json` maps every scenario to executable evidence.
+- Existing live-stack markers are preserved.
+- New v0.1 scenarios are added only with failing/then-passing evidence.
+
+Required scenario groups:
+
+- Weave Home.
+- Channel workspace navigation.
+- Files.
+- Calendar.
+- Boards writes with audit.
+- Meeting Capsule.
+- Decision Ledger.
+- Workspace/Admin Health.
+- Deploy/backup/restore smoke.
+
+Exit gate:
+
+- no unmapped scenarios
+- no missing evidence markers
+- sanitized artifact generation works even on failure
+
+## Phase 4 — Product surfaces
+
+### Weave Home
+
+- Favorites/recent channels.
+- Open tasks.
+- Upcoming events/meetings.
+- Recent decisions.
+- Actionable health warnings.
+
+### Channels as workspaces
+
+- Tabs for Chat, Files, Board, Calendar, Meetings, Decisions.
+- Keyboard and screen-reader navigation across tabs.
+- Empty/error/recovery states that explain what to do next.
+
+### Files
+
+- Browse, upload, download, delete, rename/move when supported.
+- Backend facade only.
+- Support-safe errors.
+
+### Calendar
+
+- Workspace/team/channel events.
+- Event create/read/update/delete.
+- Meeting thread/capsule reference stays stable.
+
+### Boards
+
+Boards with user writes are release scope, not a demo-only demonstration.
+
+- Replace release-scope demo-only behavior with explicit user writes.
+- Create task, move task/status, update title/body, comment or decision-link.
+- Authorization and audit before provider mutation.
+- Fail closed when provider, scope, permission, or audit is unavailable.
+
+### Meetings
+
+- Start/join from channel or event.
+- LiveKit token facade only; no client-side provider secrets.
+- Meeting Capsule includes agenda, files, decisions, and follow-up tasks.
+- Media encryption boundary is explicit and evidenced.
+
+### Decision Ledger
+
+- Record decisions with context, evidence, risks, questions, and follow-up tasks.
+- Link decisions to channels, meetings, events, files, and board items.
+
+### Workspace/Admin Health
+
+- Auth, Matrix, files, calendar, boards, meetings/LiveKit, E2EE posture, backups, support bundle, and latest smoke/E2E state.
+
+Exit gate:
+
+- one real project can be run in Weave for a week without falling back to raw providers for core work.
+
+## Phase 5 — Deployable dogfood release
+
+Deliverables:
+
+- Install runbook.
+- Update runbook.
+- Backup runbook.
+- Restore test.
+- Rollback path.
+- Secret/certificate handling.
+- Release notes with honest limitations.
+- Support bundle and smoke-test artifacts.
+
+Exit gate:
+
+- fresh deploy works
+- update works
+- restore smoke passes
+- support bundle is redacted
+- Live Stack E2E passes against release manifest

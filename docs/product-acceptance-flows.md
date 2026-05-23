@@ -6,7 +6,7 @@ These flows keep the product order explicit: describe the user journey first, th
 
 ## General product flow summary
 
-A Weave user signs in once, lands in the workspace shell, chooses the relevant workspace/team/channel context, and then uses Weave-owned surfaces for chat, files, calendar, and boards. Matrix and Nextcloud stay sovereign provider modules behind the Weave experience. OpenProject is a backend-owned read-only boards provider path when configured; provider writes, comments, archive, and agent actions remain refused until audit and consent promotion exists.
+A Weave user signs in once, lands in the workspace shell, chooses the relevant workspace/team/channel context, and then uses Weave-owned surfaces for chat, files, calendar, and boards. Matrix and Nextcloud stay sovereign provider modules behind the Weave experience. Boards are a Weave-owned release surface: provider engines stay behind the backend facade, user writes require authorization and audit, and unsafe provider paths fail closed.
 
 ```mermaid
 flowchart TD
@@ -27,8 +27,9 @@ flowchart TD
   Calendar --> ChannelEvent[Create/read/update/delete channel event]
   Boards --> BoardGate{Boards provider enabled and authorized?}
   BoardGate -- no --> FailClosed[Support-safe fail-closed state]
-  BoardGate -- read-only yes --> ReadOnly[Provider-neutral read-only board/task snapshot]
-  ReadOnly --> RefuseWrites[Refuse writes/comments/archive/agent actions]
+  BoardGate -- yes --> BoardWork[Create, move, update, comment, or decision-link tasks]
+  BoardWork --> Audit[Authorize and audit before provider mutation]
+  Audit --> Result[Return support-safe result]
 ```
 
 ## Flow 1: Sign-in and workspace shell boot
@@ -48,10 +49,10 @@ flowchart TD
 ```
 
 Acceptance evidence:
-- `weave/acceptance/live_stack_app.feature` scenario `@weave-live-auth-shell`.
-- `weave/acceptance/scenario_mappings.json` maps the scenario to `AUTH_RESULT` and `PROFILE_RESULT`.
-- `weave/integration_test/live_stack_app_e2e_test.dart` prints the mapped markers and verifies profile load/update/reload/restore.
-- `weave/test/live_stack_feature_mapping_test.dart` prevents the readable scenario from drifting away from executable evidence.
+- `e2e/features/live_stack_app.feature` scenario `@weave-live-auth-shell`.
+- `e2e/scenario_mappings.json` maps the scenario to `AUTH_RESULT` and `PROFILE_RESULT`.
+- `client/integration_test/live_stack_app_e2e_test.dart` prints the mapped markers and verifies profile load/update/reload/restore.
+- `client/test/live_stack_feature_mapping_test.dart` prevents the readable scenario from drifting away from executable evidence.
 
 ## Flow 2: Workspace/team/channel and Context/Space selection
 
@@ -134,31 +135,30 @@ flowchart TD
 Acceptance evidence:
 - `@weave-live-calendar-threadrefs` maps to the live Flutter E2E and checks create/read/update/delete plus stable thread reference.
 
-## Flow 6: Boards/OpenProject read-only provider path and write refusal gates
+## Flow 6: Boards user writes, authorization, and audit gates
 
-Purpose: keep OpenProject behind the Weave backend facade, read-only first, context-scoped, and support-safe.
+Purpose: keep board work as a Weave product surface while provider engines stay behind backend facades, authorization, audit, support-safe errors, and non-drag accessibility paths.
 
 ```mermaid
 flowchart TD
-  Boards[Open Boards] --> Preview[GET Weave Boards preview]
-  Preview --> ProviderGate{OpenProject runtime configured?}
+  Boards[Open Boards] --> Facade[Call Weave Boards facade]
+  Facade --> ProviderGate{Boards runtime configured?}
   ProviderGate -- no --> Disabled[503/support-safe provider unavailable]
-  ProviderGate -- yes --> ContextGate{Context/Space read allowed?}
+  ProviderGate -- yes --> ContextGate{Context/Space permits board work?}
   ContextGate -- no --> Forbidden[Support-safe forbidden; no provider contact]
-  ContextGate -- yes --> ReadSync[Read OpenProject projects/statuses/work packages]
-  ReadSync --> Normalize[Map to Weave provider-neutral boards/tasks]
-  Normalize --> Metadata[Return support-safe sync metadata/cursors]
-  Metadata --> WriteAttempt{Write/comment/archive/agent action?}
-  WriteAttempt -- yes --> Refused[Refused until audit + consent promotion]
-  WriteAttempt -- no --> ReadOnly[Read-only snapshot]
+  ContextGate -- yes --> TaskAction[Create, move, update, comment, or decision-link task]
+  TaskAction --> AuditGate{Audit event can be written?}
+  AuditGate -- no --> FailClosed[Fail closed before provider mutation]
+  AuditGate -- yes --> ProviderMutation[Mutate provider through backend-held credentials]
+  ProviderMutation --> Result[Return provider-neutral task result]
 ```
 
 Acceptance evidence:
-- `weave-backend/src/test/resources/features/openproject-boards-readonly.feature` is executed by the real Cucumber/JUnit suite.
-- `weave-infra/acceptance/openproject_boards_live_stack.feature` maps the same live-stack boundaries to `weave-workspace/openproject-boards-live-e2e.sh`.
-- `weave/acceptance/live_stack_app.feature` keeps app-facing Boards preview/non-drag task behavior mapped to the Flutter E2E.
+- `e2e/features/v0_1_dogfood_release.feature` maps the release requirement to `V01_BOARD_WRITE_AUDIT`.
+- Existing OpenProject backend and infra checks remain lower-level provider-boundary evidence; they must not be presented as the v0.1 user-write release surface until the write/audit facade is implemented.
+- App-facing non-drag board behavior remains mapped to Flutter evidence so the release path does not depend on drag-and-drop.
 
-Out of scope until a later audited promotion: provider writes, comments, attachments, archive, team/agent actions, broad background automation, and raw OpenProject UI as Weave product UX.
+Out of scope for v0.1: team/agent board actions, broad background automation, and raw OpenProject UI as Weave product UX.
 
 ## Flow 7: Support/operator diagnostics and redaction
 
@@ -178,7 +178,7 @@ flowchart TD
 ```
 
 Acceptance evidence:
-- `weave-infra/acceptance/operator_support_safety.feature` maps to support-bundle redaction, operator checks, and teardown guard scripts.
+- `infra/weave-workspace/tests/*-test.sh` maps support-bundle redaction, operator checks, restore smoke, and teardown guard behavior to deterministic CI evidence.
 - Manual full-stack smoke remains manually dispatched because it has storage/power cost and live-state implications.
 
 ## Explicit non-product labels
@@ -191,11 +191,12 @@ Acceptance evidence:
 
 | Product area | Readable scenario file | Executable or deterministic gate | Why it is relevant |
 | --- | --- | --- | --- |
-| Sign-in / shell / profile | `weave/acceptance/live_stack_app.feature` | Flutter live E2E + `test/live_stack_feature_mapping_test.dart` | One login must restore Weave and `/api/me`/profile facade identity. |
-| Matrix chat / E2EE | `weave/acceptance/live_stack_app.feature` + `weave/acceptance/scenario_mappings.json` | Flutter live E2E encrypted wire/timeline proof + acceptance artifact | E2EE posture must be truthful, not decorative. |
-| Files boundary | `weave/acceptance/live_stack_app.feature` + `weave/acceptance/scenario_mappings.json` | Flutter live E2E product files proof + acceptance artifact | Files must be Weave product UX, not raw provider UI. |
-| Calendar event/thread | `weave/acceptance/live_stack_app.feature` | Flutter live E2E calendar CRUD + thread reference proof | Channel scheduling needs stable context and future meeting/chat linkage. |
-| Boards app preview | `weave/acceptance/live_stack_app.feature` | Flutter live E2E Boards preview/non-drag operation proof | Boards need accessible non-drag product behavior. |
-| OpenProject provider | `weave-backend/src/test/resources/features/openproject-boards-readonly.feature` | Backend Cucumber/JUnit acceptance suite | Provider runtime must be read-only, context-scoped, support-safe, and fail-closed. |
-| OpenProject live infra | `weave-infra/acceptance/openproject_boards_live_stack.feature` | `openproject-boards-live-e2e.sh` + mapping guard | Live API path is runnable without promoting raw OpenProject UX. |
-| Operator/support safety | `weave-infra/acceptance/operator_support_safety.feature` | support-bundle, operator-check, teardown guard tests | Diagnostics and reset paths must stay safe by default. |
+| Sign-in / shell / profile | `e2e/features/live_stack_app.feature` | Flutter live E2E + `test/live_stack_feature_mapping_test.dart` | One login must restore Weave and `/api/me`/profile facade identity. |
+| Matrix chat / E2EE | `e2e/features/live_stack_app.feature` + `e2e/scenario_mappings.json` | Flutter live E2E encrypted wire/timeline proof + acceptance artifact | E2EE posture must be truthful, not decorative. |
+| Files boundary | `e2e/features/live_stack_app.feature` + `e2e/scenario_mappings.json` | Flutter live E2E product files proof + acceptance artifact | Files must be Weave product UX, not raw provider UI. |
+| Calendar event/thread | `e2e/features/live_stack_app.feature` | Flutter live E2E calendar CRUD + thread reference proof | Channel scheduling needs stable context and future meeting/chat linkage. |
+| Boards non-drag UX | `e2e/features/live_stack_app.feature` | Flutter live E2E non-drag operation proof | Boards need accessible non-drag product behavior. |
+| Boards provider boundary | `server/src/test/resources/features/openproject-boards-workspace.feature` | Backend Cucumber/JUnit acceptance suite | Provider runtime evidence must stay context-scoped, support-safe, and fail-closed unless user-write/audit promotion is proved. |
+| OpenProject live infra | `infra/weave-workspace/openproject-boards-live-e2e.sh` | live script + mapping guard | Live API path is runnable without promoting raw OpenProject UX. |
+| v0.1 release spine | `e2e/features/v0_1_dogfood_release.feature` | `client/test/release_1/v0_1_release_spine_contract_test.dart` + release plan fragments | Dogfood-production scope must stay mapped before implementation slices land. |
+| Operator/support safety | `infra/weave-workspace/tests/*-test.sh` | support-bundle, operator-check, restore-smoke, teardown guard tests | Diagnostics and reset paths must stay safe by default. |

@@ -1,174 +1,105 @@
-# Weave
+# Weave Monorepo
 
-<p align="center">
-  <img src="assets/images/weave_logo.png" alt="Weave logo: a woven blue and teal product mark" width="320">
-</p>
+Weave is an accessibility-first, self-hostable collaboration workspace for chat, files, shared calendars, boards/tasks, meetings, decisions, and operator health.
 
-<p align="center">
-  <a href="https://github.com/masssi164/weave/actions/workflows/ci.yml"><img src="https://github.com/masssi164/weave/actions/workflows/ci.yml/badge.svg" alt="CI workflow status"></a>
-  <a href="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml"><img src="https://github.com/masssi164/weave/actions/workflows/live-stack-e2e.yml/badge.svg" alt="Live Stack E2E workflow status"></a>
-</p>
+This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, and release metadata as one release unit.
 
-**Accessible collaboration, under your control.**
+## Repository layout
 
-Weave is a self-hosted collaboration workspace for teams that need modern daily work tools without handing their data, identity, or accessibility standards to a closed suite. The Flutter app turns Matrix, Nextcloud, Keycloak, and the Weave backend into one coherent product experience for setup, sign-in, chat, files, readiness, and workspace settings.
+- `client/` — Flutter app, product UI, accessibility checks, and client-side contract tests.
+- `server/` — Spring Boot product API/BFF, provider facades, authorization, audit, support-safe errors, and backend acceptance tests.
+- `infra/` — Docker/OpenTofu operator stack, local and single-host deployment scripts, provider profiles, backup/restore, smoke checks, and support bundles.
+- `e2e/` — product-language Gherkin scenarios, scenario mappings, and sanitized evidence contracts.
+- `docs/` — product architecture, release scope, acceptance flows, roadmap boundaries, and research notes.
+- `release/` — release manifests and stack compatibility metadata.
 
-Weave is not a raw bundle of provider UIs and it is not claiming to be a finished Slack or Microsoft Teams clone. It is an active product-maturity build with honest feature gates: usable surfaces are shown as usable, guarded previews are labelled as guarded, and unsafe provider paths fail closed.
+## v0.1 product truth
 
-## What Weave is for
+v0.1 is a dogfood-production release, not a preview showcase. A surface belongs in the release only when it is useful for daily project work and backed by executable evidence.
 
-- Privacy-sensitive teams, clubs, small organizations, public-sector/NGO/health/education groups, and self-hosters who want one polished front door over open collaboration services.
-- Operators who need repeatable deployment, health checks, readiness states, backups, and support diagnostics without exposing secrets.
-- Users who need an accessible workspace shell with clear recovery states instead of scattered admin/protocol screens.
+Required v0.1 surfaces:
 
-## Product pillars
+- Weave Home for recent work, next actions, and health warnings.
+- Channels as workspaces with accessible tabs for chat, files, boards/tasks, calendar, meetings, and decisions.
+- Files through Weave-owned backend/product routes, not raw provider UX as the normal path.
+- Workspace, team, and channel calendar events through the backend calendar facade.
+- Boards/Tasks as an active Weave workspace facade with explicit user actions, authorization, audit, accessible non-drag task work, and fail-closed runtime gates.
+- Meeting Capsules backed by the LiveKit token facade, with clear provider-secret boundaries.
+- Decision Ledger entries linked to workspace context.
+- Workspace/Admin Health for readiness, degraded states, backups, smoke evidence, and support-bundle status.
+- Deploy, update, backup, restore, rollback, smoke-test, and support-bundle paths for operators.
 
-- **Accessible workspace shell:** setup, sign-in, navigation, settings, recovery states, semantic labels, keyboard/screen-reader-friendly flows, and non-color-only status.
-- **Sovereign collaboration:** Matrix-backed chat and Nextcloud-backed files/calendar foundations, presented through Weave-owned UX instead of raw provider screens.
-- **Backend-owned provider boundary:** Flutter talks to `weave-backend` product APIs. It does not call GitLab, Forgejo, OpenProject, ONLYOFFICE, Collabora, Nextcloud admin APIs, or other provider runtimes directly.
-- **Honest readiness:** provider status, capability snapshots, degraded states, and fail-closed errors are visible without leaking backend actor tokens, provider URLs, raw errors, or secrets.
-- **Operator-grade validation:** offline checks stay cheap for normal PRs; live-stack E2E runs only when the full stack and runner budget are explicitly available.
+Out of v0.1:
 
-## Available now
+- Product agent runtime integration.
+- Autonomous, group, or team-scoped agent writes.
+- Public connector SDK.
+- Teams/Slack migration tooling.
+- Broad SaaS administration beyond safe self-hosting boundaries.
 
-The current app lets contributors evaluate these product surfaces directly:
+## Boards and provider boundary
 
-- guided workspace setup and service endpoint review;
-- OIDC sign-in and persisted server configuration;
-- custom Matrix chat shell with explicit recovery/retry states;
-- backend-facade files browsing and actions;
-- settings/profile/session controls;
-- workspace, Matrix E2EE, and provider-stack readiness views that stay support-safe.
+Boards/Tasks is a Weave product surface. The client talks to the Weave backend facade and must not call OpenProject, Vikunja, Nextcloud Deck, or another task provider directly.
 
-## Guarded previews and non-goals
+The current provider-backed validation path is OpenProject workspace sync:
 
-These areas are active product scope but deliberately gated:
+- OpenProject is the first real provider-backed path for validating workspace-sync behavior.
+- OpenProject is not the visible product UX and is not a direct client dependency.
+- Provider reads remain behind runtime, Context/Space authorization, support-safe metadata, and backend-held tokens.
+- Provider writes remain disabled/fail-closed unless a future promotion proves authorization, user consent, audit publication, support-bundle redaction, and rollback behavior.
+- Local workspace user writes are v0.1 scope when they are explicit, authenticated, authorized, audited, and covered by tests.
 
-- **Shared calendars:** workspace, team, and channel scheduling through backend facades. Private personal calendar ingestion is not a product goal.
-- **Boards/tasks:** provider-neutral Weave UX and backend contracts first. OpenProject is the preferred read-only provider validation path; Vikunja and Deck stay comparison/fallback research until a later contract promotes them.
-- **Meetings/video calls:** LiveKit is the provider contract; join/start remain fail-closed until backend token, media, metadata, and encryption evidence gates are configured and validated.
-- **Matrix E2EE:** active architecture path, not a completed claim. Weave must validate encrypted rooms, device verification, key backup/recovery, multi-device behavior, metadata boundaries, and accessibility before claiming production readiness.
-- **Interop/connectors:** Slack/Teams/connector routes default off and remain backend-owned. No client-side provider shortcuts.
-- **Personal agents/automation:** later roadmap, not README hero scope.
+## Infrastructure and OpenTofu
 
-## Product screenshots
+OpenTofu is the operator tool for Weave infrastructure.
 
-A first look at the active product-maturity experience: guided setup, service review, custom chat, basic files, and workspace settings in one self-hosted product shell. These screenshots are deterministic SVGs generated from checked-in source, so the README stays reviewable and reproducible without turning documentation into image-only content.
+The `infra/` tree still contains Terraform-compatible HCL internals where that naming is part of the ecosystem, such as `terraform {}` blocks, provider lock files, and `TF_VAR_*` environment variables. User-facing workflows, CI, and docs should use OpenTofu language and `tofu` commands unless they are explicitly describing compatibility details.
 
-### Setup and service review
+Infrastructure rules:
 
-[<img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing a guided workspace setup path and canonical local service URLs." width="560">](docs/assets/marketing/01-setup-start.svg)
+- CI uses `opentofu/setup-opentofu` and runs `tofu fmt`/validation-oriented checks.
+- Operator scripts should use `${WEAVE_IAC_BIN:-tofu}` only when an explicit compatibility fallback is needed.
+- State-destructive operations require operator confirmation plus a backup, restore, or rollback path.
+- Support bundles must redact secrets, tokens, raw provider errors, provider URLs, cookies, private keys, and generated credentials.
 
-[<img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review screenshot listing Matrix, files, and backend service URLs before finishing setup." width="560">](docs/assets/marketing/02-review-service-endpoints.svg)
+## Evidence contract
 
-### Daily collaboration
+Gherkin scenarios are product contracts, not decorative documentation.
 
-[<img src="docs/assets/marketing/03-chat-room.svg" alt="Weave chat room screenshot showing the Release Room, message history, and a send message action." width="560">](docs/assets/marketing/03-chat-room.svg)
+For behavior changes:
 
-[<img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files screenshot showing the Documents folder with folders, files, and accessible file actions." width="560">](docs/assets/marketing/04-files-documents.svg)
+1. Write or update the product scenario in `e2e/features/`.
+2. Map it in `e2e/scenario_mappings.json`.
+3. Add executable unit, contract, widget, integration, server, or infra evidence.
+4. Keep live-stack E2E sparse and focused on critical end-to-end contracts.
+5. Store only sanitized evidence artifacts. Never include secrets, tokens, cookies, private keys, raw provider errors, or personal data.
 
-### Workspace settings
+## Common local gates
 
-[<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screenshot showing OIDC issuer, client ID, Nextcloud URL, and account session controls." width="560">](docs/assets/marketing/05-settings.svg)
+Run the smallest meaningful gate for your change:
 
-Regenerate screenshots with `make marketing-screenshots` and review the SVG diff before committing. Additional gated surfaces are documented in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md) so the main showcase does not overclaim unfinished product areas.
-
-## Cross-repo architecture
-
-Weave is developed across three repositories:
-
-- [`weave`](https://github.com/masssi164/weave): Flutter client, app shell, accessibility, chat/files/settings UX, provider-readiness presentation, and app tests.
-- [`weave-backend`](https://github.com/masssi164/weave-backend): Spring Boot product API/BFF, JWT validation, profile/files/calendar/provider facades, readiness, support-safe errors, and backend contracts.
-- [`weave-infra`](https://github.com/masssi164/weave-infra): Docker/Terraform stack, Caddy routing, Keycloak, Matrix/Synapse/MAS, Nextcloud, optional provider runtimes, backups, smoke checks, and live E2E environment.
-
-Responsibility split:
-
-- Keycloak owns identity.
-- Matrix owns chat protocol and Matrix-native auth/E2EE foundations.
-- Nextcloud owns files/calendar storage foundations.
-- Weave backend owns product APIs, readiness, server-side facades, secret boundaries, error envelopes, audit/consent seams, and provider gating.
-- Weave Flutter owns the daily product experience and must stay on backend-owned product contracts.
-- Caddy and infrastructure own routing, TLS, deployment, smoke checks, backups, restore smoke, and support diagnostics.
-
-For details, see:
-
-- [Flutter architecture](docs/architecture.md)
-- [Developer handbook](docs/developer-handbook.md)
-- [Quality and acceptance evidence](docs/quality-and-evidence.md)
-- [Acceptance contracts](docs/acceptance-contracts.md)
-- [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md)
-
-## Local development
-
-```sh
-flutter pub get
-flutter run
+```bash
+make acceptance-contract
+make client-ci
+make server-ci
+make infra-static
+make ci
 ```
 
-Full lightweight validation:
+Use these defaults:
 
-```sh
-flutter pub get
-flutter gen-l10n
-dart run build_runner build --delete-conflicting-outputs
-dart format --output=none --set-exit-if-changed .
-flutter analyze --fatal-infos
-flutter test
-make offline-contract-test
-```
+- `make acceptance-contract` for Gherkin or scenario mapping changes.
+- `make client-ci` for Flutter/client changes.
+- `make server-ci` for backend/provider changes.
+- `make infra-static` for infrastructure, operator scripts, and OpenTofu-facing changes.
+- `make ci` when a change crosses product-stack boundaries.
 
-## Live stack and E2E
+Live-stack E2E is intentionally opt-in. Run it only with explicit runner power/storage budget and sanitized evidence handling.
 
-Use [`weave-infra`](https://github.com/masssi164/weave-infra) when a change needs real Keycloak, Matrix, Nextcloud, backend, or provider-stack evidence.
+## Working agreements
 
-Default local stack flow:
-
-```sh
-cd ../weave-infra/weave-workspace
-TF_VAR_create_test_user=true ./install.sh
-cd ../../weave
-make integration-test
-```
-
-The local stack writes reusable test settings to `weave-infra/weave-workspace/.generated/bootstrap.env`. Override the path when using another checkout:
-
-```sh
-WEAVE_BOOTSTRAP_ENV=../weave-infra/weave-workspace/.generated/bootstrap.env make integration-test
-```
-
-Useful targets:
-
-- `make offline-contract-test`: automatic no-network contract gate.
-- `make integration-contract-test`: live-stack contract check requiring real test credentials.
-- `make integration-app-e2e` / `make integration-test`: expensive app-level live E2E targets for manual runs.
-- `make marketing-screenshots`: regenerate README/roadmap SVG assets.
-
-The GitHub Actions live-stack path runs on a dedicated self-hosted macOS ARM64 runner and is manual-only. Dispatch requires confirmation that the runner has enough power, storage, and maintenance budget.
-
-## Accessibility baseline
-
-Accessibility is a release gate, not polish:
-
-- interactive targets are at least `48x48` logical pixels;
-- icon-only actions expose semantic labels;
-- complex layouts keep predictable reading order;
-- setup, sign-in, shell navigation, chat, files, settings, readiness, and error states remain screen-reader friendly;
-- status is never conveyed by color alone;
-- user-facing failures are plain-language and actionable.
-
-## Code layout
-
-```text
-lib/
-├── core/             # bootstrap, failure model, persistence, router, theme, shared widgets
-├── integrations/     # reusable backend/platform boundaries
-└── features/         # auth, chat, files, calendar, onboarding, settings, app shell
-```
-
-Inside each feature:
-
-- `presentation/`: screens, widgets, and Riverpod UI state.
-- `domain/`: entities and repository contracts.
-- `data/`: repositories, persistence adapters, DTOs, and service clients.
-
-Shared integrations follow the same layering under `lib/integrations/<integration>/` when multiple features need one protocol or platform boundary.
+- Keep user-facing documentation honest about what is shipped, gated, disabled, or future work.
+- Prefer accessible headings and bullets over dense tables.
+- Do not promote raw provider screens as Weave product UX.
+- Do not expose provider secrets or service tokens to Flutter, support bundles, app config, or logs.
+- Treat `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `release/` changes as one coherent product story.

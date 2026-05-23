@@ -8,7 +8,7 @@ Scope: future Weave tasks/boards module, provider research, accessibility baseli
 
 Weave should define its own accessibility-first Tasks/Boards product model and UI, then connect external engines through provider adapters. The product surface must not be named or shaped around a single upstream tool such as Nextcloud Deck.
 
-Boards/tasks are active Weave scope behind reviewed feature flags. Existing Deck/boards code is active-preview scaffolding until backend facade, provider, accessibility, and E2E gates promote it into normal navigation.
+Boards/tasks are active Weave scope behind reviewed feature flags. Existing Deck/boards code is gated workspace scaffolding until backend facade, provider, accessibility, and E2E gates promote it into normal navigation.
 
 ## Rationale
 

@@ -1,6 +1,6 @@
 # Boards Provider Spikes: Vikunja, OpenProject, Nextcloud Deck
 
-Status: active-preview spike artifacts
+Status: spike artifacts informing the v0.1 Boards workspace provider boundary
 Date: 2026-05-14
 Scope: issues [#119](https://github.com/masssi164/weave/issues/119), [#120](https://github.com/masssi164/weave/issues/120), and [#121](https://github.com/masssi164/weave/issues/121)
 
@@ -20,7 +20,7 @@ These spikes keep the existing provider-neutral domain contract and add three co
 
 - Every adapter declares a machine-readable capability matrix before Flutter can expose provider-specific states.
 - Provider vocabulary is normalized at the adapter boundary: `project`, `board`, `column/list/status`, `task/card`, `label`, `comment/activity`, `attachment/link`, and `provider_sync_metadata`.
-- Flutter may keep feature-gated preview fixtures, but provider auth, pagination, sync cursors, webhook validation, export/import, and support-safe error translation belong behind a backend or connector adapter.
+- Flutter may keep provider-neutral workspace fixtures, but provider auth, pagination, sync cursors, webhook validation, export/import, and support-safe error translation belong behind a backend or connector adapter.
 
 Minimum capability keys are enforced by `test/architecture/boards_provider_capability_matrix_contract_test.dart`:
 
@@ -76,7 +76,7 @@ Minimum capability keys are enforced by `test/architecture/boards_provider_capab
 
 ### Recommendation
 
-Vikunja remains the first implementation candidate for a real provider adapter, but only behind a backend/connector boundary. Safe Flutter work before that is limited to provider-neutral preview fixtures, capability labels, and tests.
+Vikunja remains the first implementation candidate for a real provider adapter, but only behind a backend/connector boundary. Safe Flutter work before that is limited to provider-neutral workspace fixtures, capability labels, and tests.
 
 ## #120 OpenProject accessibility benchmark
 

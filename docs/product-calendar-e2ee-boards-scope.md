@@ -1,6 +1,6 @@
 # Product scope: calendar hierarchy, Matrix E2EE, and Boards
 
-Weave is past the old current release gate-only framing. The active product track is a self-hosted, accessibility-first collaboration workspace with chat, files, shared workspace shared calendars, Matrix E2EE, and Boards/Tasks behind clear product gates.
+Weave is on the active v0.1 dogfood-production track. The active product track is a self-hosted, accessibility-first collaboration workspace with chat, files, shared workspace shared calendars, Matrix E2EE, and Boards/Tasks behind clear product gates.
 
 This document is binding product direction for the Flutter client. Backend and infra work should keep their own contracts aligned with these scopes.
 
@@ -67,7 +67,7 @@ Product requirements:
 - The UI must be usable without drag-and-drop: move menus, keyboard focus, screen-reader summaries, and deterministic ordering are required.
 - Flutter talks to the Weave backend facade, not directly to Vikunja, Deck, OpenProject, or another provider.
 - Provider adapters may later map Vikunja, Nextcloud Deck, OpenProject, or imports into the Weave model, but no provider defines the product UX.
-- Preview/facade states must clearly say when no live provider is connected.
+- Gated/facade states must clearly say when no live provider is connected.
 
 ## Validation expectations
 

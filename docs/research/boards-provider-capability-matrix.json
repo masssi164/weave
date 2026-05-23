@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "active-preview-spike-contract",
+  "status": "v0.1-workspace-spike-contract",
   "date": "2026-05-14",
   "adapter_contract": {
     "required_domain_concepts": [
@@ -48,7 +48,7 @@
       "not_applicable",
       "benchmark"
     ],
-    "flutter_boundary": "Flutter may consume provider-neutral DTOs, capability flags, and feature-gated preview fixtures only; provider auth, pagination, sync, and error translation belong behind a backend or connector adapter."
+    "flutter_boundary": "Flutter may consume provider-neutral DTOs, capability flags, and provider-neutral workspace fixtures only; provider auth, pagination, sync, and error translation belong behind a backend or connector adapter."
   },
   "providers": [
     {

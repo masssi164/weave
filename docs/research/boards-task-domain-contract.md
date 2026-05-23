@@ -28,10 +28,10 @@ This work is active Weave scope behind feature gates. It must stay disabled or h
 
 | Area | Owner | Notes |
 | --- | --- | --- |
-| Product UX, accessibility behavior, local UI state | `weave` | Presentation consumes provider-neutral repositories/entities only. |
-| Product API, provider adapter orchestration, normalized events | `weave-backend` or later connector/event gateway | Backend is the default BFF boundary when the module becomes real. A sidecar/event gateway may be introduced only by a later cross-repo spec. |
-| Provider deployment and secrets | `weave-infra` | Any Vikunja/OpenProject/Deck runtime must be documented, optional, and off by default until promoted. |
-| Cross-repo contract | workspace `specs/` | This repo-local planning note should be mirrored into a binding workspace spec before implementation begins. |
+| Product UX, accessibility behavior, local UI state | `client/` | Presentation consumes provider-neutral repositories/entities only. |
+| Product API, provider adapter orchestration, normalized events | `server/` or later connector/event gateway | Backend is the default BFF boundary when the module becomes real. A sidecar/event gateway may be introduced only by a later monorepo ADR. |
+| Provider deployment and secrets | `infra/` | Any Vikunja/OpenProject/Deck runtime must be documented, optional, and off by default until promoted. |
+| Product contract | `e2e/`, `server/`, `infra/`, and `docs/` | The provider-neutral contract must be changed atomically with executable evidence before implementation is promoted. |
 
 ## Provider-neutral domain model
 
@@ -125,7 +125,7 @@ Initial event types:
 
 Event handling must document ordering, idempotency, redaction/privacy, replay behavior, and conflict resolution before powering notifications or recent activity.
 
-Implementation seed: `lib/features/boards/domain/entities/board_activity_event.dart` and the board activity normalizers under `lib/features/boards/data/services/` define the app-layer provider-neutral envelope and sample mappers for static preview fixtures plus external-provider-shaped events. They are deliberately active-preview scaffolding and do **not** claim a live Vikunja, OpenProject, Deck, or gateway integration.
+Implementation seed: `lib/features/boards/domain/entities/board_activity_event.dart` and the board activity normalizers under `lib/features/boards/data/services/` define the app-layer provider-neutral envelope and sample mappers for static workspace fixtures plus external-provider-shaped events. They are deliberately gated workspace scaffolding and do **not** claim a live Vikunja, OpenProject, Deck, or gateway integration.
 
 ## Spike sequencing
 
@@ -137,7 +137,7 @@ Implementation seed: `lib/features/boards/domain/entities/board_activity_event.d
 
 ## Acceptance criteria before implementation
 
-- A binding workspace spec exists for tasks/boards and references the active-preview boundary.
+- A binding workspace spec exists for tasks/boards and references the gated workspace boundary.
 - Provider spikes map their findings to the Weave concepts in this document.
 - Flutter presentation models and tests use provider-neutral names.
 - Backend/API contracts include capability discovery, support-safe errors, pagination, sync metadata, and normalized events.
