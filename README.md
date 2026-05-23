@@ -1,8 +1,46 @@
 # Weave Monorepo
 
+<p align="center">
+  <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
+</p>
+
 Weave is an accessibility-first, self-hostable collaboration workspace for chat, files, shared calendars, boards/tasks, meetings, decisions, and operator health.
 
 This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, and release metadata as one release unit.
+
+## Product screenshots
+
+These deterministic screenshots use checked-in Weave assets. They show Weave-owned surfaces that are suitable for the README showcase: admin-provisioned setup, service endpoint review, custom chat, files, and settings/readiness. They are not a promise that roadmap or guarded provider surfaces are shipped; those stay separated in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md).
+
+### Admin-provisioned setup
+
+[<img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen inviting an admin to configure a self-hosted workspace." width="680">](docs/assets/marketing/01-setup-start.svg)
+
+Setup starts from an admin/operator path so normal users are not asked to understand raw provider wiring.
+
+### Service endpoint review
+
+[<img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup review screen listing canonical local service endpoints before finishing configuration." width="680">](docs/assets/marketing/02-review-service-endpoints.svg)
+
+Endpoint review keeps canonical auth, API, Matrix, files, and calendar surfaces explicit before the workspace is used.
+
+### Custom Weave chat
+
+[<img src="docs/assets/marketing/03-chat-room.svg" alt="Custom Weave chat room showing a release room conversation and accessible message composer." width="680">](docs/assets/marketing/03-chat-room.svg)
+
+Chat is a Weave product experience backed by Matrix; raw Matrix administration is not the normal user path.
+
+### Weave files through the backend facade
+
+[<img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files screen listing folders and files through the backend files facade." width="680">](docs/assets/marketing/04-files-documents.svg)
+
+Files use Weave-owned product routes and backend facades instead of promoting raw Nextcloud as the everyday UX.
+
+### Settings and readiness
+
+[<img src="docs/assets/marketing/05-settings.svg" alt="Weave settings screen showing saved local service configuration and sign-out controls." width="680">](docs/assets/marketing/05-settings.svg)
+
+Settings and readiness surfaces should explain configured, disabled, degraded, or unsupported modules without exposing secrets or raw provider errors.
 
 ## Repository layout
 
@@ -15,7 +53,7 @@ This repository is the single source of truth for the product stack. Treat clien
 
 ## v0.1 product truth
 
-v0.1 is a dogfood-production release, not a preview showcase. A surface belongs in the release only when it is useful for daily project work and backed by executable evidence.
+v0.1 is a dogfood-production release, not a preview showcase. A surface belongs in the release only when it is useful for daily project work and backed by executable evidence. Preview-only or guarded surfaces stay fail-closed and out of the normal user UX until their product contract is promoted.
 
 Required v0.1 surfaces:
 
