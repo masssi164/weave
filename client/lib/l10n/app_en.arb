@@ -3417,7 +3417,7 @@
   "@agentCapabilityPolicyAskAdminHint": {
     "description": "Hint for non-admin users"
   },
-  "agentCapabilityPolicyAdminStateHint": "Current state: off by default. Future controls will require owner/admin review before users can start an agent.",
+  "agentCapabilityPolicyAdminStateHint": "Current state: disabled by policy. Owner/admin review is required before users can start an agent.",
   "@agentCapabilityPolicyAdminStateHint": {
     "description": "Admin state hint for disabled agent capabilities"
   },

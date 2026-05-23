@@ -836,7 +836,7 @@
   "@agentCapabilityPolicyAskAdminHint": {
     "description": "Hint for non-admin users"
   },
-  "agentCapabilityPolicyAdminStateHint": "Aktueller Zustand: standardmäßig aus. Künftige Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.",
+  "agentCapabilityPolicyAdminStateHint": "Aktueller Zustand: durch Policy deaktiviert. Owner-/Admin-Prüfung ist erforderlich, bevor Nutzer einen Agenten starten können.",
   "@agentCapabilityPolicyAdminStateHint": {
     "description": "Admin state hint for disabled agent capabilities"
   },

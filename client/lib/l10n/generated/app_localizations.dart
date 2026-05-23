@@ -4753,7 +4753,7 @@ abstract class AppLocalizations {
   /// Admin state hint for disabled agent capabilities
   ///
   /// In en, this message translates to:
-  /// **'Current state: off by default. Future controls will require owner/admin review before users can start an agent.'**
+  /// **'Current state: disabled by policy. Owner/admin review is required before users can start an agent.'**
   String get agentCapabilityPolicyAdminStateHint;
 
   /// Agent capability title for personal assistant

@@ -2879,7 +2879,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminStateHint =>
-      'Aktueller Zustand: standardmäßig aus. Künftige Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.';
+      'Aktueller Zustand: durch Policy deaktiviert. Owner-/Admin-Prüfung ist erforderlich, bevor Nutzer einen Agenten starten können.';
 
   @override
   String get agentCapabilityPersonalAssistantTitle => 'Persönlicher Assistent';

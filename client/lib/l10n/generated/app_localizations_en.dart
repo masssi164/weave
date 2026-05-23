@@ -2837,7 +2837,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminStateHint =>
-      'Current state: off by default. Future controls will require owner/admin review before users can start an agent.';
+      'Current state: disabled by policy. Owner/admin review is required before users can start an agent.';
 
   @override
   String get agentCapabilityPersonalAssistantTitle => 'Personal assistant';
