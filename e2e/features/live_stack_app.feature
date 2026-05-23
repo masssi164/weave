@@ -36,6 +36,14 @@ Feature: Live Stack product acceptance journey
     And downloading the file returns the original content
     And the test removes the file it created
 
+  @weave-live-provider-stack-readiness
+  Scenario: Provider stack readiness stays backend-owned and support-safe
+    Given the signed-in person has optional providers represented by Weave
+    When the app reads provider stack readiness
+    Then provider readiness is exposed only through backend-owned facades
+    And optional provider modules fail closed until configured
+    And no provider secrets or direct Flutter provider calls are exposed
+
   @weave-live-calendar-threadrefs
   Scenario: Channel calendar events keep their meeting thread reference
     Given workspace, team, and channel calendar scopes are available in Weave

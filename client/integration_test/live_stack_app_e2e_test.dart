@@ -192,6 +192,98 @@ void main() {
         'accessTokenPresent=${restoredSession?.accessToken.isNotEmpty ?? false}',
       );
 
+      final providerHttpClient = createTrustedTestHttpClient();
+      addTearDown(providerHttpClient.close);
+      final providerStatus = _decodeHttpJson(
+        await providerHttpClient.get(
+          config.apiUri('/api/providers/status'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+          },
+        ),
+        operation: 'read provider stack readiness',
+      );
+      final providerReadiness = _jsonListOfMaps(providerStatus['providers']);
+      final providerModules = providerReadiness
+          .map((provider) => _jsonString(provider['module']))
+          .toSet();
+      const requiredProviderModules = <String>{
+        'identity-realm',
+        'matrix',
+        'matrix-auth',
+        'files',
+        'office',
+        'calendar',
+        'contacts',
+        'forms',
+        'boards',
+        'meetings',
+        'source-control',
+        'issue-tracker',
+        'ci',
+        'release',
+      };
+      const failClosedModules = <String>{
+        'office',
+        'contacts',
+        'forms',
+        'source-control',
+        'issue-tracker',
+        'ci',
+        'release',
+      };
+      final providerRegistryVisible =
+          providerStatus['backendOwnedFacades'] == true &&
+          providerStatus['flutterDirectProviderCallsAllowed'] == false &&
+          providerStatus['supportSafe'] == true &&
+          providerModules.containsAll(requiredProviderModules);
+      final optionalProvidersFailClosed = providerReadiness
+          .where(
+            (provider) =>
+                failClosedModules.contains(_jsonString(provider['module'])),
+          )
+          .every(
+            (provider) =>
+                provider['enabled'] == false &&
+                provider['configured'] == false &&
+                provider['failClosed'] == true &&
+                provider['supportSafe'] == true,
+          );
+      final providerSecretsExposed = RegExp(
+        r'(Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/)',
+        caseSensitive: false,
+      ).hasMatch(jsonEncode(providerStatus));
+      final profileReadiness = _decodeHttpJson(
+        await providerHttpClient.get(
+          config.apiUri('/api/profile/readiness'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+          },
+        ),
+        operation: 'read profile readiness',
+      );
+      final profileReadinessOk =
+          profileReadiness['contractId'] == 'CEFACADE' &&
+          profileReadiness['endpoint'] == '/profile/readiness' &&
+          profileReadiness['backendOwnedFacade'] == true &&
+          profileReadiness['directProviderCallsAllowed'] == false &&
+          profileReadiness['supportSafe'] == true;
+      // ignore: avoid_print
+      print(
+        'PROVIDER_STACK_RESULT releaseStatus=${providerStatus['releaseStatus']} '
+        'providers=${providerReadiness.length} '
+        'modules=${providerModules.join(',')} '
+        'registryVisible=$providerRegistryVisible '
+        'optionalProvidersFailClosed=$optionalProvidersFailClosed '
+        'directFlutterProviderCallsAllowed=${providerStatus['flutterDirectProviderCallsAllowed']} '
+        'providerSecretsExposed=$providerSecretsExposed '
+        'profileReadinessContract=${profileReadiness['contractId']} '
+        'profileReadinessEndpoint=${profileReadiness['endpoint']} '
+        'profileReadinessOk=$profileReadinessOk',
+      );
+
       final profileRepository = container.read(userProfileRepositoryProvider);
       final originalProfile = await profileRepository.loadProfile();
       if (originalProfile == null) {
@@ -762,6 +854,10 @@ void main() {
           !calendarUpdatedThreadRefReady ||
           !calendarMeetingThreadStable ||
           !calendarDeleted ||
+          !providerRegistryVisible ||
+          !optionalProvidersFailClosed ||
+          providerSecretsExposed ||
+          !profileReadinessOk ||
           !boardsProviderNeutral ||
           !boardsNonDragMutationWorked) {
         fail(
@@ -801,6 +897,10 @@ void main() {
           'calendarMeetingThreadId=${readCreatedEvent.threadRef.meetingThreadId} '
           'calendarDeleted=$calendarDeleted '
           'calendarEventId=${createdEvent.id} '
+          'providerRegistryVisible=$providerRegistryVisible '
+          'optionalProvidersFailClosed=$optionalProvidersFailClosed '
+          'providerSecretsExposed=$providerSecretsExposed '
+          'profileReadinessOk=$profileReadinessOk '
           'boardsProviderNeutral=$boardsProviderNeutral '
           'boardsNonDragMutationWorked=$boardsNonDragMutationWorked '
           'boardsTaskId=$taskId',
@@ -826,6 +926,10 @@ void main() {
       expect(calendarUpdatedThreadRefReady, isTrue);
       expect(calendarMeetingThreadStable, isTrue);
       expect(calendarDeleted, isTrue);
+      expect(providerRegistryVisible, isTrue);
+      expect(optionalProvidersFailClosed, isTrue);
+      expect(providerSecretsExposed, isFalse);
+      expect(profileReadinessOk, isTrue);
       expect(boardsProviderNeutral, isTrue);
       expect(boardsNonDragMutationWorked, isTrue);
     },
