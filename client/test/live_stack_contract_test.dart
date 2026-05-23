@@ -91,14 +91,15 @@ void main() {
     });
 
     test('provider stack readiness stays behind the Weave backend facade', () {
-      expect(
-        liveConfig.apiUri('/api/providers/status').toString(),
-        'https://api.weave.local/api/providers/status',
-      );
-      expect(
-        liveConfig.apiUri('/api/profile/readiness').toString(),
-        'https://api.weave.local/api/profile/readiness',
-      );
+      final providerStatusUri = liveConfig.apiUri('/api/providers/status');
+      final profileReadinessUri = liveConfig.apiUri('/api/profile/readiness');
+
+      expect(providerStatusUri.host, liveConfig.backendApiBaseUrl.host);
+      expect(providerStatusUri.port, liveConfig.backendApiBaseUrl.port);
+      expect(providerStatusUri.path, '/api/providers/status');
+      expect(profileReadinessUri.host, liveConfig.backendApiBaseUrl.host);
+      expect(profileReadinessUri.port, liveConfig.backendApiBaseUrl.port);
+      expect(profileReadinessUri.path, '/api/profile/readiness');
     });
 
     test(
