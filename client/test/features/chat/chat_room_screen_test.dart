@@ -132,28 +132,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Channel files'), findsOneWidget);
     expect(find.text('Available'), findsOneWidget);
-    expect(
-      find.text('Provider seam: weave-files-channel-link'),
-      findsOneWidget,
-    );
 
     await tester.tap(find.text('Boards'));
     await tester.pumpAndSettle();
     expect(find.text('Channel boards and tasks'), findsOneWidget);
     expect(find.text('Admin setup required'), findsOneWidget);
-    expect(
-      find.text('Provider seam: weave-boards-channel-link'),
-      findsOneWidget,
-    );
 
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
     expect(find.text('Channel calendar'), findsOneWidget);
     expect(find.text('Gated by capability'), findsOneWidget);
-    expect(
-      find.text('Provider seam: weave-calendar-channel-scope'),
-      findsOneWidget,
-    );
 
     await tester.tap(find.text('Meetings'));
     await tester.pumpAndSettle();
@@ -169,10 +157,7 @@ void main() {
     expect(find.text('Agenda'), findsOneWidget);
     expect(find.text('Follow-up evidence'), findsOneWidget);
     expect(find.text('Recording and transcription off'), findsOneWidget);
-    expect(
-      find.text('Provider seam: livekit-meetings-channel-gate'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Provider seam:'), findsNothing);
     expect(
       tester
           .widget<FilledButton>(

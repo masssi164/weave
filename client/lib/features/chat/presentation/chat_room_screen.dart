@@ -827,7 +827,6 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
       title,
       status,
       body,
-      l10n.channelWorkspaceProviderContract(surface.providerContractId),
       l10n.channelWorkspaceExplicitContextNote(workspace.channelTitle),
     ].join('. ');
 
@@ -882,14 +881,6 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
                           size: 18,
                         ),
                         label: Text(status),
-                      ),
-                      Chip(
-                        avatar: const Icon(Icons.hub_outlined, size: 18),
-                        label: Text(
-                          l10n.channelWorkspaceProviderContract(
-                            surface.providerContractId,
-                          ),
-                        ),
                       ),
                     ],
                   ),
@@ -1015,7 +1006,6 @@ class _ChannelMeetingsPreviewPanel extends StatelessWidget {
       l10n.channelWorkspaceMeetingsCapabilityBody,
       l10n.channelWorkspaceMeetingsPrivacyBody(workspace.channelTitle),
       l10n.channelWorkspaceMeetingsRecordingOff,
-      l10n.channelWorkspaceProviderContract(meeting.providerContractId),
     ].join('. ');
 
     return Semantics(
@@ -1073,14 +1063,6 @@ class _ChannelMeetingsPreviewPanel extends StatelessWidget {
                           Chip(
                             avatar: const Icon(Icons.lock_outline, size: 18),
                             label: Text(l10n.channelWorkspaceStatusGated),
-                          ),
-                          Chip(
-                            avatar: const Icon(Icons.hub_outlined, size: 18),
-                            label: Text(
-                              l10n.channelWorkspaceProviderContract(
-                                meeting.providerContractId,
-                              ),
-                            ),
                           ),
                           Chip(
                             avatar: const Icon(
