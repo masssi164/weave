@@ -553,15 +553,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsDescription =>
-      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft. Ein Live-Video-Meeting-Backend ist noch nicht angebunden.';
+      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft. LiveKit ist der Medien-Provider-Kontrakt; Beitreten und Starten bleiben gesperrt, bis Backend-Tokens, Medienverschlüsselungsnachweise und Barrierefreiheitsnachweise konfiguriert sind.';
 
   @override
   String get channelWorkspaceMeetingsCapabilityTitle =>
-      'Video- und Verschlüsselungsfähigkeit nicht angebunden';
+      'LiveKit-Bereitschaft ist fail-closed';
 
   @override
   String get channelWorkspaceMeetingsCapabilityBody =>
-      'Beitreten und Starten bleiben deaktiviert, bis Weave einen dokumentierten Meeting-Anbieter und Nachweise für Signaling, Medien, Untertitel, Aufzeichnungen und Metadatengrenzen hat. Diese Vorschau behauptet nicht, dass sichere oder verschlüsselte Anrufe verfügbar sind.';
+      'LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen belegt sind. Matrix bleibt Chat- und E2EE-Substrat; Matrix-Chat-Verschlüsselung deckt LiveKit-Medienanrufe nicht automatisch ab. Diese Vorschau behauptet nicht, dass verschlüsselte LiveKit-Anrufe verfügbar sind.';
 
   @override
   String get channelWorkspaceMeetingsPrivacyTitle =>

@@ -718,10 +718,7 @@ void main() {
                   configured: true,
                   readOnly: false,
                 ),
-                _providerStatus(
-                  module: 'meetings',
-                  providerKey: 'matrix-meetings',
-                ),
+                _providerStatus(module: 'meetings', providerKey: 'livekit'),
                 _providerStatus(
                   module: 'boards',
                   providerKey: 'openproject-primary',

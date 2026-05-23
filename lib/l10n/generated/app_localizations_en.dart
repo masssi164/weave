@@ -550,15 +550,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsDescription =>
-      'Meetings will attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence. No live video meeting backend is connected yet.';
+      'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence. LiveKit is the media provider contract; join and start remain gated until backend tokens, media encryption evidence, and accessibility evidence are configured.';
 
   @override
   String get channelWorkspaceMeetingsCapabilityTitle =>
-      'Video and encryption capability not connected';
+      'LiveKit readiness is fail-closed';
 
   @override
   String get channelWorkspaceMeetingsCapabilityBody =>
-      'Join and start stay disabled until Weave has a documented meeting provider plus evidence for signaling, media, captions, recordings, and metadata boundaries. This preview does not claim secure or encrypted calls are available.';
+      'LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls. This preview does not claim that encrypted LiveKit calls are available.';
 
   @override
   String get channelWorkspaceMeetingsPrivacyTitle =>

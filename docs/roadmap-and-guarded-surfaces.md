@@ -29,6 +29,19 @@ Current evidence and boundaries:
 - Provider auth, pagination, sync, webhook validation, export/import, and error translation belong behind backend or connector adapters.
 - Any provider-specific claim must be tied to a validated runtime and documented capability boundary.
 
+## Meetings / video calls
+
+Classic meetings and video calls are active product scope. LiveKit is the media provider contract, while Matrix remains the chat/E2EE substrate rather than the generic meetings provider. Matrix chat encryption must not be presented as covering LiveKit media calls. The app must keep join/start controls fail-closed until the backend token facade, signaling/media path, metadata boundaries, media-encryption evidence, and accessibility evidence are configured and validated.
+
+[<img src="assets/roadmap/08-livekit-meetings-readiness.svg" alt="Weave LiveKit meetings readiness visual showing LiveKit as provider, backend token facade control, and fail-closed default state." width="560">](assets/roadmap/08-livekit-meetings-readiness.svg)
+
+Current evidence and boundaries:
+
+- Provider status uses `meetings` + `livekit`, not `matrix-meetings`.
+- Flutter must not hold LiveKit API keys, API secrets, room tokens, or credential-bearing join URLs.
+- Support and readiness output may expose booleans such as configured/enabled only, not raw LiveKit URLs, token endpoints, raw provider errors, or secrets.
+- Recording, transcription, captions, metadata retention, and encryption claims require explicit evidence before promotion.
+
 ## Matrix E2EE
 
 Matrix E2EE is active chat architecture scope, not a completed product claim. Weave must not claim chat is end-to-end encrypted until encrypted-room behavior, device verification, key backup/recovery, lost-device handling, multi-device behavior, metadata boundaries, and accessible verification/recovery UX are implemented and validated.

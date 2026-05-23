@@ -157,12 +157,11 @@ void main() {
     await tester.tap(find.text('Meetings'));
     await tester.pumpAndSettle();
     expect(find.text('Channel meeting preview'), findsOneWidget);
+    expect(find.text('LiveKit readiness is fail-closed'), findsOneWidget);
     expect(
-      find.text('Video and encryption capability not connected'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('does not claim secure or encrypted calls'),
+      find.textContaining(
+        'does not claim that encrypted LiveKit calls are available',
+      ),
       findsOneWidget,
     );
     expect(find.text('Context pack for this meeting'), findsOneWidget);
@@ -170,7 +169,7 @@ void main() {
     expect(find.text('Follow-up evidence'), findsOneWidget);
     expect(find.text('Recording and transcription off'), findsOneWidget);
     expect(
-      find.text('Provider seam: weave-meetings-channel-preview'),
+      find.text('Provider seam: livekit-meetings-channel-preview'),
       findsOneWidget,
     );
     expect(

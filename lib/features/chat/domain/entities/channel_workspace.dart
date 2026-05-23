@@ -80,7 +80,7 @@ class ChannelMeetingPreview {
       channelId: conversation.id,
       channelTitle: conversation.title,
       contextId: contextId,
-      providerContractId: 'weave-meetings-channel-preview',
+      providerContractId: 'livekit-meetings-channel-preview',
       contextItems: const [
         ChannelMeetingContextItem(
           kind: ChannelMeetingContextItemKind.agenda,
@@ -192,7 +192,7 @@ class ChannelWorkspacePreview {
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.meetings,
           availability: ChannelWorkspaceSurfaceAvailability.gated,
-          providerContractId: 'weave-meetings-channel-preview',
+          providerContractId: 'livekit-meetings-channel-preview',
           contextId: contextId,
         ),
       ],

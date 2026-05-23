@@ -849,16 +849,34 @@ Map<String, Object?> _safeDiagnostics(Object? value) {
 
   final sanitized = <String, Object?>{};
   for (final entry in value.entries) {
-    if (_containsSensitiveText(entry.key)) {
+    final safeValue = _safeDiagnosticValue(entry.value);
+    if (safeValue == null) {
       continue;
     }
-    final safeValue = _safeDiagnosticValue(entry.value);
-    if (safeValue != null) {
-      sanitized[entry.key] = safeValue;
+    if (_containsSensitiveText(entry.key) &&
+        !_isSafeConfigurationBoolean(entry.key, safeValue)) {
+      continue;
     }
+    sanitized[entry.key] = safeValue;
   }
 
   return Map<String, Object?>.unmodifiable(sanitized);
+}
+
+bool _isSafeConfigurationBoolean(String key, Object value) {
+  if (value is! bool) {
+    return false;
+  }
+  return switch (key.toLowerCase()) {
+    'livekiturlconfigured' ||
+    'apikeyconfigured' ||
+    'apisecretconfigured' ||
+    'tokenendpointconfigured' ||
+    'directcredentialmodeconfigured' ||
+    'tokenendpointmodeconfigured' ||
+    'secretsreturned' => true,
+    _ => false,
+  };
 }
 
 Object? _safeDiagnosticValue(Object? value) {
