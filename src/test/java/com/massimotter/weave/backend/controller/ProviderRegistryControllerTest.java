@@ -67,11 +67,17 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.flutterDirectProviderCallsAllowed").value(false))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providers[*].module", hasItems(
-                        "identity-realm", "files", "office", "calendar", "contacts", "forms", "boards",
-                        "source-control", "ci", "issue-tracker", "release")))
+                        "identity-realm", "files", "office", "calendar", "contacts", "forms", "matrix",
+                        "matrix-auth", "meetings", "boards", "source-control", "ci", "issue-tracker", "release")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].providerKey", hasItems("onlyoffice-community")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'source-control')].providerKey", hasItems("gitlab-ce-foss", "forgejo")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'forms')].diagnostics.dependency", hasItems("weave-backend#104")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'contacts')].providerKey", hasItems("nextcloud-carddav")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].providerKey", hasItems("synapse-homeserver")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].diagnostics.messageBodiesServerReadable", hasItems(false)))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].providerKey", hasItems("matrix-authentication-service")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].diagnostics.upstreamIdentityProvider", hasItems("keycloak")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].providerKey", hasItems("matrix-meetings")))
                 .andExpect(content().string(not(containsString("access_token"))))
                 .andExpect(content().string(not(containsString("Authorization: Bearer"))));
     }

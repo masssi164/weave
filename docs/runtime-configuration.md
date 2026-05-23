@@ -63,7 +63,7 @@ Capability readiness is intentionally conservative:
 
 `GET /api/providers/status` exposes the backend-owned provider registry for app and operator readiness views. It is a product contract, not a raw provider proxy.
 
-The registry currently reports modules such as files, calendar, boards, office, contacts, forms, source control, issue tracking, CI, release, and identity realm. Disabled or unconfigured optional providers must remain support-safe:
+The registry currently reports modules such as files, calendar, boards, office, contacts/CardDAV, forms, Matrix/Synapse, Matrix Authentication Service (MAS), fail-closed meeting/call support, source control, issue tracking, CI, release, and the Keycloak OIDC identity realm. Disabled or unconfigured optional providers must remain support-safe:
 
 - `enabled=false` and `configured=false` when no runtime is configured;
 - `failClosed=true` for unsafe or missing provider paths;

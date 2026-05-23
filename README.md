@@ -11,7 +11,7 @@ It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenPro
 ## What the backend owns
 
 - JWT issuer, audience, client, and `weave:workspace` scope validation.
-- Product APIs for profile, onboarding, workspace capabilities, readiness, files, calendar, office launch, DevOps readiness, and provider-stack status.
+- Product APIs for profile, onboarding, workspace capabilities, readiness, files, calendar, office launch, DevOps readiness, Matrix/MAS policy status, and provider-stack status.
 - Backend-held actors and provider credentials for server-side facades.
 - Support-safe error envelopes, request IDs, redaction, and diagnostics.
 - Feature gates for unsafe or incomplete provider paths.
@@ -38,7 +38,7 @@ Currently implemented or contract-backed surfaces:
 - Files facade backed by Nextcloud when a backend actor is configured; otherwise fail-closed.
 - Calendar facade for workspace/team/channel collections; unsafe private-personal calendar templates fail closed.
 - Secret-free calendar client setup metadata at `GET /api/calendar/client-setup`.
-- Provider stack readiness at `GET /api/providers/status`.
+- Provider stack readiness at `GET /api/providers/status`, including Nextcloud WebDAV/CalDAV/CardDAV/Forms, Keycloak OIDC, Synapse/Matrix, MAS, fail-closed meeting support, and OpenProject readiness seams.
 - DevOps readiness through backend facades; disabled/unconfigured providers expose support-safe, read-only, fail-closed status.
 - Office capabilities/launch through backend facades; launch errors stay support-safe and fail closed.
 - Hidden Boards/Tasks preview and OpenProject read-only validation contracts behind explicit gates.
@@ -53,6 +53,7 @@ The provider stack is backend-owned by design:
 - Diagnostics must not expose raw provider URLs, response bodies, bearer tokens, API tokens, cookies, app passwords, or signing secrets.
 - DevOps provider modules expose no linked projects, repositories, issues, merge requests, pipelines, or releases while disabled.
 - Office launch refuses unsafe states with stable error codes instead of leaking downstream details.
+- Matrix/MAS status stays support-safe: Matrix client protocol remains the direct-client exception, encrypted message bodies are not server-readable, and video-call/meeting support is deferred/fail-closed.
 - Boards/OpenProject stays read-only and hidden until promotion gates pass.
 
 ## Runtime and operations docs

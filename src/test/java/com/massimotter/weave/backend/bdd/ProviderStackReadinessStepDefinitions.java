@@ -139,7 +139,7 @@ public class ProviderStackReadinessStepDefinitions {
         assertThat(lastJson.path("unsupportedOperations").toString()).contains("direct-frontend-keycloak-admin");
     }
 
-    @Then("provider modules include files calendar boards office contacts forms source-control issue-tracker ci release and identity-realm")
+    @Then("provider modules include files calendar boards office contacts forms matrix matrix-auth meetings source-control issue-tracker ci release and identity-realm")
     public void providerModulesIncludeExpectedProviderStackContracts() {
         assertThat(providerModules()).contains(
                 "identity-realm",
@@ -149,24 +149,44 @@ public class ProviderStackReadinessStepDefinitions {
                 "office",
                 "contacts",
                 "forms",
+                "matrix",
+                "matrix-auth",
+                "meetings",
                 "source-control",
                 "issue-tracker",
                 "ci",
                 "release");
     }
 
-    @Then("Identity Forms and Contacts readiness is mapped to dependent backend PRs")
-    public void identityFormsAndContactsReadinessIsMappedToDependentBackendPrs() {
+    @Then("Identity Forms Contacts Matrix MAS and Meetings readiness is support-safe")
+    public void identityFormsContactsMatrixMasAndMeetingsReadinessIsSupportSafe() {
         assertProviderDependencyReference("identity-realm");
         assertProviderDependencyReference("forms");
         assertProviderDependencyReference("contacts");
+
+        JsonNode matrix = providerByModule("matrix");
+        assertThat(matrix.path("providerKey").asText()).isEqualTo("synapse-homeserver");
+        assertThat(matrix.path("unsupportedOperations").toString()).contains("server-readable-e2ee-message-content");
+        assertThat(matrix.at("/diagnostics/directClientProtocolException").asBoolean()).isTrue();
+        assertThat(matrix.at("/diagnostics/messageBodiesServerReadable").asBoolean()).isFalse();
+
+        JsonNode matrixAuth = providerByModule("matrix-auth");
+        assertThat(matrixAuth.path("providerKey").asText()).isEqualTo("matrix-authentication-service");
+        assertThat(matrixAuth.path("unsupportedOperations").toString()).contains("direct-backend-token-login");
+        assertThat(matrixAuth.at("/diagnostics/upstreamIdentityProvider").asText()).isEqualTo("keycloak");
+
+        JsonNode meetings = providerByModule("meetings");
+        assertThat(meetings.path("providerKey").asText()).isEqualTo("matrix-meetings");
+        assertThat(meetings.path("readiness").asText()).isEqualTo("not_configured");
+        assertThat(meetings.path("unsupportedOperations").toString()).contains("video-calls-mvp");
+        assertThat(meetings.at("/diagnostics/mvpScope").asText()).isEqualTo("deferred");
     }
 
     @Then("disabled or unconfigured optional providers fail closed")
     public void disabledOrUnconfiguredOptionalProvidersFailClosed() {
         for (JsonNode provider : iterable(lastJson.path("providers"))) {
             String module = provider.path("module").asText();
-            if (Set.of("identity-realm", "contacts", "forms", "source-control", "issue-tracker", "ci", "release", "office")
+            if (Set.of("identity-realm", "contacts", "forms", "matrix", "matrix-auth", "meetings", "source-control", "issue-tracker", "ci", "release", "office")
                     .contains(module)) {
                 assertThat(provider.path("enabled").asBoolean()).as(module + " enabled").isFalse();
                 assertThat(provider.path("configured").asBoolean()).as(module + " configured").isFalse();

@@ -16,10 +16,10 @@ public class ProviderCoreConfiguration {
     ProviderPort identityRealmProviderRegistrySeam() {
         return StaticProviderPort.pending(
                 ProviderModule.IDENTITY_REALM,
-                "keycloak-realm",
-                "Identity realm provider seam is reserved for the Keycloak dry-run/readiness contract from backend PR #103.",
-                Set.of("realm-readiness", "realm-dry-run", "client-scope-diff", "role-diff"),
-                Set.of("direct-frontend-keycloak-admin", "secret-export", "live-realm-mutation-without-audit"),
+                "keycloak-oidc",
+                "Identity/OIDC provider seam is reserved for Keycloak realm, client, scope, and JWT validation readiness.",
+                Set.of("oidc-issuer-readiness", "backend-jwt-validation", "pkce-client-readiness", "realm-readiness", "realm-dry-run", "client-scope-diff", "role-diff"),
+                Set.of("direct-frontend-keycloak-admin", "secret-export", "live-realm-mutation-without-audit", "provider-token-reuse-as-module-login"),
                 List.of("keycloak"),
                 Map.of("dependency", "weave-backend#103", "compatibleSeam", true));
     }
@@ -52,11 +52,11 @@ public class ProviderCoreConfiguration {
     ProviderPort contactsProviderRegistrySeam() {
         return StaticProviderPort.pending(
                 ProviderModule.CONTACTS,
-                "nextcloud-contacts",
-                "Contacts provider seam is reserved for the Nextcloud Contacts contract from backend PR #104.",
-                Set.of("address-book-list", "contact-search", "contact-read"),
+                "nextcloud-carddav",
+                "Contacts/CardDAV provider seam is reserved for the Nextcloud Contacts/CardDAV contract from backend PR #104.",
+                Set.of("carddav-address-book-list", "carddav-contact-search", "carddav-contact-read"),
                 Set.of("credential-exposure", "direct-flutter-carddav", "raw-vcard-errors"),
-                List.of("nextcloud-contacts"),
+                List.of("nextcloud-carddav", "nextcloud-contacts"),
                 Map.of("dependency", "weave-backend#104", "compatibleSeam", true));
     }
 
@@ -70,6 +70,42 @@ public class ProviderCoreConfiguration {
                 Set.of("raw-provider-errors", "credential-exposure", "direct-flutter-forms-api"),
                 List.of("nextcloud-forms"),
                 Map.of("dependency", "weave-backend#104", "compatibleSeam", true));
+    }
+
+    @Bean
+    ProviderPort matrixProviderRegistrySeam() {
+        return StaticProviderPort.pending(
+                ProviderModule.MATRIX,
+                "synapse-homeserver",
+                "Matrix chat readiness is exposed as backend-owned status/policy while Flutter uses the Matrix client protocol directly.",
+                Set.of("homeserver-discovery", "workspace-room-provisioning-status", "e2ee-status", "support-safe-room-metadata"),
+                Set.of("server-readable-e2ee-message-content", "direct-keycloak-token-reuse-as-matrix-login", "federation-by-default", "agent-room-participation-without-consent"),
+                List.of("synapse"),
+                Map.of("facade", "/api/platform/status", "directClientProtocolException", true, "messageBodiesServerReadable", false));
+    }
+
+    @Bean
+    ProviderPort matrixAuthProviderRegistrySeam() {
+        return StaticProviderPort.pending(
+                ProviderModule.MATRIX_AUTH,
+                "matrix-authentication-service",
+                "MAS readiness is exposed as a fail-closed Matrix auth seam with Keycloak as the upstream OIDC provider.",
+                Set.of("mas-oidc-discovery", "keycloak-upstream-oidc", "matrix-client-sso-readiness"),
+                Set.of("direct-backend-token-login", "separate-matrix-passwords", "mas-admin-secret-export", "raw-oidc-error-exposure"),
+                List.of("matrix-authentication-service", "keycloak"),
+                Map.of("facade", "/api/platform/status", "upstreamIdentityProvider", "keycloak", "compatibleSeam", true));
+    }
+
+    @Bean
+    ProviderPort meetingsProviderRegistrySeam() {
+        return StaticProviderPort.pending(
+                ProviderModule.MEETINGS,
+                "matrix-meetings",
+                "Video-call/meeting provider support is deferred for MVP and fails closed; calendar may expose secret-free meeting context metadata only.",
+                Set.of("calendar-meeting-context-metadata", "meeting-readiness-status"),
+                Set.of("video-calls-mvp", "direct-flutter-call-provider-api", "meeting-credentials-in-calendar-response", "backend-access-to-e2ee-call-content"),
+                List.of("matrix-native-calls", "element-call", "jitsi", "livekit"),
+                Map.of("mvpScope", "deferred", "failClosed", true, "facade", "/api/platform/status"));
     }
 
     @Bean

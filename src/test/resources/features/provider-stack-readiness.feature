@@ -13,8 +13,8 @@ Feature: Provider stack readiness is backend-owned and fail-closed
     And the provider registry is visible through "GET /api/providers/status"
     And backend-owned facades are required
     And direct Flutter provider calls are refused by contract
-    And provider modules include files calendar boards office contacts forms source-control issue-tracker ci release and identity-realm
-    And Identity Forms and Contacts readiness is mapped to dependent backend PRs
+    And provider modules include files calendar boards office contacts forms matrix matrix-auth meetings source-control issue-tracker ci release and identity-realm
+    And Identity Forms Contacts Matrix MAS and Meetings readiness is support-safe
     And disabled or unconfigured optional providers fail closed
     And no provider secrets or raw provider errors are exposed
 
