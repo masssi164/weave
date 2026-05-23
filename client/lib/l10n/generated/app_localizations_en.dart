@@ -538,11 +538,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelWorkspaceFilesDescription =>
-      'Channel files use the Weave files facade so people can browse and attach workspace files without raw provider paths.';
+      'Channel files are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.';
 
   @override
   String get channelWorkspaceBoardsDescription =>
-      'Channel boards require admin setup for the board facade, authorization, and audit before member task writes are enabled.';
+      'Channel boards and tasks are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.';
 
   @override
   String get channelWorkspaceCalendarDescription =>
@@ -550,15 +550,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsDescription =>
-      'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence. LiveKit is the media provider contract; join and start remain gated until backend tokens, media encryption evidence, and accessibility evidence are configured.';
+      'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence after a workspace owner or admin enables the meeting capability.';
 
   @override
   String get channelWorkspaceMeetingsCapabilityTitle =>
-      'LiveKit readiness is fail-closed';
+      'Meeting readiness is fail-closed';
 
   @override
   String get channelWorkspaceMeetingsCapabilityBody =>
-      'LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls.';
+      'Join and start stay disabled until meeting status, media paths, captions, recordings, media encryption, and metadata boundaries have workspace health evidence.';
 
   @override
   String get channelWorkspaceMeetingsPrivacyTitle =>
@@ -604,21 +604,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsBackendUnavailableReason =>
-      'Meeting provider capability is not available yet.';
+      'Meeting capability is not enabled yet.';
 
   @override
   String get channelWorkspaceStatusAvailable => 'Available';
 
   @override
-  String get channelWorkspaceStatusPreview => 'Admin setup required';
-
-  @override
-  String get channelWorkspaceStatusGated => 'Gated by capability';
-
-  @override
-  String channelWorkspaceProviderContract(String contractId) {
-    return 'Provider seam: $contractId';
-  }
+  String get channelWorkspaceStatusGated => 'Unavailable until enabled';
 
   @override
   String channelWorkspaceExplicitContextNote(String channelName) {

@@ -8,16 +8,18 @@ Ship Weave as a daily work tool for a real project, not as a demo stack.
 
 UX release quality is gated by [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md): visible release-scope surfaces use ready/admin-setup-required/disabled/degraded/hidden states, not preview or scaffold wording.
 
-v0.1 must support a complete project loop:
+v0.1 must support a complete project loop after admins/operators provision the workspace:
 
-1. Open Weave Home.
+1. Open Weave Home as a normal member without OIDC/provider/infra setup prompts.
 2. Enter a workspace/channel.
-3. Chat, handle files, plan events, run meetings, move board tasks, and record decisions.
-4. Inspect health/readiness when something is broken.
-5. Deploy, update, backup, restore, and roll back the stack with operator evidence.
+3. Chat, handle files, plan events, run meetings, move board tasks, and record decisions through Weave product concepts.
+4. See only complete capabilities or simple impact/fallback states as a member when something is broken.
+5. Inspect Workspace Health as an admin/operator control plane for setup, readiness, degraded provider state, backup/restore, support bundles, and release evidence.
+6. Deploy, update, backup, restore, and roll back the stack with operator evidence.
 
 ## Non-goals for v0.1
 
+- Asking normal organization members to configure OIDC, provider URLs, realms, service endpoints, backup/restore, or infrastructure readiness.
 - Product agent runtime integration.
 - Autonomous, group, or team-scoped agent writes.
 - Public connector SDK.
@@ -138,7 +140,9 @@ Boards with user writes are release scope, not a demo-only demonstration.
 
 ### Workspace/Admin Health
 
+- Admin-provisioned first-use boundary from [Admin-provisioned first use boundary](admin-provisioned-first-use.md): members must not see provider setup diagnostics, while admins/operators use Workspace Health as the setup/readiness control plane.
 - Auth, Matrix, files, calendar, boards, meetings/LiveKit, E2EE posture, backups, support bundle, and latest smoke/E2E state.
+- Provider readiness is support-safe and admin/operator-facing; member UI shows ready product workflows or impact/fallback states only.
 
 Exit gate:
 

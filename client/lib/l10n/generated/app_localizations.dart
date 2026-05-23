@@ -1013,7 +1013,7 @@ abstract class AppLocalizations {
   /// **'Channel calendar'**
   String get channelWorkspaceCalendarTitle;
 
-  /// Title for the meetings preview surface in a channel workspace
+  /// Title for the meetings surface in a channel workspace
   ///
   /// In en, this message translates to:
   /// **'Channel meetings'**
@@ -1025,16 +1025,16 @@ abstract class AppLocalizations {
   /// **'Messages remain the default live context for this channel.'**
   String get channelWorkspaceChatDescription;
 
-  /// Description for the channel files preview placeholder
+  /// Description for unavailable channel files state
   ///
   /// In en, this message translates to:
-  /// **'Channel files use the Weave files facade so people can browse and attach workspace files without raw provider paths.'**
+  /// **'Channel files are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.'**
   String get channelWorkspaceFilesDescription;
 
-  /// Description for the channel boards/tasks preview placeholder
+  /// Description for unavailable channel boards/tasks state
   ///
   /// In en, this message translates to:
-  /// **'Channel boards require admin setup for the board facade, authorization, and audit before member task writes are enabled.'**
+  /// **'Channel boards and tasks are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.'**
   String get channelWorkspaceBoardsDescription;
 
   /// Description for the gated channel calendar placeholder
@@ -1043,49 +1043,49 @@ abstract class AppLocalizations {
   /// **'Channel events stay gated until calendar scope capability is available for this workspace.'**
   String get channelWorkspaceCalendarDescription;
 
-  /// Description for the gated channel meetings preview placeholder
+  /// Description for unavailable channel meetings state
   ///
   /// In en, this message translates to:
-  /// **'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence. LiveKit is the media provider contract; join and start remain gated until backend tokens, media encryption evidence, and accessibility evidence are configured.'**
+  /// **'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence after a workspace owner or admin enables the meeting capability.'**
   String get channelWorkspaceMeetingsDescription;
 
   /// Title explaining that channel meetings are fail-closed until backend and encryption evidence exist
   ///
   /// In en, this message translates to:
-  /// **'LiveKit readiness is fail-closed'**
+  /// **'Meeting readiness is fail-closed'**
   String get channelWorkspaceMeetingsCapabilityTitle;
 
   /// Body explaining honest fail-closed channel meeting capability state
   ///
   /// In en, this message translates to:
-  /// **'LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls.'**
+  /// **'Join and start stay disabled until meeting status, media paths, captions, recordings, media encryption, and metadata boundaries have workspace health evidence.'**
   String get channelWorkspaceMeetingsCapabilityBody;
 
-  /// Title for the explicit context rule in the channel meetings preview
+  /// Title for the explicit context rule in channel meetings
   ///
   /// In en, this message translates to:
   /// **'Explicit meeting context only'**
   String get channelWorkspaceMeetingsPrivacyTitle;
 
-  /// Privacy/context note for the channel meetings preview
+  /// Privacy/context note for channel meetings
   ///
   /// In en, this message translates to:
   /// **'Only context explicitly selected from {channelName} is prepared for a meeting. Weave does not continuously read, record, or transcribe the room in the background.'**
   String channelWorkspaceMeetingsPrivacyBody(String channelName);
 
-  /// Status chip for recording/transcription off in channel meetings preview
+  /// Status chip for recording/transcription off in channel meetings
   ///
   /// In en, this message translates to:
   /// **'Recording and transcription off'**
   String get channelWorkspaceMeetingsRecordingOff;
 
-  /// Title for the channel meeting context pack preview
+  /// Title for the channel meeting context pack
   ///
   /// In en, this message translates to:
   /// **'Context pack for this meeting'**
   String get channelWorkspaceMeetingsContextTitle;
 
-  /// Body for the channel meeting context pack preview
+  /// Body for the channel meeting context pack
   ///
   /// In en, this message translates to:
   /// **'A meeting pack is explicit and reviewable before anyone joins.'**
@@ -1136,7 +1136,7 @@ abstract class AppLocalizations {
   /// Disabled reason for meeting controls when backend capability is absent
   ///
   /// In en, this message translates to:
-  /// **'Meeting provider capability is not available yet.'**
+  /// **'Meeting capability is not enabled yet.'**
   String get channelWorkspaceMeetingsBackendUnavailableReason;
 
   /// Status label for an available channel workspace surface
@@ -1148,20 +1148,8 @@ abstract class AppLocalizations {
   /// Status label for a gated channel workspace surface
   ///
   /// In en, this message translates to:
-  /// **'Admin setup required'**
-  String get channelWorkspaceStatusPreview;
-
-  /// Status label for a gated channel workspace surface
-  ///
-  /// In en, this message translates to:
-  /// **'Gated by capability'**
+  /// **'Unavailable until enabled'**
   String get channelWorkspaceStatusGated;
-
-  /// Provider/domain seam label for a channel workspace surface
-  ///
-  /// In en, this message translates to:
-  /// **'Provider seam: {contractId}'**
-  String channelWorkspaceProviderContract(String contractId);
 
   /// Privacy/context note for a channel workspace surface
   ///

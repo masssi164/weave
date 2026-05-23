@@ -13,7 +13,7 @@ void main() {
     isDirectMessage: false,
   );
 
-  test('models a governed channel workspace with provider seams', () {
+  test('models a governed channel workspace without preview states', () {
     final preview = ChannelWorkspacePreview.forConversation(channel);
 
     expect(preview.contextId, 'channel:!general:home.internal');
@@ -30,12 +30,8 @@ void main() {
       ChannelWorkspaceSurfaceAvailability.available,
     );
     expect(
-      preview.surface(ChannelWorkspaceSurfaceKind.files).providerContractId,
-      'weave-files-channel-link',
-    );
-    expect(
       preview.surface(ChannelWorkspaceSurfaceKind.files).availability,
-      ChannelWorkspaceSurfaceAvailability.available,
+      ChannelWorkspaceSurfaceAvailability.adminSetupRequired,
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.boards).availability,
@@ -47,7 +43,11 @@ void main() {
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.meetings).providerContractId,
-      'livekit-meetings-channel-gate',
+      'weave-meetings-channel-capability',
+    );
+    expect(
+      preview.surfaces.map((surface) => surface.providerContractId),
+      everyElement(isNot(contains('preview'))),
     );
     expect(preview.meetingPreview.contextId, preview.contextId);
     expect(preview.meetingPreview.isFailClosed, isTrue);

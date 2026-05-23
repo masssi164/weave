@@ -54,7 +54,7 @@ Shell destinations:
 - **Channels** contain team/topic rooms and remain the main collaboration spine for future channel workspaces.
 - **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
 
-The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest placeholders for favorites and AI chats until backend/product metadata is ready. Channel detail now treats a channel as a workspace container: Chat is the default tab, while Files, Boards/Tasks, and Calendar are exposed as accessible tabs with fail-closed/gated states until backend capability contracts connect them. Files, board/task, and calendar surfaces attach to explicit channel context/provider seams rather than becoming unrelated top-level app islands or hidden continuous room-reading flows.
+The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest empty states for favorites and AI chats until backend/product metadata is ready. Channel detail treats a channel as a workspace container, but normal member copy may only show ready product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
 
 ## Shared server configuration
 `features/server_config/` owns the shared configuration model used by both onboarding and settings.
@@ -186,10 +186,18 @@ Onboarding setup and Settings share:
 - the same derivation rules
 - the same form controller logic
 
-The UI differs by context:
+The UI differs by role and context:
 
-- onboarding presents the config as a guided two-step flow
-- settings presents the same data as an editable configuration section inside the main shell
+- admin/operator onboarding presents the config as a guided setup flow before inviting users
+- settings presents the same data as an editable configuration section only to owners/admins
+- members and guests see sign-in, profile, personal settings, and impact/fallback workspace status; they do not configure OIDC, realm, organization, or provider endpoint details
+- Workspace Health is the admin/operator control plane for setup, readiness, degraded provider state, and support-safe next actions
+
+Acceptance boundary for issues #259, #250, and #212:
+
+- owner/admin roles may see organization setup, Workspace Health, provider readiness, and support-safe diagnostics
+- member/guest roles must not see OIDC setup forms, service endpoint forms, provider stack diagnostics, raw provider failures, or preview/coming-soon release-scope copy in normal home/settings/channel paths
+- hidden or unavailable capabilities must be explained to members as product impact and safe fallback, with admins directed to Workspace Health for remediation
 
 ## Accessibility expectations
 Refactors in this area must preserve:

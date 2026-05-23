@@ -555,43 +555,43 @@
   },
   "channelWorkspaceMeetingsTitle": "Channel meetings",
   "@channelWorkspaceMeetingsTitle": {
-    "description": "Title for the meetings preview surface in a channel workspace"
+    "description": "Title for the meetings surface in a channel workspace"
   },
   "channelWorkspaceChatDescription": "Messages remain the default live context for this channel.",
   "@channelWorkspaceChatDescription": {
     "description": "Description for the channel chat surface"
   },
-  "channelWorkspaceFilesDescription": "Channel files use the Weave files facade so people can browse and attach workspace files without raw provider paths.",
+  "channelWorkspaceFilesDescription": "Channel files are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.",
   "@channelWorkspaceFilesDescription": {
-    "description": "Description for the channel files preview placeholder"
+    "description": "Description for unavailable channel files state"
   },
-  "channelWorkspaceBoardsDescription": "Channel boards require admin setup for the board facade, authorization, and audit before member task writes are enabled.",
+  "channelWorkspaceBoardsDescription": "Channel boards and tasks are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.",
   "@channelWorkspaceBoardsDescription": {
-    "description": "Description for the channel boards/tasks preview placeholder"
+    "description": "Description for unavailable channel boards/tasks state"
   },
   "channelWorkspaceCalendarDescription": "Channel events stay gated until calendar scope capability is available for this workspace.",
   "@channelWorkspaceCalendarDescription": {
     "description": "Description for the gated channel calendar placeholder"
   },
-  "channelWorkspaceMeetingsDescription": "Meetings attach to this channel's calendar, agenda, decisions, tasks, files, and follow-up evidence. LiveKit is the media provider contract; join and start remain gated until backend tokens, media encryption evidence, and accessibility evidence are configured.",
+  "channelWorkspaceMeetingsDescription": "Meetings attach to this channel's calendar, agenda, decisions, tasks, files, and follow-up evidence after a workspace owner or admin enables the meeting capability.",
   "@channelWorkspaceMeetingsDescription": {
-    "description": "Description for the gated channel meetings preview placeholder"
+    "description": "Description for unavailable channel meetings state"
   },
-  "channelWorkspaceMeetingsCapabilityTitle": "LiveKit readiness is fail-closed",
+  "channelWorkspaceMeetingsCapabilityTitle": "Meeting readiness is fail-closed",
   "@channelWorkspaceMeetingsCapabilityTitle": {
     "description": "Title explaining that channel meetings are fail-closed until backend and encryption evidence exist"
   },
-  "channelWorkspaceMeetingsCapabilityBody": "LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls.",
+  "channelWorkspaceMeetingsCapabilityBody": "Join and start stay disabled until meeting status, media paths, captions, recordings, media encryption, and metadata boundaries have workspace health evidence.",
   "@channelWorkspaceMeetingsCapabilityBody": {
     "description": "Body explaining honest fail-closed channel meeting capability state"
   },
   "channelWorkspaceMeetingsPrivacyTitle": "Explicit meeting context only",
   "@channelWorkspaceMeetingsPrivacyTitle": {
-    "description": "Title for the explicit context rule in the channel meetings preview"
+    "description": "Title for the explicit context rule in channel meetings"
   },
   "channelWorkspaceMeetingsPrivacyBody": "Only context explicitly selected from {channelName} is prepared for a meeting. Weave does not continuously read, record, or transcribe the room in the background.",
   "@channelWorkspaceMeetingsPrivacyBody": {
-    "description": "Privacy/context note for the channel meetings preview",
+    "description": "Privacy/context note for channel meetings",
     "placeholders": {
       "channelName": {
         "type": "String"
@@ -600,15 +600,15 @@
   },
   "channelWorkspaceMeetingsRecordingOff": "Recording and transcription off",
   "@channelWorkspaceMeetingsRecordingOff": {
-    "description": "Status chip for recording/transcription off in channel meetings preview"
+    "description": "Status chip for recording/transcription off in channel meetings"
   },
   "channelWorkspaceMeetingsContextTitle": "Context pack for this meeting",
   "@channelWorkspaceMeetingsContextTitle": {
-    "description": "Title for the channel meeting context pack preview"
+    "description": "Title for the channel meeting context pack"
   },
   "channelWorkspaceMeetingsContextBody": "A meeting pack is explicit and reviewable before anyone joins.",
   "@channelWorkspaceMeetingsContextBody": {
-    "description": "Body for the channel meeting context pack preview"
+    "description": "Body for the channel meeting context pack"
   },
   "channelWorkspaceMeetingsContextAgenda": "Agenda",
   "@channelWorkspaceMeetingsContextAgenda": {
@@ -638,7 +638,7 @@
   "@channelWorkspaceMeetingsStartButton": {
     "description": "Disabled start button in channel meetings preview"
   },
-  "channelWorkspaceMeetingsBackendUnavailableReason": "Meeting provider capability is not available yet.",
+  "channelWorkspaceMeetingsBackendUnavailableReason": "Meeting capability is not enabled yet.",
   "@channelWorkspaceMeetingsBackendUnavailableReason": {
     "description": "Disabled reason for meeting controls when backend capability is absent"
   },
@@ -646,22 +646,9 @@
   "@channelWorkspaceStatusAvailable": {
     "description": "Status label for an available channel workspace surface"
   },
-  "channelWorkspaceStatusPreview": "Admin setup required",
-  "@channelWorkspaceStatusPreview": {
-    "description": "Status label for a gated channel workspace surface"
-  },
-  "channelWorkspaceStatusGated": "Gated by capability",
+  "channelWorkspaceStatusGated": "Unavailable until enabled",
   "@channelWorkspaceStatusGated": {
     "description": "Status label for a gated channel workspace surface"
-  },
-  "channelWorkspaceProviderContract": "Provider seam: {contractId}",
-  "@channelWorkspaceProviderContract": {
-    "description": "Provider/domain seam label for a channel workspace surface",
-    "placeholders": {
-      "contractId": {
-        "type": "String"
-      }
-    }
   },
   "channelWorkspaceExplicitContextNote": "Only explicit context from {channelName} is shown here; Weave does not continuously read the room in the background.",
   "@channelWorkspaceExplicitContextNote": {

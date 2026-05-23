@@ -34,6 +34,9 @@ void main() {
         find.textContaining('no separate Matrix or Nextcloud'),
         findsOneWidget,
       );
+      expect(find.text('Owner/admin setup responsibilities'), findsNothing);
+      expect(find.textContaining('OIDC'), findsNothing);
+      expect(find.textContaining('provider stack'), findsNothing);
     });
 
     testWidgets('shows owner/admin setup responsibilities only to admins', (

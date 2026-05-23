@@ -92,7 +92,7 @@ class ChannelMeetingPreview {
       channelId: conversation.id,
       channelTitle: conversation.title,
       contextId: contextId,
-      providerContractId: 'livekit-meetings-channel-gate',
+      providerContractId: 'weave-meetings-channel-capability',
       contextItems: const [
         ChannelMeetingContextItem(
           kind: ChannelMeetingContextItemKind.agenda,
@@ -185,7 +185,7 @@ class ChannelWorkspacePreview {
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.files,
-          availability: ChannelWorkspaceSurfaceAvailability.available,
+          availability: ChannelWorkspaceSurfaceAvailability.adminSetupRequired,
           providerContractId: 'weave-files-channel-link',
           contextId: contextId,
         ),
@@ -204,7 +204,7 @@ class ChannelWorkspacePreview {
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.meetings,
           availability: ChannelWorkspaceSurfaceAvailability.gated,
-          providerContractId: 'livekit-meetings-channel-gate',
+          providerContractId: 'weave-meetings-channel-capability',
           contextId: contextId,
         ),
       ],

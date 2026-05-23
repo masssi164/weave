@@ -48,16 +48,21 @@ Matrix E2EE is active chat architecture scope, not a completed product claim. We
 
 ## Provider stack readiness
 
-Provider stack readiness is visible in Settings so users and operators can understand whether files, calendar, office, DevOps, boards, identity, and other modules are ready, disabled, degraded, or intentionally unsupported. The app must keep this support-safe:
+Provider stack readiness belongs in Workspace Health as the admin/operator control plane. Owners/admins/operators can inspect whether files, calendar, office, DevOps, boards, identity, meetings, and other modules are ready, disabled, degraded, or intentionally unsupported before inviting normal members. Normal members must not see provider setup diagnostics; they see ready product workflows or simple impact/fallback states only.
+
+The app must keep this support-safe:
 
 - no raw provider URLs;
-- no bearer tokens, API tokens, app passwords, cookies, or secrets;
+- no bearer tokens, API tokens, app passwords, cookies, room tokens, or secrets;
 - no raw downstream error bodies;
 - no direct Flutter provider calls;
 - retry paths must rebuild backend readiness through Weave APIs.
 
+See [Admin-provisioned first use boundary](admin-provisioned-first-use.md) for the member vs admin/operator acceptance criteria.
+
 ## Related contracts
 
 - [Product scope: calendar hierarchy, Matrix E2EE, and Boards](product-calendar-e2ee-boards-scope.md)
+- [Admin-provisioned first use boundary](admin-provisioned-first-use.md)
 - [Product acceptance flows](product-acceptance-flows.md)
 - [Quality and acceptance evidence](quality-and-evidence.md)

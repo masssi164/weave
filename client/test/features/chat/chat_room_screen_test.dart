@@ -131,25 +131,32 @@ void main() {
     await tester.tap(find.text('Files'));
     await tester.pumpAndSettle();
     expect(find.text('Channel files'), findsOneWidget);
-    expect(find.text('Available'), findsOneWidget);
+    expect(find.text('Admin setup required'), findsOneWidget);
+    expect(
+      find.textContaining('not enabled for this workspace yet'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Provider seam'), findsNothing);
 
     await tester.tap(find.text('Boards'));
     await tester.pumpAndSettle();
     expect(find.text('Channel boards and tasks'), findsOneWidget);
     expect(find.text('Admin setup required'), findsOneWidget);
+    expect(find.textContaining('provider'), findsNothing);
 
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
     expect(find.text('Channel calendar'), findsOneWidget);
-    expect(find.text('Gated by capability'), findsOneWidget);
+    expect(find.text('Unavailable until enabled'), findsOneWidget);
+    expect(find.textContaining('Provider seam'), findsNothing);
 
     await tester.tap(find.text('Meetings'));
     await tester.pumpAndSettle();
     expect(find.text('Channel meetings'), findsOneWidget);
-    expect(find.text('LiveKit readiness is fail-closed'), findsOneWidget);
+    expect(find.text('Meeting readiness is fail-closed'), findsOneWidget);
     expect(
       find.textContaining(
-        'Matrix chat encryption does not by itself cover LiveKit media calls',
+        'workspace owner or admin enables the meeting capability',
       ),
       findsOneWidget,
     );
@@ -157,7 +164,9 @@ void main() {
     expect(find.text('Agenda'), findsOneWidget);
     expect(find.text('Follow-up evidence'), findsOneWidget);
     expect(find.text('Recording and transcription off'), findsOneWidget);
-    expect(find.textContaining('Provider seam:'), findsNothing);
+    expect(find.textContaining('LiveKit'), findsNothing);
+    expect(find.textContaining('Provider seam'), findsNothing);
+    expect(find.textContaining('preview'), findsNothing);
     expect(
       tester
           .widget<FilledButton>(

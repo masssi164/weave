@@ -391,7 +391,14 @@ void main() {
       expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
       expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
       expect(find.text('Provider stack readiness'), findsNothing);
+      expect(find.text('Office readiness'), findsNothing);
+      expect(find.text('Identity realm: unconfigured'), findsNothing);
+      expect(find.text('Meetings: unconfigured'), findsNothing);
       expect(find.textContaining('Flutter provider calls'), findsNothing);
+      expect(
+        find.textContaining('Flutter does not call Nextcloud'),
+        findsNothing,
+      );
     });
 
     testWidgets('keeps provider diagnostics admin-only for members', (

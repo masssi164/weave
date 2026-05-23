@@ -541,11 +541,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceFilesDescription =>
-      'Channel-Dateien nutzen die Weave-Datei-Fassade, damit Nutzer Arbeitsbereichsdateien ohne rohe Anbieterpfade durchsuchen und anhängen können.';
+      'Channel-Dateien sind für diesen Workspace noch nicht aktiviert. Bitte einen Workspace-Owner oder Admin, die Einrichtung abzuschließen; der Chat bleibt verfügbar.';
 
   @override
   String get channelWorkspaceBoardsDescription =>
-      'Channel-Boards brauchen Admin-Einrichtung für Board-Fassade, Autorisierung und Audit, bevor Aufgabenänderungen für Mitglieder aktiviert werden.';
+      'Channel-Boards und Aufgaben sind für diesen Workspace noch nicht aktiviert. Bitte einen Workspace-Owner oder Admin, die Einrichtung abzuschließen; der Chat bleibt verfügbar.';
 
   @override
   String get channelWorkspaceCalendarDescription =>
@@ -553,15 +553,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsDescription =>
-      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft. LiveKit ist der Medien-Provider-Kontrakt; Beitreten und Starten bleiben gesperrt, bis Backend-Tokens, Medienverschlüsselungsnachweise und Barrierefreiheitsnachweise konfiguriert sind.';
+      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft, nachdem ein Workspace-Owner oder Admin die Meeting-Fähigkeit aktiviert hat.';
 
   @override
   String get channelWorkspaceMeetingsCapabilityTitle =>
-      'LiveKit-Bereitschaft ist fail-closed';
+      'Meeting-Bereitschaft ist fail-closed';
 
   @override
   String get channelWorkspaceMeetingsCapabilityBody =>
-      'LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen belegt sind. Matrix bleibt Chat- und E2EE-Substrat; Matrix-Chat-Verschlüsselung deckt LiveKit-Medienanrufe nicht automatisch ab.';
+      'Beitreten und Starten bleiben deaktiviert, bis Meeting-Status, Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen im Workspace-Health-Nachweis belegt sind.';
 
   @override
   String get channelWorkspaceMeetingsPrivacyTitle =>
@@ -607,21 +607,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsBackendUnavailableReason =>
-      'Meeting-Anbieterfähigkeit ist noch nicht verfügbar.';
+      'Die Meeting-Fähigkeit ist noch nicht aktiviert.';
 
   @override
   String get channelWorkspaceStatusAvailable => 'Verfügbar';
 
   @override
-  String get channelWorkspaceStatusPreview => 'Admin-Einrichtung nötig';
-
-  @override
-  String get channelWorkspaceStatusGated => 'Durch Fähigkeit gesperrt';
-
-  @override
-  String channelWorkspaceProviderContract(String contractId) {
-    return 'Anbieter-Nahtstelle: $contractId';
-  }
+  String get channelWorkspaceStatusGated => 'Nicht verfügbar, bis aktiviert';
 
   @override
   String channelWorkspaceExplicitContextNote(String channelName) {
