@@ -99,8 +99,21 @@ jobs:
         with:
           tofu_version: 1.10.6
           tofu_wrapper: false
-      - name: OpenTofu format check
+      - name: OpenTofu infrastructure format check
         working-directory: infra/weave-workspace/01-infrastructure
         run: tofu fmt -check -recursive
+      - name: OpenTofu infrastructure validate
+        working-directory: infra/weave-workspace/01-infrastructure
+        run: |
+          tofu init -backend=false
+          tofu validate
+      - name: OpenTofu Keycloak setup format check
+        working-directory: infra/weave-workspace/02-keycloak-setup
+        run: tofu fmt -check -recursive
+      - name: OpenTofu Keycloak setup validate
+        working-directory: infra/weave-workspace/02-keycloak-setup
+        run: |
+          tofu init -backend=false
+          tofu validate
       - name: Infra script tests
         run: make infra-static

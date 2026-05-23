@@ -74,7 +74,7 @@ synapse_reconcile_terraform_state() {
   local volume
   volume="$(synapse_volume_name)"
 
-  [[ -n "${INFRA_DIR:-}" ]] || synapse_volume_fail "Synapse volume guard requires INFRA_DIR to point at the Terraform infrastructure stage."
+  [[ -n "${INFRA_DIR:-}" ]] || synapse_volume_fail "Synapse volume guard requires INFRA_DIR to point at the OpenTofu infrastructure stage."
 
   if synapse_docker_volume_exists; then
     if ! synapse_terraform_state_has module.matrix.docker_volume.synapse_data; then
@@ -90,7 +90,7 @@ synapse_reconcile_terraform_state() {
 
   if synapse_terraform_state_has module.matrix.docker_volume.synapse_data || \
     synapse_terraform_state_has module.matrix.terraform_data.synapse_volume_permissions; then
-    synapse_volume_log "Synapse Docker volume ${volume} is missing while OpenTofu state still records it; removing stale state so Terraform recreates it and reruns the permission guard."
+    synapse_volume_log "Synapse Docker volume ${volume} is missing while OpenTofu state still records it; removing stale state so OpenTofu recreates it and reruns the permission guard."
     synapse_terraform_state_rm_if_present module.matrix.terraform_data.synapse_volume_permissions
     synapse_terraform_state_rm_if_present module.matrix.docker_volume.synapse_data
   fi
@@ -105,7 +105,7 @@ synapse_repair_volume_permissions() {
   signing_key="$(synapse_signing_key_path)"
 
   if ! synapse_docker_volume_exists; then
-    synapse_volume_log "Synapse Docker volume ${volume} does not exist yet; Terraform will create it during infrastructure apply."
+    synapse_volume_log "Synapse Docker volume ${volume} does not exist yet; OpenTofu will create it during infrastructure apply."
     return
   fi
 

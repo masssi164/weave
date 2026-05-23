@@ -63,8 +63,8 @@ Capability readiness is intentionally conservative:
 
 Boards remains a Weave product facade. OpenProject is the first provider-backed workspace-sync engine, not the visible product UX. Runtime defaults are fail-closed and local-workspace unless explicitly configured by infra/operator env.
 
-- `WEAVE_BOARDS_RUNTIME_ENABLED`: enables authenticated Boards workspace routes, defaults to `false`; legacy `WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED` is a compatibility fallback only.
-- `WEAVE_BOARDS_PROVIDER`: backend provider, defaults to `local-workspace`; legacy `WEAVE_BOARDS_PREVIEW_PROVIDER` is a compatibility fallback only.
+- `WEAVE_BOARDS_RUNTIME_ENABLED`: enables authenticated Boards workspace routes, defaults to `false`; `WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED` is accepted only as a workspace-name compatibility alias.
+- `WEAVE_BOARDS_PROVIDER`: backend provider, defaults to `local-workspace`; `WEAVE_BOARDS_WORKSPACE_PROVIDER` is accepted only as a workspace-name compatibility alias. Legacy preview env names are not runtime fallbacks.
 - `WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED`: OpenProject provider runtime gate, defaults to `false`.
 - `WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED`: OpenProject workspace-sync gate, defaults to `false`.
 - `WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED`: Context/Space authorization gate for provider references, defaults to `false`; must be `true` before OpenProject workspace-sync is reachable.

@@ -102,8 +102,12 @@ integration-app-e2e:
 	  "  \"WEAVE_TEST_USERNAME\": \"$${WEAVE_TEST_USERNAME}\"," \
 	  "  \"WEAVE_TEST_PASSWORD\": \"$${WEAVE_TEST_PASSWORD}\"" \
 	  "}" > "$$dart_defines_file"; \
-	flutter test integration_test/live_stack_app_e2e_test.dart -d "$$test_device" \
-	  --dart-define-from-file="$$dart_defines_file"
+	for test_file in \
+	  integration_test/live_stack_app_e2e_test.dart \
+	  integration_test/app_test.dart; do \
+	  flutter test "$$test_file" -d "$$test_device" \
+	    --dart-define-from-file="$$dart_defines_file"; \
+	done
 
 integration-test: acceptance-feature-mapping integration-app-e2e
 

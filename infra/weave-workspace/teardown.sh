@@ -53,7 +53,7 @@ required_destructive_confirmation() {
   printf '%s' "${TF_VAR_tenant_slug:-weave}"
 }
 
-terraform_destroy() {
+iac_destroy() {
   local dir="$1"
 
   if [[ ! -d "${dir}" ]]; then
@@ -61,7 +61,7 @@ terraform_destroy() {
   fi
 
   if dry_run_enabled; then
-    log "DRY RUN: would run "${WEAVE_IAC_BIN}" destroy in ${dir}"
+    log "DRY RUN: would run ${WEAVE_IAC_BIN} destroy in ${dir}"
     return
   fi
 
@@ -99,7 +99,7 @@ remove_volume() {
 
 forget_synapse_volume_terraform_state() {
   if dry_run_enabled; then
-    log "DRY RUN: would remove stale Terraform state for weave_synapse_data and its permission provisioner"
+    log "DRY RUN: would remove stale OpenTofu state for weave_synapse_data and its permission provisioner"
     return
   fi
 
@@ -229,7 +229,7 @@ require_runtime_commands() {
   }
 
   command -v "${WEAVE_IAC_BIN}" >/dev/null 2>&1 || {
-    printf 'Missing required command: terraform\n' >&2
+    printf 'Missing required command: %s (OpenTofu/tofu by default)\n' "${WEAVE_IAC_BIN}" >&2
     exit 1
   }
 }
@@ -238,9 +238,9 @@ main() {
   require_runtime_commands
   load_bootstrap_env
 
-  if [[ "${WEAVE_TERRAFORM_DESTROY:-false}" == "true" ]]; then
-    terraform_destroy "${KEYCLOAK_DIR}"
-    terraform_destroy "${INFRA_DIR}"
+  if [[ "${WEAVE_IAC_DESTROY:-false}" == "true" ]]; then
+    iac_destroy "${KEYCLOAK_DIR}"
+    iac_destroy "${INFRA_DIR}"
   fi
 
   local container
