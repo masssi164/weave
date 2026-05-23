@@ -1,12 +1,15 @@
-# Calendar CalDAV external clients
+# Calendar and contacts DAV external clients
 
-Calendar is exposed through the Weave backend facade first. Native CalDAV clients are allowed only through secret-free discovery metadata plus user-owned, revocable credentials.
+Calendar is exposed through the Weave backend facade first. Native CalDAV/CardDAV clients are allowed only through secret-free discovery metadata plus user-owned, revocable credentials.
+
+Contacts/CardDAV and Forms are visible provider seams in this infra slice, but their backend runtimes stay disabled/fail-closed until the backend contracts are merged and live-validated.
 
 ## Public discovery route
 
-- Public CalDAV/WebDAV base: `https://files.<tenant-domain>/remote.php/dav`.
+- Public CalDAV/CardDAV/WebDAV base: `https://files.<tenant-domain>/remote.php/dav`.
 - Local default: `https://files.weave.local/remote.php/dav`.
 - Caddy forwards the whole `files.<tenant-domain>` host to Nextcloud, so no dedicated Caddy path rule is required for `/remote.php/dav`.
+- CalDAV and CardDAV discovery share this protected Nextcloud DAV root; the stack does not expose separate product-domain DAV routes.
 - `smoke-test.sh` and `release-verify.sh` probe `PROPFIND /remote.php/dav` without credentials and accept:
   - `401` as the expected protected discovery endpoint, or
   - `207` if a test stack has already supplied ambient credentials.
@@ -23,10 +26,11 @@ Supported safe path for external clients:
 
 Blocked until a dedicated access model is implemented:
 
-- Private `{user}` calendar path templates in backend CalDAV config.
+- Private `{user}` calendar or addressbook path templates in backend DAV config.
 - Password-bearing Apple `.mobileconfig` profiles.
 - Read-only ICS/webcal feed URLs with non-revocable tokens.
 - Any flow that hands the backend-owned Nextcloud actor password/app token to the user or to a generated profile.
+- Forms runtime enablement or form-submission provider calls until the backend Forms contract is implemented and covered by support-safe readiness checks.
 
 ## Operator checks
 

@@ -71,6 +71,10 @@ run_static_checks() {
   log "Checking static provider-stack fail-closed wiring..."
 
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_PROVIDER_STACK_PROFILE'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_MATRIX_HOMESERVER_URL'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_NEXTCLOUD_BASE_URL'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_NEXTCLOUD_FILES_WEBDAV_ROOT_PATH'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_CALDAV_BASE_URL'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_DEVOPS_GITLAB_RUNTIME_ENABLED'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_DEVOPS_FORGEJO_RUNTIME_ENABLED'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_OFFICE_ONLYOFFICE_RUNTIME_ENABLED'
@@ -80,6 +84,8 @@ run_static_checks() {
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED'
 
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_provider_stack_profile=fail-closed'
+  assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_matrix_subdomain=matrix'
+  assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_nextcloud_subdomain=files'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_devops_primary_provider=gitlab-ce-foss'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_devops_gitlab_runtime_enabled=false'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_devops_forgejo_runtime_enabled=false'
@@ -88,6 +94,8 @@ run_static_checks() {
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_office_nextcloud_integration_mode=nextcloud-onlyoffice-app-behind-backend-facade'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_groupware_contacts_runtime_enabled=false'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_groupware_forms_runtime_enabled=false'
+  assert_file_contains "${ROOT_DIR}/release.env.example" 'TF_VAR_groupware_contacts_runtime_enabled=false'
+  assert_file_contains "${ROOT_DIR}/release.env.example" 'TF_VAR_groupware_forms_runtime_enabled=false'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_boards_nextcloud_deck_runtime_enabled=false'
 
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'profiles:'
@@ -199,6 +207,14 @@ run_endpoint_checks() {
 
   providers_json="$(curl_auth_json "${token}" "${WEAVE_BASE_URL}/providers/status")"
   assert_json "${providers_json}" '.backendOwnedFacades == true and .flutterDirectProviderCallsAllowed == false and .supportSafe == true' 'provider registry must be backend-owned/support-safe'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "files" and .providerKey == "nextcloud-files" and .failClosed == true)] | length == 1' 'Nextcloud WebDAV/files provider seam must be present and fail-closed when unconfigured'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "calendar" and .providerKey == "nextcloud-caldav" and .failClosed == true)] | length == 1' 'Nextcloud CalDAV calendar provider seam must be present and fail-closed when unconfigured'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "contacts" and .providerKey == "nextcloud-carddav" and .failClosed == true)] | length == 1' 'Nextcloud CardDAV contacts provider seam must be present and fail-closed'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "forms" and .providerKey == "nextcloud-forms" and .failClosed == true)] | length == 1' 'Nextcloud Forms provider seam must be present and fail-closed'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "matrix" and .providerKey == "synapse-homeserver" and .failClosed == true and .supportSafe == true)] | length == 1' 'Synapse/Matrix provider seam must be present and support-safe'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "matrix-auth" and .providerKey == "matrix-authentication-service" and .failClosed == true and .supportSafe == true)] | length == 1' 'MAS provider seam must be present and support-safe'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "meetings" and .providerKey == "matrix-meetings" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'Meeting/video-call provider seam must be present and fail-closed until promoted'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "boards" and .providerKey == "openproject-primary" and .failClosed == true)] | length == 1' 'OpenProject Boards provider seam must be present and fail-closed when unconfigured'
   assert_json "${providers_json}" '[.providers[] | select(.module == "source-control" and .providerKey == "gitlab-ce-foss" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'GitLab CE/FOSS source-control provider must be disabled/fail-closed'
   assert_json "${providers_json}" '[.providers[] | select(.module == "source-control" and .providerKey == "forgejo" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'Forgejo source-control provider must be disabled/fail-closed'
   assert_json "${providers_json}" '[.providers[] | select(.module == "office" and .providerKey == "onlyoffice-community" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'ONLYOFFICE provider must be disabled/fail-closed'

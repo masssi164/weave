@@ -23,7 +23,7 @@ Feature: Operator diagnostics and support bundles stay support-safe
     When authenticated runner checks call provider readiness through Weave
     Then /providers/status is visible through the backend API
     And /profile/readiness returns CEFACADE support-safe readiness
-    And DevOps Office Forms and Contacts remain disabled or not configured by default
+    And DevOps Office Forms Contacts Matrix MAS and Meetings remain support-safe by default
 
   @infra-reset-guardrails
   Scenario: Destructive reset refuses persistent data deletion without typed confirmation

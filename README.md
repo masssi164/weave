@@ -28,6 +28,7 @@ This repository is the operator layer, not the whole product. The daily user exp
 - A complete Slack/Teams replacement.
 - Production connector/provider writes.
 - Completed Matrix E2EE product readiness.
+- Matrix voice/video calling or meeting infrastructure (TURN/SFU/Jitsi/LiveKit).
 - Agent/automation runtime.
 
 Those are later product or operations tracks and must stay behind explicit contracts and evidence.
@@ -58,7 +59,7 @@ For a real single-host deployment, start here:
 - [Single-host operator guide](docs/single-host-operator-guide.md): target shape, public contract, required inputs, TLS/image/persistence expectations, and verify flow.
 - [release.env.example](weave-workspace/release.env.example): operator-facing environment template.
 - [Operator runbook](docs/operator-runbook.md): install/upgrade, rotation, backup, restore, destructive reset, and triage guidance.
-- [CalDAV external clients](docs/calendar-caldav-external-clients.md): discovery, safe external-client credential path, and blocked private-personal-calendar/profile flows.
+- [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
 - [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
 - [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional read-only validation setup and live E2E gate; off by default.
 
@@ -90,7 +91,8 @@ Optional providers are fail-closed by default:
 - DevOps providers such as GitLab/Forgejo stay disabled unless an explicit runtime contract configures them.
 - Missing provider credentials must produce support-safe unavailable/not-configured readiness, not insecure fallback behavior.
 - Support bundles redact tokens, cookies, app passwords, signing keys, provider URLs, raw provider errors, and generated secrets.
-- Private personal calendar access is blocked unless a later contract adds explicit sharing, provisioning, or delegated-token behavior.
+- Nextcloud Contacts/CardDAV and Forms seams are visible to the backend but stay disabled/fail-closed until the backend contracts are merged and live-validated.
+- Private personal calendar/addressbook access is blocked unless a later contract adds explicit sharing, provisioning, or delegated-token behavior.
 
 ## Repo compass
 
@@ -104,7 +106,7 @@ Optional providers are fail-closed by default:
 - `docs/operator-runbook.md`: operations, backup/restore, rotation, and triage.
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
 - `docs/matrix-e2ee-posture.md`: current honest E2EE posture.
-- `docs/calendar-caldav-external-clients.md`: CalDAV discovery, revocable client credentials, and fail-closed profile boundaries.
+- `docs/calendar-caldav-external-clients.md`: CalDAV/CardDAV discovery, revocable client credentials, and fail-closed profile boundaries.
 - `docs/openproject-boards-runtime.md`: optional OpenProject read-only setup and promotion gates.
 - `weave-workspace/install.sh`: end-to-end bootstrap for local and single-host runs.
 - `weave-workspace/teardown.sh`: non-destructive cleanup by default; destructive volume reset requires explicit confirmation.
