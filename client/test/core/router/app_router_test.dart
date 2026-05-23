@@ -25,6 +25,7 @@ import 'package:weave/features/profile/presentation/providers/user_profile_provi
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/main.dart';
 
 import '../../helpers/auth_test_data.dart';
@@ -155,6 +156,11 @@ void main() {
           workspaceCapabilitySnapshotProvider.overrideWithValue(
             _workspaceCapabilitySnapshot(),
           ),
+          // The ready shell renders the workspace status card, which watches
+          // the backend-backed Weave Home provider. Keep router tests focused
+          // on navigation so widget-test HTTP failures do not schedule
+          // Riverpod retry timers after disposal.
+          weaveApiWorkspaceHomeProvider.overrideWith((ref) => null),
         ],
       );
       return container;
