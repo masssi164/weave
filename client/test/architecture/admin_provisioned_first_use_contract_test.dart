@@ -20,6 +20,7 @@ void main() {
         'Workspace Health is the admin/operator control plane',
         '`owner`',
         '`admin`',
+        '`operator`',
         '`member`',
         '`guest`',
         'infra/KEYCLOAK_CONTRACT.md',

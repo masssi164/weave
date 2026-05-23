@@ -16,6 +16,7 @@ Admins and operators provision identity, domains, provider stack, policy, backup
 | --- | --- | --- |
 | `owner` | Can enter the workspace and administer release readiness. | Full Workspace Health, identity/provider setup, invite activation, policy, backup/restore, and support-bundle actions. |
 | `admin` | Can enter the workspace and administer delegated readiness. | Workspace Health, provider readiness, user activation, policy, and support diagnostics allowed by owner policy. |
+| `operator` | Can enter the workspace to execute delegated operational readiness. | Workspace Health diagnostics, provider/service readiness verification, and support-safe remediation actions delegated by owner/admin policy. |
 | `member` | Lands in the ready workspace after invite/activation. | No OIDC/provider/infra setup. Sees only complete capabilities or simple impact/fallback states such as “Calendar is unavailable; ask an admin.” |
 | `guest` | Lands only in explicitly permitted guest scopes. | No workspace setup, provider diagnostics, or member/admin affordances. |
 
