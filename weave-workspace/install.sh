@@ -399,6 +399,8 @@ terraform_apply() {
 ensure_terraform_network_state() {
   local existing_network_id=""
 
+  terraform -chdir="${INFRA_DIR}" init -input=false
+
   if terraform -chdir="${INFRA_DIR}" state show docker_network.weave_network >/dev/null 2>&1; then
     return
   fi

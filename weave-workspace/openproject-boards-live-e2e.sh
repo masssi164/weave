@@ -132,8 +132,39 @@ assert_support_safe_file() {
   if [[ -n "${base_url}" ]]; then
     ! grep -Fq "${base_url}" "${file}" || fail "OpenProject Boards live E2E failed: response leaked raw OpenProject base URL"
   fi
-  ! grep -Eiq 'authorization|api[_-]?key|secret|password|/api/v3/|/work_packages/|/projects/' "${file}" || \
+
+  if jq -e . >/dev/null 2>&1 <"${file}"; then
+    assert_support_safe_json_file "${file}"
+    return
+  fi
+
+  ! grep -Eiq 'authorization[[:space:]]*:|auth(orization)?[_-]?header|api[_-]?(key|token)[[:space:]]*[=:]|(password|secret)[[:alnum:]_-]*[[:space:]]*[=:]|access[_-]?token[[:space:]]*[=:]|refresh[_-]?token[[:space:]]*[=:]|bearer[[:space:]]+[[:alnum:]_.~+/=-]{8,}|basic[[:space:]]+[[:alnum:]_.~+/=-]{8,}|/api/v3/|/work_packages/|/projects/|https?://[^[:space:]"'"'"'<>]*openproject[^[:space:]"'"'"'<>]*|upstream[[:space:]_-]*(error|exception|response|url|path)' "${file}" || \
     fail "OpenProject Boards live E2E failed: response contained non-support-safe provider details"
+}
+
+assert_support_safe_json_file() {
+  local file="$1"
+  local findings
+
+  findings="$(jq -r '
+    def path_text($p): $p | map(tostring) | join(".");
+    def last_key($p): ($p[-1] // "") | tostring;
+    def safe_redacted_value:
+      type == "boolean" or type == "null" or
+      (type == "string" and test("^(|<redacted>|redacted|omitted|not-configured|configured-reference|unconfigured|disabled)$"; "i"));
+    def sensitive_field($p; $v):
+      (last_key($p) | test("^(authorization|authHeader|apiKey|api_key|api-key|apiToken|api_token|api-token|accessToken|access_token|access-token|refreshToken|refresh_token|refresh-token|bearerToken|bearer_token|bearer-token|token|password|secret|upstreamError|upstreamException|upstreamResponse|upstreamUrl|upstreamPath|providerError|providerException|providerResponse|providerUrl|providerPath|rawError|rawMessage|rawResponse|rawBody)$"; "i"))
+      and ($v | safe_redacted_value | not);
+    def leaking_value($v):
+      ($v | type == "string") and
+      ($v | test("authorization\\s*:|auth(orization)?[_-]?header|api[_-]?(key|token)\\s*[=:]|(password|secret)[[:alnum:]_-]*\\s*[=:]|access[_-]?token\\s*[=:]|refresh[_-]?token\\s*[=:]|bearer\\s+[[:alnum:]_.~+/=-]{8,}|basic\\s+[[:alnum:]_.~+/=-]{8,}|/api/v3/|/work_packages/|/projects/|https?://[^[:space:]\"'\''<>]*openproject[^[:space:]\"'\''<>]*"; "i"));
+    [paths(scalars) as $p
+      | (getpath($p)) as $v
+      | select(sensitive_field($p; $v) or leaking_value($v))
+      | "\(path_text($p))=\($v|tostring)"
+    ][0:5][]
+  ' "${file}")"
+  [[ -z "${findings}" ]] || fail "OpenProject Boards live E2E failed: response contained non-support-safe provider details: ${findings}"
 }
 
 mint_access_token() {
@@ -172,6 +203,10 @@ probe_provider_status() {
   local body_file="$2"
   curl_auth_status_to_file "${token}" GET "${WEAVE_BASE_URL}/providers/status" "${body_file}"
 }
+
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return 0
+fi
 
 require_command curl
 require_command jq

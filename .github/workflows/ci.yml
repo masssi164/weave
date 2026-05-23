@@ -95,8 +95,9 @@ jobs:
           bash -n weave-workspace/tests/matrix-provisioning-mas-cli-test.sh
           bash -n weave-workspace/tests/activate-user-helper-test.sh
           bash -n weave-workspace/tests/infra-product-contract-test.sh
+          bash -n weave-workspace/tests/openproject-support-safe-scanner-test.sh
           bash -n weave-workspace/tests/acceptance-feature-mapping-test.sh
-          shellcheck weave-workspace/install.sh weave-workspace/teardown.sh weave-workspace/smoke-test.sh weave-workspace/openproject-boards-live-e2e.sh weave-workspace/provider-stack-fail-closed-check.sh weave-workspace/provision-matrix-default-workspace.sh weave-workspace/support-bundle.sh weave-workspace/backup.sh weave-workspace/restore-smoke.sh weave-workspace/activate-user.sh weave-workspace/tests/teardown-guard-test.sh weave-workspace/tests/support-bundle-redaction-test.sh weave-workspace/tests/restore-smoke-artifacts-test.sh weave-workspace/tests/matrix-provisioning-mas-cli-test.sh weave-workspace/tests/activate-user-helper-test.sh weave-workspace/tests/infra-product-contract-test.sh weave-workspace/tests/acceptance-feature-mapping-test.sh
+          shellcheck weave-workspace/install.sh weave-workspace/teardown.sh weave-workspace/smoke-test.sh weave-workspace/openproject-boards-live-e2e.sh weave-workspace/provider-stack-fail-closed-check.sh weave-workspace/provision-matrix-default-workspace.sh weave-workspace/support-bundle.sh weave-workspace/backup.sh weave-workspace/restore-smoke.sh weave-workspace/activate-user.sh weave-workspace/tests/teardown-guard-test.sh weave-workspace/tests/support-bundle-redaction-test.sh weave-workspace/tests/restore-smoke-artifacts-test.sh weave-workspace/tests/matrix-provisioning-mas-cli-test.sh weave-workspace/tests/activate-user-helper-test.sh weave-workspace/tests/infra-product-contract-test.sh weave-workspace/tests/openproject-support-safe-scanner-test.sh weave-workspace/tests/acceptance-feature-mapping-test.sh
 
       - name: Test destructive reset guardrails
         run: bash weave-workspace/tests/teardown-guard-test.sh
@@ -125,6 +126,9 @@ jobs:
 
       - name: Test provider stack fail-closed wiring
         run: bash weave-workspace/provider-stack-fail-closed-check.sh --static
+
+      - name: Test OpenProject support-safe scanner
+        run: bash weave-workspace/tests/openproject-support-safe-scanner-test.sh
 
       - name: Test acceptance feature mappings
         run: bash weave-workspace/tests/acceptance-feature-mapping-test.sh
