@@ -14,7 +14,7 @@ void main() {
     expect(matrix, isA<Map<String, Object?>>());
     final root = matrix as Map<String, Object?>;
     expect(root['schema_version'], 1);
-    expect(root['status'], 'active-preview-spike-contract');
+    expect(root['status'], 'v0.1-workspace-spike-contract');
 
     final adapterContract = _map(root, 'adapter_contract');
     final capabilityKeys = _stringList(
