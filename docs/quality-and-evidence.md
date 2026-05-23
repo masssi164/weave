@@ -11,6 +11,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | ISO 9241-110 dogfood UX gate | Product dialogue quality, release-scope capability states, banned preview/scaffold wording, and role separation for member vs admin/operator surfaces. | [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md), `test/release_1/ux_release_copy_contract_test.dart`. |
 | Deterministic screenshots | README and roadmap SVG assets match the checked-in generator and do not drift silently. | `make marketing-screenshots`, `docs/assets/marketing/`, `docs/assets/roadmap/`, CI screenshot drift step. |
 | Acceptance contract guard | Gherkin acceptance scenarios stay mapped to executable frontend/live-stack tests. | [Acceptance contracts](acceptance-contracts.md), [Product acceptance flows](product-acceptance-flows.md), `test/live_stack_feature_mapping_test.dart`. |
+| Admin-provisioned first-use guard | Normal members stay out of OIDC/provider/infra setup and Workspace Health remains the admin/operator control plane. | [Admin-provisioned first use boundary](admin-provisioned-first-use.md), `client/test/architecture/admin_provisioned_first_use_contract_test.dart`, `client/test/features/settings/settings_screen_test.dart`, `client/test/features/onboarding/first_run_screen_test.dart`. |
 | Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
 
 ## Default PR validation
@@ -49,6 +50,7 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 - **Acceptance mapping failure**: update the scenario-to-test mapping or remove stale scenario claims. Do not leave product acceptance text unmapped.
 - **Live-stack contract failure**: confirm the stack bootstrapped correctly, then inspect backend/API, auth, and app logs. Treat credential or runner-budget problems as infrastructure blockers, not product proof.
 - **Accessibility evidence gap**: do not promote the flow as release-ready until the automated and manual evidence in the accessibility gate is complete.
+- **Admin-provisioned first-use failure**: inspect member-visible first-use, settings, and navigation copy first. Normal members must not see provider setup diagnostics, OIDC/provider/infra setup fields, preview/scaffold/coming-soon release-scope language, or raw provider errors; move setup/readiness detail to Workspace Health for admins/operators.
 
 ## Artifact hygiene
 
@@ -60,6 +62,7 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 ## Related docs
 
 - [Developer handbook](developer-handbook.md)
+- [Admin-provisioned first use boundary](admin-provisioned-first-use.md)
 - [Acceptance contracts](acceptance-contracts.md)
 - [Product acceptance flows](product-acceptance-flows.md)
 - [Accessibility Release Gate](accessibility-release-gate.md)

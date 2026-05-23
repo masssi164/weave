@@ -541,11 +541,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceFilesDescription =>
-      'Channel-Dateien nutzen die Weave-Datei-Fassade, damit Nutzer Arbeitsbereichsdateien ohne rohe Anbieterpfade durchsuchen und anhängen können.';
+      'Channel-Dateien sind für diesen Workspace noch nicht aktiviert. Bitte einen Workspace-Owner oder Admin, die Einrichtung abzuschließen; der Chat bleibt verfügbar.';
 
   @override
   String get channelWorkspaceBoardsDescription =>
-      'Channel-Boards brauchen Admin-Einrichtung für Board-Fassade, Autorisierung und Audit, bevor Aufgabenänderungen für Mitglieder aktiviert werden.';
+      'Channel-Boards und Aufgaben sind für diesen Workspace noch nicht aktiviert. Bitte einen Workspace-Owner oder Admin, die Einrichtung abzuschließen; der Chat bleibt verfügbar.';
 
   @override
   String get channelWorkspaceCalendarDescription =>
@@ -553,15 +553,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsDescription =>
-      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft. LiveKit ist der Medien-Provider-Kontrakt; Beitreten und Starten bleiben gesperrt, bis Backend-Tokens, Medienverschlüsselungsnachweise und Barrierefreiheitsnachweise konfiguriert sind.';
+      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft, nachdem ein Workspace-Owner oder Admin die Meeting-Fähigkeit aktiviert hat.';
 
   @override
   String get channelWorkspaceMeetingsCapabilityTitle =>
-      'LiveKit-Bereitschaft ist fail-closed';
+      'Meeting-Bereitschaft ist fail-closed';
 
   @override
   String get channelWorkspaceMeetingsCapabilityBody =>
-      'LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen belegt sind. Matrix bleibt Chat- und E2EE-Substrat; Matrix-Chat-Verschlüsselung deckt LiveKit-Medienanrufe nicht automatisch ab.';
+      'Beitreten und Starten bleiben deaktiviert, bis Meeting-Status, Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen im Workspace-Health-Nachweis belegt sind.';
 
   @override
   String get channelWorkspaceMeetingsPrivacyTitle =>
@@ -607,21 +607,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsBackendUnavailableReason =>
-      'Meeting-Anbieterfähigkeit ist noch nicht verfügbar.';
+      'Die Meeting-Fähigkeit ist noch nicht aktiviert.';
 
   @override
   String get channelWorkspaceStatusAvailable => 'Verfügbar';
 
   @override
-  String get channelWorkspaceStatusPreview => 'Admin-Einrichtung nötig';
-
-  @override
-  String get channelWorkspaceStatusGated => 'Durch Fähigkeit gesperrt';
-
-  @override
-  String channelWorkspaceProviderContract(String contractId) {
-    return 'Anbieter-Nahtstelle: $contractId';
-  }
+  String get channelWorkspaceStatusGated => 'Nicht verfügbar, bis aktiviert';
 
   @override
   String channelWorkspaceExplicitContextNote(String channelName) {
@@ -2815,7 +2807,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get settingsAdminBoundaryDescription =>
-      'OIDC-, Realm-, Organisations- und Dienstendpunkt-Einrichtung wird von Workspace-Ownern oder Admins verwaltet. Normale Nutzer können Weave ohne Matrix-, Nextcloud- oder Realm-Details verwenden.';
+      'Workspace-Einrichtung übernehmen Workspace-Owner oder Admins. Normale Nutzer können Weave ohne Setup- oder Infrastrukturdetails weiterverwenden.';
 
   @override
   String get settingsAdminPermissionLoading =>
@@ -2867,7 +2859,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminDescription =>
-      'Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Oberfläche bleibt deaktiviert, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.';
+      'Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Funktion bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.';
 
   @override
   String get agentCapabilityPolicyUserDescription =>
@@ -2879,7 +2871,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyManageDisabledButton =>
-      'Verwaltung nicht verfügbar, bis Kontrollen bereit sind';
+      'Verwaltung nicht verfügbar, bis die Admin-Einrichtung abgeschlossen ist';
 
   @override
   String get agentCapabilityPolicyAskAdminHint =>
@@ -2887,7 +2879,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminStateHint =>
-      'Aktueller Zustand: standardmäßig aus. Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.';
+      'Aktueller Zustand: durch Policy deaktiviert. Owner-/Admin-Prüfung ist erforderlich, bevor Nutzer einen Agenten starten können.';
 
   @override
   String get agentCapabilityPersonalAssistantTitle => 'Persönlicher Assistent';
@@ -2905,7 +2897,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityAvailabilityPreviewOnly =>
-      'Durch Policy deaktiviert';
+      'Admin-Einrichtung nötig';
 
   @override
   String get agentCapabilityAvailabilityAdminSetupRequired =>

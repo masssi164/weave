@@ -7,6 +7,7 @@
 enum WorkspaceRole {
   owner('owner'),
   admin('admin'),
+  operator('operator'),
   member('member'),
   guest('guest'),
   unknown('unknown');
@@ -33,7 +34,8 @@ extension WorkspaceRoleList on Iterable<String> {
   bool get canAdministerWorkspace {
     final roles = workspaceRoles;
     return roles.contains(WorkspaceRole.owner) ||
-        roles.contains(WorkspaceRole.admin);
+        roles.contains(WorkspaceRole.admin) ||
+        roles.contains(WorkspaceRole.operator);
   }
 
   bool get canInviteUsers => canAdministerWorkspace;
@@ -43,6 +45,7 @@ extension WorkspaceRoleList on Iterable<String> {
     for (final role in const <WorkspaceRole>[
       WorkspaceRole.owner,
       WorkspaceRole.admin,
+      WorkspaceRole.operator,
       WorkspaceRole.member,
       WorkspaceRole.guest,
     ]) {

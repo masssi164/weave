@@ -538,11 +538,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelWorkspaceFilesDescription =>
-      'Channel files use the Weave files facade so people can browse and attach workspace files without raw provider paths.';
+      'Channel files are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.';
 
   @override
   String get channelWorkspaceBoardsDescription =>
-      'Channel boards require admin setup for the board facade, authorization, and audit before member task writes are enabled.';
+      'Channel boards and tasks are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.';
 
   @override
   String get channelWorkspaceCalendarDescription =>
@@ -550,15 +550,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsDescription =>
-      'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence. LiveKit is the media provider contract; join and start remain gated until backend tokens, media encryption evidence, and accessibility evidence are configured.';
+      'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence after a workspace owner or admin enables the meeting capability.';
 
   @override
   String get channelWorkspaceMeetingsCapabilityTitle =>
-      'LiveKit readiness is fail-closed';
+      'Meeting readiness is fail-closed';
 
   @override
   String get channelWorkspaceMeetingsCapabilityBody =>
-      'LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls.';
+      'Join and start stay disabled until meeting status, media paths, captions, recordings, media encryption, and metadata boundaries have workspace health evidence.';
 
   @override
   String get channelWorkspaceMeetingsPrivacyTitle =>
@@ -604,21 +604,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsBackendUnavailableReason =>
-      'Meeting provider capability is not available yet.';
+      'Meeting capability is not enabled yet.';
 
   @override
   String get channelWorkspaceStatusAvailable => 'Available';
 
   @override
-  String get channelWorkspaceStatusPreview => 'Admin setup required';
-
-  @override
-  String get channelWorkspaceStatusGated => 'Gated by capability';
-
-  @override
-  String channelWorkspaceProviderContract(String contractId) {
-    return 'Provider seam: $contractId';
-  }
+  String get channelWorkspaceStatusGated => 'Unavailable until enabled';
 
   @override
   String channelWorkspaceExplicitContextNote(String channelName) {
@@ -2776,7 +2768,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAdminBoundaryDescription =>
-      'OIDC, realm, organization, and service endpoint setup is handled by workspace owners or admins. Normal users can keep using Weave without Matrix, Nextcloud, or realm details.';
+      'Workspace setup is handled by workspace owners or admins. Normal users can keep using Weave without setup or infrastructure details.';
 
   @override
   String get settingsAdminPermissionLoading => 'Checking admin permissions…';
@@ -2825,7 +2817,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminDescription =>
-      'Owners and admins decide which agent packages and connectors can be used. This surface stays disabled until permission, consent, and audit controls are connected.';
+      'Owners and admins decide which agent packages and connectors can be used. This capability stays off until permission, consent, and audit controls are connected.';
 
   @override
   String get agentCapabilityPolicyUserDescription =>
@@ -2837,7 +2829,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyManageDisabledButton =>
-      'Management unavailable until controls are ready';
+      'Management unavailable until admin setup is complete';
 
   @override
   String get agentCapabilityPolicyAskAdminHint =>
@@ -2845,7 +2837,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminStateHint =>
-      'Current state: off by default. Controls require owner/admin review before users can start an agent.';
+      'Current state: disabled by policy. Owner/admin review is required before users can start an agent.';
 
   @override
   String get agentCapabilityPersonalAssistantTitle => 'Personal assistant';
@@ -2862,7 +2854,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.';
 
   @override
-  String get agentCapabilityAvailabilityPreviewOnly => 'Disabled by policy';
+  String get agentCapabilityAvailabilityPreviewOnly => 'Admin setup required';
 
   @override
   String get agentCapabilityAvailabilityAdminSetupRequired =>

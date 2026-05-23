@@ -1,8 +1,52 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'release-scope member copy does not leak preview or provider setup language',
+    () async {
+      final arb =
+          jsonDecode(await File('lib/l10n/app_en.arb').readAsString())
+              as Map<String, dynamic>;
+      final releaseMemberCopy = arb.entries.where((entry) {
+        if (entry.key.startsWith('@') || entry.value is! String) {
+          return false;
+        }
+
+        return entry.key.startsWith('channelWorkspace') ||
+            entry.key == 'settingsAdminBoundaryTitle' ||
+            entry.key == 'settingsAdminBoundaryDescription' ||
+            entry.key == 'helpSettingsBody' ||
+            entry.key == 'helpTroubleshootingBody';
+      });
+
+      final forbiddenReleaseLanguage = RegExp(
+        r'\b(preview|scaffold|coming soon)\b',
+        caseSensitive: false,
+      );
+      final forbiddenProviderSetupLanguage = RegExp(
+        r'\b(OIDC|LiveKit|Nextcloud|CalDAV|OpenProject|provider seam)\b',
+        caseSensitive: false,
+      );
+
+      for (final MapEntry(:key, :value) in releaseMemberCopy) {
+        final copy = value as String;
+        expect(
+          copy,
+          isNot(matches(forbiddenReleaseLanguage)),
+          reason: '$key must not market unfinished release scope',
+        );
+        expect(
+          copy,
+          isNot(matches(forbiddenProviderSetupLanguage)),
+          reason: '$key must not expose provider setup details to members',
+        );
+      }
+    },
+  );
+
   test(
     'Router keeps feature-gated calendar and boards surfaces out of default navigation',
     () async {

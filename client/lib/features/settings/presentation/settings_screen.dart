@@ -831,13 +831,18 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final capabilities = ref.watch(workspaceCapabilitySnapshotProvider);
     final backendState = ref.watch(weaveBackendConnectionStateProvider);
     final matrixDiagnostic = ref.watch(weaveApiMatrixE2eeDiagnosticProvider);
-    final providerStack = ref.watch(weaveApiProviderStackSnapshotProvider);
-    final officeCapabilities = ref.watch(
-      weaveApiOfficeCapabilitiesSnapshotProvider,
-    );
-    final profile = ref.watch(userProfileProvider);
-    final canSeeOperatorDiagnostics =
-        profile.asData?.value?.canAdministerWorkspace ?? false;
+    final canViewWorkspaceHealth = ref
+        .watch(userProfileProvider)
+        .maybeWhen(
+          data: (profile) => profile?.canAdministerWorkspace ?? false,
+          orElse: () => false,
+        );
+    final providerStackSnapshot = canViewWorkspaceHealth
+        ? ref.watch(weaveApiProviderStackSnapshotProvider).asData?.value
+        : null;
+    final officeCapabilitiesSnapshot = canViewWorkspaceHealth
+        ? ref.watch(weaveApiOfficeCapabilitiesSnapshotProvider).asData?.value
+        : null;
 
     return Card(
       elevation: 0,
@@ -890,14 +895,13 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   _workspaceSummary(l10n, workspaceState),
                   style: theme.textTheme.bodyMedium,
                 ),
-                if (canSeeOperatorDiagnostics)
-                  if (providerStack.asData?.value case final stack?) ...[
-                    const SizedBox(height: 20),
-                    _ProviderStackReadinessSummary(
-                      stack: stack,
-                      officeCapabilities: officeCapabilities.asData?.value,
-                    ),
-                  ],
+                if (providerStackSnapshot case final stack?) ...[
+                  const SizedBox(height: 20),
+                  _ProviderStackReadinessSummary(
+                    stack: stack,
+                    officeCapabilities: officeCapabilitiesSnapshot,
+                  ),
+                ],
                 const SizedBox(height: 20),
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceShellAccessLabel,
