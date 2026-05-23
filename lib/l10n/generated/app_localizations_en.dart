@@ -1574,7 +1574,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsProviderStackFailClosedDescription =>
-      'Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call GitLab, Office, or other provider APIs directly.';
+      'Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call Nextcloud, Matrix auth, OpenProject, Office, or other provider APIs directly.';
 
   @override
   String get settingsProviderStackNeedsReviewDescription =>
@@ -1655,6 +1655,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsProviderModuleForms => 'Forms';
+
+  @override
+  String get settingsProviderModuleMatrix => 'Matrix chat';
+
+  @override
+  String get settingsProviderModuleMatrixAuth => 'Matrix auth';
+
+  @override
+  String get settingsProviderModuleMeetings => 'Meetings';
 
   @override
   String get settingsProviderModuleBoards => 'Boards';

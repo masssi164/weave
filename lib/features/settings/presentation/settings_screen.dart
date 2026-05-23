@@ -999,7 +999,7 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final providers = stack.providers.take(6).toList(growable: false);
+    final providers = stack.providers;
     final flutterCalls = stack.flutterDirectProviderCallsAllowed
         ? l10n.settingsProviderStackFlutterCallsAllowed
         : l10n.settingsProviderStackFlutterCallsBlocked;
@@ -1124,6 +1124,9 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
       'calendar' => l10n.settingsProviderModuleCalendar,
       'contacts' => l10n.settingsProviderModuleContacts,
       'forms' => l10n.settingsProviderModuleForms,
+      'matrix' => l10n.settingsProviderModuleMatrix,
+      'matrix-auth' => l10n.settingsProviderModuleMatrixAuth,
+      'meetings' => l10n.settingsProviderModuleMeetings,
       'boards' => l10n.settingsProviderModuleBoards,
       _ => l10n.settingsProviderModuleProvider,
     };

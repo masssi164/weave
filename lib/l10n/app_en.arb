@@ -1839,7 +1839,7 @@
       }
     }
   },
-  "settingsProviderStackFailClosedDescription": "Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call GitLab, Office, or other provider APIs directly.",
+  "settingsProviderStackFailClosedDescription": "Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call Nextcloud, Matrix auth, OpenProject, Office, or other provider APIs directly.",
   "@settingsProviderStackFailClosedDescription": {
     "description": "Provider stack description when backend facade and fail-closed rules are satisfied"
   },
@@ -1946,6 +1946,18 @@
   "settingsProviderModuleForms": "Forms",
   "@settingsProviderModuleForms": {
     "description": "Provider module label for forms"
+  },
+  "settingsProviderModuleMatrix": "Matrix chat",
+  "@settingsProviderModuleMatrix": {
+    "description": "Provider module label for Matrix/Synapse chat"
+  },
+  "settingsProviderModuleMatrixAuth": "Matrix auth",
+  "@settingsProviderModuleMatrixAuth": {
+    "description": "Provider module label for Matrix Authentication Service"
+  },
+  "settingsProviderModuleMeetings": "Meetings",
+  "@settingsProviderModuleMeetings": {
+    "description": "Provider module label for meetings and video calls"
   },
   "settingsProviderModuleBoards": "Boards",
   "@settingsProviderModuleBoards": {
