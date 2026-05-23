@@ -74,8 +74,14 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.flutterDirectProviderCallsAllowed").value(false))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providers[*].module", hasItems(
-                        "identity-realm", "files", "office", "calendar", "contacts", "forms", "boards",
+                        "identity-realm", "matrix", "matrix-auth", "files", "office", "calendar", "contacts", "forms", "boards",
                         "meetings", "source-control", "ci", "issue-tracker", "release")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].providerKey", hasItems("synapse-homeserver")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].failClosed", hasItems(true)))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix')].supportSafe", hasItems(true)))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].providerKey", hasItems("matrix-authentication-service")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].failClosed", hasItems(true)))
+                .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].providerKey", hasItems("onlyoffice-community")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].providerKey", hasItems("livekit")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].configured", hasItems(false)))

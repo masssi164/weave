@@ -27,6 +27,30 @@ public class ProviderCoreConfiguration {
     }
 
     @Bean
+    ProviderPort matrixProviderRegistrySeam() {
+        return StaticProviderPort.pending(
+                ProviderModule.MATRIX,
+                "synapse-homeserver",
+                "Matrix/Synapse is the chat and room substrate; provider status stays support-safe and does not expose room keys or raw homeserver errors.",
+                Set.of("workspace-room-readiness", "message-sync-readiness", "e2ee-status-readiness", "homeserver-discovery"),
+                Set.of("room-key-export", "raw-homeserver-errors", "direct-flutter-admin-api", "credential-exposure"),
+                List.of("synapse"),
+                Map.of("substrate", "matrix", "chatE2eeBoundary", "matrix-chat-only", "mediaCallsCovered", false));
+    }
+
+    @Bean
+    ProviderPort matrixAuthProviderRegistrySeam() {
+        return StaticProviderPort.pending(
+                ProviderModule.MATRIX_AUTH,
+                "matrix-authentication-service",
+                "Matrix Authentication Service is the Matrix auth bridge seam; status is fail-closed and support-safe.",
+                Set.of("oidc-bridge-readiness", "client-registration-readiness", "session-policy-readiness"),
+                Set.of("client-secret-export", "raw-mas-errors", "direct-flutter-admin-api", "credential-exposure"),
+                List.of("matrix-authentication-service"),
+                Map.of("substrate", "matrix", "authBridge", true, "compatibleSeam", true));
+    }
+
+    @Bean
     ProviderPort filesProviderRegistrySeam() {
         return StaticProviderPort.pending(
                 ProviderModule.FILES,
