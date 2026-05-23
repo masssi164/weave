@@ -11,7 +11,9 @@ acceptance-feature-mapping:
 	@flutter test test/live_stack_feature_mapping_test.dart
 
 release-spine-contract:
-	@flutter test test/release_1/v0_1_release_spine_contract_test.dart
+	@flutter test \
+	  test/release_1/v0_1_release_spine_contract_test.dart \
+	  test/release_1/ux_release_copy_contract_test.dart
 
 integration-contract-test:
 	@dart_defines_file=$$(mktemp); \
