@@ -31,7 +31,7 @@ Current evidence and boundaries:
 
 ## Meetings / video calls
 
-Classic meetings and video calls are active product scope. LiveKit is the provider contract, while Matrix remains the chat/E2EE substrate rather than the generic meetings provider. The app must keep join/start controls fail-closed until the backend token facade, signaling/media path, metadata boundaries, and encryption evidence are configured and validated.
+Classic meetings and video calls are active product scope. LiveKit is the media provider contract, while Matrix remains the chat/E2EE substrate rather than the generic meetings provider. Matrix chat encryption must not be presented as covering LiveKit media calls. The app must keep join/start controls fail-closed until the backend token facade, signaling/media path, metadata boundaries, media-encryption evidence, and accessibility evidence are configured and validated.
 
 [<img src="assets/roadmap/08-livekit-meetings-readiness.svg" alt="Weave LiveKit meetings readiness visual showing LiveKit as provider, backend token facade control, and fail-closed default state." width="560">](assets/roadmap/08-livekit-meetings-readiness.svg)
 

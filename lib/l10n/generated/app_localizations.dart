@@ -1046,7 +1046,7 @@ abstract class AppLocalizations {
   /// Description for the gated channel meetings preview placeholder
   ///
   /// In en, this message translates to:
-  /// **'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence. LiveKit is the provider contract; join and start remain gated until backend tokens and encryption evidence are configured.'**
+  /// **'Meetings attach to this channel\'s calendar, agenda, decisions, tasks, files, and follow-up evidence. LiveKit is the media provider contract; join and start remain gated until backend tokens, media encryption evidence, and accessibility evidence are configured.'**
   String get channelWorkspaceMeetingsDescription;
 
   /// Title explaining that channel meetings are fail-closed until backend and encryption evidence exist
@@ -1058,7 +1058,7 @@ abstract class AppLocalizations {
   /// Body explaining honest fail-closed channel meeting capability state
   ///
   /// In en, this message translates to:
-  /// **'LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, and metadata boundaries have evidence. This preview does not claim that encrypted LiveKit calls are available.'**
+  /// **'LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls. This preview does not claim that encrypted LiveKit calls are available.'**
   String get channelWorkspaceMeetingsCapabilityBody;
 
   /// Title for the explicit context rule in the channel meetings preview

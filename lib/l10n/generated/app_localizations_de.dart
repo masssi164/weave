@@ -553,7 +553,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsDescription =>
-      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft. LiveKit ist der Provider-Kontrakt; Beitreten und Starten bleiben gesperrt, bis Backend-Tokens und Verschlüsselungsnachweise konfiguriert sind.';
+      'Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft. LiveKit ist der Medien-Provider-Kontrakt; Beitreten und Starten bleiben gesperrt, bis Backend-Tokens, Medienverschlüsselungsnachweise und Barrierefreiheitsnachweise konfiguriert sind.';
 
   @override
   String get channelWorkspaceMeetingsCapabilityTitle =>
@@ -561,7 +561,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsCapabilityBody =>
-      'LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen und Metadatengrenzen belegt sind. Diese Vorschau behauptet nicht, dass verschlüsselte LiveKit-Anrufe verfügbar sind.';
+      'LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen belegt sind. Matrix bleibt Chat- und E2EE-Substrat; Matrix-Chat-Verschlüsselung deckt LiveKit-Medienanrufe nicht automatisch ab. Diese Vorschau behauptet nicht, dass verschlüsselte LiveKit-Anrufe verfügbar sind.';
 
   @override
   String get channelWorkspaceMeetingsPrivacyTitle =>
