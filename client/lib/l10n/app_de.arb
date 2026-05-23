@@ -799,7 +799,7 @@
   "settingsAdminPermissionDescription": "Sichtbar, weil deine Weave-Rollen sind: {roles}. Backend-APIs bleiben die Autorität für jeden Schreibvorgang.",
   "settingsAdminPermissionSemantic": "Admin-Steuerung freigeschaltet. Sichtbar, weil deine Weave-Rollen sind: {roles}. Backend-APIs bleiben die Autorität für jeden Schreibvorgang.",
   "settingsAdminBoundaryTitle": "Workspace-Einrichtung ist nur für Admins",
-  "settingsAdminBoundaryDescription": "OIDC-, Realm-, Organisations- und Dienstendpunkt-Einrichtung wird von Workspace-Ownern oder Admins verwaltet. Normale Nutzer können Weave ohne Matrix-, Nextcloud- oder Realm-Details verwenden.",
+  "settingsAdminBoundaryDescription": "Workspace-Einrichtung übernehmen Workspace-Owner oder Admins. Normale Nutzer können Weave ohne Setup- oder Infrastrukturdetails weiterverwenden.",
   "settingsAdminPermissionLoading": "Admin-Berechtigungen werden geprüft…",
   "chatContextCardTitle": "Kontext für diesen Workspace",
   "chatContextCardDescription": "Weave kann fokussierten Kontext aus Kanälen, Entscheidungen und gemeinsamer Arbeit vorbereiten, wenn du Hilfe anforderst. Es zeigt kein Datenbankdiagramm und liest nicht ständig alles mit.",

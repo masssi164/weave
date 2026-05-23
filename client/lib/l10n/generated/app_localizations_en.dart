@@ -2768,7 +2768,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsAdminBoundaryDescription =>
-      'OIDC, realm, organization, and service endpoint setup is handled by workspace owners or admins. Normal users can keep using Weave without Matrix, Nextcloud, or realm details.';
+      'Workspace setup is handled by workspace owners or admins. Normal users can keep using Weave without setup or infrastructure details.';
 
   @override
   String get settingsAdminPermissionLoading => 'Checking admin permissions…';

@@ -4639,7 +4639,7 @@ abstract class AppLocalizations {
   /// Explanation shown to non-admin users instead of server configuration controls
   ///
   /// In en, this message translates to:
-  /// **'OIDC, realm, organization, and service endpoint setup is handled by workspace owners or admins. Normal users can keep using Weave without Matrix, Nextcloud, or realm details.'**
+  /// **'Workspace setup is handled by workspace owners or admins. Normal users can keep using Weave without setup or infrastructure details.'**
   String get settingsAdminBoundaryDescription;
 
   /// Loading label while profile roles are being resolved
