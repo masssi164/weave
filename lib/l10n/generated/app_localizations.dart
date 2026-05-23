@@ -2723,7 +2723,7 @@ abstract class AppLocalizations {
   /// Provider stack description when backend facade and fail-closed rules are satisfied
   ///
   /// In en, this message translates to:
-  /// **'Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call GitLab, Office, or other provider APIs directly.'**
+  /// **'Provider integrations stay fail-closed behind backend-owned facades. Flutter does not call Nextcloud, Matrix auth, OpenProject, Office, or other provider APIs directly.'**
   String get settingsProviderStackFailClosedDescription;
 
   /// Provider stack description when readiness needs review
@@ -2881,6 +2881,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Forms'**
   String get settingsProviderModuleForms;
+
+  /// Provider module label for Matrix/Synapse chat
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix chat'**
+  String get settingsProviderModuleMatrix;
+
+  /// Provider module label for Matrix Authentication Service
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix auth'**
+  String get settingsProviderModuleMatrixAuth;
+
+  /// Provider module label for meetings and video calls
+  ///
+  /// In en, this message translates to:
+  /// **'Meetings'**
+  String get settingsProviderModuleMeetings;
 
   /// Provider module label for boards
   ///

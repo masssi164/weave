@@ -147,6 +147,38 @@ AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
   );
 }
 
+ProviderStatusSnapshot _providerStatus({
+  required String module,
+  required String providerKey,
+  ProviderState state = ProviderState.notConfigured,
+  bool enabled = false,
+  bool configured = false,
+  bool readOnly = true,
+}) {
+  return ProviderStatusSnapshot(
+    module: module,
+    providerKey: providerKey,
+    state: state,
+    readiness: state == ProviderState.ready ? 'ready' : 'fail-closed',
+    enabled: enabled,
+    configured: configured,
+    readOnly: readOnly,
+    failClosed: state != ProviderState.ready,
+    supportSafe: true,
+    paidFeaturesRequired: false,
+    summary: 'Support-safe readiness for $providerKey.',
+    supportedCapabilities: const [],
+    unsupportedOperations: state == ProviderState.ready
+        ? const []
+        : const ['runtime-action'],
+    supportSafeErrorCodes: state == ProviderState.ready
+        ? const []
+        : const ['PROVIDER_NOT_CONFIGURED'],
+    redactionPolicy: 'support-safe',
+    candidates: const [],
+  );
+}
+
 void main() {
   group('SettingsScreen', () {
     testWidgets('loads the saved configuration and persists edits', (
@@ -593,7 +625,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('Flutter does not call GitLab'),
+        find.textContaining('Flutter does not call Nextcloud'),
         findsOneWidget,
       );
       expect(find.text('Office readiness'), findsOneWidget);
@@ -606,6 +638,157 @@ void main() {
       expect(find.textContaining('provider-token-123'), findsNothing);
       expect(find.textContaining('https://gitlab.example.test'), findsNothing);
       expect(find.textContaining('https://office.example.test'), findsNothing);
+    });
+
+    testWidgets('renders the full final provider product coverage list', (
+      tester,
+    ) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+          ),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
+          ),
+          weaveApiProviderStackSnapshotProvider.overrideWith(
+            (ref) async => ProviderStackSnapshot(
+              releaseStatus: 'provider-final-coverage',
+              backendOwnedFacades: true,
+              flutterDirectProviderCallsAllowed: false,
+              supportSafe: true,
+              providers: [
+                _providerStatus(
+                  module: 'identity-realm',
+                  providerKey: 'keycloak-realm',
+                  state: ProviderState.ready,
+                  enabled: true,
+                  configured: true,
+                  readOnly: false,
+                ),
+                _providerStatus(
+                  module: 'files',
+                  providerKey: 'nextcloud-files',
+                  state: ProviderState.ready,
+                  enabled: true,
+                  configured: true,
+                  readOnly: false,
+                ),
+                _providerStatus(
+                  module: 'calendar',
+                  providerKey: 'nextcloud-caldav',
+                  state: ProviderState.ready,
+                  enabled: true,
+                  configured: true,
+                  readOnly: false,
+                ),
+                _providerStatus(
+                  module: 'contacts',
+                  providerKey: 'nextcloud-carddav',
+                ),
+                _providerStatus(
+                  module: 'forms',
+                  providerKey: 'nextcloud-forms',
+                ),
+                _providerStatus(
+                  module: 'matrix',
+                  providerKey: 'synapse-homeserver',
+                  state: ProviderState.ready,
+                  enabled: true,
+                  configured: true,
+                  readOnly: false,
+                ),
+                _providerStatus(
+                  module: 'matrix-auth',
+                  providerKey: 'matrix-authentication-service',
+                  state: ProviderState.ready,
+                  enabled: true,
+                  configured: true,
+                  readOnly: false,
+                ),
+                _providerStatus(
+                  module: 'meetings',
+                  providerKey: 'matrix-meetings',
+                ),
+                _providerStatus(
+                  module: 'boards',
+                  providerKey: 'openproject-primary',
+                ),
+              ],
+            ),
+          ),
+          weaveApiOfficeCapabilitiesSnapshotProvider.overrideWith(
+            (ref) async => const OfficeCapabilitiesSnapshot(
+              releaseStatus: 'contract-preview',
+              enabled: false,
+              configured: false,
+              supportSafe: true,
+              launchMode: 'disabled',
+              defaultProvider: 'onlyoffice-community',
+              providerReadiness: [],
+              supportedFileTypes: [],
+              candidates: [],
+              capabilities: OfficeCapabilityFlagsSnapshot(
+                view: false,
+                edit: false,
+                comment: false,
+                review: false,
+                formFill: false,
+              ),
+              permissions: OfficePermissionModelSnapshot(
+                canView: false,
+                canEdit: false,
+                canComment: false,
+                canReview: false,
+                canFillForms: false,
+                reason: 'not-configured',
+              ),
+              lockSessionReadiness: OfficeLockSessionReadinessSnapshot(
+                documentLocks: 'unavailable',
+                sessionTokens: 'unavailable',
+                callbackVerification: 'unavailable',
+                supportSafe: true,
+              ),
+            ),
+          ),
+          userProfileProvider.overrideWith((ref) async => _ownerProfile),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Identity realm: ready'), findsOneWidget);
+      expect(find.text('Files: ready'), findsOneWidget);
+      expect(find.text('Calendar: ready'), findsOneWidget);
+      expect(find.text('Contacts: unconfigured'), findsOneWidget);
+      expect(find.text('Forms: unconfigured'), findsOneWidget);
+      expect(find.text('Matrix chat: ready'), findsOneWidget);
+      expect(find.text('Matrix auth: ready'), findsOneWidget);
+      expect(find.text('Meetings: unconfigured'), findsOneWidget);
+      expect(find.text('Boards: unconfigured'), findsOneWidget);
     });
 
     testWidgets(
