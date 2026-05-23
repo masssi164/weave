@@ -62,6 +62,7 @@ void main() {
 
       for (final tag in <String>[
         '@weave-v01-home-daily-loop',
+        '@weave-v01-user-ready-organization-flow',
         '@weave-v01-channel-workspace',
         '@weave-v01-board-write-audit',
         '@weave-v01-meeting-capsule',
@@ -75,6 +76,10 @@ void main() {
       expect(
         mappingText,
         contains('client/test/release_1/v0_1_release_spine_contract_test.dart'),
+      );
+      expect(
+        mappingText,
+        contains('client/test/release_1/ux_release_copy_contract_test.dart'),
       );
     });
   });

@@ -417,7 +417,7 @@ void main() {
               firstRunStatusProvider.overrideWith((ref) async => null),
               agentCapabilityPolicyProvider.overrideWithValue(
                 AsyncData(
-                  AgentCapabilityPolicy.preview(canManageCapabilities: true),
+                  AgentCapabilityPolicy.disabled(canManageCapabilities: true),
                 ),
               ),
             ],
@@ -448,7 +448,7 @@ void main() {
         );
         expect(find.text('Personal assistant'), findsOneWidget);
         expect(find.text('Channel agent'), findsOneWidget);
-        expect(find.text('Preview only'), findsOneWidget);
+        expect(find.text('Disabled by policy'), findsOneWidget);
         expect(find.text('Admin setup required'), findsOneWidget);
         expect(find.text('Unavailable until enabled'), findsNWidgets(2));
         expect(find.text('Favorites'), findsOneWidget);
@@ -520,7 +520,7 @@ void main() {
         expect(find.text('AI chats'), findsOneWidget);
         expect(
           find.text(
-            'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.',
+            'AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.',
           ),
           findsOneWidget,
         );

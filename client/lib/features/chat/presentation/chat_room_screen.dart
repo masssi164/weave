@@ -987,8 +987,12 @@ String _channelSurfaceStatusLabel(
   return switch (availability) {
     ChannelWorkspaceSurfaceAvailability.available =>
       l10n.channelWorkspaceStatusAvailable,
-    ChannelWorkspaceSurfaceAvailability.preview =>
-      l10n.channelWorkspaceStatusPreview,
+    ChannelWorkspaceSurfaceAvailability.adminSetupRequired =>
+      l10n.channelWorkspaceStatusAdminSetupRequired,
+    ChannelWorkspaceSurfaceAvailability.disabledByPolicy =>
+      l10n.channelWorkspaceStatusDisabledByPolicy,
+    ChannelWorkspaceSurfaceAvailability.degraded =>
+      l10n.channelWorkspaceStatusDegraded,
     ChannelWorkspaceSurfaceAvailability.gated =>
       l10n.channelWorkspaceStatusGated,
   };

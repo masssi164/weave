@@ -8,6 +8,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | --- | --- | --- |
 | Offline Flutter checks | Formatting, static analysis, unit/widget behavior, generated code consistency, and no-network contract checks. | `.github/workflows/ci.yml`, local `flutter` commands, `make offline-contract-test`. |
 | Accessibility gate | Automated checks and the manual assistive-technology evidence required before release sign-off. | [Accessibility Release Gate](accessibility-release-gate.md). |
+| ISO 9241-110 dogfood UX gate | Product dialogue quality, release-scope capability states, banned preview/scaffold wording, and role separation for member vs admin/operator surfaces. | [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md), `test/release_1/ux_release_copy_contract_test.dart`. |
 | Deterministic screenshots | README and roadmap SVG assets match the checked-in generator and do not drift silently. | `make marketing-screenshots`, `docs/assets/marketing/`, `docs/assets/roadmap/`, CI screenshot drift step. |
 | Acceptance contract guard | Gherkin acceptance scenarios stay mapped to executable frontend/live-stack tests. | [Acceptance contracts](acceptance-contracts.md), [Product acceptance flows](product-acceptance-flows.md), `test/live_stack_feature_mapping_test.dart`. |
 | Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
@@ -62,4 +63,5 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 - [Acceptance contracts](acceptance-contracts.md)
 - [Product acceptance flows](product-acceptance-flows.md)
 - [Accessibility Release Gate](accessibility-release-gate.md)
+- [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md)
 - [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md)

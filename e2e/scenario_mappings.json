@@ -115,6 +115,32 @@
       ]
     },
     {
+      "tag": "@weave-v01-user-ready-organization-flow",
+      "scenario": "A normal member sees a user-ready organization flow",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "client/test/release_1/ux_release_copy_contract_test.dart",
+      "evidenceMarkers": [
+        "V01_USER_READY_ORG_FLOW"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/iso-9241-110-dogfood-ux-gate.md",
+          "fragments": [
+            "Preview is not a release-scope state",
+            "First-use acceptance criteria",
+            "Provider diagnostics | Hidden from members"
+          ]
+        },
+        {
+          "path": "client/test/features/settings/settings_screen_test.dart",
+          "fragments": [
+            "keeps provider diagnostics admin-only for members",
+            "Provider stack readiness"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-channel-workspace",
       "scenario": "A channel is the primary workspace surface",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

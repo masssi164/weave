@@ -11,6 +11,14 @@ Feature: Weave v0.1 dogfood production release
     Then Weave shows recent channels, open tasks, upcoming meetings, recent decisions, and actionable health warnings
     And every home section has a keyboard and screen-reader path
 
+  @weave-v01-user-ready-organization-flow
+  Scenario: A normal member sees a user-ready organization flow
+    Given an admin has provisioned the organization and invited a member
+    When the member opens Weave and enters a channel workspace
+    Then release-scope surfaces use ready, admin-setup-required, policy-disabled, degraded, or hidden states
+    And the member does not see preview, scaffold, roadmap, or raw provider setup copy
+    And provider diagnostics stay in admin/operator health surfaces
+
   @weave-v01-channel-workspace
   Scenario: A channel is the primary workspace surface
     Given a workspace member enters a project channel

@@ -131,7 +131,7 @@ void main() {
     await tester.tap(find.text('Files'));
     await tester.pumpAndSettle();
     expect(find.text('Channel files'), findsOneWidget);
-    expect(find.text('Preview contract'), findsOneWidget);
+    expect(find.text('Available'), findsOneWidget);
     expect(
       find.text('Provider seam: weave-files-channel-link'),
       findsOneWidget,
@@ -140,6 +140,7 @@ void main() {
     await tester.tap(find.text('Boards'));
     await tester.pumpAndSettle();
     expect(find.text('Channel boards and tasks'), findsOneWidget);
+    expect(find.text('Admin setup required'), findsOneWidget);
     expect(
       find.text('Provider seam: weave-boards-channel-link'),
       findsOneWidget,
@@ -156,11 +157,11 @@ void main() {
 
     await tester.tap(find.text('Meetings'));
     await tester.pumpAndSettle();
-    expect(find.text('Channel meeting preview'), findsOneWidget);
+    expect(find.text('Channel meetings'), findsOneWidget);
     expect(find.text('LiveKit readiness is fail-closed'), findsOneWidget);
     expect(
       find.textContaining(
-        'does not claim that encrypted LiveKit calls are available',
+        'Matrix chat encryption does not by itself cover LiveKit media calls',
       ),
       findsOneWidget,
     );
@@ -169,7 +170,7 @@ void main() {
     expect(find.text('Follow-up evidence'), findsOneWidget);
     expect(find.text('Recording and transcription off'), findsOneWidget);
     expect(
-      find.text('Provider seam: livekit-meetings-channel-preview'),
+      find.text('Provider seam: livekit-meetings-channel-gate'),
       findsOneWidget,
     );
     expect(
