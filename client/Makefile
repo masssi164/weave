@@ -1,4 +1,4 @@
-.PHONY: offline-contract-test acceptance-feature-mapping integration-contract-test integration-app-e2e integration-test marketing-screenshots
+.PHONY: offline-contract-test acceptance-feature-mapping release-spine-contract integration-contract-test integration-app-e2e integration-test marketing-screenshots
 
 offline-contract-test: acceptance-feature-mapping
 	@WEAVE_OFFLINE_CONTRACT_ONLY=true \
@@ -9,6 +9,9 @@ offline-contract-test: acceptance-feature-mapping
 
 acceptance-feature-mapping:
 	@flutter test test/live_stack_feature_mapping_test.dart
+
+release-spine-contract:
+	@flutter test test/release_1/v0_1_release_spine_contract_test.dart
 
 integration-contract-test:
 	@dart_defines_file=$$(mktemp); \
@@ -109,7 +112,7 @@ integration-app-e2e:
 	    --dart-define-from-file="$$dart_defines_file"; \
 	done
 
-integration-test: acceptance-feature-mapping integration-app-e2e
+integration-test: acceptance-feature-mapping release-spine-contract integration-app-e2e
 
 marketing-screenshots:
 	@python3 tool/generate_marketing_screenshots.py

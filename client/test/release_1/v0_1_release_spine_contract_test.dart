@@ -39,6 +39,21 @@ void main() {
         markdown,
         contains('Agent integration requires a separate research/ADR track'),
       );
+
+      // These sanitized markers are consumed by the Live Stack acceptance
+      // evidence guard. They make the non-live release-spine contract visible
+      // in the same runtime evidence artifact as the app E2E markers.
+      for (final marker in <String>[
+        'V01_HOME_DAILY_LOOP',
+        'V01_CHANNEL_WORKSPACE',
+        'V01_BOARD_WRITE_AUDIT',
+        'V01_MEETING_CAPSULE',
+        'V01_DECISION_LEDGER',
+        'V01_OPERATOR_RELEASE_PATH',
+      ]) {
+        // ignore: avoid_print
+        print(marker);
+      }
     });
 
     test('keeps the Gherkin release spine mapped to executable evidence', () {
