@@ -107,7 +107,7 @@ public class ProviderCoreConfiguration {
                 Set.of("project-list", "board-list", "task-list", "task-create-local-preview", "task-move-local-preview", "task-complete-local-preview", "read-sync"),
                 Set.of("raw-openproject-ui-as-product", "provider-writes-without-audit", "direct-flutter-provider-api"),
                 List.of("openproject", "nextcloud-deck", "vikunja-comparison"),
-                Map.of("primaryProvider", "openproject", "optionalProvider", "nextcloud-deck", "facade", "/api/boards/preview"));
+                Map.of("primaryProvider", "openproject", "optionalProvider", "nextcloud-deck", "facade", "/api/boards/workspace"));
     }
 
     @Bean

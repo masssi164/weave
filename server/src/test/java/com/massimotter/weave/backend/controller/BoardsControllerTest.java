@@ -48,7 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
-        "weave.boards.preview.runtime-enabled=true",
+        "weave.boards.workspace.runtime-enabled=true",
         "weave.context.authorization.principal-claim=preferred_username"
 })
 @EnableConfigurationProperties(ContextAuthorizationProperties.class)
@@ -64,26 +64,26 @@ class BoardsControllerTest {
     private ContextAuthorizationPort contextAuthorizationPort;
 
     @Test
-    void boardsPreviewRequiresAuthenticatedWorkspaceScope() throws Exception {
-        mockMvc.perform(get("/api/boards/preview"))
+    void boardsWorkspaceRequiresAuthenticatedWorkspaceScope() throws Exception {
+        mockMvc.perform(get("/api/boards/workspace"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("unauthorized"));
     }
 
     @Test
-    void boardsPreviewReturnsProviderNeutralLocalFacadeSnapshot() throws Exception {
+    void boardsWorkspaceReturnsProviderNeutralLocalFacadeSnapshot() throws Exception {
         allowBoardsPermission(ContextPermission.VIEW);
 
-        mockMvc.perform(get("/api/boards/preview")
+        mockMvc.perform(get("/api/boards/workspace")
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.preview").value(true))
-                .andExpect(jsonPath("$.releaseStatus").value("active-feature-gated-preview"))
-                .andExpect(jsonPath("$.source").value("local-preview-backend-facade"))
+                .andExpect(jsonPath("$.workspace").value(true))
+                .andExpect(jsonPath("$.releaseStatus").value("active-dogfood-production"))
+                .andExpect(jsonPath("$.source").value("local-workspace-backend-facade"))
                 .andExpect(jsonPath("$.capabilities.enabled").value(true))
                 .andExpect(jsonPath("$.syncMetadata.provider").value("in-memory"))
-                .andExpect(jsonPath("$.syncMetadata.mode").value("local-preview-backend-facade"))
-                .andExpect(jsonPath("$.syncMetadata.readOnly").value(true))
+                .andExpect(jsonPath("$.syncMetadata.mode").value("local-workspace-backend-facade"))
+                .andExpect(jsonPath("$.syncMetadata.userWriteAudited").value(true))
                 .andExpect(jsonPath("$.syncMetadata.contextScoped").value(true))
                 .andExpect(jsonPath("$.syncMetadata.supportSafe").value(true))
                 .andExpect(jsonPath("$.syncMetadata.nextCursors").isMap())
@@ -96,13 +96,13 @@ class BoardsControllerTest {
     }
 
     @Test
-    void boardsPreviewSupportsCreateMoveAndCompleteWithoutDragOnlyFlow() throws Exception {
+    void boardsWorkspaceSupportsCreateMoveAndCompleteWithoutDragOnlyFlow() throws Exception {
         allowBoardsPermission(ContextPermission.EDIT);
         String createPayload = """
                 {
                   "columnId": "local-column-todo",
                   "title": "Write acceptance evidence",
-                  "description": "Created through the backend Boards preview facade.",
+                  "description": "Created through the backend Boards workspace facade.",
                   "assigneeRefs": ["workspace:member"],
                   "labelRefs": ["evidence"]
                 }
@@ -130,6 +130,23 @@ class BoardsControllerTest {
                 .andExpect(jsonPath("$.id").value(taskId))
                 .andExpect(jsonPath("$.columnId").value("local-column-active"));
 
+        mockMvc.perform(post("/api/boards/tasks/{taskId}/status", taskId)
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"blocked\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.columnId").value("local-column-blocked"))
+                .andExpect(jsonPath("$.status").value("blocked"));
+
+        mockMvc.perform(post("/api/boards/tasks/{taskId}/decision-links", taskId)
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"decisionRef\":\"decision:release-v0.1\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.decisionRefs[0]").value("decision:release-v0.1"));
+
         mockMvc.perform(post("/api/boards/tasks/{taskId}/complete", taskId)
                         .with(workspaceJwt()))
                 .andExpect(status().isOk())
@@ -140,7 +157,7 @@ class BoardsControllerTest {
     }
 
     @Test
-    void boardsPreviewUsesSupportSafeErrorsForUnknownTasks() throws Exception {
+    void boardsWorkspaceUsesSupportSafeErrorsForUnknownTasks() throws Exception {
         allowBoardsPermission(ContextPermission.EDIT);
 
         mockMvc.perform(post("/api/boards/tasks/missing-task/complete")
@@ -149,12 +166,12 @@ class BoardsControllerTest {
                 .andExpect(header().exists("X-Request-Id"))
                 .andExpect(jsonPath("$.code").value("boards-not_found"))
                 .andExpect(jsonPath("$.details.module").value("boards"))
-                .andExpect(jsonPath("$.details.preview").value(true))
+                .andExpect(jsonPath("$.details.workspace").value(true))
                 .andExpect(jsonPath("$.details.resource").value("task"));
     }
 
     @Test
-    void boardsPreviewFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
+    void boardsWorkspaceFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
         when(contextAuthorizationPort.check(argThat(request ->
                 request != null
                         && "tenant-default".equals(request.tenantId())
@@ -163,12 +180,12 @@ class BoardsControllerTest {
                         && request.permission() == ContextPermission.VIEW)))
                 .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
 
-        mockMvc.perform(get("/api/boards/preview")
+        mockMvc.perform(get("/api/boards/workspace")
                         .with(workspaceJwt()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("boards-forbidden"))
                 .andExpect(jsonPath("$.details.module").value("boards"))
-                .andExpect(jsonPath("$.details.preview").value(true))
+                .andExpect(jsonPath("$.details.workspace").value(true))
                 .andExpect(jsonPath("$.details.contextId").value("workspace-default"))
                 .andExpect(jsonPath("$.details.permission").value("view"));
     }

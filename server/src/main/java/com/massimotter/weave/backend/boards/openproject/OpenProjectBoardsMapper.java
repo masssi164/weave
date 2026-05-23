@@ -68,6 +68,7 @@ public final class OpenProjectBoardsMapper {
                 Math.max(0, source.position()),
                 source.assigneeRefs() == null ? List.of() : source.assigneeRefs(),
                 source.labelRefs() == null ? List.of() : source.labelRefs(),
+                List.of(),
                 priority(source.priority()),
                 source.startAt(),
                 source.dueAt(),

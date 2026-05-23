@@ -7,7 +7,7 @@ This stage owns Docker networking, generated runtime config files, local contain
 - `main.tf`: root orchestration, per-service database bootstrap, generated file creation, module composition, Weave backend wiring, and state-preserving `moved` blocks.
 - `variables.tf`: public input contract for the infrastructure stage.
 - `outputs.tf`: exported service names, URLs, and hostnames.
-- `.terraform.lock.hcl`: pinned provider selections for reproducible init behavior.
+- `.tofu.lock.hcl`: pinned provider selections for reproducible init behavior.
 - `templates/Caddyfile.tpl`: Caddy reverse proxy and TLS routing template.
 - `templates/mas-config.yaml.tpl`: Matrix Authentication Service config template.
 - `templates/homeserver.yaml.tpl`: Synapse delegated-auth config template.

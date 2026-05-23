@@ -65,6 +65,7 @@ public final class VikunjaBoardsMapper {
                 source.position(),
                 source.assigneeRefs(),
                 source.labelRefs(),
+                List.of(),
                 priority(source.priority()),
                 source.startAt(),
                 source.dueAt(),

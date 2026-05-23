@@ -6,6 +6,8 @@ public enum BoardCapability {
     COMMENTS("comments"),
     ATTACHMENTS("attachments"),
     NON_DESTRUCTIVE_ARCHIVE("non_destructive_archive"),
+    STATUS_UPDATES("status_updates"),
+    DECISION_LINKS("decision_links"),
     WEBHOOK_EVENTS("webhook_events"),
     INCREMENTAL_SYNC("incremental_sync"),
     CHECKLISTS("checklists"),

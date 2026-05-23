@@ -1,40 +1,42 @@
-# Weave Repository Instructions
+# Weave Monorepo Agent Rules
 
-Weave uses a feature-first clean architecture under `lib/features/<feature>/`, with shared cross-feature protocol/platform code living under `lib/integrations/<integration>/`. New work and refactors should follow those ownership boundaries even where older code still uses transitional folders like `models/` or top-level `providers/`.
+Weave is now developed as one product stack. Treat `client/`, `server/`, `infra/`, and `e2e/` as one release unit.
 
-Placement rules:
-- `presentation/` for screens, widgets, and feature UI composition
-- `presentation/providers/` for Riverpod providers, notifiers, and UI-facing controllers
-- `domain/` for entities, use cases, and repository contracts
-- `data/` for repository implementations, datasources, and DTOs
+## Release discipline
 
-Integration placement:
-- use `lib/integrations/<integration>/` for reusable auth/session/capability/protocol logic that is shared by multiple features
-- keep the same `presentation/`, `domain/`, and `data/` split inside integrations so shared boundaries stay predictable
-- move feature-specific transport mapping back into the owning feature once the code stops being reusable across features
+- v0.1 is a dogfood-production release. Do not add preview-only product claims to v0.1 scope.
+- No release surface may be described as shipped unless it has executable evidence.
+- Replace “preview” and “read-only” behavior in v0.1 surfaces with real user flows, permission checks, audit trails, and fail-closed error states.
+- Agent runtime integration is out of v0.1. Do not implement product agent features until the sandboxing/tool-whitelist research ADR is accepted.
 
-Feature boundaries:
-- Features may depend on `core/`, shared reusable UI, and `lib/integrations/`, but must not import another feature's `data/` layer directly.
-- Cross-feature integration should go through domain contracts, app-level orchestration, or shared core abstractions.
-- Integrations may depend on shared app foundations such as `core/`, `features/auth/`, and `features/server_config/`, but must not depend on feature presentation code or feature-specific entities they are meant to serve.
+## Architecture boundaries
 
-App-config alignment:
-- treat `../weave-inf` as the infrastructure SSOT for app OIDC and endpoint defaults
-- default the app OIDC client to the infrastructure-managed `weave-app`, while still allowing an override for custom issuers
-- app redirect URIs are `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`
-- user-facing Nextcloud defaults should derive to `nextcloud.<tenant_domain>`, while compatibility-sensitive storage fields may still use `nextcloud*` names internally
-- local development stacks may legitimately use `http://` issuer and service URLs
+- `client/`: Flutter app only. It must not hold provider secrets, LiveKit API secrets, backend service tokens, or raw credential-bearing URLs.
+- `server/`: all provider access goes through backend-owned facades with authorization, audit, support-safe errors, and contract tests.
+- `infra/`: OpenTofu-preferred infrastructure, deployment, backup/restore, operator checks, and support-bundle redaction.
+- `e2e/`: product-language Gherkin, scenario mappings, and sanitized evidence artifacts.
 
-Accessibility is mandatory:
-- interactive controls must provide at least `48x48` logical touch targets
-- icon-only actions must have semantics labels
-- complex widgets must expose a correct reading order
-- composite controls should merge/group semantics when they should be read as one unit
+## ATDD / Gherkin rules
 
-Validation:
-- `flutter pub get`
-- `flutter gen-l10n`
-- `dart run build_runner build --delete-conflicting-outputs`
-- `dart format --output=none --set-exit-if-changed .`
-- `flutter analyze --fatal-infos`
-- `flutter test`
+- Start product behavior with a Gherkin scenario in `e2e/features/`.
+- Add or update `e2e/scenario_mappings.json` in the same change.
+- Do not commit unmapped scenarios or mappings that reference missing tests/evidence markers.
+- Live-stack E2E is reserved for critical end-to-end contracts; detailed coverage belongs in lower-level tests.
+- Evidence artifacts must be deterministic and sanitized.
+
+## Validation gates
+
+For nontrivial changes, run the smallest meaningful subset and report it:
+
+- `make acceptance-contract` for Gherkin/mapping changes.
+- `make client-ci` for Flutter/client changes.
+- `make server-ci` for backend/provider changes.
+- `make infra-static` for infrastructure/operator-script changes.
+- Live-stack E2E only when explicitly authorized and runner budget is available.
+
+## Weave co-leader operating model
+
+- Protect release scope and product coherence over local code cleverness.
+- Prefer issues/ADRs over implicit TODOs for cross-cutting decisions.
+- Stop and escalate when a change risks data loss, secret leakage, history rewrites, live infra mutation, or hidden scope expansion.
+- Keep accessibility, supportability, auditability, and deployability as release blockers, not polish.

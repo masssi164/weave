@@ -4,6 +4,9 @@
 
 set -euo pipefail
 
+: "${WEAVE_IAC_BIN:=tofu}"
+export WEAVE_IAC_BIN
+
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
 readonly INFRA_DIR="${ROOT_DIR}/01-infrastructure"
@@ -402,23 +405,23 @@ nextcloud_is_installed() {
 terraform_apply() {
   local dir="$1"
 
-  terraform -chdir="${dir}" init -input=false
-  terraform -chdir="${dir}" apply -refresh=false -input=false -auto-approve
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" init -input=false
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" apply -refresh=false -input=false -auto-approve
 }
 
 ensure_terraform_network_state() {
   local existing_network_id=""
 
-  terraform -chdir="${INFRA_DIR}" init -input=false
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
 
-  if terraform -chdir="${INFRA_DIR}" state show docker_network.weave_network >/dev/null 2>&1; then
+  if "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" state show docker_network.weave_network >/dev/null 2>&1; then
     return
   fi
 
   if docker network inspect "${TF_VAR_docker_network_name}" >/dev/null 2>&1; then
     existing_network_id="$(docker network inspect --format '{{.ID}}' "${TF_VAR_docker_network_name}")"
     log "Importing existing Docker network ${TF_VAR_docker_network_name} into Terraform state..."
-    terraform -chdir="${INFRA_DIR}" import -input=false docker_network.weave_network "${existing_network_id}"
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" import -input=false docker_network.weave_network "${existing_network_id}"
   fi
 }
 
@@ -426,7 +429,7 @@ terraform_output_raw() {
   local dir="$1"
   local name="$2"
 
-  terraform -chdir="${dir}" output -raw "${name}"
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" output -raw "${name}"
 }
 
 refresh_backend_container_if_image_changed() {
@@ -444,8 +447,8 @@ refresh_backend_container_if_image_changed() {
 
   if ! docker container inspect weave-backend >/dev/null 2>&1; then
     log "Recreating missing Weave backend container for image ${desired_image}..."
-    terraform -chdir="${INFRA_DIR}" init -input=false
-    terraform -chdir="${INFRA_DIR}" apply -input=false -auto-approve
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+    "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
     return
   fi
 
@@ -458,8 +461,8 @@ refresh_backend_container_if_image_changed() {
 
   log "Refreshing Weave backend container to match image ${desired_image}..."
   docker rm -f weave-backend >/dev/null
-  terraform -chdir="${INFRA_DIR}" init -input=false
-  terraform -chdir="${INFRA_DIR}" apply -input=false -auto-approve
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" init -input=false
+  "${WEAVE_IAC_BIN}" -chdir="${INFRA_DIR}" apply -input=false -auto-approve
 }
 
 ensure_postgres_bootstrap_applied() {

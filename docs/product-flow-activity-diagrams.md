@@ -4,9 +4,9 @@ These diagrams are presentation-ready product flows for the North-Star MVP evide
 
 Executable scenario anchors:
 
-- Frontend Live Stack: `acceptance/live_stack_app.feature`
-- Backend Cucumber: `weave-backend/src/test/resources/features/openproject-boards-readonly.feature`
-- Infra Live Gates: `weave-infra/acceptance/openproject_boards_live_stack.feature` and `weave-infra/acceptance/operator_support_safety.feature`
+- Frontend Live Stack: `e2e/features/live_stack_app.feature`
+- Backend Cucumber: `server/src/test/resources/features/openproject-boards-readonly.feature`
+- Infra Live Gates: `infra/weave-workspace/openproject-boards-live-e2e.sh`, operator checks, support-bundle redaction tests, and restore-smoke checks
 
 Source/quality-check anchors:
 
@@ -31,7 +31,7 @@ flowchart TD
   E -- yes --> F
   F --> G[Load /api/me profile facade]
   G --> H[Show workspace navigation, status, profile, modules]
-  H --> I[User can enter Chat, Files, Calendar, Boards preview]
+  H --> I[User can enter Chat, Files, Calendar, and Boards surfaces]
 ```
 
 ## 2. Workspace, team, and channel context
@@ -109,24 +109,25 @@ flowchart TD
   J --> K[Delete test event and verify cleanup]
 ```
 
-## 6. Boards/OpenProject read-only, fail-closed, and context gate
+## 6. Boards user writes, fail-closed provider boundary, and context gate
 
-Scenario anchors: `@weave-live-boards-preview-nondrag`, `@backend-openproject-disabled-fail-closed`, `@backend-openproject-enabled-readonly`, `@backend-openproject-context-space-gate`, `@infra-openproject-enabled-readonly`
+Scenario anchors: `@weave-v01-board-write-audit`, `@weave-live-boards-preview-nondrag`, `@backend-openproject-disabled-fail-closed`, `@backend-openproject-context-space-gate`, `@infra-openproject-enabled-readonly`
 
 ```mermaid
 flowchart TD
-  A[User opens Boards preview] --> B[Frontend calls Weave Boards facade]
-  B --> C{Preview/provider runtime enabled?}
+  A[User opens Boards] --> B[Frontend calls Weave Boards facade]
+  B --> C{Boards runtime enabled?}
   C -- no --> D[Fail closed: boards-provider_unavailable]
-  C -- yes --> E{Provider is local preview or OpenProject read-sync?}
-  E -- local preview --> F[Return provider-neutral sample board]
-  E -- OpenProject --> G{Context/Space authorization allows view?}
-  G -- no --> H[Fail closed: boards-forbidden; do not contact or expose provider data]
-  G -- yes --> I[Backend-held service token reads OpenProject]
-  I --> J[Map projects/statuses/work packages to Weave boards/columns/tasks]
-  J --> K[Return read-only support-safe sync metadata]
-  K --> L[Non-drag create/move/complete only in local preview]
-  K --> M[Provider writes/comments/archive/agent actions refused]
+  C -- yes --> E{Context/Space authorization allows board work?}
+  E -- no --> H[Fail closed: boards-forbidden; do not contact or expose provider data]
+  E -- yes --> F[Create, move, update, comment, or decision-link task]
+  F --> G{Audit record can be written?}
+  G -- no --> X[Fail closed before provider mutation]
+  G -- yes --> I[Backend-held credentials mutate provider]
+  I --> J[Map provider response to Weave boards/columns/tasks]
+  J --> K[Return support-safe task result and sync metadata]
+  K --> L[Non-drag actions remain first-class]
+  K --> M[Team/agent actions stay refused for v0.1]
 ```
 
 ## 7. Support, redaction, and refusal gates
@@ -142,8 +143,8 @@ flowchart TD
   E -- yes --> X[Fail support-safety gate]
   E -- no --> F[Emit support-safe bundle]
   B -- provider action --> G{Audit/consent promotion exists?}
-  G -- no --> H[Refuse writes/comments/archive/agent automation]
-  G -- yes --> I[Future promoted write path]
+  G -- no --> H[Refuse unsafe provider or agent automation]
+  G -- yes --> I[Authorized user write path]
   B -- destructive reset --> J{Typed confirmation and backup expectations satisfied?}
   J -- no --> K[Preserve identity, Matrix, Nextcloud, and generated secrets]
   J -- yes --> L[Run explicit destructive path]

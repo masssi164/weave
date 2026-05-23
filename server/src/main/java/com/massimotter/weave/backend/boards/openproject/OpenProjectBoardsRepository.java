@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.boards.domain.ProviderKind;
 import com.massimotter.weave.backend.boards.domain.TaskAttachment;
 import com.massimotter.weave.backend.boards.domain.TaskComment;
 import com.massimotter.weave.backend.boards.domain.TaskItem;
+import com.massimotter.weave.backend.boards.domain.TaskStatus;
 import com.massimotter.weave.backend.boards.domain.WeaveProject;
 import com.massimotter.weave.backend.boards.port.BoardPage;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
@@ -141,6 +142,8 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
     @Override public TaskItem createTask(CreateTaskCommand command) { throw writeDisabled("create-task"); }
     @Override public TaskItem moveTask(MoveTaskCommand command) { throw writeDisabled("move-task"); }
     @Override public TaskItem completeTask(String taskId) { throw writeDisabled("complete-task"); }
+    @Override public TaskItem updateTaskStatus(String taskId, TaskStatus status, String targetColumnId) { throw writeDisabled("update-task-status"); }
+    @Override public TaskItem linkDecision(String taskId, String decisionRef) { throw writeDisabled("link-decision"); }
 
     private void requireReadSync(String operation) {
         runtimeGate.requireReadSyncAllowed(operation);

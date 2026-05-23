@@ -102,9 +102,8 @@ weave:
       enabled: ${WEAVE_WORKSPACE_BOARDS_ENABLED:false}
       readiness: ${WEAVE_WORKSPACE_BOARDS_READINESS:}
   boards:
-    preview:
-      runtime-enabled: ${WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED:false}
-      provider: ${WEAVE_BOARDS_PREVIEW_PROVIDER:local-preview}
+    runtime-enabled: ${WEAVE_BOARDS_RUNTIME_ENABLED:${WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED:${WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED:false}}}
+    provider: ${WEAVE_BOARDS_PROVIDER:${WEAVE_BOARDS_WORKSPACE_PROVIDER:${WEAVE_BOARDS_PREVIEW_PROVIDER:local-workspace}}}
     openproject:
       provider-runtime-enabled: ${WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED:false}
       read-sync-enabled: ${WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED:false}

@@ -1,12 +1,10 @@
 # Weave Infrastructure
 
-[![CI](https://github.com/masssi164/weave-infra/actions/workflows/ci.yml/badge.svg)](https://github.com/masssi164/weave-infra/actions/workflows/ci.yml)
-
 **Repeatable self-hosted Weave stack for operators.**
 
-`weave-infra` provisions the Docker/Terraform foundation for a self-hosted Weave deployment: identity, chat, files/calendar storage, backend API routing, local HTTPS, provider-readiness checks, backups, restore smoke, and support diagnostics.
+`infra/` provisions the Docker/OpenTofu foundation for a self-hosted Weave deployment: identity, chat, files/calendar storage, backend API routing, local HTTPS, provider-readiness checks, backups, restore smoke, and support diagnostics.
 
-This repository is the operator layer, not the whole product. The daily user experience lives in the Flutter app, product contracts and provider facades live in `weave-backend`, and this repo makes that stack verifiable and recoverable without exposing secrets.
+This directory is the operator layer inside the Weave monorepo. The daily user experience lives in `../client`, product contracts and provider facades live in `../server`, and this layer makes the stack verifiable and recoverable without exposing secrets.
 
 ## What it provisions
 
@@ -48,7 +46,7 @@ cd weave-workspace
 ./install.sh
 ```
 
-`install.sh` defaults to a shared-host-safe isolated port block, runs preflight checks, generates missing local secrets and TLS material, applies both Terraform stages, waits for backend readiness, and bootstraps the Nextcloud `user_oidc` app. Generated local inputs are persisted in `weave-workspace/.generated/bootstrap.env`; a no-secrets app summary is written to `weave-workspace/.generated/app-config.env`.
+`install.sh` defaults to a shared-host-safe isolated port block, runs preflight checks, generates missing local secrets and TLS material, applies both OpenTofu stages, waits for backend readiness, and bootstraps the Nextcloud `user_oidc` app. Generated local inputs are persisted in `weave-workspace/.generated/bootstrap.env`; a no-secrets app summary is written to `weave-workspace/.generated/app-config.env`.
 
 For TLS trust, port modes, smoke-test inputs, and native app contracts, see [Local bootstrap](docs/local-bootstrap.md).
 
@@ -99,7 +97,7 @@ Optional providers are fail-closed by default:
 - `README.md`: operator overview and entry points.
 - `AGENTS.md`: repository navigation notes for maintainers.
 - `Makefile`: local helper targets such as `make dev-hosts` and `make smoke`.
-- `.github/workflows/ci.yml`: Terraform/shell validation plus manual full-stack smoke.
+- `../.github/workflows/ci.yml`: OpenTofu/shell validation plus manual full-stack smoke.
 - `KEYCLOAK_CONTRACT.md`: realm, client, scope, claim, and audience contract.
 - `docs/local-bootstrap.md`: local port modes, TLS trust, integration test inputs, and native app contract.
 - `docs/single-host-operator-guide.md`: single-host deployment target.
@@ -121,9 +119,9 @@ Optional providers are fail-closed by default:
 Repository-safe validation used by CI:
 
 ```bash
-terraform -chdir=weave-workspace/01-infrastructure validate
-terraform -chdir=weave-workspace/02-keycloak-setup validate
-terraform -chdir=weave-workspace/01-infrastructure plan -refresh=false
+tofu -chdir=weave-workspace/01-infrastructure validate
+tofu -chdir=weave-workspace/02-keycloak-setup validate
+tofu -chdir=weave-workspace/01-infrastructure plan -refresh=false
 bash -n weave-workspace/install.sh
 ```
 

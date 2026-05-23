@@ -3,6 +3,9 @@
 
 set -euo pipefail
 
+: "${WEAVE_IAC_BIN:=tofu}"
+export WEAVE_IAC_BIN
+
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
 readonly INFRA_DIR="${ROOT_DIR}/01-infrastructure"
@@ -58,12 +61,12 @@ terraform_destroy() {
   fi
 
   if dry_run_enabled; then
-    log "DRY RUN: would run terraform destroy in ${dir}"
+    log "DRY RUN: would run "${WEAVE_IAC_BIN}" destroy in ${dir}"
     return
   fi
 
-  terraform -chdir="${dir}" init -input=false >/dev/null 2>&1 || true
-  terraform -chdir="${dir}" destroy -refresh=false -input=false -auto-approve || true
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" init -input=false >/dev/null 2>&1 || true
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" destroy -refresh=false -input=false -auto-approve || true
 }
 
 remove_container() {
@@ -225,7 +228,7 @@ require_runtime_commands() {
     exit 1
   }
 
-  command -v terraform >/dev/null 2>&1 || {
+  command -v "${WEAVE_IAC_BIN}" >/dev/null 2>&1 || {
     printf 'Missing required command: terraform\n' >&2
     exit 1
   }

@@ -28,10 +28,10 @@ This work is active Weave scope behind feature gates. It must stay disabled or h
 
 | Area | Owner | Notes |
 | --- | --- | --- |
-| Product UX, accessibility behavior, local UI state | `weave` | Presentation consumes provider-neutral repositories/entities only. |
-| Product API, provider adapter orchestration, normalized events | `weave-backend` or later connector/event gateway | Backend is the default BFF boundary when the module becomes real. A sidecar/event gateway may be introduced only by a later cross-repo spec. |
-| Provider deployment and secrets | `weave-infra` | Any Vikunja/OpenProject/Deck runtime must be documented, optional, and off by default until promoted. |
-| Cross-repo contract | workspace `specs/` | This repo-local planning note should be mirrored into a binding workspace spec before implementation begins. |
+| Product UX, accessibility behavior, local UI state | `client/` | Presentation consumes provider-neutral repositories/entities only. |
+| Product API, provider adapter orchestration, normalized events | `server/` or later connector/event gateway | Backend is the default BFF boundary when the module becomes real. A sidecar/event gateway may be introduced only by a later monorepo ADR. |
+| Provider deployment and secrets | `infra/` | Any Vikunja/OpenProject/Deck runtime must be documented, optional, and off by default until promoted. |
+| Product contract | `e2e/`, `server/`, `infra/`, and `docs/` | The provider-neutral contract must be changed atomically with executable evidence before implementation is promoted. |
 
 ## Provider-neutral domain model
 

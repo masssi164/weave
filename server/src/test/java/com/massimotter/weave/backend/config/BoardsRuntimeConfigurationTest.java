@@ -1,6 +1,6 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.boards.local.LocalPreviewBoardsRepository;
+import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
 import org.junit.jupiter.api.Test;
 
@@ -11,9 +11,9 @@ class BoardsRuntimeConfigurationTest {
     private final BoardsRuntimeConfiguration configuration = new BoardsRuntimeConfiguration();
 
     @Test
-    void defaultsToLocalPreviewRepositoryForHiddenBoardsFacade() {
+    void defaultsToLocalWorkspaceRepositoryForBoardsFacade() {
         var repository = configuration.boardsRepository(
-                "local-preview",
+                "local-workspace",
                 false,
                 false,
                 false,
@@ -21,7 +21,7 @@ class BoardsRuntimeConfigurationTest {
                 false,
                 "disabled");
 
-        assertThat(repository).isInstanceOf(LocalPreviewBoardsRepository.class);
+        assertThat(repository).isInstanceOf(LocalWorkspaceBoardsRepository.class);
     }
 
     @Test

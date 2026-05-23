@@ -1,9 +1,11 @@
 package com.massimotter.weave.backend.config;
 
-import com.massimotter.weave.backend.boards.local.LocalPreviewBoardsRepository;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntimeGate;
-import com.massimotter.weave.backend.boards.port.BoardsPreviewGuard;
+import com.massimotter.weave.backend.boards.port.BoardsRuntimeGuard;
 import com.massimotter.weave.backend.boards.port.BoardsRepository;
 import java.net.URI;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,14 +22,15 @@ public class BoardsRuntimeConfiguration {
     }
 
     @Bean
-    BoardsPreviewGuard boardsPreviewGuard(
-            @Value("${weave.boards.preview.runtime-enabled:false}") boolean enabled) {
-        return new BoardsPreviewGuard(enabled);
+    BoardsRuntimeGuard boardsRuntimeGuard(
+            @Value("${weave.boards.workspace.runtime-enabled:${weave.boards.runtime-enabled:false}}") boolean enabled) {
+        return new BoardsRuntimeGuard(enabled);
     }
+
 
     @Bean
     BoardsRepository boardsRepository(
-            @Value("${weave.boards.preview.provider:local-preview}") String provider,
+            @Value("${weave.boards.workspace.provider:${weave.boards.provider:local-workspace}}") String provider,
             @Value("${weave.boards.openproject.provider-runtime-enabled:false}") boolean openProjectRuntimeEnabled,
             @Value("${weave.boards.openproject.read-sync-enabled:false}") boolean openProjectReadSyncEnabled,
             @Value("${weave.boards.openproject.context-authorization-enabled:false}") boolean openProjectContextAuthorizationEnabled,
@@ -50,7 +53,12 @@ public class BoardsRuntimeConfiguration {
                     openProjectApiToken,
                     restClientBuilder);
         }
-        return new LocalPreviewBoardsRepository();
+        return new LocalWorkspaceBoardsRepository();
+    }
+
+    @Bean
+    AuditEventPublisher auditEventPublisher() {
+        return new InMemoryAuditEventPublisher();
     }
 
     // Retained for direct unit tests that instantiate this configuration without a Spring RestClient.Builder bean.

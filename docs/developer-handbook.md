@@ -1,19 +1,20 @@
 # Developer handbook
 
-This handbook is the practical entry point for contributing to the Weave Flutter client. It complements the repo README and links to deeper docs instead of repeating every contract.
+This handbook is the practical entry point for contributing to the Weave monorepo, especially the Flutter client. It complements the repo README and links to deeper docs instead of repeating every contract.
 
 ## Repository role
 
-Weave is the frontend repository in a three-repo product system:
+Weave is now a monorepo product stack:
 
-| Repo | Frontend-facing responsibility |
+| Directory | Responsibility |
 | --- | --- |
-| `weave` | Flutter mobile/desktop app shell, custom chat/files/settings UX, client validation, accessibility, deterministic screenshots. |
-| `weave-backend` | Product API/BFF, auth/profile facade, files/calendar/boards facades, readiness, backend contract tests. |
-| `weave-infra` | Local/dev stack, Caddy, Keycloak, Matrix/Synapse/MAS, Nextcloud, Docker/Terraform orchestration, live-stack smoke and E2E environment. |
-| workspace `specs/` | Binding cross-repo product and architecture contracts when available beside the repos. |
+| `client/` | Flutter mobile/desktop app shell, custom chat/files/settings UX, client validation, accessibility, deterministic screenshots. |
+| `server/` | Product API/BFF, auth/profile facade, files/calendar/boards facades, authorization, audit, readiness, and backend contract tests. |
+| `infra/` | Local/dev stack, Caddy, Keycloak, Matrix/Synapse/MAS, Nextcloud, Docker/OpenTofu orchestration, live-stack smoke and E2E environment. |
+| `e2e/` | Binding product-language Gherkin scenarios, scenario mapping, and sanitized evidence contract. |
+| `release/` | Stack manifests and release compatibility metadata. |
 
-Do not invent backend endpoints, public URLs, auth claims, or infra defaults in Flutter. If a change needs a contract change, update the relevant workspace spec first.
+Do not invent backend endpoints, public URLs, auth claims, or infra defaults in Flutter. If a change needs a contract change, update `server/`, `infra/`, `e2e/`, and the relevant docs in the same monorepo change.
 
 ## Local setup
 
@@ -22,13 +23,13 @@ Prerequisites:
 - Flutter SDK on the stable channel.
 - Xcode/macOS or another Flutter-supported target for local app runs.
 - `make`, Python 3, and the normal Dart/Flutter toolchain.
-- A sibling `weave-infra` checkout only for live-stack validation.
+- Docker/OpenTofu only for live-stack validation.
 
-Clone and prepare the client:
+Clone the monorepo and prepare the client:
 
 ```sh
 git clone https://github.com/masssi164/weave.git
-cd weave
+cd weave/client
 flutter pub get
 flutter gen-l10n
 dart run build_runner build --delete-conflicting-outputs
@@ -117,7 +118,7 @@ Use the cheapest sufficient gate by default:
 | App E2E | `make integration-app-e2e` or `make integration-test` | Expensive app-level live-stack validation. |
 | CI live stack | `.github/workflows/live-stack-e2e.yml` | Manual/self-hosted runner evidence with uploaded artifacts. |
 
-Live-stack commands require a prepared `weave-infra` stack and real test credentials. Do not commit credentials, generated secret files, screenshots containing secrets, or raw live logs with sensitive values.
+Live-stack commands require a prepared `infra/weave-workspace` stack and real test credentials. Do not commit credentials, generated secret files, screenshots containing secrets, or raw live logs with sensitive values.
 
 ## Quality and evidence artifacts
 
@@ -145,7 +146,7 @@ The generator is `tool/generate_marketing_screenshots.py`.
 - Avoid absolute local filesystem paths.
 - Use stable workflow and docs links, not one-off run IDs, for permanent evidence claims.
 - Keep README claims tied to implemented or explicitly gated behavior.
-- If docs change setup, contract behavior, public URLs, or live-stack expectations, check the matching workspace spec before editing code.
+- If docs change setup, contract behavior, public URLs, or live-stack expectations, check the matching `e2e/`, `server/`, or `infra/` contract before editing code.
 
 ## PR checklist
 

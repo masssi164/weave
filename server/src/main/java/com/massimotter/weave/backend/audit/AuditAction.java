@@ -3,8 +3,16 @@ package com.massimotter.weave.backend.audit;
 public enum AuditAction {
     CONNECTOR_WRITE_ATTEMPTED("connector.write.attempted"),
     ASSISTANT_WRITE_ATTEMPTED("assistant.write.attempted"),
+    BOARD_TASK_CREATED("board.task.created"),
+    BOARD_TASK_MOVED("board.task.moved"),
+    BOARD_TASK_COMPLETED("board.task.completed"),
     CONSENT_GRANTED("consent.granted"),
-    CONSENT_REVOKED("consent.revoked");
+    CONSENT_REVOKED("consent.revoked"),
+    TASK_CREATED("task.created"),
+    TASK_MOVED("task.moved"),
+    TASK_COMPLETED("task.completed"),
+    TASK_STATUS_UPDATED("task.status_updated"),
+    TASK_DECISION_LINKED("task.decision_linked");
 
     private final String wireName;
 

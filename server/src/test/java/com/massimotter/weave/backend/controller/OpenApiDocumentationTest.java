@@ -70,7 +70,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/migration/dry-runs']").exists())
                 .andExpect(jsonPath("$.paths['/api/connectors/boundary']").exists())
                 .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").exists())
-                .andExpect(jsonPath("$.components.schemas.BoardsPreviewResponse.properties.syncMetadata").exists())
+                .andExpect(jsonPath("$.components.schemas.BoardsWorkspaceResponse.properties.syncMetadata").exists())
                 .andExpect(jsonPath("$.components.schemas.ProviderRegistryResponse.properties.providers").exists())
                 .andExpect(jsonPath("$.components.schemas.ProviderStatusResponse.properties.providerKey.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.ProviderStatusResponse.properties.diagnostics.type").value("object"))

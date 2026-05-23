@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.boards.domain.ProviderKind;
 import com.massimotter.weave.backend.boards.domain.TaskAttachment;
 import com.massimotter.weave.backend.boards.domain.TaskComment;
 import com.massimotter.weave.backend.boards.domain.TaskItem;
+import com.massimotter.weave.backend.boards.domain.TaskStatus;
 import com.massimotter.weave.backend.boards.domain.WeaveProject;
 import com.massimotter.weave.backend.boards.port.BoardPage;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
@@ -102,9 +103,19 @@ public final class VikunjaBoardsRepository implements BoardsRepository {
         throw disabled();
     }
 
+    @Override
+    public TaskItem updateTaskStatus(String taskId, TaskStatus status, String targetColumnId) {
+        throw disabled();
+    }
+
+    @Override
+    public TaskItem linkDecision(String taskId, String decisionRef) {
+        throw disabled();
+    }
+
     private BoardsException disabled() {
         return new BoardsException(
                 BoardsErrorCode.PROVIDER_UNAVAILABLE,
-                "Vikunja Boards/Tasks adapter is preview-only and disabled until a promotion spec enables backend routes.");
+                "Vikunja Boards/Tasks adapter is disabled until a promotion spec enables backend routes with authorization and audit gates.");
     }
 }

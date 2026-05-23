@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SecurityConfig.class,
         WorkspaceCapabilityService.class,
         WorkspaceReleaseReadinessService.class,
+        WorkspaceHomeService.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class
@@ -69,6 +71,12 @@ class WorkspaceControllerTest {
     }
 
     @Test
+    void returnsWeaveHomeDailyWorkSnapshot() throws Exception {
+        assertWeaveHomeSnapshot("/api/workspace/home");
+        assertWeaveHomeSnapshot("/api/v1/workspace/home");
+    }
+
+    @Test
     void rejectsAnonymousRequests() throws Exception {
         mockMvc.perform(get("/api/workspace/capabilities"))
                 .andExpect(status().isUnauthorized());
@@ -80,6 +88,12 @@ class WorkspaceControllerTest {
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/v1/workspace/release-readiness"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/workspace/home"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/workspace/home"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -105,5 +119,22 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.checks[1].key").value("chat"))
                 .andExpect(jsonPath("$.checks[2].key").value("files"))
                 .andExpect(jsonPath("$.actions").isEmpty());
+    }
+
+    private void assertWeaveHomeSnapshot(String path) throws Exception {
+        mockMvc.perform(get(path).with(jwt()
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").value(1))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.sections[0].key").value("recent-channels"))
+                .andExpect(jsonPath("$.sections[0].productRoute").value("weave://home/channels"))
+                .andExpect(jsonPath("$.sections[1].key").value("open-tasks"))
+                .andExpect(jsonPath("$.sections[1].readiness").value("unavailable"))
+                .andExpect(jsonPath("$.sections[2].key").value("upcoming-meetings"))
+                .andExpect(jsonPath("$.sections[2].readiness").value("degraded"))
+                .andExpect(jsonPath("$.sections[3].key").value("recent-decisions"))
+                .andExpect(jsonPath("$.sections[4].key").value("workspace-health"))
+                .andExpect(jsonPath("$.actions[0].productRoute").value("weave://home/tasks"));
     }
 }

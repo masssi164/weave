@@ -17,7 +17,7 @@ import java.util.Map;
 
 /**
  * Converts provider-specific activity records into the provider-neutral Weave
- * Boards/Tasks event envelope. This is intentionally backend-owned preview code:
+ * Boards/Tasks event envelope. This is intentionally backend-owned workspace code:
  * Flutter consumes Weave task state/events, never Vikunja/OpenProject/Deck payloads.
  */
 public final class TaskBoardEventNormalizer {

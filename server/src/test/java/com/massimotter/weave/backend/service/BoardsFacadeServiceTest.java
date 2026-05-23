@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.boards.domain.Board;
 import com.massimotter.weave.backend.boards.domain.BoardColumn;
 import com.massimotter.weave.backend.boards.domain.BoardProviderCapabilities;
@@ -8,11 +10,12 @@ import com.massimotter.weave.backend.boards.domain.ProviderKind;
 import com.massimotter.weave.backend.boards.domain.TaskAttachment;
 import com.massimotter.weave.backend.boards.domain.TaskComment;
 import com.massimotter.weave.backend.boards.domain.TaskItem;
+import com.massimotter.weave.backend.boards.domain.TaskStatus;
 import com.massimotter.weave.backend.boards.domain.WeaveProject;
-import com.massimotter.weave.backend.boards.local.LocalPreviewBoardsRepository;
+import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.port.BoardPage;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
-import com.massimotter.weave.backend.boards.port.BoardsPreviewGuard;
+import com.massimotter.weave.backend.boards.port.BoardsRuntimeGuard;
 import com.massimotter.weave.backend.boards.port.BoardsRepository;
 import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.port.MoveTaskCommand;
@@ -33,37 +36,37 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class BoardsFacadeServiceTest {
 
     @Test
-    void previewRuntimeFailsClosedWhenFeatureFlagIsDisabled() {
+    void workspaceRuntimeFailsClosedWhenFeatureFlagIsDisabled() {
         BoardsFacadeService service = new BoardsFacadeService(
-                new BoardsPreviewGuard(false),
-                new LocalPreviewBoardsRepository(),
+                new BoardsRuntimeGuard(false),
+                new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties());
 
-        assertThatThrownBy(() -> service.preview(jwt()))
+        assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
                     assertThat(error.status().value()).isEqualTo(503);
                     assertThat(error.code()).isEqualTo("boards-provider_unavailable");
                     assertThat(error.details()).containsEntry("module", "boards");
-                    assertThat(error.details()).containsEntry("preview", true);
-                    assertThat(error.details()).containsEntry("releaseStatus", "active-feature-gated-preview");
+                    assertThat(error.details()).containsEntry("workspace", true);
+                    assertThat(error.details()).containsEntry("releaseStatus", "active-dogfood-production");
                 });
     }
 
     @Test
-    void previewRuntimeFailsClosedWhenContextAuthorizationDeniesAccess() {
+    void workspaceRuntimeFailsClosedWhenContextAuthorizationDeniesAccess() {
         BoardsFacadeService service = new BoardsFacadeService(
-                new BoardsPreviewGuard(true),
-                new LocalPreviewBoardsRepository(),
+                new BoardsRuntimeGuard(true),
+                new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.deny("no matching context membership"),
                 contextAuthorizationProperties());
 
-        assertThatThrownBy(() -> service.preview(jwt()))
+        assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
                     assertThat(error.status().value()).isEqualTo(403);
                     assertThat(error.code()).isEqualTo("boards-forbidden");
                     assertThat(error.details()).containsEntry("module", "boards");
-                    assertThat(error.details()).containsEntry("preview", true);
+                    assertThat(error.details()).containsEntry("workspace", true);
                     assertThat(error.details()).containsEntry("reason", "no matching context membership");
                     assertThat(error.details()).containsEntry("contextId", "workspace-default");
                     assertThat(error.details()).containsEntry("permission", "view");
@@ -71,11 +74,11 @@ class BoardsFacadeServiceTest {
     }
 
     @Test
-    void previewUsesJwtTenantAndContextClaimsForContextBoundProviderReads() {
+    void workspaceUsesJwtTenantAndContextClaimsForContextBoundProviderReads() {
         java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
         BoardsFacadeService service = new BoardsFacadeService(
-                new BoardsPreviewGuard(true),
+                new BoardsRuntimeGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
                 request -> {
                     captured.set(request);
@@ -83,7 +86,7 @@ class BoardsFacadeServiceTest {
                 },
                 contextAuthorizationProperties());
 
-        service.preview(jwtWithContext("tenant-acme", "ctx-product-channel"));
+        service.workspace(jwtWithContext("tenant-acme", "ctx-product-channel"));
 
         assertThat(captured.get().tenantId()).isEqualTo("tenant-acme");
         assertThat(captured.get().contextId()).isEqualTo("ctx-product-channel");
@@ -96,8 +99,8 @@ class BoardsFacadeServiceTest {
         java.util.concurrent.atomic.AtomicReference<com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest> captured =
                 new java.util.concurrent.atomic.AtomicReference<>();
         BoardsFacadeService service = new BoardsFacadeService(
-                new BoardsPreviewGuard(true),
-                new LocalPreviewBoardsRepository(),
+                new BoardsRuntimeGuard(true),
+                new LocalWorkspaceBoardsRepository(),
                 request -> {
                     captured.set(request);
                     return ContextAuthorizationDecision.deny("edit denied");
@@ -123,21 +126,59 @@ class BoardsFacadeServiceTest {
         assertThat(captured.get().permission().name()).isEqualTo("EDIT");
     }
 
+
     @Test
-    void previewSourceReflectsOpenProjectReadSyncWhenProviderAdapterIsSelected() {
+    void taskWritesPublishSupportSafeWorkspaceAuditEvents() {
+        var auditPublisher = new InMemoryAuditEventPublisher();
         BoardsFacadeService service = new BoardsFacadeService(
-                new BoardsPreviewGuard(true),
+                new BoardsRuntimeGuard(true),
+                new LocalWorkspaceBoardsRepository(),
+                request -> ContextAuthorizationDecision.allow("edit allowed"),
+                contextAuthorizationProperties(),
+                auditPublisher);
+
+        var created = service.createTask(jwt(), "local-board-1",
+                new com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest(
+                        "local-column-todo",
+                        "Write acceptance evidence",
+                        null,
+                        java.util.List.of(),
+                        java.util.List.of(),
+                        null));
+        var moved = service.moveTask(jwt(), created.id(),
+                new com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest(
+                        "local-column-doing",
+                        0));
+        service.completeTask(jwt(), moved.id());
+
+        assertThat(auditPublisher.events()).hasSize(3);
+        assertThat(auditPublisher.events()).extracting(event -> event.action()).containsExactly(
+                AuditAction.BOARD_TASK_CREATED,
+                AuditAction.BOARD_TASK_MOVED,
+                AuditAction.BOARD_TASK_COMPLETED);
+        assertThat(auditPublisher.events()).allSatisfy(event -> {
+            assertThat(event.sourceRef()).isEqualTo("weave:boards-workspace");
+            assertThat(event.tenantId()).isEqualTo("tenant-default");
+            assertThat(event.contextId()).isEqualTo("workspace-default");
+            assertThat(event.payload()).containsEntry("supportSafe", true);
+        });
+    }
+
+    @Test
+    void workspaceSourceReflectsOpenProjectReadSyncWhenProviderAdapterIsSelected() {
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties());
 
-        var response = service.preview(jwt());
+        var response = service.workspace(jwt());
 
-        assertThat(response.source()).isEqualTo("openproject-read-sync-backend-facade");
+        assertThat(response.source()).isEqualTo("openproject-workspace-sync-backend-facade");
         assertThat(response.capabilities().provider()).isEqualTo(ProviderKind.OPEN_PROJECT);
         assertThat(response.syncMetadata().provider()).isEqualTo("openproject");
-        assertThat(response.syncMetadata().mode()).isEqualTo("read-only-sync");
-        assertThat(response.syncMetadata().readOnly()).isTrue();
+        assertThat(response.syncMetadata().mode()).isEqualTo("workspace-sync");
+        assertThat(response.syncMetadata().userWriteAudited()).isTrue();
         assertThat(response.syncMetadata().contextScoped()).isTrue();
         assertThat(response.syncMetadata().supportSafe()).isTrue();
         assertThat(response.projects()).isEmpty();
@@ -146,14 +187,14 @@ class BoardsFacadeServiceTest {
     }
 
     @Test
-    void previewIncludesOnlyOpaqueSupportSafeAdapterCursorsInSyncMetadata() {
+    void workspaceIncludesOnlyOpaqueSupportSafeAdapterCursorsInSyncMetadata() {
         BoardsFacadeService service = new BoardsFacadeService(
-                new BoardsPreviewGuard(true),
+                new BoardsRuntimeGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "op:v1:c3VwcG9ydC1zYWZl"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties());
 
-        var response = service.preview(jwt());
+        var response = service.workspace(jwt());
 
         assertThat(response.syncMetadata().nextCursors())
                 .containsEntry("projects", "op:v1:c3VwcG9ydC1zYWZl");
@@ -164,14 +205,14 @@ class BoardsFacadeServiceTest {
     }
 
     @Test
-    void previewFailsClosedInsteadOfLeakingUnsafeProviderCursor() {
+    void workspaceFailsClosedInsteadOfLeakingUnsafeProviderCursor() {
         BoardsFacadeService service = new BoardsFacadeService(
-                new BoardsPreviewGuard(true),
+                new BoardsRuntimeGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "https://openproject.example.test/page?token=secret"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties());
 
-        assertThatThrownBy(() -> service.preview(jwt()))
+        assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
                     assertThat(error.status().value()).isEqualTo(400);
                     assertThat(error.code()).isEqualTo("boards-validation");
@@ -240,5 +281,7 @@ class BoardsFacadeServiceTest {
         @Override public TaskItem createTask(CreateTaskCommand command) { throw new UnsupportedOperationException(); }
         @Override public TaskItem moveTask(MoveTaskCommand command) { throw new UnsupportedOperationException(); }
         @Override public TaskItem completeTask(String taskId) { throw new UnsupportedOperationException(); }
+        @Override public TaskItem updateTaskStatus(String taskId, TaskStatus status, String targetColumnId) { throw new UnsupportedOperationException(); }
+        @Override public TaskItem linkDecision(String taskId, String decisionRef) { throw new UnsupportedOperationException(); }
     }
 }

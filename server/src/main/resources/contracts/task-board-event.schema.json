@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://weave.local/contracts/task-board-event.schema.json",
   "title": "TaskBoardEvent",
-  "description": "Preview-only normalized Boards/Tasks event envelope. Feature-gated until a promotion spec defines publication semantics.",
+  "description": "Provider-neutral normalized Boards/Tasks event envelope for support-safe audit and sync evidence. Publication remains feature-gated until runtime semantics pass.",
   "type": "object",
   "required": [
     "idempotencyKey",

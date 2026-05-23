@@ -4,13 +4,13 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Support-safe sync metadata for the hidden Boards preview facade. Cursors are
+ * Support-safe sync metadata for the Boards workspace facade. Cursors are
  * adapter-owned opaque values and must never contain provider URLs or secrets.
  */
 public record BoardsSyncMetadataResponse(
         String provider,
         String mode,
-        boolean readOnly,
+        boolean userWriteAudited,
         boolean contextScoped,
         boolean supportSafe,
         Map<String, String> nextCursors,

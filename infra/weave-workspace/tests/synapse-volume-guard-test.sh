@@ -64,10 +64,10 @@ esac
 exit 0
 DOCKER
 
-  cat > "${tmpdir}/bin/terraform" <<'TERRAFORM'
+  cat > "${tmpdir}/bin/tofu" <<'TOFU'
 #!/usr/bin/env bash
 set -euo pipefail
-printf 'terraform %s\n' "$*" >> "${MOCK_COMMAND_LOG}"
+printf 'tofu %s\n' "$*" >> "${MOCK_COMMAND_LOG}"
 args=("$@")
 cmd_index=0
 if [[ "${args[0]:-}" == -chdir=* ]]; then
@@ -89,9 +89,9 @@ if [[ "${cmd}" == "state" && "${sub}" == "show" ]]; then
   esac
 fi
 exit 0
-TERRAFORM
+TOFU
 
-  chmod +x "${tmpdir}/bin/docker" "${tmpdir}/bin/terraform"
+  chmod +x "${tmpdir}/bin/docker" "${tmpdir}/bin/tofu"
 }
 
 run_helper_case() {
@@ -137,9 +137,9 @@ case_missing_volume_stale_state() {
   export MOCK_TF_HAS_PERMISSION=true
   local tmpdir
   tmpdir="$(run_helper_case reconcile)"
-  assert_contains "${tmpdir}/commands.log" "terraform -chdir=${ROOT_DIR}/01-infrastructure state rm module.matrix.terraform_data.synapse_volume_permissions"
-  assert_contains "${tmpdir}/commands.log" "terraform -chdir=${ROOT_DIR}/01-infrastructure state rm module.matrix.docker_volume.synapse_data"
-  assert_contains "${tmpdir}/stdout.log" "volume weave_synapse_data is missing while Terraform state still records it"
+  assert_contains "${tmpdir}/commands.log" "tofu -chdir=${ROOT_DIR}/01-infrastructure state rm module.matrix.terraform_data.synapse_volume_permissions"
+  assert_contains "${tmpdir}/commands.log" "tofu -chdir=${ROOT_DIR}/01-infrastructure state rm module.matrix.docker_volume.synapse_data"
+  assert_contains "${tmpdir}/stdout.log" "volume weave_synapse_data is missing while OpenTofu state still records it"
   rm -rf "${tmpdir}"
 }
 
@@ -175,7 +175,7 @@ main() {
   assert_order "${INSTALL_SCRIPT}" 'terraform_apply "${INFRA_DIR}"' 'synapse_verify_volume_writable'
   assert_contains "${OPERATOR_CHECK}" 'synapse_operator_diagnose_volume'
   assert_contains "${HELPER}" 'not homelab-synapse'
-  assert_contains "${HELPER}" 'Run ./install.sh to reconcile stale Terraform state and repair the volume'
+  assert_contains "${HELPER}" 'Run ./install.sh to reconcile stale OpenTofu state and repair the volume'
 
   case_missing_volume_stale_state
   case_existing_volume_repaired_and_verified

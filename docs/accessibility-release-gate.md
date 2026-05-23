@@ -1,7 +1,7 @@
 # Accessibility Release Gate
 
-Status: Release-1 gate checklist  
-Owner: `weave` frontend, with admin/recovery evidence from `weave-infra`  
+Status: Release-1 gate checklist
+Owner: `client/` frontend, with admin/recovery evidence from `infra/`
 Baseline: WCAG 2.1 AA for critical user and admin flows
 
 This checklist is the release evidence index for issue #112. It does not replace live assistive-technology testing; it makes the automated and manual evidence required before current release explicit and auditable.

@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.boards.domain.Label;
 import com.massimotter.weave.backend.boards.domain.TaskAttachment;
 import com.massimotter.weave.backend.boards.domain.TaskComment;
 import com.massimotter.weave.backend.boards.domain.TaskItem;
+import com.massimotter.weave.backend.boards.domain.TaskStatus;
 import com.massimotter.weave.backend.boards.domain.WeaveProject;
 
 import java.util.Optional;
@@ -41,4 +42,8 @@ public interface BoardsRepository {
     TaskItem moveTask(MoveTaskCommand command);
 
     TaskItem completeTask(String taskId);
+
+    TaskItem updateTaskStatus(String taskId, TaskStatus status, String targetColumnId);
+
+    TaskItem linkDecision(String taskId, String decisionRef);
 }

@@ -14,14 +14,14 @@ import com.massimotter.weave.backend.boards.domain.BoardCapability;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntimeGate;
 import com.massimotter.weave.backend.boards.port.BoardQuery;
-import com.massimotter.weave.backend.boards.port.BoardsPreviewGuard;
+import com.massimotter.weave.backend.boards.port.BoardsRuntimeGuard;
 import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import com.massimotter.weave.backend.model.boards.BoardsPreviewResponse;
+import com.massimotter.weave.backend.model.boards.BoardsWorkspaceResponse;
 import com.massimotter.weave.backend.service.BoardsFacadeService;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
@@ -49,7 +49,7 @@ public class OpenProjectBoardsStepDefinitions {
     private MockRestServiceServer server;
     private OpenProjectBoardsRepository repository;
     private BoardsFacadeService service;
-    private BoardsPreviewResponse response;
+    private BoardsWorkspaceResponse response;
     private RuntimeException thrown;
     private boolean denyContext;
     private boolean openProjectShouldNotBeContacted;
@@ -80,12 +80,12 @@ public class OpenProjectBoardsStepDefinitions {
 
     @Given("OpenProject has a project {string} with a completed work package {string}")
     public void openProjectHasAProjectWithACompletedWorkPackage(String projectName, String taskTitle) {
-        expectPreviewReadSync(projectName, taskTitle, false);
+        expectWorkspaceSync(projectName, taskTitle, false);
     }
 
     @Given("OpenProject has a second page of projects")
     public void openProjectHasASecondPageOfProjects() {
-        expectPreviewReadSync("Apollo Launch", "Ship backend seam", true);
+        expectWorkspaceSync("Apollo Launch", "Ship backend seam", true);
     }
 
     @Given("the workspace member has no Boards permission for the Context Space")
@@ -97,10 +97,10 @@ public class OpenProjectBoardsStepDefinitions {
         }
     }
 
-    @When("a workspace member previews Boards through Weave")
-    public void aWorkspaceMemberPreviewsBoardsThroughWeave() {
+    @When("a workspace member opens Boards through Weave")
+    public void aWorkspaceMemberOpensBoardsThroughWeave() {
         try {
-            response = service.preview(jwt());
+            response = service.workspace(jwt());
         } catch (RuntimeException error) {
             thrown = error;
         }
@@ -152,11 +152,11 @@ public class OpenProjectBoardsStepDefinitions {
                 .doesNotContain("/projects/");
     }
 
-    @Then("Weave returns an OpenProject read-only Boards snapshot")
+    @Then("Weave returns an OpenProject workspace Boards snapshot")
     public void weaveReturnsAnOpenProjectReadOnlyBoardsSnapshot() {
         assertThat(thrown).isNull();
         assertThat(response).isNotNull();
-        assertThat(response.source()).isEqualTo("openproject-read-sync-backend-facade");
+        assertThat(response.source()).isEqualTo("openproject-workspace-sync-backend-facade");
         assertThat(response.capabilities().provider().contractName()).isEqualTo("openproject");
         assertThat(response.capabilities().enabled()).isTrue();
     }
@@ -170,11 +170,11 @@ public class OpenProjectBoardsStepDefinitions {
         });
     }
 
-    @Then("sync metadata is support-safe and read-only")
+    @Then("sync metadata is support-safe and user-write audited")
     public void syncMetadataIsSupportSafeAndReadOnly() {
         assertThat(response.syncMetadata().provider()).isEqualTo("openproject");
-        assertThat(response.syncMetadata().mode()).isEqualTo("read-only-sync");
-        assertThat(response.syncMetadata().readOnly()).isTrue();
+        assertThat(response.syncMetadata().mode()).isEqualTo("workspace-sync");
+        assertThat(response.syncMetadata().userWriteAudited()).isTrue();
         assertThat(response.syncMetadata().contextScoped()).isTrue();
         assertThat(response.syncMetadata().supportSafe()).isTrue();
     }
@@ -245,7 +245,7 @@ public class OpenProjectBoardsStepDefinitions {
 
     private BoardsFacadeService serviceFor(OpenProjectBoardsRepository boardsRepository) {
         return new BoardsFacadeService(
-                new BoardsPreviewGuard(true),
+                new BoardsRuntimeGuard(true),
                 boardsRepository,
                 request -> denyContext
                         ? ContextAuthorizationDecision.deny("no matching context membership")
@@ -267,7 +267,7 @@ public class OpenProjectBoardsStepDefinitions {
                 restClientBuilder);
     }
 
-    private void expectPreviewReadSync(String projectName, String taskTitle, boolean secondPage) {
+    private void expectWorkspaceSync(String projectName, String taskTitle, boolean secondPage) {
         int total = secondPage ? 2 : 1;
         server.expect(requestTo(containsString(BASE_URL + "/api/v3/projects")))
                 .andExpect(method(HttpMethod.GET))

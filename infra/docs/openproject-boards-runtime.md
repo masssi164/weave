@@ -27,7 +27,7 @@ TF_VAR_boards_openproject_base_url=https://openproject.example
 TF_VAR_boards_openproject_api_token=replace-with-read-only-service-token
 ```
 
-Then rerun `./install.sh` or `terraform apply` for the infrastructure stage. The backend consumes these values server-side only.
+Then rerun `./install.sh` or `tofu apply` for the infrastructure stage. The backend consumes these values server-side only.
 
 ## Optional self-hosted/demo profile
 

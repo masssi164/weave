@@ -24,7 +24,7 @@ Boards/tasks are active Weave scope behind feature gates and provider-neutral ba
 Current evidence and boundaries:
 
 - Flutter may render provider-neutral board/task DTOs and accessible non-drag actions.
-- OpenProject is the preferred read-only provider validation path, not the visible product UX.
+- OpenProject is the preferred workspace provider validation path, not the visible product UX.
 - Vikunja and Deck remain comparison/fallback research unless a later contract promotes them.
 - Provider auth, pagination, sync, webhook validation, export/import, and error translation belong behind backend or connector adapters.
 - Any provider-specific claim must be tied to a validated runtime and documented capability boundary.
