@@ -90,6 +90,52 @@ void main() {
       );
     });
 
+    test('provider stack readiness stays behind the Weave backend facade', () {
+      expect(
+        liveConfig.apiUri('/api/providers/status').toString(),
+        'https://api.weave.local/api/providers/status',
+      );
+      expect(
+        liveConfig.apiUri('/api/profile/readiness').toString(),
+        'https://api.weave.local/api/profile/readiness',
+      );
+    });
+
+    test(
+      'direct Flutter provider calls remain blocked for optional provider stack modules',
+      () async {
+        final forbiddenFragments = <String>[
+          '/api/v3/',
+          '/work_packages',
+          'openproject.example',
+          'openproject.weave.local',
+          'gitlab.com/api',
+          'forgejo/api',
+          'onlyoffice',
+          'collabora-code',
+          'nextcloud/forms',
+          'carddav',
+        ];
+
+        final offenders = <String>[];
+        for (final file in _productionDartFiles()) {
+          final content = await file.readAsString();
+          for (final fragment in forbiddenFragments) {
+            if (content.toLowerCase().contains(fragment.toLowerCase())) {
+              offenders.add('${file.path}: $fragment');
+            }
+          }
+        }
+
+        expect(
+          offenders,
+          isEmpty,
+          reason:
+              'Flutter must call backend facades such as /api/providers/status and /profile/readiness, not provider APIs directly.',
+        );
+      },
+    );
+
     test(
       'shell readiness contract can be exercised without live auth',
       () async {
@@ -308,6 +354,20 @@ Map<String, dynamic> _decodeObject(String body) {
   }
 
   return decoded;
+}
+
+List<File> _productionDartFiles() {
+  final lib = Directory('lib');
+  if (!lib.existsSync()) {
+    return const <File>[];
+  }
+
+  return lib
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .where((file) => !file.path.contains('/l10n/generated/'))
+      .toList(growable: false);
 }
 
 class _MemoryServerConfigurationRepository
