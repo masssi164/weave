@@ -59,20 +59,6 @@ Capability readiness is intentionally conservative:
 - `files` follows `WEAVE_WORKSPACE_FILES_READINESS` when set; otherwise it is `ready` when `WEAVE_NEXTCLOUD_BASE_URL` is configured, `degraded` without that route, and `blocked` if shell access is blocked.
 - `calendar` and `boards` are stable contract slots. They are `unavailable` when disabled and may advertise rollout state through explicit readiness overrides.
 
-## Provider stack readiness
-
-`GET /api/providers/status` exposes the backend-owned provider registry for app and operator readiness views. It is a product contract, not a raw provider proxy.
-
-The registry currently reports modules such as files, calendar, boards, office, contacts/CardDAV, forms, Matrix/Synapse, Matrix Authentication Service (MAS), fail-closed meeting/call support, source control, issue tracking, CI, release, and the Keycloak OIDC identity realm. Disabled or unconfigured optional providers must remain support-safe:
-
-- `enabled=false` and `configured=false` when no runtime is configured;
-- `failClosed=true` for unsafe or missing provider paths;
-- `supportSafe=true` for diagnostics that can be shown to users/operators;
-- no raw provider URLs, response bodies, tokens, passwords, cookies, app passwords, authorization headers, or signing secrets;
-- unsupported operations listed as product-safe capability labels rather than downstream errors.
-
-The app must retry this state through the Weave backend and must not call provider runtimes directly.
-
 ## Boards/OpenProject runtime gates
 
 Boards remains a Weave product facade. OpenProject is the first provider-backed read-sync engine, not the visible product UX. Runtime defaults are fail-closed and local-preview unless explicitly configured by infra/operator env.
@@ -89,6 +75,18 @@ Boards remains a Weave product facade. OpenProject is the first provider-backed 
 - `WEAVE_BOARDS_OPENPROJECT_API_TOKEN`: backend-held OpenProject service token. Blank keeps read-sync fail-closed; never expose this to Flutter, platform config, support logs, or support bundles.
 
 Read-sync requires provider `openproject`, runtime enabled, read-sync enabled, Context/Space authorization enabled, `service-token` auth, a base URL, and a backend-held API token. Provider writes always fail closed unless the future write, audit/consent, and Context/Space gates are all promoted. The OpenProject webhook signature verifier is available for the future ingress seam, but no runtime webhook route is published here; webhook handling remains normalization-only and does not enable user/provider writes or live audit publication.
+
+## Meetings/LiveKit provider contract
+
+LiveKit is the active meetings/video-call provider key in the provider registry. The backend exposes only support-safe readiness for meetings and keeps actual room/session tokens behind a backend-owned facade. Matrix is not advertised as the generic meetings provider.
+
+- `WEAVE_LIVEKIT_ENABLED`: exposes the LiveKit meetings provider contract, defaults to `true` while failing closed when not configured.
+- `WEAVE_LIVEKIT_URL`: LiveKit server URL. Blank keeps direct credential mode and token-endpoint mode unconfigured.
+- `WEAVE_LIVEKIT_API_KEY`: backend-held LiveKit API key for future token minting. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
+- `WEAVE_LIVEKIT_API_SECRET`: backend-held LiveKit API secret for future token minting. Blank keeps direct credential mode unconfigured. Never expose this value to Flutter, platform config, support logs, or support bundles.
+- `WEAVE_LIVEKIT_TOKEN_ENDPOINT`: optional backend/internal token endpoint alternative when token minting is delegated. Blank keeps token-endpoint mode unconfigured.
+
+Provider readiness is `configured` only when LiveKit is enabled and either `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_API_KEY` + `WEAVE_LIVEKIT_API_SECRET`, or `WEAVE_LIVEKIT_URL` + `WEAVE_LIVEKIT_TOKEN_ENDPOINT`, are present. `/api/providers/status` reports booleans such as `livekitUrlConfigured`, `apiKeyConfigured`, `apiSecretConfigured`, and `tokenEndpointConfigured`; it must not return raw keys, secrets, endpoint credentials, room tokens, credential-bearing join URLs, or raw LiveKit errors.
 
 ## Files facade and Nextcloud WebDAV adapter
 

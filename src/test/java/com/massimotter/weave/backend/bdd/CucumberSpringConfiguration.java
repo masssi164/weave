@@ -11,7 +11,14 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 @SpringBootTest(
         classes = WeaveBackendApplication.class,
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
-        properties = "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave")
+        properties = {
+                "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
+                "weave.meetings.livekit.enabled=true",
+                "weave.meetings.livekit.url=",
+                "weave.meetings.livekit.api-key=",
+                "weave.meetings.livekit.api-secret=",
+                "weave.meetings.livekit.token-endpoint="
+        })
 @AutoConfigureMockMvc
 public class CucumberSpringConfiguration {
 
