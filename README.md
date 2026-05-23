@@ -12,11 +12,18 @@ This repository is the single source of truth for the product stack. Treat clien
 
 These deterministic screenshots use checked-in Weave assets. They show Weave-owned surfaces that are suitable for the README showcase: admin-provisioned setup, service endpoint review, custom chat, files, and settings/readiness. They are not a promise that roadmap or guarded provider surfaces are shipped; those stay separated in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md).
 
+Future README showcase updates should keep this acceptance checklist:
+
+- Keep project naming in text (`# Weave Monorepo` and body copy), not image-only branding.
+- Use existing deterministic screenshot assets with descriptive alt text that states the user task.
+- Keep showcase surfaces limited to current dogfood-ready product paths (setup, endpoint review, chat, files, settings/readiness).
+- Keep preview-only, guarded, or admin-only provider surfaces explicitly out of the normal user path and linked from roadmap docs instead.
+
 ### Admin-provisioned setup
 
 [<img src="docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen inviting an admin to configure a self-hosted workspace." width="680">](docs/assets/marketing/01-setup-start.svg)
 
-Setup starts from an admin/operator path so normal users are not asked to understand raw provider wiring.
+Setup is admin-provisioned; normal users join after provisioning and are not asked to configure raw providers.
 
 ### Service endpoint review
 
