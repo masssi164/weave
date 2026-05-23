@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/connector-manifest.schema.json",
+  "title": "Weave Internal Connector Manifest Skeleton",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "provider",
+    "release_status",
+    "capabilities",
+    "cursor_refs",
+    "secret_refs",
+    "redaction_policy",
+    "provider_writes_enabled"
+  ],
+  "properties": {
+    "id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "provider": {"type": "string", "minLength": 1, "maxLength": 128},
+    "release_status": {
+      "type": "string",
+      "enum": ["disabled", "skeleton", "read-sync-preview"],
+      "description": "No live-provider promotion is authorized by this skeleton."
+    },
+    "context_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenant_id", "context_id"],
+      "properties": {
+        "tenant_id": {"type": "string", "minLength": 1},
+        "context_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "pattern": "^[a-z0-9_.:-]+$"}
+    },
+    "commands": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[a-z0-9_.:-]+$"},
+      "description": "Commands are declarative only; provider writes remain disabled unless promoted later."
+    },
+    "cursor_refs": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {"type": "string", "minLength": 1},
+      "description": "References to backend-owned sync cursor state, not raw provider tokens."
+    },
+    "webhook_refs": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^webhook://.+"},
+      "description": "References to backend-owned signed webhook ingress state; empty for polling-only read sync. Raw provider URLs and tokens are not allowed."
+    },
+    "secret_refs": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "pattern": "^secret://.+"},
+      "description": "Secret references only. Secret values must never be serialized in manifests."
+    },
+    "support_safe_errors": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "unauthorized",
+          "forbidden",
+          "not_found",
+          "conflict",
+          "rate_limited",
+          "offline",
+          "validation",
+          "provider_unavailable",
+          "unknown"
+        ]
+      }
+    },
+    "redaction_policy": {
+      "type": "string",
+      "pattern": "redacted",
+      "description": "Support bundles must redact provider raw payloads, credentials, and URLs unless support-safe."
+    },
+    "provider_writes_enabled": {
+      "type": "boolean",
+      "const": false,
+      "description": "Read-only first: no provider writes, no agentic/team writes."
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/audit-consent.schema.json",
+  "title": "Weave Audit and Consent Internal Seam",
+  "description": "Internal append-only audit/consent envelope for future connector and assistant writes. This contract does not enable provider writes or public connector SDK behavior.",
+  "type": "object",
+  "required": ["tenant_id", "actor_ref", "source_ref", "action", "occurred_at", "idempotency_key", "redaction_level", "payload"],
+  "properties": {
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "context_id": { "type": ["string", "null"] },
+    "actor_ref": { "type": "string", "minLength": 1 },
+    "source_ref": { "type": "string", "minLength": 1 },
+    "action": {
+      "type": "string",
+      "enum": ["connector.write.attempted", "assistant.write.attempted", "consent.granted", "consent.revoked"]
+    },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "idempotency_key": { "type": "string", "minLength": 1 },
+    "redaction_level": {
+      "type": "string",
+      "enum": ["support_safe", "internal_redacted", "secret_redacted"]
+    },
+    "payload": {
+      "type": "object",
+      "description": "Support-safe, redacted payload. Raw tokens, secrets, Authorization headers, cookies, passwords, and raw provider errors are forbidden."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "connector_write_envelope": {
+      "type": "object",
+      "required": ["tenant_id", "actor_ref", "source_ref", "connector_ref", "target_ref", "command_type", "occurred_at", "idempotency_key", "payload"],
+      "properties": {
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "context_id": { "type": ["string", "null"] },
+        "actor_ref": { "type": "string", "minLength": 1 },
+        "source_ref": { "type": "string", "minLength": 1 },
+        "connector_ref": { "type": "string", "minLength": 1 },
+        "target_ref": { "type": "string", "minLength": 1 },
+        "command_type": { "type": "string", "minLength": 1 },
+        "occurred_at": { "type": "string", "format": "date-time" },
+        "idempotency_key": { "type": "string", "minLength": 1 },
+        "payload": { "type": "object" },
+        "provider_writes_enabled": { "type": "boolean", "const": false }
+      },
+      "additionalProperties": false
+    }
+  }
+}

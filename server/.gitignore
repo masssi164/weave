@@ -1,0 +1,15 @@
+/.gradle/
+/build/
+/out/
+/.idea/
+/.vscode/
+*.iml
+
+# Local assistant state
+.openclaw/
+memory/
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md

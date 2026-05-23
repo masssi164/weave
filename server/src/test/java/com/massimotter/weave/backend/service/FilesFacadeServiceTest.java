@@ -1,0 +1,298 @@
+package com.massimotter.weave.backend.service;
+
+import com.massimotter.weave.backend.config.ContextAuthorizationConfiguration;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.model.files.CreateFolderRequest;
+import com.massimotter.weave.backend.model.files.FileItemResponse;
+import com.massimotter.weave.backend.model.files.FileListResponse;
+import com.massimotter.weave.backend.model.files.FileUploadResponse;
+import com.massimotter.weave.backend.service.files.DownloadedFile;
+import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import java.time.OffsetDateTime;
+import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.TestingAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.multipart.MultipartFile;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class FilesFacadeServiceTest {
+
+    private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
+            .withUserConfiguration(ContextAuthorizationTestConfiguration.class);
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void failsClosedWhenAdapterIsMissingOrUnconfigured() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesFacadeService missing = service(null);
+        FilesFacadeService unconfigured = service(new StubAdapter(false));
+
+        assertThatThrownBy(() -> missing.list("/"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(exception.code()).isEqualTo("nextcloud-adapter-not-configured");
+                    assertThat(exception.details()).containsEntry("operation", "list-files");
+                });
+        assertThatThrownBy(() -> unconfigured.upload("/", null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception ->
+                        assertThat(exception.details()).containsEntry("operation", "upload-file"));
+    }
+
+    @Test
+    void delegatesToConfiguredStorageAdapter() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesFacadeService service = service(new StubAdapter(true));
+
+        FileListResponse response = service.list("/Team");
+
+        assertThat(response.path()).isEqualTo("/Team");
+        assertThat(response.items()).extracting(FileItemResponse::name).containsExactly("readme.md");
+    }
+
+    @Test
+    void listFailsClosedWhenContextAuthorizationDeniesAccess() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+
+        assertThatThrownBy(() -> service(
+                        new StubAdapter(true),
+                        request -> ContextAuthorizationDecision.deny("no matching context membership"))
+                        .list("/Team"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(exception.code()).isEqualTo("files-forbidden");
+                    assertThat(exception.details()).containsEntry("module", "files");
+                    assertThat(exception.details()).containsEntry("operation", "list-files");
+                    assertThat(exception.details()).containsEntry("contextId", "workspace-default");
+                    assertThat(exception.details()).containsEntry("permission", "view");
+                    assertThat(exception.details()).containsEntry("reason", "no matching context membership");
+                });
+    }
+
+    @Test
+    void mutatingOperationsRequireEditPermissionForWorkspaceContext() {
+        AtomicReference<ContextAuthorizationRequest> captured = new AtomicReference<>();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+
+        assertThatThrownBy(() -> service(
+                        new StubAdapter(true),
+                        request -> {
+                            captured.set(request);
+                            return ContextAuthorizationDecision.deny("edit denied");
+                        })
+                        .upload("/Team", null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(exception.details()).containsEntry("permission", "edit");
+                });
+        assertThat(captured.get().tenantId()).isEqualTo("tenant-default");
+        assertThat(captured.get().contextId()).isEqualTo("workspace-default");
+        assertThat(captured.get().principalRef()).isEqualTo("user:user-123");
+        assertThat(captured.get().permission()).isEqualTo(ContextPermission.EDIT);
+    }
+
+    @Test
+    void configurationPropertiesBindSeededMembershipsIntoAuthorizationPort() {
+        contextRunner
+                .withPropertyValues(
+                        "weave.context.authorization.memberships[0].tenant-id=tenant-default",
+                        "weave.context.authorization.memberships[0].context-id=workspace-default",
+                        "weave.context.authorization.memberships[0].principal-ref=user:test",
+                        "weave.context.authorization.memberships[0].role=MEMBER",
+                        "weave.context.authorization.memberships[0].source=test-seed")
+                .run(context -> {
+                    ContextAuthorizationPort port = context.getBean(ContextAuthorizationPort.class);
+
+                    assertThat(port.check(new ContextAuthorizationRequest(
+                                    "tenant-default",
+                                    "workspace-default",
+                                    "user:test",
+                                    ContextPermission.VIEW)).allowed())
+                            .isTrue();
+                    assertThat(port.check(new ContextAuthorizationRequest(
+                                    "tenant-default",
+                                    "workspace-default",
+                                    "user:other",
+                                    ContextPermission.VIEW)).allowed())
+                            .isFalse();
+                });
+    }
+
+    @Test
+    void jwtWithoutTenantClaimIsRejectedBeforeSeededAuthorizationCanGrantAccess() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
+                Jwt.withTokenValue("token")
+                        .header("alg", "none")
+                        .subject("user-123")
+                        .build(),
+                null));
+
+        assertThatThrownBy(() -> service(new StubAdapter(true)).list("/Team"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.UNAUTHORIZED);
+                    assertThat(exception.details()).containsEntry("reason", "tenant claim is missing");
+                });
+    }
+
+    @Test
+    void configurablePrincipalClaimSupportsDeterministicLocalContextSeeds() {
+        AtomicReference<ContextAuthorizationRequest> captured = new AtomicReference<>();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(
+                Jwt.withTokenValue("token")
+                        .header("alg", "none")
+                        .subject("opaque-keycloak-subject")
+                        .claim("preferred_username", "test")
+                        .claim("weave_tenant_id", "tenant-default")
+                        .build(),
+                null));
+
+        FilesFacadeService service = service(
+                new StubAdapter(true),
+                request -> {
+                    captured.set(request);
+                    return ContextAuthorizationDecision.allow("seeded local membership");
+                },
+                new ContextAuthorizationProperties(
+                        "weave_tenant_id",
+                        "tenant_id",
+                        "tenant-default",
+                        "preferred_username",
+                        "user:",
+                        List.of(),
+                        List.of(),
+                        List.of()));
+
+        assertThat(service.list("/").items()).hasSize(1);
+        assertThat(captured.get().principalRef()).isEqualTo("user:test");
+    }
+
+    private FilesFacadeService service(FilesStorageAdapter adapter) {
+        return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
+    }
+
+    private FilesFacadeService service(FilesStorageAdapter adapter, ContextAuthorizationPort contextAuthorizationPort) {
+        return service(adapter, contextAuthorizationPort, defaultContextAuthorizationProperties());
+    }
+
+    private FilesFacadeService service(
+            FilesStorageAdapter adapter,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties) {
+        return new FilesFacadeService(provider(adapter), contextAuthorizationPort, contextAuthorizationProperties);
+    }
+
+    private ContextAuthorizationProperties defaultContextAuthorizationProperties() {
+        return new ContextAuthorizationProperties(null, null, null, null, null, List.of(), List.of(), List.of());
+    }
+
+    private Jwt jwt() {
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .claim("weave_tenant_id", "tenant-default")
+                .build();
+    }
+
+    @Configuration
+    @EnableConfigurationProperties(ContextAuthorizationProperties.class)
+    @Import(ContextAuthorizationConfiguration.class)
+    static class ContextAuthorizationTestConfiguration {
+    }
+
+    private ObjectProvider<FilesStorageAdapter> provider(FilesStorageAdapter adapter) {
+        return new ObjectProvider<>() {
+            @Override
+            public FilesStorageAdapter getObject(Object... args) {
+                return adapter;
+            }
+
+            @Override
+            public FilesStorageAdapter getIfAvailable() {
+                return adapter;
+            }
+
+            @Override
+            public FilesStorageAdapter getIfUnique() {
+                return adapter;
+            }
+
+            @Override
+            public FilesStorageAdapter getObject() {
+                return adapter;
+            }
+
+            @Override
+            public Iterator<FilesStorageAdapter> iterator() {
+                return adapter == null ? List.<FilesStorageAdapter>of().iterator() : List.of(adapter).iterator();
+            }
+        };
+    }
+
+    private static final class StubAdapter implements FilesStorageAdapter {
+
+        private final boolean configured;
+
+        private StubAdapter(boolean configured) {
+            this.configured = configured;
+        }
+
+        @Override
+        public boolean isConfigured() {
+            return configured;
+        }
+
+        @Override
+        public FileListResponse list(String path) {
+            return new FileListResponse(path, List.of(new FileItemResponse(
+                    "files:test",
+                    "readme.md",
+                    path + "/readme.md",
+                    "file",
+                    "text/markdown",
+                    12L,
+                    OffsetDateTime.parse("2026-04-26T08:00:00Z"),
+                    true)), null);
+        }
+
+        @Override
+        public FileItemResponse createFolder(CreateFolderRequest request) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public FileUploadResponse upload(String parentPath, MultipartFile file) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public DownloadedFile download(String id) {
+            throw new UnsupportedOperationException("not needed");
+        }
+
+        @Override
+        public void delete(String id) {
+            throw new UnsupportedOperationException("not needed");
+        }
+    }
+}
