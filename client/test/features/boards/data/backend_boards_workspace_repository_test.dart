@@ -94,6 +94,54 @@ void main() {
     expect(workspace.columns[2].tasks.single.status, BoardTaskStatus.done);
   });
 
+  test('accepts OpenProject workspace-sync backend facade source', () async {
+    final repository = BackendBoardsWorkspaceRepository(
+      httpClient: MockClient((request) async {
+        expect(
+          request.url.toString(),
+          'https://api.weave.local/api/boards/workspace',
+        );
+        return http.Response(
+          '''
+{
+  "workspace": true,
+  "releaseStatus": "active-dogfood-production",
+  "source": "openproject-workspace-sync-backend-facade",
+  "capabilities": {
+    "provider": "openproject",
+    "enabled": true,
+    "supported": ["incremental_sync"],
+    "unsupported": ["comments"],
+    "supportSafeSummary": "OpenProject workspace-sync backend facade."
+  },
+  "boards": [
+    {
+      "id": "openproject:board:42",
+      "name": "Apollo Launch",
+      "description": "Provider-backed workspace-sync board",
+      "columns": [
+        {"id": "openproject:status:1", "name": "New", "semanticStatus": "not_started"}
+      ]
+    }
+  ],
+  "tasks": []
+}
+''',
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+      apiBaseUrl: Uri.parse('https://api.weave.local'),
+      accessToken: 'token',
+    );
+
+    final workspace = await repository.loadWorkspace();
+
+    expect(workspace.id, 'openproject:board:42');
+    expect(workspace.capabilities.provider, 'openproject');
+    expect(workspace.isBackendFed, isTrue);
+  });
+
   test(
     'returns a blocked workspace state when backend runtime is disabled',
     () async {
