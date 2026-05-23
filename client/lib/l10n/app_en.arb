@@ -3397,7 +3397,7 @@
   "@agentCapabilityPolicyTitle": {
     "description": "Settings card title for AI agent capability governance"
   },
-  "agentCapabilityPolicyAdminDescription": "Owners and admins decide which agent packages and connectors can be used. This surface stays disabled until permission, consent, and audit controls are connected.",
+  "agentCapabilityPolicyAdminDescription": "Owners and admins decide which agent packages and connectors can be used. This capability stays off until permission, consent, and audit controls are connected.",
   "@agentCapabilityPolicyAdminDescription": {
     "description": "Admin-facing description for AI agent capability governance"
   },
@@ -3409,7 +3409,7 @@
   "@agentCapabilityPolicyFailClosedNotice": {
     "description": "Fail-closed notice when policy cannot be trusted"
   },
-  "agentCapabilityPolicyManageDisabledButton": "Management unavailable until controls are ready",
+  "agentCapabilityPolicyManageDisabledButton": "Management unavailable until admin setup is complete",
   "@agentCapabilityPolicyManageDisabledButton": {
     "description": "Disabled button label for future agent capability management"
   },
@@ -3417,7 +3417,7 @@
   "@agentCapabilityPolicyAskAdminHint": {
     "description": "Hint for non-admin users"
   },
-  "agentCapabilityPolicyAdminStateHint": "Current state: off by default. Controls require owner/admin review before users can start an agent.",
+  "agentCapabilityPolicyAdminStateHint": "Current state: off by default. Future controls will require owner/admin review before users can start an agent.",
   "@agentCapabilityPolicyAdminStateHint": {
     "description": "Admin state hint for disabled agent capabilities"
   },
@@ -3437,9 +3437,9 @@
   "@agentCapabilityChannelAgentDescription": {
     "description": "Agent capability description for channel agent"
   },
-  "agentCapabilityAvailabilityPreviewOnly": "Disabled by policy",
+  "agentCapabilityAvailabilityPreviewOnly": "Admin setup required",
   "@agentCapabilityAvailabilityPreviewOnly": {
-    "description": "Agent capability availability label for gated state"
+    "description": "Agent capability availability label when admin setup is required"
   },
   "agentCapabilityAvailabilityAdminSetupRequired": "Admin setup required",
   "@agentCapabilityAvailabilityAdminSetupRequired": {

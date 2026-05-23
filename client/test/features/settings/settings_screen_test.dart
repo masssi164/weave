@@ -276,7 +276,7 @@ void main() {
       expect(find.text('Personal assistant'), findsOneWidget);
       expect(find.text('Channel agent'), findsOneWidget);
       expect(
-        find.text('Management unavailable until controls are ready'),
+        find.text('Management unavailable until admin setup is complete'),
         findsOneWidget,
       );
 

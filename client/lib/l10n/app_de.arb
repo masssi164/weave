@@ -816,7 +816,7 @@
   "@agentCapabilityPolicyTitle": {
     "description": "Settings card title for AI agent capability governance"
   },
-  "agentCapabilityPolicyAdminDescription": "Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Oberfläche bleibt deaktiviert, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.",
+  "agentCapabilityPolicyAdminDescription": "Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Funktion bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.",
   "@agentCapabilityPolicyAdminDescription": {
     "description": "Admin-facing description for AI agent capability governance"
   },
@@ -828,7 +828,7 @@
   "@agentCapabilityPolicyFailClosedNotice": {
     "description": "Fail-closed notice when policy cannot be trusted"
   },
-  "agentCapabilityPolicyManageDisabledButton": "Verwaltung nicht verfügbar, bis Kontrollen bereit sind",
+  "agentCapabilityPolicyManageDisabledButton": "Verwaltung nicht verfügbar, bis die Admin-Einrichtung abgeschlossen ist",
   "@agentCapabilityPolicyManageDisabledButton": {
     "description": "Disabled button label for future agent capability management"
   },
@@ -836,7 +836,7 @@
   "@agentCapabilityPolicyAskAdminHint": {
     "description": "Hint for non-admin users"
   },
-  "agentCapabilityPolicyAdminStateHint": "Aktueller Zustand: standardmäßig aus. Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.",
+  "agentCapabilityPolicyAdminStateHint": "Aktueller Zustand: standardmäßig aus. Künftige Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.",
   "@agentCapabilityPolicyAdminStateHint": {
     "description": "Admin state hint for disabled agent capabilities"
   },
@@ -856,9 +856,9 @@
   "@agentCapabilityChannelAgentDescription": {
     "description": "Agent capability description for channel agent"
   },
-  "agentCapabilityAvailabilityPreviewOnly": "Durch Policy deaktiviert",
+  "agentCapabilityAvailabilityPreviewOnly": "Admin-Einrichtung nötig",
   "@agentCapabilityAvailabilityPreviewOnly": {
-    "description": "Agent capability availability label for gated state"
+    "description": "Agent capability availability label when admin setup is required"
   },
   "agentCapabilityAvailabilityAdminSetupRequired": "Admin-Einrichtung nötig",
   "@agentCapabilityAvailabilityAdminSetupRequired": {

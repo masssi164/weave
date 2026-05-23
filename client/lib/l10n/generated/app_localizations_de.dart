@@ -2859,7 +2859,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminDescription =>
-      'Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Oberfläche bleibt deaktiviert, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.';
+      'Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Funktion bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.';
 
   @override
   String get agentCapabilityPolicyUserDescription =>
@@ -2871,7 +2871,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyManageDisabledButton =>
-      'Verwaltung nicht verfügbar, bis Kontrollen bereit sind';
+      'Verwaltung nicht verfügbar, bis die Admin-Einrichtung abgeschlossen ist';
 
   @override
   String get agentCapabilityPolicyAskAdminHint =>
@@ -2879,7 +2879,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminStateHint =>
-      'Aktueller Zustand: standardmäßig aus. Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.';
+      'Aktueller Zustand: standardmäßig aus. Künftige Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.';
 
   @override
   String get agentCapabilityPersonalAssistantTitle => 'Persönlicher Assistent';
@@ -2897,7 +2897,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityAvailabilityPreviewOnly =>
-      'Durch Policy deaktiviert';
+      'Admin-Einrichtung nötig';
 
   @override
   String get agentCapabilityAvailabilityAdminSetupRequired =>

@@ -4723,7 +4723,7 @@ abstract class AppLocalizations {
   /// Admin-facing description for AI agent capability governance
   ///
   /// In en, this message translates to:
-  /// **'Owners and admins decide which agent packages and connectors can be used. This surface stays disabled until permission, consent, and audit controls are connected.'**
+  /// **'Owners and admins decide which agent packages and connectors can be used. This capability stays off until permission, consent, and audit controls are connected.'**
   String get agentCapabilityPolicyAdminDescription;
 
   /// Member-facing description for AI agent capability governance
@@ -4741,7 +4741,7 @@ abstract class AppLocalizations {
   /// Disabled button label for future agent capability management
   ///
   /// In en, this message translates to:
-  /// **'Management unavailable until controls are ready'**
+  /// **'Management unavailable until admin setup is complete'**
   String get agentCapabilityPolicyManageDisabledButton;
 
   /// Hint for non-admin users
@@ -4753,7 +4753,7 @@ abstract class AppLocalizations {
   /// Admin state hint for disabled agent capabilities
   ///
   /// In en, this message translates to:
-  /// **'Current state: off by default. Controls require owner/admin review before users can start an agent.'**
+  /// **'Current state: off by default. Future controls will require owner/admin review before users can start an agent.'**
   String get agentCapabilityPolicyAdminStateHint;
 
   /// Agent capability title for personal assistant
@@ -4780,10 +4780,10 @@ abstract class AppLocalizations {
   /// **'Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.'**
   String get agentCapabilityChannelAgentDescription;
 
-  /// Agent capability availability label for gated state
+  /// Agent capability availability label when admin setup is required
   ///
   /// In en, this message translates to:
-  /// **'Disabled by policy'**
+  /// **'Admin setup required'**
   String get agentCapabilityAvailabilityPreviewOnly;
 
   /// Agent capability availability label when admin setup is required

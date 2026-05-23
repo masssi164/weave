@@ -2817,7 +2817,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminDescription =>
-      'Owners and admins decide which agent packages and connectors can be used. This surface stays disabled until permission, consent, and audit controls are connected.';
+      'Owners and admins decide which agent packages and connectors can be used. This capability stays off until permission, consent, and audit controls are connected.';
 
   @override
   String get agentCapabilityPolicyUserDescription =>
@@ -2829,7 +2829,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyManageDisabledButton =>
-      'Management unavailable until controls are ready';
+      'Management unavailable until admin setup is complete';
 
   @override
   String get agentCapabilityPolicyAskAdminHint =>
@@ -2837,7 +2837,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminStateHint =>
-      'Current state: off by default. Controls require owner/admin review before users can start an agent.';
+      'Current state: off by default. Future controls will require owner/admin review before users can start an agent.';
 
   @override
   String get agentCapabilityPersonalAssistantTitle => 'Personal assistant';
@@ -2854,7 +2854,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Requires an owner or admin to choose which channels, files, calendar items, or boards the agent may use.';
 
   @override
-  String get agentCapabilityAvailabilityPreviewOnly => 'Disabled by policy';
+  String get agentCapabilityAvailabilityPreviewOnly => 'Admin setup required';
 
   @override
   String get agentCapabilityAvailabilityAdminSetupRequired =>
