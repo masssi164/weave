@@ -1,62 +1,105 @@
 # Weave Monorepo
 
-Weave is the accessibility-first, self-hostable collaboration workspace for chat, files, calendar, boards, meetings, decisions, and operator health.
+Weave is an accessibility-first, self-hostable collaboration workspace for chat, files, shared calendars, boards/tasks, meetings, decisions, and operator health.
 
-This repository is now the single source of truth for the Weave product stack:
+This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, and release metadata as one release unit.
 
-- `client/` — Flutter app and client-side product tests.
-- `server/` — Spring Boot backend, provider facades, authorization, audit, and server-side acceptance tests.
-- `infra/` — local/self-hosted stack, OpenTofu-preferred infrastructure, provider profiles, operator scripts, backup/restore, and support bundles.
+## Repository layout
+
+- `client/` — Flutter app, product UI, accessibility checks, and client-side contract tests.
+- `server/` — Spring Boot product API/BFF, provider facades, authorization, audit, support-safe errors, and backend acceptance tests.
+- `infra/` — Docker/OpenTofu operator stack, local and single-host deployment scripts, provider profiles, backup/restore, smoke checks, and support bundles.
 - `e2e/` — product-language Gherkin scenarios, scenario mappings, and sanitized evidence contracts.
-- `docs/` — product architecture, roadmap boundaries, acceptance contracts, and release documentation.
+- `docs/` — product architecture, release scope, acceptance flows, roadmap boundaries, and research notes.
 - `release/` — release manifests and stack compatibility metadata.
 
-## v0.1 release principle
+## v0.1 product truth
 
-Weave v0.1 is a dogfood-production release, not a demo showcase. A surface is allowed into the release only when it is useful as a daily work tool and backed by executable evidence.
+v0.1 is a dogfood-production release, not a preview showcase. A surface belongs in the release only when it is useful for daily project work and backed by executable evidence.
 
-Required v0.1 product surfaces:
+Required v0.1 surfaces:
 
-- Weave Home.
-- Channels as workspaces with chat, files, boards, calendar, meetings, and decisions.
-- Files through the Weave backend facade.
-- Channel/workspace calendar events.
-- Boards with user writes, permission checks, and audit trail.
-- Meeting Capsules backed by the LiveKit token facade.
-- Decision Ledger.
-- Workspace/Admin Health cockpit.
-- Deploy, backup, restore, rollback, smoke-test, and support-bundle paths.
+- Weave Home for recent work, next actions, and health warnings.
+- Channels as workspaces with accessible tabs for chat, files, boards/tasks, calendar, meetings, and decisions.
+- Files through Weave-owned backend/product routes, not raw provider UX as the normal path.
+- Workspace, team, and channel calendar events through the backend calendar facade.
+- Boards/Tasks as an active Weave workspace facade with explicit user actions, authorization, audit, accessible non-drag task work, and fail-closed runtime gates.
+- Meeting Capsules backed by the LiveKit token facade, with clear provider-secret boundaries.
+- Decision Ledger entries linked to workspace context.
+- Workspace/Admin Health for readiness, degraded states, backups, smoke evidence, and support-bundle status.
+- Deploy, update, backup, restore, rollback, smoke-test, and support-bundle paths for operators.
 
-Explicitly out of v0.1:
+Out of v0.1:
 
-- Agent runtime integration in the product.
-- Autonomous or team-scoped agent writes.
+- Product agent runtime integration.
+- Autonomous, group, or team-scoped agent writes.
 - Public connector SDK.
 - Teams/Slack migration tooling.
-- Broad SaaS administration beyond boundaries needed for safe self-hosting.
+- Broad SaaS administration beyond safe self-hosting boundaries.
+
+## Boards and provider boundary
+
+Boards/Tasks is a Weave product surface. The client talks to the Weave backend facade and must not call OpenProject, Vikunja, Nextcloud Deck, or another task provider directly.
+
+The current provider-backed validation path is OpenProject workspace sync:
+
+- OpenProject is the first real provider-backed path for validating workspace-sync behavior.
+- OpenProject is not the visible product UX and is not a direct client dependency.
+- Provider reads remain behind runtime, Context/Space authorization, support-safe metadata, and backend-held tokens.
+- Provider writes remain disabled/fail-closed unless a future promotion proves authorization, user consent, audit publication, support-bundle redaction, and rollback behavior.
+- Local workspace user writes are v0.1 scope when they are explicit, authenticated, authorized, audited, and covered by tests.
+
+## Infrastructure and OpenTofu
+
+OpenTofu is the operator tool for Weave infrastructure.
+
+The `infra/` tree still contains Terraform-compatible HCL internals where that naming is part of the ecosystem, such as `terraform {}` blocks, provider lock files, and `TF_VAR_*` environment variables. User-facing workflows, CI, and docs should use OpenTofu language and `tofu` commands unless they are explicitly describing compatibility details.
+
+Infrastructure rules:
+
+- CI uses `opentofu/setup-opentofu` and runs `tofu fmt`/validation-oriented checks.
+- Operator scripts should use `${WEAVE_IAC_BIN:-tofu}` only when an explicit compatibility fallback is needed.
+- State-destructive operations require operator confirmation plus a backup, restore, or rollback path.
+- Support bundles must redact secrets, tokens, raw provider errors, provider URLs, cookies, private keys, and generated credentials.
 
 ## Evidence contract
 
-Gherkin scenarios are product contracts, not decorative documentation:
+Gherkin scenarios are product contracts, not decorative documentation.
 
-1. Write/update the product scenario in `e2e/features/`.
+For behavior changes:
+
+1. Write or update the product scenario in `e2e/features/`.
 2. Map it in `e2e/scenario_mappings.json`.
 3. Add executable unit, contract, widget, integration, server, or infra evidence.
 4. Keep live-stack E2E sparse and focused on critical end-to-end contracts.
-5. Store only sanitized evidence artifacts; never include secrets, tokens, cookies, private keys, raw provider errors, or personal data.
+5. Store only sanitized evidence artifacts. Never include secrets, tokens, cookies, private keys, raw provider errors, or personal data.
 
 ## Common local gates
 
+Run the smallest meaningful gate for your change:
+
 ```bash
-make ci
+make acceptance-contract
 make client-ci
 make server-ci
 make infra-static
-make acceptance-contract
+make ci
 ```
 
-The expensive live-stack E2E remains opt-in and must only run with explicit runner power/storage budget.
+Use these defaults:
 
-## Infrastructure direction
+- `make acceptance-contract` for Gherkin or scenario mapping changes.
+- `make client-ci` for Flutter/client changes.
+- `make server-ci` for backend/provider changes.
+- `make infra-static` for infrastructure, operator scripts, and OpenTofu-facing changes.
+- `make ci` when a change crosses product-stack boundaries.
 
-OpenTofu is preferred for Weave infrastructure. Existing Terraform-compatible modules are migrated through compatibility-preserving wrappers first, then hardened into OpenTofu-first workflows. State-destructive operations require explicit operator confirmation and a rollback/backup path.
+Live-stack E2E is intentionally opt-in. Run it only with explicit runner power/storage budget and sanitized evidence handling.
+
+## Working agreements
+
+- Keep user-facing documentation honest about what is shipped, gated, disabled, or future work.
+- Prefer accessible headings and bullets over dense tables.
+- Do not promote raw provider screens as Weave product UX.
+- Do not expose provider secrets or service tokens to Flutter, support bundles, app config, or logs.
+- Treat `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `release/` changes as one coherent product story.

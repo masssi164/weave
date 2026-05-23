@@ -1,6 +1,6 @@
 # Product scope: calendar hierarchy, Matrix E2EE, and Boards
 
-Weave is past the old current release gate-only framing. The active product track is a self-hosted, accessibility-first collaboration workspace with chat, files, shared workspace shared calendars, Matrix E2EE, and Boards/Tasks behind clear product gates.
+Weave is on the active v0.1 dogfood-production track. The active product track is a self-hosted, accessibility-first collaboration workspace with chat, files, shared workspace shared calendars, Matrix E2EE, and Boards/Tasks behind clear product gates.
 
 This document is binding product direction for the Flutter client. Backend and infra work should keep their own contracts aligned with these scopes.
 

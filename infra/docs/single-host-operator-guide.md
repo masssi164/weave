@@ -1,6 +1,6 @@
 # Single-host operator guide
 
-This guide describes the first non-local Weave deployment path: one Linux host, public DNS, trusted HTTPS, Docker Engine, Terraform, explicit operator-managed secrets, persistent volumes, and a verification workflow.
+This guide describes the first non-local Weave deployment path: one Linux host, public DNS, trusted HTTPS, Docker Engine, OpenTofu, explicit operator-managed secrets, persistent volumes, and a verification workflow.
 
 It is intentionally narrower than a later high-availability, Kubernetes, or managed-SaaS story.
 
@@ -38,7 +38,7 @@ Do not expose older public aliases for Keycloak, Nextcloud, or gateway API route
 
 ## Required operator inputs
 
-Set these before the first apply:
+Set these OpenTofu-compatible `TF_VAR_*` inputs before the first apply:
 
 - `TF_VAR_tenant_domain`
 - `TF_VAR_auth_subdomain`
@@ -78,7 +78,7 @@ Recommended pattern:
 Pin runtime images instead of relying on floating local defaults:
 
 - Pin `TF_VAR_weave_backend_image` to a version or immutable digest.
-- Pin Terraform-managed service images when module variables expose them.
+- Pin OpenTofu-managed service images when module variables expose them.
 - Keep `TF_VAR_mas_image` on the default unless an override was validated against generated `synapse_modern` config and localpart-conflict policy.
 - Keep `TF_VAR_synapse_image` on Synapse 1.136.0 or later so MAS delegated auth can call the homeserver MAS API.
 - Record the chosen image set in the deployment change or release note.

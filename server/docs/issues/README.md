@@ -23,7 +23,7 @@ Current rules override older issue text:
 - [Align native OIDC registration and derived endpoints](weave/align-native-oidc-and-derived-endpoints.md)
 - [Introduce a backend API boundary in the Flutter client](weave/introduce-backend-api-boundary.md)
 
-### `weave-infra`
+### Legacy infrastructure drafts
 
 - [Enable local TLS and align public hostnames](weave-infra/enable-local-tls-and-align-public-hostnames.md)
 - [Deploy weave-backend and finalize the Keycloak contract](weave-infra/deploy-weave-backend-and-finalize-keycloak-contract.md)

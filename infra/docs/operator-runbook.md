@@ -1,6 +1,6 @@
 # Operator runbook
 
-This is the minimum operator layer for the `weave-infra` single-host path.
+This is the minimum operator layer for the monorepo `infra/` single-host path.
 It is meant to remove the remaining tribal knowledge around install, verify, recovery, and routine maintenance.
 
 ## 1. Before install
@@ -56,7 +56,7 @@ Treat `TF_VAR_mas_signing_key_pem` as a durable signing secret. Rotating it is p
 ## 3. Install and upgrade flow
 
 ```bash
-cd weave-infra
+cd weave/infra
 set -a
 source ./weave-workspace/release.env.private
 set +a
@@ -106,7 +106,7 @@ The helper writes one timestamped directory and sets restrictive file permission
 - `matrix-synapse-data.tgz`: Matrix/Synapse media and local data from Docker volume `weave_synapse_data`
 - `caddy-data.tgz` and `caddy-config.tgz`: Caddy ACME/TLS state and runtime config when local Caddy owns certificates
 - `keycloak-data.tgz`: Keycloak container-side runtime data from Docker volume `weave_keycloak_data`
-- `generated-config-secrets.tgz`: generated bootstrap env, no-secret app config, TLS material, and generated Terraform service config needed to restore or reprovision without inventing credentials
+- `generated-config-secrets.tgz`: generated bootstrap env, no-secret app config, TLS material, and generated OpenTofu service config needed to restore or reprovision without inventing credentials
 - `MANIFEST.txt`: artifact list and restore-smoke reminder
 
 Support bundles are **not** backups. `support-bundle.sh` deliberately excludes raw databases, Matrix media, Nextcloud files/calendar data, Caddy ACME state, and generated secrets.
@@ -156,15 +156,15 @@ Artifact-only mode validates the backup directory shape and then exits with an e
 
 Use the least destructive action that solves the problem:
 
-1. **Stop/restart containers:** use normal Docker or Terraform apply workflows when you only need a service restart. Persistent Docker volumes and generated secrets stay intact.
-2. **Clean rebuild:** run `bash weave-workspace/teardown.sh`, then `bash weave-workspace/install.sh`. This removes Weave containers and the Docker network so Terraform can recreate them, but it preserves persistent volumes and `.generated/` secrets/config by default.
+1. **Stop/restart containers:** use normal Docker or OpenTofu apply workflows when you only need a service restart. Persistent Docker volumes and generated secrets stay intact.
+2. **Clean rebuild:** run `bash weave-workspace/teardown.sh`, then `bash weave-workspace/install.sh`. This removes Weave containers and the Docker network so OpenTofu can recreate them, but it preserves persistent volumes and `.generated/` secrets/config by default.
 3. **Destructive local reset:** only after a backup, run `WEAVE_REMOVE_VOLUMES=true WEAVE_CONFIRM_DESTRUCTIVE_RESET=<tenant_slug> bash weave-workspace/teardown.sh`. For the default local tenant, `<tenant_slug>` is `weave`.
 
 The destructive path prints the backup guidance, affected data domains, and exact Docker volumes before deleting anything. It deletes persistent Docker volumes for Keycloak identity/session data, backend/Postgres data, Matrix/Synapse database and media, Nextcloud database/files/calendar data, shared Postgres databases, and Caddy/TLS state. It does not delete `.generated/` files; copy or remove those intentionally as a separate operator step.
 
 The old `WEAVE_CONFIRM_REMOVE_VOLUMES=weave-delete-local-data` token is deliberately rejected so operators type the tenant/workspace slug instead of copying a generic phrase.
 
-When destructive volume cleanup removes `weave_synapse_data`, the helper also forgets the matching Terraform Synapse volume and permission-provisioner state. The next `install.sh` run must recreate the Weave-local volume through Terraform and rerun the ownership/writability guard instead of trusting stale state or a Docker-created root-owned volume.
+When destructive volume cleanup removes `weave_synapse_data`, the helper also forgets the matching OpenTofu Synapse volume and permission-provisioner state. The next `install.sh` run must recreate the Weave-local volume through OpenTofu and rerun the ownership/writability guard instead of trusting stale state or a Docker-created root-owned volume.
 
 ## 8. Minimum observability and triage
 

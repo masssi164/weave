@@ -90,7 +90,7 @@ docker run --rm \
   ./gradlew test
 ```
 
-Build the local image used by `weave-infra` live-stack runs:
+Build the local image used by monorepo `infra/` live-stack runs:
 
 ```bash
 docker build -t weave-backend:e2e .

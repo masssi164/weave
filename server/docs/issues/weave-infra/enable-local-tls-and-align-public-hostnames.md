@@ -7,7 +7,7 @@ The Flutter app requires:
 - an HTTPS OIDC issuer
 - HTTPS Nextcloud access for the live integration flow
 
-Older `weave-infra` revisions defaulted to an HTTP ingress on `:8090` and service-specific hosts that did not match the final product gateway topology.
+Older infrastructure revisions defaulted to an HTTP ingress on `:8090` and service-specific hosts that did not match the final product gateway topology.
 
 ## Proposal
 
@@ -18,7 +18,7 @@ Older `weave-infra` revisions defaulted to an HTTP ingress on `:8090` and servic
   - `auth.<tenant_domain>` for the OIDC issuer
   - `matrix.<tenant_domain>`
   - `files.<tenant_domain>` for canonical Nextcloud URL
-- Export the final browser-facing URLs as Terraform outputs or generated install metadata for client/backend consumers
+- Export the final browser-facing URLs as OpenTofu outputs or generated install metadata for client/backend consumers
 
 ## Acceptance criteria
 

@@ -6,7 +6,7 @@ This is the local identity contract for the Weave self-hosted development stack.
 
 - Realm name: `weave`
 - Default public issuer URI: `https://auth.weave.local/realms/weave`
-- Terraform source: `weave-workspace/02-keycloak-setup/modules/tenant-identity`
+- OpenTofu module source: `weave-workspace/02-keycloak-setup/modules/tenant-identity`
 
 The issuer URI follows the infrastructure inputs:
 
@@ -20,7 +20,7 @@ The issuer URI follows the infrastructure inputs:
 
 The Keycloak setup stage can create a local integration test user. It is disabled by default and must not be enabled in production.
 
-Enable it with `TF_VAR_create_test_user=true` when running `weave-workspace/install.sh`, or by setting `create_test_user=true` for the `02-keycloak-setup` Terraform stage.
+Enable it with `TF_VAR_create_test_user=true` when running `weave-workspace/install.sh`, or by setting `create_test_user=true` for the `02-keycloak-setup` OpenTofu stage. `TF_VAR_*` remains the OpenTofu/Terraform-compatible variable environment prefix.
 
 - Username: `test`
 - Email and login identifier: `test@weave.local`
@@ -125,9 +125,9 @@ The backend accepts the token only when:
 - the `aud` claim includes `WEAVE_OIDC_REQUIRED_AUDIENCE`
 - the authorized party or client ID matches `WEAVE_CLIENT_ID`
 
-## Terraform Outputs
+## OpenTofu outputs
 
-The Keycloak setup stage exports:
+The Keycloak setup stage exports these OpenTofu outputs:
 
 - `keycloak_realm_name`
 - `keycloak_issuer_url`
@@ -144,7 +144,7 @@ The Keycloak setup stage exports:
 - `test_user_username`
 - `test_user_password`
 
-The infrastructure stage exports:
+The infrastructure stage exports these OpenTofu outputs:
 
 - `weave_backend_oidc_issuer_uri`
 - `weave_backend_oidc_jwk_set_uri`

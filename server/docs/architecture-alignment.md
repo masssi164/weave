@@ -1,74 +1,78 @@
-# Weave Cross-Repo Architecture Alignment
+# Weave Monorepo Architecture Alignment
 
-## Recommended responsibility split
+This note records the product-stack boundaries that replaced the older boundary planning model. It complements the root README; when they differ, the current README and executable contracts win.
 
-### `weave`
+## Responsibility boundaries
 
-Own the native client experience and end-user sessions:
+### `client/`
+
+Owns the native user experience and client-side product contracts:
 
 - public OIDC sign-in against Keycloak
-- Matrix Native OAuth 2.0 login against the homeserver/MAS stack
-- Nextcloud Login Flow v2 and app-password fallback
-- user-facing feature flows and offline/mobile concerns
+- Matrix Native OAuth 2.0 login against the homeserver/MAS stack where the client protocol requires it
+- user-facing chat, files, calendar, boards/tasks, meetings, decisions, settings, and health flows
+- accessibility, localization, offline/mobile behavior, and widget/architecture tests
 
-### `weave-backend`
+The client must not hold provider service tokens, backend actor secrets, LiveKit API secrets, or raw credential-bearing provider URLs.
 
-Own server-side product APIs and orchestration:
+### `server/`
+
+Owns server-side product APIs and orchestration:
 
 - validate JWTs from Weave clients
-- expose product-specific REST APIs
-- run server-owned workflows and background jobs
-- handle provisioning, automation, and cross-system tasks that should not live in Flutter
+- expose Weave product REST APIs and OpenAPI contracts
+- own provider facades for files, calendar, boards/tasks, meetings, readiness, audit, and support-safe diagnostics
+- enforce authorization, Context/Space boundaries, consent/audit gates, and fail-closed error behavior
+- run server-owned workflows that should not live in Flutter
 
-### `weave-infra`
+### `infra/`
 
-Own the runnable environment and integration contract:
+Owns the runnable environment and operator contract:
 
 - hostnames, TLS, ingress, and service discovery
-- Keycloak clients, audience/token-exchange contract, and secrets
-- local stack bootstrapping for Keycloak, MAS, Synapse, and Nextcloud
-- backend deployment/runtime wiring
+- OpenTofu-managed identity, routing, service config, generated app config, and provider runtime gates
+- local and single-host stack bootstrap for Keycloak, MAS, Synapse, Nextcloud, backend, Caddy, PostgreSQL, and optional providers
+- backup, restore smoke, operator checks, support-bundle redaction, and manual live-stack evidence
 
-## Gaps found in the current state
+### `e2e/`
 
-1. `weave` uses `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`, while older `weave-infra` revisions registered `weaveapp://login/callback` for the `weave-app` Keycloak client.
-2. Older client defaults derived stale service routes instead of the final `files.<base-domain>` canonical Nextcloud URL and `api.<base-domain>/api` backend API base route.
-3. Older local infrastructure exposed service-specific localhost routes instead of the final `https://weave.local` product gateway plus `https://api.weave.local/api`, `https://auth.weave.local`, `https://matrix.weave.local`, and `https://files.weave.local` service origins.
-4. The original `weave-backend` spike assumed that user bearer tokens could be forwarded directly into Nextcloud and Matrix calls. That is the wrong default boundary for this stack.
-5. The original backend spike did not compile in a clean Gradle/JDK environment because it used `WebClient` types without the needed reactive dependency and mixed mismatched OAuth client wiring.
+Owns product-language acceptance contracts:
 
-## Why the backend boundary should stay narrow
+- Gherkin scenarios under `e2e/features/`
+- `e2e/scenario_mappings.json` linking scenarios to executable evidence
+- sparse live-stack end-to-end gates for critical product contracts
 
-- Matrix OAuth 2.0 makes the authentication service the source of truth for user accounts and access tokens, and gives less trust to clients by moving credential handling into the browser-managed flow.
-- Nextcloud `user_oidc` supports bearer validation, but its own README explicitly notes that provisioning on bearer-token validation is not supported yet.
-- Spring Security also cautions that `setDefaultOAuth2AuthorizedClient(true)` causes all outgoing `WebClient` requests to receive the current access token, which is not a good default for a backend that will eventually call multiple downstream systems with different trust models.
+## Active alignment rules
 
-The safest first shape is therefore:
+- Treat `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `release/` as one monorepo release unit.
+- Prefer backend-owned facades for product behavior that needs provider orchestration, provider secrets, support-safe diagnostics, audit, or fail-closed behavior.
+- Direct client-to-provider protocols are allowed only when they are the correct user protocol and do not bypass product contracts.
+- Boards/Tasks is an active v0.1 workspace surface behind backend facade, runtime, authorization, and audit gates.
+- OpenProject is the first provider-backed workspace-sync validation path, not the visible product UX and not a direct client dependency.
+- Provider writes remain disabled/fail-closed unless a later promotion proves authorization, user consent, audit publication, support-bundle redaction, and rollback behavior.
+- Infrastructure docs and workflows should describe OpenTofu as the operator tool. Terraform-compatible names may remain only where the underlying HCL ecosystem requires them.
 
-- Weave client authenticates users directly
-- Weave backend validates the resulting JWT
-- Server-side integrations are added only for workflows that are clearly backend-owned
+## Historical gaps that this model closes
 
-## Good first backend-owned use cases
+Older planning notes predated the current monorepo contracts. Those notes are useful historical context only. Current work should use the paths and product contracts above.
 
-- workspace metadata / capability APIs
-- server-side provisioning hooks for Nextcloud or Keycloak
-- automation messages and bot-style Matrix events
-- background jobs, scheduled sync, notifications, or audit logging
-- future OpenAPI contract shared by mobile/web clients
+Examples of obsolete assumptions:
 
-## Research notes
+- stale native redirect URI defaults such as `weaveapp://login/callback`
+- service-specific localhost routes instead of the canonical product gateway plus `api`, `auth`, `matrix`, and `files` origins
+- forwarding user bearer tokens directly into every provider as the default backend model
+- presenting raw provider UIs as Weave product surfaces
+- treating Boards/Tasks as distant or demo-only when it is now gated v0.1 workspace scope
 
-- Matrix OAuth 2.0 API and native-client flow: https://spec.matrix.org/latest/client-server-api/index.html
-- Matrix Authentication Service architecture: https://element-hq.github.io/matrix-authentication-service/setup/index.html
-- Nextcloud `user_oidc` behavior and bearer validation limits: https://github.com/nextcloud/user_oidc
-- Keycloak token exchange guidance: https://www.keycloak.org/securing-apps/token-exchange
-- Spring Security servlet OAuth2 client caution for default authorized clients: https://docs.spring.io/spring-security/reference/servlet/oauth2/client/authorized-clients.html
+## Good backend-owned use cases
+
+- workspace metadata and capability APIs
+- provider readiness and support-safe diagnostic summaries
+- files/calendar/boards/tasks facades that need backend authorization or provider secrets
+- server-side provisioning hooks for Nextcloud, Keycloak, OpenProject, or later connectors
+- audit logging and consent gates for explicit user actions
+- future OpenAPI contracts shared by mobile/web clients
 
 ## Issue drafts
 
-Issue-ready drafts live under:
-
-- [docs/issues/weave](issues/weave)
-- [docs/issues/weave-infra](issues/weave-infra)
-- [docs/issues/weave-backend](issues/weave-backend)
+Archived issue-ready drafts live under `server/docs/issues/`. They are preserved for implementation history and must be checked against the current README, runtime configuration, and Boards workspace contract before reuse.

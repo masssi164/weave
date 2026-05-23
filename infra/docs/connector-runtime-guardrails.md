@@ -33,7 +33,7 @@ Boards may advertise the product capability as ready for dogfood workspace UX, b
 Before exposing a provider callback route or enabling provider runtime behavior, the enabling PR must show:
 
 1. the backend connector/interop issue that owns the provider contract;
-2. Caddy/Terraform config that exposes only the required callback paths;
+2. Caddy/OpenTofu config that exposes only the required callback paths;
 3. revocation guidance for every provider credential involved;
 4. support-bundle redaction coverage for new env names, logs, and diagnostics;
 5. smoke/static checks proving core behavior is unchanged when connector config is absent.

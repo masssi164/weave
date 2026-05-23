@@ -2,7 +2,7 @@
 
 Status: proposed implementation seam
 Date: 2026-05-18
-Owner: `weave-backend` for API seams; `weave`/`weave-infra` consume through follow-up specs and tests.
+Owner: `server/` for API seams; `client/` and `infra/` consume through follow-up specs and tests.
 
 ## Decision
 
