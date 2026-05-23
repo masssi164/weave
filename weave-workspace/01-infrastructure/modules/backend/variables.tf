@@ -361,6 +361,34 @@ variable "groupware_forms_runtime_enabled" {
   type        = bool
 }
 
+
+variable "livekit_runtime_enabled" {
+  description = "Enable LiveKit meetings runtime. Defaults false/fail-closed."
+  type        = bool
+}
+
+variable "livekit_url" {
+  description = "Backend-only LiveKit server URL."
+  type        = string
+}
+
+variable "livekit_api_key" {
+  description = "Backend-held LiveKit API key. Never expose to Flutter, app config, or support bundles."
+  type        = string
+  sensitive   = true
+}
+
+variable "livekit_api_secret" {
+  description = "Backend-held LiveKit API secret. Never expose to Flutter, app config, or support bundles."
+  type        = string
+  sensitive   = true
+}
+
+variable "livekit_token_endpoint" {
+  description = "Optional backend/internal LiveKit token endpoint alternative."
+  type        = string
+}
+
 variable "boards_nextcloud_deck_runtime_enabled" {
   description = "Enable Nextcloud Deck as an alternative Boards provider. Defaults false; OpenProject remains the primary read-sync path."
   type        = bool

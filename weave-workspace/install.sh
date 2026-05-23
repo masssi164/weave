@@ -58,6 +58,13 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_office_collabora_runtime_enabled
   TF_VAR_groupware_contacts_runtime_enabled
   TF_VAR_groupware_forms_runtime_enabled
+  TF_VAR_livekit_runtime_enabled
+  TF_VAR_livekit_url
+  TF_VAR_livekit_token_endpoint
+  TF_VAR_livekit_image
+  TF_VAR_livekit_host_port
+  TF_VAR_livekit_rtc_tcp_host_port
+  TF_VAR_livekit_rtc_udp_host_port
   TF_VAR_boards_preview_runtime_enabled
   TF_VAR_boards_preview_provider
   TF_VAR_boards_openproject_runtime_enabled
@@ -272,6 +279,9 @@ persist_bootstrap_env() {
     printf 'export WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_collabora_runtime_enabled}"
     printf 'export WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_contacts_runtime_enabled}"
     printf 'export WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_forms_runtime_enabled}"
+    printf 'export WEAVE_LIVEKIT_ENABLED=%q\n' "${TF_VAR_livekit_runtime_enabled}"
+    printf 'export WEAVE_LIVEKIT_URL=%q\n' "${TF_VAR_livekit_url}"
+    printf 'export WEAVE_LIVEKIT_TOKEN_ENDPOINT=%q\n' "${TF_VAR_livekit_token_endpoint}"
     printf 'export WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_preview_runtime_enabled}"
     printf 'export WEAVE_BOARDS_PREVIEW_PROVIDER=%q\n' "${TF_VAR_boards_preview_provider}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
@@ -606,6 +616,8 @@ write_app_config_summary() {
     printf 'export WEAVE_OFFICE_COLLABORA_RUNTIME_ENABLED=%q\n' "${TF_VAR_office_collabora_runtime_enabled}"
     printf 'export WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_contacts_runtime_enabled}"
     printf 'export WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_forms_runtime_enabled}"
+    printf 'export WEAVE_LIVEKIT_ENABLED=%q\n' "${TF_VAR_livekit_runtime_enabled}"
+    printf 'export WEAVE_LIVEKIT_TOKEN_ENDPOINT_CONFIGURED=%q\n' "$([[ -n "${TF_VAR_livekit_token_endpoint}" ]] && printf true || printf false)"
     printf 'export WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_preview_runtime_enabled}"
     printf 'export WEAVE_BOARDS_PREVIEW_PROVIDER=%q\n' "${TF_VAR_boards_preview_provider}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
@@ -779,6 +791,13 @@ ensure_default_inputs() {
     "TF_VAR_office_collabora_runtime_enabled=false"
     "TF_VAR_groupware_contacts_runtime_enabled=false"
     "TF_VAR_groupware_forms_runtime_enabled=false"
+    "TF_VAR_livekit_runtime_enabled=false"
+    "TF_VAR_livekit_url="
+    "TF_VAR_livekit_token_endpoint="
+    "TF_VAR_livekit_image=livekit/livekit-server:v1.8"
+    "TF_VAR_livekit_host_port=48091"
+    "TF_VAR_livekit_rtc_tcp_host_port=48092"
+    "TF_VAR_livekit_rtc_udp_host_port=48092"
     "TF_VAR_boards_preview_runtime_enabled=false"
     "TF_VAR_boards_preview_provider=local-preview"
     "TF_VAR_boards_openproject_runtime_enabled=false"
@@ -847,6 +866,8 @@ ensure_generated_secrets() {
   set_default_var TF_VAR_devops_gitlab_api_token ""
   set_default_var TF_VAR_devops_forgejo_api_token ""
   set_default_var TF_VAR_office_onlyoffice_jwt_secret ""
+  set_default_var TF_VAR_livekit_api_key ""
+  set_default_var TF_VAR_livekit_api_secret ""
   set_default_var TF_VAR_boards_openproject_api_token ""
   set_default_var TF_VAR_openproject_secret_key_base ""
   set_default_secret TF_VAR_matrix_mas_client_secret "$(random_base64 32)"

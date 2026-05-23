@@ -69,6 +69,22 @@ services:
         aliases:
           - weave-onlyoffice
 
+  livekit:
+    profiles:
+      - livekit
+    image: ${TF_VAR_livekit_image:-livekit/livekit-server:v1.8}
+    container_name: weave-livekit
+    restart: unless-stopped
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "${TF_VAR_livekit_host_port:-48091}:7880"
+      - "${TF_VAR_livekit_rtc_tcp_host_port:-48092}:7881"
+      - "${TF_VAR_livekit_rtc_udp_host_port:-48092}:7882/udp"
+    networks:
+      weave:
+        aliases:
+          - weave-livekit
+
 volumes:
   weave_gitlab_config:
     name: weave_gitlab_config

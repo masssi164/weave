@@ -417,6 +417,11 @@ module "backend" {
   office_collabora_runtime_enabled                 = var.office_collabora_runtime_enabled
   groupware_contacts_runtime_enabled               = var.groupware_contacts_runtime_enabled
   groupware_forms_runtime_enabled                  = var.groupware_forms_runtime_enabled
+  livekit_runtime_enabled                          = var.livekit_runtime_enabled
+  livekit_url                                      = var.livekit_url
+  livekit_api_key                                  = var.livekit_api_key
+  livekit_api_secret                               = var.livekit_api_secret
+  livekit_token_endpoint                           = var.livekit_token_endpoint
   boards_preview_runtime_enabled                   = var.boards_preview_runtime_enabled
   boards_preview_provider                          = var.boards_preview_provider
   boards_openproject_runtime_enabled               = var.boards_openproject_runtime_enabled

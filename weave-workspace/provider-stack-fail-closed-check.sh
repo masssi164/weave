@@ -81,6 +81,11 @@ run_static_checks() {
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_OFFICE_NEXTCLOUD_INTEGRATION_MODE'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_GROUPWARE_CONTACTS_RUNTIME_ENABLED'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_LIVEKIT_ENABLED'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_LIVEKIT_URL'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_LIVEKIT_API_KEY'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_LIVEKIT_API_SECRET'
+  assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_LIVEKIT_TOKEN_ENDPOINT'
   assert_file_contains "${ROOT_DIR}/01-infrastructure/modules/backend/main.tf" 'WEAVE_BOARDS_NEXTCLOUD_DECK_RUNTIME_ENABLED'
 
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_provider_stack_profile=fail-closed'
@@ -94,14 +99,17 @@ run_static_checks() {
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_office_nextcloud_integration_mode=nextcloud-onlyoffice-app-behind-backend-facade'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_groupware_contacts_runtime_enabled=false'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_groupware_forms_runtime_enabled=false'
+  assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_livekit_runtime_enabled=false'
   assert_file_contains "${ROOT_DIR}/release.env.example" 'TF_VAR_groupware_contacts_runtime_enabled=false'
   assert_file_contains "${ROOT_DIR}/release.env.example" 'TF_VAR_groupware_forms_runtime_enabled=false'
+  assert_file_contains "${ROOT_DIR}/release.env.example" 'TF_VAR_livekit_runtime_enabled=false'
   assert_file_contains "${ROOT_DIR}/.env.example" 'TF_VAR_boards_nextcloud_deck_runtime_enabled=false'
 
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'profiles:'
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'gitlab-ce'
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'forgejo'
   assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'onlyoffice'
+  assert_file_contains "${ROOT_DIR}/docker-compose.provider-stack.yml" 'livekit/livekit-server'
 
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'TF_VAR_devops_gitlab_api_token'
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'TF_VAR_devops_forgejo_api_token'
@@ -109,6 +117,8 @@ run_static_checks() {
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_DEVOPS_GITLAB_API_TOKEN'
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_DEVOPS_FORGEJO_API_TOKEN'
   assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_OFFICE_ONLYOFFICE_JWT_SECRET'
+  assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_LIVEKIT_API_KEY'
+  assert_file_not_contains "${APP_CONFIG_ENV_FILE}" 'WEAVE_LIVEKIT_API_SECRET'
 
   log "Static provider-stack fail-closed wiring passed."
 }
@@ -213,7 +223,7 @@ run_endpoint_checks() {
   assert_json "${providers_json}" '[.providers[] | select(.module == "forms" and .providerKey == "nextcloud-forms" and .failClosed == true)] | length == 1' 'Nextcloud Forms provider seam must be present and fail-closed'
   assert_json "${providers_json}" '[.providers[] | select(.module == "matrix" and .providerKey == "synapse-homeserver" and .failClosed == true and .supportSafe == true)] | length == 1' 'Synapse/Matrix provider seam must be present and support-safe'
   assert_json "${providers_json}" '[.providers[] | select(.module == "matrix-auth" and .providerKey == "matrix-authentication-service" and .failClosed == true and .supportSafe == true)] | length == 1' 'MAS provider seam must be present and support-safe'
-  assert_json "${providers_json}" '[.providers[] | select(.module == "meetings" and .providerKey == "matrix-meetings" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'Meeting/video-call provider seam must be present and fail-closed until promoted'
+  assert_json "${providers_json}" '[.providers[] | select(.module == "meetings" and .providerKey == "livekit" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'LiveKit meeting/video-call provider seam must be present and fail-closed until configured'
   assert_json "${providers_json}" '[.providers[] | select(.module == "boards" and .providerKey == "openproject-primary" and .failClosed == true)] | length == 1' 'OpenProject Boards provider seam must be present and fail-closed when unconfigured'
   assert_json "${providers_json}" '[.providers[] | select(.module == "source-control" and .providerKey == "gitlab-ce-foss" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'GitLab CE/FOSS source-control provider must be disabled/fail-closed'
   assert_json "${providers_json}" '[.providers[] | select(.module == "source-control" and .providerKey == "forgejo" and .enabled == false and .configured == false and .failClosed == true)] | length == 1' 'Forgejo source-control provider must be disabled/fail-closed'

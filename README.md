@@ -28,7 +28,7 @@ This repository is the operator layer, not the whole product. The daily user exp
 - A complete Slack/Teams replacement.
 - Production connector/provider writes.
 - Completed Matrix E2EE product readiness.
-- Matrix voice/video calling or meeting infrastructure (TURN/SFU/Jitsi/LiveKit).
+- LiveKit is the active meeting/video-call provider contract; TURN/SFU hardening and recording/caption policy remain promotion gates.
 - Agent/automation runtime.
 
 Those are later product or operations tracks and must stay behind explicit contracts and evidence.

@@ -335,6 +335,63 @@ variable "groupware_forms_runtime_enabled" {
   default     = false
 }
 
+
+variable "livekit_runtime_enabled" {
+  description = "Enable LiveKit as the active meetings/video-call provider runtime. Defaults false/fail-closed unless explicitly configured."
+  type        = bool
+  default     = false
+}
+
+variable "livekit_url" {
+  description = "Backend-only LiveKit server URL. Leave blank unless LiveKit meetings are intentionally configured."
+  type        = string
+  default     = ""
+}
+
+variable "livekit_api_key" {
+  description = "Backend-held LiveKit API key. Never expose to Flutter, app config, support bundles, or provider status output."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "livekit_api_secret" {
+  description = "Backend-held LiveKit API secret. Never expose to Flutter, app config, support bundles, or provider status output."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "livekit_token_endpoint" {
+  description = "Optional backend/internal LiveKit token endpoint alternative. Leave blank unless a token broker is configured."
+  type        = string
+  default     = ""
+}
+
+variable "livekit_image" {
+  description = "LiveKit server image for optional local/demo provider-stack validation."
+  type        = string
+  default     = "livekit/livekit-server:v1.8"
+}
+
+variable "livekit_host_port" {
+  description = "Host HTTP/WebSocket port for optional local LiveKit provider-stack validation."
+  type        = number
+  default     = 48091
+}
+
+variable "livekit_rtc_tcp_host_port" {
+  description = "Host TCP RTC port for optional local LiveKit provider-stack validation."
+  type        = number
+  default     = 48092
+}
+
+variable "livekit_rtc_udp_host_port" {
+  description = "Host UDP RTC port for optional local LiveKit provider-stack validation."
+  type        = number
+  default     = 48092
+}
+
 variable "boards_preview_runtime_enabled" {
   description = "Enable the hidden backend Boards/Tasks preview facade. Defaults false; expensive live feature-proof runs may set true to validate the guarded active-preview path."
   type        = bool
