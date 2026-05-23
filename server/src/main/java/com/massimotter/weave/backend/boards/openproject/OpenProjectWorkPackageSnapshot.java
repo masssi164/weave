@@ -5,7 +5,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Minimal OpenProject work package shape used by the read-only board sync seam.
+ * Minimal OpenProject work package shape used by the workspace board sync seam.
  * Provider-specific HAL links and raw payloads stay outside the product model.
  */
 public record OpenProjectWorkPackageSnapshot(

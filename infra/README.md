@@ -59,7 +59,7 @@ For a real single-host deployment, start here:
 - [Operator runbook](docs/operator-runbook.md): install/upgrade, rotation, backup, restore, destructive reset, and triage guidance.
 - [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
 - [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
-- [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional read-only validation setup and live E2E gate; off by default.
+- [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional provider-backed validation setup and live E2E gate; off by default.
 
 After installation, verify public and host-local state:
 
@@ -84,7 +84,7 @@ Product clients should prefer Weave routes and backend APIs where they exist. Ra
 
 Optional providers are fail-closed by default:
 
-- OpenProject is an optional read-only Boards validation path, not a visible product UX.
+- OpenProject is an optional provider-backed Boards validation path behind the backend workspace facade, not a visible product UX or direct client dependency.
 - ONLYOFFICE/Collabora are optional office candidates behind backend-owned capabilities and launch checks.
 - DevOps providers such as GitLab/Forgejo stay disabled unless an explicit runtime contract configures them.
 - Missing provider credentials must produce support-safe unavailable/not-configured readiness, not insecure fallback behavior.
@@ -105,7 +105,7 @@ Optional providers are fail-closed by default:
 - `docs/matrix-default-workspace.md`: default Matrix space/room provisioning.
 - `docs/matrix-e2ee-posture.md`: current honest E2EE posture.
 - `docs/calendar-caldav-external-clients.md`: CalDAV/CardDAV discovery, revocable client credentials, and fail-closed profile boundaries.
-- `docs/openproject-boards-runtime.md`: optional OpenProject read-only setup and promotion gates.
+- `docs/openproject-boards-runtime.md`: optional OpenProject provider-backed setup and promotion gates.
 - `weave-workspace/install.sh`: end-to-end bootstrap for local and single-host runs.
 - `weave-workspace/teardown.sh`: non-destructive cleanup by default; destructive volume reset requires explicit confirmation.
 - `weave-workspace/release-verify.sh`: public endpoint verification for non-local single-host installs.

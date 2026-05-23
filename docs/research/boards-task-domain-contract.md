@@ -125,7 +125,7 @@ Initial event types:
 
 Event handling must document ordering, idempotency, redaction/privacy, replay behavior, and conflict resolution before powering notifications or recent activity.
 
-Implementation seed: `lib/features/boards/domain/entities/board_activity_event.dart` and the board activity normalizers under `lib/features/boards/data/services/` define the app-layer provider-neutral envelope and sample mappers for static preview fixtures plus external-provider-shaped events. They are deliberately active-preview scaffolding and do **not** claim a live Vikunja, OpenProject, Deck, or gateway integration.
+Implementation seed: `lib/features/boards/domain/entities/board_activity_event.dart` and the board activity normalizers under `lib/features/boards/data/services/` define the app-layer provider-neutral envelope and sample mappers for static workspace fixtures plus external-provider-shaped events. They are deliberately gated workspace scaffolding and do **not** claim a live Vikunja, OpenProject, Deck, or gateway integration.
 
 ## Spike sequencing
 
@@ -137,7 +137,7 @@ Implementation seed: `lib/features/boards/domain/entities/board_activity_event.d
 
 ## Acceptance criteria before implementation
 
-- A binding workspace spec exists for tasks/boards and references the active-preview boundary.
+- A binding workspace spec exists for tasks/boards and references the gated workspace boundary.
 - Provider spikes map their findings to the Weave concepts in this document.
 - Flutter presentation models and tests use provider-neutral names.
 - Backend/API contracts include capability discovery, support-safe errors, pagination, sync metadata, and normalized events.

@@ -77,8 +77,8 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
                         BoardCapability.CUSTOM_FIELDS,
                         BoardCapability.ACCESSIBLE_NON_DRAG_MOVES),
                 enabled
-                        ? "OpenProject is enabled for authenticated read-only Boards sync of projects, statuses, and work packages; comments, attachments, archive, and writes remain gated behind audit/consent promotion."
-                        : "OpenProject is the disabled, read-only-first Boards provider seam; Vikunja and Deck are comparison/fallback paths only.");
+                        ? "OpenProject is enabled for authenticated Boards workspace sync of projects, statuses, and work packages; comments, attachments, archive, and provider writes remain gated behind audit/consent promotion."
+                        : "OpenProject is the disabled Boards workspace-sync provider seam; Vikunja and Deck are comparison/fallback paths only.");
     }
 
     @Override

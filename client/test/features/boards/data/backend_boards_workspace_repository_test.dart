@@ -1,12 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:weave/features/boards/data/repositories/backend_boards_preview_repository.dart';
-import 'package:weave/features/boards/domain/entities/board_preview.dart';
+import 'package:weave/features/boards/data/repositories/backend_boards_workspace_repository.dart';
+import 'package:weave/features/boards/domain/entities/board_workspace.dart';
 
 void main() {
   test('loads provider-neutral Boards workspace from backend facade', () async {
-    final repository = BackendBoardsPreviewRepository(
+    final repository = BackendBoardsWorkspaceRepository(
       httpClient: MockClient((request) async {
         expect(
           request.url.toString(),
@@ -72,26 +72,32 @@ void main() {
       accessToken: 'token',
     );
 
-    final preview = await repository.loadPreview();
+    final workspace = await repository.loadWorkspace();
 
-    expect(preview.id, 'board-1');
-    expect(preview.name, 'Launch board');
-    expect(preview.isBackendFed, isTrue);
-    expect(preview.canUseBackendNonDragActions, isTrue);
-    expect(preview.capabilities.provider, 'in-memory');
-    expect(preview.capabilities.supportSafeSummary, contains('no external'));
-    expect(preview.columns, hasLength(3));
-    expect(preview.taskCount, 2);
-    expect(preview.columns[1].wipLimit, 3);
-    expect(preview.columns[1].tasks.single.title, 'Validate keyboard movement');
-    expect(preview.columns[1].tasks.single.status, BoardTaskStatus.inProgress);
-    expect(preview.columns[2].tasks.single.status, BoardTaskStatus.done);
+    expect(workspace.id, 'board-1');
+    expect(workspace.name, 'Launch board');
+    expect(workspace.isBackendFed, isTrue);
+    expect(workspace.canUseBackendNonDragActions, isTrue);
+    expect(workspace.capabilities.provider, 'in-memory');
+    expect(workspace.capabilities.supportSafeSummary, contains('no external'));
+    expect(workspace.columns, hasLength(3));
+    expect(workspace.taskCount, 2);
+    expect(workspace.columns[1].wipLimit, 3);
+    expect(
+      workspace.columns[1].tasks.single.title,
+      'Validate keyboard movement',
+    );
+    expect(
+      workspace.columns[1].tasks.single.status,
+      BoardTaskStatus.inProgress,
+    );
+    expect(workspace.columns[2].tasks.single.status, BoardTaskStatus.done);
   });
 
   test(
     'returns a blocked workspace state when backend runtime is disabled',
     () async {
-      final repository = BackendBoardsPreviewRepository(
+      final repository = BackendBoardsWorkspaceRepository(
         httpClient: MockClient((request) async {
           expect(
             request.url.toString(),
@@ -107,12 +113,12 @@ void main() {
         accessToken: 'token',
       );
 
-      final preview = await repository.loadPreview();
+      final workspace = await repository.loadWorkspace();
 
-      expect(preview.isBackendBlocked, isTrue);
-      expect(preview.canUseBackendNonDragActions, isFalse);
-      expect(preview.columns, isEmpty);
-      expect(preview.capabilities.provider, 'unavailable');
+      expect(workspace.isBackendBlocked, isTrue);
+      expect(workspace.canUseBackendNonDragActions, isFalse);
+      expect(workspace.columns, isEmpty);
+      expect(workspace.capabilities.provider, 'unavailable');
     },
   );
 
@@ -120,7 +126,7 @@ void main() {
     'posts accessible non-drag move, status, decision-link, and complete actions to backend facade',
     () async {
       final seenRequests = <http.Request>[];
-      final repository = BackendBoardsPreviewRepository(
+      final repository = BackendBoardsWorkspaceRepository(
         httpClient: MockClient((request) async {
           seenRequests.add(request);
           return http.Response('{"id":"task-1"}', 200);

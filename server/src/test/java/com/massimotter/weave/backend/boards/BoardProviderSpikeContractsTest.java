@@ -30,7 +30,7 @@ class BoardProviderSpikeContractsTest {
                 BoardCapability.CHECKLISTS,
                 BoardCapability.CUSTOM_FIELDS,
                 BoardCapability.ACCESSIBLE_NON_DRAG_MOVES);
-        assertThat(capabilities.supportSafeSummary()).contains("read-only-first").contains("disabled");
+        assertThat(capabilities.supportSafeSummary()).contains("workspace-sync").contains("disabled");
         assertThatThrownBy(() -> repository.listProjects(null))
                 .isInstanceOf(BoardsException.class)
                 .satisfies(error -> assertThat(((BoardsException) error).code())

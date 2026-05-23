@@ -1,26 +1,26 @@
-import 'package:weave/features/boards/domain/entities/board_preview.dart';
-import 'package:weave/features/boards/domain/repositories/boards_preview_repository.dart';
+import 'package:weave/features/boards/domain/entities/board_workspace.dart';
+import 'package:weave/features/boards/domain/repositories/boards_workspace_repository.dart';
 
-class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
-  const StaticBoardsPreviewRepository();
+class StaticBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
+  const StaticBoardsWorkspaceRepository();
 
   @override
-  Future<BoardPreview> loadPreview() async => _preview;
+  Future<BoardWorkspace> loadWorkspace() async => _workspace;
 
-  static const _preview = BoardPreview(
+  static const _workspace = BoardWorkspace(
     id: 'release-readiness-workspace',
     name: 'Release readiness board',
     description:
         'A provider-neutral Weave dogfood production for task planning. It is not wired to a live provider yet.',
-    source: BoardPreviewSource.staticFixture,
-    capabilities: BoardProviderPreviewCapabilities.staticPreview(),
+    source: BoardWorkspaceSource.staticFixture,
+    capabilities: BoardProviderWorkspaceCapabilities.staticWorkspace(),
     columns: [
-      BoardColumnPreview(
+      BoardColumnWorkspace(
         id: 'todo',
         name: 'To plan',
         semanticStatus: BoardTaskStatus.notStarted,
         tasks: [
-          BoardTaskPreview(
+          BoardTaskWorkspace(
             id: 'accessibility-review',
             title: 'Keyboard movement review',
             description:
@@ -31,7 +31,7 @@ class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
             labels: ['Accessibility', 'Design'],
             priorityLabel: 'High priority',
           ),
-          BoardTaskPreview(
+          BoardTaskWorkspace(
             id: 'provider-spike',
             title: 'Vikunja adapter spike',
             description:
@@ -44,13 +44,13 @@ class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
           ),
         ],
       ),
-      BoardColumnPreview(
+      BoardColumnWorkspace(
         id: 'doing',
         name: 'In progress',
         semanticStatus: BoardTaskStatus.inProgress,
         wipLimit: 3,
         tasks: [
-          BoardTaskPreview(
+          BoardTaskWorkspace(
             id: 'domain-contract',
             title: 'Provider-neutral domain contract',
             description:
@@ -63,12 +63,12 @@ class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
           ),
         ],
       ),
-      BoardColumnPreview(
+      BoardColumnWorkspace(
         id: 'blocked',
         name: 'Blocked',
         semanticStatus: BoardTaskStatus.blocked,
         tasks: [
-          BoardTaskPreview(
+          BoardTaskWorkspace(
             id: 'runtime-boundary',
             title: 'Runtime enablement spec',
             description:
@@ -81,12 +81,12 @@ class StaticBoardsPreviewRepository implements BoardsPreviewRepository {
           ),
         ],
       ),
-      BoardColumnPreview(
+      BoardColumnWorkspace(
         id: 'done',
         name: 'Done',
         semanticStatus: BoardTaskStatus.done,
         tasks: [
-          BoardTaskPreview(
+          BoardTaskWorkspace(
             id: 'release-boundary',
             title: 'Active scope documented',
             description:

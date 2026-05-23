@@ -196,7 +196,7 @@ Acceptance evidence:
 | Files boundary | `e2e/features/live_stack_app.feature` + `e2e/scenario_mappings.json` | Flutter live E2E product files proof + acceptance artifact | Files must be Weave product UX, not raw provider UI. |
 | Calendar event/thread | `e2e/features/live_stack_app.feature` | Flutter live E2E calendar CRUD + thread reference proof | Channel scheduling needs stable context and future meeting/chat linkage. |
 | Boards non-drag UX | `e2e/features/live_stack_app.feature` | Flutter live E2E non-drag operation proof | Boards need accessible non-drag product behavior. |
-| Boards provider boundary | `server/src/test/resources/features/openproject-boards-readonly.feature` | Backend Cucumber/JUnit acceptance suite | Provider runtime evidence must stay context-scoped, support-safe, and fail-closed until user-write/audit promotion. |
+| Boards provider boundary | `server/src/test/resources/features/openproject-boards-workspace.feature` | Backend Cucumber/JUnit acceptance suite | Provider runtime evidence must stay context-scoped, support-safe, and fail-closed unless user-write/audit promotion is proved. |
 | OpenProject live infra | `infra/weave-workspace/openproject-boards-live-e2e.sh` | live script + mapping guard | Live API path is runnable without promoting raw OpenProject UX. |
 | v0.1 release spine | `e2e/features/v0_1_dogfood_release.feature` | `client/test/release_1/v0_1_release_spine_contract_test.dart` + release plan fragments | Dogfood-production scope must stay mapped before implementation slices land. |
 | Operator/support safety | `infra/weave-workspace/tests/*-test.sh` | support-bundle, operator-check, restore-smoke, teardown guard tests | Diagnostics and reset paths must stay safe by default. |

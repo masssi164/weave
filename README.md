@@ -13,7 +13,7 @@ This repository is now the single source of truth for the Weave product stack:
 
 ## v0.1 release principle
 
-Weave v0.1 is a dogfood-production release, not a preview showcase. A surface is allowed into the release only when it is useful as a daily work tool and backed by executable evidence.
+Weave v0.1 is a dogfood-production release, not a demo showcase. A surface is allowed into the release only when it is useful as a daily work tool and backed by executable evidence.
 
 Required v0.1 product surfaces:
 

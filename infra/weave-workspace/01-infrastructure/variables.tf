@@ -392,20 +392,20 @@ variable "livekit_rtc_udp_host_port" {
   default     = 48092
 }
 
-variable "boards_preview_runtime_enabled" {
-  description = "Enable the hidden backend Boards/Tasks preview facade. Defaults false; expensive live feature-proof runs may set true to validate the guarded active-preview path."
+variable "boards_runtime_enabled" {
+  description = "Enable the backend Boards/Tasks workspace facade. Defaults false; live feature-proof runs may set true to validate the guarded active workspace path."
   type        = bool
   default     = false
 }
 
-variable "boards_preview_provider" {
-  description = "Provider backing the hidden Boards/Tasks preview facade. Defaults to local-preview; set openproject only for explicit OpenProject read-sync validation."
+variable "boards_provider" {
+  description = "Provider backing the Boards/Tasks workspace facade. Defaults to local-workspace; set openproject only for explicit OpenProject workspace-sync validation."
   type        = string
-  default     = "local-preview"
+  default     = "local-workspace"
 
   validation {
-    condition     = contains(["local-preview", "openproject"], var.boards_preview_provider)
-    error_message = "boards_preview_provider must be local-preview or openproject."
+    condition     = contains(["local-workspace", "openproject"], var.boards_provider)
+    error_message = "boards_provider must be local-workspace or openproject."
   }
 }
 
@@ -416,13 +416,13 @@ variable "boards_openproject_runtime_enabled" {
 }
 
 variable "boards_openproject_read_sync_enabled" {
-  description = "Enable read-only OpenProject synchronization. Defaults false and must not enable provider writes."
+  description = "Enable OpenProject workspace synchronization. Defaults false and must not enable direct provider writes."
   type        = bool
   default     = false
 }
 
 variable "boards_openproject_context_authorization_enabled" {
-  description = "Require Context/Space authorization for OpenProject read-sync requests. Keep false until backend ReBAC validation is promoted."
+  description = "Require Context/Space authorization for OpenProject workspace sync requests. Keep false until backend ReBAC validation is promoted."
   type        = bool
   default     = false
 }
@@ -434,20 +434,20 @@ variable "boards_openproject_audit_consent_enabled" {
 }
 
 variable "boards_openproject_provider_writes_enabled" {
-  description = "Enable writes to OpenProject. Must remain false for the read-only MVP/runtime path."
+  description = "Enable writes to OpenProject. Must remain false for the audited provider-runtime path."
   type        = bool
   default     = false
 }
 
 
 variable "boards_nextcloud_deck_runtime_enabled" {
-  description = "Enable Nextcloud Deck as an alternative Boards provider. Defaults false; OpenProject remains the primary read-sync assumption."
+  description = "Enable Nextcloud Deck as an alternative Boards provider. Defaults false; OpenProject remains the primary workspace sync assumption."
   type        = bool
   default     = false
 }
 
 variable "boards_openproject_auth_mode" {
-  description = "OpenProject backend auth mode. Use service-token for backend-held API-token read-sync; disabled keeps runtime fail-closed."
+  description = "OpenProject backend auth mode. Use service-token for backend-held API-token workspace-sync; disabled keeps runtime fail-closed."
   type        = string
   default     = "disabled"
 
@@ -464,7 +464,7 @@ variable "boards_openproject_base_url" {
 }
 
 variable "boards_openproject_api_token" {
-  description = "Backend-held OpenProject service-account API token for read-only sync. Never expose to Flutter, app config, or support bundles."
+  description = "Backend-held OpenProject service-account API token for workspace sync. Never expose to Flutter, app config, or support bundles."
   type        = string
   default     = ""
   sensitive   = true

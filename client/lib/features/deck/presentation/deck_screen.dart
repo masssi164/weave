@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:weave/features/boards/presentation/boards_preview_screen.dart';
+import 'package:weave/features/boards/presentation/boards_workspace_screen.dart';
 
 /// Compatibility wrapper for the hidden legacy Deck route.
 ///
@@ -11,5 +11,5 @@ class DeckScreen extends StatelessWidget {
   const DeckScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => const BoardsPreviewScreen();
+  Widget build(BuildContext context) => const BoardsWorkspaceScreen();
 }

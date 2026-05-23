@@ -422,8 +422,8 @@ module "backend" {
   livekit_api_key                                  = var.livekit_api_key
   livekit_api_secret                               = var.livekit_api_secret
   livekit_token_endpoint                           = var.livekit_token_endpoint
-  boards_preview_runtime_enabled                   = var.boards_preview_runtime_enabled
-  boards_preview_provider                          = var.boards_preview_provider
+  boards_runtime_enabled                   = var.boards_runtime_enabled
+  boards_provider                          = var.boards_provider
   boards_openproject_runtime_enabled               = var.boards_openproject_runtime_enabled
   boards_openproject_read_sync_enabled             = var.boards_openproject_read_sync_enabled
   boards_openproject_context_authorization_enabled = var.boards_openproject_context_authorization_enabled

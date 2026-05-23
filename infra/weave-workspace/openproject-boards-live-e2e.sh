@@ -185,10 +185,10 @@ mint_access_token() {
   jq -r '.access_token' <<<"${token_response}"
 }
 
-probe_preview() {
+probe_workspace() {
   local token="$1"
   local body_file="$2"
-  curl_auth_status_to_file "${token}" GET "${WEAVE_BASE_URL}/boards/preview" "${body_file}"
+  curl_auth_status_to_file "${token}" GET "${WEAVE_BASE_URL}/boards/workspace" "${body_file}"
 }
 
 probe_create_refusal() {
@@ -230,10 +230,10 @@ fi
 access_token="$(mint_access_token)"
 [[ -n "${access_token}" && "${access_token}" != "null" ]] || fail "OpenProject Boards live E2E failed: Keycloak did not return an access token"
 
-preview_body="$(mktemp)"
+workspace_body="$(mktemp)"
 write_body="$(mktemp)"
 provider_body="$(mktemp)"
-trap 'rm -f -- "${preview_body}" "${write_body}" "${provider_body}"' EXIT
+trap 'rm -f -- "${workspace_body}" "${write_body}" "${provider_body}"' EXIT
 
 log "Checking provider registry through Weave API..."
 provider_status="$(probe_provider_status "${access_token}" "${provider_body}" || true)"
@@ -242,31 +242,31 @@ assert_support_safe_file "${provider_body}"
 assert_json "$(cat "${provider_body}")" '.backendOwnedFacades == true and .flutterDirectProviderCallsAllowed == false and .supportSafe == true' "provider registry should be backend-owned and support-safe"
 assert_json "$(cat "${provider_body}")" '[.providers[] | select(.module == "boards")] | length >= 1' "provider registry should expose boards readiness"
 
-log "Checking OpenProject Boards preview through Weave API..."
-preview_status="$(probe_preview "${access_token}" "${preview_body}" || true)"
-assert_support_safe_file "${preview_body}"
+log "Checking OpenProject Boards workspace through Weave API..."
+workspace_status="$(probe_workspace "${access_token}" "${workspace_body}" || true)"
+assert_support_safe_file "${workspace_body}"
 
 if [[ "${expected_enabled}" == "true" ]]; then
-  [[ "${preview_status}" == "200" ]] || fail "OpenProject Boards live E2E failed: expected enabled read-only preview HTTP 200, got ${preview_status}: $(cat "${preview_body}")"
-  preview_json="$(cat "${preview_body}")"
-  assert_json "${preview_json}" '.preview == true' "Boards preview should be marked preview=true"
-  assert_json "${preview_json}" '.source == "openproject-read-sync-backend-facade"' "Boards preview must come through the Weave OpenProject read-sync facade"
-  assert_json "${preview_json}" '.capabilities.provider == "openproject" and .capabilities.enabled == true' "OpenProject capabilities should be enabled"
-  assert_json "${preview_json}" '.syncMetadata.provider == "openproject" and .syncMetadata.mode == "read-only-sync" and .syncMetadata.readOnly == true and .syncMetadata.contextScoped == true and .syncMetadata.supportSafe == true' "sync metadata should be read-only, context-scoped, and support-safe"
-  assert_json "${preview_json}" '(.projects | length) >= 1 and (.boards | length) >= 1 and (.tasks | length) >= 1' "read-sync preview should contain provider-neutral projects, boards, and tasks"
-  log "OpenProject read-only Boards preview passed through Weave API."
+  [[ "${workspace_status}" == "200" ]] || fail "OpenProject Boards live E2E failed: expected enabled workspace HTTP 200, got ${workspace_status}: $(cat "${workspace_body}")"
+  workspace_json="$(cat "${workspace_body}")"
+  assert_json "${workspace_json}" '.workspace == true' "Boards workspace should be marked workspace=true"
+  assert_json "${workspace_json}" '.source == "openproject-workspace-sync-backend-facade"' "Boards workspace must come through the Weave OpenProject workspace-sync facade"
+  assert_json "${workspace_json}" '.capabilities.provider == "openproject" and .capabilities.enabled == true' "OpenProject capabilities should be enabled"
+  assert_json "${workspace_json}" '.syncMetadata.provider == "openproject" and .syncMetadata.mode == "workspace-sync" and .syncMetadata.userWriteAudited == true and .syncMetadata.contextScoped == true and .syncMetadata.supportSafe == true' "sync metadata should be user-write audited, context-scoped, and support-safe"
+  assert_json "${workspace_json}" '(.projects | length) >= 1 and (.boards | length) >= 1 and (.tasks | length) >= 1' "workspace sync should contain provider-neutral projects, boards, and tasks"
+  log "OpenProject Boards workspace passed through Weave API."
 else
   if [[ "${expected_context_denied}" == "true" ]]; then
-    [[ "${preview_status}" == "403" ]] || fail "OpenProject Boards live E2E failed: expected Context/Space authorization denial HTTP 403, got ${preview_status}: $(cat "${preview_body}")"
-    assert_json "$(cat "${preview_body}")" '(.code // .error // "") == "boards-forbidden"' "context-denied response should use the Boards forbidden error code"
-    log "OpenProject Boards preview respected the Context/Space authorization gate with HTTP ${preview_status}."
+    [[ "${workspace_status}" == "403" ]] || fail "OpenProject Boards live E2E failed: expected Context/Space authorization denial HTTP 403, got ${workspace_status}: $(cat "${workspace_body}")"
+    assert_json "$(cat "${workspace_body}")" '(.code // .error // "") == "boards-forbidden"' "context-denied response should use the Boards forbidden error code"
+    log "OpenProject Boards workspace respected the Context/Space authorization gate with HTTP ${workspace_status}."
   else
-    case "${preview_status}" in
+    case "${workspace_status}" in
       401|403|503) ;;
-      *) fail "OpenProject Boards live E2E failed: expected disabled/misconfigured/context-gated preview to fail closed with 401/403/503, got ${preview_status}: $(cat "${preview_body}")" ;;
+      *) fail "OpenProject Boards live E2E failed: expected disabled/misconfigured/context-gated workspace to fail closed with 401/403/503, got ${workspace_status}: $(cat "${workspace_body}")" ;;
     esac
-    assert_json "$(cat "${preview_body}")" '(.code // .error // "") | tostring | startswith("boards-")' "fail-closed response should use a Boards API error code"
-    log "OpenProject Boards preview failed closed support-safely with HTTP ${preview_status}."
+    assert_json "$(cat "${workspace_body}")" '(.code // .error // "") | tostring | startswith("boards-")' "fail-closed response should use a Boards API error code"
+    log "OpenProject Boards workspace failed closed support-safely with HTTP ${workspace_status}."
   fi
 fi
 

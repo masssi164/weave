@@ -68,8 +68,8 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_livekit_host_port
   TF_VAR_livekit_rtc_tcp_host_port
   TF_VAR_livekit_rtc_udp_host_port
-  TF_VAR_boards_preview_runtime_enabled
-  TF_VAR_boards_preview_provider
+  TF_VAR_boards_runtime_enabled
+  TF_VAR_boards_provider
   TF_VAR_boards_openproject_runtime_enabled
   TF_VAR_boards_openproject_read_sync_enabled
   TF_VAR_boards_openproject_context_authorization_enabled
@@ -285,8 +285,8 @@ persist_bootstrap_env() {
     printf 'export WEAVE_LIVEKIT_ENABLED=%q\n' "${TF_VAR_livekit_runtime_enabled}"
     printf 'export WEAVE_LIVEKIT_URL=%q\n' "${TF_VAR_livekit_url}"
     printf 'export WEAVE_LIVEKIT_TOKEN_ENDPOINT=%q\n' "${TF_VAR_livekit_token_endpoint}"
-    printf 'export WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_preview_runtime_enabled}"
-    printf 'export WEAVE_BOARDS_PREVIEW_PROVIDER=%q\n' "${TF_VAR_boards_preview_provider}"
+    printf 'export WEAVE_BOARDS_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_PROVIDER=%q\n' "${TF_VAR_boards_provider}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=%q\n' "${TF_VAR_boards_openproject_read_sync_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=%q\n' "${TF_VAR_boards_openproject_context_authorization_enabled}"
@@ -621,8 +621,8 @@ write_app_config_summary() {
     printf 'export WEAVE_GROUPWARE_FORMS_RUNTIME_ENABLED=%q\n' "${TF_VAR_groupware_forms_runtime_enabled}"
     printf 'export WEAVE_LIVEKIT_ENABLED=%q\n' "${TF_VAR_livekit_runtime_enabled}"
     printf 'export WEAVE_LIVEKIT_TOKEN_ENDPOINT_CONFIGURED=%q\n' "$([[ -n "${TF_VAR_livekit_token_endpoint}" ]] && printf true || printf false)"
-    printf 'export WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_preview_runtime_enabled}"
-    printf 'export WEAVE_BOARDS_PREVIEW_PROVIDER=%q\n' "${TF_VAR_boards_preview_provider}"
+    printf 'export WEAVE_BOARDS_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_runtime_enabled}"
+    printf 'export WEAVE_BOARDS_PROVIDER=%q\n' "${TF_VAR_boards_provider}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=%q\n' "${TF_VAR_boards_openproject_runtime_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=%q\n' "${TF_VAR_boards_openproject_read_sync_enabled}"
     printf 'export WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED=%q\n' "${TF_VAR_boards_openproject_context_authorization_enabled}"
@@ -801,8 +801,8 @@ ensure_default_inputs() {
     "TF_VAR_livekit_host_port=48091"
     "TF_VAR_livekit_rtc_tcp_host_port=48092"
     "TF_VAR_livekit_rtc_udp_host_port=48092"
-    "TF_VAR_boards_preview_runtime_enabled=false"
-    "TF_VAR_boards_preview_provider=local-preview"
+    "TF_VAR_boards_runtime_enabled=false"
+    "TF_VAR_boards_provider=local-workspace"
     "TF_VAR_boards_openproject_runtime_enabled=false"
     "TF_VAR_boards_openproject_read_sync_enabled=false"
     "TF_VAR_boards_openproject_context_authorization_enabled=false"

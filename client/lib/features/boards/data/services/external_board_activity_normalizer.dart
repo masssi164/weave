@@ -38,7 +38,7 @@ class ExternalBoardProviderRawEvent {
     this.fromDueAt,
     this.toDueAt,
     this.commentId,
-    this.commentBodyPreview,
+    this.commentBodySnippet,
     this.attachmentId,
     this.attachmentChange,
     this.attachmentDisplayName,
@@ -79,7 +79,7 @@ class ExternalBoardProviderRawEvent {
   final DateTime? fromDueAt;
   final DateTime? toDueAt;
   final String? commentId;
-  final String? commentBodyPreview;
+  final String? commentBodySnippet;
   final String? attachmentId;
   final String? attachmentChange;
   final String? attachmentDisplayName;
@@ -199,7 +199,7 @@ class ExternalBoardActivityNormalizer
       ),
       BoardActivityEventType.commentAdded => CommentAddedPayload(
         commentId: raw.commentId ?? raw.eventId,
-        bodyPreview: raw.commentBodyPreview,
+        bodySnippet: raw.commentBodySnippet,
       ),
       BoardActivityEventType.attachmentChanged => AttachmentChangedPayload(
         attachmentId: raw.attachmentId ?? raw.eventId,

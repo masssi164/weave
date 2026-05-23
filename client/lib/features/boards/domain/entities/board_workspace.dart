@@ -1,9 +1,9 @@
 enum BoardTaskStatus { notStarted, inProgress, blocked, done }
 
-enum BoardPreviewSource { staticFixture, backendFacade, backendBlocked }
+enum BoardWorkspaceSource { staticFixture, backendFacade, backendBlocked }
 
-class BoardProviderPreviewCapabilities {
-  const BoardProviderPreviewCapabilities({
+class BoardProviderWorkspaceCapabilities {
+  const BoardProviderWorkspaceCapabilities({
     required this.provider,
     required this.enabled,
     required this.supported,
@@ -11,7 +11,7 @@ class BoardProviderPreviewCapabilities {
     required this.supportSafeSummary,
   });
 
-  const BoardProviderPreviewCapabilities.staticPreview()
+  const BoardProviderWorkspaceCapabilities.staticWorkspace()
     : provider = 'none',
       enabled = false,
       supported = const ['accessible_non_drag_moves'],
@@ -27,7 +27,7 @@ class BoardProviderPreviewCapabilities {
       supportSafeSummary =
           'Static provider-neutral workspace fixture; no backend provider runtime is connected.';
 
-  const BoardProviderPreviewCapabilities.blocked()
+  const BoardProviderWorkspaceCapabilities.blocked()
     : provider = 'unavailable',
       enabled = false,
       supported = const [],
@@ -55,41 +55,42 @@ class BoardProviderPreviewCapabilities {
       !unsupported.contains('accessible_non_drag_moves');
 }
 
-class BoardPreview {
-  const BoardPreview({
+class BoardWorkspace {
+  const BoardWorkspace({
     required this.id,
     required this.name,
     required this.description,
     required this.columns,
-    this.source = BoardPreviewSource.staticFixture,
+    this.source = BoardWorkspaceSource.staticFixture,
     this.releaseStatus = 'active-dogfood-production',
-    this.capabilities = const BoardProviderPreviewCapabilities.staticPreview(),
+    this.capabilities =
+        const BoardProviderWorkspaceCapabilities.staticWorkspace(),
   });
 
-  const BoardPreview.backendBlocked()
+  const BoardWorkspace.backendBlocked()
     : id = 'boards-backend-blocked',
       name = 'Boards backend facade unavailable',
       description =
           'The authenticated backend facade is not enabled for this workspace. Boards remain feature-gated and no provider task data is shown.',
       columns = const [],
-      source = BoardPreviewSource.backendBlocked,
+      source = BoardWorkspaceSource.backendBlocked,
       releaseStatus = 'active-dogfood-production',
-      capabilities = const BoardProviderPreviewCapabilities.blocked();
+      capabilities = const BoardProviderWorkspaceCapabilities.blocked();
 
   final String id;
   final String name;
   final String description;
-  final List<BoardColumnPreview> columns;
-  final BoardPreviewSource source;
+  final List<BoardColumnWorkspace> columns;
+  final BoardWorkspaceSource source;
   final String releaseStatus;
-  final BoardProviderPreviewCapabilities capabilities;
+  final BoardProviderWorkspaceCapabilities capabilities;
 
   int get taskCount =>
       columns.fold<int>(0, (total, column) => total + column.tasks.length);
 
-  bool get isBackendFed => source == BoardPreviewSource.backendFacade;
+  bool get isBackendFed => source == BoardWorkspaceSource.backendFacade;
 
-  bool get isBackendBlocked => source == BoardPreviewSource.backendBlocked;
+  bool get isBackendBlocked => source == BoardWorkspaceSource.backendBlocked;
 
   bool get canUseBackendNonDragActions =>
       isBackendFed &&
@@ -97,8 +98,8 @@ class BoardPreview {
       capabilities.supportsAccessibleNonDragMoves;
 }
 
-class BoardColumnPreview {
-  const BoardColumnPreview({
+class BoardColumnWorkspace {
+  const BoardColumnWorkspace({
     required this.id,
     required this.name,
     required this.semanticStatus,
@@ -109,12 +110,12 @@ class BoardColumnPreview {
   final String id;
   final String name;
   final BoardTaskStatus semanticStatus;
-  final List<BoardTaskPreview> tasks;
+  final List<BoardTaskWorkspace> tasks;
   final int? wipLimit;
 }
 
-class BoardTaskPreview {
-  const BoardTaskPreview({
+class BoardTaskWorkspace {
+  const BoardTaskWorkspace({
     required this.id,
     required this.title,
     required this.description,

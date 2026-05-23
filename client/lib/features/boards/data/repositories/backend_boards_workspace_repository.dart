@@ -3,11 +3,11 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
-import 'package:weave/features/boards/domain/entities/board_preview.dart';
-import 'package:weave/features/boards/domain/repositories/boards_preview_repository.dart';
+import 'package:weave/features/boards/domain/entities/board_workspace.dart';
+import 'package:weave/features/boards/domain/repositories/boards_workspace_repository.dart';
 
-class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
-  BackendBoardsPreviewRepository({
+class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
+  BackendBoardsWorkspaceRepository({
     required http.Client httpClient,
     required Uri apiBaseUrl,
     required String accessToken,
@@ -20,12 +20,12 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
   final String _accessToken;
 
   @override
-  Future<BoardPreview> loadPreview() async {
+  Future<BoardWorkspace> loadWorkspace() async {
     late http.Response response;
     try {
       response = await _httpClient
           .get(
-            _boardsPreviewUri(),
+            _boardsWorkspaceUri(),
             headers: {
               'Accept': 'application/json',
               'Authorization': 'Bearer $_accessToken',
@@ -41,7 +41,7 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
 
     if (response.statusCode != 200) {
       if (response.statusCode == 503) {
-        return const BoardPreview.backendBlocked();
+        return const BoardWorkspace.backendBlocked();
       }
       throw AppFailure.unknown(
         'The Weave backend Boards workspace is not enabled right now.',
@@ -56,7 +56,7 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
           'The Weave backend returned an invalid Boards workspace payload.',
         );
       }
-      return _parsePreview(payload);
+      return _parseWorkspace(payload);
     } on AppFailure {
       rethrow;
     } catch (error) {
@@ -67,7 +67,7 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
     }
   }
 
-  BoardPreview _parsePreview(Map<String, dynamic> payload) {
+  BoardWorkspace _parseWorkspace(Map<String, dynamic> payload) {
     final workspace = payload['workspace'];
     final releaseStatus = _string(payload['releaseStatus']);
     final source = _string(payload['source']);
@@ -89,16 +89,16 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
 
     final board = boards.first;
     final columns = _listOfMaps(board['columns']);
-    return BoardPreview(
+    return BoardWorkspace(
       id: _string(board['id'], fallback: 'backend-board'),
       name: _string(board['name'], fallback: 'Boards workspace'),
       description: _string(board['description']),
-      source: BoardPreviewSource.backendFacade,
+      source: BoardWorkspaceSource.backendFacade,
       releaseStatus: releaseStatus,
       capabilities: _capabilities(payload['capabilities']),
       columns: [
         for (final column in columns)
-          BoardColumnPreview(
+          BoardColumnWorkspace(
             id: _string(column['id'], fallback: 'backend-column'),
             name: _string(column['name'], fallback: 'Column'),
             semanticStatus: _columnStatus(_string(column['semanticStatus'])),
@@ -109,7 +109,7 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
               for (final task in tasks.where(
                 (task) => task['columnId'] == column['id'],
               ))
-                BoardTaskPreview(
+                BoardTaskWorkspace(
                   id: _string(task['id'], fallback: 'backend-task'),
                   title: _string(task['title'], fallback: 'Untitled task'),
                   description: _string(task['description']),
@@ -207,7 +207,7 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
     }
   }
 
-  Uri _boardsPreviewUri() {
+  Uri _boardsWorkspaceUri() {
     final baseSegments = _apiBaseUrl.pathSegments
         .where((segment) => segment.isNotEmpty)
         .toList(growable: false);
@@ -240,12 +240,12 @@ class BackendBoardsPreviewRepository implements BoardsPreviewRepository {
   }
 }
 
-BoardProviderPreviewCapabilities _capabilities(Object? value) {
+BoardProviderWorkspaceCapabilities _capabilities(Object? value) {
   if (value is! Map) {
-    return const BoardProviderPreviewCapabilities.blocked();
+    return const BoardProviderWorkspaceCapabilities.blocked();
   }
   final json = value.cast<String, dynamic>();
-  return BoardProviderPreviewCapabilities(
+  return BoardProviderWorkspaceCapabilities(
     provider: _string(json['provider'], fallback: 'unknown'),
     enabled: json['enabled'] == true,
     supported: _stringList(json['supported']),

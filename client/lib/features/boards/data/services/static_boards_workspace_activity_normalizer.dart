@@ -1,22 +1,22 @@
 import 'package:weave/features/boards/domain/entities/board_activity_event.dart';
-import 'package:weave/features/boards/domain/entities/board_preview.dart';
+import 'package:weave/features/boards/domain/entities/board_workspace.dart';
 import 'package:weave/features/boards/domain/services/board_activity_event_normalizer.dart';
 
-class StaticBoardsPreviewRawEvent {
-  const StaticBoardsPreviewRawEvent.taskFixtureCreated({
+class StaticBoardsWorkspaceRawEvent {
+  const StaticBoardsWorkspaceRawEvent.taskFixtureCreated({
     required this.occurredAt,
     required this.workspaceId,
     required this.projectId,
     required this.board,
     required this.column,
     required this.task,
-  }) : type = StaticBoardsPreviewRawEventType.taskFixtureCreated,
+  }) : type = StaticBoardsWorkspaceRawEventType.taskFixtureCreated,
        fromColumnId = null,
        toColumnId = null,
        fromPosition = null,
        toPosition = null;
 
-  const StaticBoardsPreviewRawEvent.taskFixtureMoved({
+  const StaticBoardsWorkspaceRawEvent.taskFixtureMoved({
     required this.occurredAt,
     required this.workspaceId,
     required this.projectId,
@@ -26,27 +26,27 @@ class StaticBoardsPreviewRawEvent {
     required this.toColumnId,
     this.fromPosition,
     this.toPosition,
-  }) : type = StaticBoardsPreviewRawEventType.taskFixtureMoved,
+  }) : type = StaticBoardsWorkspaceRawEventType.taskFixtureMoved,
        column = null;
 
-  final StaticBoardsPreviewRawEventType type;
+  final StaticBoardsWorkspaceRawEventType type;
   final DateTime occurredAt;
   final String workspaceId;
   final String projectId;
-  final BoardPreview board;
-  final BoardColumnPreview? column;
-  final BoardTaskPreview task;
+  final BoardWorkspace board;
+  final BoardColumnWorkspace? column;
+  final BoardTaskWorkspace task;
   final String? fromColumnId;
   final String? toColumnId;
   final int? fromPosition;
   final int? toPosition;
 }
 
-enum StaticBoardsPreviewRawEventType { taskFixtureCreated, taskFixtureMoved }
+enum StaticBoardsWorkspaceRawEventType { taskFixtureCreated, taskFixtureMoved }
 
-class StaticBoardsPreviewActivityNormalizer
-    implements BoardActivityEventNormalizer<StaticBoardsPreviewRawEvent> {
-  const StaticBoardsPreviewActivityNormalizer();
+class StaticBoardsWorkspaceActivityNormalizer
+    implements BoardActivityEventNormalizer<StaticBoardsWorkspaceRawEvent> {
+  const StaticBoardsWorkspaceActivityNormalizer();
 
   static const providerName = 'static-workspace';
   static const actor = BoardActivityActorRef(
@@ -57,7 +57,7 @@ class StaticBoardsPreviewActivityNormalizer
 
   @override
   Iterable<BoardActivityEvent<BoardActivityPayload>> normalize(
-    StaticBoardsPreviewRawEvent raw,
+    StaticBoardsWorkspaceRawEvent raw,
   ) sync* {
     final source = BoardActivitySourceRef(
       workspaceId: raw.workspaceId,
@@ -71,7 +71,7 @@ class StaticBoardsPreviewActivityNormalizer
     );
 
     switch (raw.type) {
-      case StaticBoardsPreviewRawEventType.taskFixtureCreated:
+      case StaticBoardsWorkspaceRawEventType.taskFixtureCreated:
         yield BoardActivityEvent<TaskSnapshotPayload>(
           idempotencyKey: _key(raw, 'task.created'),
           type: BoardActivityEventType.taskCreated,
@@ -88,7 +88,7 @@ class StaticBoardsPreviewActivityNormalizer
             priority: raw.task.priorityLabel,
           ),
         );
-      case StaticBoardsPreviewRawEventType.taskFixtureMoved:
+      case StaticBoardsWorkspaceRawEventType.taskFixtureMoved:
         yield BoardActivityEvent<TaskMovedPayload>(
           idempotencyKey: _key(raw, 'task.moved'),
           type: BoardActivityEventType.taskMoved,
@@ -107,7 +107,7 @@ class StaticBoardsPreviewActivityNormalizer
     }
   }
 
-  String _key(StaticBoardsPreviewRawEvent raw, String eventType) {
+  String _key(StaticBoardsWorkspaceRawEvent raw, String eventType) {
     final timestamp = raw.occurredAt.toUtc().toIso8601String();
     return '$providerName:${raw.workspaceId}:${raw.board.id}:${raw.task.id}:$eventType:$timestamp';
   }

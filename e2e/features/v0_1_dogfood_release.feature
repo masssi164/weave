@@ -1,6 +1,6 @@
 Feature: Weave v0.1 dogfood production release
 
-  Weave v0.1 is a daily work tool, not a preview. These scenarios define
+  Weave v0.1 is an active dogfood-production daily work tool. These scenarios define
   the product spine that must be implemented with executable evidence before
   the release can be called dogfood-production.
 

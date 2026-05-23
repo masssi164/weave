@@ -3064,40 +3064,40 @@
   "@calendarOperationFailure": {
     "description": "Snackbar message when a calendar operation fails"
   },
-  "boardsPreviewScreenTitle": "Boards workspace",
-  "@boardsPreviewScreenTitle": {
+  "boardsWorkspaceScreenTitle": "Boards workspace",
+  "@boardsWorkspaceScreenTitle": {
     "description": "Title for the feature-gated boards/tasks workspace screen"
   },
-  "boardsPreviewIconSemantic": "Boards workspace",
-  "@boardsPreviewIconSemantic": {
+  "boardsWorkspaceIconSemantic": "Boards workspace",
+  "@boardsWorkspaceIconSemantic": {
     "description": "Semantic label for the boards workspace icon"
   },
-  "boardsPreviewBoundaryTitle": "Dogfood boards/tasks workspace",
-  "@boardsPreviewBoundaryTitle": {
+  "boardsWorkspaceBoundaryTitle": "Dogfood boards/tasks workspace",
+  "@boardsWorkspaceBoundaryTitle": {
     "description": "Title for the banner that marks boards/tasks as active gated scope"
   },
-  "boardsPreviewBoundaryDescription": "This dogfood production shows the Weave-owned board model, accessible task movement alternatives, and backend-owned provider seams. User task writes require the authenticated workspace backend with audit and Context/Space authorization.",
-  "@boardsPreviewBoundaryDescription": {
+  "boardsWorkspaceBoundaryDescription": "This dogfood production shows the Weave-owned board model, accessible task movement alternatives, and backend-owned provider seams. User task writes require the authenticated workspace backend with audit and Context/Space authorization.",
+  "@boardsWorkspaceBoundaryDescription": {
     "description": "Description explaining that boards/tasks are active scope but not provider-connected"
   },
-  "boardsPreviewBoundarySemantic": "Dogfood boards/tasks workspace. Provider-neutral Weave model with keyboard and screen-reader alternatives; user task writes require the audited workspace backend.",
-  "@boardsPreviewBoundarySemantic": {
+  "boardsWorkspaceBoundarySemantic": "Dogfood boards/tasks workspace. Provider-neutral Weave model with keyboard and screen-reader alternatives; user task writes require the audited workspace backend.",
+  "@boardsWorkspaceBoundarySemantic": {
     "description": "Semantic summary for the dogfood-production boundary banner"
   },
-  "boardsPreviewActivePreviewChip": "Dogfood production",
-  "@boardsPreviewActivePreviewChip": {
+  "boardsWorkspaceActiveDogfoodChip": "Dogfood production",
+  "@boardsWorkspaceActiveDogfoodChip": {
     "description": "Chip label stating boards/tasks are dogfood production scope"
   },
-  "boardsPreviewProviderNeutralChip": "Provider-neutral model",
-  "@boardsPreviewProviderNeutralChip": {
+  "boardsWorkspaceProviderNeutralChip": "Provider-neutral model",
+  "@boardsWorkspaceProviderNeutralChip": {
     "description": "Chip label stating the boards model is provider-neutral"
   },
-  "boardsPreviewKeyboardChip": "No drag required",
-  "@boardsPreviewKeyboardChip": {
+  "boardsWorkspaceKeyboardChip": "No drag required",
+  "@boardsWorkspaceKeyboardChip": {
     "description": "Chip label stating board operations have non-drag alternatives"
   },
-  "boardsPreviewColumnCount": "{count, plural, =0{No columns} one{1 column} other{{count} columns}}",
-  "@boardsPreviewColumnCount": {
+  "boardsWorkspaceColumnCount": "{count, plural, =0{No columns} one{1 column} other{{count} columns}}",
+  "@boardsWorkspaceColumnCount": {
     "description": "Number of workspace board columns",
     "placeholders": {
       "count": {
@@ -3105,8 +3105,8 @@
       }
     }
   },
-  "boardsPreviewTaskCount": "{count, plural, =0{No tasks} one{1 task} other{{count} tasks}}",
-  "@boardsPreviewTaskCount": {
+  "boardsWorkspaceTaskCount": "{count, plural, =0{No tasks} one{1 task} other{{count} tasks}}",
+  "@boardsWorkspaceTaskCount": {
     "description": "Number of workspace tasks",
     "placeholders": {
       "count": {
@@ -3114,12 +3114,12 @@
       }
     }
   },
-  "boardsPreviewNonDragMovement": "Move menu instead of drag-only",
-  "@boardsPreviewNonDragMovement": {
+  "boardsWorkspaceNonDragMovement": "Move menu instead of drag-only",
+  "@boardsWorkspaceNonDragMovement": {
     "description": "Summary chip for accessible non-drag movement"
   },
-  "boardsPreviewBoardSemantic": "Board {boardName}, {columnCount, plural, one{1 column} other{{columnCount} columns}}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.",
-  "@boardsPreviewBoardSemantic": {
+  "boardsWorkspaceBoardSemantic": "Board {boardName}, {columnCount, plural, one{1 column} other{{columnCount} columns}}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.",
+  "@boardsWorkspaceBoardSemantic": {
     "description": "Semantic label for the board workspace summary",
     "placeholders": {
       "boardName": {
@@ -3133,8 +3133,8 @@
       }
     }
   },
-  "boardsPreviewColumnSemantic": "Column {columnName}, status {status}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.",
-  "@boardsPreviewColumnSemantic": {
+  "boardsWorkspaceColumnSemantic": "Column {columnName}, status {status}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.",
+  "@boardsWorkspaceColumnSemantic": {
     "description": "Semantic label for a board column",
     "placeholders": {
       "columnName": {
@@ -3148,8 +3148,8 @@
       }
     }
   },
-  "boardsPreviewColumnTaskSummary": "{count, plural, =0{No tasks in this column} one{1 task in this column} other{{count} tasks in this column}}",
-  "@boardsPreviewColumnTaskSummary": {
+  "boardsWorkspaceColumnTaskSummary": "{count, plural, =0{No tasks in this column} one{1 task in this column} other{{count} tasks in this column}}",
+  "@boardsWorkspaceColumnTaskSummary": {
     "description": "Visible task count summary for a column",
     "placeholders": {
       "count": {
@@ -3157,8 +3157,8 @@
       }
     }
   },
-  "boardsPreviewColumnWipSummary": "{count, plural, =0{No tasks} one{1 task} other{{count} tasks}} · WIP limit {limit}",
-  "@boardsPreviewColumnWipSummary": {
+  "boardsWorkspaceColumnWipSummary": "{count, plural, =0{No tasks} one{1 task} other{{count} tasks}} · WIP limit {limit}",
+  "@boardsWorkspaceColumnWipSummary": {
     "description": "Visible task count and WIP limit summary for a column",
     "placeholders": {
       "count": {
@@ -3169,8 +3169,8 @@
       }
     }
   },
-  "boardsPreviewTaskSemantic": "Task {taskTitle}. Column {columnName}. Status {status}. Assignee {assignee}. Due {due}. Priority {priority}.",
-  "@boardsPreviewTaskSemantic": {
+  "boardsWorkspaceTaskSemantic": "Task {taskTitle}. Column {columnName}. Status {status}. Assignee {assignee}. Due {due}. Priority {priority}.",
+  "@boardsWorkspaceTaskSemantic": {
     "description": "Semantic label for a board task card",
     "placeholders": {
       "taskTitle": {
@@ -3193,8 +3193,8 @@
       }
     }
   },
-  "boardsPreviewTaskActionsTooltip": "Task actions for {taskTitle}",
-  "@boardsPreviewTaskActionsTooltip": {
+  "boardsWorkspaceTaskActionsTooltip": "Task actions for {taskTitle}",
+  "@boardsWorkspaceTaskActionsTooltip": {
     "description": "Tooltip for the task action menu",
     "placeholders": {
       "taskTitle": {
@@ -3202,40 +3202,40 @@
       }
     }
   },
-  "boardsPreviewMoveTaskAction": "Move to another column",
-  "@boardsPreviewMoveTaskAction": {
-    "description": "Preview task action for non-drag column movement"
+  "boardsWorkspaceMoveTaskAction": "Move to another column",
+  "@boardsWorkspaceMoveTaskAction": {
+    "description": "Workspace task action for non-drag column movement"
   },
-  "boardsPreviewMarkDoneAction": "Mark done",
-  "@boardsPreviewMarkDoneAction": {
-    "description": "Preview task action for marking a task done"
+  "boardsWorkspaceMarkDoneAction": "Mark done",
+  "@boardsWorkspaceMarkDoneAction": {
+    "description": "Workspace task action for marking a task done"
   },
-  "boardsPreviewBlockTaskAction": "Mark blocked",
-  "@boardsPreviewBlockTaskAction": {
-    "description": "Preview task action for marking a task blocked"
+  "boardsWorkspaceBlockTaskAction": "Mark blocked",
+  "@boardsWorkspaceBlockTaskAction": {
+    "description": "Workspace task action for marking a task blocked"
   },
-  "boardsPreviewActionPreviewOnly": "Connect to the workspace backend to apply task changes.",
-  "@boardsPreviewActionPreviewOnly": {
+  "boardsWorkspaceActionBackendRequired": "Connect to the workspace backend to apply task changes.",
+  "@boardsWorkspaceActionBackendRequired": {
     "description": "Snackbar shown when a workspace task action is selected"
   },
-  "boardsPreviewStatusNotStarted": "Not started",
-  "@boardsPreviewStatusNotStarted": {
+  "boardsWorkspaceStatusNotStarted": "Not started",
+  "@boardsWorkspaceStatusNotStarted": {
     "description": "Board task status label"
   },
-  "boardsPreviewStatusInProgress": "In progress",
-  "@boardsPreviewStatusInProgress": {
+  "boardsWorkspaceStatusInProgress": "In progress",
+  "@boardsWorkspaceStatusInProgress": {
     "description": "Board task status label"
   },
-  "boardsPreviewStatusBlocked": "Blocked",
-  "@boardsPreviewStatusBlocked": {
+  "boardsWorkspaceStatusBlocked": "Blocked",
+  "@boardsWorkspaceStatusBlocked": {
     "description": "Board task status label"
   },
-  "boardsPreviewStatusDone": "Done",
-  "@boardsPreviewStatusDone": {
+  "boardsWorkspaceStatusDone": "Done",
+  "@boardsWorkspaceStatusDone": {
     "description": "Board task status label"
   },
-  "boardsPreviewStatusSemantic": "Status: {status}",
-  "@boardsPreviewStatusSemantic": {
+  "boardsWorkspaceStatusSemantic": "Status: {status}",
+  "@boardsWorkspaceStatusSemantic": {
     "description": "Semantic label for task/column status pills",
     "placeholders": {
       "status": {
@@ -3243,20 +3243,20 @@
       }
     }
   },
-  "boardsPreviewBackendFedChip": "Backend facade fed",
-  "@boardsPreviewBackendFedChip": {
+  "boardsWorkspaceBackendFedChip": "Backend facade fed",
+  "@boardsWorkspaceBackendFedChip": {
     "description": "Chip label indicating the workspace snapshot came from the backend facade"
   },
-  "boardsPreviewProviderBlockedChip": "Provider runtime blocked",
-  "@boardsPreviewProviderBlockedChip": {
+  "boardsWorkspaceProviderBlockedChip": "Provider runtime blocked",
+  "@boardsWorkspaceProviderBlockedChip": {
     "description": "Chip label indicating the backend provider runtime is blocked/unavailable"
   },
-  "boardsPreviewStaticFixtureChip": "Static fixture workspace",
-  "@boardsPreviewStaticFixtureChip": {
+  "boardsWorkspaceStaticFixtureChip": "Static fixture workspace",
+  "@boardsWorkspaceStaticFixtureChip": {
     "description": "Chip label indicating the workspace is still using local fixtures"
   },
-  "boardsPreviewProviderCapabilitySummary": "Provider: {provider}",
-  "@boardsPreviewProviderCapabilitySummary": {
+  "boardsWorkspaceProviderCapabilitySummary": "Provider: {provider}",
+  "@boardsWorkspaceProviderCapabilitySummary": {
     "description": "Visible provider capability summary",
     "placeholders": {
       "provider": {
@@ -3264,60 +3264,60 @@
       }
     }
   },
-  "boardsPreviewCapabilityNonDragReady": "Backend non-drag actions ready",
-  "@boardsPreviewCapabilityNonDragReady": {
+  "boardsWorkspaceCapabilityNonDragReady": "Backend non-drag actions ready",
+  "@boardsWorkspaceCapabilityNonDragReady": {
     "description": "Capability label when accessible non-drag backend actions are available"
   },
-  "boardsPreviewCapabilityNonDragBlocked": "Backend non-drag actions blocked",
-  "@boardsPreviewCapabilityNonDragBlocked": {
+  "boardsWorkspaceCapabilityNonDragBlocked": "Backend non-drag actions blocked",
+  "@boardsWorkspaceCapabilityNonDragBlocked": {
     "description": "Capability label when accessible non-drag backend actions are unavailable"
   },
-  "boardsPreviewProviderInMemory": "in-memory backend facade",
-  "@boardsPreviewProviderInMemory": {
+  "boardsWorkspaceProviderInMemory": "in-memory backend facade",
+  "@boardsWorkspaceProviderInMemory": {
     "description": "Provider label for the local backend facade"
   },
-  "boardsPreviewProviderVikunja": "Vikunja adapter",
-  "@boardsPreviewProviderVikunja": {
+  "boardsWorkspaceProviderVikunja": "Vikunja adapter",
+  "@boardsWorkspaceProviderVikunja": {
     "description": "Provider label for Vikunja"
   },
-  "boardsPreviewProviderOpenProject": "OpenProject adapter",
-  "@boardsPreviewProviderOpenProject": {
+  "boardsWorkspaceProviderOpenProject": "OpenProject adapter",
+  "@boardsWorkspaceProviderOpenProject": {
     "description": "Provider label for OpenProject"
   },
-  "boardsPreviewProviderNextcloudDeck": "Nextcloud Deck adapter",
-  "@boardsPreviewProviderNextcloudDeck": {
+  "boardsWorkspaceProviderNextcloudDeck": "Nextcloud Deck adapter",
+  "@boardsWorkspaceProviderNextcloudDeck": {
     "description": "Provider label for Nextcloud Deck"
   },
-  "boardsPreviewProviderNone": "no backend provider",
-  "@boardsPreviewProviderNone": {
+  "boardsWorkspaceProviderNone": "no backend provider",
+  "@boardsWorkspaceProviderNone": {
     "description": "Provider label when only static fixtures are available"
   },
-  "boardsPreviewProviderUnavailable": "backend unavailable",
-  "@boardsPreviewProviderUnavailable": {
+  "boardsWorkspaceProviderUnavailable": "backend unavailable",
+  "@boardsWorkspaceProviderUnavailable": {
     "description": "Provider label when the backend facade is unavailable"
   },
-  "boardsPreviewProviderUnknown": "unknown provider",
-  "@boardsPreviewProviderUnknown": {
+  "boardsWorkspaceProviderUnknown": "unknown provider",
+  "@boardsWorkspaceProviderUnknown": {
     "description": "Provider label for an unrecognized backend provider"
   },
-  "boardsPreviewActionMoved": "Task moved through the backend facade.",
-  "@boardsPreviewActionMoved": {
+  "boardsWorkspaceActionMoved": "Task moved through the backend facade.",
+  "@boardsWorkspaceActionMoved": {
     "description": "Snackbar after a backend move task action succeeds"
   },
-  "boardsPreviewActionCompleted": "Task marked done through the backend facade.",
-  "@boardsPreviewActionCompleted": {
+  "boardsWorkspaceActionCompleted": "Task marked done through the backend facade.",
+  "@boardsWorkspaceActionCompleted": {
     "description": "Snackbar after a backend complete task action succeeds"
   },
-  "boardsPreviewActionBlocked": "Task marked blocked through the backend facade.",
-  "@boardsPreviewActionBlocked": {
+  "boardsWorkspaceActionBlocked": "Task marked blocked through the backend facade.",
+  "@boardsWorkspaceActionBlocked": {
     "description": "Snackbar after a backend block task action succeeds"
   },
-  "boardsPreviewActionFailed": "The backend facade could not save that Boards workspace action.",
-  "@boardsPreviewActionFailed": {
+  "boardsWorkspaceActionFailed": "The backend facade could not save that Boards workspace action.",
+  "@boardsWorkspaceActionFailed": {
     "description": "Snackbar after a backend Boards action fails"
   },
-  "boardsPreviewActionNoNextColumn": "This task is already in the last workspace column.",
-  "@boardsPreviewActionNoNextColumn": {
+  "boardsWorkspaceActionNoNextColumn": "This task is already in the last workspace column.",
+  "@boardsWorkspaceActionNoNextColumn": {
     "description": "Snackbar when moving to the next workspace column is not possible"
   },
   "settingsAdminSetupTitle": "Owner and admin setup",

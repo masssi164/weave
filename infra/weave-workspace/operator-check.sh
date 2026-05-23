@@ -352,7 +352,7 @@ assert_backend_provider_stack_config() {
 }
 
 assert_backend_boards_openproject_config() {
-  local preview_provider
+  local boards_provider
   local runtime_enabled
   local read_sync_enabled
   local auth_mode
@@ -361,7 +361,7 @@ assert_backend_boards_openproject_config() {
   local provider_writes_enabled
 
   log "Checking backend Boards/OpenProject runtime gates..."
-  preview_provider="$(container_env_value weave-backend WEAVE_BOARDS_PREVIEW_PROVIDER || true)"
+  boards_provider="$(container_env_value weave-backend WEAVE_BOARDS_PROVIDER || true)"
   runtime_enabled="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED || true)"
   read_sync_enabled="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED || true)"
   auth_mode="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_AUTH_MODE || true)"
@@ -369,23 +369,23 @@ assert_backend_boards_openproject_config() {
   api_token="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_API_TOKEN || true)"
   provider_writes_enabled="$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_PROVIDER_WRITES_ENABLED || true)"
 
-  [[ -n "${preview_provider}" ]] || fail "Operator check failed: weave-backend is missing WEAVE_BOARDS_PREVIEW_PROVIDER"
-  [[ "${preview_provider}" == "local-preview" || "${preview_provider}" == "openproject" ]] || fail "Operator check failed: unsupported boards preview provider ${preview_provider}"
-  [[ "${provider_writes_enabled}" != "true" ]] || fail "Operator check failed: OpenProject provider writes must stay disabled for the read-only MVP/runtime path"
+  [[ -n "${boards_provider}" ]] || fail "Operator check failed: weave-backend is missing WEAVE_BOARDS_PROVIDER"
+  [[ "${boards_provider}" == "local-workspace" || "${boards_provider}" == "openproject" ]] || fail "Operator check failed: unsupported boards workspace provider ${boards_provider}"
+  [[ "${provider_writes_enabled}" != "true" ]] || fail "Operator check failed: OpenProject provider writes must stay disabled for the audited provider-runtime path"
 
-  if [[ "${preview_provider}" != "openproject" && "${runtime_enabled}" != "true" && "${read_sync_enabled}" != "true" ]]; then
+  if [[ "${boards_provider}" != "openproject" && "${runtime_enabled}" != "true" && "${read_sync_enabled}" != "true" ]]; then
     [[ "${auth_mode}" == "disabled" ]] || fail "Operator check failed: disabled OpenProject runtime must use auth-mode=disabled"
     [[ -z "${api_token}" ]] || fail "Operator check failed: disabled OpenProject runtime must not carry a provider API token"
     return
   fi
 
-  [[ "${preview_provider}" == "openproject" ]] || fail "Operator check failed: OpenProject runtime requires WEAVE_BOARDS_PREVIEW_PROVIDER=openproject"
+  [[ "${boards_provider}" == "openproject" ]] || fail "Operator check failed: OpenProject runtime requires WEAVE_BOARDS_PROVIDER=openproject"
   [[ "${runtime_enabled}" == "true" ]] || fail "Operator check failed: OpenProject runtime requires WEAVE_BOARDS_OPENPROJECT_RUNTIME_ENABLED=true"
-  [[ "${read_sync_enabled}" == "true" ]] || fail "Operator check failed: OpenProject read-sync requires WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=true"
-  [[ "$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED || true)" == "true" ]] || fail "Operator check failed: OpenProject read-sync requires Context/Space authorization gate enabled"
-  [[ "${auth_mode}" == "service-token" ]] || fail "Operator check failed: OpenProject read-sync requires backend-held service-token auth"
-  [[ -n "${base_url}" ]] || fail "Operator check failed: OpenProject read-sync requires a backend-only base URL"
-  [[ -n "${api_token}" ]] || fail "Operator check failed: OpenProject read-sync requires a backend-held API token"
+  [[ "${read_sync_enabled}" == "true" ]] || fail "Operator check failed: OpenProject workspace sync requires WEAVE_BOARDS_OPENPROJECT_READ_SYNC_ENABLED=true"
+  [[ "$(container_env_value weave-backend WEAVE_BOARDS_OPENPROJECT_CONTEXT_AUTHORIZATION_ENABLED || true)" == "true" ]] || fail "Operator check failed: OpenProject workspace sync requires Context/Space authorization gate enabled"
+  [[ "${auth_mode}" == "service-token" ]] || fail "Operator check failed: OpenProject workspace sync requires backend-held service-token auth"
+  [[ -n "${base_url}" ]] || fail "Operator check failed: OpenProject workspace sync requires a backend-only base URL"
+  [[ -n "${api_token}" ]] || fail "Operator check failed: OpenProject workspace sync requires a backend-held API token"
 }
 
 assert_matrix_room_unencrypted_until_e2ee_promoted() {
@@ -565,7 +565,7 @@ assert_backend_product_gate_config() {
     WEAVE_WORKSPACE_CALENDAR_READINESS \
     WEAVE_WORKSPACE_BOARDS_ENABLED \
     WEAVE_WORKSPACE_BOARDS_READINESS \
-    WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED; do
+    WEAVE_BOARDS_RUNTIME_ENABLED; do
     assert_backend_env_present "${name}"
   done
 
@@ -574,17 +574,17 @@ assert_backend_product_gate_config() {
   [[ "$(container_env_value weave-backend WEAVE_WORKSPACE_CALENDAR_READINESS)" == "ready" ]] || \
     fail "Operator check failed: Calendar capability readiness must be ready when infra wires the active facade"
   [[ "$(container_env_value weave-backend WEAVE_WORKSPACE_BOARDS_ENABLED)" == "true" ]] || \
-    fail "Operator check failed: Boards capability must be enabled for guarded active preview validation"
+    fail "Operator check failed: Boards capability must be enabled for guarded active workspace validation"
   [[ "$(container_env_value weave-backend WEAVE_WORKSPACE_BOARDS_READINESS)" == "ready" ]] || \
     fail "Operator check failed: Boards capability readiness must be ready when infra wires the guarded facade"
 
-  boards_runtime_count="$(container_env_count weave-backend WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED)"
+  boards_runtime_count="$(container_env_count weave-backend WEAVE_BOARDS_RUNTIME_ENABLED)"
   [[ "${boards_runtime_count}" == "1" ]] || \
-    fail "Operator check failed: WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED must be defined exactly once so the runtime gate is unambiguous"
+    fail "Operator check failed: WEAVE_BOARDS_RUNTIME_ENABLED must be defined exactly once so the runtime gate is unambiguous"
 
-  boards_runtime_enabled="$(container_env_value weave-backend WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED)"
+  boards_runtime_enabled="$(container_env_value weave-backend WEAVE_BOARDS_RUNTIME_ENABLED)"
   [[ "${boards_runtime_enabled}" == "true" || "${boards_runtime_enabled}" == "false" ]] || \
-    fail "Operator check failed: WEAVE_BOARDS_PREVIEW_RUNTIME_ENABLED must be true or false"
+    fail "Operator check failed: WEAVE_BOARDS_RUNTIME_ENABLED must be true or false"
 }
 
 require_command curl

@@ -2563,33 +2563,34 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der Kalender konnte diese Änderung gerade nicht speichern.';
 
   @override
-  String get boardsPreviewScreenTitle => 'Boards-Workspace';
+  String get boardsWorkspaceScreenTitle => 'Boards-Workspace';
 
   @override
-  String get boardsPreviewIconSemantic => 'Boards-Workspace';
+  String get boardsWorkspaceIconSemantic => 'Boards-Workspace';
 
   @override
-  String get boardsPreviewBoundaryTitle => 'Dogfood-Boards-/Aufgaben-Workspace';
+  String get boardsWorkspaceBoundaryTitle =>
+      'Dogfood-Boards-/Aufgaben-Workspace';
 
   @override
-  String get boardsPreviewBoundaryDescription =>
+  String get boardsWorkspaceBoundaryDescription =>
       'Diese Dogfood-Produktion zeigt das Weave-eigene Board-Modell, barrierefreie Alternativen zum Verschieben von Aufgaben und backend-eigene Provider-Schnittstellen. Nutzeränderungen an Aufgaben brauchen das authentifizierte Workspace-Backend mit Audit und Context/Space-Autorisierung.';
 
   @override
-  String get boardsPreviewBoundarySemantic =>
+  String get boardsWorkspaceBoundarySemantic =>
       'Dogfood-Boards-/Aufgaben-Workspace. Anbieterneutrales Weave-Modell mit Tastatur- und Screenreader-Alternativen; Nutzeränderungen an Aufgaben brauchen das auditierte Workspace-Backend.';
 
   @override
-  String get boardsPreviewActivePreviewChip => 'Dogfood-Produktion';
+  String get boardsWorkspaceActiveDogfoodChip => 'Dogfood-Produktion';
 
   @override
-  String get boardsPreviewProviderNeutralChip => 'Anbieterneutrales Modell';
+  String get boardsWorkspaceProviderNeutralChip => 'Anbieterneutrales Modell';
 
   @override
-  String get boardsPreviewKeyboardChip => 'Kein Ziehen nötig';
+  String get boardsWorkspaceKeyboardChip => 'Kein Ziehen nötig';
 
   @override
-  String boardsPreviewColumnCount(int count) {
+  String boardsWorkspaceColumnCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
@@ -2601,7 +2602,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewTaskCount(int count) {
+  String boardsWorkspaceTaskCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
@@ -2613,11 +2614,11 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get boardsPreviewNonDragMovement =>
+  String get boardsWorkspaceNonDragMovement =>
       'Verschieben per Menü statt nur Drag-and-drop';
 
   @override
-  String boardsPreviewBoardSemantic(
+  String boardsWorkspaceBoardSemantic(
     String boardName,
     int columnCount,
     int taskCount,
@@ -2638,7 +2639,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewColumnSemantic(
+  String boardsWorkspaceColumnSemantic(
     String columnName,
     String status,
     int taskCount,
@@ -2653,7 +2654,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewColumnTaskSummary(int count) {
+  String boardsWorkspaceColumnTaskSummary(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
@@ -2665,7 +2666,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewColumnWipSummary(int count, int limit) {
+  String boardsWorkspaceColumnWipSummary(int count, int limit) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
@@ -2677,7 +2678,7 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewTaskSemantic(
+  String boardsWorkspaceTaskSemantic(
     String taskTitle,
     String columnName,
     String status,
@@ -2689,101 +2690,103 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewTaskActionsTooltip(String taskTitle) {
+  String boardsWorkspaceTaskActionsTooltip(String taskTitle) {
     return 'Aufgabenaktionen für $taskTitle';
   }
 
   @override
-  String get boardsPreviewMoveTaskAction => 'In eine andere Spalte verschieben';
+  String get boardsWorkspaceMoveTaskAction =>
+      'In eine andere Spalte verschieben';
 
   @override
-  String get boardsPreviewMarkDoneAction => 'Als erledigt markieren';
+  String get boardsWorkspaceMarkDoneAction => 'Als erledigt markieren';
 
   @override
-  String get boardsPreviewBlockTaskAction => 'Als blockiert markieren';
+  String get boardsWorkspaceBlockTaskAction => 'Als blockiert markieren';
 
   @override
-  String get boardsPreviewActionPreviewOnly =>
+  String get boardsWorkspaceActionBackendRequired =>
       'Verbinde dich mit dem Workspace-Backend, um Aufgabenänderungen anzuwenden.';
 
   @override
-  String get boardsPreviewStatusNotStarted => 'Nicht begonnen';
+  String get boardsWorkspaceStatusNotStarted => 'Nicht begonnen';
 
   @override
-  String get boardsPreviewStatusInProgress => 'In Arbeit';
+  String get boardsWorkspaceStatusInProgress => 'In Arbeit';
 
   @override
-  String get boardsPreviewStatusBlocked => 'Blockiert';
+  String get boardsWorkspaceStatusBlocked => 'Blockiert';
 
   @override
-  String get boardsPreviewStatusDone => 'Erledigt';
+  String get boardsWorkspaceStatusDone => 'Erledigt';
 
   @override
-  String boardsPreviewStatusSemantic(String status) {
+  String boardsWorkspaceStatusSemantic(String status) {
     return 'Status: $status';
   }
 
   @override
-  String get boardsPreviewBackendFedChip => 'Aus Backend-Fassade';
+  String get boardsWorkspaceBackendFedChip => 'Aus Backend-Fassade';
 
   @override
-  String get boardsPreviewProviderBlockedChip => 'Provider-Laufzeit blockiert';
+  String get boardsWorkspaceProviderBlockedChip =>
+      'Provider-Laufzeit blockiert';
 
   @override
-  String get boardsPreviewStaticFixtureChip => 'Statische Workspace-Fixture';
+  String get boardsWorkspaceStaticFixtureChip => 'Statische Workspace-Fixture';
 
   @override
-  String boardsPreviewProviderCapabilitySummary(String provider) {
+  String boardsWorkspaceProviderCapabilitySummary(String provider) {
     return 'Provider: $provider';
   }
 
   @override
-  String get boardsPreviewCapabilityNonDragReady =>
+  String get boardsWorkspaceCapabilityNonDragReady =>
       'Backend-Aktionen ohne Ziehen bereit';
 
   @override
-  String get boardsPreviewCapabilityNonDragBlocked =>
+  String get boardsWorkspaceCapabilityNonDragBlocked =>
       'Backend-Aktionen ohne Ziehen blockiert';
 
   @override
-  String get boardsPreviewProviderInMemory => 'In-Memory-Backend-Fassade';
+  String get boardsWorkspaceProviderInMemory => 'In-Memory-Backend-Fassade';
 
   @override
-  String get boardsPreviewProviderVikunja => 'Vikunja-Adapter';
+  String get boardsWorkspaceProviderVikunja => 'Vikunja-Adapter';
 
   @override
-  String get boardsPreviewProviderOpenProject => 'OpenProject-Adapter';
+  String get boardsWorkspaceProviderOpenProject => 'OpenProject-Adapter';
 
   @override
-  String get boardsPreviewProviderNextcloudDeck => 'Nextcloud-Deck-Adapter';
+  String get boardsWorkspaceProviderNextcloudDeck => 'Nextcloud-Deck-Adapter';
 
   @override
-  String get boardsPreviewProviderNone => 'kein Backend-Provider';
+  String get boardsWorkspaceProviderNone => 'kein Backend-Provider';
 
   @override
-  String get boardsPreviewProviderUnavailable => 'Backend nicht verfügbar';
+  String get boardsWorkspaceProviderUnavailable => 'Backend nicht verfügbar';
 
   @override
-  String get boardsPreviewProviderUnknown => 'unbekannter Provider';
+  String get boardsWorkspaceProviderUnknown => 'unbekannter Provider';
 
   @override
-  String get boardsPreviewActionMoved =>
+  String get boardsWorkspaceActionMoved =>
       'Aufgabe über die Backend-Fassade verschoben.';
 
   @override
-  String get boardsPreviewActionCompleted =>
+  String get boardsWorkspaceActionCompleted =>
       'Aufgabe über die Backend-Fassade als erledigt markiert.';
 
   @override
-  String get boardsPreviewActionBlocked =>
+  String get boardsWorkspaceActionBlocked =>
       'Aufgabe über die Backend-Fassade als blockiert markiert.';
 
   @override
-  String get boardsPreviewActionFailed =>
+  String get boardsWorkspaceActionFailed =>
       'Die Backend-Fassade konnte diese Boards-Workspace-Aktion nicht speichern.';
 
   @override
-  String get boardsPreviewActionNoNextColumn =>
+  String get boardsWorkspaceActionNoNextColumn =>
       'Diese Aufgabe ist bereits in der letzten Workspace-Spalte.';
 
   @override

@@ -2529,33 +2529,33 @@ class AppLocalizationsEn extends AppLocalizations {
       'The calendar could not save that change right now.';
 
   @override
-  String get boardsPreviewScreenTitle => 'Boards workspace';
+  String get boardsWorkspaceScreenTitle => 'Boards workspace';
 
   @override
-  String get boardsPreviewIconSemantic => 'Boards workspace';
+  String get boardsWorkspaceIconSemantic => 'Boards workspace';
 
   @override
-  String get boardsPreviewBoundaryTitle => 'Dogfood boards/tasks workspace';
+  String get boardsWorkspaceBoundaryTitle => 'Dogfood boards/tasks workspace';
 
   @override
-  String get boardsPreviewBoundaryDescription =>
+  String get boardsWorkspaceBoundaryDescription =>
       'This dogfood production shows the Weave-owned board model, accessible task movement alternatives, and backend-owned provider seams. User task writes require the authenticated workspace backend with audit and Context/Space authorization.';
 
   @override
-  String get boardsPreviewBoundarySemantic =>
+  String get boardsWorkspaceBoundarySemantic =>
       'Dogfood boards/tasks workspace. Provider-neutral Weave model with keyboard and screen-reader alternatives; user task writes require the audited workspace backend.';
 
   @override
-  String get boardsPreviewActivePreviewChip => 'Dogfood production';
+  String get boardsWorkspaceActiveDogfoodChip => 'Dogfood production';
 
   @override
-  String get boardsPreviewProviderNeutralChip => 'Provider-neutral model';
+  String get boardsWorkspaceProviderNeutralChip => 'Provider-neutral model';
 
   @override
-  String get boardsPreviewKeyboardChip => 'No drag required';
+  String get boardsWorkspaceKeyboardChip => 'No drag required';
 
   @override
-  String boardsPreviewColumnCount(int count) {
+  String boardsWorkspaceColumnCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
@@ -2567,7 +2567,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewTaskCount(int count) {
+  String boardsWorkspaceTaskCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
@@ -2579,10 +2579,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get boardsPreviewNonDragMovement => 'Move menu instead of drag-only';
+  String get boardsWorkspaceNonDragMovement => 'Move menu instead of drag-only';
 
   @override
-  String boardsPreviewBoardSemantic(
+  String boardsWorkspaceBoardSemantic(
     String boardName,
     int columnCount,
     int taskCount,
@@ -2603,7 +2603,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewColumnSemantic(
+  String boardsWorkspaceColumnSemantic(
     String columnName,
     String status,
     int taskCount,
@@ -2618,7 +2618,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewColumnTaskSummary(int count) {
+  String boardsWorkspaceColumnTaskSummary(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
@@ -2630,7 +2630,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewColumnWipSummary(int count, int limit) {
+  String boardsWorkspaceColumnWipSummary(int count, int limit) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
@@ -2642,7 +2642,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewTaskSemantic(
+  String boardsWorkspaceTaskSemantic(
     String taskTitle,
     String columnName,
     String status,
@@ -2654,101 +2654,101 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String boardsPreviewTaskActionsTooltip(String taskTitle) {
+  String boardsWorkspaceTaskActionsTooltip(String taskTitle) {
     return 'Task actions for $taskTitle';
   }
 
   @override
-  String get boardsPreviewMoveTaskAction => 'Move to another column';
+  String get boardsWorkspaceMoveTaskAction => 'Move to another column';
 
   @override
-  String get boardsPreviewMarkDoneAction => 'Mark done';
+  String get boardsWorkspaceMarkDoneAction => 'Mark done';
 
   @override
-  String get boardsPreviewBlockTaskAction => 'Mark blocked';
+  String get boardsWorkspaceBlockTaskAction => 'Mark blocked';
 
   @override
-  String get boardsPreviewActionPreviewOnly =>
+  String get boardsWorkspaceActionBackendRequired =>
       'Connect to the workspace backend to apply task changes.';
 
   @override
-  String get boardsPreviewStatusNotStarted => 'Not started';
+  String get boardsWorkspaceStatusNotStarted => 'Not started';
 
   @override
-  String get boardsPreviewStatusInProgress => 'In progress';
+  String get boardsWorkspaceStatusInProgress => 'In progress';
 
   @override
-  String get boardsPreviewStatusBlocked => 'Blocked';
+  String get boardsWorkspaceStatusBlocked => 'Blocked';
 
   @override
-  String get boardsPreviewStatusDone => 'Done';
+  String get boardsWorkspaceStatusDone => 'Done';
 
   @override
-  String boardsPreviewStatusSemantic(String status) {
+  String boardsWorkspaceStatusSemantic(String status) {
     return 'Status: $status';
   }
 
   @override
-  String get boardsPreviewBackendFedChip => 'Backend facade fed';
+  String get boardsWorkspaceBackendFedChip => 'Backend facade fed';
 
   @override
-  String get boardsPreviewProviderBlockedChip => 'Provider runtime blocked';
+  String get boardsWorkspaceProviderBlockedChip => 'Provider runtime blocked';
 
   @override
-  String get boardsPreviewStaticFixtureChip => 'Static fixture workspace';
+  String get boardsWorkspaceStaticFixtureChip => 'Static fixture workspace';
 
   @override
-  String boardsPreviewProviderCapabilitySummary(String provider) {
+  String boardsWorkspaceProviderCapabilitySummary(String provider) {
     return 'Provider: $provider';
   }
 
   @override
-  String get boardsPreviewCapabilityNonDragReady =>
+  String get boardsWorkspaceCapabilityNonDragReady =>
       'Backend non-drag actions ready';
 
   @override
-  String get boardsPreviewCapabilityNonDragBlocked =>
+  String get boardsWorkspaceCapabilityNonDragBlocked =>
       'Backend non-drag actions blocked';
 
   @override
-  String get boardsPreviewProviderInMemory => 'in-memory backend facade';
+  String get boardsWorkspaceProviderInMemory => 'in-memory backend facade';
 
   @override
-  String get boardsPreviewProviderVikunja => 'Vikunja adapter';
+  String get boardsWorkspaceProviderVikunja => 'Vikunja adapter';
 
   @override
-  String get boardsPreviewProviderOpenProject => 'OpenProject adapter';
+  String get boardsWorkspaceProviderOpenProject => 'OpenProject adapter';
 
   @override
-  String get boardsPreviewProviderNextcloudDeck => 'Nextcloud Deck adapter';
+  String get boardsWorkspaceProviderNextcloudDeck => 'Nextcloud Deck adapter';
 
   @override
-  String get boardsPreviewProviderNone => 'no backend provider';
+  String get boardsWorkspaceProviderNone => 'no backend provider';
 
   @override
-  String get boardsPreviewProviderUnavailable => 'backend unavailable';
+  String get boardsWorkspaceProviderUnavailable => 'backend unavailable';
 
   @override
-  String get boardsPreviewProviderUnknown => 'unknown provider';
+  String get boardsWorkspaceProviderUnknown => 'unknown provider';
 
   @override
-  String get boardsPreviewActionMoved =>
+  String get boardsWorkspaceActionMoved =>
       'Task moved through the backend facade.';
 
   @override
-  String get boardsPreviewActionCompleted =>
+  String get boardsWorkspaceActionCompleted =>
       'Task marked done through the backend facade.';
 
   @override
-  String get boardsPreviewActionBlocked =>
+  String get boardsWorkspaceActionBlocked =>
       'Task marked blocked through the backend facade.';
 
   @override
-  String get boardsPreviewActionFailed =>
+  String get boardsWorkspaceActionFailed =>
       'The backend facade could not save that Boards workspace action.';
 
   @override
-  String get boardsPreviewActionNoNextColumn =>
+  String get boardsWorkspaceActionNoNextColumn =>
       'This task is already in the last workspace column.';
 
   @override

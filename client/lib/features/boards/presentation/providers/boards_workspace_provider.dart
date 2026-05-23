@@ -1,44 +1,44 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
-import 'package:weave/features/boards/data/repositories/backend_boards_preview_repository.dart';
-import 'package:weave/features/boards/data/repositories/static_boards_preview_repository.dart';
-import 'package:weave/features/boards/domain/entities/board_preview.dart';
-import 'package:weave/features/boards/domain/repositories/boards_preview_repository.dart';
+import 'package:weave/features/boards/data/repositories/backend_boards_workspace_repository.dart';
+import 'package:weave/features/boards/data/repositories/static_boards_workspace_repository.dart';
+import 'package:weave/features/boards/domain/entities/board_workspace.dart';
+import 'package:weave/features/boards/domain/repositories/boards_workspace_repository.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
-final boardsPreviewRepositoryProvider = Provider<BoardsPreviewRepository>(
-  (ref) => const StaticBoardsPreviewRepository(),
+final boardsWorkspaceRepositoryProvider = Provider<BoardsWorkspaceRepository>(
+  (ref) => const StaticBoardsWorkspaceRepository(),
 );
 
-final boardsPreviewProvider = FutureProvider<BoardPreview>((ref) async {
-  final staticRepository = ref.watch(boardsPreviewRepositoryProvider);
+final boardsWorkspaceProvider = FutureProvider<BoardWorkspace>((ref) async {
+  final staticRepository = ref.watch(boardsWorkspaceRepositoryProvider);
   final WeaveAuthenticatedSession? session;
   try {
     session = await ref.watch(weaveAuthenticatedSessionProvider.future);
   } on AppFailure {
-    return staticRepository.loadPreview();
+    return staticRepository.loadWorkspace();
   }
   if (session == null) {
-    return staticRepository.loadPreview();
+    return staticRepository.loadWorkspace();
   }
 
   final backendCapabilities = await _loadBackendCapabilities(ref);
-  if (_backendBoardsCapabilityBlocksPreview(backendCapabilities)) {
-    return const BoardPreview.backendBlocked();
+  if (_backendBoardsCapabilityBlocksWorkspace(backendCapabilities)) {
+    return const BoardWorkspace.backendBlocked();
   }
 
-  final backendRepository = BackendBoardsPreviewRepository(
+  final backendRepository = BackendBoardsWorkspaceRepository(
     httpClient: ref.watch(weaveApiHttpClientProvider),
     apiBaseUrl: session.apiBaseUrl,
     accessToken: session.accessToken,
   );
 
   try {
-    return await backendRepository.loadPreview();
+    return await backendRepository.loadWorkspace();
   } on AppFailure {
-    return const BoardPreview.backendBlocked();
+    return const BoardWorkspace.backendBlocked();
   }
 });
 
@@ -62,7 +62,7 @@ Future<_BackendCapabilityGate> _loadBackendCapabilities(Ref ref) async {
   }
 }
 
-bool _backendBoardsCapabilityBlocksPreview(_BackendCapabilityGate gate) {
+bool _backendBoardsCapabilityBlocksWorkspace(_BackendCapabilityGate gate) {
   if (gate.failed) {
     return true;
   }

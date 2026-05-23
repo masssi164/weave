@@ -10,7 +10,7 @@ import java.util.Map;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Provider-facing draft event accepted by the preview Boards/Tasks event normalizer.
+ * Provider-facing draft event accepted by the Boards/Tasks workspace event normalizer.
  * Adapters may populate this from webhooks, polling snapshots, or provider audit/activity
  * records without leaking provider vocabulary beyond this boundary.
  */

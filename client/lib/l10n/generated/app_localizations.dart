@@ -4337,73 +4337,73 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'Boards workspace'**
-  String get boardsPreviewScreenTitle;
+  String get boardsWorkspaceScreenTitle;
 
   /// Semantic label for the boards workspace icon
   ///
   /// In en, this message translates to:
   /// **'Boards workspace'**
-  String get boardsPreviewIconSemantic;
+  String get boardsWorkspaceIconSemantic;
 
   /// Title for the banner that marks boards/tasks as active gated scope
   ///
   /// In en, this message translates to:
   /// **'Dogfood boards/tasks workspace'**
-  String get boardsPreviewBoundaryTitle;
+  String get boardsWorkspaceBoundaryTitle;
 
   /// Description explaining that boards/tasks are active scope but not provider-connected
   ///
   /// In en, this message translates to:
   /// **'This dogfood production shows the Weave-owned board model, accessible task movement alternatives, and backend-owned provider seams. User task writes require the authenticated workspace backend with audit and Context/Space authorization.'**
-  String get boardsPreviewBoundaryDescription;
+  String get boardsWorkspaceBoundaryDescription;
 
   /// Semantic summary for the dogfood-production boundary banner
   ///
   /// In en, this message translates to:
   /// **'Dogfood boards/tasks workspace. Provider-neutral Weave model with keyboard and screen-reader alternatives; user task writes require the audited workspace backend.'**
-  String get boardsPreviewBoundarySemantic;
+  String get boardsWorkspaceBoundarySemantic;
 
   /// Chip label stating boards/tasks are dogfood production scope
   ///
   /// In en, this message translates to:
   /// **'Dogfood production'**
-  String get boardsPreviewActivePreviewChip;
+  String get boardsWorkspaceActiveDogfoodChip;
 
   /// Chip label stating the boards model is provider-neutral
   ///
   /// In en, this message translates to:
   /// **'Provider-neutral model'**
-  String get boardsPreviewProviderNeutralChip;
+  String get boardsWorkspaceProviderNeutralChip;
 
   /// Chip label stating board operations have non-drag alternatives
   ///
   /// In en, this message translates to:
   /// **'No drag required'**
-  String get boardsPreviewKeyboardChip;
+  String get boardsWorkspaceKeyboardChip;
 
   /// Number of workspace board columns
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =0{No columns} one{1 column} other{{count} columns}}'**
-  String boardsPreviewColumnCount(int count);
+  String boardsWorkspaceColumnCount(int count);
 
   /// Number of workspace tasks
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =0{No tasks} one{1 task} other{{count} tasks}}'**
-  String boardsPreviewTaskCount(int count);
+  String boardsWorkspaceTaskCount(int count);
 
   /// Summary chip for accessible non-drag movement
   ///
   /// In en, this message translates to:
   /// **'Move menu instead of drag-only'**
-  String get boardsPreviewNonDragMovement;
+  String get boardsWorkspaceNonDragMovement;
 
   /// Semantic label for the board workspace summary
   ///
   /// In en, this message translates to:
   /// **'Board {boardName}, {columnCount, plural, one{1 column} other{{columnCount} columns}}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.'**
-  String boardsPreviewBoardSemantic(
+  String boardsWorkspaceBoardSemantic(
     String boardName,
     int columnCount,
     int taskCount,
@@ -4413,7 +4413,7 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'Column {columnName}, status {status}, {taskCount, plural, one{1 task} other{{taskCount} tasks}}.'**
-  String boardsPreviewColumnSemantic(
+  String boardsWorkspaceColumnSemantic(
     String columnName,
     String status,
     int taskCount,
@@ -4423,19 +4423,19 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =0{No tasks in this column} one{1 task in this column} other{{count} tasks in this column}}'**
-  String boardsPreviewColumnTaskSummary(int count);
+  String boardsWorkspaceColumnTaskSummary(int count);
 
   /// Visible task count and WIP limit summary for a column
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =0{No tasks} one{1 task} other{{count} tasks}} · WIP limit {limit}'**
-  String boardsPreviewColumnWipSummary(int count, int limit);
+  String boardsWorkspaceColumnWipSummary(int count, int limit);
 
   /// Semantic label for a board task card
   ///
   /// In en, this message translates to:
   /// **'Task {taskTitle}. Column {columnName}. Status {status}. Assignee {assignee}. Due {due}. Priority {priority}.'**
-  String boardsPreviewTaskSemantic(
+  String boardsWorkspaceTaskSemantic(
     String taskTitle,
     String columnName,
     String status,
@@ -4448,169 +4448,169 @@ abstract class AppLocalizations {
   ///
   /// In en, this message translates to:
   /// **'Task actions for {taskTitle}'**
-  String boardsPreviewTaskActionsTooltip(String taskTitle);
+  String boardsWorkspaceTaskActionsTooltip(String taskTitle);
 
-  /// Preview task action for non-drag column movement
+  /// Workspace task action for non-drag column movement
   ///
   /// In en, this message translates to:
   /// **'Move to another column'**
-  String get boardsPreviewMoveTaskAction;
+  String get boardsWorkspaceMoveTaskAction;
 
-  /// Preview task action for marking a task done
+  /// Workspace task action for marking a task done
   ///
   /// In en, this message translates to:
   /// **'Mark done'**
-  String get boardsPreviewMarkDoneAction;
+  String get boardsWorkspaceMarkDoneAction;
 
-  /// Preview task action for marking a task blocked
+  /// Workspace task action for marking a task blocked
   ///
   /// In en, this message translates to:
   /// **'Mark blocked'**
-  String get boardsPreviewBlockTaskAction;
+  String get boardsWorkspaceBlockTaskAction;
 
   /// Snackbar shown when a workspace task action is selected
   ///
   /// In en, this message translates to:
   /// **'Connect to the workspace backend to apply task changes.'**
-  String get boardsPreviewActionPreviewOnly;
+  String get boardsWorkspaceActionBackendRequired;
 
   /// Board task status label
   ///
   /// In en, this message translates to:
   /// **'Not started'**
-  String get boardsPreviewStatusNotStarted;
+  String get boardsWorkspaceStatusNotStarted;
 
   /// Board task status label
   ///
   /// In en, this message translates to:
   /// **'In progress'**
-  String get boardsPreviewStatusInProgress;
+  String get boardsWorkspaceStatusInProgress;
 
   /// Board task status label
   ///
   /// In en, this message translates to:
   /// **'Blocked'**
-  String get boardsPreviewStatusBlocked;
+  String get boardsWorkspaceStatusBlocked;
 
   /// Board task status label
   ///
   /// In en, this message translates to:
   /// **'Done'**
-  String get boardsPreviewStatusDone;
+  String get boardsWorkspaceStatusDone;
 
   /// Semantic label for task/column status pills
   ///
   /// In en, this message translates to:
   /// **'Status: {status}'**
-  String boardsPreviewStatusSemantic(String status);
+  String boardsWorkspaceStatusSemantic(String status);
 
   /// Chip label indicating the workspace snapshot came from the backend facade
   ///
   /// In en, this message translates to:
   /// **'Backend facade fed'**
-  String get boardsPreviewBackendFedChip;
+  String get boardsWorkspaceBackendFedChip;
 
   /// Chip label indicating the backend provider runtime is blocked/unavailable
   ///
   /// In en, this message translates to:
   /// **'Provider runtime blocked'**
-  String get boardsPreviewProviderBlockedChip;
+  String get boardsWorkspaceProviderBlockedChip;
 
   /// Chip label indicating the workspace is still using local fixtures
   ///
   /// In en, this message translates to:
   /// **'Static fixture workspace'**
-  String get boardsPreviewStaticFixtureChip;
+  String get boardsWorkspaceStaticFixtureChip;
 
   /// Visible provider capability summary
   ///
   /// In en, this message translates to:
   /// **'Provider: {provider}'**
-  String boardsPreviewProviderCapabilitySummary(String provider);
+  String boardsWorkspaceProviderCapabilitySummary(String provider);
 
   /// Capability label when accessible non-drag backend actions are available
   ///
   /// In en, this message translates to:
   /// **'Backend non-drag actions ready'**
-  String get boardsPreviewCapabilityNonDragReady;
+  String get boardsWorkspaceCapabilityNonDragReady;
 
   /// Capability label when accessible non-drag backend actions are unavailable
   ///
   /// In en, this message translates to:
   /// **'Backend non-drag actions blocked'**
-  String get boardsPreviewCapabilityNonDragBlocked;
+  String get boardsWorkspaceCapabilityNonDragBlocked;
 
   /// Provider label for the local backend facade
   ///
   /// In en, this message translates to:
   /// **'in-memory backend facade'**
-  String get boardsPreviewProviderInMemory;
+  String get boardsWorkspaceProviderInMemory;
 
   /// Provider label for Vikunja
   ///
   /// In en, this message translates to:
   /// **'Vikunja adapter'**
-  String get boardsPreviewProviderVikunja;
+  String get boardsWorkspaceProviderVikunja;
 
   /// Provider label for OpenProject
   ///
   /// In en, this message translates to:
   /// **'OpenProject adapter'**
-  String get boardsPreviewProviderOpenProject;
+  String get boardsWorkspaceProviderOpenProject;
 
   /// Provider label for Nextcloud Deck
   ///
   /// In en, this message translates to:
   /// **'Nextcloud Deck adapter'**
-  String get boardsPreviewProviderNextcloudDeck;
+  String get boardsWorkspaceProviderNextcloudDeck;
 
   /// Provider label when only static fixtures are available
   ///
   /// In en, this message translates to:
   /// **'no backend provider'**
-  String get boardsPreviewProviderNone;
+  String get boardsWorkspaceProviderNone;
 
   /// Provider label when the backend facade is unavailable
   ///
   /// In en, this message translates to:
   /// **'backend unavailable'**
-  String get boardsPreviewProviderUnavailable;
+  String get boardsWorkspaceProviderUnavailable;
 
   /// Provider label for an unrecognized backend provider
   ///
   /// In en, this message translates to:
   /// **'unknown provider'**
-  String get boardsPreviewProviderUnknown;
+  String get boardsWorkspaceProviderUnknown;
 
   /// Snackbar after a backend move task action succeeds
   ///
   /// In en, this message translates to:
   /// **'Task moved through the backend facade.'**
-  String get boardsPreviewActionMoved;
+  String get boardsWorkspaceActionMoved;
 
   /// Snackbar after a backend complete task action succeeds
   ///
   /// In en, this message translates to:
   /// **'Task marked done through the backend facade.'**
-  String get boardsPreviewActionCompleted;
+  String get boardsWorkspaceActionCompleted;
 
   /// Snackbar after a backend block task action succeeds
   ///
   /// In en, this message translates to:
   /// **'Task marked blocked through the backend facade.'**
-  String get boardsPreviewActionBlocked;
+  String get boardsWorkspaceActionBlocked;
 
   /// Snackbar after a backend Boards action fails
   ///
   /// In en, this message translates to:
   /// **'The backend facade could not save that Boards workspace action.'**
-  String get boardsPreviewActionFailed;
+  String get boardsWorkspaceActionFailed;
 
   /// Snackbar when moving to the next workspace column is not possible
   ///
   /// In en, this message translates to:
   /// **'This task is already in the last workspace column.'**
-  String get boardsPreviewActionNoNextColumn;
+  String get boardsWorkspaceActionNoNextColumn;
 
   /// Title for the owner/admin setup card in settings
   ///

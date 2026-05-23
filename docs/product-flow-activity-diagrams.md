@@ -5,7 +5,7 @@ These diagrams are presentation-ready product flows for the North-Star MVP evide
 Executable scenario anchors:
 
 - Frontend Live Stack: `e2e/features/live_stack_app.feature`
-- Backend Cucumber: `server/src/test/resources/features/openproject-boards-readonly.feature`
+- Backend Cucumber: `server/src/test/resources/features/openproject-boards-workspace.feature`
 - Infra Live Gates: `infra/weave-workspace/openproject-boards-live-e2e.sh`, operator checks, support-bundle redaction tests, and restore-smoke checks
 
 Source/quality-check anchors:
@@ -111,7 +111,7 @@ flowchart TD
 
 ## 6. Boards user writes, fail-closed provider boundary, and context gate
 
-Scenario anchors: `@weave-v01-board-write-audit`, `@weave-live-boards-preview-nondrag`, `@backend-openproject-disabled-fail-closed`, `@backend-openproject-context-space-gate`, `@infra-openproject-enabled-readonly`
+Scenario anchors: `@weave-v01-board-write-audit`, `@weave-live-boards-workspace-nondrag`, `@backend-openproject-disabled-fail-closed`, `@backend-openproject-context-space-gate`, `@infra-openproject-enabled-workspace`
 
 ```mermaid
 flowchart TD

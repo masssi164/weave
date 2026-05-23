@@ -1,6 +1,6 @@
 # Boards Provider Spike Artifacts
 
-Status: concrete spike output for active-preview provider work
+Status: concrete spike output informing the v0.1 Boards workspace provider boundary
 Date: 2026-05-14
 Scope: Issues [#119](https://github.com/masssi164/weave/issues/119), [#120](https://github.com/masssi164/weave/issues/120), [#121](https://github.com/masssi164/weave/issues/121), [#123](https://github.com/masssi164/weave/issues/123)
 
@@ -21,7 +21,7 @@ The matching backend worktree adds disabled adapter contracts and a normalizer b
 - `NextcloudDeckBoardsRepository` is a disabled bridge/import adapter contract.
 - `TaskBoardEventNormalizer` maps provider activity into provider-neutral `TaskBoardEvent` envelopes with stable idempotency keys and support-safe redaction.
 
-The Flutter preview only renders provider-neutral board/task copy and accessible non-drag task actions.
+The Flutter Boards workspace renders provider-neutral board/task copy and accessible non-drag task actions through the backend facade.
 
 ## #119 Vikunja first adapter spike
 

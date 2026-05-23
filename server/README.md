@@ -39,9 +39,9 @@ Currently implemented or contract-backed surfaces:
 - Calendar facade for workspace/team/channel collections; unsafe private-personal calendar templates fail closed.
 - Secret-free calendar client setup metadata at `GET /api/calendar/client-setup`.
 - Provider stack readiness at `GET /api/providers/status`, including Nextcloud WebDAV/CalDAV/CardDAV/Forms, Keycloak OIDC, Synapse/Matrix, MAS, fail-closed meeting support, and OpenProject readiness seams.
-- DevOps readiness through backend facades; disabled/unconfigured providers expose support-safe, read-only, fail-closed status.
+- DevOps readiness through backend facades; disabled/unconfigured providers expose support-safe, fail-closed status without product data leakage.
 - Office capabilities/launch through backend facades; launch errors stay support-safe and fail closed.
-- Hidden Boards/Tasks preview and OpenProject read-only validation contracts behind explicit gates.
+- Boards/Tasks workspace facade and OpenProject workspace-sync validation contracts behind explicit runtime, authorization, and audit gates.
 - OpenAPI JSON at `/v3/api-docs`.
 
 ## Provider and readiness posture
@@ -54,7 +54,7 @@ The provider stack is backend-owned by design:
 - DevOps provider modules expose no linked projects, repositories, issues, merge requests, pipelines, or releases while disabled.
 - Office launch refuses unsafe states with stable error codes instead of leaking downstream details.
 - Matrix/MAS status stays support-safe: Matrix client protocol remains the direct-client exception, encrypted message bodies are not server-readable, and video-call/meeting support is deferred/fail-closed.
-- Boards/OpenProject stays read-only and hidden until promotion gates pass.
+- Boards user writes stay backend-facade-owned, explicit, authorized, and auditable; OpenProject provider writes stay disabled until promotion gates pass.
 
 ## Runtime and operations docs
 
@@ -63,9 +63,9 @@ The provider stack is backend-owned by design:
 - [Architecture alignment](docs/architecture-alignment.md): cross-repo responsibility split.
 - [Calendar client setup](docs/calendar-client-setup.md): secret-free setup metadata and blocked profile/credential flows.
 - [Context/Space ADR](docs/context-space-adr.md): flexible collaboration context model and authorization seam.
-- [Boards preview contract](docs/boards-preview-contract.md): provider-neutral Boards/Tasks contract; OpenProject is read-only validation, not a live product UX.
+- [Boards workspace contract](docs/boards-workspace-contract.md): provider-neutral Boards/Tasks workspace contract; OpenProject is optional provider-backed workspace-sync behind the Weave backend facade.
 - [Audit/Consent seam](docs/audit-consent-seam.md): internal safety layer for future writes.
-- `src/main/resources/contracts/`: contract artifacts for boards preview, connector manifests, context/space, and audit/consent.
+- `src/main/resources/contracts/`: contract artifacts for boards workspace, connector manifests, context/space, and audit/consent.
 
 Historical issue drafts live under `docs/issues/`; do not treat them as current public product docs without checking the active contracts above.
 

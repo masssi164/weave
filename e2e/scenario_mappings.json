@@ -59,7 +59,7 @@
       ],
       "additionalEvidence": [
         {
-          "path": "client/test/features/boards/boards_preview_screen_test.dart",
+          "path": "client/test/features/boards/boards_workspace_screen_test.dart",
           "fragments": [
             "offers non-drag task actions with gated feedback",
             "exposes screen-reader summaries for board, columns, and tasks",
@@ -68,9 +68,9 @@
           ]
         },
         {
-          "path": "client/test/features/boards/data/backend_boards_preview_repository_test.dart",
+          "path": "client/test/features/boards/data/backend_boards_workspace_repository_test.dart",
           "fragments": [
-            "posts accessible non-drag move and complete actions to backend facade",
+            "posts accessible non-drag move, status, decision-link, and complete actions to backend facade",
             "\"targetColumnId\":\"done\",\"targetPosition\":2"
           ]
         }

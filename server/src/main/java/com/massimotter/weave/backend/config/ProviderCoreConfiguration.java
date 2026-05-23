@@ -103,8 +103,8 @@ public class ProviderCoreConfiguration {
         return StaticProviderPort.pending(
                 ProviderModule.BOARDS,
                 "openproject-primary",
-                "Boards/PM facade remains provider-neutral; OpenProject is the primary read-sync provider, Deck stays optional.",
-                Set.of("project-list", "board-list", "task-list", "task-create-local-preview", "task-move-local-preview", "task-complete-local-preview", "read-sync"),
+                "Boards/PM facade remains provider-neutral; OpenProject is the primary workspace-sync provider, Deck stays optional.",
+                Set.of("project-list", "board-list", "task-list", "task-create-local-workspace", "task-move-local-workspace", "task-complete-local-workspace", "workspace-sync"),
                 Set.of("raw-openproject-ui-as-product", "provider-writes-without-audit", "direct-flutter-provider-api"),
                 List.of("openproject", "nextcloud-deck", "vikunja-comparison"),
                 Map.of("primaryProvider", "openproject", "optionalProvider", "nextcloud-deck", "facade", "/api/boards/workspace"));

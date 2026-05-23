@@ -147,7 +147,7 @@ class BoardsFacadeServiceTest {
                         null));
         var moved = service.moveTask(jwt(), created.id(),
                 new com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest(
-                        "local-column-doing",
+                        "local-column-active",
                         0));
         service.completeTask(jwt(), moved.id());
 

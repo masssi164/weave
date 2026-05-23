@@ -21,7 +21,7 @@ done < <(
 
 required_scenarios=(
   "OpenProject provider disabled fails closed through Weave"
-  "OpenProject provider enabled exposes read-only provider-neutral boards"
+  "OpenProject provider enabled exposes provider-neutral boards"
   "Missing Context Space authorization exposes no provider data"
   "Provider writes remain refused until audit and consent promotion"
   "Support bundle redacts secrets and provider credentials"
@@ -62,7 +62,7 @@ if [[ "${#scenarios[@]}" -ne "${#required_scenarios[@]}" ]]; then
 fi
 
 assert_file_contains "weave-workspace/openproject-boards-live-e2e.sh" "WEAVE_OPENPROJECT_LIVE_E2E_EXPECT_ENABLED"
-assert_file_contains "weave-workspace/openproject-boards-live-e2e.sh" "openproject-read-sync-backend-facade"
+assert_file_contains "weave-workspace/openproject-boards-live-e2e.sh" "openproject-workspace-sync-backend-facade"
 assert_file_contains "weave-workspace/openproject-boards-live-e2e.sh" "support-safe"
 assert_file_contains "weave-workspace/openproject-boards-live-e2e.sh" "provider write endpoint should be refused"
 

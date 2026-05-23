@@ -67,7 +67,7 @@ Product requirements:
 - The UI must be usable without drag-and-drop: move menus, keyboard focus, screen-reader summaries, and deterministic ordering are required.
 - Flutter talks to the Weave backend facade, not directly to Vikunja, Deck, OpenProject, or another provider.
 - Provider adapters may later map Vikunja, Nextcloud Deck, OpenProject, or imports into the Weave model, but no provider defines the product UX.
-- Preview/facade states must clearly say when no live provider is connected.
+- Gated/facade states must clearly say when no live provider is connected.
 
 ## Validation expectations
 

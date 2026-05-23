@@ -67,9 +67,9 @@ class ContextSpaceContractTest {
         assertThat(adr).contains("Context Graph Schema");
         assertThat(adr).contains("ReBAC Adapter MVP");
         assertThat(adr).contains("Connector SDK Skeleton");
-        assertThat(adr).contains("OpenProject Board Connector read-sync MVP");
+        assertThat(adr).contains("OpenProject Board workspace-sync MVP");
         assertThat(adr).contains("Vikunja and Nextcloud Deck remain comparison/fallback candidates only");
-        assertThat(adr).contains("read-only first, no provider runtime promotion, and no agentic/team writes");
+        assertThat(adr).contains("provider writes disabled until audit/consent promotion; no agentic/team writes");
         assertThat(adr).contains("Audit Event Pipeline");
         assertThat(adr).contains("Consent Center MVP");
         assertThat(adr).contains("Meeting Thread Schema");

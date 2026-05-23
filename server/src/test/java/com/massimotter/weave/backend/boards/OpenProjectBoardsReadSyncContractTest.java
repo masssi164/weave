@@ -59,7 +59,7 @@ class OpenProjectBoardsReadSyncContractTest {
                 BoardCapability.ACCESSIBLE_NON_DRAG_MOVES);
         assertThat(capabilities.supportSafeSummary())
                 .contains("OpenProject")
-                .contains("read-only-first")
+                .contains("workspace-sync")
                 .contains("fallback");
         assertThatThrownBy(() -> repository.listProjects(null))
                 .isInstanceOf(BoardsException.class)

@@ -1,22 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:weave/features/boards/data/repositories/static_boards_preview_repository.dart';
+import 'package:weave/features/boards/data/repositories/static_boards_workspace_repository.dart';
 import 'package:weave/features/boards/data/services/external_board_activity_normalizer.dart';
-import 'package:weave/features/boards/data/services/static_boards_preview_activity_normalizer.dart';
+import 'package:weave/features/boards/data/services/static_boards_workspace_activity_normalizer.dart';
 import 'package:weave/features/boards/domain/entities/board_activity_event.dart';
 
 void main() {
-  group('StaticBoardsPreviewActivityNormalizer', () {
+  group('StaticBoardsWorkspaceActivityNormalizer', () {
     test(
       'maps workspace fixture activity without claiming a live provider',
       () async {
-        final preview = await const StaticBoardsPreviewRepository()
-            .loadPreview();
-        final task = preview.columns.first.tasks.first;
-        final raw = StaticBoardsPreviewRawEvent.taskFixtureMoved(
+        final workspace = await const StaticBoardsWorkspaceRepository()
+            .loadWorkspace();
+        final task = workspace.columns.first.tasks.first;
+        final raw = StaticBoardsWorkspaceRawEvent.taskFixtureMoved(
           occurredAt: DateTime.utc(2026, 5, 14, 12),
           workspaceId: 'workspace-default',
           projectId: 'project-default',
-          board: preview,
+          board: workspace,
           task: task,
           fromColumnId: 'todo',
           toColumnId: 'doing',
@@ -24,7 +24,7 @@ void main() {
           toPosition: 1,
         );
 
-        final events = const StaticBoardsPreviewActivityNormalizer()
+        final events = const StaticBoardsWorkspaceActivityNormalizer()
             .normalize(raw)
             .toList();
 
@@ -146,7 +146,7 @@ void main() {
             workspaceId: 'workspace-1',
             taskId: 'task-1',
             commentId: 'comment-1',
-            commentBodyPreview: 'Sanitized workspace evidence',
+            commentBodySnippet: 'Sanitized workspace evidence',
           ),
           ExternalBoardProviderRawEvent(
             provider: 'deck-shaped-sample',

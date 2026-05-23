@@ -6,7 +6,7 @@ Before copying or reopening anything from this directory, compare it against:
 
 - [`../runtime-configuration.md`](../runtime-configuration.md)
 - [`../architecture-alignment.md`](../architecture-alignment.md)
-- [`../boards-preview-contract.md`](../boards-preview-contract.md)
+- [`../boards-workspace-contract.md`](../boards-workspace-contract.md)
 - [`../../README.md`](../../README.md)
 
 Current rules override older issue text:

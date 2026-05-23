@@ -201,10 +201,10 @@ class DueDateChangedPayload extends BoardActivityPayload {
 }
 
 class CommentAddedPayload extends BoardActivityPayload {
-  const CommentAddedPayload({required this.commentId, this.bodyPreview});
+  const CommentAddedPayload({required this.commentId, this.bodySnippet});
 
   final String commentId;
-  final String? bodyPreview;
+  final String? bodySnippet;
 }
 
 class AttachmentChangedPayload extends BoardActivityPayload {

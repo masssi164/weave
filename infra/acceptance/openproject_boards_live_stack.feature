@@ -1,28 +1,28 @@
 Feature: OpenProject Boards live runtime through Weave infrastructure
   The OpenProject provider is optional and off by default. When enabled, live
-  evidence must go through the Weave API and remain read-only, context-scoped,
-  and support-safe.
+  evidence must go through the Weave API and remain context-scoped,
+  audit-aware, and support-safe.
 
   @infra-openproject-disabled-fail-closed
   Scenario: OpenProject provider disabled fails closed through Weave
     Given the local Weave stack is installed without OpenProject runtime enablement
-    When an authenticated workspace member requests the Weave Boards preview
+    When an authenticated workspace member requests the Weave Boards workspace
     Then the request fails closed with a Boards API error
     And the response does not leak provider secrets, raw OpenProject URLs, or upstream paths
 
-  @infra-openproject-enabled-readonly
-  Scenario: OpenProject provider enabled exposes read-only provider-neutral boards
+  @infra-openproject-enabled-workspace
+  Scenario: OpenProject provider enabled exposes provider-neutral boards
     Given the backend is configured with OpenProject runtime and backend-held credentials
     And Context Space authorization allows the workspace member to read the mapped space
-    When an authenticated workspace member requests the Weave Boards preview
-    Then the response comes from the OpenProject read-sync backend facade
+    When an authenticated workspace member requests the Weave Boards workspace
+    Then the response comes from the OpenProject workspace-sync backend facade
     And provider-neutral projects, boards, and tasks are present
-    And sync metadata is read-only, context-scoped, and support-safe
+    And sync metadata is user-write audited, context-scoped, and support-safe
 
   @infra-openproject-context-gate
   Scenario: Missing Context Space authorization exposes no provider data
     Given OpenProject runtime is enabled but Context Space authorization denies the member
-    When an authenticated workspace member requests the Weave Boards preview
+    When an authenticated workspace member requests the Weave Boards workspace
     Then the request fails closed with a support-safe Boards authorization error
     And no raw OpenProject data is exposed
 

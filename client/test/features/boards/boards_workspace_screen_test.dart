@@ -3,22 +3,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
-import 'package:weave/features/boards/presentation/boards_preview_screen.dart';
+import 'package:weave/features/boards/presentation/boards_workspace_screen.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_api_provider.dart';
 import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
 import '../../helpers/test_app.dart';
 
 void main() {
-  group('BoardsPreviewScreen', () {
+  group('BoardsWorkspaceScreen', () {
     testWidgets('labels boards as dogfood provider-neutral workspace', (
       tester,
     ) async {
-      _setCompactPreviewSurface(tester);
+      _setCompactWorkspaceSurface(tester);
       await tester.pumpWidget(
         createTestApp(
-          const BoardsPreviewScreen(),
-          overrides: _staticPreviewOverrides,
+          const BoardsWorkspaceScreen(),
+          overrides: _staticWorkspaceOverrides,
         ),
       );
       await tester.pumpAndSettle();
@@ -36,19 +36,19 @@ void main() {
     testWidgets('renders backend-fed snapshots and provider capability flags', (
       tester,
     ) async {
-      _setCompactPreviewSurface(tester);
+      _setCompactWorkspaceSurface(tester);
       final requests = <http.Request>[];
       await tester.pumpWidget(
         createTestApp(
-          const BoardsPreviewScreen(),
+          const BoardsWorkspaceScreen(),
           overrides: [
-            ..._backendPreviewOverrides((request) async {
+            ..._backendWorkspaceOverrides((request) async {
               requests.add(request);
               if (request.method == 'POST') {
                 return http.Response('{"id":"task-1"}', 200);
               }
               return http.Response(
-                _backendPreviewPayload,
+                _backendWorkspacePayload,
                 200,
                 headers: {'content-type': 'application/json'},
               );
@@ -94,11 +94,11 @@ void main() {
     testWidgets(
       'shows blocked provider state when backend facade is disabled',
       (tester) async {
-        _setCompactPreviewSurface(tester);
+        _setCompactWorkspaceSurface(tester);
         await tester.pumpWidget(
           createTestApp(
-            const BoardsPreviewScreen(),
-            overrides: _backendPreviewOverrides(
+            const BoardsWorkspaceScreen(),
+            overrides: _backendWorkspaceOverrides(
               (_) async =>
                   http.Response('{"code":"boards-provider_unavailable"}', 503),
             ),
@@ -121,15 +121,15 @@ void main() {
     testWidgets('fails closed when backend Boards capability is not ready', (
       tester,
     ) async {
-      _setCompactPreviewSurface(tester);
+      _setCompactWorkspaceSurface(tester);
       final requests = <http.Request>[];
       await tester.pumpWidget(
         createTestApp(
-          const BoardsPreviewScreen(),
+          const BoardsWorkspaceScreen(),
           overrides: [
-            ..._backendPreviewOverrides((request) async {
+            ..._backendWorkspaceOverrides((request) async {
               requests.add(request);
-              return http.Response(_backendPreviewPayload, 200);
+              return http.Response(_backendWorkspacePayload, 200);
             }),
             weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
               (ref) async =>
@@ -148,13 +148,13 @@ void main() {
     testWidgets(
       'fails closed when backend Boards context authorization denies',
       (tester) async {
-        _setCompactPreviewSurface(tester);
+        _setCompactWorkspaceSurface(tester);
         final requests = <http.Request>[];
         await tester.pumpWidget(
           createTestApp(
-            const BoardsPreviewScreen(),
+            const BoardsWorkspaceScreen(),
             overrides: [
-              ..._backendPreviewOverrides((request) async {
+              ..._backendWorkspaceOverrides((request) async {
                 requests.add(request);
                 return http.Response('{"code":"boards-forbidden"}', 403);
               }),
@@ -175,11 +175,11 @@ void main() {
     testWidgets('offers non-drag task actions with gated feedback', (
       tester,
     ) async {
-      _setCompactPreviewSurface(tester);
+      _setCompactWorkspaceSurface(tester);
       await tester.pumpWidget(
         createTestApp(
-          const BoardsPreviewScreen(),
-          overrides: _staticPreviewOverrides,
+          const BoardsWorkspaceScreen(),
+          overrides: _staticWorkspaceOverrides,
         ),
       );
       await tester.pumpAndSettle();
@@ -203,11 +203,11 @@ void main() {
     testWidgets('exposes screen-reader summaries for board, columns, and tasks', (
       tester,
     ) async {
-      _setCompactPreviewSurface(tester);
+      _setCompactWorkspaceSurface(tester);
       await tester.pumpWidget(
         createTestApp(
-          const BoardsPreviewScreen(),
-          overrides: _staticPreviewOverrides,
+          const BoardsWorkspaceScreen(),
+          overrides: _staticWorkspaceOverrides,
         ),
       );
       await tester.pumpAndSettle();
@@ -241,11 +241,11 @@ void main() {
     });
 
     testWidgets('meets tap-target accessibility guidelines', (tester) async {
-      _setCompactPreviewSurface(tester);
+      _setCompactWorkspaceSurface(tester);
       await tester.pumpWidget(
         createTestApp(
-          const BoardsPreviewScreen(),
-          overrides: _staticPreviewOverrides,
+          const BoardsWorkspaceScreen(),
+          overrides: _staticWorkspaceOverrides,
         ),
       );
       await tester.pumpAndSettle();
@@ -266,8 +266,8 @@ void main() {
 
       await tester.pumpWidget(
         createTestApp(
-          const BoardsPreviewScreen(),
-          overrides: _staticPreviewOverrides,
+          const BoardsWorkspaceScreen(),
+          overrides: _staticWorkspaceOverrides,
         ),
       );
       await tester.pumpAndSettle();
@@ -283,11 +283,11 @@ void main() {
   });
 }
 
-final _staticPreviewOverrides = [
+final _staticWorkspaceOverrides = [
   weaveAuthenticatedSessionProvider.overrideWith((ref) async => null),
 ];
 
-List<dynamic> _backendPreviewOverrides(
+List<dynamic> _backendWorkspaceOverrides(
   Future<http.Response> Function(http.Request request) handler,
 ) => [
   weaveAuthenticatedSessionProvider.overrideWith(
@@ -324,14 +324,14 @@ WorkspaceCapabilitySnapshot _capabilities({
   ),
 );
 
-void _setCompactPreviewSurface(WidgetTester tester) {
+void _setCompactWorkspaceSurface(WidgetTester tester) {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(900, 1600);
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
-const _backendPreviewPayload = '''
+const _backendWorkspacePayload = '''
 {
   "workspace": true,
   "releaseStatus": "active-dogfood-production",
