@@ -34,8 +34,12 @@ void main() {
       'weave-files-channel-link',
     );
     expect(
-      preview.surface(ChannelWorkspaceSurfaceKind.boards).providerContractId,
-      'weave-boards-channel-link',
+      preview.surface(ChannelWorkspaceSurfaceKind.files).availability,
+      ChannelWorkspaceSurfaceAvailability.available,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.boards).availability,
+      ChannelWorkspaceSurfaceAvailability.adminSetupRequired,
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.calendar).availability,
@@ -43,7 +47,7 @@ void main() {
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.meetings).providerContractId,
-      'livekit-meetings-channel-preview',
+      'livekit-meetings-channel-gate',
     );
     expect(preview.meetingPreview.contextId, preview.contextId);
     expect(preview.meetingPreview.isFailClosed, isTrue);

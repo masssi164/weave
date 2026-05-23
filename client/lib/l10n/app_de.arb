@@ -106,7 +106,7 @@
   "chatChannelsSectionEmpty": "Noch keine Kanäle verfügbar.",
   "chatAiChatsSectionTitle": "KI-Chats",
   "chatAiChatsSectionDescription": "Spezialisierte Assistenten- und Agentenchats haben ihren eigenen Bereich.",
-  "chatAiChatsSectionEmpty": "Noch keine KI-Chats verbunden. Künftige spezialisierte Agenten erscheinen hier, statt zwischen persönlichen Nachrichten zu verschwinden.",
+  "chatAiChatsSectionEmpty": "KI-Chats sind für diesen Arbeitsbereich nicht aktiviert. Owner oder Admins können gesteuerte Assistenten aktivieren, sobald Policy-, Einwilligungs- und Audit-Kontrollen bereit sind.",
   "chatAgentGovernanceTitle": "Agentenchats werden von deinem Workspace gesteuert",
   "chatAgentGovernanceDescription": "Agenten können in Weave erst helfen, wenn Owner oder Admins ein Paket aktivieren, Bereiche auswählen und Einwilligung sowie Audit sichtbar bleiben.",
   "chatAgentContextPackTitle": "Kontextpaket vor der Aktion",
@@ -114,14 +114,14 @@
   "chatAgentContextPackScopedBullet": "Kontext ist auf ausgewählte Chats, Dateien, Kalendertermine, Boards oder ausdrücklich gewählte Workspace-Quellen begrenzt.",
   "chatAgentContextPackConsentBullet": "Vor dem Start oder der Freigabe einer Agentenaktion siehst du Hinweise zu Berechtigungen.",
   "chatAgentContextPackNoSurveillanceBullet": "Agenten lesen Räume nicht dauerhaft im Hintergrund mit.",
-  "chatAgentGovernanceAuditNote": "Audit-Platzhalter gehören zu dieser Vorschau: Agentenerstellung, Kontextzugriff, Tool-/Aktionsausführung, Freigabe und Widerruf müssen vor einer Laufzeitfreigabe protokollierbar sein.",
-  "chatAgentAvailabilityPreview": "Nur Vorschau",
+  "chatAgentGovernanceAuditNote": "Agentenerstellung, Kontextzugriff, Tool-/Aktionsausführung, Freigabe und Widerruf müssen vor einer Laufzeitfreigabe auditierbar sein.",
+  "chatAgentAvailabilityPreview": "Durch Policy deaktiviert",
   "chatAgentAvailabilityAdminSetup": "Admin-Einrichtung nötig",
   "chatAgentAvailabilityBlocked": "Durch Policy blockiert",
   "chatAgentPersonalAssistantTitle": "Persönlicher Assistent",
-  "chatAgentPersonalAssistantDescription": "Ein künftiger privater Assistentenchat für Entwürfe, Zusammenfassungen und Erinnerungen in Weave.",
+  "chatAgentPersonalAssistantDescription": "Ein privater Assistentenchat für Entwürfe, Zusammenfassungen und Erinnerungen kann erst aktiviert werden, wenn Workspace-Policy, Einwilligung und Audit-Kontrollen bereit sind.",
   "chatAgentChannelAgentTitle": "Kanal-Agent",
-  "chatAgentChannelAgentDescription": "Ein künftiger Helfer für einen Kanal oder Projektraum, gesteuert durch ein von Admins freigegebenes Paket.",
+  "chatAgentChannelAgentDescription": "Ein Helfer für einen Kanal oder Projektraum kann nur über ein von Admins freigegebenes Paket aktiviert werden.",
   "chatAgentPersonalScope": "Nutzt nur Kontext, den du für die aktuelle Anfrage auswählst; Workspace-Policies entscheiden, welche Fähigkeiten verfügbar sind.",
   "chatAgentPersonalBoundary": "Kein dauerhaftes Mitlesen von Räumen; ein Kontextpaket wird erst nach deinem Start oder deiner Freigabe zusammengestellt.",
   "chatAgentPersonalAudit": "Erstellung, Kontextzugriff, Tool-Nutzung und Berechtigungsänderungen werden vor Laufzeitnutzung auditierbar.",
@@ -236,7 +236,7 @@
   "helpHandbookTitle": "Benutzerhandbuch",
   "helpHandbookDescription": "Dieses Handbuch erklärt die tägliche Weave-App in klarer Sprache. Es ist offline mit der App verfügbar und wächst, wenn weitere Bereiche bereit werden.",
   "helpWhatIsWeaveTitle": "Was Weave ist",
-  "helpWhatIsWeaveBody": "Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und künftige Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste wie Matrix, Nextcloud, Keycloak und das Weave-Backend im Hintergrund arbeiten.",
+  "helpWhatIsWeaveBody": "Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und weitere Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste wie Matrix, Nextcloud, Keycloak und das Weave-Backend im Hintergrund arbeiten.",
   "helpSignInTitle": "Anmelden: Grundlagen",
   "helpSignInBody": "Nutze die Workspace-Adresse deines Admins und melde dich dann einmal mit Weave-SSO an. Für die normale Nutzung solltest du keine separaten Matrix- oder Nextcloud-Passwörter brauchen. Wenn die Anmeldung scheitert oder in einer Schleife hängt, prüfe deine Verbindung, bestätige die Serveradresse in den Einstellungen und frage einen Admin, ob deine Einladung oder dein Konto aktiv ist.",
   "helpChatTitle": "Chat",
@@ -486,14 +486,14 @@
   "channelWorkspaceFilesTitle": "Channel-Dateien",
   "channelWorkspaceBoardsTitle": "Channel-Boards und Aufgaben",
   "channelWorkspaceCalendarTitle": "Channel-Kalender",
-  "channelWorkspaceMeetingsTitle": "Channel-Meeting-Vorschau",
+  "channelWorkspaceMeetingsTitle": "Channel-Meetings",
   "channelWorkspaceChatDescription": "Nachrichten bleiben der standardmäßige Live-Kontext für diesen Channel.",
-  "channelWorkspaceFilesDescription": "Channel-Dateiverknüpfung ist eine Vorschau-Nahtstelle. Dateien werden über die Weave-Datei-Fassade statt über rohe Anbieterpfade angebunden, sobald der Backend-Vertrag bereit ist.",
-  "channelWorkspaceBoardsDescription": "Verknüpfte Boards und Aufgaben erscheinen als ehrliche Vorschau, bis anbieterneutraler Board-Status mit diesem Channel-Kontext verbunden ist.",
+  "channelWorkspaceFilesDescription": "Channel-Dateien nutzen die Weave-Datei-Fassade, damit Nutzer Arbeitsbereichsdateien ohne rohe Anbieterpfade durchsuchen und anhängen können.",
+  "channelWorkspaceBoardsDescription": "Channel-Boards brauchen Admin-Einrichtung für Board-Fassade, Autorisierung und Audit, bevor Aufgabenänderungen für Mitglieder aktiviert werden.",
   "channelWorkspaceCalendarDescription": "Channel-Termine bleiben gesperrt, bis die Kalender-Scope-Fähigkeit für diesen Arbeitsbereich verfügbar ist.",
   "channelWorkspaceMeetingsDescription": "Meetings werden mit Kalender, Agenda, Entscheidungen, Aufgaben, Dateien und Folge-Nachweisen dieses Channels verknüpft. LiveKit ist der Medien-Provider-Kontrakt; Beitreten und Starten bleiben gesperrt, bis Backend-Tokens, Medienverschlüsselungsnachweise und Barrierefreiheitsnachweise konfiguriert sind.",
   "channelWorkspaceMeetingsCapabilityTitle": "LiveKit-Bereitschaft ist fail-closed",
-  "channelWorkspaceMeetingsCapabilityBody": "LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen belegt sind. Matrix bleibt Chat- und E2EE-Substrat; Matrix-Chat-Verschlüsselung deckt LiveKit-Medienanrufe nicht automatisch ab. Diese Vorschau behauptet nicht, dass verschlüsselte LiveKit-Anrufe verfügbar sind.",
+  "channelWorkspaceMeetingsCapabilityBody": "LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen belegt sind. Matrix bleibt Chat- und E2EE-Substrat; Matrix-Chat-Verschlüsselung deckt LiveKit-Medienanrufe nicht automatisch ab.",
   "channelWorkspaceMeetingsPrivacyTitle": "Nur ausdrücklicher Meeting-Kontext",
   "channelWorkspaceMeetingsPrivacyBody": "Nur ausdrücklich aus {channelName} ausgewählter Kontext wird für ein Meeting vorbereitet. Weave liest, zeichnet oder transkribiert den Raum nicht dauerhaft im Hintergrund.",
   "channelWorkspaceMeetingsRecordingOff": "Aufzeichnung und Transkription aus",
@@ -508,7 +508,7 @@
   "channelWorkspaceMeetingsStartButton": "Meeting starten",
   "channelWorkspaceMeetingsBackendUnavailableReason": "Meeting-Anbieterfähigkeit ist noch nicht verfügbar.",
   "channelWorkspaceStatusAvailable": "Verfügbar",
-  "channelWorkspaceStatusPreview": "Vorschau-Vertrag",
+  "channelWorkspaceStatusPreview": "Admin-Einrichtung nötig",
   "channelWorkspaceStatusGated": "Durch Fähigkeit gesperrt",
   "channelWorkspaceProviderContract": "Anbieter-Nahtstelle: {contractId}",
   "channelWorkspaceExplicitContextNote": "Hier wird nur ausdrücklicher Kontext aus {channelName} gezeigt; Weave liest den Raum nicht dauerhaft im Hintergrund mit.",
@@ -584,7 +584,7 @@
   "filesLoadErrorTitle": "Dateien konnten nicht geladen werden",
   "filesErrorGuidance": "Versuche es erneut. Wenn das weiterhin passiert, prüfe den Dateien-Status in Einrichtung oder Diagnose.",
   "calendarEmptyMessage": "Noch keine Termine",
-  "deckEmptyMessage": "Noch keine Boards in dieser Zukunftsvorschau",
+  "deckEmptyMessage": "Noch keine Boards verfügbar",
   "deviceLanguageLabel": "Gerätesprache",
   "serverConfigurationProviderLabel": "OIDC-Anbieter",
   "serverConfigurationProviderFieldLabel": "Anbietertyp",
@@ -818,7 +818,7 @@
   "@agentCapabilityPolicyTitle": {
     "description": "Settings card title for AI agent capability governance"
   },
-  "agentCapabilityPolicyAdminDescription": "Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Vorschau bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.",
+  "agentCapabilityPolicyAdminDescription": "Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Oberfläche bleibt deaktiviert, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.",
   "@agentCapabilityPolicyAdminDescription": {
     "description": "Admin-facing description for AI agent capability governance"
   },
@@ -830,7 +830,7 @@
   "@agentCapabilityPolicyFailClosedNotice": {
     "description": "Fail-closed notice when policy cannot be trusted"
   },
-  "agentCapabilityPolicyManageDisabledButton": "Verwaltung in dieser Vorschau nicht verfügbar",
+  "agentCapabilityPolicyManageDisabledButton": "Verwaltung nicht verfügbar, bis Kontrollen bereit sind",
   "@agentCapabilityPolicyManageDisabledButton": {
     "description": "Disabled button label for future agent capability management"
   },
@@ -838,7 +838,7 @@
   "@agentCapabilityPolicyAskAdminHint": {
     "description": "Hint for non-admin users"
   },
-  "agentCapabilityPolicyAdminStateHint": "Aktueller Zustand: standardmäßig aus. Künftige Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.",
+  "agentCapabilityPolicyAdminStateHint": "Aktueller Zustand: standardmäßig aus. Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.",
   "@agentCapabilityPolicyAdminStateHint": {
     "description": "Admin state hint for disabled agent capabilities"
   },
@@ -858,7 +858,7 @@
   "@agentCapabilityChannelAgentDescription": {
     "description": "Agent capability description for channel agent"
   },
-  "agentCapabilityAvailabilityPreviewOnly": "Nur Vorschau",
+  "agentCapabilityAvailabilityPreviewOnly": "Durch Policy deaktiviert",
   "@agentCapabilityAvailabilityPreviewOnly": {
     "description": "Agent capability availability label for gated state"
   },
@@ -936,5 +936,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "channelWorkspaceStatusAdminSetupRequired": "Admin-Einrichtung nötig",
+  "channelWorkspaceStatusDisabledByPolicy": "Durch Policy deaktiviert",
+  "channelWorkspaceStatusDegraded": "Eingeschränkt",
+  "agentCapabilityAvailabilityDisabledByPolicy": "Durch Policy deaktiviert"
 }

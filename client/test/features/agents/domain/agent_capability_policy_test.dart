@@ -3,15 +3,17 @@ import 'package:weave/features/agents/domain/entities/agent_capability_policy.da
 
 void main() {
   group('AgentCapabilityPolicy', () {
-    test('preview defaults are disabled and non-startable', () {
-      final policy = AgentCapabilityPolicy.preview(canManageCapabilities: true);
+    test('disabled defaults are non-startable and policy-owned', () {
+      final policy = AgentCapabilityPolicy.disabled(
+        canManageCapabilities: true,
+      );
 
       expect(policy.canManageCapabilities, isTrue);
       expect(policy.isFailClosed, isFalse);
       expect(policy.canStartAnyCapability, isFalse);
       expect(
         policy.stateFor(AgentCapability.personalAssistant).availability,
-        AgentCapabilityAvailability.previewOnly,
+        AgentCapabilityAvailability.disabledByPolicy,
       );
       expect(
         policy.stateFor(AgentCapability.channelAgent).availability,

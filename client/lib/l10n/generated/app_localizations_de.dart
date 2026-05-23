@@ -374,7 +374,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatAiChatsSectionEmpty =>
-      'Noch keine KI-Chats verbunden. Künftige spezialisierte Agenten erscheinen hier, statt zwischen persönlichen Nachrichten zu verschwinden.';
+      'KI-Chats sind für diesen Arbeitsbereich nicht aktiviert. Owner oder Admins können gesteuerte Assistenten aktivieren, sobald Policy-, Einwilligungs- und Audit-Kontrollen bereit sind.';
 
   @override
   String get chatAgentGovernanceTitle =>
@@ -405,10 +405,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatAgentGovernanceAuditNote =>
-      'Audit-Platzhalter gehören zu dieser Vorschau: Agentenerstellung, Kontextzugriff, Tool-/Aktionsausführung, Freigabe und Widerruf müssen vor einer Laufzeitfreigabe protokollierbar sein.';
+      'Agentenerstellung, Kontextzugriff, Tool-/Aktionsausführung, Freigabe und Widerruf müssen vor einer Laufzeitfreigabe auditierbar sein.';
 
   @override
-  String get chatAgentAvailabilityPreview => 'Nur Vorschau';
+  String get chatAgentAvailabilityPreview => 'Durch Policy deaktiviert';
 
   @override
   String get chatAgentAvailabilityAdminSetup => 'Admin-Einrichtung nötig';
@@ -421,14 +421,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatAgentPersonalAssistantDescription =>
-      'Ein künftiger privater Assistentenchat für Entwürfe, Zusammenfassungen und Erinnerungen in Weave.';
+      'Ein privater Assistentenchat für Entwürfe, Zusammenfassungen und Erinnerungen kann erst aktiviert werden, wenn Workspace-Policy, Einwilligung und Audit-Kontrollen bereit sind.';
 
   @override
   String get chatAgentChannelAgentTitle => 'Kanal-Agent';
 
   @override
   String get chatAgentChannelAgentDescription =>
-      'Ein künftiger Helfer für einen Kanal oder Projektraum, gesteuert durch ein von Admins freigegebenes Paket.';
+      'Ein Helfer für einen Kanal oder Projektraum kann nur über ein von Admins freigegebenes Paket aktiviert werden.';
 
   @override
   String get chatAgentPersonalScope =>
@@ -533,7 +533,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelWorkspaceCalendarTitle => 'Channel-Kalender';
 
   @override
-  String get channelWorkspaceMeetingsTitle => 'Channel-Meeting-Vorschau';
+  String get channelWorkspaceMeetingsTitle => 'Channel-Meetings';
 
   @override
   String get channelWorkspaceChatDescription =>
@@ -541,11 +541,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceFilesDescription =>
-      'Channel-Dateiverknüpfung ist eine Vorschau-Nahtstelle. Dateien werden über die Weave-Datei-Fassade statt über rohe Anbieterpfade angebunden, sobald der Backend-Vertrag bereit ist.';
+      'Channel-Dateien nutzen die Weave-Datei-Fassade, damit Nutzer Arbeitsbereichsdateien ohne rohe Anbieterpfade durchsuchen und anhängen können.';
 
   @override
   String get channelWorkspaceBoardsDescription =>
-      'Verknüpfte Boards und Aufgaben erscheinen als ehrliche Vorschau, bis anbieterneutraler Board-Status mit diesem Channel-Kontext verbunden ist.';
+      'Channel-Boards brauchen Admin-Einrichtung für Board-Fassade, Autorisierung und Audit, bevor Aufgabenänderungen für Mitglieder aktiviert werden.';
 
   @override
   String get channelWorkspaceCalendarDescription =>
@@ -561,7 +561,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceMeetingsCapabilityBody =>
-      'LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen belegt sind. Matrix bleibt Chat- und E2EE-Substrat; Matrix-Chat-Verschlüsselung deckt LiveKit-Medienanrufe nicht automatisch ab. Diese Vorschau behauptet nicht, dass verschlüsselte LiveKit-Anrufe verfügbar sind.';
+      'LiveKit-Räume und Join-Tokens bleiben hinter der Backend-Fassade. Beitreten und Starten bleiben deaktiviert, bis Provider-Status, Signaling/Medienpfade, Untertitel, Aufzeichnungen, Medienverschlüsselung und Metadatengrenzen belegt sind. Matrix bleibt Chat- und E2EE-Substrat; Matrix-Chat-Verschlüsselung deckt LiveKit-Medienanrufe nicht automatisch ab.';
 
   @override
   String get channelWorkspaceMeetingsPrivacyTitle =>
@@ -613,7 +613,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get channelWorkspaceStatusAvailable => 'Verfügbar';
 
   @override
-  String get channelWorkspaceStatusPreview => 'Vorschau-Vertrag';
+  String get channelWorkspaceStatusPreview => 'Admin-Einrichtung nötig';
 
   @override
   String get channelWorkspaceStatusGated => 'Durch Fähigkeit gesperrt';
@@ -976,7 +976,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpWhatIsWeaveBody =>
-      'Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und künftige Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste wie Matrix, Nextcloud, Keycloak und das Weave-Backend im Hintergrund arbeiten.';
+      'Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und weitere Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste wie Matrix, Nextcloud, Keycloak und das Weave-Backend im Hintergrund arbeiten.';
 
   @override
   String get helpSignInTitle => 'Anmelden: Grundlagen';
@@ -2108,7 +2108,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get calendarEmptyMessage => 'Noch keine Termine';
 
   @override
-  String get deckEmptyMessage => 'Noch keine Boards in dieser Zukunftsvorschau';
+  String get deckEmptyMessage => 'Noch keine Boards verfügbar';
 
   @override
   String get deviceLanguageLabel => 'Gerätesprache';
@@ -2867,7 +2867,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminDescription =>
-      'Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Vorschau bleibt aus, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.';
+      'Owner und Admins entscheiden, welche Agentenpakete und Verbindungen genutzt werden dürfen. Diese Oberfläche bleibt deaktiviert, bis Berechtigungen, Einwilligung und Audit-Kontrollen verbunden sind.';
 
   @override
   String get agentCapabilityPolicyUserDescription =>
@@ -2879,7 +2879,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyManageDisabledButton =>
-      'Verwaltung in dieser Vorschau nicht verfügbar';
+      'Verwaltung nicht verfügbar, bis Kontrollen bereit sind';
 
   @override
   String get agentCapabilityPolicyAskAdminHint =>
@@ -2887,7 +2887,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get agentCapabilityPolicyAdminStateHint =>
-      'Aktueller Zustand: standardmäßig aus. Künftige Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.';
+      'Aktueller Zustand: standardmäßig aus. Kontrollen brauchen eine Owner-/Admin-Prüfung, bevor Nutzer einen Agenten starten können.';
 
   @override
   String get agentCapabilityPersonalAssistantTitle => 'Persönlicher Assistent';
@@ -2904,7 +2904,8 @@ class AppLocalizationsDe extends AppLocalizations {
       'Erfordert, dass Owner oder Admins auswählen, welche Kanäle, Dateien, Kalendertermine oder Boards der Agent nutzen darf.';
 
   @override
-  String get agentCapabilityAvailabilityPreviewOnly => 'Nur Vorschau';
+  String get agentCapabilityAvailabilityPreviewOnly =>
+      'Durch Policy deaktiviert';
 
   @override
   String get agentCapabilityAvailabilityAdminSetupRequired =>
@@ -3083,4 +3084,19 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get workflowPreviewReviewEvidenceButton => 'Evidenz prüfen';
+
+  @override
+  String get channelWorkspaceStatusAdminSetupRequired =>
+      'Admin-Einrichtung nötig';
+
+  @override
+  String get channelWorkspaceStatusDisabledByPolicy =>
+      'Durch Policy deaktiviert';
+
+  @override
+  String get channelWorkspaceStatusDegraded => 'Eingeschränkt';
+
+  @override
+  String get agentCapabilityAvailabilityDisabledByPolicy =>
+      'Durch Policy deaktiviert';
 }

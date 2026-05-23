@@ -746,7 +746,7 @@ abstract class AppLocalizations {
   /// Empty state for the AI chats section in the chat overview
   ///
   /// In en, this message translates to:
-  /// **'No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.'**
+  /// **'AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.'**
   String get chatAiChatsSectionEmpty;
 
   /// Title for the governed agent chat preview panel
@@ -794,13 +794,13 @@ abstract class AppLocalizations {
   /// Audit and approval note for the governed agent chat preview panel
   ///
   /// In en, this message translates to:
-  /// **'Audit placeholders are part of this preview: agent creation, context access, tool/action execution, approval, and revocation must be recorded before runtime promotion.'**
+  /// **'Agent creation, context access, tool/action execution, approval, and revocation must be audit-ready before runtime enablement.'**
   String get chatAgentGovernanceAuditNote;
 
   /// Agent availability label for a gated agent
   ///
   /// In en, this message translates to:
-  /// **'Preview only'**
+  /// **'Disabled by policy'**
   String get chatAgentAvailabilityPreview;
 
   /// Agent availability label when setup must be done by an admin
@@ -824,7 +824,7 @@ abstract class AppLocalizations {
   /// Description for the personal assistant preview tile
   ///
   /// In en, this message translates to:
-  /// **'A future private assistant chat for drafting, summaries, and reminders inside Weave.'**
+  /// **'A private assistant chat for drafting, summaries, and reminders can be enabled only after workspace policy, consent, and audit controls are ready.'**
   String get chatAgentPersonalAssistantDescription;
 
   /// Title for the channel agent preview tile
@@ -836,7 +836,7 @@ abstract class AppLocalizations {
   /// Description for the channel agent preview tile
   ///
   /// In en, this message translates to:
-  /// **'A future helper for a channel or project space, governed by an admin-approved package.'**
+  /// **'A helper for a channel or project space can be enabled only through an admin-approved package.'**
   String get chatAgentChannelAgentDescription;
 
   /// Scope explanation for personal assistant preview
@@ -1016,7 +1016,7 @@ abstract class AppLocalizations {
   /// Title for the meetings preview surface in a channel workspace
   ///
   /// In en, this message translates to:
-  /// **'Channel meeting preview'**
+  /// **'Channel meetings'**
   String get channelWorkspaceMeetingsTitle;
 
   /// Description for the channel chat surface
@@ -1028,13 +1028,13 @@ abstract class AppLocalizations {
   /// Description for the channel files preview placeholder
   ///
   /// In en, this message translates to:
-  /// **'Channel file linking is a preview seam. Files will attach through the Weave files facade instead of raw provider paths once the backend contract is ready.'**
+  /// **'Channel files use the Weave files facade so people can browse and attach workspace files without raw provider paths.'**
   String get channelWorkspaceFilesDescription;
 
   /// Description for the channel boards/tasks preview placeholder
   ///
   /// In en, this message translates to:
-  /// **'Linked boards and tasks are shown as an honest preview until provider-neutral board state is connected to this channel context.'**
+  /// **'Channel boards require admin setup for the board facade, authorization, and audit before member task writes are enabled.'**
   String get channelWorkspaceBoardsDescription;
 
   /// Description for the gated channel calendar placeholder
@@ -1058,7 +1058,7 @@ abstract class AppLocalizations {
   /// Body explaining honest fail-closed channel meeting capability state
   ///
   /// In en, this message translates to:
-  /// **'LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls. This preview does not claim that encrypted LiveKit calls are available.'**
+  /// **'LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls.'**
   String get channelWorkspaceMeetingsCapabilityBody;
 
   /// Title for the explicit context rule in the channel meetings preview
@@ -1148,7 +1148,7 @@ abstract class AppLocalizations {
   /// Status label for a gated channel workspace surface
   ///
   /// In en, this message translates to:
-  /// **'Preview contract'**
+  /// **'Admin setup required'**
   String get channelWorkspaceStatusPreview;
 
   /// Status label for a gated channel workspace surface
@@ -1706,7 +1706,7 @@ abstract class AppLocalizations {
   /// Help copy explaining what Weave is
   ///
   /// In en, this message translates to:
-  /// **'Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and future collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.'**
+  /// **'Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and additional collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.'**
   String get helpWhatIsWeaveBody;
 
   /// Help section title for sign-in basics
@@ -3570,7 +3570,7 @@ abstract class AppLocalizations {
   /// Legacy hidden Deck empty state message retained for compatibility
   ///
   /// In en, this message translates to:
-  /// **'No boards in this dogfood production yet'**
+  /// **'No boards are available yet'**
   String get deckEmptyMessage;
 
   /// Label for the detected device language display
@@ -4735,7 +4735,7 @@ abstract class AppLocalizations {
   /// Admin-facing description for AI agent capability governance
   ///
   /// In en, this message translates to:
-  /// **'Owners and admins decide which agent packages and connectors can be used. This preview stays off until permission, consent, and audit controls are connected.'**
+  /// **'Owners and admins decide which agent packages and connectors can be used. This surface stays disabled until permission, consent, and audit controls are connected.'**
   String get agentCapabilityPolicyAdminDescription;
 
   /// Member-facing description for AI agent capability governance
@@ -4753,7 +4753,7 @@ abstract class AppLocalizations {
   /// Disabled button label for future agent capability management
   ///
   /// In en, this message translates to:
-  /// **'Management unavailable in this preview'**
+  /// **'Management unavailable until controls are ready'**
   String get agentCapabilityPolicyManageDisabledButton;
 
   /// Hint for non-admin users
@@ -4765,7 +4765,7 @@ abstract class AppLocalizations {
   /// Admin state hint for disabled agent capabilities
   ///
   /// In en, this message translates to:
-  /// **'Current state: off by default. Future controls will require owner/admin review before users can start an agent.'**
+  /// **'Current state: off by default. Controls require owner/admin review before users can start an agent.'**
   String get agentCapabilityPolicyAdminStateHint;
 
   /// Agent capability title for personal assistant
@@ -4795,7 +4795,7 @@ abstract class AppLocalizations {
   /// Agent capability availability label for gated state
   ///
   /// In en, this message translates to:
-  /// **'Preview only'**
+  /// **'Disabled by policy'**
   String get agentCapabilityAvailabilityPreviewOnly;
 
   /// Agent capability availability label when admin setup is required
@@ -5013,6 +5013,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Review evidence'**
   String get workflowPreviewReviewEvidenceButton;
+
+  /// Status chip for a channel workspace surface that requires admin setup
+  ///
+  /// In en, this message translates to:
+  /// **'Admin setup required'**
+  String get channelWorkspaceStatusAdminSetupRequired;
+
+  /// Status chip for a channel workspace surface disabled by policy
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by policy'**
+  String get channelWorkspaceStatusDisabledByPolicy;
+
+  /// Status chip for a degraded channel workspace surface
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded'**
+  String get channelWorkspaceStatusDegraded;
+
+  /// Availability chip for an agent capability disabled by workspace policy
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by policy'**
+  String get agentCapabilityAvailabilityDisabledByPolicy;
 }
 
 class _AppLocalizationsDelegate

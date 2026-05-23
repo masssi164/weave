@@ -835,6 +835,9 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
     final officeCapabilities = ref.watch(
       weaveApiOfficeCapabilitiesSnapshotProvider,
     );
+    final profile = ref.watch(userProfileProvider);
+    final canSeeOperatorDiagnostics =
+        profile.asData?.value?.canAdministerWorkspace ?? false;
 
     return Card(
       elevation: 0,
@@ -887,13 +890,14 @@ class _WorkspaceReadinessCard extends ConsumerWidget {
                   _workspaceSummary(l10n, workspaceState),
                   style: theme.textTheme.bodyMedium,
                 ),
-                if (providerStack.asData?.value case final stack?) ...[
-                  const SizedBox(height: 20),
-                  _ProviderStackReadinessSummary(
-                    stack: stack,
-                    officeCapabilities: officeCapabilities.asData?.value,
-                  ),
-                ],
+                if (canSeeOperatorDiagnostics)
+                  if (providerStack.asData?.value case final stack?) ...[
+                    const SizedBox(height: 20),
+                    _ProviderStackReadinessSummary(
+                      stack: stack,
+                      officeCapabilities: officeCapabilities.asData?.value,
+                    ),
+                  ],
                 const SizedBox(height: 20),
                 _WorkspaceReadinessRow(
                   label: l10n.settingsWorkspaceShellAccessLabel,

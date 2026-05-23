@@ -363,7 +363,7 @@
   "@chatAiChatsSectionDescription": {
     "description": "Description for the AI chats section in the chat overview"
   },
-  "chatAiChatsSectionEmpty": "No AI chats are connected yet. Future specialized agents will appear here instead of being mixed into personal messages.",
+  "chatAiChatsSectionEmpty": "AI chats are not enabled for this workspace. A workspace owner or admin can enable governed assistants after policy, consent, and audit controls are ready.",
   "@chatAiChatsSectionEmpty": {
     "description": "Empty state for the AI chats section in the chat overview"
   },
@@ -395,11 +395,11 @@
   "@chatAgentContextPackNoSurveillanceBullet": {
     "description": "Bullet explaining that agents are not surveillance-aware"
   },
-  "chatAgentGovernanceAuditNote": "Audit placeholders are part of this preview: agent creation, context access, tool/action execution, approval, and revocation must be recorded before runtime promotion.",
+  "chatAgentGovernanceAuditNote": "Agent creation, context access, tool/action execution, approval, and revocation must be audit-ready before runtime enablement.",
   "@chatAgentGovernanceAuditNote": {
     "description": "Audit and approval note for the governed agent chat preview panel"
   },
-  "chatAgentAvailabilityPreview": "Preview only",
+  "chatAgentAvailabilityPreview": "Disabled by policy",
   "@chatAgentAvailabilityPreview": {
     "description": "Agent availability label for a gated agent"
   },
@@ -415,7 +415,7 @@
   "@chatAgentPersonalAssistantTitle": {
     "description": "Title for the personal assistant preview tile"
   },
-  "chatAgentPersonalAssistantDescription": "A future private assistant chat for drafting, summaries, and reminders inside Weave.",
+  "chatAgentPersonalAssistantDescription": "A private assistant chat for drafting, summaries, and reminders can be enabled only after workspace policy, consent, and audit controls are ready.",
   "@chatAgentPersonalAssistantDescription": {
     "description": "Description for the personal assistant preview tile"
   },
@@ -423,7 +423,7 @@
   "@chatAgentChannelAgentTitle": {
     "description": "Title for the channel agent preview tile"
   },
-  "chatAgentChannelAgentDescription": "A future helper for a channel or project space, governed by an admin-approved package.",
+  "chatAgentChannelAgentDescription": "A helper for a channel or project space can be enabled only through an admin-approved package.",
   "@chatAgentChannelAgentDescription": {
     "description": "Description for the channel agent preview tile"
   },
@@ -553,7 +553,7 @@
   "@channelWorkspaceCalendarTitle": {
     "description": "Title for the calendar surface in a channel workspace"
   },
-  "channelWorkspaceMeetingsTitle": "Channel meeting preview",
+  "channelWorkspaceMeetingsTitle": "Channel meetings",
   "@channelWorkspaceMeetingsTitle": {
     "description": "Title for the meetings preview surface in a channel workspace"
   },
@@ -561,11 +561,11 @@
   "@channelWorkspaceChatDescription": {
     "description": "Description for the channel chat surface"
   },
-  "channelWorkspaceFilesDescription": "Channel file linking is a preview seam. Files will attach through the Weave files facade instead of raw provider paths once the backend contract is ready.",
+  "channelWorkspaceFilesDescription": "Channel files use the Weave files facade so people can browse and attach workspace files without raw provider paths.",
   "@channelWorkspaceFilesDescription": {
     "description": "Description for the channel files preview placeholder"
   },
-  "channelWorkspaceBoardsDescription": "Linked boards and tasks are shown as an honest preview until provider-neutral board state is connected to this channel context.",
+  "channelWorkspaceBoardsDescription": "Channel boards require admin setup for the board facade, authorization, and audit before member task writes are enabled.",
   "@channelWorkspaceBoardsDescription": {
     "description": "Description for the channel boards/tasks preview placeholder"
   },
@@ -581,7 +581,7 @@
   "@channelWorkspaceMeetingsCapabilityTitle": {
     "description": "Title explaining that channel meetings are fail-closed until backend and encryption evidence exist"
   },
-  "channelWorkspaceMeetingsCapabilityBody": "LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls. This preview does not claim that encrypted LiveKit calls are available.",
+  "channelWorkspaceMeetingsCapabilityBody": "LiveKit room creation and join tokens stay behind the backend facade. Join and start stay disabled until provider status, signaling/media paths, captions, recordings, media encryption, and metadata boundaries have evidence. Matrix remains the chat/E2EE substrate; Matrix chat encryption does not by itself cover LiveKit media calls.",
   "@channelWorkspaceMeetingsCapabilityBody": {
     "description": "Body explaining honest fail-closed channel meeting capability state"
   },
@@ -646,7 +646,7 @@
   "@channelWorkspaceStatusAvailable": {
     "description": "Status label for an available channel workspace surface"
   },
-  "channelWorkspaceStatusPreview": "Preview contract",
+  "channelWorkspaceStatusPreview": "Admin setup required",
   "@channelWorkspaceStatusPreview": {
     "description": "Status label for a gated channel workspace surface"
   },
@@ -1140,7 +1140,7 @@
   "@helpWhatIsWeaveTitle": {
     "description": "Help section title explaining the product"
   },
-  "helpWhatIsWeaveBody": "Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and future collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.",
+  "helpWhatIsWeaveBody": "Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and additional collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.",
   "@helpWhatIsWeaveBody": {
     "description": "Help copy explaining what Weave is"
   },
@@ -2464,7 +2464,7 @@
   "@calendarEmptyMessage": {
     "description": "Empty state message for the calendar screen"
   },
-  "deckEmptyMessage": "No boards in this dogfood production yet",
+  "deckEmptyMessage": "No boards are available yet",
   "@deckEmptyMessage": {
     "description": "Legacy hidden Deck empty state message retained for compatibility"
   },
@@ -3410,7 +3410,7 @@
   "@agentCapabilityPolicyTitle": {
     "description": "Settings card title for AI agent capability governance"
   },
-  "agentCapabilityPolicyAdminDescription": "Owners and admins decide which agent packages and connectors can be used. This preview stays off until permission, consent, and audit controls are connected.",
+  "agentCapabilityPolicyAdminDescription": "Owners and admins decide which agent packages and connectors can be used. This surface stays disabled until permission, consent, and audit controls are connected.",
   "@agentCapabilityPolicyAdminDescription": {
     "description": "Admin-facing description for AI agent capability governance"
   },
@@ -3422,7 +3422,7 @@
   "@agentCapabilityPolicyFailClosedNotice": {
     "description": "Fail-closed notice when policy cannot be trusted"
   },
-  "agentCapabilityPolicyManageDisabledButton": "Management unavailable in this preview",
+  "agentCapabilityPolicyManageDisabledButton": "Management unavailable until controls are ready",
   "@agentCapabilityPolicyManageDisabledButton": {
     "description": "Disabled button label for future agent capability management"
   },
@@ -3430,7 +3430,7 @@
   "@agentCapabilityPolicyAskAdminHint": {
     "description": "Hint for non-admin users"
   },
-  "agentCapabilityPolicyAdminStateHint": "Current state: off by default. Future controls will require owner/admin review before users can start an agent.",
+  "agentCapabilityPolicyAdminStateHint": "Current state: off by default. Controls require owner/admin review before users can start an agent.",
   "@agentCapabilityPolicyAdminStateHint": {
     "description": "Admin state hint for disabled agent capabilities"
   },
@@ -3450,7 +3450,7 @@
   "@agentCapabilityChannelAgentDescription": {
     "description": "Agent capability description for channel agent"
   },
-  "agentCapabilityAvailabilityPreviewOnly": "Preview only",
+  "agentCapabilityAvailabilityPreviewOnly": "Disabled by policy",
   "@agentCapabilityAvailabilityPreviewOnly": {
     "description": "Agent capability availability label for gated state"
   },
@@ -3674,5 +3674,21 @@
   "workflowPreviewReviewEvidenceButton": "Review evidence",
   "@workflowPreviewReviewEvidenceButton": {
     "description": "Disabled placeholder action for reviewing workflow evidence"
+  },
+  "channelWorkspaceStatusAdminSetupRequired": "Admin setup required",
+  "@channelWorkspaceStatusAdminSetupRequired": {
+    "description": "Status chip for a channel workspace surface that requires admin setup"
+  },
+  "channelWorkspaceStatusDisabledByPolicy": "Disabled by policy",
+  "@channelWorkspaceStatusDisabledByPolicy": {
+    "description": "Status chip for a channel workspace surface disabled by policy"
+  },
+  "channelWorkspaceStatusDegraded": "Degraded",
+  "@channelWorkspaceStatusDegraded": {
+    "description": "Status chip for a degraded channel workspace surface"
+  },
+  "agentCapabilityAvailabilityDisabledByPolicy": "Disabled by policy",
+  "@agentCapabilityAvailabilityDisabledByPolicy": {
+    "description": "Availability chip for an agent capability disabled by workspace policy"
   }
 }

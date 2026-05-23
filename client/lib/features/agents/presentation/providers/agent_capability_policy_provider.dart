@@ -9,7 +9,7 @@ final agentCapabilityPolicyProvider =
 
       return switch (profile) {
         AsyncData(value: final user) => AsyncData(
-          AgentCapabilityPolicy.preview(
+          AgentCapabilityPolicy.disabled(
             canManageCapabilities: user?.canAdministerWorkspace ?? false,
           ),
         ),

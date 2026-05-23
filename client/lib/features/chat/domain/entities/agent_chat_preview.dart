@@ -1,4 +1,4 @@
-enum AgentChatAvailability { previewOnly, adminSetupRequired, blocked }
+enum AgentChatAvailability { disabledByPolicy, adminSetupRequired, blocked }
 
 enum AgentChatPreviewKind { personalAssistant, channelAgent }
 

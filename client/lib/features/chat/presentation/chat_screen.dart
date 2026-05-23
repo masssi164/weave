@@ -710,7 +710,7 @@ String _agentAvailabilityLabel(
   AgentChatAvailability availability,
 ) {
   return switch (availability) {
-    AgentChatAvailability.previewOnly => l10n.chatAgentAvailabilityPreview,
+    AgentChatAvailability.disabledByPolicy => l10n.chatAgentAvailabilityPreview,
     AgentChatAvailability.adminSetupRequired =>
       l10n.chatAgentAvailabilityAdminSetup,
     AgentChatAvailability.blocked => l10n.chatAgentAvailabilityBlocked,
@@ -719,7 +719,7 @@ String _agentAvailabilityLabel(
 
 IconData _agentAvailabilityIcon(AgentChatAvailability availability) {
   return switch (availability) {
-    AgentChatAvailability.previewOnly => Icons.visibility_outlined,
+    AgentChatAvailability.disabledByPolicy => Icons.policy_outlined,
     AgentChatAvailability.adminSetupRequired => Icons.admin_panel_settings,
     AgentChatAvailability.blocked => Icons.block,
   };

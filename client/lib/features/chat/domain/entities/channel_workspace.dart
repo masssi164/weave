@@ -2,7 +2,13 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 
 enum ChannelWorkspaceSurfaceKind { chat, files, boards, calendar, meetings }
 
-enum ChannelWorkspaceSurfaceAvailability { available, preview, gated }
+enum ChannelWorkspaceSurfaceAvailability {
+  available,
+  adminSetupRequired,
+  disabledByPolicy,
+  degraded,
+  gated,
+}
 
 class ChannelWorkspaceSurface {
   const ChannelWorkspaceSurface({
@@ -20,7 +26,13 @@ class ChannelWorkspaceSurface {
   bool get isAvailable =>
       availability == ChannelWorkspaceSurfaceAvailability.available;
 
-  bool get isGated => availability == ChannelWorkspaceSurfaceAvailability.gated;
+  bool get isUnavailable => !isAvailable;
+
+  bool get isGated =>
+      availability == ChannelWorkspaceSurfaceAvailability.gated ||
+      availability == ChannelWorkspaceSurfaceAvailability.adminSetupRequired ||
+      availability == ChannelWorkspaceSurfaceAvailability.disabledByPolicy ||
+      availability == ChannelWorkspaceSurfaceAvailability.degraded;
 }
 
 enum ChannelMeetingContextItemKind {
@@ -80,7 +92,7 @@ class ChannelMeetingPreview {
       channelId: conversation.id,
       channelTitle: conversation.title,
       contextId: contextId,
-      providerContractId: 'livekit-meetings-channel-preview',
+      providerContractId: 'livekit-meetings-channel-gate',
       contextItems: const [
         ChannelMeetingContextItem(
           kind: ChannelMeetingContextItemKind.agenda,
@@ -173,13 +185,13 @@ class ChannelWorkspacePreview {
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.files,
-          availability: ChannelWorkspaceSurfaceAvailability.preview,
+          availability: ChannelWorkspaceSurfaceAvailability.available,
           providerContractId: 'weave-files-channel-link',
           contextId: contextId,
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.boards,
-          availability: ChannelWorkspaceSurfaceAvailability.preview,
+          availability: ChannelWorkspaceSurfaceAvailability.adminSetupRequired,
           providerContractId: 'weave-boards-channel-link',
           contextId: contextId,
         ),
@@ -192,7 +204,7 @@ class ChannelWorkspacePreview {
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.meetings,
           availability: ChannelWorkspaceSurfaceAvailability.gated,
-          providerContractId: 'livekit-meetings-channel-preview',
+          providerContractId: 'livekit-meetings-channel-gate',
           contextId: contextId,
         ),
       ],

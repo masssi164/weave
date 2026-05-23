@@ -2,7 +2,11 @@ enum AgentCapability { personalAssistant, channelAgent }
 
 enum AgentCapabilityEnablement { disabled, enabled }
 
-enum AgentCapabilityAvailability { previewOnly, adminSetupRequired, blocked }
+enum AgentCapabilityAvailability {
+  adminSetupRequired,
+  disabledByPolicy,
+  blocked,
+}
 
 class AgentCapabilityPolicy {
   const AgentCapabilityPolicy({
@@ -11,14 +15,16 @@ class AgentCapabilityPolicy {
     this.isFailClosed = false,
   });
 
-  factory AgentCapabilityPolicy.preview({required bool canManageCapabilities}) {
+  factory AgentCapabilityPolicy.disabled({
+    required bool canManageCapabilities,
+  }) {
     return AgentCapabilityPolicy(
       canManageCapabilities: canManageCapabilities,
       capabilities: const <AgentCapabilityState>[
         AgentCapabilityState(
           capability: AgentCapability.personalAssistant,
           enablement: AgentCapabilityEnablement.disabled,
-          availability: AgentCapabilityAvailability.previewOnly,
+          availability: AgentCapabilityAvailability.disabledByPolicy,
         ),
         AgentCapabilityState(
           capability: AgentCapability.channelAgent,

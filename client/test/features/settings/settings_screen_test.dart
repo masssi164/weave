@@ -276,7 +276,7 @@ void main() {
       expect(find.text('Personal assistant'), findsOneWidget);
       expect(find.text('Channel agent'), findsOneWidget);
       expect(
-        find.text('Management unavailable in this preview'),
+        find.text('Management unavailable until controls are ready'),
         findsOneWidget,
       );
 
@@ -390,6 +390,82 @@ void main() {
       expect(find.text('Server Configuration'), findsNothing);
       expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
       expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
+      expect(find.text('Provider stack readiness'), findsNothing);
+      expect(find.textContaining('Flutter provider calls'), findsNothing);
+    });
+
+    testWidgets('keeps provider diagnostics admin-only for members', (
+      tester,
+    ) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          preferencesStoreProvider.overrideWith(
+            (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+          ),
+          chatSecurityRepositoryProvider.overrideWithValue(
+            FakeChatSecurityRepository(),
+          ),
+          workspaceConnectionStateProvider.overrideWithValue(
+            _workspaceConnectionState(),
+          ),
+          workspaceCapabilitySnapshotProvider.overrideWithValue(
+            _workspaceCapabilitySnapshot(),
+          ),
+          weaveBackendConnectionStateProvider.overrideWithValue(
+            WeaveBackendConnectionState.connected,
+          ),
+          weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+            (ref) async => _matrixDiagnostic,
+          ),
+          weaveApiProviderStackSnapshotProvider.overrideWith(
+            (ref) async => const ProviderStackSnapshot(
+              releaseStatus: 'provider-readiness',
+              backendOwnedFacades: true,
+              flutterDirectProviderCallsAllowed: false,
+              supportSafe: true,
+              providers: [
+                ProviderStatusSnapshot(
+                  module: 'files',
+                  providerKey: 'nextcloud-files',
+                  state: ProviderState.ready,
+                  readiness: 'ready',
+                  enabled: true,
+                  configured: true,
+                  readOnly: false,
+                  failClosed: false,
+                  supportSafe: true,
+                  paidFeaturesRequired: false,
+                  summary: 'Operator-only provider readiness.',
+                  supportedCapabilities: [],
+                  unsupportedOperations: [],
+                  supportSafeErrorCodes: [],
+                  redactionPolicy: 'support-safe',
+                  candidates: [],
+                ),
+              ],
+            ),
+          ),
+          userProfileProvider.overrideWith((ref) async => _memberProfile),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: SettingsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Workspace Readiness'), findsOneWidget);
+      expect(find.text('Provider stack readiness'), findsNothing);
+      expect(find.textContaining('nextcloud-files'), findsNothing);
+      expect(find.textContaining('Flutter provider calls'), findsNothing);
     });
 
     testWidgets('preserves overridden service URLs when the issuer changes', (

@@ -225,10 +225,10 @@ String _availabilityLabel(
   AgentCapabilityAvailability availability,
 ) {
   return switch (availability) {
-    AgentCapabilityAvailability.previewOnly =>
-      l10n.agentCapabilityAvailabilityPreviewOnly,
     AgentCapabilityAvailability.adminSetupRequired =>
       l10n.agentCapabilityAvailabilityAdminSetupRequired,
+    AgentCapabilityAvailability.disabledByPolicy =>
+      l10n.agentCapabilityAvailabilityDisabledByPolicy,
     AgentCapabilityAvailability.blocked =>
       l10n.agentCapabilityAvailabilityBlocked,
   };
@@ -243,9 +243,9 @@ IconData _capabilityIcon(AgentCapability capability) {
 
 IconData _availabilityIcon(AgentCapabilityAvailability availability) {
   return switch (availability) {
-    AgentCapabilityAvailability.previewOnly => Icons.visibility_outlined,
     AgentCapabilityAvailability.adminSetupRequired =>
       Icons.admin_panel_settings,
+    AgentCapabilityAvailability.disabledByPolicy => Icons.policy_outlined,
     AgentCapabilityAvailability.blocked => Icons.block,
   };
 }

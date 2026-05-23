@@ -7,13 +7,13 @@ import 'package:weave/features/chat/presentation/providers/agent_chat_preview_pr
 
 void main() {
   test(
-    'agent chat previews remain gated before consent/audit runtime exists',
+    'agent chat entries remain disabled before consent/audit runtime exists',
     () {
       final container = ProviderContainer.test(
         overrides: [
           agentCapabilityPolicyProvider.overrideWithValue(
             AsyncData(
-              AgentCapabilityPolicy.preview(canManageCapabilities: true),
+              AgentCapabilityPolicy.disabled(canManageCapabilities: true),
             ),
           ),
         ],
@@ -34,12 +34,12 @@ void main() {
         previews.every((preview) => preview.canStart == false),
         isTrue,
         reason:
-            'The first agent surface is preview-only until backend policy, consent, and audit gates are connected.',
+            'The first agent surface is disabled until backend policy, consent, and audit gates are connected.',
       );
       expect(
         previews.map((preview) => preview.availability),
         containsAll(<AgentChatAvailability>{
-          AgentChatAvailability.previewOnly,
+          AgentChatAvailability.disabledByPolicy,
           AgentChatAvailability.adminSetupRequired,
         }),
       );

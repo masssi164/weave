@@ -34,10 +34,10 @@ AgentChatPreviewCapability _previewFor(AgentCapabilityState state) {
       AgentCapability.channelAgent => AgentChatPreviewKind.channelAgent,
     },
     availability: switch (state.availability) {
-      AgentCapabilityAvailability.previewOnly =>
-        AgentChatAvailability.previewOnly,
       AgentCapabilityAvailability.adminSetupRequired =>
         AgentChatAvailability.adminSetupRequired,
+      AgentCapabilityAvailability.disabledByPolicy =>
+        AgentChatAvailability.disabledByPolicy,
       AgentCapabilityAvailability.blocked => AgentChatAvailability.blocked,
     },
     canStart: state.canStart,
