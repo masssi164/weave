@@ -25,18 +25,94 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setupTitle => 'Setup';
 
   @override
-  String get setupProviderStepTitle => 'Connect Your Server';
+  String get setupProviderStepTitle => 'Configure provider categories';
 
   @override
   String get setupProviderStepDescription =>
-      'Choose your OIDC provider and enter the issuer URL for your self-hosted setup.';
+      'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.';
 
   @override
   String get setupServicesStepTitle => 'Review Service Endpoints';
 
   @override
   String get setupServicesStepDescription =>
-      'Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.';
+      'Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.';
+
+  @override
+  String get providerCategorySummaryTitle => 'Provider categories';
+
+  @override
+  String get providerCategorySummaryDescription =>
+      'Weave tracks collaboration categories first. Provider names below are current dogfood choices for admins/operators, not member-facing product names.';
+
+  @override
+  String get providerCategorySummarySemanticLabel =>
+      'Provider categories. Current dogfood provider choices are shown only for setup and workspace health.';
+
+  @override
+  String get providerCategoryStatusCurrentDefault => 'Current dogfood choice';
+
+  @override
+  String get providerCategoryStatusAdminSetupRequired => 'Admin setup required';
+
+  @override
+  String get providerCategoryStatusDisabledByDefault => 'Disabled by default';
+
+  @override
+  String get providerCategoryIdentityTitle => 'Identity/IDM';
+
+  @override
+  String get providerCategoryIdentityDetail =>
+      'Keycloak/Auth is the current dogfood choice; Entra ID, Authentik, or another OIDC/SAML source can map to this category.';
+
+  @override
+  String get providerCategoryChatTitle => 'Chat';
+
+  @override
+  String get providerCategoryChatDetail =>
+      'Matrix/Chat is the current dogfood choice behind the Weave chat surface.';
+
+  @override
+  String get providerCategoryFilesTitle => 'Files';
+
+  @override
+  String get providerCategoryFilesDetail =>
+      'Nextcloud/Files is the current dogfood storage choice behind the Weave files facade.';
+
+  @override
+  String get providerCategoryCalendarTitle => 'Calendar';
+
+  @override
+  String get providerCategoryCalendarDetail =>
+      'Nextcloud/Calendar backing is the current dogfood choice behind the Weave calendar facade.';
+
+  @override
+  String get providerCategoryBoardsTitle => 'Boards/tasks';
+
+  @override
+  String get providerCategoryBoardsDetail =>
+      'OpenProject Boards validation is the current provider-backed path; member task writes stay gated by authorization, audit, and rollback evidence.';
+
+  @override
+  String get providerCategoryMeetingsTitle => 'Meetings/calls';
+
+  @override
+  String get providerCategoryMeetingsDetail =>
+      'LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.';
+
+  @override
+  String get providerCategoryDocumentsTitle => 'Documents/collaboration';
+
+  @override
+  String get providerCategoryDocumentsDetail =>
+      'Document collaboration is a provider adapter category and stays admin setup required until a backend-owned launch path is configured.';
+
+  @override
+  String get providerCategoryWeaverTitle => 'Weaver';
+
+  @override
+  String get providerCategoryWeaverDetail =>
+      'Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.';
 
   @override
   String get setupLanguageStepTitle => 'Your Language';

@@ -5,10 +5,98 @@
   "welcomeSubtitle": "Dein einheitlicher Kollaborations-Hub — Nachrichten, Dateien und Kalender an einem Ort.",
   "continueButton": "Los geht's",
   "setupTitle": "Einrichtung",
-  "setupProviderStepTitle": "Server verbinden",
-  "setupProviderStepDescription": "Wähle deinen OIDC-Anbieter und gib die Issuer-URL deiner selbst gehosteten Umgebung ein.",
+  "setupProviderStepTitle": "Provider-Kategorien konfigurieren",
+  "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.",
   "setupServicesStepTitle": "Dienstendpunkte prüfen",
-  "setupServicesStepDescription": "Weave leitet Matrix-, Nextcloud- und Backend-API-URLs aus dem Issuer-Host ab. Prüfe und ändere sie bei Bedarf vor dem Abschluss.",
+  "setupServicesStepDescription": "Prüfe die aktuellen Dogfood-Service-Endpunkte, die aus dem Identitäts-Issuer abgeleitet wurden. Diese Provider-URLs bleiben Admin-/Operator-Konfiguration, nicht normale Mitglieder-Einrichtung.",
+  "providerCategorySummaryTitle": "Provider-Kategorien",
+  "@providerCategorySummaryTitle": {
+    "description": "Titel der Provider-Kategorien-Zusammenfassung für Admins in Einrichtung und Workspace Health"
+  },
+  "providerCategorySummaryDescription": "Weave betrachtet zuerst Zusammenarbeits-Kategorien. Die Provider-Namen unten sind aktuelle Dogfood-Auswahlen für Admins/Operatoren, keine mitgliederseitigen Produktnamen.",
+  "@providerCategorySummaryDescription": {
+    "description": "Beschreibung der Provider-Kategorien und Dogfood-Standards"
+  },
+  "providerCategorySummarySemanticLabel": "Provider-Kategorien. Aktuelle Dogfood-Provider-Auswahlen werden nur für Einrichtung und Workspace Health gezeigt.",
+  "@providerCategorySummarySemanticLabel": {
+    "description": "Barrierefreiheitslabel für die Provider-Kategorien-Zusammenfassung"
+  },
+  "providerCategoryStatusCurrentDefault": "Aktuelle Dogfood-Auswahl",
+  "@providerCategoryStatusCurrentDefault": {
+    "description": "Status-Pille für eine Provider-Kategorie mit aktueller Dogfood-Auswahl"
+  },
+  "providerCategoryStatusAdminSetupRequired": "Admin-Einrichtung erforderlich",
+  "@providerCategoryStatusAdminSetupRequired": {
+    "description": "Status-Pille für eine Provider-Kategorie, die vor Mitgliedernutzung Admin-Einrichtung benötigt"
+  },
+  "providerCategoryStatusDisabledByDefault": "Standardmäßig deaktiviert",
+  "@providerCategoryStatusDisabledByDefault": {
+    "description": "Status-Pille für eine standardmäßig deaktivierte Provider-Kategorie"
+  },
+  "providerCategoryIdentityTitle": "Identität/IDM",
+  "@providerCategoryIdentityTitle": {
+    "description": "Provider-Kategorietitel für Identität und IDM"
+  },
+  "providerCategoryIdentityDetail": "Keycloak/Auth ist die aktuelle Dogfood-Auswahl; Entra ID, Authentik oder eine andere OIDC/SAML-Quelle kann auf diese Kategorie abgebildet werden.",
+  "@providerCategoryIdentityDetail": {
+    "description": "Provider-Kategoriedetail für Identität und IDM"
+  },
+  "providerCategoryChatTitle": "Chat",
+  "@providerCategoryChatTitle": {
+    "description": "Provider-Kategorietitel für Chat"
+  },
+  "providerCategoryChatDetail": "Matrix/Chat ist die aktuelle Dogfood-Auswahl hinter der Weave-Chat-Oberfläche.",
+  "@providerCategoryChatDetail": {
+    "description": "Provider-Kategoriedetail für Chat"
+  },
+  "providerCategoryFilesTitle": "Dateien",
+  "@providerCategoryFilesTitle": {
+    "description": "Provider-Kategorietitel für Dateien"
+  },
+  "providerCategoryFilesDetail": "Nextcloud/Files ist die aktuelle Dogfood-Speicherauswahl hinter der Weave-Datei-Fassade.",
+  "@providerCategoryFilesDetail": {
+    "description": "Provider-Kategoriedetail für Dateien"
+  },
+  "providerCategoryCalendarTitle": "Kalender",
+  "@providerCategoryCalendarTitle": {
+    "description": "Provider-Kategorietitel für Kalender"
+  },
+  "providerCategoryCalendarDetail": "Nextcloud/Calendar-Anbindung ist die aktuelle Dogfood-Auswahl hinter der Weave-Kalender-Fassade.",
+  "@providerCategoryCalendarDetail": {
+    "description": "Provider-Kategoriedetail für Kalender"
+  },
+  "providerCategoryBoardsTitle": "Boards/Aufgaben",
+  "@providerCategoryBoardsTitle": {
+    "description": "Provider-Kategorietitel für Boards und Aufgaben"
+  },
+  "providerCategoryBoardsDetail": "OpenProject-Boards-Validierung ist der aktuelle providergestützte Pfad; Aufgabenänderungen durch Mitglieder bleiben durch Autorisierung, Audit und Rollback-Evidenz begrenzt.",
+  "@providerCategoryBoardsDetail": {
+    "description": "Provider-Kategoriedetail für Boards und Aufgaben"
+  },
+  "providerCategoryMeetingsTitle": "Besprechungen/Anrufe",
+  "@providerCategoryMeetingsTitle": {
+    "description": "Provider-Kategorietitel für Besprechungen und Anrufe"
+  },
+  "providerCategoryMeetingsDetail": "LiveKit-Meetings-Bereitschaft wird hinter der Token-Fassade verfolgt, bevor Mitglieder Anrufe starten oder beitreten können.",
+  "@providerCategoryMeetingsDetail": {
+    "description": "Provider-Kategoriedetail für Besprechungen und Anrufe"
+  },
+  "providerCategoryDocumentsTitle": "Dokumente/Zusammenarbeit",
+  "@providerCategoryDocumentsTitle": {
+    "description": "Provider-Kategorietitel für Dokumente und Zusammenarbeit"
+  },
+  "providerCategoryDocumentsDetail": "Dokument-Zusammenarbeit ist eine Provider-Adapter-Kategorie und bleibt Admin-Einrichtung erforderlich, bis ein backend-eigener Startpfad konfiguriert ist.",
+  "@providerCategoryDocumentsDetail": {
+    "description": "Provider-Kategoriedetail für Dokumente und Zusammenarbeit"
+  },
+  "providerCategoryWeaverTitle": "Weaver",
+  "@providerCategoryWeaverTitle": {
+    "description": "Provider-Kategorietitel für Weaver"
+  },
+  "providerCategoryWeaverDetail": "Weaver bleibt standardmäßig deaktiviert, bis regulierte persönliche PA-Richtlinie, Whitelisting, Einwilligung und Audit akzeptiert sind.",
+  "@providerCategoryWeaverDetail": {
+    "description": "Provider-Kategoriedetail für Weaver"
+  },
   "setupLanguageStepTitle": "Deine Sprache",
   "setupLanguageStepDescription": "Weave verwendet deine Gerätesprache. Du kannst sie später in den Einstellungen ändern.",
   "setupConfirmStepTitle": "Alles bereit",

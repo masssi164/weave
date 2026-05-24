@@ -20,11 +20,11 @@
   "@setupTitle": {
     "description": "Title for the setup flow screen"
   },
-  "setupProviderStepTitle": "Connect Your Server",
+  "setupProviderStepTitle": "Configure provider categories",
   "@setupProviderStepTitle": {
     "description": "Title for the setup provider and issuer step"
   },
-  "setupProviderStepDescription": "Choose your OIDC provider and enter the issuer URL for your self-hosted setup.",
+  "setupProviderStepDescription": "Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.",
   "@setupProviderStepDescription": {
     "description": "Description shown in the setup provider step"
   },
@@ -32,9 +32,97 @@
   "@setupServicesStepTitle": {
     "description": "Title for the setup services step"
   },
-  "setupServicesStepDescription": "Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.",
+  "setupServicesStepDescription": "Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.",
   "@setupServicesStepDescription": {
     "description": "Description shown in the setup services step"
+  },
+  "providerCategorySummaryTitle": "Provider categories",
+  "@providerCategorySummaryTitle": {
+    "description": "Title for the provider category summary shown to admins during setup and workspace health"
+  },
+  "providerCategorySummaryDescription": "Weave tracks collaboration categories first. Provider names below are current dogfood choices for admins/operators, not member-facing product names.",
+  "@providerCategorySummaryDescription": {
+    "description": "Description explaining provider categories and dogfood defaults"
+  },
+  "providerCategorySummarySemanticLabel": "Provider categories. Current dogfood provider choices are shown only for setup and workspace health.",
+  "@providerCategorySummarySemanticLabel": {
+    "description": "Accessibility label for the provider category summary"
+  },
+  "providerCategoryStatusCurrentDefault": "Current dogfood choice",
+  "@providerCategoryStatusCurrentDefault": {
+    "description": "Status pill for a provider category using the current dogfood provider choice"
+  },
+  "providerCategoryStatusAdminSetupRequired": "Admin setup required",
+  "@providerCategoryStatusAdminSetupRequired": {
+    "description": "Status pill for a provider category that requires admin setup before member use"
+  },
+  "providerCategoryStatusDisabledByDefault": "Disabled by default",
+  "@providerCategoryStatusDisabledByDefault": {
+    "description": "Status pill for a provider category disabled by default"
+  },
+  "providerCategoryIdentityTitle": "Identity/IDM",
+  "@providerCategoryIdentityTitle": {
+    "description": "Provider category title for identity and IDM"
+  },
+  "providerCategoryIdentityDetail": "Keycloak/Auth is the current dogfood choice; Entra ID, Authentik, or another OIDC/SAML source can map to this category.",
+  "@providerCategoryIdentityDetail": {
+    "description": "Provider category detail for identity and IDM"
+  },
+  "providerCategoryChatTitle": "Chat",
+  "@providerCategoryChatTitle": {
+    "description": "Provider category title for chat"
+  },
+  "providerCategoryChatDetail": "Matrix/Chat is the current dogfood choice behind the Weave chat surface.",
+  "@providerCategoryChatDetail": {
+    "description": "Provider category detail for chat"
+  },
+  "providerCategoryFilesTitle": "Files",
+  "@providerCategoryFilesTitle": {
+    "description": "Provider category title for files"
+  },
+  "providerCategoryFilesDetail": "Nextcloud/Files is the current dogfood storage choice behind the Weave files facade.",
+  "@providerCategoryFilesDetail": {
+    "description": "Provider category detail for files"
+  },
+  "providerCategoryCalendarTitle": "Calendar",
+  "@providerCategoryCalendarTitle": {
+    "description": "Provider category title for calendar"
+  },
+  "providerCategoryCalendarDetail": "Nextcloud/Calendar backing is the current dogfood choice behind the Weave calendar facade.",
+  "@providerCategoryCalendarDetail": {
+    "description": "Provider category detail for calendar"
+  },
+  "providerCategoryBoardsTitle": "Boards/tasks",
+  "@providerCategoryBoardsTitle": {
+    "description": "Provider category title for boards and tasks"
+  },
+  "providerCategoryBoardsDetail": "OpenProject Boards validation is the current provider-backed path; member task writes stay gated by authorization, audit, and rollback evidence.",
+  "@providerCategoryBoardsDetail": {
+    "description": "Provider category detail for boards and tasks"
+  },
+  "providerCategoryMeetingsTitle": "Meetings/calls",
+  "@providerCategoryMeetingsTitle": {
+    "description": "Provider category title for meetings and calls"
+  },
+  "providerCategoryMeetingsDetail": "LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.",
+  "@providerCategoryMeetingsDetail": {
+    "description": "Provider category detail for meetings and calls"
+  },
+  "providerCategoryDocumentsTitle": "Documents/collaboration",
+  "@providerCategoryDocumentsTitle": {
+    "description": "Provider category title for documents and collaboration"
+  },
+  "providerCategoryDocumentsDetail": "Document collaboration is a provider adapter category and stays admin setup required until a backend-owned launch path is configured.",
+  "@providerCategoryDocumentsDetail": {
+    "description": "Provider category detail for documents and collaboration"
+  },
+  "providerCategoryWeaverTitle": "Weaver",
+  "@providerCategoryWeaverTitle": {
+    "description": "Provider category title for Weaver"
+  },
+  "providerCategoryWeaverDetail": "Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.",
+  "@providerCategoryWeaverDetail": {
+    "description": "Provider category detail for Weaver"
   },
   "setupLanguageStepTitle": "Your Language",
   "@setupLanguageStepTitle": {

@@ -172,6 +172,25 @@
             "Weaver is represented only as a disabled-by-default category",
             "never raw provider setup, service endpoints, provider secrets, or diagnostics"
           ]
+        },
+        {
+          "path": "client/test/features/onboarding/setup_flow_test.dart",
+          "fragments": [
+            "Configure provider categories",
+            "Provider categories",
+            "Documents/collaboration",
+            "Weaver"
+          ]
+        },
+        {
+          "path": "client/test/features/settings/settings_screen_test.dart",
+          "fragments": [
+            "Provider categories",
+            "Keycloak/Auth",
+            "Matrix/Chat",
+            "Disabled by default",
+            "hides OIDC and service endpoint setup from members"
+          ]
         }
       ]
     },

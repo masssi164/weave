@@ -33,6 +33,7 @@ import 'package:weave/features/profile/presentation/widgets/profile_summary_card
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/presentation/providers/'
     'server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/widgets/provider_category_summary.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/features/shell/domain/entities/shell_module.dart';
 import 'package:weave/features/shell/presentation/providers/shell_module_preferences_provider.dart';
@@ -196,6 +197,8 @@ class _AdminSetupConfigurationCard extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             _AdminPermissionSummary(profile: profile),
+            const SizedBox(height: 16),
+            const ProviderCategorySummary(compact: true),
             const SizedBox(height: 24),
             Text(
               l10n.settingsServerConfigurationTitle,
