@@ -1,11 +1,13 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.model.OrganizationManifestResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
+import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
@@ -31,16 +33,38 @@ public class WorkspaceController {
     private final WorkspaceReleaseReadinessService workspaceReleaseReadinessService;
     private final WorkspaceHomeService workspaceHomeService;
     private final WeaverRuntimeService weaverRuntimeService;
+    private final OrganizationManifestService organizationManifestService;
 
     public WorkspaceController(
             WorkspaceCapabilityService workspaceCapabilityService,
             WorkspaceReleaseReadinessService workspaceReleaseReadinessService,
             WorkspaceHomeService workspaceHomeService,
-            WeaverRuntimeService weaverRuntimeService) {
+            WeaverRuntimeService weaverRuntimeService,
+            OrganizationManifestService organizationManifestService) {
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.workspaceReleaseReadinessService = workspaceReleaseReadinessService;
         this.workspaceHomeService = workspaceHomeService;
         this.weaverRuntimeService = weaverRuntimeService;
+        this.organizationManifestService = organizationManifestService;
+    }
+
+    @GetMapping({"/api/organization/manifest", "/api/v1/organization/manifest"})
+    @Operation(
+            summary = "Get authenticated organization manifest",
+            description = "Returns the support-safe org manifest consumed by Weave Client after org URL discovery and SSO. Provider setup, endpoint rotation, diagnostics, policy authoring, and whitelisting remain owned by the Organization/Admin Console.",
+            security = @SecurityRequirement(name = "bearer-jwt"))
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Support-safe organization manifest for the authenticated member client.",
+                    content = @Content(schema = @Schema(implementation = OrganizationManifestResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public OrganizationManifestResponse organizationManifest(@AuthenticationPrincipal Jwt jwt) {
+        return organizationManifestService.manifestFor(jwt);
     }
 
     @GetMapping({"/api/workspace/capabilities", "/api/v1/workspace/capabilities"})

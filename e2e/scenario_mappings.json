@@ -195,6 +195,51 @@
       ]
     },
     {
+      "tag": "@weave-v01-org-manifest-client-admin-split",
+      "scenario": "Organization manifest keeps member client separate from admin console",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/WorkspaceControllerTest.java",
+      "evidenceMarkers": [
+        "V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "client/test/integrations/weave_api/data/services/weave_api_client_test.dart",
+          "fragments": [
+            "fetches org manifest for member client without admin console leakage",
+            "fetchOrganizationManifest",
+            "safeForMemberClient",
+            "whitelistingOwnedByAdminConsole",
+            "MemberCapabilityState.policyBlocked"
+          ]
+        },
+        {
+          "path": "docs/product-line-and-weaver-plan.md",
+          "fragments": [
+            "Weave Client and Organization/Admin Console split",
+            "The Weave Client owns member work surfaces",
+            "The Organization/Admin Console owns organization bootstrap, provider choice, policy, readiness, diagnostics, and whitelisting"
+          ]
+        },
+        {
+          "path": "docs/architecture.md",
+          "fragments": [
+            "Organization discovery and manifest contract",
+            "provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities",
+            "ready, disabled, degraded, or policy-blocked"
+          ]
+        },
+        {
+          "path": "docs/admin-provisioned-first-use.md",
+          "fragments": [
+            "Client/Admin Console split",
+            "Members enter or open only an organization auth URL, invite link, or deep link",
+            "Whitelisting belongs to the Admin Console"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-admin-health-policy-enforcement",
       "scenario": "Admin health enforces provider readiness and member policy boundaries",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
@@ -207,7 +252,15 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
           "fragments": [
             "providerStatusReportsAllFacadeSeamsWithoutSecrets",
-            "identity-idm", "policy_blocked", "misconfigured", "documents-collaboration", "microsoft-teams", "sharepoint", "recommended_self_hosted_default", "managed_cloud_provider", "secretsReturned"
+            "identity-idm",
+            "policy_blocked",
+            "misconfigured",
+            "documents-collaboration",
+            "microsoft-teams",
+            "sharepoint",
+            "recommended_self_hosted_default",
+            "managed_cloud_provider",
+            "secretsReturned"
           ]
         },
         {

@@ -33,6 +33,7 @@ void main() {
         'Weave Home starts the daily work loop',
         'A normal member sees a user-ready organization flow',
         'Admin sees provider categories before member use',
+        'Organization manifest keeps member client separate from admin console',
         'Admin health enforces provider readiness and member policy boundaries',
         'IDM roles and groups decide capability profiles before Weaver runtime',
         'Weaver runtime profiles are generated from organization policy',

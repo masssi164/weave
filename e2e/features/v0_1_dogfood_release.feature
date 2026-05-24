@@ -28,6 +28,14 @@ Feature: Weave v0.1 dogfood production release
     And Weaver is disabled by default until admin policy explicitly enables it
     And normal members never configure raw providers, service endpoints, provider secrets, or diagnostics
 
+  @weave-v01-org-manifest-client-admin-split
+  Scenario: Organization manifest keeps member client separate from admin console
+    Given an organization has chosen identity, provider categories, capability profiles, and whitelists in the Admin Console
+    When a member opens Weave with an organization auth URL, invite link, or deep link and completes SSO
+    Then the Weave Client receives a support-safe organization manifest and effective capability states
+    And member-visible states are only ready, disabled, degraded, or policy-blocked
+    And provider setup, endpoint rotation, readiness diagnostics, secrets, and provider/tool/agent whitelisting stay in the Admin Console
+
   @weave-v01-admin-health-policy-enforcement
   Scenario: Admin health enforces provider readiness and member policy boundaries
     Given an owner or admin opens Workspace Health after selecting provider categories

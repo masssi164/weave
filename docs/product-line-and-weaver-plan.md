@@ -39,6 +39,14 @@ The admin portal owns:
 
 Normal members do not configure raw providers.
 
+### Weave Client and Organization/Admin Console split
+
+The Weave Client owns member work surfaces: authenticated home, channels, chat, files, calendar, boards/tasks, meetings, decisions, profile, and personal settings. Its setup boundary is intentionally narrow: a member enters or opens an organization auth URL, invite link, or deep link, completes SSO, consumes the authenticated organization manifest, and renders only effective capability states. The client may show member-visible states `ready`, `disabled`, `degraded`, or `policy-blocked`; it must not manage raw provider URLs, secrets, endpoint rotation, provider setup, support diagnostics, policy authoring, or whitelist configuration.
+
+The Organization/Admin Console owns organization bootstrap, provider choice, policy, readiness, diagnostics, and whitelisting. It manages organization creation, users/groups/roles or IDM sync, Keycloak/Entra/Authentik/Auth0/OIDC/SAML/SCIM/LDAP-adapter setup, category provider selection, endpoint URL management and rotation, support-safe health diagnostics, capability/RBAC profiles, deny-by-default policy, provider/tool/agent allowlists, external-provider privacy/compliance/risk notes, audit logs, and org-wide defaults.
+
+The handoff contract is: org auth URL or invite/deep link -> SSO -> support-safe organization manifest -> member capability states. Provider/category/admin management must not be pressed into the member client.
+
 ### 2. Provider-neutral Weave suite
 
 Weave models collaboration categories, not vendor products.

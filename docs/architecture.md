@@ -21,6 +21,14 @@ This means a mixed deployment such as Keycloak identity, Teams chat, SharePoint/
 
 Design evidence for these seams comes from established interoperability contracts: OpenID Connect describes interoperable authentication on OAuth 2.0; SCIM RFC 7644 standardizes HTTP-based identity management for users/groups; WebDAV RFC 4918 and CalDAV RFC 4791 cover distributed file authoring and calendar access patterns; OASIS CMIS defines a generic content repository model; Microsoft documents Microsoft 365 for the web integration for viewing/editing Office files in the browser. These standards inform adapter boundaries only; each adapter still needs its own risk and license review.
 
+## Organization discovery and manifest contract
+
+The member setup path is intentionally small: a person opens an invite/deep link or enters an organization auth URL, completes SSO, and then the Weave Client fetches `/api/v1/organization/manifest` with the authenticated Weave token. The manifest is the client handoff from organization discovery/auth to member work state.
+
+The manifest may contain the organization display name, the organization auth URL, client-owned responsibilities, Admin Console-owned responsibilities, and effective member capability states. Those states are limited to `ready`, `disabled`, `degraded`, or `policy-blocked` and are derived from backend capability policy/readiness. In plain contract language: ready, disabled, degraded, or policy-blocked. The manifest must be support-safe: provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities and must not appear as raw provider URLs, secrets, raw downstream errors, or admin-only diagnostics.
+
+The Organization/Admin Console remains the control plane for organization bootstrap, identity-provider configuration, category provider selection, endpoint URL management and rotation, readiness/health, support-safe diagnostics, RBAC/capability profiles, deny-by-default policy, provider/tool/agent whitelisting, risk notes, audit logs, and org-wide defaults. The Weave Client only consumes the resulting manifest/capabilities and renders authenticated member work surfaces.
+
 ## App startup
 The app now resolves bootstrap before `MaterialApp.router` is built.
 

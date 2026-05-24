@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
@@ -28,6 +29,80 @@ http.StreamedResponse _jsonResponse(
     statusCode,
     headers: {'content-type': 'application/json'},
   );
+}
+
+Map<String, Object?> _organizationManifestJson({
+  String organizationAuthUrl = 'https://auth.weave.local/realms/weave',
+  bool supportSafe = true,
+  bool providerConfigurationExposed = false,
+  bool diagnosticsExposed = false,
+}) {
+  return {
+    'manifestVersion': 'org-manifest-v1',
+    'organizationId': 'weave-dogfood',
+    'displayName': 'Weave Dogfood',
+    'organizationAuthUrl': organizationAuthUrl,
+    'generatedAt': '2026-05-24T12:00:00Z',
+    'supportSafe': supportSafe,
+    'providerConfigurationExposed': providerConfigurationExposed,
+    'diagnosticsExposed': diagnosticsExposed,
+    'whitelistingOwner': 'organization-admin-console',
+    'clientResponsibilities': [
+      'accept organization auth URL, invite link, or deep link',
+      'complete SSO with the selected identity provider',
+      'consume effective organization manifest and capability states',
+      'render only ready, disabled, degraded, or policy-blocked member states',
+    ],
+    'adminConsoleResponsibilities': [
+      'create and bootstrap organizations',
+      'select and configure identity providers and category providers',
+      'manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics',
+      'manage users, groups, roles, capability profiles, and deny-by-default policy',
+      'own provider, tool, and agent whitelisting plus privacy/compliance risk notes',
+      'audit organization-wide defaults and administrative changes',
+    ],
+    'memberCapabilityStates': {
+      'identity-idm': 'ready',
+      'chat': 'ready',
+      'files': 'ready',
+      'calendar': 'degraded',
+      'boards-tasks': 'policy-blocked',
+      'weaver': 'disabled',
+    },
+    'capabilities': {
+      'shellAccess': {
+        'enabled': true,
+        'readiness': 'ready',
+        'policyState': 'allowed',
+      },
+      'chat': {
+        'enabled': true,
+        'readiness': 'ready',
+        'policyState': 'allowed',
+        'grantedCapabilities': ['chat.read', 'chat.send'],
+      },
+      'files': {
+        'enabled': true,
+        'readiness': 'ready',
+        'policyState': 'allowed',
+      },
+      'calendar': {
+        'enabled': true,
+        'readiness': 'degraded',
+        'policyState': 'allowed',
+      },
+      'boards': {
+        'enabled': true,
+        'readiness': 'blocked',
+        'policyState': 'policy_blocked',
+      },
+      'weaver': {
+        'enabled': false,
+        'readiness': 'unavailable',
+        'policyState': 'disabled',
+      },
+    },
+  };
 }
 
 void main() {
@@ -68,6 +143,108 @@ void main() {
         WorkspaceCapabilityReadiness.unavailable,
       );
     });
+
+    test(
+      'fetches org manifest for member client without admin console leakage',
+      () async {
+        // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
+        late http.BaseRequest capturedRequest;
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            capturedRequest = request;
+            return _jsonResponse(_organizationManifestJson());
+          }),
+        );
+
+        final snapshot = await client.fetchOrganizationManifest(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(
+          capturedRequest.url.toString(),
+          'https://api.weave.local/api/v1/organization/manifest',
+        );
+        expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+        expect(snapshot.safeForMemberClient, isTrue);
+        expect(snapshot.whitelistingOwnedByAdminConsole, isTrue);
+        expect(
+          snapshot.clientResponsibilities,
+          contains(
+            'consume effective organization manifest and capability states',
+          ),
+        );
+        expect(
+          snapshot.adminConsoleResponsibilities,
+          contains(
+            'own provider, tool, and agent whitelisting plus privacy/compliance risk notes',
+          ),
+        );
+        expect(
+          snapshot.memberCapabilityStates['calendar'],
+          MemberCapabilityState.degraded,
+        );
+        expect(
+          snapshot.memberCapabilityStates['boards-tasks'],
+          MemberCapabilityState.policyBlocked,
+        );
+        expect(snapshot.capabilities.chat.grants('chat.send'), isTrue);
+      },
+    );
+
+    test('rejects invalid organization auth URL in org manifest', () async {
+      final client = HttpWeaveApiClient(
+        httpClient: _RecordingHttpClient((request) async {
+          return _jsonResponse(
+            _organizationManifestJson(
+              organizationAuthUrl: 'configured-by-organization-admin',
+            ),
+          );
+        }),
+      );
+
+      expect(
+        () => client.fetchOrganizationManifest(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
+    test(
+      'rejects org manifests that expose provider setup or diagnostics',
+      () async {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse(
+              _organizationManifestJson(
+                supportSafe: false,
+                providerConfigurationExposed: true,
+                diagnosticsExposed: true,
+              )..addAll({
+                'providerUrls': [
+                  'https://matrix.weave.local',
+                  'https://files.weave.local',
+                ],
+                'diagnostics': {
+                  'matrix': 'matrix.weave.local',
+                  'files': 'files.weave.local',
+                },
+              }),
+            );
+          }),
+        );
+
+        expect(
+          () => client.fetchOrganizationManifest(
+            baseUrl: Uri.parse('https://api.weave.local/api'),
+            accessToken: 'token-123',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      },
+    );
 
     test('fetches Weave Home through backend facade', () async {
       late http.BaseRequest capturedRequest;
