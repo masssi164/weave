@@ -1,4 +1,4 @@
-.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve release-notes-check release-notes-label-check live-stack-help
+.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check live-stack-help
 
 ci: acceptance-contract client-ci server-ci infra-static admin-ci docs-check
 
@@ -6,14 +6,17 @@ ci: acceptance-contract client-ci server-ci infra-static admin-ci docs-check
 docs-build: release-notes-check
 	python3 -m mkdocs build --strict
 
-docs-check: release-notes-check
+docs-check: docs-structure-check release-notes-check
 	python3 -m mkdocs build --strict
 
 docs-serve:
 	python3 -m mkdocs serve
 
-release-notes-check:
+docs-structure-check:
 	python3 tools/docs_check.py
+
+release-notes-check:
+	python3 tools/docs_check.py --release-notes-only
 
 release-notes-label-check:
 	python3 tools/release_notes_label_check.py

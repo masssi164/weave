@@ -2,6 +2,7 @@ site_name: Weave Documentation
 site_description: Provider-neutral Weave product, operator, and developer documentation.
 repo_url: https://github.com/masssi164/weave
 repo_name: masssi164/weave
+edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: build/docs-site
 strict: true
