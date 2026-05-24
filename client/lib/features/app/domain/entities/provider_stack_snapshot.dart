@@ -8,6 +8,15 @@ enum ProviderState {
   unknown,
 }
 
+enum ProviderCategoryReadiness {
+  ready,
+  disabled,
+  degraded,
+  policyBlocked,
+  misconfigured,
+  unknown,
+}
+
 class ProviderStackSnapshot {
   const ProviderStackSnapshot({
     required this.releaseStatus,
@@ -15,6 +24,7 @@ class ProviderStackSnapshot {
     required this.flutterDirectProviderCallsAllowed,
     required this.supportSafe,
     required this.providers,
+    this.categories = const <ProviderCategoryStatusSnapshot>[],
     this.generatedAt,
   });
 
@@ -23,6 +33,7 @@ class ProviderStackSnapshot {
   final bool flutterDirectProviderCallsAllowed;
   final bool supportSafe;
   final DateTime? generatedAt;
+  final List<ProviderCategoryStatusSnapshot> categories;
   final List<ProviderStatusSnapshot> providers;
 
   bool get failClosed =>
@@ -35,6 +46,32 @@ class ProviderStackSnapshot {
             provider.state == ProviderState.notConfigured ||
             provider.state == ProviderState.unsupported),
   );
+}
+
+class ProviderCategoryStatusSnapshot {
+  const ProviderCategoryStatusSnapshot({
+    required this.category,
+    required this.label,
+    required this.readiness,
+    required this.policyState,
+    required this.memberImpact,
+    required this.modules,
+    required this.providerCandidates,
+    required this.diagnostics,
+  });
+
+  final String category;
+  final String label;
+  final ProviderCategoryReadiness readiness;
+  final String policyState;
+  final String memberImpact;
+  final List<String> modules;
+  final List<String> providerCandidates;
+  final Map<String, Object?> diagnostics;
+
+  bool get supportSafe =>
+      diagnostics['secretsReturned'] == false &&
+      diagnostics['rawProviderErrorsReturned'] == false;
 }
 
 class ProviderStatusSnapshot {

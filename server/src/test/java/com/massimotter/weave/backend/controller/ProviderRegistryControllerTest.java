@@ -7,8 +7,15 @@ import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.ProviderCoreConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
@@ -23,6 +30,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -53,11 +61,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class ProviderRegistryControllerTest {
 
+    // V01_ADMIN_HEALTH_POLICY_ENFORCEMENT
+
     @Autowired
     private MockMvc mockMvc;
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private WorkspaceCapabilityService workspaceCapabilityService;
+
+    @BeforeEach
+    void setUpWorkspaceCapabilitySnapshot() {
+        when(workspaceCapabilityService.snapshot()).thenReturn(new WorkspaceCapabilitiesResponse(
+                capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Weave SSO shell access is available."),
+                capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Chat is available through Weave."),
+                capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Files are available through Weave."),
+                capability(WorkspaceCapabilityReadiness.DEGRADED, WorkspaceCapabilityPolicyState.ALLOWED, "Calendar is degraded. Ask an admin to inspect Workspace Health."),
+                capability(WorkspaceCapabilityReadiness.BLOCKED, WorkspaceCapabilityPolicyState.POLICY_BLOCKED, "Boards/tasks are blocked by your role or group policy."),
+                capability(WorkspaceCapabilityReadiness.UNAVAILABLE, WorkspaceCapabilityPolicyState.DISABLED, "Weaver is disabled by workspace policy.")));
+    }
 
     @Test
     void providerStatusRequiresWorkspaceScope() throws Exception {
@@ -67,12 +91,28 @@ class ProviderRegistryControllerTest {
     }
 
     @Test
+    void providerStatusRejectsMembers() throws Exception {
+        mockMvc.perform(get("/api/providers/status").with(memberJwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void providerStatusReportsAllFacadeSeamsWithoutSecrets() throws Exception {
-        mockMvc.perform(get("/api/providers/status").with(workspaceJwt()))
+        mockMvc.perform(get("/api/providers/status").with(adminJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.backendOwnedFacades").value(true))
                 .andExpect(jsonPath("$.flutterDirectProviderCallsAllowed").value(false))
                 .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.categories[*].category", hasItems(
+                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "weaver")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].readiness", hasItems("ready")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'calendar')].readiness", hasItems("degraded")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].readiness", hasItems("policy_blocked")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'meetings-calls')].readiness", hasItems("misconfigured")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].readiness", hasItems("disabled")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].readiness", hasItems("disabled")))
+                .andExpect(jsonPath("$.categories[*].diagnostics.secretsReturned", hasItems(false)))
+                .andExpect(jsonPath("$.categories[*].diagnostics.rawProviderErrorsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.providers[*].module", hasItems(
                         "identity-realm", "matrix", "matrix-auth", "files", "office", "calendar", "contacts", "forms", "boards",
                         "meetings", "source-control", "ci", "issue-tracker", "release")))
@@ -101,10 +141,34 @@ class ProviderRegistryControllerTest {
                 .andExpect(content().string(not(containsString("Authorization: Bearer"))));
     }
 
-    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
+    private WorkspaceCapabilityStatusResponse capability(
+            WorkspaceCapabilityReadiness readiness,
+            WorkspaceCapabilityPolicyState policyState,
+            String impact) {
+        return new WorkspaceCapabilityStatusResponse(
+                policyState != WorkspaceCapabilityPolicyState.DISABLED,
+                readiness,
+                policyState,
+                "test-profile",
+                impact,
+                List.of("test.capability"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
+        return jwt().jwt(jwt -> jwt
+                        .subject("admin-123")
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("admin"))))
+                .authorities(
+                        new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                        new SimpleGrantedAuthority("ROLE_ADMIN"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
-                        .claim("aud", java.util.List.of("weave-app")))
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member"))))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

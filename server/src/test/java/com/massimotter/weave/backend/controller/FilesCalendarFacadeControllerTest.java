@@ -5,15 +5,21 @@ import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
+import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
 import com.massimotter.weave.backend.service.FilesFacadeService;
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
@@ -42,10 +48,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         FilesFacadeService.class,
-        CalendarFacadeService.class
+        CalendarFacadeService.class,
+        WorkspaceCapabilityService.class
+})
+@EnableConfigurationProperties({
+        WeaveSecurityProperties.class,
+        WeaverRuntimeProperties.class,
+        WorkspaceCapabilityProperties.class,
+        OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave"
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
+        "weave.security.client-id=weave-app",
+        "weave.security.required-audience=weave-app"
 })
 class FilesCalendarFacadeControllerTest {
 
@@ -181,6 +196,30 @@ class FilesCalendarFacadeControllerTest {
     }
 
     @Test
+    void calendarCreateIsDeniedByCapabilityPolicyBeforeProviderAccess() throws Exception {
+        String event = """
+                {
+                  "title": "Planning",
+                  "startsAt": "2026-04-26T10:00:00+02:00",
+                  "endsAt": "2026-04-26T11:00:00+02:00",
+                  "timezone": "Europe/Berlin"
+                }
+                """;
+
+        mockMvc.perform(post("/api/calendar/events")
+                        .with(memberJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(event))
+                .andExpect(status().isForbidden())
+                .andExpect(header().exists("X-Request-Id"))
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.module").value("calendar"))
+                .andExpect(jsonPath("$.details.operation").value("create-event"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("calendar.manage_events"))
+                .andExpect(jsonPath("$.details.policyState").value("policy_blocked"));
+    }
+
+    @Test
     void calendarFacadeFailsClosedWhenContextAuthorizationDeniesAccess() throws Exception {
         when(contextAuthorizationPort.check(any()))
                 .thenReturn(ContextAuthorizationDecision.deny("no matching context membership"));
@@ -288,7 +327,19 @@ class FilesCalendarFacadeControllerTest {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("aud", java.util.List.of("weave-app"))
-                        .claim("weave_tenant_id", "tenant-default"))
+                        .claim("weave_tenant_id", "tenant-default")
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                .claim("groups", java.util.List.of("weave-calendar-editors")))
+                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {
+        return jwt().jwt(jwt -> jwt
+                        .subject("user-123")
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("weave_tenant_id", "tenant-default")
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                        .claim("groups", java.util.List.of()))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

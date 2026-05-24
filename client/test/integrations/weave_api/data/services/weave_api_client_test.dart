@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
 
@@ -281,6 +282,38 @@ void main() {
               'backendOwnedFacades': true,
               'flutterDirectProviderCallsAllowed': false,
               'supportSafe': true,
+              'categories': [
+                {
+                  'category': 'identity-idm',
+                  'label': 'identity/IDM',
+                  'readiness': 'ready',
+                  'policyState': 'allowed',
+                  'memberImpact': 'Sign-in is available.',
+                  'modules': ['identity-realm', 'matrix-auth'],
+                  'providerCandidates': ['keycloak', 'oidc'],
+                  'diagnostics': {
+                    'providerCount': 2,
+                    'allSupportSafe': true,
+                    'secretsReturned': false,
+                    'rawProviderErrorsReturned': false,
+                  },
+                },
+                {
+                  'category': 'weaver',
+                  'label': 'Weaver',
+                  'readiness': 'policy_blocked',
+                  'policyState': 'policy_blocked',
+                  'memberImpact': 'Weaver is disabled by workspace policy.',
+                  'modules': [],
+                  'providerCandidates': [],
+                  'diagnostics': {
+                    'providerCount': 0,
+                    'allSupportSafe': true,
+                    'secretsReturned': false,
+                    'rawProviderErrorsReturned': false,
+                  },
+                },
+              ],
               'providers': [
                 {
                   'module': 'office',
@@ -344,6 +377,18 @@ void main() {
         );
         expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
         expect(snapshot.failClosed, isTrue);
+        expect(snapshot.categories, hasLength(2));
+        expect(snapshot.categories.first.category, 'identity-idm');
+        expect(
+          snapshot.categories.first.readiness,
+          ProviderCategoryReadiness.ready,
+        );
+        expect(snapshot.categories.first.supportSafe, isTrue);
+        expect(snapshot.categories.last.category, 'weaver');
+        expect(
+          snapshot.categories.last.readiness,
+          ProviderCategoryReadiness.policyBlocked,
+        );
         expect(snapshot.providers.first.module, 'office');
         expect(snapshot.providers.first.failClosed, isTrue);
         final meetings = snapshot.providers.singleWhere(

@@ -650,6 +650,34 @@ void main() {
               backendOwnedFacades: true,
               flutterDirectProviderCallsAllowed: false,
               supportSafe: true,
+              categories: [
+                ProviderCategoryStatusSnapshot(
+                  category: 'calendar',
+                  label: 'calendar',
+                  readiness: ProviderCategoryReadiness.degraded,
+                  policyState: 'allowed',
+                  memberImpact: 'Calendar is degraded.',
+                  modules: ['calendar'],
+                  providerCandidates: ['nextcloud-calendar'],
+                  diagnostics: {
+                    'secretsReturned': false,
+                    'rawProviderErrorsReturned': false,
+                  },
+                ),
+                ProviderCategoryStatusSnapshot(
+                  category: 'weaver',
+                  label: 'Weaver',
+                  readiness: ProviderCategoryReadiness.policyBlocked,
+                  policyState: 'policy_blocked',
+                  memberImpact: 'Weaver is disabled by workspace policy.',
+                  modules: [],
+                  providerCandidates: [],
+                  diagnostics: {
+                    'secretsReturned': false,
+                    'rawProviderErrorsReturned': false,
+                  },
+                ),
+              ],
               providers: [
                 ProviderStatusSnapshot(
                   module: 'office',
@@ -739,6 +767,8 @@ void main() {
         find.textContaining('Office launch is fail-closed'),
         findsOneWidget,
       );
+      expect(find.text('calendar: degraded'), findsOneWidget);
+      expect(find.text('Weaver: Blocked'), findsOneWidget);
       expect(find.textContaining('provider-token-123'), findsNothing);
       expect(find.textContaining('https://gitlab.example.test'), findsNothing);
       expect(find.textContaining('https://office.example.test'), findsNothing);

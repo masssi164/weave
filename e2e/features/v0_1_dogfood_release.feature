@@ -28,6 +28,15 @@ Feature: Weave v0.1 dogfood production release
     And Weaver is disabled by default until admin policy explicitly enables it
     And normal members never configure raw providers, service endpoints, provider secrets, or diagnostics
 
+  @weave-v01-admin-health-policy-enforcement
+  Scenario: Admin health enforces provider readiness and member policy boundaries
+    Given an owner or admin opens Workspace Health after selecting provider categories
+    When backend provider readiness and capability policy are evaluated
+    Then Workspace Health returns support-safe category readiness for ready, disabled, degraded, policy-blocked, and misconfigured states
+    And members receive only usable, disabled, degraded, or policy-blocked impact states without raw provider setup
+    And member API writes are denied when IDM capability policy does not grant the required category capability
+    And Weaver remains disabled by default unless governed organization policy explicitly enables it
+
   @weave-v01-idm-rbac-capability-policy
   Scenario: IDM roles and groups decide capability profiles before Weaver runtime
     Given an owner has selected an IDM provider for the organization

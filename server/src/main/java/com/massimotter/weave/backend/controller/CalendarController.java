@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.model.calendar.CalendarEventsResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
 import com.massimotter.weave.backend.service.CalendarFacadeService;
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfile;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -27,6 +28,8 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -52,9 +55,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class CalendarController {
 
     private final CalendarFacadeService calendarFacadeService;
+    private final WorkspaceCapabilityService workspaceCapabilityService;
 
-    public CalendarController(CalendarFacadeService calendarFacadeService) {
+    public CalendarController(CalendarFacadeService calendarFacadeService,
+            WorkspaceCapabilityService workspaceCapabilityService) {
         this.calendarFacadeService = calendarFacadeService;
+        this.workspaceCapabilityService = workspaceCapabilityService;
     }
 
     @GetMapping("/api/calendar/scopes")
@@ -142,7 +148,10 @@ public class CalendarController {
     @Operation(summary = "Create a calendar event")
     @ApiResponse(responseCode = "200", description = "Created calendar event.",
             content = @Content(schema = @Schema(implementation = CalendarEventResponse.class)))
-    public CalendarEventResponse create(@Valid @RequestBody CreateCalendarEventRequest request) {
+    public CalendarEventResponse create(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody CreateCalendarEventRequest request) {
+        workspaceCapabilityService.requireCapability(jwt, "calendar.manage_events", "calendar", "create-event");
         return calendarFacadeService.create(request);
     }
 
@@ -159,14 +168,19 @@ public class CalendarController {
     @ApiResponse(responseCode = "200", description = "Updated calendar event.",
             content = @Content(schema = @Schema(implementation = CalendarEventResponse.class)))
     public CalendarEventResponse update(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 2048) String id,
             @Valid @RequestBody UpdateCalendarEventRequest request) {
+        workspaceCapabilityService.requireCapability(jwt, "calendar.manage_events", "calendar", "update-event");
         return calendarFacadeService.update(id, request);
     }
 
     @DeleteMapping("/api/calendar/events/{id}")
     @Operation(summary = "Delete a calendar event")
-    public ResponseEntity<Void> delete(@PathVariable @Size(max = 2048) String id) {
+    public ResponseEntity<Void> delete(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable @Size(max = 2048) String id) {
+        workspaceCapabilityService.requireCapability(jwt, "calendar.manage_events", "calendar", "delete-event");
         calendarFacadeService.delete(id);
         return ResponseEntity.noContent().build();
     }

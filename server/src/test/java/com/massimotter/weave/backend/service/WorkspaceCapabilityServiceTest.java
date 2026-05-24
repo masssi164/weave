@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import java.util.List;
@@ -11,6 +12,7 @@ import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2Res
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WorkspaceCapabilityServiceTest {
 
@@ -136,6 +138,36 @@ class WorkspaceCapabilityServiceTest {
         assertThat(policy.denyByDefault()).isTrue();
         assertThat(policy.supportSafe()).isTrue();
         assertThat(policy.weaverRuntimePosture()).contains("disabled-by-default");
+    }
+
+    @Test
+    void requireCapabilityFailsClosedForUnmappedMemberActions() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.local/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+
+        assertThatThrownBy(() -> service.requireCapability(
+                jwt(List.of("member"), List.of()),
+                "calendar.manage_events",
+                "calendar",
+                "create-event"))
+                .isInstanceOfSatisfying(ApiErrorException.class,
+                        exception -> assertThat(exception.code()).isEqualTo("capability-policy-blocked"));
+    }
+
+    @Test
+    void requireCapabilityAllowsExplicitGroupGrants() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.local/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+
+        service.requireCapability(
+                jwt(List.of("member"), List.of("weave-calendar-editors")),
+                "calendar.manage_events",
+                "calendar",
+                "create-event");
     }
 
     @Test
