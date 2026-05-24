@@ -4,7 +4,7 @@ Weave is a provider-neutral organization suite and integration layer for chat, f
 
 - [User Handbook](user-handbook.md) for members joining an already-provisioned organization.
 - [Admin/Operator Handbook](admin-operator-handbook.md) for organization setup, provider selection, policies, readiness, audit, infra, and support bundles.
-- [Developer Handbook](developer-handbook.md) for architecture, canonical models, facades/adapters, testing, release process, and contribution rules.
+- [Developer Handbook](developer-handbook.md) and [GitFlow/PR workflow](gitflow-pr-workflow.md) for architecture, canonical models, facades/adapters, testing, release-note labels, release process, and contribution rules.
 - [Diagrams](diagrams/index.md) for Mermaid domain and facade architecture sources.
 - [Release Notes](release-notes/index.md) for unreleased notes, v0.1 notes, categories, and operator-impact tracking.
 

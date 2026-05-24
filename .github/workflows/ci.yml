@@ -3,6 +3,13 @@ name: CI
 on:
   push:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+      - labeled
+      - unlabeled
   workflow_dispatch:
     inputs:
       capture_marketing_screenshots:
@@ -18,6 +25,17 @@ permissions:
   contents: read
 
 jobs:
+  release-notes-label-check:
+    name: Release Notes Label Check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate exactly one release-notes label
+        env:
+          PR_LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: python3 tools/release_notes_label_check.py
+
   docs-checks:
     name: Docs Checks
     runs-on: ubuntu-latest

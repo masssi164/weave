@@ -1,4 +1,4 @@
-.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve release-notes-check live-stack-help
+.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve release-notes-check release-notes-label-check live-stack-help
 
 ci: acceptance-contract client-ci server-ci infra-static admin-ci docs-check
 
@@ -14,6 +14,9 @@ docs-serve:
 
 release-notes-check:
 	python3 tools/docs_check.py
+
+release-notes-label-check:
+	python3 tools/release_notes_label_check.py
 
 client-ci:
 	$(MAKE) -C client offline-contract-test

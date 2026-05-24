@@ -66,6 +66,16 @@ make offline-contract-test
 - Run `dart run build_runner build --delete-conflicting-outputs` after model/provider/codegen changes.
 - Keep user-facing strings localizable; do not add hard-coded English text in widgets when the surrounding feature already uses l10n.
 
+## GitFlow and PR workflow
+
+Use short-lived PR branches from `main`, keep changes issue/spec-driven, and request Copilot review on every review-ready PR. Every PR must deliberately choose exactly one release-notes label before review/merge:
+
+- `release-notes-feature`
+- `release-notes-bugfix`
+- `release-notes-skip`
+
+Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` fails PRs with zero or multiple release-notes labels. See [GitFlow and PR workflow](gitflow-pr-workflow.md) for the full chapter, label semantics, and merge rules.
+
 ## Documentation site
 
 Weave docs are published as a MkDocs site configured by `mkdocs.yml`. The site uses MkDocs Material; its MIT license was verified from upstream on 2026-05-24 and is safe for project use.
@@ -82,7 +92,9 @@ make docs-build
 
 ## Release notes workflow
 
-Release-affecting changes should update [Unreleased release notes](release-notes/unreleased.md) in the same PR. Use the fixed categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues`. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
+Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
+
+Generated release notes come from merged PR metadata and labels. Until [issue #291](https://github.com/masssi164/weave/issues/291) adds full automation, checked-in release note pages are a companion draft, not the primary source for reconstructing changes.
 
 Run:
 

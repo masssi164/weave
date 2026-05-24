@@ -36,6 +36,7 @@ nav:
   - Admin/Operator Handbook: admin-operator-handbook.md
   - Developer Handbook:
       - Overview: developer-handbook.md
+      - GitFlow and PR workflow: gitflow-pr-workflow.md
       - Architecture: architecture.md
       - Canonical feature models: canonical-feature-models.md
       - Acceptance contracts: acceptance-contracts.md

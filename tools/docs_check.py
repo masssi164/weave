@@ -24,6 +24,7 @@ REQUIRED_DOCS = [
     "user-handbook.md",
     "admin-operator-handbook.md",
     "developer-handbook.md",
+    "gitflow-pr-workflow.md",
     "diagrams/index.md",
     "release-notes/index.md",
     "release-notes/unreleased.md",

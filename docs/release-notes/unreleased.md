@@ -4,11 +4,12 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
-- MkDocs documentation site foundation with handbook navigation, diagrams, and release notes process.
+- MkDocs documentation site foundation with handbook navigation, diagrams, GitFlow/PR workflow, and release notes process.
 
 ## Changed
 
 - Documentation validation now has a dedicated docs check/build path.
+- PR CI now enforces exactly one release-notes label before review/merge.
 
 ## Fixed
 

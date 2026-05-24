@@ -21,11 +21,18 @@ Every release notes page uses these categories:
 
 Use `Migration/Operator Notes` for admin/operator-impacting changes such as provider configuration, SecretRefs, OpenTofu/bootstrap behavior, backup/restore, support bundles, readiness, audit, and policy/whitelist changes.
 
-## Process
+## Label-driven process
 
-1. For release-affecting changes, add an entry to `docs/release-notes/unreleased.md` in the same PR.
-2. Keep entries concise and user/admin/operator-oriented; link deeper docs when needed.
-3. At release cut, move entries into the versioned release notes file and reset `unreleased.md` to empty category headings.
-4. Run `make release-notes-check` or `make docs-check` before requesting review.
+Every PR must deliberately choose exactly one release notes label before review/merge:
+
+- `release-notes-feature` — included in generated release notes under Added/Changed-style sections.
+- `release-notes-bugfix` — included in generated release notes under Fixed.
+- `release-notes-skip` — excluded from generated release notes.
+
+Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` fails PRs with zero or multiple release-notes labels.
+
+Full generation from merged PR metadata is tracked in [release notes automation follow-up](https://github.com/masssi164/weave/issues/291). Until then, checked-in release notes pages are draft companions to the label source of truth: keep entries concise, user/admin/operator-oriented, and linked to deeper docs when needed.
+
+At release cut, generated notes should move into the versioned release notes file and `unreleased.md` should reset to empty category headings. Run `make release-notes-check` or `make docs-check` before requesting review.
 
 Release notes must stay honest about shipped, gated, disabled, degraded, or future behavior. Do not describe preview-only or guarded surfaces as generally available.
