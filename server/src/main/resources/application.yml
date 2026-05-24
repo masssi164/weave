@@ -102,11 +102,29 @@ weave:
       enabled: ${WEAVE_WORKSPACE_BOARDS_ENABLED:false}
       readiness: ${WEAVE_WORKSPACE_BOARDS_READINESS:}
     weaver:
-      # Weaver is a policy-controlled placeholder at this stage. Runtime startup
-      # stays disabled-by-default until IDM/RBAC/capability whitelisting has
-      # generated an explicit governed per-user profile in a later issue.
+      # Weaver is a policy-controlled category. Runtime startup remains
+      # disabled-by-default unless organization policy enables the category and
+      # the governed runtime generator grants a per-user profile.
       enabled: ${WEAVE_WORKSPACE_WEAVER_ENABLED:false}
       readiness: ${WEAVE_WORKSPACE_WEAVER_READINESS:}
+  weaver:
+    runtime:
+      # Generated Weaver/OpenClaw config is implementation output from Weave
+      # policy, never a second product policy model. Defaults fail closed.
+      enabled: ${WEAVE_WEAVER_RUNTIME_ENABLED:false}
+      baseline-profile: ${WEAVE_WEAVER_RUNTIME_BASELINE_PROFILE:weaver-governed-baseline}
+      image: ${WEAVE_WEAVER_RUNTIME_IMAGE:ghcr.io/masssi164/weaver-openclaw:policy-generated}
+      workspace-root-template: ${WEAVE_WEAVER_RUNTIME_WORKSPACE_ROOT_TEMPLATE:/var/lib/weave/weaver/{userId}}
+      isolated-agent-directory: ${WEAVE_WEAVER_RUNTIME_AGENT_DIRECTORY:.weaver/agents}
+      docker-network-mode: ${WEAVE_WEAVER_RUNTIME_DOCKER_NETWORK_MODE:none}
+      enabled-groups: ${WEAVE_WEAVER_RUNTIME_ENABLED_GROUPS:weave-weaver-runtime}
+      allowed-capabilities: ${WEAVE_WEAVER_RUNTIME_ALLOWED_CAPABILITIES:weaver.files_read,weaver.exec_disabled}
+      plugin-allowlist: ${WEAVE_WEAVER_RUNTIME_PLUGIN_ALLOWLIST:weave-files-readonly}
+      tool-allowlist: ${WEAVE_WEAVER_RUNTIME_TOOL_ALLOWLIST:files.read}
+      exec-enabled: ${WEAVE_WEAVER_RUNTIME_EXEC_ENABLED:false}
+      elevated-enabled: ${WEAVE_WEAVER_RUNTIME_ELEVATED_ENABLED:false}
+      audit-required: true
+      fork-required: ${WEAVE_WEAVER_RUNTIME_FORK_REQUIRED:false}
   boards:
     runtime-enabled: ${WEAVE_BOARDS_RUNTIME_ENABLED:${WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED:false}}
     provider: ${WEAVE_BOARDS_PROVIDER:${WEAVE_BOARDS_WORKSPACE_PROVIDER:local-workspace}}

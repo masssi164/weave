@@ -216,3 +216,13 @@ Weave derives workspace capability visibility from the selected IDM and backend-
 The backend consumes realm roles and groups, normalizes them into capability profiles, and grants only category-level capability keys. Examples include chat.read, chat.send, files.read, files.upload, calendar.read, calendar.manage_events, boards.read, boards.update_task, weaver.files_read, and weaver.exec_disabled. Unknown roles/groups are deny-by-default.
 
 Capability policy responses are support-safe: they expose effective policy posture and profile keys, not provider secrets or raw setup. Weaver runtime enablement is intentionally absent from built-in profiles until a later governed runtime policy can generate per-user, audited, sandboxed runtime configuration.
+
+## Governed Weaver runtime profile contract
+
+Weaver runtime integration consumes the workspace capability policy produced by IDM/RBAC. The runtime endpoint returns a support-safe `workspace-capability-policy` generated profile; it does not expose raw provider setup, secrets, OpenClaw internals, or a second agent-specific policy model.
+
+The generated profile is per-user and Docker-oriented: it names the baseline profile/image, isolated workspace root, isolated agent directory, Docker network mode, plugin allowlist, tool allowlist, and the capability keys visible to the runtime. Disabled and policy-blocked users receive the same contract shape with `enabled=false` and impact-level posture.
+
+Runtime provisioning remains fail-closed unless all three gates pass: the Weaver workspace category is enabled, the governed runtime generator is enabled, and the user's Weave capability profile grants `weaver.enabled`. Allowed runtime capabilities are the intersection of Weave policy grants and the admin runtime allowlist. exec and elevated surfaces stay disabled by default and require future constrained admin policy before they can appear.
+
+Profile generation publishes a support-safe audit event so later runtime start and tool-use flows can prove who generated a profile, which policy produced it, and whether exec/elevated surfaces were absent.

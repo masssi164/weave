@@ -5,9 +5,11 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
+import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
+import com.massimotter.weave.backend.service.WeaverRuntimeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -28,14 +30,17 @@ public class WorkspaceController {
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final WorkspaceReleaseReadinessService workspaceReleaseReadinessService;
     private final WorkspaceHomeService workspaceHomeService;
+    private final WeaverRuntimeService weaverRuntimeService;
 
     public WorkspaceController(
             WorkspaceCapabilityService workspaceCapabilityService,
             WorkspaceReleaseReadinessService workspaceReleaseReadinessService,
-            WorkspaceHomeService workspaceHomeService) {
+            WorkspaceHomeService workspaceHomeService,
+            WeaverRuntimeService weaverRuntimeService) {
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.workspaceReleaseReadinessService = workspaceReleaseReadinessService;
         this.workspaceHomeService = workspaceHomeService;
+        this.weaverRuntimeService = weaverRuntimeService;
     }
 
     @GetMapping({"/api/workspace/capabilities", "/api/v1/workspace/capabilities"})
@@ -75,6 +80,25 @@ public class WorkspaceController {
     })
     public WorkspaceCapabilityPolicyResponse capabilityPolicy(@AuthenticationPrincipal Jwt jwt) {
         return workspaceCapabilityService.policySnapshot(jwt);
+    }
+
+    @GetMapping({"/api/workspace/weaver/runtime-profile", "/api/v1/workspace/weaver/runtime-profile"})
+    @Operation(
+            summary = "Get generated Weaver runtime profile",
+            description = "Returns the support-safe per-user Weaver/OpenClaw runtime profile generated from organization capability policy. Runtime provisioning stays disabled unless the Weaver category, runtime generator, and user policy all allow it.",
+            security = @SecurityRequirement(name = "bearer-jwt"))
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Generated Weaver runtime profile or fail-closed disabled posture.",
+                    content = @Content(schema = @Schema(implementation = WeaverRuntimeProfileResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public WeaverRuntimeProfileResponse weaverRuntimeProfile(@AuthenticationPrincipal Jwt jwt) {
+        return weaverRuntimeService.profileFor(jwt);
     }
 
     @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})

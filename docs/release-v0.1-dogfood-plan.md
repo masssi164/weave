@@ -174,3 +174,7 @@ Exit gate:
 ### IDM/RBAC and capability whitelisting acceptance
 
 Before Weaver runtime work, Weave must prove IDM/RBAC capability profiles and category whitelisting in the backend/admin contract. Keycloak is the self-hosted default IDM, while OIDC/SAML adapters remain provider-neutral. Unknown roles and groups are denied by default. Admin/operator views expose support-safe effective policy state; member views expose only ready, disabled, degraded, or policy-blocked impact states. Weaver remains disabled by policy until a later governed runtime profile is implemented.
+
+## Governed Weaver runtime policy evidence
+
+The first Weaver slice is policy generation, not an agent-first product rewrite. Weaver remains optional and disabled by default, but the backend can now prove that any future runtime profile is generated from Weave IDM/RBAC capability policy, is per-user and Docker-oriented, hides non-whitelisted capabilities, keeps exec/elevated surfaces disabled by default, and emits support-safe audit evidence.

@@ -8,6 +8,7 @@ public enum AuditAction {
     BOARD_TASK_COMPLETED("board.task.completed"),
     CONSENT_GRANTED("consent.granted"),
     CONSENT_REVOKED("consent.revoked"),
+    WEAVER_RUNTIME_PROFILE_GENERATED("weaver.runtime_profile.generated"),
     TASK_CREATED("task.created"),
     TASK_MOVED("task.moved"),
     TASK_COMPLETED("task.completed"),

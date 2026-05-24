@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.config.NextcloudFilesProperties;
 import com.massimotter.weave.backend.config.OnboardingStatusProperties;
 import com.massimotter.weave.backend.config.PlatformContractProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -31,6 +32,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
         OnboardingStatusProperties.class,
         PlatformContractProperties.class,
         WeaveSecurityProperties.class,
+        WeaverRuntimeProperties.class,
         WorkspaceCapabilityProperties.class
 })
 public class WeaveBackendApplication {

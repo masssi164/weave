@@ -2,13 +2,16 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
+import com.massimotter.weave.backend.service.WeaverRuntimeService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -36,12 +39,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         WorkspaceCapabilityService.class,
         WorkspaceReleaseReadinessService.class,
         WorkspaceHomeService.class,
+        WeaverRuntimeService.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class
 })
 @EnableConfigurationProperties({
         WeaveSecurityProperties.class,
+        WeaverRuntimeProperties.class,
         WorkspaceCapabilityProperties.class,
         OAuth2ResourceServerProperties.class
 })
@@ -60,6 +65,9 @@ class WorkspaceControllerTest {
     @MockBean
     private JwtDecoder jwtDecoder;
 
+    @MockBean
+    private AuditEventPublisher auditEventPublisher;
+
     @Test
     void returnsConfiguredWorkspaceCapabilities() throws Exception {
         assertConfiguredWorkspaceCapabilities("/api/workspace/capabilities");
@@ -76,6 +84,23 @@ class WorkspaceControllerTest {
     void returnsWeaveHomeDailyWorkSnapshot() throws Exception {
         assertWeaveHomeSnapshot("/api/workspace/home");
         assertWeaveHomeSnapshot("/api/v1/workspace/home");
+    }
+
+    @Test
+    void returnsFailClosedWeaverRuntimeProfile() throws Exception {
+        mockMvc.perform(get("/api/v1/workspace/weaver/runtime-profile").with(jwt()
+                        .jwt(jwt -> jwt
+                                .subject("member@example.invalid")
+                                .claim("realm_access", Map.of("roles", List.of("member"))))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(false))
+                .andExpect(jsonPath("$.runtimeKind").value("per-user-docker"))
+                .andExpect(jsonPath("$.generatedFrom").value("workspace-capability-policy"))
+                .andExpect(jsonPath("$.posture").value("disabled-by-default"))
+                .andExpect(jsonPath("$.execEnabled").value(false))
+                .andExpect(jsonPath("$.elevatedEnabled").value(false))
+                .andExpect(jsonPath("$.auditRequired").value(true));
     }
 
     @Test
@@ -121,6 +146,9 @@ class WorkspaceControllerTest {
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/api/v1/workspace/home"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/api/v1/workspace/weaver/runtime-profile"))
                 .andExpect(status().isUnauthorized());
     }
 

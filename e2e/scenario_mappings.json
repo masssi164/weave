@@ -211,6 +211,41 @@
       ]
     },
     {
+      "tag": "@weave-v01-governed-weaver-runtime-policy",
+      "scenario": "Weaver runtime profiles are generated from organization policy",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+      "evidenceMarkers": [
+        "V01_GOVERNED_WEAVER_RUNTIME_POLICY"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/product-line-and-weaver-plan.md",
+          "fragments": [
+            "Governed Weaver runtime integration",
+            "per-user Dockerized Weaver/OpenClaw-derived runtime profile",
+            "Generated Weaver/OpenClaw config is implementation output from Weave policy"
+          ]
+        },
+        {
+          "path": "docs/architecture.md",
+          "fragments": [
+            "Governed Weaver runtime profile contract",
+            "workspace-capability-policy",
+            "exec and elevated surfaces stay disabled by default"
+          ]
+        },
+        {
+          "path": "docs/admin-provisioned-first-use.md",
+          "fragments": [
+            "Governed Weaver runtime policy",
+            "User-rights, organization-whitelisted capabilities",
+            "runtime profile generation is audited"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-channel-workspace",
       "scenario": "A channel is the primary workspace surface",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
