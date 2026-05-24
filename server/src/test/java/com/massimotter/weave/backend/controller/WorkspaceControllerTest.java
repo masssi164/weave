@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
@@ -51,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @EnableConfigurationProperties({
         WeaveSecurityProperties.class,
+        ContextAuthorizationProperties.class,
         WeaverRuntimeProperties.class,
         WorkspaceCapabilityProperties.class,
         OAuth2ResourceServerProperties.class
@@ -79,11 +81,15 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
+                                .claim("weave_tenant_id", "weave-dogfood")
+                                .claim("weave_organization_name", "Weave Dogfood")
                                 .claim("realm_access", Map.of("roles", List.of()))
                                 .claim("groups", List.of("weave-calendar-editors")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.manifestVersion").value("org-manifest-v1"))
+                .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
+                .andExpect(jsonPath("$.displayName").value("Weave Dogfood"))
                 .andExpect(jsonPath("$.organizationAuthUrl").value("https://auth.weave.local/realms/weave"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providerConfigurationExposed").value(false))

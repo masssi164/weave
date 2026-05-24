@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.model.OrganizationManifestResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
@@ -20,21 +21,25 @@ public class OrganizationManifestService {
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
+    private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final Clock clock;
 
     @Autowired
     public OrganizationManifestService(
             OAuth2ResourceServerProperties resourceServerProperties,
-            WorkspaceCapabilityService workspaceCapabilityService) {
-        this(resourceServerProperties, workspaceCapabilityService, Clock.systemUTC());
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationProperties contextAuthorizationProperties) {
+        this(resourceServerProperties, workspaceCapabilityService, contextAuthorizationProperties, Clock.systemUTC());
     }
 
     OrganizationManifestService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationProperties contextAuthorizationProperties,
             Clock clock) {
         this.resourceServerProperties = resourceServerProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
+        this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.clock = clock;
     }
 
@@ -42,8 +47,8 @@ public class OrganizationManifestService {
         WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot(jwt);
         return new OrganizationManifestResponse(
                 "org-manifest-v1",
-                "weave-dogfood",
-                "Weave Dogfood",
+                organizationId(jwt),
+                organizationDisplayName(jwt),
                 organizationAuthUrl(),
                 Instant.now(clock),
                 true,
@@ -66,12 +71,69 @@ public class OrganizationManifestService {
                 capabilities);
     }
 
+    private String organizationId(Jwt jwt) {
+        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
+        if (tenantId == null) {
+            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
+        }
+        if (tenantId == null) {
+            tenantId = contextAuthorizationProperties.defaultTenantId();
+        }
+        return tenantId;
+    }
+
+    private String organizationDisplayName(Jwt jwt) {
+        String displayName = jwtClaim(jwt, "weave_organization_name");
+        if (displayName == null) {
+            displayName = jwtClaim(jwt, "organization_name");
+        }
+        if (displayName == null) {
+            displayName = jwtClaim(jwt, "org_name");
+        }
+        if (displayName == null) {
+            displayName = titleize(organizationId(jwt));
+        }
+        return displayName;
+    }
+
     private String organizationAuthUrl() {
         String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
         if (issuerUri == null || issuerUri.isBlank()) {
             return "https://auth.not-configured.invalid";
         }
         return issuerUri;
+    }
+
+    private String jwtClaim(Jwt jwt, String claimName) {
+        if (jwt == null || claimName == null || claimName.isBlank()) {
+            return null;
+        }
+        Object raw = jwt.getClaims().get(claimName);
+        if (raw instanceof String value && !value.isBlank()) {
+            return value.trim();
+        }
+        return null;
+    }
+
+    private String titleize(String value) {
+        if (value == null || value.isBlank()) {
+            return "Organization";
+        }
+        String[] parts = value.trim().split("[-_\\s]+");
+        StringBuilder title = new StringBuilder();
+        for (String part : parts) {
+            if (part.isBlank()) {
+                continue;
+            }
+            if (!title.isEmpty()) {
+                title.append(' ');
+            }
+            title.append(Character.toUpperCase(part.charAt(0)));
+            if (part.length() > 1) {
+                title.append(part.substring(1));
+            }
+        }
+        return title.isEmpty() ? "Organization" : title.toString();
     }
 
     private Map<String, String> memberStates(WorkspaceCapabilitiesResponse capabilities) {

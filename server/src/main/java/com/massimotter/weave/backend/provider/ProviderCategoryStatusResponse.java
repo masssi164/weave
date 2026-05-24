@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Schema(description = "Provider-neutral admin Workspace Health category readiness with support-safe diagnostics.")
 public record ProviderCategoryStatusResponse(
@@ -22,7 +23,7 @@ public record ProviderCategoryStatusResponse(
         category = requireText(category, "category");
         label = requireText(label, "label");
         contract = contract == null
-                ? new ProviderCategoryContractResponse(category, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), true, false)
+                ? ProviderCapabilityContracts.contract(category, Set.of())
                 : contract;
         readiness = readiness == null ? ProviderCategoryReadiness.DISABLED : readiness;
         policyState = policyState == null ? WorkspaceCapabilityPolicyState.UNAVAILABLE : policyState;

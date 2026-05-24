@@ -35,8 +35,8 @@ public record OrganizationManifestResponse(
         WorkspaceCapabilitiesResponse capabilities) {
 
     public OrganizationManifestResponse {
-        clientResponsibilities = List.copyOf(clientResponsibilities);
-        adminConsoleResponsibilities = List.copyOf(adminConsoleResponsibilities);
-        memberCapabilityStates = Map.copyOf(memberCapabilityStates);
+        clientResponsibilities = clientResponsibilities == null ? List.of() : List.copyOf(clientResponsibilities);
+        adminConsoleResponsibilities = adminConsoleResponsibilities == null ? List.of() : List.copyOf(adminConsoleResponsibilities);
+        memberCapabilityStates = memberCapabilityStates == null ? Map.of() : Map.copyOf(memberCapabilityStates);
     }
 }
