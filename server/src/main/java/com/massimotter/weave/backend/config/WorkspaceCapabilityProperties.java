@@ -10,7 +10,8 @@ public record WorkspaceCapabilityProperties(
         Capability chat,
         Capability files,
         Capability calendar,
-        Capability boards) {
+        Capability boards,
+        Capability weaver) {
 
     public WorkspaceCapabilityProperties {
         shellAccess = defaultCapability(shellAccess, true, null, null);
@@ -18,6 +19,7 @@ public record WorkspaceCapabilityProperties(
         files = defaultCapability(files, true, null, null);
         calendar = defaultCapability(calendar, false, null, null);
         boards = defaultCapability(boards, false, null, null);
+        weaver = defaultCapability(weaver, false, null, null);
     }
 
     private static Capability defaultCapability(

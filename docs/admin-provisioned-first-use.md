@@ -83,3 +83,11 @@ Future work on first-use, settings, navigation, or Workspace Health must include
 5. Which deterministic test prevents preview/setup/provider leakage from returning to normal-user paths?
 
 The fast guard is `client/test/architecture/admin_provisioned_first_use_contract_test.dart`; role-specific widget assertions also live under `client/test/features/`.
+
+## IDM/RBAC capability profiles
+
+Admins/operators configure the selected IDM adapter and map roles/groups into Weave capability profiles before inviting members. Keycloak is the self-hosted default, while Entra ID, Authentik, Auth0, and other OIDC/SAML providers remain adapter-compatible choices.
+
+Admins/operators see support-safe effective policy state: IDM category, profile keys, role/group-derived grants, deny-by-default posture, and whether a category is disabled, unavailable, degraded, ready, or policy-blocked. They do not need secret values in normal health views.
+
+Members only see ready, disabled, degraded, or policy-blocked impact states. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Weaver appears only as a disabled-by-policy placeholder until a later governed per-user runtime policy exists.

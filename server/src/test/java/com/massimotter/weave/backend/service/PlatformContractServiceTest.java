@@ -81,6 +81,7 @@ class PlatformContractServiceTest {
                         new WorkspaceCapabilityProperties.Capability(chatEnabled, "https://matrix.weave.local", null),
                         new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
                         new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
+                        null,
                         null));
     }
 

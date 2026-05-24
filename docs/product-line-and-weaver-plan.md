@@ -174,3 +174,11 @@ Future Weave planning should preserve this order:
 3. Weaver PA runtime as optional governed layer.
 
 Do not regress to agent-first planning. Do not assume one required provider stack. Do not expose raw provider setup to normal members.
+
+## IDM/RBAC capability profiles and whitelisting
+
+The admin portal foundation owns IDM/RBAC capability profiles and whitelisting before any Weaver runtime ships. Keycloak/Auth remains the self-hosted default identity choice, but the product contract is provider-neutral: selected IDM adapters may be Keycloak, Entra ID, Authentik, Auth0, or other OIDC/SAML-compatible providers that can supply roles and groups without leaking raw setup to members.
+
+Capability profiles are deny-by-default. Roles and groups map to category-level capabilities such as chat.read, chat.send, files.read, files.upload, calendar.read, boards.update_task, and Weaver placeholder keys. Admins/operators may inspect support-safe effective policy state and profile keys; normal members only see product impact states such as ready, disabled, degraded, or policy-blocked.
+
+Weaver remains disabled by default until a later governed runtime policy exists. Issue #265 may expose Weaver placeholder capabilities only to prove whitelisting and fail-closed behavior; it must not start a per-user PA runtime or grant broad tool access.

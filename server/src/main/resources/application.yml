@@ -101,6 +101,12 @@ weave:
     boards:
       enabled: ${WEAVE_WORKSPACE_BOARDS_ENABLED:false}
       readiness: ${WEAVE_WORKSPACE_BOARDS_READINESS:}
+    weaver:
+      # Weaver is a policy-controlled placeholder at this stage. Runtime startup
+      # stays disabled-by-default until IDM/RBAC/capability whitelisting has
+      # generated an explicit governed per-user profile in a later issue.
+      enabled: ${WEAVE_WORKSPACE_WEAVER_ENABLED:false}
+      readiness: ${WEAVE_WORKSPACE_WEAVER_READINESS:}
   boards:
     runtime-enabled: ${WEAVE_BOARDS_RUNTIME_ENABLED:${WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED:false}}
     provider: ${WEAVE_BOARDS_PROVIDER:${WEAVE_BOARDS_WORKSPACE_PROVIDER:local-workspace}}

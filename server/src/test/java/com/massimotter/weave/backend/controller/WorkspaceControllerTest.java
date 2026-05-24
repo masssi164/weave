@@ -9,6 +9,8 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
@@ -77,6 +79,31 @@ class WorkspaceControllerTest {
     }
 
     @Test
+    void returnsAdminCapabilityPolicySnapshot() throws Exception {
+        mockMvc.perform(get("/api/v1/workspace/capability-policy").with(jwt()
+                        .jwt(jwt -> jwt
+                                .claim("realm_access", Map.of("roles", List.of("admin")))
+                                .claim("groups", List.of("weave-board-editors")))
+                        .authorities(
+                                new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                                new SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.defaultIdmProvider").value("Keycloak"))
+                .andExpect(jsonPath("$.denyByDefault").value(true))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.grantedCapabilities").isArray())
+                .andExpect(jsonPath("$.weaverRuntimePosture").value(org.hamcrest.Matchers.containsString("disabled-by-default")));
+    }
+
+    @Test
+    void rejectsCapabilityPolicyForMembers() throws Exception {
+        mockMvc.perform(get("/api/v1/workspace/capability-policy").with(jwt()
+                        .jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("member"))))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void rejectsAnonymousRequests() throws Exception {
         mockMvc.perform(get("/api/workspace/capabilities"))
                 .andExpect(status().isUnauthorized());
@@ -99,6 +126,7 @@ class WorkspaceControllerTest {
 
     private void assertConfiguredWorkspaceCapabilities(String path) throws Exception {
         mockMvc.perform(get(path).with(jwt()
+                        .jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shellAccess.enabled").value(true))
@@ -107,11 +135,15 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.files.readiness").value("ready"))
                 .andExpect(jsonPath("$.calendar.enabled").value(true))
                 .andExpect(jsonPath("$.calendar.readiness").value("degraded"))
-                .andExpect(jsonPath("$.boards.readiness").value("unavailable"));
+                .andExpect(jsonPath("$.boards.readiness").value("unavailable"))
+                .andExpect(jsonPath("$.chat.policyState").value("allowed"))
+                .andExpect(jsonPath("$.weaver.enabled").value(false))
+                .andExpect(jsonPath("$.weaver.policyState").value("disabled"));
     }
 
     private void assertReleaseReadinessSnapshot(String path) throws Exception {
         mockMvc.perform(get(path).with(jwt()
+                        .jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.readiness").value("ready"))
@@ -123,6 +155,7 @@ class WorkspaceControllerTest {
 
     private void assertWeaveHomeSnapshot(String path) throws Exception {
         mockMvc.perform(get(path).with(jwt()
+                        .jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(1))

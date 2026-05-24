@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -14,6 +15,9 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -49,8 +53,28 @@ public class WorkspaceController {
             @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public WorkspaceCapabilitiesResponse capabilities() {
-        return workspaceCapabilityService.snapshot();
+    public WorkspaceCapabilitiesResponse capabilities(@AuthenticationPrincipal Jwt jwt) {
+        return workspaceCapabilityService.snapshot(jwt);
+    }
+
+    @GetMapping({"/api/workspace/capability-policy", "/api/v1/workspace/capability-policy"})
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
+    @Operation(
+            summary = "Get workspace capability policy",
+            description = "Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.",
+            security = @SecurityRequirement(name = "bearer-jwt"))
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Workspace capability policy snapshot.",
+                    content = @Content(schema = @Schema(implementation = WorkspaceCapabilityPolicyResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Bearer token is not an owner/admin/operator or is missing the weave:workspace scope.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public WorkspaceCapabilityPolicyResponse capabilityPolicy(@AuthenticationPrincipal Jwt jwt) {
+        return workspaceCapabilityService.policySnapshot(jwt);
     }
 
     @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})

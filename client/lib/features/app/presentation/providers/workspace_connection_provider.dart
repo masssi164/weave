@@ -359,6 +359,7 @@ WorkspaceCapabilitySnapshot _mapWorkspaceCapabilitySnapshot(
       capability: WorkspaceCapability.boards,
       shellAccess: connection.appAuth,
     ),
+    weaver: _mapDisabledPolicyCapability(WorkspaceCapability.weaver),
   );
 }
 
@@ -387,6 +388,10 @@ WorkspaceCapabilitySnapshot _mergeWorkspaceCapabilitySnapshots({
       local: localSnapshot.boards,
       backend: backendSnapshot.boards,
     ),
+    weaver: _mergeWorkspaceCapabilityState(
+      local: localSnapshot.weaver,
+      backend: backendSnapshot.weaver,
+    ),
   );
 }
 
@@ -399,6 +404,10 @@ WorkspaceCapabilityState _mergeWorkspaceCapabilityState({
     readiness: backend.readiness,
     connectionStatus: local.connectionStatus,
     recoveryRequirement: local.recoveryRequirement,
+    policyState: backend.policyState,
+    profileKey: backend.profileKey,
+    memberImpact: backend.memberImpact,
+    grantedCapabilities: backend.grantedCapabilities,
   );
 }
 
@@ -498,5 +507,17 @@ WorkspaceCapabilityState _mapFutureCapability({
   return WorkspaceCapabilityState(
     capability: capability,
     readiness: WorkspaceCapabilityReadiness.unavailable,
+  );
+}
+
+WorkspaceCapabilityState _mapDisabledPolicyCapability(
+  WorkspaceCapability capability,
+) {
+  return WorkspaceCapabilityState(
+    capability: capability,
+    readiness: WorkspaceCapabilityReadiness.unavailable,
+    policyState: WorkspaceCapabilityPolicyState.disabled,
+    memberImpact:
+        'This capability is disabled by workspace policy until an admin enables it.',
   );
 }

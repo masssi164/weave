@@ -28,6 +28,16 @@ Feature: Weave v0.1 dogfood production release
     And Weaver is disabled by default until admin policy explicitly enables it
     And normal members never configure raw providers, service endpoints, provider secrets, or diagnostics
 
+  @weave-v01-idm-rbac-capability-policy
+  Scenario: IDM roles and groups decide capability profiles before Weaver runtime
+    Given an owner has selected an IDM provider for the organization
+    When role and group claims are mapped into workspace capability profiles
+    Then Keycloak is the self-hosted default while OIDC and SAML adapters stay provider-neutral
+    And capability profiles grant category-level capabilities deny-by-default
+    And admins/operators can inspect support-safe policy state
+    And members only see ready, disabled, degraded, or policy-blocked impact states
+    And Weaver capability placeholders stay disabled by default until a governed runtime policy exists
+
   @weave-v01-channel-workspace
   Scenario: A channel is the primary workspace surface
     Given a workspace member enters a project channel

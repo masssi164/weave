@@ -208,3 +208,11 @@ Refactors in this area must preserve:
 - semantics labels for icon-only affordances
 - readable focus order in setup/settings
 - clear announcements for bootstrap loading and retry states
+
+## IDM/RBAC capability profile contract
+
+Weave derives workspace capability visibility from the selected IDM and backend-owned policy evaluation. Keycloak is the self-hosted default IDM for dogfood deployments, but the contract is adapter-friendly for OIDC/SAML providers such as Entra ID, Authentik, and Auth0.
+
+The backend consumes realm roles and groups, normalizes them into capability profiles, and grants only category-level capability keys. Examples include chat.read, chat.send, files.read, files.upload, calendar.read, calendar.manage_events, boards.read, boards.update_task, weaver.files_read, and weaver.exec_disabled. Unknown roles/groups are deny-by-default.
+
+Capability policy responses are support-safe: they expose effective policy posture and profile keys, not provider secrets or raw setup. Weaver runtime enablement is intentionally absent from built-in profiles until a later governed runtime policy can generate per-user, audited, sandboxed runtime configuration.

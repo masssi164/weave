@@ -5,48 +5,43 @@ import 'package:flutter_test/flutter_test.dart';
 import '../tool/acceptance_contract.dart' as acceptance;
 
 void main() {
-  test(
-    'live stack feature scenarios are mapped to executable E2E evidence',
-    () {
-      final root = Directory.current.parent;
-      final scenarios = acceptance.parseFeatureDirectory(root, 'e2e/features');
-      final mappings = acceptance.loadScenarioMappings(
-        root,
-        'e2e/scenario_mappings.json',
-      );
-      final result = acceptance.validateAcceptanceContract(
-        root: root,
-        scenarios: scenarios,
-        mappings: mappings,
-        runtimeEvidence: acceptance.RuntimeEvidence.notCollected(),
-      );
+  test('live stack feature scenarios are mapped to executable E2E evidence', () {
+    final root = Directory.current.parent;
+    final scenarios = acceptance.parseFeatureDirectory(root, 'e2e/features');
+    final mappings = acceptance.loadScenarioMappings(
+      root,
+      'e2e/scenario_mappings.json',
+    );
+    final result = acceptance.validateAcceptanceContract(
+      root: root,
+      scenarios: scenarios,
+      mappings: mappings,
+      runtimeEvidence: acceptance.RuntimeEvidence.notCollected(),
+    );
 
-      expect(
-        result.findings.map((finding) => finding.message).toList(),
-        isEmpty,
-      );
-      expect(
-        result.scenarios.map((scenario) => scenario.name),
-        unorderedEquals(<String>[
-          'Sign-in restores the Weave workspace and profile',
-          'Matrix chat sends and reads a workspace message',
-          'Matrix encryption status is proved honestly',
-          'Files are uploaded, shown, downloaded, and cleaned up in Weave',
-          'Provider stack readiness stays backend-owned and support-safe',
-          'Channel calendar events keep their meeting thread reference',
-          'Boards workspace supports accessible non-drag task work',
-          'Weave Home starts the daily work loop',
-          'A normal member sees a user-ready organization flow',
-          'Admin sees provider categories before member use',
-          'A channel is the primary workspace surface',
-          'A user board write is authorized and audited',
-          'A meeting capsule keeps work connected',
-          'Decisions are captured as product records',
-          'Operators can deploy, verify, back up, restore, and diagnose safely',
-        ]),
-      );
-    },
-  );
+    expect(result.findings.map((finding) => finding.message).toList(), isEmpty);
+    expect(
+      result.scenarios.map((scenario) => scenario.name),
+      unorderedEquals(<String>[
+        'Sign-in restores the Weave workspace and profile',
+        'Matrix chat sends and reads a workspace message',
+        'Matrix encryption status is proved honestly',
+        'Files are uploaded, shown, downloaded, and cleaned up in Weave',
+        'Provider stack readiness stays backend-owned and support-safe',
+        'Channel calendar events keep their meeting thread reference',
+        'Boards workspace supports accessible non-drag task work',
+        'Weave Home starts the daily work loop',
+        'A normal member sees a user-ready organization flow',
+        'Admin sees provider categories before member use',
+        'IDM roles and groups decide capability profiles before Weaver runtime',
+        'A channel is the primary workspace surface',
+        'A user board write is authorized and audited',
+        'A meeting capsule keeps work connected',
+        'Decisions are captured as product records',
+        'Operators can deploy, verify, back up, restore, and diagnose safely',
+      ]),
+    );
+  });
 
   test('mapping guard fails a newly added unmapped scenario', () {
     final root = Directory.current.parent;

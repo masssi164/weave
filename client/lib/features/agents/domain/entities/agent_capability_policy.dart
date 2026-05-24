@@ -1,3 +1,5 @@
+import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
+
 enum AgentCapability { personalAssistant, channelAgent }
 
 enum AgentCapabilityEnablement { disabled, enabled }
@@ -51,6 +53,42 @@ class AgentCapabilityPolicy {
           capability: AgentCapability.channelAgent,
           enablement: AgentCapabilityEnablement.disabled,
           availability: AgentCapabilityAvailability.blocked,
+        ),
+      ],
+    );
+  }
+
+  factory AgentCapabilityPolicy.fromWorkspaceCapabilities({
+    required bool canManageCapabilities,
+    required WorkspaceCapabilitySnapshot workspaceCapabilities,
+  }) {
+    final weaver = workspaceCapabilities.weaver;
+    final availability = switch (weaver.policyState) {
+      WorkspaceCapabilityPolicyState.disabled =>
+        AgentCapabilityAvailability.disabledByPolicy,
+      WorkspaceCapabilityPolicyState.policyBlocked =>
+        AgentCapabilityAvailability.disabledByPolicy,
+      WorkspaceCapabilityPolicyState.unavailable =>
+        AgentCapabilityAvailability.adminSetupRequired,
+      WorkspaceCapabilityPolicyState.allowed =>
+        weaver.readiness == WorkspaceCapabilityReadiness.ready &&
+                weaver.grants('weaver.enabled')
+            ? AgentCapabilityAvailability.adminSetupRequired
+            : AgentCapabilityAvailability.disabledByPolicy,
+    };
+
+    return AgentCapabilityPolicy(
+      canManageCapabilities: canManageCapabilities,
+      capabilities: <AgentCapabilityState>[
+        AgentCapabilityState(
+          capability: AgentCapability.personalAssistant,
+          enablement: AgentCapabilityEnablement.disabled,
+          availability: availability,
+        ),
+        const AgentCapabilityState(
+          capability: AgentCapability.channelAgent,
+          enablement: AgentCapabilityEnablement.disabled,
+          availability: AgentCapabilityAvailability.adminSetupRequired,
         ),
       ],
     );

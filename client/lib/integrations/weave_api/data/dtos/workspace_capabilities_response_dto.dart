@@ -8,6 +8,7 @@ class WorkspaceCapabilitiesResponseDto {
     required this.files,
     required this.calendar,
     required this.boards,
+    required this.weaver,
   });
 
   factory WorkspaceCapabilitiesResponseDto.fromJson(Map<String, dynamic> json) {
@@ -27,6 +28,17 @@ class WorkspaceCapabilitiesResponseDto {
       boards: WorkspaceCapabilityStatusDto.fromJson(
         _readNestedJson(json, 'boards'),
       ),
+      weaver: WorkspaceCapabilityStatusDto.fromJson(
+        json['weaver'] is Map<String, dynamic>
+            ? _readNestedJson(json, 'weaver')
+            : const <String, dynamic>{
+                'enabled': false,
+                'readiness': 'unavailable',
+                'policyState': 'disabled',
+                'memberImpact':
+                    'Weaver is disabled by workspace policy until an admin enables a governed runtime profile.',
+              },
+      ),
     );
   }
 
@@ -35,6 +47,7 @@ class WorkspaceCapabilitiesResponseDto {
   final WorkspaceCapabilityStatusDto files;
   final WorkspaceCapabilityStatusDto calendar;
   final WorkspaceCapabilityStatusDto boards;
+  final WorkspaceCapabilityStatusDto weaver;
 
   WorkspaceCapabilitySnapshot toSnapshot() {
     return WorkspaceCapabilitySnapshot(
@@ -45,6 +58,7 @@ class WorkspaceCapabilitiesResponseDto {
       files: files.toCapabilityState(WorkspaceCapability.files),
       calendar: calendar.toCapabilityState(WorkspaceCapability.calendar),
       boards: boards.toCapabilityState(WorkspaceCapability.boards),
+      weaver: weaver.toCapabilityState(WorkspaceCapability.weaver),
     );
   }
 
@@ -68,6 +82,10 @@ class WorkspaceCapabilityStatusDto {
   const WorkspaceCapabilityStatusDto({
     required this.enabled,
     required this.readiness,
+    this.policyState = 'unavailable',
+    this.grantedCapabilities = const <String>[],
+    this.profileKey,
+    this.memberImpact,
   });
 
   factory WorkspaceCapabilityStatusDto.fromJson(Map<String, dynamic> json) {
@@ -80,11 +98,28 @@ class WorkspaceCapabilityStatusDto {
       );
     }
 
-    return WorkspaceCapabilityStatusDto(enabled: enabled, readiness: readiness);
+    return WorkspaceCapabilityStatusDto(
+      enabled: enabled,
+      readiness: readiness,
+      policyState: json['policyState'] is String
+          ? json['policyState'] as String
+          : (enabled ? 'allowed' : 'disabled'),
+      profileKey: json['profileKey'] is String
+          ? json['profileKey'] as String
+          : null,
+      memberImpact: json['memberImpact'] is String
+          ? json['memberImpact'] as String
+          : null,
+      grantedCapabilities: _readStringList(json['grantedCapabilities']),
+    );
   }
 
   final bool enabled;
   final String readiness;
+  final String policyState;
+  final String? profileKey;
+  final String? memberImpact;
+  final List<String> grantedCapabilities;
 
   WorkspaceCapabilityState toCapabilityState(WorkspaceCapability capability) {
     return WorkspaceCapabilityState(
@@ -92,7 +127,31 @@ class WorkspaceCapabilityStatusDto {
       readiness: enabled
           ? _parseReadiness(readiness)
           : WorkspaceCapabilityReadiness.unavailable,
+      policyState: _parsePolicyState(policyState),
+      profileKey: profileKey,
+      memberImpact: memberImpact,
+      grantedCapabilities: grantedCapabilities,
     );
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List<dynamic>) {
+      return const <String>[];
+    }
+    return value.whereType<String>().toList(growable: false);
+  }
+
+  WorkspaceCapabilityPolicyState _parsePolicyState(String rawValue) {
+    return switch (rawValue.trim()) {
+      'allowed' => WorkspaceCapabilityPolicyState.allowed,
+      'policy_blocked' => WorkspaceCapabilityPolicyState.policyBlocked,
+      'disabled' => WorkspaceCapabilityPolicyState.disabled,
+      'unavailable' => WorkspaceCapabilityPolicyState.unavailable,
+      _ => throw AppFailure.unknown(
+        'The backend returned an unknown workspace capability policy state.',
+        cause: rawValue,
+      ),
+    };
   }
 
   WorkspaceCapabilityReadiness _parseReadiness(String rawValue) {

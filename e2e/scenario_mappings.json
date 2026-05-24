@@ -176,6 +176,41 @@
       ]
     },
     {
+      "tag": "@weave-v01-idm-rbac-capability-policy",
+      "scenario": "IDM roles and groups decide capability profiles before Weaver runtime",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/service/WorkspaceCapabilityServiceTest.java",
+      "evidenceMarkers": [
+        "V01_IDM_RBAC_CAPABILITY_POLICY"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/product-line-and-weaver-plan.md",
+          "fragments": [
+            "IDM/RBAC capability profiles and whitelisting",
+            "Capability profiles are deny-by-default",
+            "Weaver remains disabled by default until a later governed runtime policy"
+          ]
+        },
+        {
+          "path": "docs/admin-provisioned-first-use.md",
+          "fragments": [
+            "IDM/RBAC capability profiles",
+            "Members only see ready, disabled, degraded, or policy-blocked impact states",
+            "Admins/operators see support-safe effective policy state"
+          ]
+        },
+        {
+          "path": "docs/architecture.md",
+          "fragments": [
+            "IDM/RBAC capability profile contract",
+            "Keycloak is the self-hosted default IDM",
+            "category-level capability keys"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-channel-workspace",
       "scenario": "A channel is the primary workspace surface",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

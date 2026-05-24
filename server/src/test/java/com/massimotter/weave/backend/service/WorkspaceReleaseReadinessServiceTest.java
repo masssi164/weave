@@ -20,6 +20,7 @@ class WorkspaceReleaseReadinessServiceTest {
                         new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", null),
                         new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
                         null,
+                        null,
                         null));
 
         WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(
@@ -29,6 +30,7 @@ class WorkspaceReleaseReadinessServiceTest {
                         new WorkspaceCapabilityProperties.Capability(true, null, null),
                         new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", null),
                         new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
+                        null,
                         null,
                         null),
                 capabilityService);
@@ -46,6 +48,7 @@ class WorkspaceReleaseReadinessServiceTest {
                 new WorkspaceCapabilityProperties.Capability(true, null, null),
                 new WorkspaceCapabilityProperties.Capability(true, null, null),
                 new WorkspaceCapabilityProperties.Capability(true, null, null),
+                null,
                 null,
                 null);
         WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
@@ -73,6 +76,7 @@ class WorkspaceReleaseReadinessServiceTest {
                 new WorkspaceCapabilityProperties.Capability(true, null, null),
                 new WorkspaceCapabilityProperties.Capability(true, null, null),
                 new WorkspaceCapabilityProperties.Capability(true, null, null),
+                null,
                 null,
                 null);
         WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
