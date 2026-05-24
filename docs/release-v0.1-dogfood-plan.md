@@ -14,7 +14,7 @@ v0.1 must support a complete project loop after admins/operators provision the w
 2. Enter a workspace/channel.
 3. Chat, handle files, plan events, run meetings, move board tasks, and record decisions through Weave product concepts.
 4. See only complete capabilities or simple impact/fallback states as a member when something is broken.
-5. Inspect Workspace Health as an admin/operator control plane for setup, readiness, degraded provider state, backup/restore, support bundles, and release evidence.
+5. Inspect Workspace Health as an admin/operator control plane for category-based provider setup, readiness, degraded provider state, backup/restore, support bundles, and release evidence.
 6. Deploy, update, backup, restore, and roll back the stack with operator evidence.
 
 ## Non-goals for v0.1
@@ -141,8 +141,10 @@ Boards with user writes are release scope, not a demo-only demonstration.
 ### Workspace/Admin Health
 
 - Admin-provisioned first-use boundary from [Admin-provisioned first use boundary](admin-provisioned-first-use.md): members must not see provider setup diagnostics, while admins/operators use Workspace Health as the setup/readiness control plane.
-- Auth, Matrix, files, calendar, boards, meetings/LiveKit, E2EE posture, backups, support bundle, and latest smoke/E2E state.
-- Provider readiness is support-safe and admin/operator-facing; member UI shows ready product workflows or impact/fallback states only.
+- Provider categories are first-class product/admin concepts: identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver.
+- Current dogfood defaults map into those categories as provider selections and readiness signals: Keycloak/Auth for identity/IDM, Matrix for chat, Nextcloud for files and calendar backing, OpenProject for boards/tasks validation, and LiveKit for meetings readiness.
+- Weaver is represented only as a disabled-by-default category until the later governed per-user PA runtime track is explicitly enabled by admin policy.
+- Provider readiness is support-safe and admin/operator-facing; member UI shows ready product workflows or impact/fallback states only, never raw provider setup, service endpoints, provider secrets, or diagnostics.
 
 Exit gate:
 
