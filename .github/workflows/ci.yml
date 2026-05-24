@@ -76,6 +76,22 @@ jobs:
         working-directory: client
         run: make offline-contract-test
 
+  admin-console-checks:
+    name: Admin Console Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: admin-console/package-lock.json
+      - name: Install admin console dependencies
+        working-directory: admin-console
+        run: npm ci
+      - name: Test admin console
+        run: make admin-ci
+
   server-checks:
     name: Server Checks
     runs-on: ubuntu-latest
