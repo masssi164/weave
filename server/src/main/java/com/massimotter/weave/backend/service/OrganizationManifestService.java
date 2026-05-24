@@ -7,6 +7,8 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -107,7 +109,34 @@ public class OrganizationManifestService {
         if (issuerUri == null || issuerUri.isBlank()) {
             return "https://auth.not-configured.invalid";
         }
-        return issuerUri;
+        String normalized = issuerUri.trim();
+        URI uri;
+        try {
+            uri = new URI(normalized);
+        } catch (URISyntaxException exception) {
+            throw invalidOrganizationAuthUrl();
+        }
+        String scheme = uri.getScheme();
+        if (!uri.isAbsolute()
+                || uri.getHost() == null
+                || uri.getHost().isBlank()
+                || (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme))
+                || uri.getRawQuery() != null
+                || uri.getRawFragment() != null) {
+            throw invalidOrganizationAuthUrl();
+        }
+        while (normalized.endsWith("/") && normalized.length() > (scheme.length() + 3 + uri.getHost().length())) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private ApiErrorException invalidOrganizationAuthUrl() {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "organization-manifest-invalid-auth-url",
+                "Organization auth URL is not configured as an absolute support-safe HTTP(S) URL.",
+                Map.of("reason", "invalid organization auth URL"));
     }
 
     private String jwtClaim(Jwt jwt, String claimName) {

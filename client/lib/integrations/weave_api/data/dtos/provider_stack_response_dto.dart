@@ -68,7 +68,10 @@ class ProviderCategoryStatusResponseDto {
       category: _string(json['category'], fallback: 'unknown'),
       label: _safeText(json['label']),
       contract: ProviderCategoryContractResponseDto.fromJson(
-        _map(json['contract']),
+        _optionalMap(json['contract']) ??
+            <String, dynamic>{
+              'category': _string(json['category'], fallback: 'unknown'),
+            },
       ),
       readiness: _providerCategoryReadiness(
         _string(json['readiness'], fallback: 'unknown'),
@@ -1065,6 +1068,16 @@ List<Map<String, dynamic>> _listOfMaps(Object? value) {
     return const [];
   }
   return value.whereType<Map<String, dynamic>>().toList(growable: false);
+}
+
+Map<String, dynamic>? _optionalMap(Object? value) {
+  if (value == null) {
+    return null;
+  }
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  return null;
 }
 
 Map<String, dynamic> _map(Object? value) {

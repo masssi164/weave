@@ -679,6 +679,51 @@ void main() {
       },
     );
 
+    test(
+      'keeps provider category contract optional during version skew',
+      () async {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse({
+              'releaseStatus': 'contract-preview',
+              'backendOwnedFacades': true,
+              'flutterDirectProviderCallsAllowed': false,
+              'supportSafe': true,
+              'categories': [
+                {
+                  'category': 'chat',
+                  'label': 'Chat',
+                  'readiness': 'ready',
+                  'policyState': 'allowed',
+                  'memberImpact': 'usable',
+                  'modules': ['matrix'],
+                  'providerCandidates': ['synapse'],
+                  'diagnostics': {
+                    'secretsReturned': false,
+                    'rawProviderErrorsReturned': false,
+                  },
+                },
+              ],
+              'providers': [],
+            });
+          }),
+        );
+
+        final snapshot = await client.fetchProviderStackStatus(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(snapshot.categories.single.category, 'chat');
+        expect(snapshot.categories.single.contract.category, 'chat');
+        expect(snapshot.categories.single.contract.adminSelectable, isTrue);
+        expect(
+          snapshot.categories.single.contract.normalMembersConfigureProviders,
+          isFalse,
+        );
+      },
+    );
+
     test('redacts sensitive provider summary text from DTOs', () async {
       final client = HttpWeaveApiClient(
         httpClient: _RecordingHttpClient((request) async {
