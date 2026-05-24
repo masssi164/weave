@@ -25,18 +25,96 @@ class AppLocalizationsDe extends AppLocalizations {
   String get setupTitle => 'Einrichtung';
 
   @override
-  String get setupProviderStepTitle => 'Server verbinden';
+  String get setupProviderStepTitle => 'Provider-Kategorien konfigurieren';
 
   @override
   String get setupProviderStepDescription =>
-      'Wähle deinen OIDC-Anbieter und gib die Issuer-URL deiner selbst gehosteten Umgebung ein.';
+      'Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.';
 
   @override
   String get setupServicesStepTitle => 'Dienstendpunkte prüfen';
 
   @override
   String get setupServicesStepDescription =>
-      'Weave leitet Matrix-, Nextcloud- und Backend-API-URLs aus dem Issuer-Host ab. Prüfe und ändere sie bei Bedarf vor dem Abschluss.';
+      'Prüfe die aktuellen Dogfood-Service-Endpunkte, die aus dem Identitäts-Issuer abgeleitet wurden. Diese Provider-URLs bleiben Admin-/Operator-Konfiguration, nicht normale Mitglieder-Einrichtung.';
+
+  @override
+  String get providerCategorySummaryTitle => 'Provider-Kategorien';
+
+  @override
+  String get providerCategorySummaryDescription =>
+      'Weave betrachtet zuerst Zusammenarbeits-Kategorien. Die Provider-Namen unten sind aktuelle Dogfood-Auswahlen für Admins/Operatoren, keine mitgliederseitigen Produktnamen.';
+
+  @override
+  String get providerCategorySummarySemanticLabel =>
+      'Provider-Kategorien. Aktuelle Dogfood-Provider-Auswahlen werden nur für Einrichtung und Workspace Health gezeigt.';
+
+  @override
+  String get providerCategoryStatusCurrentDefault => 'Aktuelle Dogfood-Auswahl';
+
+  @override
+  String get providerCategoryStatusAdminSetupRequired =>
+      'Admin-Einrichtung erforderlich';
+
+  @override
+  String get providerCategoryStatusDisabledByDefault =>
+      'Standardmäßig deaktiviert';
+
+  @override
+  String get providerCategoryIdentityTitle => 'Identität/IDM';
+
+  @override
+  String get providerCategoryIdentityDetail =>
+      'Keycloak/Auth ist die aktuelle Dogfood-Auswahl; Entra ID, Authentik oder eine andere OIDC/SAML-Quelle kann auf diese Kategorie abgebildet werden.';
+
+  @override
+  String get providerCategoryChatTitle => 'Chat';
+
+  @override
+  String get providerCategoryChatDetail =>
+      'Matrix/Chat ist die aktuelle Dogfood-Auswahl hinter der Weave-Chat-Oberfläche.';
+
+  @override
+  String get providerCategoryFilesTitle => 'Dateien';
+
+  @override
+  String get providerCategoryFilesDetail =>
+      'Nextcloud/Files ist die aktuelle Dogfood-Speicherauswahl hinter der Weave-Datei-Fassade.';
+
+  @override
+  String get providerCategoryCalendarTitle => 'Kalender';
+
+  @override
+  String get providerCategoryCalendarDetail =>
+      'Nextcloud/Calendar-Anbindung ist die aktuelle Dogfood-Auswahl hinter der Weave-Kalender-Fassade.';
+
+  @override
+  String get providerCategoryBoardsTitle => 'Boards/Aufgaben';
+
+  @override
+  String get providerCategoryBoardsDetail =>
+      'OpenProject-Boards-Validierung ist der aktuelle providergestützte Pfad; Aufgabenänderungen durch Mitglieder bleiben durch Autorisierung, Audit und Rollback-Evidenz begrenzt.';
+
+  @override
+  String get providerCategoryMeetingsTitle => 'Besprechungen/Anrufe';
+
+  @override
+  String get providerCategoryMeetingsDetail =>
+      'LiveKit-Meetings-Bereitschaft wird hinter der Token-Fassade verfolgt, bevor Mitglieder Anrufe starten oder beitreten können.';
+
+  @override
+  String get providerCategoryDocumentsTitle => 'Dokumente/Zusammenarbeit';
+
+  @override
+  String get providerCategoryDocumentsDetail =>
+      'Dokument-Zusammenarbeit ist eine Provider-Adapter-Kategorie und bleibt Admin-Einrichtung erforderlich, bis ein backend-eigener Startpfad konfiguriert ist.';
+
+  @override
+  String get providerCategoryWeaverTitle => 'Weaver';
+
+  @override
+  String get providerCategoryWeaverDetail =>
+      'Weaver bleibt standardmäßig deaktiviert, bis regulierte persönliche PA-Richtlinie, Whitelisting, Einwilligung und Audit akzeptiert sind.';
 
   @override
   String get setupLanguageStepTitle => 'Deine Sprache';

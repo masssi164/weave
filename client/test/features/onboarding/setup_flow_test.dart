@@ -94,7 +94,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(WeaveLogo), findsOneWidget);
-        expect(find.text('Connect Your Server'), findsOneWidget);
+        expect(find.text('Configure provider categories'), findsOneWidget);
+        expect(find.text('Provider categories'), findsOneWidget);
+        expect(find.text('Identity/IDM'), findsOneWidget);
+        expect(find.text('Documents/collaboration'), findsOneWidget);
+        expect(find.text('Weaver'), findsOneWidget);
         expect(find.text('Provider type'), findsOneWidget);
         expect(find.text('OIDC Client ID'), findsOneWidget);
         expect(find.text('Next'), findsOneWidget);
@@ -175,7 +179,7 @@ void main() {
       await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Connect Your Server'), findsOneWidget);
+      expect(find.text('Configure provider categories'), findsOneWidget);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {

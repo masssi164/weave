@@ -7,6 +7,7 @@ import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provid
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
+import 'package:weave/features/server_config/presentation/widgets/provider_category_summary.dart';
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -219,6 +220,8 @@ class _ProviderStep extends StatelessWidget {
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
+          const SizedBox(height: 16),
+          const ProviderCategorySummary(compact: true),
           const SizedBox(height: 24),
           const ServerConfigurationForm(
             layout: ServerConfigurationFormLayout.providerAndIssuerOnly,

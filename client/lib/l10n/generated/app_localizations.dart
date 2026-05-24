@@ -131,13 +131,13 @@ abstract class AppLocalizations {
   /// Title for the setup provider and issuer step
   ///
   /// In en, this message translates to:
-  /// **'Connect Your Server'**
+  /// **'Configure provider categories'**
   String get setupProviderStepTitle;
 
   /// Description shown in the setup provider step
   ///
   /// In en, this message translates to:
-  /// **'Choose your OIDC provider and enter the issuer URL for your self-hosted setup.'**
+  /// **'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.'**
   String get setupProviderStepDescription;
 
   /// Title for the setup services step
@@ -149,8 +149,140 @@ abstract class AppLocalizations {
   /// Description shown in the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Weave derives Matrix, Nextcloud, and backend API URLs from the issuer host. Review and edit them before finishing setup.'**
+  /// **'Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.'**
   String get setupServicesStepDescription;
+
+  /// Title for the provider category summary shown to admins during setup and workspace health
+  ///
+  /// In en, this message translates to:
+  /// **'Provider categories'**
+  String get providerCategorySummaryTitle;
+
+  /// Description explaining provider categories and dogfood defaults
+  ///
+  /// In en, this message translates to:
+  /// **'Weave tracks collaboration categories first. Provider names below are current dogfood choices for admins/operators, not member-facing product names.'**
+  String get providerCategorySummaryDescription;
+
+  /// Accessibility label for the provider category summary
+  ///
+  /// In en, this message translates to:
+  /// **'Provider categories. Current dogfood provider choices are shown only for setup and workspace health.'**
+  String get providerCategorySummarySemanticLabel;
+
+  /// Status pill for a provider category using the current dogfood provider choice
+  ///
+  /// In en, this message translates to:
+  /// **'Current dogfood choice'**
+  String get providerCategoryStatusCurrentDefault;
+
+  /// Status pill for a provider category that requires admin setup before member use
+  ///
+  /// In en, this message translates to:
+  /// **'Admin setup required'**
+  String get providerCategoryStatusAdminSetupRequired;
+
+  /// Status pill for a provider category disabled by default
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by default'**
+  String get providerCategoryStatusDisabledByDefault;
+
+  /// Provider category title for identity and IDM
+  ///
+  /// In en, this message translates to:
+  /// **'Identity/IDM'**
+  String get providerCategoryIdentityTitle;
+
+  /// Provider category detail for identity and IDM
+  ///
+  /// In en, this message translates to:
+  /// **'Keycloak/Auth is the current dogfood choice; Entra ID, Authentik, or another OIDC/SAML source can map to this category.'**
+  String get providerCategoryIdentityDetail;
+
+  /// Provider category title for chat
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get providerCategoryChatTitle;
+
+  /// Provider category detail for chat
+  ///
+  /// In en, this message translates to:
+  /// **'Matrix/Chat is the current dogfood choice behind the Weave chat surface.'**
+  String get providerCategoryChatDetail;
+
+  /// Provider category title for files
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get providerCategoryFilesTitle;
+
+  /// Provider category detail for files
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud/Files is the current dogfood storage choice behind the Weave files facade.'**
+  String get providerCategoryFilesDetail;
+
+  /// Provider category title for calendar
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar'**
+  String get providerCategoryCalendarTitle;
+
+  /// Provider category detail for calendar
+  ///
+  /// In en, this message translates to:
+  /// **'Nextcloud/Calendar backing is the current dogfood choice behind the Weave calendar facade.'**
+  String get providerCategoryCalendarDetail;
+
+  /// Provider category title for boards and tasks
+  ///
+  /// In en, this message translates to:
+  /// **'Boards/tasks'**
+  String get providerCategoryBoardsTitle;
+
+  /// Provider category detail for boards and tasks
+  ///
+  /// In en, this message translates to:
+  /// **'OpenProject Boards validation is the current provider-backed path; member task writes stay gated by authorization, audit, and rollback evidence.'**
+  String get providerCategoryBoardsDetail;
+
+  /// Provider category title for meetings and calls
+  ///
+  /// In en, this message translates to:
+  /// **'Meetings/calls'**
+  String get providerCategoryMeetingsTitle;
+
+  /// Provider category detail for meetings and calls
+  ///
+  /// In en, this message translates to:
+  /// **'LiveKit Meetings readiness is tracked behind the token facade before members can start or join calls.'**
+  String get providerCategoryMeetingsDetail;
+
+  /// Provider category title for documents and collaboration
+  ///
+  /// In en, this message translates to:
+  /// **'Documents/collaboration'**
+  String get providerCategoryDocumentsTitle;
+
+  /// Provider category detail for documents and collaboration
+  ///
+  /// In en, this message translates to:
+  /// **'Document collaboration is a provider adapter category and stays admin setup required until a backend-owned launch path is configured.'**
+  String get providerCategoryDocumentsDetail;
+
+  /// Provider category title for Weaver
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver'**
+  String get providerCategoryWeaverTitle;
+
+  /// Provider category detail for Weaver
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver stays disabled by default until governed per-user PA policy, whitelisting, consent, and audit are accepted.'**
+  String get providerCategoryWeaverDetail;
 
   /// Title for the language preference step
   ///

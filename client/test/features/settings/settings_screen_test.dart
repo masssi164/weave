@@ -292,6 +292,24 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(find.text('Provider categories'), findsOneWidget);
+      expect(find.text('Identity/IDM'), findsOneWidget);
+      expect(find.text('Chat'), findsWidgets);
+      expect(find.text('Files'), findsWidgets);
+      expect(find.text('Calendar'), findsWidgets);
+      expect(find.text('Boards/tasks'), findsOneWidget);
+      expect(find.text('Meetings/calls'), findsOneWidget);
+      expect(find.text('Documents/collaboration'), findsOneWidget);
+      expect(find.text('Weaver'), findsOneWidget);
+      expect(find.text('Disabled by default'), findsOneWidget);
+      expect(find.textContaining('Keycloak/Auth'), findsOneWidget);
+      expect(find.textContaining('Matrix/Chat'), findsOneWidget);
+      expect(find.textContaining('Nextcloud/Files'), findsOneWidget);
+      expect(
+        find.textContaining('OpenProject Boards validation'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('LiveKit Meetings readiness'), findsOneWidget);
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
       expect(find.text('weave-app'), findsWidgets);
@@ -388,6 +406,9 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Server Configuration'), findsNothing);
+      expect(find.text('Provider categories'), findsNothing);
+      expect(find.text('Identity/IDM'), findsNothing);
+      expect(find.text('Documents/collaboration'), findsNothing);
       expect(_textFieldWithLabel('OIDC Issuer URL'), findsNothing);
       expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
       expect(find.text('Provider stack readiness'), findsNothing);
