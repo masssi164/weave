@@ -37,6 +37,7 @@ void main() {
           'Boards workspace supports accessible non-drag task work',
           'Weave Home starts the daily work loop',
           'A normal member sees a user-ready organization flow',
+          'Admin sees provider categories before member use',
           'A channel is the primary workspace surface',
           'A user board write is authorized and audited',
           'A meeting capsule keeps work connected',
