@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
@@ -14,6 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -47,14 +49,29 @@ public class WorkspaceCapabilityService {
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties weaveSecurityProperties;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
+    private final WeaverRuntimeProperties weaverRuntimeProperties;
 
     public WorkspaceCapabilityService(
             OAuth2ResourceServerProperties resourceServerProperties,
             WeaveSecurityProperties weaveSecurityProperties,
             WorkspaceCapabilityProperties workspaceCapabilityProperties) {
+        this(
+                resourceServerProperties,
+                weaveSecurityProperties,
+                workspaceCapabilityProperties,
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
+    }
+
+    @Autowired
+    public WorkspaceCapabilityService(
+            OAuth2ResourceServerProperties resourceServerProperties,
+            WeaveSecurityProperties weaveSecurityProperties,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WeaverRuntimeProperties weaverRuntimeProperties) {
         this.resourceServerProperties = resourceServerProperties;
         this.weaveSecurityProperties = weaveSecurityProperties;
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
+        this.weaverRuntimeProperties = weaverRuntimeProperties;
     }
 
     public WorkspaceCapabilitiesResponse snapshot() {
@@ -122,7 +139,13 @@ public class WorkspaceCapabilityService {
                 policy.capabilities().stream().sorted().toList(),
                 true,
                 true,
-                "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later");
+                weaverRuntimeProperties.enabled()
+                        ? "governed per-user Dockerized Weaver profiles are generated only when org policy grants weaver.enabled"
+                        : "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later");
+    }
+
+    public List<String> grantedCapabilities(Jwt jwt) {
+        return effectivePolicy(jwt).capabilities().stream().sorted().toList();
     }
 
     private WorkspaceCapabilityStatusResponse dependentStatus(
@@ -251,14 +274,19 @@ public class WorkspaceCapabilityService {
                 capabilities.addAll(groupCapabilities);
                 profileKeys.add("group:" + group);
             }
+            if (weaverRuntimeProperties.enabledGroups().contains(group)) {
+                profileKeys.add("group:" + group);
+                if (weaverRuntimeProperties.enabled()) {
+                    capabilities.add("weaver.enabled");
+                }
+            }
         }
         if (profileKeys.isEmpty()) {
             profileKeys.add("deny-by-default");
         }
-        // Weaver runtime enablement is deliberately absent from built-in profiles.
-        // The placeholder may expose only constrained sub-capabilities such as files_read;
-        // runtime start still requires a later explicit admin policy carrying weaver.enabled.
-        capabilities.remove("weaver.enabled");
+        // Weaver runtime enablement is deliberately absent from built-in role profiles.
+        // Only explicit admin runtime policy groups may carry weaver.enabled, and only when
+        // the runtime generator is enabled in organization configuration.
         return new EffectivePolicy(roles, groups, List.copyOf(profileKeys), Set.copyOf(capabilities));
     }
 

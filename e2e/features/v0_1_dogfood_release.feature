@@ -38,6 +38,15 @@ Feature: Weave v0.1 dogfood production release
     And members only see ready, disabled, degraded, or policy-blocked impact states
     And Weaver capability placeholders stay disabled by default until a governed runtime policy exists
 
+  @weave-v01-governed-weaver-runtime-policy
+  Scenario: Weaver runtime profiles are generated from organization policy
+    Given an admin has enabled the Weaver provider category after IDM/RBAC policy is ready
+    When a member with an explicit Weaver runtime group requests their runtime profile
+    Then Weave generates a per-user Dockerized Weaver/OpenClaw-derived profile from workspace capability policy
+    And the profile contains only admin-whitelisted capabilities and provider adapter tools
+    And exec and elevated surfaces are disabled unless explicitly constrained by admin policy
+    And runtime profile generation is audited and disabled or policy-blocked by default for everyone else
+
   @weave-v01-channel-workspace
   Scenario: A channel is the primary workspace surface
     Given a workspace member enters a project channel

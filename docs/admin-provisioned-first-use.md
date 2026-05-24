@@ -91,3 +91,11 @@ Admins/operators configure the selected IDM adapter and map roles/groups into We
 Admins/operators see support-safe effective policy state: IDM category, profile keys, role/group-derived grants, deny-by-default posture, and whether a category is disabled, unavailable, degraded, ready, or policy-blocked. They do not need secret values in normal health views.
 
 Members only see ready, disabled, degraded, or policy-blocked impact states. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Weaver appears only as a disabled-by-policy placeholder until a later governed per-user runtime policy exists.
+
+## Governed Weaver runtime policy
+
+Weaver follows the same admin-provisioned boundary as every other provider category. User-rights, organization-whitelisted capabilities is the rule: a personal assistant may only receive the normal user's rights through capability channels the organization has explicitly enabled.
+
+Admins/operators control the Weaver category, the runtime generator, the groups that may receive `weaver.enabled`, and the capability/tool allowlist. Normal members do not configure Docker, OpenClaw plugins, provider adapters, service endpoints, or secrets. They either receive a ready governed profile or an impact-only disabled/policy-blocked state.
+
+The generated runtime profile is support-safe and runtime profile generation is audited. It includes per-user Docker isolation metadata, plugin/tool allowlists, and allowed capability keys, while exec and elevated surfaces remain disabled by default unless a later constrained admin profile explicitly enables them.

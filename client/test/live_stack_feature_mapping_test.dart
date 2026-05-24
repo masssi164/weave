@@ -34,6 +34,7 @@ void main() {
         'A normal member sees a user-ready organization flow',
         'Admin sees provider categories before member use',
         'IDM roles and groups decide capability profiles before Weaver runtime',
+        'Weaver runtime profiles are generated from organization policy',
         'A channel is the primary workspace surface',
         'A user board write is authorized and audited',
         'A meeting capsule keeps work connected',

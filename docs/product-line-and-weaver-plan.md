@@ -182,3 +182,20 @@ The admin portal foundation owns IDM/RBAC capability profiles and whitelisting b
 Capability profiles are deny-by-default. Roles and groups map to category-level capabilities such as chat.read, chat.send, files.read, files.upload, calendar.read, boards.update_task, and Weaver placeholder keys. Admins/operators may inspect support-safe effective policy state and profile keys; normal members only see product impact states such as ready, disabled, degraded, or policy-blocked.
 
 Weaver remains disabled by default until a later governed runtime policy exists. Issue #265 may expose Weaver placeholder capabilities only to prove whitelisting and fail-closed behavior; it must not start a per-user PA runtime or grant broad tool access.
+
+## Governed Weaver runtime integration
+
+Issue #266 adds the first governed Weaver runtime integration contract without making agents the product model. The Weaver category still follows the product order: provider-neutral Weave suite first, admin/provider/IDM/RBAC/readiness/whitelisting second, optional Weaver PA runtime third.
+
+Weave now generates a support-safe per-user Dockerized Weaver/OpenClaw-derived runtime profile only from organization capability policy. Generated Weaver/OpenClaw config is implementation output from Weave policy, not a second agent policy model. The generated profile includes the baseline image/profile, isolated per-user workspace path, isolated agent directory, Docker network posture, plugin/tool allowlists, and capability allowlist.
+
+The default posture remains fail-closed:
+
+- the Weaver provider category is disabled by default;
+- the runtime generator is disabled by default;
+- user policy must explicitly grant `weaver.enabled` through an admin-selected group/profile;
+- runtime-visible capabilities are intersected with admin-whitelisted capability keys such as `weaver.files_read`;
+- exec and elevated surfaces stay disabled unless a future constrained admin profile explicitly enables them;
+- runtime profile generation is audited before provisioning.
+
+OpenClaw remains a constrained runtime target. Forking OpenClaw is only justified if configuration, plugin, or runtime hooks cannot enforce the generated policy boundary.
