@@ -5,11 +5,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Schema(description = "Provider-neutral admin Workspace Health category readiness with support-safe diagnostics.")
 public record ProviderCategoryStatusResponse(
         @Schema(description = "Stable provider-neutral category key.") String category,
         @Schema(description = "Human-readable provider-neutral category label.") String label,
+        @Schema(description = "Provider-neutral capability contract and adapter seam for this category.") ProviderCategoryContractResponse contract,
         @Schema(description = "Admin readiness state for this category.") ProviderCategoryReadiness readiness,
         @Schema(description = "Effective capability policy state used for this category.") WorkspaceCapabilityPolicyState policyState,
         @Schema(description = "Member-safe impact label. Does not expose raw provider setup.") String memberImpact,
@@ -20,6 +22,9 @@ public record ProviderCategoryStatusResponse(
     public ProviderCategoryStatusResponse {
         category = requireText(category, "category");
         label = requireText(label, "label");
+        contract = contract == null
+                ? ProviderCapabilityContracts.contract(category, Set.of())
+                : contract;
         readiness = readiness == null ? ProviderCategoryReadiness.DISABLED : readiness;
         policyState = policyState == null ? WorkspaceCapabilityPolicyState.UNAVAILABLE : policyState;
         memberImpact = requireText(memberImpact, "memberImpact");

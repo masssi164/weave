@@ -10,6 +10,12 @@ Normal members must not configure OIDC, realms, provider URLs, service endpoints
 
 Admins and operators provision identity, domains, provider stack, policy, backup/restore, support bundles, and release readiness before inviting normal users. Workspace Health is the admin/operator control plane for setup, readiness, degraded services, and support-safe diagnostics.
 
+## Client/Admin Console split
+
+Members enter or open only an organization auth URL, invite link, or deep link. After SSO, the Weave Client consumes the support-safe organization manifest and effective capability states, then renders member work surfaces. Member-visible states are limited to ready, disabled, degraded, or policy-blocked.
+
+The Admin Console owns organization creation/bootstrap, IDM/provider setup, provider/category selection, endpoint URL management and rotation, readiness and diagnostics, users/groups/roles, RBAC/capability profiles, deny-by-default policy, org-wide defaults, audit logs, and privacy/compliance/risk notes. Whitelisting belongs to the Admin Console: provider, tool, and agent allowlists are configured there, while the client only consumes effective policy/capabilities.
+
 ## Provider-category admin boundary
 
 Provider setup is category-first, not vendor-first. Workspace Health and admin setup must model these product/admin categories before member use:

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
@@ -107,6 +108,29 @@ class _RecordingWeaveApiClient implements WeaveApiClient {
   Uri? lastBaseUrl;
   String? lastAccessToken;
   int callCount = 0;
+
+  @override
+  Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    return OrganizationManifestSnapshot(
+      manifestVersion: 'org-manifest-v1',
+      organizationId: 'test',
+      displayName: 'Test',
+      organizationAuthUrl: Uri.parse(
+        'https://auth.example.invalid/realms/weave',
+      ),
+      supportSafe: true,
+      providerConfigurationExposed: false,
+      diagnosticsExposed: false,
+      whitelistingOwner: 'organization-admin-console',
+      clientResponsibilities: const [],
+      adminConsoleResponsibilities: const [],
+      memberCapabilityStates: const {},
+      capabilities: snapshot,
+    );
+  }
 
   @override
   Future<WorkspaceCapabilitySnapshot> fetchWorkspaceCapabilities({

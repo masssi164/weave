@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
+import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/integrations/weave_api/data/services/weave_api_client.dart';
@@ -28,6 +29,80 @@ http.StreamedResponse _jsonResponse(
     statusCode,
     headers: {'content-type': 'application/json'},
   );
+}
+
+Map<String, Object?> _organizationManifestJson({
+  String organizationAuthUrl = 'https://auth.weave.local/realms/weave',
+  bool supportSafe = true,
+  bool providerConfigurationExposed = false,
+  bool diagnosticsExposed = false,
+}) {
+  return {
+    'manifestVersion': 'org-manifest-v1',
+    'organizationId': 'weave-dogfood',
+    'displayName': 'Weave Dogfood',
+    'organizationAuthUrl': organizationAuthUrl,
+    'generatedAt': '2026-05-24T12:00:00Z',
+    'supportSafe': supportSafe,
+    'providerConfigurationExposed': providerConfigurationExposed,
+    'diagnosticsExposed': diagnosticsExposed,
+    'whitelistingOwner': 'organization-admin-console',
+    'clientResponsibilities': [
+      'accept organization auth URL, invite link, or deep link',
+      'complete SSO with the selected identity provider',
+      'consume effective organization manifest and capability states',
+      'render only ready, disabled, degraded, or policy-blocked member states',
+    ],
+    'adminConsoleResponsibilities': [
+      'create and bootstrap organizations',
+      'select and configure identity providers and category providers',
+      'manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics',
+      'manage users, groups, roles, capability profiles, and deny-by-default policy',
+      'own provider, tool, and agent whitelisting plus privacy/compliance risk notes',
+      'audit organization-wide defaults and administrative changes',
+    ],
+    'memberCapabilityStates': {
+      'identity-idm': 'ready',
+      'chat': 'ready',
+      'files': 'ready',
+      'calendar': 'degraded',
+      'boards-tasks': 'policy-blocked',
+      'weaver': 'disabled',
+    },
+    'capabilities': {
+      'shellAccess': {
+        'enabled': true,
+        'readiness': 'ready',
+        'policyState': 'allowed',
+      },
+      'chat': {
+        'enabled': true,
+        'readiness': 'ready',
+        'policyState': 'allowed',
+        'grantedCapabilities': ['chat.read', 'chat.send'],
+      },
+      'files': {
+        'enabled': true,
+        'readiness': 'ready',
+        'policyState': 'allowed',
+      },
+      'calendar': {
+        'enabled': true,
+        'readiness': 'degraded',
+        'policyState': 'allowed',
+      },
+      'boards': {
+        'enabled': true,
+        'readiness': 'blocked',
+        'policyState': 'policy_blocked',
+      },
+      'weaver': {
+        'enabled': false,
+        'readiness': 'unavailable',
+        'policyState': 'disabled',
+      },
+    },
+  };
 }
 
 void main() {
@@ -68,6 +143,137 @@ void main() {
         WorkspaceCapabilityReadiness.unavailable,
       );
     });
+
+    test(
+      'fetches org manifest for member client without admin console leakage',
+      () async {
+        // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
+        late http.BaseRequest capturedRequest;
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            capturedRequest = request;
+            return _jsonResponse(_organizationManifestJson());
+          }),
+        );
+
+        final snapshot = await client.fetchOrganizationManifest(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(
+          capturedRequest.url.toString(),
+          'https://api.weave.local/api/v1/organization/manifest',
+        );
+        expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
+        expect(snapshot.safeForMemberClient, isTrue);
+        expect(snapshot.whitelistingOwnedByAdminConsole, isTrue);
+        expect(
+          snapshot.clientResponsibilities,
+          contains(
+            'consume effective organization manifest and capability states',
+          ),
+        );
+        expect(
+          snapshot.adminConsoleResponsibilities,
+          contains(
+            'own provider, tool, and agent whitelisting plus privacy/compliance risk notes',
+          ),
+        );
+        expect(
+          snapshot.memberCapabilityStates['calendar'],
+          MemberCapabilityState.degraded,
+        );
+        expect(
+          snapshot.memberCapabilityStates['boards-tasks'],
+          MemberCapabilityState.policyBlocked,
+        );
+        expect(snapshot.capabilities.chat.grants('chat.send'), isTrue);
+      },
+    );
+
+    test('rejects missing organization identity in org manifest', () async {
+      for (final patch in [
+        {'organizationId': ''},
+        {'displayName': ''},
+        {'organizationId': null},
+        {'displayName': null},
+      ]) {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse({..._organizationManifestJson(), ...patch});
+          }),
+        );
+
+        expect(
+          () => client.fetchOrganizationManifest(
+            baseUrl: Uri.parse('https://api.weave.local/api'),
+            accessToken: 'token-123',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      }
+    });
+
+    test('rejects invalid organization auth URL in org manifest', () async {
+      for (final invalidAuthUrl in [
+        'configured-by-organization-admin',
+        'https:///realms/weave',
+        'https://user:pass@auth.weave.local/realms/weave',
+        'https://auth.weave.local/realms/weave?provider=raw',
+        'https://auth.weave.local/realms/weave#diagnostics',
+      ]) {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse(
+              _organizationManifestJson(organizationAuthUrl: invalidAuthUrl),
+            );
+          }),
+        );
+
+        expect(
+          () => client.fetchOrganizationManifest(
+            baseUrl: Uri.parse('https://api.weave.local/api'),
+            accessToken: 'token-123',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      }
+    });
+
+    test(
+      'rejects org manifests that expose provider setup or diagnostics',
+      () async {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse(
+              _organizationManifestJson(
+                supportSafe: false,
+                providerConfigurationExposed: true,
+                diagnosticsExposed: true,
+              )..addAll({
+                'providerUrls': [
+                  'https://matrix.weave.local',
+                  'https://files.weave.local',
+                ],
+                'diagnostics': {
+                  'matrix': 'matrix.weave.local',
+                  'files': 'files.weave.local',
+                },
+              }),
+            );
+          }),
+        );
+
+        expect(
+          () => client.fetchOrganizationManifest(
+            baseUrl: Uri.parse('https://api.weave.local/api'),
+            accessToken: 'token-123',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      },
+    );
 
     test('fetches Weave Home through backend facade', () async {
       late http.BaseRequest capturedRequest;
@@ -286,6 +492,42 @@ void main() {
                 {
                   'category': 'identity-idm',
                   'label': 'identity/IDM',
+                  'contract': {
+                    'category': 'identity-idm',
+                    'featureCapabilities': [
+                      'identity.sign_in',
+                      'identity.groups',
+                    ],
+                    'defaultAdapters': ['keycloak-realm'],
+                    'externalAdapters': ['entra-id', 'generic-oidc'],
+                    'choiceModels': [
+                      {
+                        'choiceModel': 'recommended_self_hosted_default',
+                        'adapters': ['keycloak-realm'],
+                        'adminRiskNotes': [
+                          'recommended sovereign/default posture',
+                        ],
+                        'recommended': true,
+                      },
+                      {
+                        'choiceModel': 'external_existing_provider',
+                        'adapters': ['entra-id'],
+                        'adminRiskNotes': [
+                          'admin records privacy and compliance risk outside member UX',
+                        ],
+                        'recommended': false,
+                      },
+                    ],
+                    'adapterModules': ['identity-realm', 'matrix-auth'],
+                    'stableMemberImpactStates': [
+                      'usable',
+                      'disabled',
+                      'degraded',
+                      'policy-blocked',
+                    ],
+                    'adminSelectable': true,
+                    'normalMembersConfigureProviders': false,
+                  },
                   'readiness': 'ready',
                   'policyState': 'allowed',
                   'memberImpact': 'Sign-in is available.',
@@ -301,6 +543,29 @@ void main() {
                 {
                   'category': 'weaver',
                   'label': 'Weaver',
+                  'contract': {
+                    'category': 'weaver',
+                    'featureCapabilities': ['weaver.enabled'],
+                    'defaultAdapters': ['weaver-runtime-disabled'],
+                    'externalAdapters': ['openclaw-governed-runtime'],
+                    'choiceModels': [
+                      {
+                        'choiceModel': 'recommended_self_hosted_default',
+                        'adapters': ['weaver-runtime-disabled'],
+                        'adminRiskNotes': ['disabled by default'],
+                        'recommended': true,
+                      },
+                    ],
+                    'adapterModules': [],
+                    'stableMemberImpactStates': [
+                      'usable',
+                      'disabled',
+                      'degraded',
+                      'policy-blocked',
+                    ],
+                    'adminSelectable': true,
+                    'normalMembersConfigureProviders': false,
+                  },
                   'readiness': 'policy_blocked',
                   'policyState': 'policy_blocked',
                   'memberImpact': 'Weaver is disabled by workspace policy.',
@@ -380,6 +645,40 @@ void main() {
         expect(snapshot.categories, hasLength(2));
         expect(snapshot.categories.first.category, 'identity-idm');
         expect(
+          snapshot.categories.first.contract.featureCapabilities,
+          containsAll(['identity.sign_in', 'identity.groups']),
+        );
+        expect(
+          snapshot.categories.first.contract.defaultAdapters,
+          contains('keycloak-realm'),
+        );
+        expect(
+          snapshot.categories.first.contract.externalAdapters,
+          containsAll(['entra-id', 'generic-oidc']),
+        );
+        expect(
+          snapshot.categories.first.contract.keepsMemberSemanticsStable,
+          isTrue,
+        );
+        expect(
+          snapshot.categories.first.contract.choiceModels.map(
+            (choiceModel) => choiceModel.choiceModel,
+          ),
+          containsAll([
+            'recommended_self_hosted_default',
+            'external_existing_provider',
+          ]),
+        );
+        expect(
+          snapshot.categories.first.contract.choiceModels.first.recommended,
+          isTrue,
+        );
+        expect(
+          snapshot.categories.first.contract.choiceModels.last.adminRiskNotes
+              .join(' '),
+          contains('privacy'),
+        );
+        expect(
           snapshot.categories.first.readiness,
           ProviderCategoryReadiness.ready,
         );
@@ -401,6 +700,51 @@ void main() {
         expect(meetings.diagnostics['secretsReturned'], isFalse);
         expect(meetings.diagnostics, isNot(contains('tokenEndpoint')));
         expect(meetings.diagnostics, isNot(contains('rawProviderError')));
+      },
+    );
+
+    test(
+      'keeps provider category contract optional during version skew',
+      () async {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse({
+              'releaseStatus': 'contract-preview',
+              'backendOwnedFacades': true,
+              'flutterDirectProviderCallsAllowed': false,
+              'supportSafe': true,
+              'categories': [
+                {
+                  'category': 'chat',
+                  'label': 'Chat',
+                  'readiness': 'ready',
+                  'policyState': 'allowed',
+                  'memberImpact': 'usable',
+                  'modules': ['matrix'],
+                  'providerCandidates': ['synapse'],
+                  'diagnostics': {
+                    'secretsReturned': false,
+                    'rawProviderErrorsReturned': false,
+                  },
+                },
+              ],
+              'providers': [],
+            });
+          }),
+        );
+
+        final snapshot = await client.fetchProviderStackStatus(
+          baseUrl: Uri.parse('https://api.weave.local/api'),
+          accessToken: 'token-123',
+        );
+
+        expect(snapshot.categories.single.category, 'chat');
+        expect(snapshot.categories.single.contract.category, 'chat');
+        expect(snapshot.categories.single.contract.adminSelectable, isTrue);
+        expect(
+          snapshot.categories.single.contract.normalMembersConfigureProviders,
+          isFalse,
+        );
       },
     );
 

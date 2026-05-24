@@ -5,6 +5,30 @@ Weave uses a feature-first clean architecture with deterministic bootstrap befor
 
 Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, documents/collaboration, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave contracts. See [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md).
 
+## Provider-neutral capability contracts
+
+Workspace/Admin Health is organized around feature capability categories, not concrete systems. The stable contract categories are identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, and Weaver runtime. Each category publishes category-level capability keys, current dogfood/default adapters, external adapter placeholders, operational readiness modules, and the stable member impact states `usable`, `disabled`, `degraded`, and `policy-blocked`.
+
+The dogfood stack maps Keycloak, Matrix/Synapse, Nextcloud, OpenProject, ONLYOFFICE, and LiveKit as default adapters only. External adapters such as Entra ID, Microsoft Teams, SharePoint/OneDrive, Microsoft 365 Office/Graph, Planner/Jira, Authentik/Auth0/OIDC/SAML, and other providers attach behind the same category contracts. Normal members never configure raw provider endpoints, secrets, OIDC clients, or diagnostics; admins/operators choose adapters and see support-safe readiness through backend-owned facades.
+
+Provider choices carry an explicit admin-visible posture:
+
+- `recommended_self_hosted_default`: Weave's preferred sovereign/default adapter for the category, still subject to backup, lifecycle, jurisdiction, and operator evidence checks.
+- `external_existing_provider`: an organization keeps an existing category provider, for example Teams chat or SharePoint files, while Weave records data residency, retention, audit, export, and support-boundary risks.
+- `managed_cloud_provider`: a cloud/SaaS adapter posture that is valid behind the same capability contract but must surface privacy, compliance, availability, export, and vendor-lock-in risks to admins/operators.
+
+This means a mixed deployment such as Keycloak identity, Teams chat, SharePoint/OneDrive files, and OpenProject tasks is architecturally valid. It must not change member-facing state vocabulary or allow direct Flutter-to-provider calls.
+
+Design evidence for these seams comes from established interoperability contracts: OpenID Connect describes interoperable authentication on OAuth 2.0; SCIM RFC 7644 standardizes HTTP-based identity management for users/groups; WebDAV RFC 4918 and CalDAV RFC 4791 cover distributed file authoring and calendar access patterns; OASIS CMIS defines a generic content repository model; Microsoft documents Microsoft 365 for the web integration for viewing/editing Office files in the browser. These standards inform adapter boundaries only; each adapter still needs its own risk and license review.
+
+## Organization discovery and manifest contract
+
+The member setup path is intentionally small: a person opens an invite/deep link or enters an organization auth URL, completes SSO, and then the Weave Client fetches `/api/v1/organization/manifest` with the authenticated Weave token. The manifest is the client handoff from organization discovery/auth to member work state.
+
+The manifest may contain the organization display name, the organization auth URL, client-owned responsibilities, Admin Console-owned responsibilities, and effective member capability states. Those states are limited to `ready`, `disabled`, `degraded`, or `policy-blocked` and are derived from backend capability policy/readiness. In plain contract language: ready, disabled, degraded, or policy-blocked. The manifest must be support-safe: provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities and must not appear as raw provider URLs, secrets, raw downstream errors, or admin-only diagnostics.
+
+The Organization/Admin Console remains the control plane for organization bootstrap, identity-provider configuration, category provider selection, endpoint URL management and rotation, readiness/health, support-safe diagnostics, RBAC/capability profiles, deny-by-default policy, provider/tool/agent whitelisting, risk notes, audit logs, and org-wide defaults. The Weave Client only consumes the resulting manifest/capabilities and renders authenticated member work surfaces.
+
 ## App startup
 The app now resolves bootstrap before `MaterialApp.router` is built.
 

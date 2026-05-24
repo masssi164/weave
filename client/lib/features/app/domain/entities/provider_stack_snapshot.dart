@@ -52,6 +52,7 @@ class ProviderCategoryStatusSnapshot {
   const ProviderCategoryStatusSnapshot({
     required this.category,
     required this.label,
+    this.contract = const ProviderCategoryContractSnapshot(),
     required this.readiness,
     required this.policyState,
     required this.memberImpact,
@@ -62,6 +63,7 @@ class ProviderCategoryStatusSnapshot {
 
   final String category;
   final String label;
+  final ProviderCategoryContractSnapshot contract;
   final ProviderCategoryReadiness readiness;
   final String policyState;
   final String memberImpact;
@@ -72,6 +74,53 @@ class ProviderCategoryStatusSnapshot {
   bool get supportSafe =>
       diagnostics['secretsReturned'] == false &&
       diagnostics['rawProviderErrorsReturned'] == false;
+}
+
+class ProviderCategoryContractSnapshot {
+  const ProviderCategoryContractSnapshot({
+    this.category = 'unknown',
+    this.featureCapabilities = const <String>[],
+    this.defaultAdapters = const <String>[],
+    this.externalAdapters = const <String>[],
+    this.choiceModels = const <ProviderChoiceModelSnapshot>[],
+    this.adapterModules = const <String>[],
+    this.stableMemberImpactStates = const <String>[],
+    this.adminSelectable = true,
+    this.normalMembersConfigureProviders = false,
+  });
+
+  final String category;
+  final List<String> featureCapabilities;
+  final List<String> defaultAdapters;
+  final List<String> externalAdapters;
+  final List<ProviderChoiceModelSnapshot> choiceModels;
+  final List<String> adapterModules;
+  final List<String> stableMemberImpactStates;
+  final bool adminSelectable;
+  final bool normalMembersConfigureProviders;
+
+  bool get supportsExternalAdapters => externalAdapters.isNotEmpty;
+
+  bool get keepsMemberSemanticsStable =>
+      !normalMembersConfigureProviders &&
+      stableMemberImpactStates.contains('usable') &&
+      stableMemberImpactStates.contains('disabled') &&
+      stableMemberImpactStates.contains('degraded') &&
+      stableMemberImpactStates.contains('policy-blocked');
+}
+
+class ProviderChoiceModelSnapshot {
+  const ProviderChoiceModelSnapshot({
+    required this.choiceModel,
+    required this.adapters,
+    required this.adminRiskNotes,
+    required this.recommended,
+  });
+
+  final String choiceModel;
+  final List<String> adapters;
+  final List<String> adminRiskNotes;
+  final bool recommended;
 }
 
 class ProviderStatusSnapshot {

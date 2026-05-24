@@ -4,10 +4,12 @@ import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.SecurityConfig;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
@@ -26,6 +28,9 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -37,6 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({
         SecurityConfig.class,
         WorkspaceCapabilityService.class,
+        OrganizationManifestService.class,
         WorkspaceReleaseReadinessService.class,
         WorkspaceHomeService.class,
         WeaverRuntimeService.class,
@@ -46,6 +52,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @EnableConfigurationProperties({
         WeaveSecurityProperties.class,
+        ContextAuthorizationProperties.class,
         WeaverRuntimeProperties.class,
         WorkspaceCapabilityProperties.class,
         OAuth2ResourceServerProperties.class
@@ -62,11 +69,110 @@ class WorkspaceControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private OAuth2ResourceServerProperties resourceServerProperties;
+
     @MockBean
     private JwtDecoder jwtDecoder;
 
     @MockBean
     private AuditEventPublisher auditEventPublisher;
+
+    @Test
+    void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
+        // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
+        mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+                        .jwt(jwt -> jwt
+                                .subject("calendar-editor@example.invalid")
+                                .claim("weave_tenant_id", "weave-dogfood")
+                                .claim("weave_organization_name", "Weave Dogfood")
+                                .claim("realm_access", Map.of("roles", List.of()))
+                                .claim("groups", List.of("weave-calendar-editors")))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.manifestVersion").value("org-manifest-v1"))
+                .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
+                .andExpect(jsonPath("$.displayName").value("Weave Dogfood"))
+                .andExpect(jsonPath("$.organizationAuthUrl").value("https://auth.weave.local/realms/weave"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
+                .andExpect(jsonPath("$.diagnosticsExposed").value(false))
+                .andExpect(jsonPath("$.whitelistingOwner").value("organization-admin-console"))
+                .andExpect(jsonPath("$.clientResponsibilities", hasItems(
+                        "accept organization auth URL, invite link, or deep link",
+                        "complete SSO with the selected identity provider",
+                        "consume effective organization manifest and capability states",
+                        "render only ready, disabled, degraded, or policy-blocked member states")))
+                .andExpect(jsonPath("$.adminConsoleResponsibilities", hasItems(
+                        "create and bootstrap organizations",
+                        "select and configure identity providers and category providers",
+                        "manage provider endpoint URLs, rotation, readiness, and support-safe diagnostics",
+                        "manage users, groups, roles, capability profiles, and deny-by-default policy",
+                        "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
+                        "audit organization-wide defaults and administrative changes")))
+                .andExpect(jsonPath("$.memberCapabilityStates['identity-idm']").value("ready"))
+                .andExpect(jsonPath("$.memberCapabilityStates.chat").value("policy-blocked"))
+                .andExpect(jsonPath("$.memberCapabilityStates.calendar").value("degraded"))
+                .andExpect(jsonPath("$.memberCapabilityStates.files").value("policy-blocked"))
+                .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled"))
+                .andExpect(jsonPath("$.memberCapabilityStates.weaver").value("disabled"))
+                .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
+                .andExpect(jsonPath("$.capabilities.weaver.policyState").value("disabled"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.local"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.local"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("providerDiagnostics"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("Authorization: Bearer"))));
+    }
+
+    @Test
+    void rejectsOrganizationManifestWhenAuthUrlWouldExposeUserInfo() throws Exception {
+        String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        resourceServerProperties.getJwt().setIssuerUri("https://user:pass@auth.weave.local/realms/weave");
+        try {
+            mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+                            .jwt(jwt -> jwt
+                                    .subject("calendar-editor@example.invalid")
+                                    .claim("weave_tenant_id", "weave-dogfood")
+                                    .claim("realm_access", Map.of("roles", List.of()))
+                                    .claim("groups", List.of("weave-calendar-editors")))
+                            .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
+        } finally {
+            resourceServerProperties.getJwt().setIssuerUri(originalIssuerUri);
+        }
+    }
+
+    @Test
+    void rejectsOrganizationManifestWhenAuthUrlIsMissing() throws Exception {
+        String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        resourceServerProperties.getJwt().setIssuerUri(" ");
+        try {
+            mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+                            .jwt(jwt -> jwt
+                                    .subject("calendar-editor@example.invalid")
+                                    .claim("weave_tenant_id", "weave-dogfood")
+                                    .claim("realm_access", Map.of("roles", List.of()))
+                                    .claim("groups", List.of("weave-calendar-editors")))
+                            .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
+        } finally {
+            resourceServerProperties.getJwt().setIssuerUri(originalIssuerUri);
+        }
+    }
+
+    @Test
+    void rejectsOrganizationManifestWhenTenantClaimIsMissing() throws Exception {
+        mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+                        .jwt(jwt -> jwt
+                                .subject("calendar-editor@example.invalid")
+                                .claim("realm_access", Map.of("roles", List.of()))
+                                .claim("groups", List.of("weave-calendar-editors")))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("organization-manifest-unauthorized"));
+    }
 
     @Test
     void returnsConfiguredWorkspaceCapabilities() throws Exception {

@@ -171,6 +171,69 @@ public class ProviderStackReadinessStepDefinitions {
                 "release");
     }
 
+    @Then("provider category contracts separate feature capabilities from default and external adapters")
+    public void providerCategoryContractsSeparateFeatureCapabilitiesFromAdapters() {
+        assertCategoryContract(
+                "chat",
+                Set.of("chat.read", "chat.send"),
+                Set.of("synapse-homeserver"),
+                Set.of("microsoft-teams"));
+        assertCategoryContract(
+                "files",
+                Set.of("files.read", "files.upload"),
+                Set.of("nextcloud-files"),
+                Set.of("sharepoint", "onedrive"));
+        assertCategoryContract(
+                "identity-idm",
+                Set.of("identity.sign_in", "identity.groups"),
+                Set.of("keycloak-realm"),
+                Set.of("entra-id", "generic-oidc"));
+        assertCategoryContract(
+                "documents-collaboration",
+                Set.of("documents.view", "documents.edit", "documents.collaborate"),
+                Set.of("onlyoffice-community"),
+                Set.of("microsoft-365-office-graph"));
+    }
+
+    @Then("provider choice models include recommended self-hosted defaults and risk-aware external providers")
+    public void providerChoiceModelsIncludeRecommendedSelfHostedDefaultsAndRiskAwareExternalProviders() {
+        for (String categoryKey : List.of("identity-idm", "chat", "files", "boards-tasks")) {
+            JsonNode contract = categoryByKey(categoryKey).path("contract");
+            assertThat(stringsFrom(contract.path("choiceModels").findValues("choiceModel")))
+                    .contains("recommended_self_hosted_default", "external_existing_provider", "managed_cloud_provider");
+            assertThat(contract.path("choiceModels").toString())
+                    .contains("privacy", "compliance", "vendor lock-in")
+                    .doesNotContain("Authorization", "Bearer", "access_token");
+        }
+    }
+
+    @Then("a mixed provider posture can keep self-hosted identity Teams chat SharePoint files and OpenProject tasks behind stable category contracts")
+    public void mixedProviderPostureKeepsStableCategoryContracts() {
+        assertThat(stringsFrom(categoryByKey("identity-idm").at("/contract/defaultAdapters")))
+                .contains("keycloak-realm");
+        assertThat(stringsFrom(categoryByKey("chat").at("/contract/externalAdapters")))
+                .contains("microsoft-teams");
+        assertThat(stringsFrom(categoryByKey("files").at("/contract/externalAdapters")))
+                .contains("sharepoint", "onedrive");
+        assertThat(stringsFrom(categoryByKey("boards-tasks").at("/contract/defaultAdapters")))
+                .contains("openproject-primary");
+
+        for (String categoryKey : List.of("identity-idm", "chat", "files", "boards-tasks")) {
+            assertThat(stringsFrom(categoryByKey(categoryKey).at("/contract/stableMemberImpactStates")))
+                    .containsExactlyInAnyOrder("usable", "disabled", "degraded", "policy-blocked");
+        }
+    }
+
+    @Then("member impact states are stable across provider adapters")
+    public void memberImpactStatesAreStableAcrossProviderAdapters() {
+        for (JsonNode category : iterable(lastJson.path("categories"))) {
+            assertThat(stringsFrom(category.at("/contract/stableMemberImpactStates")))
+                    .containsExactlyInAnyOrder("usable", "disabled", "degraded", "policy-blocked");
+            assertThat(category.at("/contract/normalMembersConfigureProviders").asBoolean()).isFalse();
+            assertThat(category.path("memberImpact").asText()).doesNotContain("secret", "Authorization", "access_token");
+        }
+    }
+
     @Then("meetings readiness uses LiveKit as the active provider and fails closed support-safely")
     public void meetingsReadinessUsesLiveKitAsTheActiveProviderAndFailsClosedSupportSafely() {
         JsonNode provider = providerByModule("meetings");
@@ -319,6 +382,43 @@ public class ProviderStackReadinessStepDefinitions {
             }
         }
         return null;
+    }
+
+    private void assertCategoryContract(
+            String categoryKey,
+            Set<String> featureCapabilities,
+            Set<String> defaultAdapters,
+            Set<String> externalAdapters) {
+        JsonNode category = categoryByKey(categoryKey);
+        assertThat(category).as(categoryKey + " category").isNotNull();
+        JsonNode contract = category.path("contract");
+        assertThat(contract.path("category").asText()).isEqualTo(categoryKey);
+        assertThat(stringsFrom(contract.path("featureCapabilities"))).containsAll(featureCapabilities);
+        assertThat(stringsFrom(contract.path("defaultAdapters"))).containsAll(defaultAdapters);
+        assertThat(stringsFrom(contract.path("externalAdapters"))).containsAll(externalAdapters);
+        assertThat(contract.path("adminSelectable").asBoolean()).isTrue();
+        assertThat(contract.path("normalMembersConfigureProviders").asBoolean()).isFalse();
+    }
+
+    private JsonNode categoryByKey(String categoryKey) {
+        for (JsonNode category : iterable(lastJson.path("categories"))) {
+            if (categoryKey.equals(category.path("category").asText())) {
+                return category;
+            }
+        }
+        return null;
+    }
+
+    private Set<String> stringsFrom(JsonNode array) {
+        return StreamSupport.stream(array.spliterator(), false)
+                .map(JsonNode::asText)
+                .collect(Collectors.toSet());
+    }
+
+    private Set<String> stringsFrom(List<JsonNode> nodes) {
+        return nodes.stream()
+                .map(JsonNode::asText)
+                .collect(Collectors.toSet());
     }
 
     private Iterable<JsonNode> iterable(JsonNode node) {

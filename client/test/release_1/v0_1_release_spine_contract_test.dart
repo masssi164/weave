@@ -120,6 +120,7 @@ void main() {
         '@weave-v01-home-daily-loop',
         '@weave-v01-user-ready-organization-flow',
         '@weave-v01-admin-provider-categories',
+        '@weave-v01-org-manifest-client-admin-split',
         '@weave-v01-idm-rbac-capability-policy',
         '@weave-v01-governed-weaver-runtime-policy',
         '@weave-v01-channel-workspace',

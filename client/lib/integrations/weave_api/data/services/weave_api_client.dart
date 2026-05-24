@@ -4,9 +4,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
+import 'package:weave/features/app/domain/entities/organization_manifest_snapshot.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_home_snapshot.dart';
+import 'package:weave/integrations/weave_api/data/dtos/organization_manifest_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/platform_status_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/provider_stack_response_dto.dart';
 import 'package:weave/integrations/weave_api/data/dtos/workspace_capabilities_response_dto.dart';
@@ -14,6 +16,11 @@ import 'package:weave/integrations/weave_api/data/dtos/workspace_home_response_d
 import 'package:weave/integrations/weave_api/data/services/weave_api_uri_builder.dart';
 
 abstract interface class WeaveApiClient {
+  Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
+    required Uri baseUrl,
+    required String accessToken,
+  });
+
   Future<WorkspaceCapabilitySnapshot> fetchWorkspaceCapabilities({
     required Uri baseUrl,
     required String accessToken,
@@ -59,6 +66,25 @@ class HttpWeaveApiClient implements WeaveApiClient {
     : _httpClient = httpClient;
 
   final http.Client _httpClient;
+
+  @override
+  Future<OrganizationManifestSnapshot> fetchOrganizationManifest({
+    required Uri baseUrl,
+    required String accessToken,
+  }) async {
+    final payload = await _getJson(
+      requestUri: _organizationManifestUri(baseUrl),
+      accessToken: accessToken,
+      failureMessage:
+          'The Weave backend failed to return the organization manifest.',
+      invalidPayloadMessage:
+          'The Weave backend returned an invalid organization manifest payload.',
+      decodeFailureMessage:
+          'Unable to decode the organization manifest from the Weave backend.',
+    );
+
+    return OrganizationManifestResponseDto.fromJson(payload).toSnapshot();
+  }
 
   @override
   Future<WorkspaceCapabilitySnapshot> fetchWorkspaceCapabilities({
@@ -307,6 +333,15 @@ class HttpWeaveApiClient implements WeaveApiClient {
       }
       throw AppFailure.unknown(decodeFailureMessage, cause: error);
     }
+  }
+
+  Uri _organizationManifestUri(Uri baseUrl) {
+    return weaveApiUri(baseUrl, const [
+      'api',
+      'v1',
+      'organization',
+      'manifest',
+    ]);
   }
 
   Uri _workspaceCapabilitiesUri(Uri baseUrl) {
