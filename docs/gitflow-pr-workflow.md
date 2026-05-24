@@ -24,7 +24,7 @@ Every PR must deliberately choose exactly one release notes label before review/
 
 The labels are mutually exclusive. A PR with zero or multiple `release-notes-*` labels is not review-ready and must fail the CI label gate.
 
-Release notes are generated from merged PR labels, not manually reconstructed later. Until full automation lands in [release notes automation follow-up](https://github.com/masssi164/weave/issues/291), the label gate is the durable source of truth and release-note pages may be maintained only as a checked-in draft companion, not as the primary reconstruction mechanism.
+Release notes are generated from merged PR labels, not manually reconstructed later. Use `tools/release_notes_generate.py` to draft `docs/release-notes/unreleased.md` from merged GitHub PR metadata; issue #293 tracks release-draft/GitHub release publishing automation beyond the local generator.
 
 ## PR creation checklist
 
@@ -42,7 +42,7 @@ Before review-ready:
 
 The `Release Notes Label Check` job reads PR labels and fails unless exactly one of the release-notes labels is present. Add the label before pushing review-ready updates when possible. The workflow runs on PR open, synchronize, ready-for-review, label, and unlabel events so fixing labels reruns the check.
 
-The docs gate also checks that release-note pages and diagram navigation remain present. Full release notes generation from merged PR metadata is tracked separately in issue #291.
+The docs gate also checks that release-note pages and diagram navigation remain present. `make release-notes-check` additionally tests zero-label and multiple-label failures plus the release-notes generator fixture.
 
 ## Merge expectations
 

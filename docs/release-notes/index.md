@@ -31,7 +31,13 @@ Every PR must deliberately choose exactly one release notes label before review/
 
 Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` fails PRs with zero or multiple release-notes labels.
 
-Full generation from merged PR metadata is tracked in [release notes automation follow-up](https://github.com/masssi164/weave/issues/291). Until then, checked-in release notes pages are draft companions to the label source of truth: keep entries concise, user/admin/operator-oriented, and linked to deeper docs when needed.
+Use the local generator for release drafts from merged PR metadata:
+
+```sh
+GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output docs/release-notes/unreleased.md
+```
+
+Use `--dry-run` to inspect output without writing, and use `--input tools/fixtures/release_notes_prs.json` for deterministic local checks. Issue #293 tracks the remaining automation to publish GitHub release drafts from this source of truth. Checked-in release notes pages remain concise, user/admin/operator-oriented drafts linked to deeper docs when needed.
 
 At release cut, generated notes should move into the versioned release notes file and `unreleased.md` should reset to empty category headings. Run `make release-notes-check` or `make docs-check` before requesting review.
 

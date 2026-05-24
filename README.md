@@ -125,7 +125,7 @@ For behavior changes:
 
 ## Common local gates
 
-Run the smallest meaningful gate for your change:
+Run the smallest meaningful gate for your change. `make` remains the CI-compatible entry point, and the root Gradle wrapper delegates to those same targets for contributors who prefer one orchestration surface:
 
 ```bash
 make acceptance-contract
@@ -134,6 +134,11 @@ make client-ci
 make server-ci
 make infra-static
 make ci
+
+./gradlew acceptanceContract
+./gradlew docsCheck
+./gradlew serverCi
+./gradlew ci
 ```
 
 Use these defaults:
