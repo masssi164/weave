@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -146,6 +148,28 @@ public class WorkspaceCapabilityService {
 
     public List<String> grantedCapabilities(Jwt jwt) {
         return effectivePolicy(jwt).capabilities().stream().sorted().toList();
+    }
+
+    public void requireCapability(Jwt jwt, String capability, String module, String operation) {
+        if (jwt == null) {
+            throw new ApiErrorException(
+                    HttpStatus.UNAUTHORIZED,
+                    "unauthorized",
+                    "Authentication is required.",
+                    Map.of("module", module, "operation", operation));
+        }
+        if (!effectivePolicy(jwt).capabilities().contains(capability)) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "capability-policy-blocked",
+                    "This action is blocked by workspace role or group policy.",
+                    Map.of(
+                            "module", module,
+                            "operation", operation,
+                            "requiredCapability", capability,
+                            "policyState", WorkspaceCapabilityPolicyState.POLICY_BLOCKED.value(),
+                            "diagnosticsRedacted", true));
+        }
     }
 
     private WorkspaceCapabilityStatusResponse dependentStatus(

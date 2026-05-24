@@ -4,7 +4,7 @@ Feature: Provider stack readiness is backend-owned and fail-closed
   and closed by default when optional provider runtimes are disabled or unconfigured.
 
   Background:
-    Given a workspace-scoped product caller
+    Given a workspace-scoped admin product caller
 
   @backend-provider-registry-visible
   Scenario: Provider registry exposes support-safe backend facade readiness

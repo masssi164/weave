@@ -195,6 +195,40 @@
       ]
     },
     {
+      "tag": "@weave-v01-admin-health-policy-enforcement",
+      "scenario": "Admin health enforces provider readiness and member policy boundaries",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
+      "evidenceMarkers": [
+        "V01_ADMIN_HEALTH_POLICY_ENFORCEMENT"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
+          "fragments": [
+            "providerStatusReportsAllFacadeSeamsWithoutSecrets",
+            "identity-idm", "policy_blocked", "misconfigured", "documents-collaboration", "secretsReturned"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/FilesCalendarFacadeControllerTest.java",
+          "fragments": [
+            "calendarCreateIsDeniedByCapabilityPolicyBeforeProviderAccess",
+            "capability-policy-blocked",
+            "calendar.manage_events"
+          ]
+        },
+        {
+          "path": "client/test/integrations/weave_api/data/services/weave_api_client_test.dart",
+          "fragments": [
+            "fetches provider stack readiness without direct provider URLs",
+            "ProviderCategoryReadiness.policyBlocked",
+            "rawProviderErrorsReturned"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-idm-rbac-capability-policy",
       "scenario": "IDM roles and groups decide capability profiles before Weaver runtime",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

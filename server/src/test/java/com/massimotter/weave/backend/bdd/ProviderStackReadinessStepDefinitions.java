@@ -71,6 +71,17 @@ public class ProviderStackReadinessStepDefinitions {
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 
+    @Given("a workspace-scoped admin product caller")
+    public void aWorkspaceScopedAdminProductCaller() {
+        caller = jwt().jwt(jwt -> jwt
+                        .subject("admin-123")
+                        .claim("aud", List.of("weave-app"))
+                        .claim("realm_access", Map.of("roles", List.of("admin"))))
+                .authorities(
+                        new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                        new SimpleGrantedAuthority("ROLE_ADMIN"));
+    }
+
     @When("the product app requests provider readiness through Weave")
     public void theProductAppRequestsProviderReadinessThroughWeave() throws Exception {
         perform(get("/api/providers/status"));

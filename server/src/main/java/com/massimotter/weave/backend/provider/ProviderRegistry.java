@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.provider;
 
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -9,9 +10,11 @@ import org.springframework.stereotype.Service;
 public class ProviderRegistry {
 
     private final List<ProviderPort> providers;
+    private final WorkspaceCapabilityService workspaceCapabilityService;
 
-    public ProviderRegistry(List<ProviderPort> providers) {
+    public ProviderRegistry(List<ProviderPort> providers, WorkspaceCapabilityService workspaceCapabilityService) {
         this.providers = providers == null ? List.of() : List.copyOf(providers);
+        this.workspaceCapabilityService = workspaceCapabilityService;
     }
 
     public ProviderRegistryResponse status() {
@@ -27,6 +30,7 @@ public class ProviderRegistry {
                 false,
                 statuses.stream().allMatch(ProviderStatusResponse::supportSafe),
                 Instant.now(),
+                ProviderCategoryHealthMapper.categories(statuses, workspaceCapabilityService.snapshot()),
                 statuses);
     }
 }

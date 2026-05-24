@@ -7,6 +7,7 @@ class ProviderRegistryResponseDto {
     required this.flutterDirectProviderCallsAllowed,
     required this.supportSafe,
     required this.generatedAt,
+    required this.categories,
     required this.providers,
   });
 
@@ -19,6 +20,9 @@ class ProviderRegistryResponseDto {
       ),
       supportSafe: _bool(json['supportSafe']),
       generatedAt: _dateTime(json['generatedAt']),
+      categories: _listOfMaps(
+        json['categories'],
+      ).map(ProviderCategoryStatusResponseDto.fromJson).toList(growable: false),
       providers: _listOfMaps(
         json['providers'],
       ).map(ProviderStatusResponseDto.fromJson).toList(growable: false),
@@ -30,6 +34,7 @@ class ProviderRegistryResponseDto {
   final bool flutterDirectProviderCallsAllowed;
   final bool supportSafe;
   final DateTime? generatedAt;
+  final List<ProviderCategoryStatusResponseDto> categories;
   final List<ProviderStatusResponseDto> providers;
 
   ProviderStackSnapshot toSnapshot() => ProviderStackSnapshot(
@@ -38,7 +43,58 @@ class ProviderRegistryResponseDto {
     flutterDirectProviderCallsAllowed: flutterDirectProviderCallsAllowed,
     supportSafe: supportSafe,
     generatedAt: generatedAt,
+    categories: categories.map((category) => category.toSnapshot()).toList(),
     providers: providers.map((provider) => provider.toSnapshot()).toList(),
+  );
+}
+
+class ProviderCategoryStatusResponseDto {
+  const ProviderCategoryStatusResponseDto({
+    required this.category,
+    required this.label,
+    required this.readiness,
+    required this.policyState,
+    required this.memberImpact,
+    required this.modules,
+    required this.providerCandidates,
+    required this.diagnostics,
+  });
+
+  factory ProviderCategoryStatusResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return ProviderCategoryStatusResponseDto(
+      category: _string(json['category'], fallback: 'unknown'),
+      label: _safeText(json['label']),
+      readiness: _providerCategoryReadiness(
+        _string(json['readiness'], fallback: 'unknown'),
+      ),
+      policyState: _string(json['policyState'], fallback: 'unknown'),
+      memberImpact: _safeText(json['memberImpact']),
+      modules: _safeStringList(json['modules']),
+      providerCandidates: _safeStringList(json['providerCandidates']),
+      diagnostics: _safeDiagnostics(json['diagnostics']),
+    );
+  }
+
+  final String category;
+  final String label;
+  final ProviderCategoryReadiness readiness;
+  final String policyState;
+  final String memberImpact;
+  final List<String> modules;
+  final List<String> providerCandidates;
+  final Map<String, Object?> diagnostics;
+
+  ProviderCategoryStatusSnapshot toSnapshot() => ProviderCategoryStatusSnapshot(
+    category: category,
+    label: label,
+    readiness: readiness,
+    policyState: policyState,
+    memberImpact: memberImpact,
+    modules: modules,
+    providerCandidates: providerCandidates,
+    diagnostics: diagnostics,
   );
 }
 
@@ -784,6 +840,17 @@ class OfficeLaunchErrorResponseDto {
     message: message,
     requestId: requestId,
   );
+}
+
+ProviderCategoryReadiness _providerCategoryReadiness(String value) {
+  return switch (value) {
+    'ready' => ProviderCategoryReadiness.ready,
+    'disabled' => ProviderCategoryReadiness.disabled,
+    'degraded' => ProviderCategoryReadiness.degraded,
+    'policy_blocked' => ProviderCategoryReadiness.policyBlocked,
+    'misconfigured' => ProviderCategoryReadiness.misconfigured,
+    _ => ProviderCategoryReadiness.unknown,
+  };
 }
 
 ProviderState _providerState(String value) {

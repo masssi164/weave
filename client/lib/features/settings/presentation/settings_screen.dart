@@ -1010,6 +1010,7 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final categories = stack.categories;
     final providers = stack.providers;
     final flutterCalls = stack.flutterDirectProviderCallsAllowed
         ? l10n.settingsProviderStackFlutterCallsAllowed
@@ -1075,6 +1076,45 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
                 const SizedBox(height: 12),
                 _OfficeProviderReadinessSummary(office: office),
               ],
+              if (categories.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (final category in categories)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '${category.label}: ${_providerCategoryReadinessLabel(l10n, category.readiness)}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (category.readiness ==
+                            ProviderCategoryReadiness.policyBlocked)
+                          _CompactStatusBadge(
+                            label: l10n.settingsWorkspaceCapabilityBlocked,
+                          ),
+                        if (category.readiness ==
+                            ProviderCategoryReadiness.disabled)
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStateDisabled,
+                          ),
+                        if (category.readiness ==
+                            ProviderCategoryReadiness.misconfigured)
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStateNotConfigured,
+                          ),
+                        if (category.supportSafe)
+                          _CompactStatusBadge(
+                            label: l10n.settingsProviderStackRedacted,
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
               if (providers.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 for (final provider in providers)
@@ -1121,6 +1161,22 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _providerCategoryReadinessLabel(
+    AppLocalizations l10n,
+    ProviderCategoryReadiness readiness,
+  ) {
+    return switch (readiness) {
+      ProviderCategoryReadiness.ready => l10n.settingsProviderStateReady,
+      ProviderCategoryReadiness.disabled => l10n.settingsProviderStateDisabled,
+      ProviderCategoryReadiness.degraded => l10n.settingsProviderStateDegraded,
+      ProviderCategoryReadiness.policyBlocked =>
+        l10n.settingsWorkspaceCapabilityBlocked,
+      ProviderCategoryReadiness.misconfigured =>
+        l10n.settingsProviderStateNotConfigured,
+      ProviderCategoryReadiness.unknown => l10n.settingsProviderStateUnknown,
+    };
   }
 
   String _providerModuleLabel(AppLocalizations l10n, String module) {
