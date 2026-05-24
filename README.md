@@ -57,7 +57,7 @@ Settings and readiness surfaces should explain configured, disabled, degraded, o
 - `server/` — Spring Boot product API/BFF, provider facades, authorization, audit, support-safe errors, and backend acceptance tests.
 - `infra/` — Docker/OpenTofu operator stack, local and single-host deployment scripts, provider profiles, backup/restore, smoke checks, and support bundles.
 - `e2e/` — product-language Gherkin scenarios, scenario mappings, and sanitized evidence contracts.
-- `docs/` — product architecture, release scope, acceptance flows, roadmap boundaries, and research notes.
+- `docs/` — MkDocs-backed product, user/admin/operator/developer handbooks, architecture, release scope, acceptance flows, roadmap boundaries, release notes, and research notes.
 - `release/` — release manifests and stack compatibility metadata.
 
 ## v0.1 product truth
@@ -129,6 +129,7 @@ Run the smallest meaningful gate for your change:
 
 ```bash
 make acceptance-contract
+make docs-check
 make client-ci
 make server-ci
 make infra-static
@@ -141,6 +142,7 @@ Use these defaults:
 - `make client-ci` for Flutter/client changes.
 - `make server-ci` for backend/provider changes.
 - `make infra-static` for infrastructure, operator scripts, and OpenTofu-facing changes.
+- `make docs-check` for documentation site, diagrams, or release notes changes.
 - `make ci` when a change crosses product-stack boundaries.
 
 Live-stack E2E is intentionally opt-in. Run it only with explicit runner power/storage budget and sanitized evidence handling.

@@ -21,6 +21,8 @@
 
 ## Checks run
 
+- [ ] `make docs-check` / `make docs-build` (for docs or release notes changes)
+- [ ] `make release-notes-check` (for release-affecting changes)
 - [ ] `flutter pub get`
 - [ ] `flutter gen-l10n`
 - [ ] `dart run build_runner build --delete-conflicting-outputs`

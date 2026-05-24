@@ -66,6 +66,32 @@ make offline-contract-test
 - Run `dart run build_runner build --delete-conflicting-outputs` after model/provider/codegen changes.
 - Keep user-facing strings localizable; do not add hard-coded English text in widgets when the surrounding feature already uses l10n.
 
+## Documentation site
+
+Weave docs are published as a MkDocs site configured by `mkdocs.yml`. The site uses MkDocs Material; its MIT license was verified from upstream on 2026-05-24 and is safe for project use.
+
+For documentation-only changes:
+
+```sh
+python3 -m pip install -r docs/requirements.txt
+make docs-check
+make docs-build
+```
+
+`make docs-check` runs the lightweight repository docs validator and a strict MkDocs build. Keep existing docs linked from navigation or from handbook pages so product truth does not drift into orphaned Markdown.
+
+## Release notes workflow
+
+Release-affecting changes should update [Unreleased release notes](release-notes/unreleased.md) in the same PR. Use the fixed categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues`. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
+
+Run:
+
+```sh
+make release-notes-check
+```
+
+before requesting review when release notes are relevant.
+
 ## Architecture conventions
 
 Weave uses feature-first clean architecture under `lib/features/<feature>/`:
