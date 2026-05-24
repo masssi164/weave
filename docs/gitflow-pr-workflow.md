@@ -40,7 +40,7 @@ Before review-ready:
 
 ## CI enforcement
 
-The `Release Notes Label Check` job reads PR labels and fails unless exactly one of the release-notes labels is present. The workflow runs on PR open, synchronize, ready-for-review, label, and unlabel events so fixing labels reruns the check.
+The `Release Notes Label Check` job reads PR labels and fails unless exactly one of the release-notes labels is present. Add the label before pushing review-ready updates when possible. The workflow runs on PR open, synchronize, ready-for-review, label, and unlabel events so fixing labels reruns the check.
 
 The docs gate also checks that release-note pages and diagram navigation remain present. Full release notes generation from merged PR metadata is tracked separately in issue #291.
 
