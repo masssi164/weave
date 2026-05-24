@@ -1,0 +1,29 @@
+package com.massimotter.weave.backend.model.admin;
+
+import com.massimotter.weave.backend.provider.ProviderCategoryStatusResponse;
+import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+@Schema(description = "Organization/Admin Console control-plane snapshot served only by backend APIs.")
+public record AdminControlPlaneResponse(
+        String contractVersion,
+        String organizationId,
+        String displayName,
+        String recommendedIdentityBroker,
+        boolean backendOwnedFacades,
+        boolean denyByDefaultPolicy,
+        boolean supportSafe,
+        boolean memberClientMayConfigureProviders,
+        Instant generatedAt,
+        List<ProviderCategoryStatusResponse> categories,
+        CapabilityWhitelistResponse whitelist,
+        List<SecretRefResponse> secretRefs,
+        Map<String, String> adminApiRoutes) {
+    public AdminControlPlaneResponse {
+        categories = categories == null ? List.of() : List.copyOf(categories);
+        secretRefs = secretRefs == null ? List.of() : List.copyOf(secretRefs);
+        adminApiRoutes = adminApiRoutes == null ? Map.of() : Map.copyOf(adminApiRoutes);
+    }
+}
