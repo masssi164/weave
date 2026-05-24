@@ -107,7 +107,7 @@ public class OrganizationManifestService {
     private String organizationAuthUrl() {
         String issuerUri = resourceServerProperties.getJwt().getIssuerUri();
         if (issuerUri == null || issuerUri.isBlank()) {
-            return "https://auth.not-configured.invalid";
+            throw invalidOrganizationAuthUrl();
         }
         String normalized = issuerUri.trim();
         URI uri;

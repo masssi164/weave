@@ -110,11 +110,11 @@ class WorkspaceControllerTest {
                         "manage users, groups, roles, capability profiles, and deny-by-default policy",
                         "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
                         "audit organization-wide defaults and administrative changes")))
-                .andExpect(jsonPath("$.memberCapabilityStates.identity-idm").value("ready"))
+                .andExpect(jsonPath("$.memberCapabilityStates['identity-idm']").value("ready"))
                 .andExpect(jsonPath("$.memberCapabilityStates.chat").value("policy-blocked"))
                 .andExpect(jsonPath("$.memberCapabilityStates.calendar").value("degraded"))
                 .andExpect(jsonPath("$.memberCapabilityStates.files").value("policy-blocked"))
-                .andExpect(jsonPath("$.memberCapabilityStates.boards-tasks").value("disabled"))
+                .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled"))
                 .andExpect(jsonPath("$.memberCapabilityStates.weaver").value("disabled"))
                 .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
                 .andExpect(jsonPath("$.capabilities.weaver.policyState").value("disabled"))
@@ -128,6 +128,25 @@ class WorkspaceControllerTest {
     void rejectsOrganizationManifestWhenAuthUrlWouldExposeUserInfo() throws Exception {
         String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
         resourceServerProperties.getJwt().setIssuerUri("https://user:pass@auth.weave.local/realms/weave");
+        try {
+            mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+                            .jwt(jwt -> jwt
+                                    .subject("calendar-editor@example.invalid")
+                                    .claim("weave_tenant_id", "weave-dogfood")
+                                    .claim("realm_access", Map.of("roles", List.of()))
+                                    .claim("groups", List.of("weave-calendar-editors")))
+                            .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
+        } finally {
+            resourceServerProperties.getJwt().setIssuerUri(originalIssuerUri);
+        }
+    }
+
+    @Test
+    void rejectsOrganizationManifestWhenAuthUrlIsMissing() throws Exception {
+        String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        resourceServerProperties.getJwt().setIssuerUri(" ");
         try {
             mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                             .jwt(jwt -> jwt
