@@ -38,6 +38,8 @@ jobs:
       - name: Skip release-notes label validation outside PRs
         if: github.event_name != 'pull_request'
         run: echo 'Release notes label validation only applies to pull requests.'
+      - name: Validate release notes tooling
+        run: make release-notes-check
 
   docs-checks:
     name: Docs Checks

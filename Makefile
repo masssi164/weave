@@ -17,6 +17,8 @@ docs-structure-check:
 
 release-notes-check:
 	python3 tools/docs_check.py --release-notes-only
+	python3 tools/release_notes_label_check_test.py
+	python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check
 
 release-notes-label-check:
 	python3 tools/release_notes_label_check.py

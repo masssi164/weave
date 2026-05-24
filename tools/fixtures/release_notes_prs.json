@@ -1,0 +1,33 @@
+[
+  {
+    "number": 280,
+    "title": "feat: add admin readiness dashboard",
+    "html_url": "https://github.com/masssi164/weave/pull/280",
+    "merged_at": "2026-05-22T10:15:00Z",
+    "user": {"login": "masssi164"},
+    "labels": [
+      {"name": "release-notes-feature"},
+      {"name": "documentation"}
+    ]
+  },
+  {
+    "number": 281,
+    "title": "fix: keep support bundle secrets redacted",
+    "html_url": "https://github.com/masssi164/weave/pull/281",
+    "merged_at": "2026-05-22T11:30:00Z",
+    "user": {"login": "copilot"},
+    "labels": [
+      {"name": "release-notes-bugfix"}
+    ]
+  },
+  {
+    "number": 282,
+    "title": "chore: rewrap docs prose",
+    "html_url": "https://github.com/masssi164/weave/pull/282",
+    "merged_at": "2026-05-22T12:00:00Z",
+    "user": {"login": "masssi164"},
+    "labels": [
+      {"name": "release-notes-skip"}
+    ]
+  }
+]

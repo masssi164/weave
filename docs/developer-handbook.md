@@ -22,7 +22,8 @@ Prerequisites:
 
 - Flutter SDK on the stable channel.
 - Xcode/macOS or another Flutter-supported target for local app runs.
-- `make`, Python 3, and the normal Dart/Flutter toolchain.
+- `make`, Python 3, Java 21 for backend checks, and the normal Dart/Flutter toolchain.
+- Node/npm for admin console checks.
 - Docker/OpenTofu only for live-stack validation.
 
 Clone the monorepo and prepare the client:
@@ -37,6 +38,25 @@ flutter run
 ```
 
 The app accepts local development service URLs such as `https://api.weave.local/api`, `https://auth.weave.local`, `https://matrix.weave.local`, and `https://files.weave.local` when a live stack is available.
+
+
+## Root Gradle orchestration
+
+The root `./gradlew` is a monorepo task runner, not a rewrite of the subproject build systems. It delegates to the existing Makefile targets and preserves current CI behavior while giving one discoverable command surface:
+
+| Gradle task | Delegates to | Purpose |
+| --- | --- | --- |
+| `acceptanceContract` | `make acceptance-contract` | Gherkin mapping and acceptance contract guard. |
+| `clientCi` | `make client-ci` | Flutter offline contract path. |
+| `serverCi` | `make server-ci` | Existing server Gradle test path. |
+| `adminCi` | `make admin-ci` | Admin console npm CI path. |
+| `infraStatic` | `make infra-static` | Infrastructure script/static checks. |
+| `docsBuild` | `make docs-build` | Strict MkDocs build. |
+| `docsCheck` | `make docs-check` | Docs structure check plus strict MkDocs build. |
+| `releaseNotesCheck` | `make release-notes-check` | Release notes structure, label behavior, and generator fixture checks. |
+| `ci` | aggregate | Runs the delegated monorepo gate set. |
+
+Each task requires the same tools and dependency setup as its delegated Make target; for example docs tasks need `python3 -m pip install -r docs/requirements.txt`, server checks need Java, client checks need Flutter, and admin checks need npm dependencies.
 
 ## Everyday Flutter workflow
 
@@ -93,15 +113,14 @@ make docs-check
 
 Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
 
-Generated release notes come from merged PR metadata and labels. Until [issue #291](https://github.com/masssi164/weave/issues/291) adds full automation, checked-in release note pages are a companion draft, not the primary source for reconstructing changes.
-
-Run:
+Generated release notes come from merged PR metadata and labels. The local generator can read GitHub API data or a fixture and writes the checked-in unreleased draft:
 
 ```sh
-make release-notes-check
+GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output docs/release-notes/unreleased.md
+python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check
 ```
 
-before requesting review when release notes are relevant.
+Run `make release-notes-check` before requesting review when release notes are relevant; it validates release-note page structure, label edge cases, and the generator fixture.
 
 ## Architecture conventions
 

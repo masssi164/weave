@@ -1,0 +1,31 @@
+plugins {
+    id 'base'
+}
+
+ext.registerMakeTask = { String taskName, String makeTarget, String taskDescription ->
+    tasks.register(taskName, Exec) {
+        group = 'verification'
+        description = taskDescription
+        commandLine 'make', makeTarget
+        outputs.upToDateWhen { false }
+    }
+}
+
+registerMakeTask('serverCi', 'server-ci', 'Run server checks through the existing server Gradle build.')
+registerMakeTask('clientCi', 'client-ci', 'Run Flutter offline contract checks through the existing client Makefile.')
+registerMakeTask('adminCi', 'admin-ci', 'Run admin console npm CI checks through the existing Makefile.')
+registerMakeTask('infraStatic', 'infra-static', 'Run static infrastructure script checks through the existing Makefile.')
+registerMakeTask('docsBuild', 'docs-build', 'Build the MkDocs site with strict validation.')
+registerMakeTask('docsCheck', 'docs-check', 'Run documentation structure checks and strict MkDocs build.')
+registerMakeTask('acceptanceContract', 'acceptance-contract', 'Verify Gherkin scenario mappings and acceptance contracts.')
+registerMakeTask('releaseNotesCheck', 'release-notes-check', 'Validate release notes structure, labels, and generator fixtures.')
+
+tasks.register('ci') {
+    group = 'verification'
+    description = 'Run the monorepo CI orchestration checks. Requires the same local prerequisites as the delegated Make targets.'
+    dependsOn 'acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesCheck'
+}
+
+tasks.named('check') {
+    dependsOn 'ci'
+}
