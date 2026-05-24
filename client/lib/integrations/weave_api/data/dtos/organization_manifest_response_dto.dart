@@ -26,6 +26,7 @@ class OrganizationManifestResponseDto {
     if (organizationAuthUrl == null ||
         !organizationAuthUrl.isAbsolute ||
         organizationAuthUrl.host.isEmpty ||
+        organizationAuthUrl.userInfo.isNotEmpty ||
         organizationAuthUrl.hasQuery ||
         organizationAuthUrl.hasFragment ||
         (organizationAuthUrl.scheme != 'https' &&

@@ -69,6 +69,9 @@ class WorkspaceControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private OAuth2ResourceServerProperties resourceServerProperties;
+
     @MockBean
     private JwtDecoder jwtDecoder;
 
@@ -119,6 +122,25 @@ class WorkspaceControllerTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.local"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("providerDiagnostics"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("Authorization: Bearer"))));
+    }
+
+    @Test
+    void rejectsOrganizationManifestWhenAuthUrlWouldExposeUserInfo() throws Exception {
+        String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
+        resourceServerProperties.getJwt().setIssuerUri("https://user:pass@auth.weave.local/realms/weave");
+        try {
+            mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+                            .jwt(jwt -> jwt
+                                    .subject("calendar-editor@example.invalid")
+                                    .claim("weave_tenant_id", "weave-dogfood")
+                                    .claim("realm_access", Map.of("roles", List.of()))
+                                    .claim("groups", List.of("weave-calendar-editors")))
+                            .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                    .andExpect(status().isServiceUnavailable())
+                    .andExpect(jsonPath("$.code").value("organization-manifest-invalid-auth-url"));
+        } finally {
+            resourceServerProperties.getJwt().setIssuerUri(originalIssuerUri);
+        }
     }
 
     @Test

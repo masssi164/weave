@@ -196,6 +196,7 @@ void main() {
       for (final invalidAuthUrl in [
         'configured-by-organization-admin',
         'https:///realms/weave',
+        'https://user:pass@auth.weave.local/realms/weave',
         'https://auth.weave.local/realms/weave?provider=raw',
         'https://auth.weave.local/realms/weave#diagnostics',
       ]) {

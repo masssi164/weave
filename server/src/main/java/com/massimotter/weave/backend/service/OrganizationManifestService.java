@@ -121,6 +121,7 @@ public class OrganizationManifestService {
                 || uri.getHost() == null
                 || uri.getHost().isBlank()
                 || (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme))
+                || uri.getRawUserInfo() != null
                 || uri.getRawQuery() != null
                 || uri.getRawFragment() != null) {
             throw invalidOrganizationAuthUrl();
