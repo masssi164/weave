@@ -192,6 +192,29 @@ void main() {
       },
     );
 
+    test('rejects missing organization identity in org manifest', () async {
+      for (final patch in [
+        {'organizationId': ''},
+        {'displayName': ''},
+        {'organizationId': null},
+        {'displayName': null},
+      ]) {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse({..._organizationManifestJson(), ...patch});
+          }),
+        );
+
+        expect(
+          () => client.fetchOrganizationManifest(
+            baseUrl: Uri.parse('https://api.weave.local/api'),
+            accessToken: 'token-123',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      }
+    });
+
     test('rejects invalid organization auth URL in org manifest', () async {
       for (final invalidAuthUrl in [
         'configured-by-organization-admin',

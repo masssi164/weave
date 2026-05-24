@@ -48,8 +48,8 @@ class OrganizationManifestResponseDto {
 
     return OrganizationManifestResponseDto(
       manifestVersion: _string(json['manifestVersion'], fallback: 'unknown'),
-      organizationId: _safeText(json['organizationId']),
-      displayName: _safeText(json['displayName']),
+      organizationId: _requiredText(json['organizationId'], 'organizationId'),
+      displayName: _requiredText(json['displayName'], 'displayName'),
       organizationAuthUrl: organizationAuthUrl,
       generatedAt: _dateTime(json['generatedAt']),
       supportSafe: supportSafe,
@@ -145,6 +145,17 @@ List<String> _safeStringList(Object? value) {
 }
 
 String _safeText(Object? value) => value is String ? _cleanText(value) : '';
+
+String _requiredText(Object? value, String field) {
+  final cleaned = _safeText(value);
+  if (cleaned.isEmpty) {
+    throw AppFailure.unknown(
+      'The backend returned an invalid organization manifest payload.',
+      cause: '$field is required',
+    );
+  }
+  return cleaned;
+}
 
 String _string(Object? value, {required String fallback}) {
   return value is String && value.trim().isNotEmpty ? value.trim() : fallback;

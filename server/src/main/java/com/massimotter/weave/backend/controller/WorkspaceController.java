@@ -61,6 +61,8 @@ public class WorkspaceController {
             @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
             @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "503", description = "Organization auth URL is invalid or support-unsafe.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public OrganizationManifestResponse organizationManifest(@AuthenticationPrincipal Jwt jwt) {
