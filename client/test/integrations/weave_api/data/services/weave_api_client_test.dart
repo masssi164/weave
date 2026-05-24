@@ -286,6 +286,42 @@ void main() {
                 {
                   'category': 'identity-idm',
                   'label': 'identity/IDM',
+                  'contract': {
+                    'category': 'identity-idm',
+                    'featureCapabilities': [
+                      'identity.sign_in',
+                      'identity.groups',
+                    ],
+                    'defaultAdapters': ['keycloak-realm'],
+                    'externalAdapters': ['entra-id', 'generic-oidc'],
+                    'choiceModels': [
+                      {
+                        'choiceModel': 'recommended_self_hosted_default',
+                        'adapters': ['keycloak-realm'],
+                        'adminRiskNotes': [
+                          'recommended sovereign/default posture',
+                        ],
+                        'recommended': true,
+                      },
+                      {
+                        'choiceModel': 'external_existing_provider',
+                        'adapters': ['entra-id'],
+                        'adminRiskNotes': [
+                          'admin records privacy and compliance risk outside member UX',
+                        ],
+                        'recommended': false,
+                      },
+                    ],
+                    'adapterModules': ['identity-realm', 'matrix-auth'],
+                    'stableMemberImpactStates': [
+                      'usable',
+                      'disabled',
+                      'degraded',
+                      'policy-blocked',
+                    ],
+                    'adminSelectable': true,
+                    'normalMembersConfigureProviders': false,
+                  },
                   'readiness': 'ready',
                   'policyState': 'allowed',
                   'memberImpact': 'Sign-in is available.',
@@ -301,6 +337,29 @@ void main() {
                 {
                   'category': 'weaver',
                   'label': 'Weaver',
+                  'contract': {
+                    'category': 'weaver',
+                    'featureCapabilities': ['weaver.enabled'],
+                    'defaultAdapters': ['weaver-runtime-disabled'],
+                    'externalAdapters': ['openclaw-governed-runtime'],
+                    'choiceModels': [
+                      {
+                        'choiceModel': 'recommended_self_hosted_default',
+                        'adapters': ['weaver-runtime-disabled'],
+                        'adminRiskNotes': ['disabled by default'],
+                        'recommended': true,
+                      },
+                    ],
+                    'adapterModules': [],
+                    'stableMemberImpactStates': [
+                      'usable',
+                      'disabled',
+                      'degraded',
+                      'policy-blocked',
+                    ],
+                    'adminSelectable': true,
+                    'normalMembersConfigureProviders': false,
+                  },
                   'readiness': 'policy_blocked',
                   'policyState': 'policy_blocked',
                   'memberImpact': 'Weaver is disabled by workspace policy.',
@@ -379,6 +438,40 @@ void main() {
         expect(snapshot.failClosed, isTrue);
         expect(snapshot.categories, hasLength(2));
         expect(snapshot.categories.first.category, 'identity-idm');
+        expect(
+          snapshot.categories.first.contract.featureCapabilities,
+          containsAll(['identity.sign_in', 'identity.groups']),
+        );
+        expect(
+          snapshot.categories.first.contract.defaultAdapters,
+          contains('keycloak-realm'),
+        );
+        expect(
+          snapshot.categories.first.contract.externalAdapters,
+          containsAll(['entra-id', 'generic-oidc']),
+        );
+        expect(
+          snapshot.categories.first.contract.keepsMemberSemanticsStable,
+          isTrue,
+        );
+        expect(
+          snapshot.categories.first.contract.choiceModels.map(
+            (choiceModel) => choiceModel.choiceModel,
+          ),
+          containsAll([
+            'recommended_self_hosted_default',
+            'external_existing_provider',
+          ]),
+        );
+        expect(
+          snapshot.categories.first.contract.choiceModels.first.recommended,
+          isTrue,
+        );
+        expect(
+          snapshot.categories.first.contract.choiceModels.last.adminRiskNotes
+              .join(' '),
+          contains('privacy'),
+        );
         expect(
           snapshot.categories.first.readiness,
           ProviderCategoryReadiness.ready,

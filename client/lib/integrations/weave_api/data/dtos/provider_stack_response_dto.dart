@@ -52,6 +52,7 @@ class ProviderCategoryStatusResponseDto {
   const ProviderCategoryStatusResponseDto({
     required this.category,
     required this.label,
+    required this.contract,
     required this.readiness,
     required this.policyState,
     required this.memberImpact,
@@ -66,6 +67,9 @@ class ProviderCategoryStatusResponseDto {
     return ProviderCategoryStatusResponseDto(
       category: _string(json['category'], fallback: 'unknown'),
       label: _safeText(json['label']),
+      contract: ProviderCategoryContractResponseDto.fromJson(
+        _map(json['contract']),
+      ),
       readiness: _providerCategoryReadiness(
         _string(json['readiness'], fallback: 'unknown'),
       ),
@@ -79,6 +83,7 @@ class ProviderCategoryStatusResponseDto {
 
   final String category;
   final String label;
+  final ProviderCategoryContractResponseDto contract;
   final ProviderCategoryReadiness readiness;
   final String policyState;
   final String memberImpact;
@@ -89,12 +94,106 @@ class ProviderCategoryStatusResponseDto {
   ProviderCategoryStatusSnapshot toSnapshot() => ProviderCategoryStatusSnapshot(
     category: category,
     label: label,
+    contract: contract.toSnapshot(),
     readiness: readiness,
     policyState: policyState,
     memberImpact: memberImpact,
     modules: modules,
     providerCandidates: providerCandidates,
     diagnostics: diagnostics,
+  );
+}
+
+class ProviderCategoryContractResponseDto {
+  const ProviderCategoryContractResponseDto({
+    required this.category,
+    required this.featureCapabilities,
+    required this.defaultAdapters,
+    required this.externalAdapters,
+    required this.choiceModels,
+    required this.adapterModules,
+    required this.stableMemberImpactStates,
+    required this.adminSelectable,
+    required this.normalMembersConfigureProviders,
+  });
+
+  factory ProviderCategoryContractResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return ProviderCategoryContractResponseDto(
+      category: _string(json['category'], fallback: 'unknown'),
+      featureCapabilities: _safeStringList(json['featureCapabilities']),
+      defaultAdapters: _safeStringList(json['defaultAdapters']),
+      externalAdapters: _safeStringList(json['externalAdapters']),
+      choiceModels: _listOfMaps(
+        json['choiceModels'],
+      ).map(ProviderChoiceModelResponseDto.fromJson).toList(growable: false),
+      adapterModules: _safeStringList(json['adapterModules']),
+      stableMemberImpactStates: _safeStringList(
+        json['stableMemberImpactStates'],
+      ),
+      adminSelectable: json.containsKey('adminSelectable')
+          ? _bool(json['adminSelectable'])
+          : true,
+      normalMembersConfigureProviders: _bool(
+        json['normalMembersConfigureProviders'],
+      ),
+    );
+  }
+
+  final String category;
+  final List<String> featureCapabilities;
+  final List<String> defaultAdapters;
+  final List<String> externalAdapters;
+  final List<ProviderChoiceModelResponseDto> choiceModels;
+  final List<String> adapterModules;
+  final List<String> stableMemberImpactStates;
+  final bool adminSelectable;
+  final bool normalMembersConfigureProviders;
+
+  ProviderCategoryContractSnapshot toSnapshot() =>
+      ProviderCategoryContractSnapshot(
+        category: category,
+        featureCapabilities: featureCapabilities,
+        defaultAdapters: defaultAdapters,
+        externalAdapters: externalAdapters,
+        choiceModels: choiceModels
+            .map((choiceModel) => choiceModel.toSnapshot())
+            .toList(growable: false),
+        adapterModules: adapterModules,
+        stableMemberImpactStates: stableMemberImpactStates,
+        adminSelectable: adminSelectable,
+        normalMembersConfigureProviders: normalMembersConfigureProviders,
+      );
+}
+
+class ProviderChoiceModelResponseDto {
+  const ProviderChoiceModelResponseDto({
+    required this.choiceModel,
+    required this.adapters,
+    required this.adminRiskNotes,
+    required this.recommended,
+  });
+
+  factory ProviderChoiceModelResponseDto.fromJson(Map<String, dynamic> json) {
+    return ProviderChoiceModelResponseDto(
+      choiceModel: _string(json['choiceModel'], fallback: 'unknown'),
+      adapters: _safeStringList(json['adapters']),
+      adminRiskNotes: _safeStringList(json['adminRiskNotes']),
+      recommended: _bool(json['recommended']),
+    );
+  }
+
+  final String choiceModel;
+  final List<String> adapters;
+  final List<String> adminRiskNotes;
+  final bool recommended;
+
+  ProviderChoiceModelSnapshot toSnapshot() => ProviderChoiceModelSnapshot(
+    choiceModel: choiceModel,
+    adapters: adapters,
+    adminRiskNotes: adminRiskNotes,
+    recommended: recommended,
   );
 }
 

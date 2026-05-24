@@ -207,7 +207,7 @@
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ProviderRegistryControllerTest.java",
           "fragments": [
             "providerStatusReportsAllFacadeSeamsWithoutSecrets",
-            "identity-idm", "policy_blocked", "misconfigured", "documents-collaboration", "secretsReturned"
+            "identity-idm", "policy_blocked", "misconfigured", "documents-collaboration", "microsoft-teams", "sharepoint", "recommended_self_hosted_default", "managed_cloud_provider", "secretsReturned"
           ]
         },
         {
@@ -223,6 +223,8 @@
           "fragments": [
             "fetches provider stack readiness without direct provider URLs",
             "ProviderCategoryReadiness.policyBlocked",
+            "keepsMemberSemanticsStable",
+            "external_existing_provider",
             "rawProviderErrorsReturned"
           ]
         }

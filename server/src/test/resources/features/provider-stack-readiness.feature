@@ -14,6 +14,10 @@ Feature: Provider stack readiness is backend-owned and fail-closed
     And backend-owned facades are required
     And direct Flutter provider calls are refused by contract
     And provider modules include files calendar boards office meetings contacts forms source-control issue-tracker ci release and identity-realm
+    And provider category contracts separate feature capabilities from default and external adapters
+    And provider choice models include recommended self-hosted defaults and risk-aware external providers
+    And a mixed provider posture can keep self-hosted identity Teams chat SharePoint files and OpenProject tasks behind stable category contracts
+    And member impact states are stable across provider adapters
     And meetings readiness uses LiveKit as the active provider and fails closed support-safely
     And Identity Forms and Contacts readiness is mapped to dependent backend PRs
     And disabled or unconfigured optional providers fail closed

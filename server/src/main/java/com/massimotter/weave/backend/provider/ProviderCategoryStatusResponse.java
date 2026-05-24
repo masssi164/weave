@@ -10,6 +10,7 @@ import java.util.Map;
 public record ProviderCategoryStatusResponse(
         @Schema(description = "Stable provider-neutral category key.") String category,
         @Schema(description = "Human-readable provider-neutral category label.") String label,
+        @Schema(description = "Provider-neutral capability contract and adapter seam for this category.") ProviderCategoryContractResponse contract,
         @Schema(description = "Admin readiness state for this category.") ProviderCategoryReadiness readiness,
         @Schema(description = "Effective capability policy state used for this category.") WorkspaceCapabilityPolicyState policyState,
         @Schema(description = "Member-safe impact label. Does not expose raw provider setup.") String memberImpact,
@@ -20,6 +21,9 @@ public record ProviderCategoryStatusResponse(
     public ProviderCategoryStatusResponse {
         category = requireText(category, "category");
         label = requireText(label, "label");
+        contract = contract == null
+                ? new ProviderCategoryContractResponse(category, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), true, false)
+                : contract;
         readiness = readiness == null ? ProviderCategoryReadiness.DISABLED : readiness;
         policyState = policyState == null ? WorkspaceCapabilityPolicyState.UNAVAILABLE : policyState;
         memberImpact = requireText(memberImpact, "memberImpact");

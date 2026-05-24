@@ -81,6 +81,7 @@ final class ProviderCategoryHealthMapper {
         return new ProviderCategoryStatusResponse(
                 category,
                 label,
+                ProviderCapabilityContracts.contract(category, modules),
                 fromCapability(capability),
                 capability.policyState(),
                 capability.memberImpact(),
@@ -110,6 +111,7 @@ final class ProviderCategoryHealthMapper {
         return new ProviderCategoryStatusResponse(
                 category,
                 label,
+                ProviderCapabilityContracts.contract(category, modules),
                 readiness,
                 policyState,
                 memberImpact,
