@@ -19,6 +19,15 @@ Feature: Weave v0.1 dogfood production release
     And the member does not see preview, scaffold, roadmap, or raw provider setup copy
     And provider diagnostics stay in admin/operator health surfaces
 
+  @weave-v01-admin-provider-categories
+  Scenario: Admin sees provider categories before member use
+    Given an owner or admin opens Workspace Health before inviting members
+    When provider readiness and policy are reviewed
+    Then identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver are shown as provider categories
+    And current dogfood defaults map to category readiness without becoming member-facing product names
+    And Weaver is disabled by default until admin policy explicitly enables it
+    And normal members never configure raw providers, service endpoints, provider secrets, or diagnostics
+
   @weave-v01-channel-workspace
   Scenario: A channel is the primary workspace surface
     Given a workspace member enters a project channel

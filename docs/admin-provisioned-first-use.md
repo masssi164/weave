@@ -10,6 +10,23 @@ Normal members must not configure OIDC, realms, provider URLs, service endpoints
 
 Admins and operators provision identity, domains, provider stack, policy, backup/restore, support bundles, and release readiness before inviting normal users. Workspace Health is the admin/operator control plane for setup, readiness, degraded services, and support-safe diagnostics.
 
+## Provider-category admin boundary
+
+Provider setup is category-first, not vendor-first. Workspace Health and admin setup must model these product/admin categories before member use:
+
+- identity/IDM;
+- chat;
+- files;
+- calendar;
+- boards/tasks;
+- meetings/calls;
+- documents/collaboration;
+- Weaver, disabled by default until a later admin policy enables the governed per-user PA runtime.
+
+The current dogfood defaults map into those categories as provider selections and readiness signals: Keycloak/Auth for identity/IDM, Matrix for chat, Nextcloud for files and calendar backing, OpenProject for boards/tasks validation, and LiveKit for meetings readiness. These names belong in admin/operator setup, readiness, support-safe diagnostics, and documentation. They must not become the normal member-facing product model.
+
+Normal members never configure raw providers, service endpoints, OIDC clients, provider secrets, backup/restore paths, or provider diagnostics. Members see ready Weave capabilities or short impact/fallback states. Admins/operators see support-safe readiness and next actions without secret values, bearer tokens, credential-bearing URLs, raw downstream error bodies, or provider internals that are not needed for remediation.
+
 ## Role boundary
 
 | Role | First-use experience | Setup and health scope |

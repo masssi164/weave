@@ -141,6 +141,41 @@
       ]
     },
     {
+      "tag": "@weave-v01-admin-provider-categories",
+      "scenario": "Admin sees provider categories before member use",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "V01_ADMIN_PROVIDER_CATEGORIES"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/product-line-and-weaver-plan.md",
+          "fragments": [
+            "Workspace/Admin Health and setup language names identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver as first-class categories.",
+            "Dogfood defaults are mapped as current provider choices only: Keycloak/Auth, Matrix/Chat, Nextcloud/Files and Calendar backing, OpenProject Boards validation, and LiveKit Meetings readiness.",
+            "Weaver remains disabled by default and later than admin portal, IDM/RBAC, readiness, and whitelisting."
+          ]
+        },
+        {
+          "path": "docs/admin-provisioned-first-use.md",
+          "fragments": [
+            "Provider-category admin boundary",
+            "Normal members never configure raw providers, service endpoints, OIDC clients, provider secrets, backup/restore paths, or provider diagnostics.",
+            "Admins/operators see support-safe readiness and next actions without secret values"
+          ]
+        },
+        {
+          "path": "docs/release-v0.1-dogfood-plan.md",
+          "fragments": [
+            "Provider categories are first-class product/admin concepts",
+            "Weaver is represented only as a disabled-by-default category",
+            "never raw provider setup, service endpoints, provider secrets, or diagnostics"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-channel-workspace",
       "scenario": "A channel is the primary workspace surface",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

@@ -3,6 +3,8 @@
 ## Overview
 Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific or platform-specific code lives either inside the owning feature or in `lib/integrations/<integration>/` when the boundary is shared across multiple features.
 
+Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, documents/collaboration, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave contracts. See [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md).
+
 ## App startup
 The app now resolves bootstrap before `MaterialApp.router` is built.
 

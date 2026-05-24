@@ -4,13 +4,15 @@
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
 </p>
 
-Weave is an accessibility-first, self-hostable collaboration workspace for chat, files, shared calendars, boards/tasks, meetings, decisions, and operator health.
+Weave is an accessibility-first, self-hostable organization suite and integration layer for chat, files, shared calendars, boards/tasks, meetings, decisions, and operator health.
 
-This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, and release metadata as one release unit.
+Weave is provider-neutral by design: an organization should be able to keep its existing identity, chat, file, calendar, collaboration, and project systems while exposing them through coherent Weave product concepts. The default dogfood stack can use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit, but those are provider choices behind Weave-owned contracts, not the product boundary.
+
+This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, and release metadata as one release unit. The active product-line reference is [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md).
 
 ## Product screenshots
 
-These deterministic screenshots use checked-in Weave assets. They show Weave-owned surfaces that are suitable for the README showcase: admin-provisioned setup, service endpoint review, custom chat, files, and settings/readiness. They are not a promise that roadmap or guarded provider surfaces are shipped; those stay separated in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md).
+These deterministic screenshots use checked-in Weave assets. They show the active product-maturity track through Weave-owned surfaces that are suitable for the README showcase: admin-provisioned setup, service endpoint review, custom chat, files, and settings/readiness. They are not a promise that roadmap or guarded provider surfaces are shipped; those stay separated in [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md).
 
 Future README showcase updates should keep this acceptance checklist:
 
@@ -29,19 +31,19 @@ Setup is admin-provisioned; normal users join after provisioning and are not ask
 
 [<img src="docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup review screen listing canonical local service endpoints before finishing configuration." width="680">](docs/assets/marketing/02-review-service-endpoints.svg)
 
-Endpoint review keeps canonical auth, API, Matrix, files, and calendar surfaces explicit before the workspace is used.
+Endpoint review keeps canonical identity, API, chat, files, and calendar surfaces explicit before the workspace is used. Concrete provider names belong in setup/readiness and operator docs, not as the member-facing product model.
 
 ### Custom Weave chat
 
 [<img src="docs/assets/marketing/03-chat-room.svg" alt="Custom Weave chat room showing a release room conversation and accessible message composer." width="680">](docs/assets/marketing/03-chat-room.svg)
 
-Chat is a Weave product experience backed by Matrix; raw Matrix administration is not the normal user path.
+Chat is a Weave product experience backed by the selected chat provider. Matrix is the current dogfood provider; raw provider administration is not the normal user path.
 
 ### Weave files through the backend facade
 
 [<img src="docs/assets/marketing/04-files-documents.svg" alt="Weave files screen listing folders and files through the backend files facade." width="680">](docs/assets/marketing/04-files-documents.svg)
 
-Files use Weave-owned product routes and backend facades instead of promoting raw Nextcloud as the everyday UX.
+Files use Weave-owned product routes and backend facades instead of promoting raw provider UX such as Nextcloud or SharePoint as the everyday UX.
 
 ### Settings and readiness
 
@@ -64,6 +66,7 @@ v0.1 is a dogfood-production release, not a preview showcase. A surface belongs 
 
 Required v0.1 surfaces:
 
+- Admin-provisioned organization setup with provider categories for identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver disabled by default until a later governed PA-runtime policy enables it.
 - Weave Home for recent work, next actions, and health warnings.
 - Channels as workspaces with accessible tabs for chat, files, boards/tasks, calendar, meetings, and decisions.
 - Files through Weave-owned backend/product routes, not raw provider UX as the normal path.
@@ -76,10 +79,11 @@ Required v0.1 surfaces:
 
 Out of v0.1:
 
-- Product agent runtime integration.
+- Product agent runtime integration. Weaver is a later governed per-user PA layer, not the foundation of the current product architecture.
 - Autonomous, group, or team-scoped agent writes.
 - Public connector SDK.
 - Teams/Slack migration tooling.
+- Full generic provider marketplace/admin console beyond the category seams needed for the current stack.
 - Broad SaaS administration beyond safe self-hosting boundaries.
 
 ## Boards and provider boundary
@@ -145,6 +149,7 @@ Live-stack E2E is intentionally opt-in. Run it only with explicit runner power/s
 
 - Keep user-facing documentation honest about what is shipped, gated, disabled, or future work.
 - Prefer accessible headings and bullets over dense tables.
+- Plan Weave product-first: organization setup, provider categories, admin policy, and readiness before Weaver/agent runtime work.
 - Do not promote raw provider screens as Weave product UX.
 - Do not expose provider secrets or service tokens to Flutter, support bundles, app config, or logs.
 - Treat `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `release/` changes as one coherent product story.
