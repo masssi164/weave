@@ -1,0 +1,96 @@
+erDiagram
+  ORGANIZATION ||--o{ USER : owns
+  ORGANIZATION ||--o{ GROUP : owns
+  ORGANIZATION ||--o{ ROLE : owns
+  ORGANIZATION ||--o{ PROVIDER_CONFIG : selects
+  ORGANIZATION ||--o{ CAPABILITY_POLICY : governs
+  ORGANIZATION ||--o{ WHITELIST : restricts
+  ORGANIZATION ||--o{ AUDIT_EVENT : records
+  PROVIDER_CONFIG ||--o{ SECRET_REF : references
+  PROVIDER_CONFIG ||--o{ READINESS : reports
+  USER }o--o{ GROUP : member_of
+  USER }o--o{ ROLE : assigned
+  GROUP }o--o{ ROLE : grants
+  CAPABILITY_POLICY ||--o{ ROLE : allows
+  CAPABILITY_POLICY ||--o{ GROUP : matches
+  USER ||--o{ AUDIT_EVENT : acts
+
+  ORGANIZATION {
+    string id PK
+    string name
+    string status
+    string verifiedDomains
+    string createdAt
+  }
+  USER {
+    string id PK
+    string organizationId FK
+    string username
+    string email
+    string displayName
+    string provisioningState
+    string claimsJson
+  }
+  GROUP {
+    string id PK
+    string organizationId FK
+    string parentGroupId FK
+    string name
+    string type
+  }
+  ROLE {
+    string id PK
+    string organizationId FK
+    string name
+    string scope
+    string composite
+  }
+  PROVIDER_CONFIG {
+    string id PK
+    string organizationId FK
+    string capability
+    string providerType
+    string posture
+    string state
+    string endpointRefs
+  }
+  CAPABILITY_POLICY {
+    string id PK
+    string organizationId FK
+    string capability
+    string effect
+    string requiredRoleIds
+    string requiredGroupIds
+    string updatedAt
+  }
+  WHITELIST {
+    string id PK
+    string organizationId FK
+    string kind
+    string value
+    string effect
+  }
+  SECRET_REF {
+    string id PK
+    string providerConfigId FK
+    string name
+    string resolverKey
+    string rotatedAt
+  }
+  READINESS {
+    string id PK
+    string providerConfigId FK
+    string status
+    string checkedAt
+    string supportSafeSummary
+  }
+  AUDIT_EVENT {
+    string id PK
+    string organizationId FK
+    string actorUserId FK
+    string action
+    string targetType
+    string targetId
+    string decision
+    string createdAt
+  }
