@@ -41,6 +41,7 @@ void main() {
         'A user board write is authorized and audited',
         'A meeting capsule keeps work connected',
         'Decisions are captured as product records',
+        'Server control plane owns provider policy and audit',
         'Operators can deploy, verify, back up, restore, and diagnose safely',
       ]),
     );

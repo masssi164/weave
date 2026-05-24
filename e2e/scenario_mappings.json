@@ -284,6 +284,45 @@
       ]
     },
     {
+      "tag": "@weave-v01-org-control-plane-provider-facade",
+      "scenario": "Server control plane owns provider policy and audit",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+      "evidenceMarkers": [
+        "V01_ORG_CONTROL_PLANE_PROVIDER_FACADE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+          "fragments": [
+            "adminControlPlaneRejectsMembers",
+            "adminControlPlaneOverviewIsSupportSafeAndProviderNeutral",
+            "adminReadinessTestsAndPolicyUpdatesAreAuditedAndRedacted",
+            "secretRefs",
+            "rawSecretExposed"
+          ]
+        },
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/controller/AdminControlPlaneController.java",
+          "fragments": [
+            "/api/admin/control-plane",
+            "/api/admin/policies/capability-whitelist",
+            "/api/admin/providers/readiness-tests",
+            "/api/admin/audit/events"
+          ]
+        },
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java",
+          "fragments": [
+            "denyByDefault",
+            "secretref://weave/provider/",
+            "AuditAction.PROVIDER_READINESS_TESTED",
+            "AuditAction.ADMIN_POLICY_UPDATED"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-idm-rbac-capability-policy",
       "scenario": "IDM roles and groups decide capability profiles before Weaver runtime",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

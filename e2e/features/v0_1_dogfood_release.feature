@@ -46,6 +46,15 @@ Feature: Weave v0.1 dogfood production release
     And member API writes are denied when IDM capability policy does not grant the required category capability
     And Weaver remains disabled by default unless governed organization policy explicitly enables it
 
+  @weave-v01-org-control-plane-provider-facade
+  Scenario: Server control plane owns provider policy and audit
+    Given an owner or admin opens the Organization/Admin Console
+    When provider status, policy whitelists, readiness tests, and audit events are requested
+    Then the server returns a support-safe control-plane contract with category readiness and SecretRefs only
+    And members cannot call admin control-plane APIs directly
+    And provider readiness tests and policy changes produce redacted audit events
+    And the member client still receives only effective capability states without raw provider configuration
+
   @weave-v01-idm-rbac-capability-policy
   Scenario: IDM roles and groups decide capability profiles before Weaver runtime
     Given an owner has selected an IDM provider for the organization
