@@ -41,6 +41,7 @@ jobs:
 
   docs-checks:
     name: Docs Checks
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -56,6 +57,7 @@ jobs:
 
   acceptance-contract:
     name: Acceptance Contract
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -70,6 +72,7 @@ jobs:
 
   client-offline-checks:
     name: Client Offline Checks
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -114,6 +117,7 @@ jobs:
 
   admin-console-checks:
     name: Admin Console Checks
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -130,6 +134,7 @@ jobs:
 
   server-checks:
     name: Server Checks
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -143,6 +148,7 @@ jobs:
 
   infra-static-checks:
     name: Infra Static Checks
+    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

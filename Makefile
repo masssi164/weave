@@ -6,7 +6,7 @@ ci: acceptance-contract client-ci server-ci infra-static admin-ci
 docs-build: release-notes-check
 	python3 -m mkdocs build --strict
 
-docs-check: docs-structure-check release-notes-check
+docs-check: docs-structure-check
 	python3 -m mkdocs build --strict
 
 docs-serve:
