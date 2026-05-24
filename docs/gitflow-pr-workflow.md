@@ -35,7 +35,7 @@ Before review-ready:
 - Fill the PR template, including user/admin/operator impact and checks run.
 - Note contract/spec changes or explicitly mark that there are none.
 - For UI-facing changes, include accessibility and localization impact.
-- For docs/release process changes, run `make docs-check` and `make release-notes-check`.
+- For docs/release process changes, run `make docs-check`; use `make release-notes-check` alone only for release-note page or label-policy edits that do not need a site build.
 - Request Copilot review with `gh pr edit <number> --add-reviewer @copilot` or through the GitHub UI.
 
 ## CI enforcement

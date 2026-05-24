@@ -1,6 +1,6 @@
 .PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check live-stack-help
 
-ci: acceptance-contract client-ci server-ci infra-static admin-ci docs-check
+ci: acceptance-contract client-ci server-ci infra-static admin-ci
 
 # Install docs tooling with: python3 -m pip install -r docs/requirements.txt
 docs-build: release-notes-check

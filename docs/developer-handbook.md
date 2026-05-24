@@ -85,10 +85,9 @@ For documentation-only changes:
 ```sh
 python3 -m pip install -r docs/requirements.txt
 make docs-check
-make docs-build
 ```
 
-`make docs-check` runs the lightweight repository docs validator and a strict MkDocs build. Keep existing docs linked from navigation or from handbook pages so product truth does not drift into orphaned Markdown.
+`make docs-check` runs the lightweight repository docs validator and a strict MkDocs build. `make docs-build` is available when you only need the strict MkDocs build after dependencies are installed. Keep existing docs linked from navigation or from handbook pages so product truth does not drift into orphaned Markdown.
 
 ## Release notes workflow
 
