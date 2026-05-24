@@ -30,6 +30,14 @@ ${api_site_addresses} {
 	reverse_proxy ${api_upstream}
 }
 
+${admin_site_addresses} {
+	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
+	encode zstd gzip
+
+	header Content-Type text/plain
+	respond "Weave Organization/Admin Console deploy target. Build the React app from admin-console/ and configure it to call only the Weave backend admin APIs." 200
+}
+
 ${auth_site_addresses} {
 	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
 	encode zstd gzip

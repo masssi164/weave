@@ -26,6 +26,7 @@ locals {
   public_hosts = {
     weave  = var.tenant_domain
     api    = "${var.api_subdomain}.${var.tenant_domain}"
+    admin  = "${var.admin_subdomain}.${var.tenant_domain}"
     auth   = "${var.auth_subdomain}.${var.tenant_domain}"
     matrix = "${var.matrix_subdomain}.${var.tenant_domain}"
     files  = "${var.nextcloud_subdomain}.${var.tenant_domain}"
@@ -46,6 +47,7 @@ module "tenant_identity" {
   keycloak_public_url                     = local.public_urls.auth
   mas_public_url                          = local.public_urls.matrix
   nextcloud_public_url                    = local.public_urls.files
+  admin_console_public_url                = local.public_urls.admin
   matrix_mas_upstream_id                  = local.matrix_mas_upstream_id
   matrix_mas_client_secret                = var.matrix_mas_client_secret
   create_test_user                        = var.create_test_user

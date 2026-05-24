@@ -36,6 +36,7 @@ locals {
   public_hosts = {
     weave  = var.tenant_domain
     api    = "${var.api_subdomain}.${var.tenant_domain}"
+    admin  = "${var.admin_subdomain}.${var.tenant_domain}"
     auth   = "${var.auth_subdomain}.${var.tenant_domain}"
     matrix = "${var.matrix_subdomain}.${var.tenant_domain}"
     files  = "${var.nextcloud_subdomain}.${var.tenant_domain}"
@@ -49,6 +50,7 @@ locals {
   site_hosts = {
     weave  = [local.public_hosts.weave]
     api    = [local.public_hosts.api]
+    admin  = [local.public_hosts.admin]
     auth   = [local.public_hosts.auth]
     matrix = [local.public_hosts.matrix]
     files  = [local.public_hosts.files]
@@ -78,6 +80,7 @@ locals {
   caddyfile_content = templatefile("${path.module}/templates/Caddyfile.tpl", {
     weave_site_addresses  = local.site_addresses.weave
     api_site_addresses    = local.site_addresses.api
+    admin_site_addresses  = local.site_addresses.admin
     auth_site_addresses   = local.site_addresses.auth
     files_site_addresses  = local.site_addresses.files
     matrix_site_addresses = local.site_addresses.matrix

@@ -18,6 +18,11 @@ variable "nextcloud_public_url" {
   type        = string
 }
 
+variable "admin_console_public_url" {
+  description = "Browser-facing Organization/Admin Console base URL."
+  type        = string
+}
+
 variable "matrix_mas_upstream_id" {
   description = "ULID used by MAS for the upstream OIDC provider."
   type        = string
