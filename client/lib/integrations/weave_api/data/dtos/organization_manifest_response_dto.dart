@@ -24,6 +24,10 @@ class OrganizationManifestResponseDto {
       _string(json['organizationAuthUrl'], fallback: ''),
     );
     if (organizationAuthUrl == null ||
+        !organizationAuthUrl.isAbsolute ||
+        organizationAuthUrl.host.isEmpty ||
+        organizationAuthUrl.hasQuery ||
+        organizationAuthUrl.hasFragment ||
         (organizationAuthUrl.scheme != 'https' &&
             organizationAuthUrl.scheme != 'http')) {
       throw const AppFailure.unknown(

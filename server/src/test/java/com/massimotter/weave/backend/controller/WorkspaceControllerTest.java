@@ -122,6 +122,18 @@ class WorkspaceControllerTest {
     }
 
     @Test
+    void rejectsOrganizationManifestWhenTenantClaimIsMissing() throws Exception {
+        mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
+                        .jwt(jwt -> jwt
+                                .subject("calendar-editor@example.invalid")
+                                .claim("realm_access", Map.of("roles", List.of()))
+                                .claim("groups", List.of("weave-calendar-editors")))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("organization-manifest-unauthorized"));
+    }
+
+    @Test
     void returnsConfiguredWorkspaceCapabilities() throws Exception {
         assertConfiguredWorkspaceCapabilities("/api/workspace/capabilities");
         assertConfiguredWorkspaceCapabilities("/api/v1/workspace/capabilities");

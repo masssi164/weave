@@ -193,23 +193,28 @@ void main() {
     );
 
     test('rejects invalid organization auth URL in org manifest', () async {
-      final client = HttpWeaveApiClient(
-        httpClient: _RecordingHttpClient((request) async {
-          return _jsonResponse(
-            _organizationManifestJson(
-              organizationAuthUrl: 'configured-by-organization-admin',
-            ),
-          );
-        }),
-      );
+      for (final invalidAuthUrl in [
+        'configured-by-organization-admin',
+        'https:///realms/weave',
+        'https://auth.weave.local/realms/weave?provider=raw',
+        'https://auth.weave.local/realms/weave#diagnostics',
+      ]) {
+        final client = HttpWeaveApiClient(
+          httpClient: _RecordingHttpClient((request) async {
+            return _jsonResponse(
+              _organizationManifestJson(organizationAuthUrl: invalidAuthUrl),
+            );
+          }),
+        );
 
-      expect(
-        () => client.fetchOrganizationManifest(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
-          accessToken: 'token-123',
-        ),
-        throwsA(isA<AppFailure>()),
-      );
+        expect(
+          () => client.fetchOrganizationManifest(
+            baseUrl: Uri.parse('https://api.weave.local/api'),
+            accessToken: 'token-123',
+          ),
+          throwsA(isA<AppFailure>()),
+        );
+      }
     });
 
     test(

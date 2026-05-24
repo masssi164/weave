@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.OrganizationManifestResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -77,7 +79,11 @@ public class OrganizationManifestService {
             tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
         }
         if (tenantId == null) {
-            tenantId = contextAuthorizationProperties.defaultTenantId();
+            throw new ApiErrorException(
+                    HttpStatus.UNAUTHORIZED,
+                    "organization-manifest-unauthorized",
+                    "Organization manifest requires an authenticated organization tenant.",
+                    Map.of("reason", "tenant claim is missing"));
         }
         return tenantId;
     }
