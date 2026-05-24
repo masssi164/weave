@@ -125,7 +125,7 @@ public class OrganizationManifestService {
             if (part.isBlank()) {
                 continue;
             }
-            if (!title.isEmpty()) {
+            if (title.length() > 0) {
                 title.append(' ');
             }
             title.append(Character.toUpperCase(part.charAt(0)));
@@ -133,7 +133,7 @@ public class OrganizationManifestService {
                 title.append(part.substring(1));
             }
         }
-        return title.isEmpty() ? "Organization" : title.toString();
+        return title.length() == 0 ? "Organization" : title.toString();
     }
 
     private Map<String, String> memberStates(WorkspaceCapabilitiesResponse capabilities) {
