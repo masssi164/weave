@@ -451,6 +451,18 @@ void main() {
         expect(find.text('Disabled by policy'), findsOneWidget);
         expect(find.text('Admin setup required'), findsOneWidget);
         expect(find.text('Unavailable until enabled'), findsNWidgets(2));
+        expect(
+          find.bySemanticsLabel(
+            RegExp(r'Personal assistant\..*Unavailable until enabled'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp(r'Channel agent\..*Unavailable until enabled'),
+          ),
+          findsOneWidget,
+        );
         expect(find.text('Favorites'), findsOneWidget);
         expect(find.text('Personal messages'), findsOneWidget);
         expect(find.text('Channels'), findsOneWidget);

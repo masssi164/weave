@@ -635,9 +635,12 @@ class _AgentPreviewTile extends StatelessWidget {
     final scope = _agentScope(l10n, preview.kind);
     final boundary = _agentBoundary(l10n, preview.kind);
     final audit = _agentAudit(l10n, preview.kind);
+    final actionLabel = preview.canStart
+        ? ''
+        : '. ${l10n.chatAgentStartDisabledButton}';
     final semanticsLabel =
         '$title. $statusLabel. $description. $scope. '
-        '$boundary. $audit';
+        '$boundary. $audit$actionLabel';
 
     return Semantics(
       container: true,
