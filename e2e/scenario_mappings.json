@@ -509,6 +509,31 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@weave-v01-admin-console-mvp",
+      "scenario": "Organization admins manage provider policy in a separate console",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "admin-console/src/App.test.tsx",
+      "evidenceMarkers": [
+        "V01_ADMIN_CONSOLE_MVP"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "admin-console/README.md",
+          "fragments": [
+            "Talks only to Weave backend admin APIs",
+            "The Weave member client remains provider-agnostic"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.tsx",
+          "fragments": [
+            "calls only Weave backend admin APIs",
+            "role=\"status\""
+          ]
+        }
+      ]
     }
   ]
 }

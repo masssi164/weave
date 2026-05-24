@@ -110,6 +110,14 @@ Feature: Weave v0.1 dogfood production release
     And the server manifest and provider registry are reachable through Weave backend APIs
     And admin APIs reject member tokens while support bundles keep SecretRefs redacted
 
+  @weave-v01-admin-console-mvp
+  Scenario: Organization admins manage provider policy in a separate console
+    Given an owner, admin, or operator signs into the Organization/Admin Console
+    When they review org overview, provider categories, readiness details, whitelist policy, and audit events
+    Then every action goes through backend admin APIs
+    And no raw provider calls, provider secrets, or admin diagnostics are exposed to member clients
+    And the console remains keyboard reachable with semantic headings, forms, and status text
+
   @weave-v01-operator-release-path
   Scenario: Operators can deploy, verify, back up, restore, and diagnose safely
     Given an operator installs or updates a Weave stack
