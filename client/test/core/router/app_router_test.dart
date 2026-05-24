@@ -156,10 +156,12 @@ void main() {
           workspaceCapabilitySnapshotProvider.overrideWithValue(
             _workspaceCapabilitySnapshot(),
           ),
-          // The ready shell renders the workspace status card, which watches
-          // the backend-backed Weave Home provider. Keep router tests focused
-          // on navigation so widget-test HTTP failures do not schedule
-          // Riverpod retry timers after disposal.
+          // The ready shell renders backend-backed workspace status cards.
+          // Keep router tests focused on navigation so widget-test HTTP
+          // failures do not schedule Riverpod retry timers after disposal.
+          weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+            (ref) async => _workspaceCapabilitySnapshot().value,
+          ),
           weaveApiWorkspaceHomeProvider.overrideWith((ref) => null),
         ],
       );

@@ -8,5 +8,6 @@ public record WorkspaceCapabilitiesResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse chat,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse files,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse calendar,
-        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse boards) {
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse boards,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) WorkspaceCapabilityStatusResponse weaver) {
 }

@@ -170,3 +170,7 @@ Exit gate:
 - restore smoke passes
 - support bundle is redacted
 - Live Stack E2E passes against release manifest
+
+### IDM/RBAC and capability whitelisting acceptance
+
+Before Weaver runtime work, Weave must prove IDM/RBAC capability profiles and category whitelisting in the backend/admin contract. Keycloak is the self-hosted default IDM, while OIDC/SAML adapters remain provider-neutral. Unknown roles and groups are denied by default. Admin/operator views expose support-safe effective policy state; member views expose only ready, disabled, degraded, or policy-blocked impact states. Weaver remains disabled by policy until a later governed runtime profile is implemented.

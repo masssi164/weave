@@ -1280,6 +1280,12 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                 label: l10n.settingsWorkspaceConnectionLabel,
                 value: _connectionLabel(l10n, connection.status),
               ),
+              _StatusPill(
+                label: 'Policy',
+                value: _policyLabel(capability.policyState),
+              ),
+              if (capability.memberImpact case final impact?)
+                _StatusPill(label: 'Impact', value: impact),
               if (connection.lastInvalidation != null)
                 _StatusPill(
                   label: l10n.settingsWorkspaceLastChangeLabel,
@@ -1328,6 +1334,15 @@ class _WorkspaceReadinessRow extends StatelessWidget {
         l10n.settingsWorkspaceCapabilityBlocked,
       WorkspaceCapabilityReadiness.unavailable =>
         l10n.settingsWorkspaceCapabilityUnavailable,
+    };
+  }
+
+  String _policyLabel(WorkspaceCapabilityPolicyState state) {
+    return switch (state) {
+      WorkspaceCapabilityPolicyState.allowed => 'Allowed',
+      WorkspaceCapabilityPolicyState.policyBlocked => 'Policy blocked',
+      WorkspaceCapabilityPolicyState.disabled => 'Disabled by policy',
+      WorkspaceCapabilityPolicyState.unavailable => 'Unavailable',
     };
   }
 

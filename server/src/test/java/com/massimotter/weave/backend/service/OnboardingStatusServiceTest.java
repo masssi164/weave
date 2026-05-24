@@ -30,7 +30,8 @@ class OnboardingStatusServiceTest {
                         new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", WorkspaceCapabilityReadiness.DEGRADED),
                         new WorkspaceCapabilityProperties.Capability(false, null, null),
                         new WorkspaceCapabilityProperties.Capability(false, null, null),
-                        new WorkspaceCapabilityProperties.Capability(false, null, null)),
+                        new WorkspaceCapabilityProperties.Capability(false, null, null),
+                        null),
                 new PlatformContractProperties(null, null, null, null, null, null, null, null),
                 new OnboardingStatusProperties(null, null));
 
@@ -53,7 +54,8 @@ class OnboardingStatusServiceTest {
                         new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", null),
                         new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
                         new WorkspaceCapabilityProperties.Capability(false, null, null),
-                        new WorkspaceCapabilityProperties.Capability(false, null, null)),
+                        new WorkspaceCapabilityProperties.Capability(false, null, null),
+                        null),
                 new PlatformContractProperties(null, null, null, null, null, null, null, null),
                 new OnboardingStatusProperties(
                         new OnboardingStatusProperties.ModuleProvisioning(OnboardingProvisioningState.PENDING),
