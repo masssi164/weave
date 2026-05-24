@@ -1,0 +1,73 @@
+site_name: Weave Documentation
+site_description: Provider-neutral Weave product, operator, and developer documentation.
+repo_url: https://github.com/masssi164/weave
+repo_name: masssi164/weave
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: build/docs-site
+strict: true
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+  palette:
+    - scheme: default
+      primary: teal
+      accent: blue
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - User Handbook: user-handbook.md
+  - Admin/Operator Handbook: admin-operator-handbook.md
+  - Developer Handbook:
+      - Overview: developer-handbook.md
+      - GitFlow and PR workflow: gitflow-pr-workflow.md
+      - Architecture: architecture.md
+      - Canonical feature models: canonical-feature-models.md
+      - Acceptance contracts: acceptance-contracts.md
+      - Quality and evidence: quality-and-evidence.md
+      - Accessibility release gate: accessibility-release-gate.md
+      - ISO 9241-110 dogfood UX gate: iso-9241-110-dogfood-ux-gate.md
+  - Product and Release Scope:
+      - Product line and Weaver plan: product-line-and-weaver-plan.md
+      - v0.1 dogfood plan: release-v0.1-dogfood-plan.md
+      - Admin-provisioned first use: admin-provisioned-first-use.md
+      - Product acceptance flows: product-acceptance-flows.md
+      - Product flow activity diagrams: product-flow-activity-diagrams.md
+      - Calendar, E2EE, and boards scope: product-calendar-e2ee-boards-scope.md
+      - Roadmap and guarded surfaces: roadmap-and-guarded-surfaces.md
+      - Interop gateway and external collaboration: interop-gateway-and-external-collaboration.md
+      - Control plane and infra bootstrap: control-plane-infra-bootstrap.md
+  - Diagrams:
+      - Overview: diagrams/index.md
+      - Facade architecture source: diagrams/architecture_facade.mmd
+      - Chat ER source: diagrams/er_chat.mmd
+      - Files and docs ER source: diagrams/er_files_docs.mmd
+      - Calendar and meetings ER source: diagrams/er_calendar_meetings.mmd
+      - Boards and tasks ER source: diagrams/er_boards_tasks.mmd
+      - Identity/admin ER source: diagrams/er_identity_admin.mmd
+  - Release Notes:
+      - Process: release-notes/index.md
+      - Unreleased: release-notes/unreleased.md
+      - v0.1: release-notes/v0.1.md
+  - Research:
+      - Boards provider spike artifacts: research/boards-provider-spike-artifacts.md
+      - Boards provider spikes 119-121: research/boards-provider-spikes-119-121.md
+      - Boards task domain contract: research/boards-task-domain-contract.md
+      - Boards task module provider strategy: research/boards-task-module-provider-strategy.md

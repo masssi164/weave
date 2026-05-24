@@ -1,6 +1,25 @@
-.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract live-stack-help
+.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check live-stack-help
 
 ci: acceptance-contract client-ci server-ci infra-static admin-ci
+
+# Install docs tooling with: python3 -m pip install -r docs/requirements.txt
+docs-build:
+	python3 -m mkdocs build --strict
+
+docs-check: docs-structure-check
+	python3 -m mkdocs build --strict
+
+docs-serve:
+	python3 -m mkdocs serve
+
+docs-structure-check:
+	python3 tools/docs_check.py
+
+release-notes-check:
+	python3 tools/docs_check.py --release-notes-only
+
+release-notes-label-check:
+	python3 tools/release_notes_label_check.py
 
 client-ci:
 	$(MAKE) -C client offline-contract-test
