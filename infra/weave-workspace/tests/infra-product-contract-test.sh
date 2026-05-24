@@ -249,4 +249,41 @@ assert_file_absent "${release_env}" 'TF_VAR_boards_openproject_api_token=replace
 assert_file_absent "${install_script}" 'WEAVE_BOARDS_OPENPROJECT_API_TOKEN=%q'
 assert_file_contains "${connector_doc}" 'Boards provider secrets follow the same rule'
 
+# V01_INFRA_CONTROL_PLANE_BOOTSTRAP: recommended default bootstrap feeds backend control plane safely.
+provider_profile_sovereign="${ROOT_DIR}/provider-profiles/sovereign-default.json"
+provider_profile_ms="${ROOT_DIR}/provider-profiles/microsoft-hybrid-placeholder.json"
+keycloak_realm_contract="${ROOT_DIR}/keycloak/weave-dev-realm-contract.json"
+control_plane_bootstrap_doc="${ROOT_DIR}/../../docs/control-plane-infra-bootstrap.md"
+for file in "${provider_profile_sovereign}" "${provider_profile_ms}" "${keycloak_realm_contract}" "${control_plane_bootstrap_doc}"; do
+  [[ -f "${file}" ]] || fail "Missing control-plane bootstrap artifact: ${file}"
+done
+assert_file_contains "${provider_profile_sovereign}" '"profileKey": "sovereign-default"'
+assert_file_contains "${provider_profile_sovereign}" '"recommended_self_hosted_default"'
+assert_file_contains "${provider_profile_sovereign}" '"adminControlPlaneRoute": "/api/admin/control-plane"'
+assert_file_contains "${provider_profile_sovereign}" '"secretRefPrefix": "secretref://weave/provider/"'
+assert_file_contains "${provider_profile_sovereign}" '"selectedAdapter": "keycloak-realm"'
+assert_file_contains "${provider_profile_ms}" '"profileKey": "microsoft-hybrid-placeholder"'
+assert_file_contains "${provider_profile_ms}" '"selectedAdapter": "entra-id"'
+assert_file_contains "${provider_profile_ms}" '"selectedAdapter": "sharepoint"'
+assert_file_contains "${keycloak_realm_contract}" '"clientId": "weave-admin-console"'
+assert_file_contains "${keycloak_realm_contract}" '"operator"'
+assert_file_contains "${keycloak_realm_contract}" '"rawSecretsIncluded": false'
+assert_file_contains "${keycloak_main}" 'weave_admin_console'
+assert_file_contains "${keycloak_main}" 'workspace-operators'
+assert_file_contains "${keycloak_main}" 'claim_name          = "weave_organization_name"'
+assert_file_contains "${install_script}" 'TF_VAR_admin_subdomain=admin'
+assert_file_contains "${install_script}" 'WEAVE_ADMIN_CONSOLE_URL'
+assert_file_contains "${install_script}" 'WEAVE_ADMIN_CONSOLE_OIDC_CLIENT_ID'
+assert_file_contains "${install_script}" 'WEAVE_ORG_MANIFEST_URL'
+assert_file_contains "${support_bundle}" 'WEAVE_ADMIN_CONSOLE_URL'
+assert_file_contains "${support_bundle}" 'WEAVE_PROVIDER_PROFILE'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'Checking admin API protection with a member token'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" '/admin/control-plane'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'member token should receive 403 from admin control plane'
+assert_file_contains "${caddy_template}" 'Weave Organization/Admin Console deploy target'
+assert_file_absent "${provider_profile_sovereign}" 'client_secret'
+assert_file_absent "${provider_profile_sovereign}" 'api_token'
+assert_file_absent "${provider_profile_ms}" 'client_secret'
+assert_file_absent "${keycloak_realm_contract}" 'replace-me'
+
 printf '%s\n' 'infra product contract tests passed'

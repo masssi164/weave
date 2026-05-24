@@ -102,6 +102,14 @@ Feature: Weave v0.1 dogfood production release
     Then Weave stores context, evidence, risks, open questions, and follow-up links
     And the decision is reachable from the channel, meeting, board task, and home view
 
+  @weave-v01-infra-control-plane-bootstrap
+  Scenario: Infra bootstrap feeds the backend control plane safely
+    Given an operator bootstraps the recommended sovereign default Weave stack
+    When Keycloak, provider profiles, admin console target metadata, and backend environment are generated
+    Then Keycloak is reachable as the central default identity broker
+    And the server manifest and provider registry are reachable through Weave backend APIs
+    And admin APIs reject member tokens while support bundles keep SecretRefs redacted
+
   @weave-v01-operator-release-path
   Scenario: Operators can deploy, verify, back up, restore, and diagnose safely
     Given an operator installs or updates a Weave stack

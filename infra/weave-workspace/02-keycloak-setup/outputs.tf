@@ -79,3 +79,13 @@ output "weave_product_role_groups" {
   description = "Default Keycloak groups mapped one-to-one to MVP product roles."
   value       = module.tenant_identity.weave_product_role_groups
 }
+
+output "weave_admin_console_client_id" {
+  description = "Client ID configured for the separate Organization/Admin Console."
+  value       = module.tenant_identity.weave_admin_console_client_id
+}
+
+output "weave_admin_console_redirect_uris" {
+  description = "Allowed sign-in redirect URIs for the Organization/Admin Console."
+  value       = module.tenant_identity.weave_admin_console_redirect_uris
+}

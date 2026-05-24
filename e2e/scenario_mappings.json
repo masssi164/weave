@@ -484,6 +484,31 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@weave-v01-infra-control-plane-bootstrap",
+      "scenario": "Infra bootstrap feeds the backend control plane safely",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "infra/weave-workspace/tests/infra-product-contract-test.sh",
+      "evidenceMarkers": [
+        "V01_INFRA_CONTROL_PLANE_BOOTSTRAP"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "infra/weave-workspace/smoke-test.sh",
+          "fragments": [
+            "Checking admin API protection with a member token",
+            "/admin/control-plane"
+          ]
+        },
+        {
+          "path": "infra/weave-workspace/support-bundle.sh",
+          "fragments": [
+            "WEAVE_ADMIN_CONSOLE_URL",
+            "WEAVE_PROVIDER_PROFILE"
+          ]
+        }
+      ]
     }
   ]
 }

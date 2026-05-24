@@ -247,6 +247,10 @@ persist_bootstrap_env() {
     printf 'export WEAVE_API_BASE_URL=%q\n' "$(integration_test_base_url)"
     printf 'export WEAVE_BASE_URL=%q\n' "$(integration_test_base_url)"
     printf 'export WEAVE_AUTH_BASE_URL=%q\n' "$(auth_public_url)"
+    printf 'export WEAVE_ADMIN_CONSOLE_URL=%q\n' "$(admin_public_url)"
+    printf 'export WEAVE_ADMIN_CONSOLE_OIDC_CLIENT_ID=%q\n' "weave-admin-console"
+    printf 'export WEAVE_ORG_MANIFEST_URL=%q\n' "$(integration_test_base_url)/organization/manifest"
+    printf 'export WEAVE_PROVIDER_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
     printf 'export WEAVE_FILES_PRODUCT_URL=%q\n' "$(product_public_url)/files"
     printf 'export WEAVE_CALENDAR_PRODUCT_URL=%q\n' "$(product_public_url)/calendar"
     printf 'export WEAVE_NEXTCLOUD_BASE_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)"
@@ -504,6 +508,10 @@ auth_public_url() {
   printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_auth_subdomain}")" "$(public_port_suffix)"
 }
 
+admin_public_url() {
+  printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_admin_subdomain}")" "$(public_port_suffix)"
+}
+
 product_public_url() {
   printf '%s://%s%s' "${TF_VAR_public_scheme}" "${TF_VAR_tenant_domain}" "$(public_port_suffix)"
 }
@@ -591,6 +599,10 @@ write_app_config_summary() {
     printf 'export WEAVE_API_BASE_URL=%q\n' "${api_base_url}"
     printf 'export WEAVE_BASE_URL=%q\n' "${api_base_url}"
     printf 'export WEAVE_AUTH_BASE_URL=%q\n' "${auth_base_url}"
+    printf 'export WEAVE_ADMIN_CONSOLE_URL=%q\n' "$(admin_public_url)"
+    printf 'export WEAVE_ADMIN_CONSOLE_OIDC_CLIENT_ID=%q\n' 'weave-admin-console'
+    printf 'export WEAVE_ORG_MANIFEST_URL=%q\n' "${api_base_url}/organization/manifest"
+    printf 'export WEAVE_PROVIDER_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' 'weave-app'
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${matrix_url}"
@@ -652,6 +664,7 @@ preflight_checks() {
   local hosts=(
     "${TF_VAR_tenant_domain}"
     "$(public_host "${TF_VAR_api_subdomain}")"
+    "$(public_host "${TF_VAR_admin_subdomain}")"
     "$(public_host "${TF_VAR_auth_subdomain}")"
     "$(public_host "${TF_VAR_nextcloud_subdomain}")"
     "$(public_host "${TF_VAR_matrix_subdomain}")"
@@ -763,6 +776,7 @@ ensure_default_inputs() {
     "TF_VAR_tenant_domain=weave.local"
     "TF_VAR_auth_subdomain=auth"
     "TF_VAR_api_subdomain=api"
+    "TF_VAR_admin_subdomain=admin"
     "TF_VAR_matrix_subdomain=matrix"
     "TF_VAR_nextcloud_subdomain=files"
     "TF_VAR_public_scheme=https"
@@ -892,6 +906,7 @@ certificate_alt_names() {
   local hosts=(
     "${TF_VAR_tenant_domain}"
     "$(public_host "${TF_VAR_api_subdomain}")"
+    "$(public_host "${TF_VAR_admin_subdomain}")"
     "$(public_host "${TF_VAR_auth_subdomain}")"
     "$(public_host "${TF_VAR_nextcloud_subdomain}")"
     "$(public_host "${TF_VAR_matrix_subdomain}")"

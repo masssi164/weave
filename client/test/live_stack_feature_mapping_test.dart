@@ -42,6 +42,7 @@ void main() {
         'A meeting capsule keeps work connected',
         'Decisions are captured as product records',
         'Server control plane owns provider policy and audit',
+        'Infra bootstrap feeds the backend control plane safely',
         'Operators can deploy, verify, back up, restore, and diagnose safely',
       ]),
     );
