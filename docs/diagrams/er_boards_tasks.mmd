@@ -1,0 +1,95 @@
+erDiagram
+  BOARD ||--o{ LIST : contains
+  BOARD ||--o{ TASK : scopes
+  LIST ||--o{ TASK : orders
+  TASK }o--|| STATUS : has
+  TASK ||--o{ ASSIGNEE : assigned_to
+  USER ||--o{ ASSIGNEE : receives
+  TASK ||--o{ COMMENT : discusses
+  TASK ||--o{ ATTACHMENT : includes
+  TASK ||--o{ DEPENDENCY : predecessor
+  TASK ||--o{ DEPENDENCY : successor
+  TASK ||--o{ CUSTOM_FIELD_VALUE : extends
+  CUSTOM_FIELD ||--o{ CUSTOM_FIELD_VALUE : defines
+  USER ||--o{ COMMENT : authors
+
+  BOARD {
+    string id PK
+    string organizationId FK
+    string name
+    string scopeType
+    string state
+  }
+  LIST {
+    string id PK
+    string boardId FK
+    string title
+    string position
+    string statusId FK
+  }
+  TASK {
+    string id PK
+    string boardId FK
+    string listId FK
+    string statusId FK
+    string title
+    string description
+    string priority
+    string progressPercent
+    string startDate
+    string dueDate
+    string lockVersion
+  }
+  STATUS {
+    string id PK
+    string boardId FK
+    string name
+    string category
+    string isClosed
+  }
+  ASSIGNEE {
+    string id PK
+    string taskId FK
+    string userId FK
+    string role
+    string assignedAt
+  }
+  COMMENT {
+    string id PK
+    string taskId FK
+    string authorUserId FK
+    string plainText
+    string safeHtml
+    string createdAt
+  }
+  ATTACHMENT {
+    string id PK
+    string taskId FK
+    string fileId FK
+    string name
+    string mimeType
+  }
+  DEPENDENCY {
+    string id PK
+    string predecessorTaskId FK
+    string successorTaskId FK
+    string type
+  }
+  CUSTOM_FIELD {
+    string id PK
+    string boardId FK
+    string key
+    string label
+    string valueType
+  }
+  CUSTOM_FIELD_VALUE {
+    string id PK
+    string taskId FK
+    string customFieldId FK
+    string valueJson
+  }
+  USER {
+    string id PK
+    string organizationId FK
+    string displayName
+  }

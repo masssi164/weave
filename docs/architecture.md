@@ -7,6 +7,8 @@ Weave is product-first and provider-neutral. It models organization capabilities
 
 ## Provider-neutral capability contracts
 
+Canonical feature models come before control-plane, Admin Console, infra, or concrete adapter implementation. The active canonical model strategy is documented in [Canonical feature models and provider facades](canonical-feature-models.md), with Mermaid domain diagrams in [`docs/diagrams/`](diagrams/). Server facades expose Weave-owned models per capability; they are not thin provider proxies and must not leak provider IDs, raw provider payloads, secrets, or downstream diagnostics into member or Admin Console product contracts.
+
 Workspace/Admin Health is organized around feature capability categories, not concrete systems. The stable contract categories are identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, and Weaver runtime. Each category publishes category-level capability keys, current dogfood/default adapters, external adapter placeholders, operational readiness modules, and the stable member impact states `usable`, `disabled`, `degraded`, and `policy-blocked`.
 
 The dogfood stack maps Keycloak, Matrix/Synapse, Nextcloud, OpenProject, ONLYOFFICE, and LiveKit as default adapters only. External adapters such as Entra ID, Microsoft Teams, SharePoint/OneDrive, Microsoft 365 Office/Graph, Planner/Jira, Authentik/Auth0/OIDC/SAML, and other providers attach behind the same category contracts. Normal members never configure raw provider endpoints, secrets, OIDC clients, or diagnostics; admins/operators choose adapters and see support-safe readiness through backend-owned facades.

@@ -55,6 +55,33 @@ Feature: Weave v0.1 dogfood production release
     And provider readiness tests and policy changes produce redacted audit events
     And the member client still receives only effective capability states without raw provider configuration
 
+  @weave-v01-canonical-provider-neutral-models
+  Scenario: Self-hosted and external providers map to the same Weave feature models
+    Given an organization compares the recommended self-hosted defaults with external providers for chat, files, calendar, meetings, boards/tasks, and identity
+    When the backend provider registry maps each selected provider into Weave feature facades
+    Then Matrix or Slack-like chat maps to the same Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence model
+    And Nextcloud or SharePoint-like files map to the same Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession model
+    And CalDAV or Microsoft Graph-like calendar and LiveKit or Teams-like meetings map to the same Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, and Captions model
+    And OpenProject or Planner-like tasks map to the same Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField model
+    And Keycloak or Entra-like identity maps to the same Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent model
+
+  @weave-v01-member-provider-neutral-states
+  Scenario: Member client sees stable feature states without raw provider details
+    Given an admin has selected providers and the backend has evaluated readiness and capability policy
+    When a normal member opens Weave and fetches their organization manifest and feature surfaces
+    Then the member sees only ready, disabled, degraded, or policy-blocked feature states
+    And provider names may appear only as product-safe context when necessary
+    And provider URLs, raw provider identifiers, downstream payloads, secrets, readiness internals, and adapter diagnostics are not exposed to the member client
+
+  @weave-v01-admin-policy-decides-capabilities
+  Scenario: Admin provider policy decides capability availability before provider access
+    Given provider configs exist for recommended self-hosted defaults and at least one external provider placeholder
+    When capability policy, provider readiness, whitelists, and SecretRefs are evaluated
+    Then the backend denies unknown roles, unknown groups, missing readiness, and unapproved providers by default
+    And the Admin Console can enable, disable, degrade, or policy-block each capability without changing member client APIs
+    And provider access happens only after the backend has authorized the canonical Weave capability operation
+
+
   @weave-v01-idm-rbac-capability-policy
   Scenario: IDM roles and groups decide capability profiles before Weaver runtime
     Given an owner has selected an IDM provider for the organization

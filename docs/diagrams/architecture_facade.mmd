@@ -1,0 +1,36 @@
+flowchart LR
+  subgraph Clients[Product surfaces]
+    Member[Weave Client\nmember features only]
+    Admin[Organization/Admin Console\nprovider choice, policy, readiness]
+  end
+
+  subgraph Backend[Weave backend]
+    FeatureAPI[Canonical feature APIs\nchat, files/docs, calendar/meetings, boards/tasks, identity]
+    ControlPlane[Admin/control-plane APIs\nProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness]
+    Policy[Deny-by-default policy engine\nRBAC + capability whitelists]
+    Registry[Adapter registry\ncapability -> provider adapter]
+    Mapper[Mapping layer\nWeave IDs <-> provider IDs\nlossy mapping notes]
+    Audit[Support-safe audit log]
+  end
+
+  subgraph Providers[Provider adapters]
+    SelfHosted[Recommended self-hosted defaults\nKeycloak, Matrix, Nextcloud, OpenProject, LiveKit]
+    External[External / managed providers\nEntra, Teams, Slack, SharePoint, Planner, Jira]
+  end
+
+  Member -->|stable Weave models only| FeatureAPI
+  Admin -->|provider configs and policy| ControlPlane
+  FeatureAPI --> Policy
+  ControlPlane --> Policy
+  ControlPlane --> Registry
+  FeatureAPI --> Registry
+  Registry --> Mapper
+  Mapper --> SelfHosted
+  Mapper --> External
+  Policy --> Audit
+  Registry --> Audit
+  Mapper --> Audit
+
+  Member -. never .-> SelfHosted
+  Member -. never .-> External
+  Admin -. no raw secrets to member .-> Member

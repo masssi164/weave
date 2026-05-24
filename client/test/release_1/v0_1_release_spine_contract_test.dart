@@ -7,6 +7,7 @@ void main() {
     final plan = File('../docs/release-v0.1-dogfood-plan.md');
     final productLine = File('../docs/product-line-and-weaver-plan.md');
     final firstUse = File('../docs/admin-provisioned-first-use.md');
+    final canonicalModels = File('../docs/canonical-feature-models.md');
     final mapping = File('../e2e/scenario_mappings.json');
     final feature = File('../e2e/features/v0_1_dogfood_release.feature');
 
@@ -112,6 +113,49 @@ void main() {
       },
     );
 
+    test('documents canonical feature models and provider facade boundaries', () {
+      // V01_CANONICAL_PROVIDER_NEUTRAL_MODELS
+      // V01_MEMBER_PROVIDER_NEUTRAL_STATES
+      // V01_ADMIN_POLICY_DECIDES_CAPABILITIES
+      expect(canonicalModels.existsSync(), isTrue);
+      final markdown = canonicalModels.readAsStringSync();
+
+      for (final required in <String>[
+        'Canonical feature models come before control-plane',
+        'Provider schemas are adapter input/output only.',
+        'Server facades expose Weave-owned models per capability',
+        'Policy is deny-by-default.',
+        'Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence',
+        'Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession',
+        'Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, and Captions',
+        'Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField',
+        'Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent',
+        'Identity/Keycloak plus Boards/Tasks/OpenProject and a Planner-like placeholder',
+      ]) {
+        expect(markdown, contains(required));
+      }
+
+      for (final diagram in <String>[
+        'er_chat.mmd',
+        'er_files_docs.mmd',
+        'er_calendar_meetings.mmd',
+        'er_boards_tasks.mmd',
+        'er_identity_admin.mmd',
+        'architecture_facade.mmd',
+      ]) {
+        expect(File('../docs/diagrams/$diagram').existsSync(), isTrue);
+      }
+
+      for (final marker in <String>[
+        'V01_CANONICAL_PROVIDER_NEUTRAL_MODELS',
+        'V01_MEMBER_PROVIDER_NEUTRAL_STATES',
+        'V01_ADMIN_POLICY_DECIDES_CAPABILITIES',
+      ]) {
+        // ignore: avoid_print
+        print(marker);
+      }
+    });
+
     test('keeps the Gherkin release spine mapped to executable evidence', () {
       final mappingText = mapping.readAsStringSync();
       final featureText = feature.readAsStringSync();
@@ -121,6 +165,11 @@ void main() {
         '@weave-v01-user-ready-organization-flow',
         '@weave-v01-admin-provider-categories',
         '@weave-v01-org-manifest-client-admin-split',
+        '@weave-v01-admin-health-policy-enforcement',
+        '@weave-v01-org-control-plane-provider-facade',
+        '@weave-v01-canonical-provider-neutral-models',
+        '@weave-v01-member-provider-neutral-states',
+        '@weave-v01-admin-policy-decides-capabilities',
         '@weave-v01-idm-rbac-capability-policy',
         '@weave-v01-governed-weaver-runtime-policy',
         '@weave-v01-channel-workspace',
