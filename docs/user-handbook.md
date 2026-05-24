@@ -8,7 +8,7 @@ This handbook is for people using a Weave organization after an owner/admin has 
 2. Complete SSO in the configured identity provider.
 3. Weave fetches the authenticated organization manifest and shows only the work surfaces and capability states available to you.
 
-If your organization is not ready yet, Weave should explain the impact in plain language: `ready`, `disabled`, `degraded`, or `policy-blocked`. Provider setup details stay with admins/operators.
+If your organization is not usable yet, Weave should explain the impact in plain language: `usable`/`ready`, `disabled`, `degraded`, or `policy-blocked`. `usable` is the member-facing concept; backend manifests may encode the same state as `ready`. Provider setup details stay with admins/operators.
 
 ## Workspaces and channels
 
@@ -48,7 +48,7 @@ Boards/tasks, shared calendar, and meeting capsules are capability-backed worksp
 
 | State | What it means for you |
 | --- | --- |
-| `ready` | The capability is available for your role and organization. |
+| `usable` / `ready` | The capability is available for your role and organization. |
 | `disabled` | The organization has not enabled this capability. |
 | `degraded` | The capability exists but has a temporary health or provider problem. |
 | `policy-blocked` | Your role/group does not currently have access. |

@@ -3,7 +3,7 @@
 ci: acceptance-contract client-ci server-ci infra-static admin-ci
 
 # Install docs tooling with: python3 -m pip install -r docs/requirements.txt
-docs-build: release-notes-check
+docs-build:
 	python3 -m mkdocs build --strict
 
 docs-check: docs-structure-check

@@ -65,10 +65,20 @@ def mkdocs_nav_paths() -> set[str]:
     except ImportError as error:
         fail("PyYAML is required for docs structure checks; install docs/requirements.txt")
 
+    nav_lines: list[str] = []
+    in_nav = False
+    for line in read(MKDOCS).splitlines():
+        if line.startswith("nav:"):
+            in_nav = True
+        elif in_nav and line and not line.startswith(" "):
+            break
+        if in_nav:
+            nav_lines.append(line)
+
     try:
-        config = yaml.load(read(MKDOCS), Loader=yaml.BaseLoader)
+        config = yaml.safe_load("\n".join(nav_lines))
     except yaml.YAMLError as error:
-        fail(f"could not parse mkdocs.yml: {error}")
+        fail(f"could not parse mkdocs.yml nav: {error}")
 
     paths: set[str] = set()
 
