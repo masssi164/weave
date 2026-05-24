@@ -27,14 +27,17 @@ permissions:
 jobs:
   release-notes-label-check:
     name: Release Notes Label Check
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - name: Validate exactly one release-notes label
+        if: github.event_name == 'pull_request'
         env:
           PR_LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: python3 tools/release_notes_label_check.py
+      - name: Skip release-notes label validation outside PRs
+        if: github.event_name != 'pull_request'
+        run: echo 'Release notes label validation only applies to pull requests.'
 
   docs-checks:
     name: Docs Checks
