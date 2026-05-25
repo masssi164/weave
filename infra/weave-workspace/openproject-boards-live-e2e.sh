@@ -235,12 +235,10 @@ write_body="$(mktemp)"
 provider_body="$(mktemp)"
 trap 'rm -f -- "${workspace_body}" "${write_body}" "${provider_body}"' EXIT
 
-log "Checking provider registry through Weave API..."
+log "Checking provider registry is admin/operator-only for member tokens..."
 provider_status="$(probe_provider_status "${access_token}" "${provider_body}" || true)"
-[[ "${provider_status}" == "200" ]] || fail "OpenProject Boards live E2E failed: expected provider registry HTTP 200, got ${provider_status}: $(cat "${provider_body}")"
+[[ "${provider_status}" == "403" ]] || fail "OpenProject Boards live E2E failed: member token should receive provider registry HTTP 403, got ${provider_status}: $(cat "${provider_body}")"
 assert_support_safe_file "${provider_body}"
-assert_json "$(cat "${provider_body}")" '.backendOwnedFacades == true and .flutterDirectProviderCallsAllowed == false and .supportSafe == true' "provider registry should be backend-owned and support-safe"
-assert_json "$(cat "${provider_body}")" '[.providers[] | select(.module == "boards")] | length >= 1' "provider registry should expose boards readiness"
 
 log "Checking OpenProject Boards workspace through Weave API..."
 workspace_status="$(probe_workspace "${access_token}" "${workspace_body}" || true)"

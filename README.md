@@ -4,9 +4,9 @@
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
 </p>
 
-Weave is an accessibility-first, self-hostable organization operating layer for workspaces, communication, knowledge, provider governance, and operator health. Chat, files, shared calendars, boards/tasks, meetings, and decisions are product domains inside Weave, not the whole ambition.
+Weave is an accessibility-first, self-hostable organization operating layer for workspaces, communication, knowledge, provider governance, and operator health. Chat, files, shared calendars, boards/tasks, meetings, and decisions are Weave-owned product domains inside that operating layer, not a fixed bundle of provider screens.
 
-Weave is provider-neutral by design: an organization can keep its chosen identity, chat, file, calendar, collaboration, and project systems while exposing them through coherent Weave product concepts. The default dogfood stack can use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit, but those are adapter choices behind Weave-owned domain contracts, not the product boundary. Provider swaps are governed admin/operator capabilities that ship only when a supported migration contract, readiness evidence, authorization, audit trail, and rollback path exist.
+Weave is provider-neutral by design: an organization can keep its chosen identity, chat, file, calendar, collaboration, and project systems while exposing them through coherent Weave product concepts. The default dogfood stack can use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit, but those are adapter/admin/operator choices behind Weave-owned domain contracts, not the member-facing product identity. Provider swaps are governed admin/operator capabilities that ship only when a supported migration contract, readiness evidence, authorization, audit trail, and rollback path exist.
 
 This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, documentation, and release metadata as one release unit. The active product-line reference is [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md). Documentation and README release-note embedding are tracked in [Manuals and release notes integration](docs/manuals-and-release-notes-integration.md).
 
@@ -20,7 +20,7 @@ This repository is the single source of truth for the product stack. Treat clien
 
 ## Release notes
 
-The generated block below is the public README release-note draft for merged, unreleased changes. It is updated from `docs/release-notes/unreleased.md` or generated release-note artifacts by the release workflow; do not hand-maintain the block contents outside the managed markers.
+The generated block below is the public README release-note draft for merged, unreleased changes. It tells readers what changed; it is not the release gate and it is not proof that a release was published. The block is updated from `docs/release-notes/unreleased.md` or generated release-note artifacts by the release workflow; do not hand-maintain the block contents outside the managed markers.
 
 <!-- WEAVE_RELEASE_NOTES_START -->
 _Generated release notes are review artifacts. A release maintainer may update this block with `python3 tools/readme_release_notes.py --update --source <generated-notes>` before opening the release-draft review._
@@ -122,7 +122,7 @@ Required v0.1 surfaces:
 - Files through Weave-owned backend/product routes, not raw provider UX as the normal path.
 - Workspace, team, and channel calendar events through the backend calendar facade.
 - Boards/Tasks as an active Weave workspace facade with explicit user actions, authorization, audit, accessible non-drag task work, and fail-closed runtime gates.
-- Meeting Capsules backed by the LiveKit token facade, with clear provider-secret boundaries.
+- Meeting Capsules through the meetings facade when readiness proves the selected media provider path; the dogfood path uses the LiveKit token facade and keeps provider secrets, room tokens, media URLs, and recording/transcription/caption claims behind explicit evidence gates.
 - Decision Ledger entries linked to workspace context.
 - Workspace/Admin Health for readiness, degraded states, backups, smoke evidence, and support-bundle status.
 - Deploy, update, backup, restore, rollback, smoke-test, and support-bundle paths for operators.
@@ -174,6 +174,8 @@ For behavior changes:
 5. Store only sanitized evidence artifacts. Never include secrets, tokens, cookies, private keys, raw provider errors, or personal data.
 
 ## Release evidence
+
+Release evidence is the review and verification trail for release-note automation. It is intentionally separate from the public release-note draft above: the links and commands here show which checked-in artifacts and gates a maintainer must inspect before publishing release material.
 
 <!-- WEAVE_RELEASE_NOTES:START -->
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)

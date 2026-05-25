@@ -456,18 +456,8 @@ profile_readiness="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/profile
 assert_json "${profile_readiness}" '.contractId == "CEFACADE" and .endpoint == "/profile/readiness"' "Profile readiness should expose CEFACADE at /profile/readiness"
 assert_json "${profile_readiness}" '.backendOwnedFacade == true and .directProviderCallsAllowed == false and .supportSafe == true' "Profile readiness should stay backend-owned and support-safe"
 
-provider_status="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/providers/status")"
-assert_json "${provider_status}" '.backendOwnedFacades == true and .flutterDirectProviderCallsAllowed == false and .supportSafe == true' "Provider registry should be visible through Weave and forbid direct Flutter provider calls"
-assert_json "${provider_status}" '[.providers[] | select(.module == "files" and .providerKey == "nextcloud-files") | select(.failClosed == true and .supportSafe == true)] | length == 1' "Nextcloud WebDAV/files provider seam should be visible and support-safe"
-assert_json "${provider_status}" '[.providers[] | select(.module == "calendar" and .providerKey == "nextcloud-caldav") | select(.failClosed == true and .supportSafe == true)] | length == 1' "Nextcloud CalDAV provider seam should be visible and support-safe"
-assert_json "${provider_status}" '[.providers[] | select(.module == "contacts" and .providerKey == "nextcloud-carddav") | select(.failClosed == true and .supportSafe == true)] | length == 1' "Nextcloud CardDAV provider seam should be visible and support-safe"
-assert_json "${provider_status}" '[.providers[] | select(.module == "forms" and .providerKey == "nextcloud-forms") | select(.failClosed == true and .supportSafe == true)] | length == 1' "Nextcloud Forms provider seam should be visible and support-safe"
-assert_json "${provider_status}" '[.providers[] | select(.module == "matrix" and .providerKey == "synapse-homeserver") | select(.failClosed == true and .supportSafe == true)] | length == 1' "Synapse/Matrix provider seam should be visible and support-safe"
-assert_json "${provider_status}" '[.providers[] | select(.module == "matrix-auth" and .providerKey == "matrix-authentication-service") | select(.failClosed == true and .supportSafe == true)] | length == 1' "MAS provider seam should be visible and support-safe"
-assert_json "${provider_status}" '[.providers[] | select(.module == "meetings" and .providerKey == "livekit") | select(.enabled == false and .configured == false and .failClosed == true and .supportSafe == true)] | length == 1' "LiveKit meetings provider seam should default fail-closed and support-safe"
-assert_json "${provider_status}" '[.providers[] | select(.module == "office" or .module == "contacts" or .module == "forms" or .module == "meetings" or .module == "source-control" or .module == "issue-tracker" or .module == "ci" or .module == "release") | select(.enabled == false and .configured == false and .failClosed == true and .supportSafe == true)] | length >= 8' "Optional providers should default fail-closed and support-safe"
-! grep -Eiq 'Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/' <<<"${provider_status}" || \
-  fail "Smoke check failed: provider registry leaked provider credentials or raw upstream paths"
+provider_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/providers/status" || true)"
+[[ "${provider_status}" == "403" ]] || fail "Smoke check failed: member token should receive 403 from admin/provider registry, got ${provider_status}"
 
 log "Checking admin API protection with a member token..."
 admin_control_plane_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/admin/control-plane" || true)"
