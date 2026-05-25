@@ -13,9 +13,15 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
+import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
+import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
+import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
+import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
+import com.massimotter.weave.backend.provider.ProviderSelection;
+import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import java.time.Clock;
 import java.time.Instant;
@@ -40,6 +46,7 @@ public class AdminControlPlaneService {
 
     private final ProviderRegistry providerRegistry;
     private final WorkspaceCapabilityService workspaceCapabilityService;
+    private final ProviderSelectionRepository providerSelectionRepository;
     private final AuditEventPublisher auditEventPublisher;
     private final Clock clock;
 
@@ -47,17 +54,20 @@ public class AdminControlPlaneService {
     public AdminControlPlaneService(
             ProviderRegistry providerRegistry,
             WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository providerSelectionRepository,
             AuditEventPublisher auditEventPublisher) {
-        this(providerRegistry, workspaceCapabilityService, auditEventPublisher, Clock.systemUTC());
+        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, auditEventPublisher, Clock.systemUTC());
     }
 
     AdminControlPlaneService(
             ProviderRegistry providerRegistry,
             WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository providerSelectionRepository,
             AuditEventPublisher auditEventPublisher,
             Clock clock) {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
+        this.providerSelectionRepository = providerSelectionRepository;
         this.auditEventPublisher = auditEventPublisher;
         this.clock = clock;
     }
@@ -69,19 +79,53 @@ public class AdminControlPlaneService {
                 organizationId(jwt),
                 organizationName(jwt),
                 "keycloak",
+                registry.providerConfigSource(),
+                registry.bootstrapDefaultsAreSuggestionsOnly(),
                 registry.backendOwnedFacades(),
                 true,
                 registry.supportSafe(),
                 false,
                 Instant.now(clock),
                 registry.categories(),
+                registry.selectedProviderMappings().stream()
+                        .map(selection -> toSelectionResponse(selection, false, readinessFor(selection.category(), registry)))
+                        .toList(),
                 whitelist(jwt),
                 secretRefs(registry),
                 Map.of(
                         "providers", "/api/providers/status",
                         "policy", "/api/admin/policies/capability-whitelist",
                         "audit", "/api/admin/audit/events",
-                        "readinessTest", "/api/admin/providers/readiness-tests"));
+                        "readinessTest", "/api/admin/providers/readiness-tests",
+                        "providerSelections", "/api/admin/providers/selections"));
+    }
+
+    public ProviderSelectionResponse selectProvider(ProviderSelectionRequest request, Jwt jwt) {
+        ProviderSelection selection = validateProviderSelection(request, jwt);
+        boolean dryRun = request.dryRun();
+        ProviderSelection applied = dryRun ? selection : providerSelectionRepository.save(selection);
+        if (!dryRun) {
+            auditEventPublisher.publish(new AuditEvent(
+                    organizationId(jwt),
+                    "admin-control-plane",
+                    actorRef(jwt),
+                    "provider-selection",
+                    AuditAction.ADMIN_POLICY_UPDATED,
+                    Instant.now(clock),
+                    "provider-selection-" + selection.category() + "-" + Instant.now(clock).toEpochMilli(),
+                    AuditRedactionLevel.SECRET_REDACTED,
+                    Map.of(
+                            "category", selection.category(),
+                            "providerKey", selection.providerKey(),
+                            "choiceModel", selection.choiceModel(),
+                            "secretRef", safeSecretRef(selection.secretRef()),
+                            "reason", safeText(request.reason()),
+                            "providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE,
+                            "migrationDryRunRequired", selection.migrationDryRunRequired(),
+                            "lossyMappingNoteCount", selection.lossyMappingNotes().size(),
+                            "token", "not-stored")));
+        }
+        return toSelectionResponse(applied, dryRun, dryRun ? "dry_run_valid" : "admin_selected_pending_readiness");
     }
 
     public CapabilityWhitelistResponse whitelist(Jwt jwt) {
@@ -141,7 +185,7 @@ public class AdminControlPlaneService {
         }
         String providerKey = request.providerKey().trim();
         ProviderStatusResponse status = providerRegistry.status().providers().stream()
-                .filter(provider -> provider.providerKey().equals(providerKey))
+                .filter(provider -> providerKeyMatches(provider, providerKey))
                 .findFirst()
                 .orElseThrow(() -> new ApiErrorException(
                         HttpStatus.NOT_FOUND,
@@ -175,6 +219,7 @@ public class AdminControlPlaneService {
                 false,
                 Map.of(
                         "providerKey", providerKey,
+                        "backendAdapterKey", status.providerKey(),
                         "module", status.module().contractName(),
                         "configured", status.configured(),
                         "secretsReturned", false,
@@ -197,6 +242,138 @@ public class AdminControlPlaneService {
                     .toList();
         }
         return List.of();
+    }
+
+    private ProviderSelection validateProviderSelection(ProviderSelectionRequest request, Jwt jwt) {
+        if (request == null || request.category() == null || request.category().isBlank()
+                || request.providerKey() == null || request.providerKey().isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-selection-invalid",
+                    "Provider selection requires category and provider key.",
+                    Map.of("reason", "category and providerKey are required"));
+        }
+        String category = request.category().trim();
+        String providerKey = request.providerKey().trim();
+        if (ProviderCategoryCatalog.category(category).isEmpty()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-category-unknown",
+                    "Provider category is not part of the Weave canonical control-plane contract.",
+                    Map.of("category", category));
+        }
+        if (!providerMatchesCategory(providerKey, category)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-selection-category-mismatch",
+                    "Provider key is not registered as a support-safe candidate for the selected category.",
+                    Map.of("category", category, "providerKey", providerKey));
+        }
+        return new ProviderSelection(
+                category,
+                providerKey,
+                selectionChoiceModel(request.choiceModel()),
+                selectionSecretRef(request.secretRef()),
+                actorRef(jwt),
+                Instant.now(clock),
+                !request.dryRun(),
+                true,
+                requiresMigrationDryRun(request),
+                safeLossyMappingNotes(request.lossyMappingNotes()));
+    }
+
+    private boolean providerMatchesCategory(String providerKey, String category) {
+        boolean registeredCandidate = providerRegistry.status().providers().stream()
+                .filter(provider -> ProviderCategoryCatalog.providerMatchesCategory(provider, category))
+                .anyMatch(provider -> providerKeyMatches(provider, providerKey));
+        if (registeredCandidate) {
+            return true;
+        }
+        String normalized = providerKey.toLowerCase(Locale.ROOT);
+        return ProviderCapabilityContracts.providerCandidates(category).stream()
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .anyMatch(normalized::equals);
+    }
+
+    private boolean providerKeyMatches(ProviderStatusResponse provider, String providerKey) {
+        String normalized = providerKey.toLowerCase(Locale.ROOT);
+        return provider.providerKey().equals(providerKey)
+                || provider.candidates().stream().map(value -> value.toLowerCase(Locale.ROOT)).anyMatch(normalized::equals);
+    }
+
+    private String selectionChoiceModel(String value) {
+        if (value == null || value.isBlank()) {
+            return "recommended_self_hosted_default";
+        }
+        String trimmed = value.trim();
+        if (trimmed.equals("recommended_self_hosted_default")
+                || trimmed.equals("external_existing_provider")
+                || trimmed.equals("managed_cloud_provider")) {
+            return trimmed;
+        }
+        throw new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "provider-selection-choice-model-invalid",
+                "Provider selection choice model is not part of the Weave provider choice contract.",
+                Map.of("choiceModel", "invalid-choice-model-redacted"));
+    }
+
+    private String selectionSecretRef(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.toLowerCase(Locale.ROOT).startsWith("secretref://")) {
+            return trimmed;
+        }
+        throw new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "provider-selection-secretref-invalid",
+                "Provider selections may reference credentials only through SecretRef URIs.",
+                Map.of("secretRef", "invalid-secret-ref-redacted"));
+    }
+
+    private boolean requiresMigrationDryRun(ProviderSelectionRequest request) {
+        return request.lossyMappingNotes() != null && !request.lossyMappingNotes().isEmpty()
+                || "external_existing_provider".equals(request.choiceModel())
+                || "managed_cloud_provider".equals(request.choiceModel());
+    }
+
+    private List<String> safeLossyMappingNotes(List<String> notes) {
+        if (notes == null) {
+            return List.of();
+        }
+        return notes.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(this::safeText)
+                .distinct()
+                .limit(10)
+                .toList();
+    }
+
+    private ProviderSelectionResponse toSelectionResponse(ProviderSelection selection, boolean dryRun, String readiness) {
+        return new ProviderSelectionResponse(
+                selection.category(),
+                selection.providerKey(),
+                selection.choiceModel(),
+                selection.secretRef(),
+                selection.selectedBy(),
+                selection.selectedAt(),
+                selection.applied() && !dryRun,
+                dryRun,
+                true,
+                !selection.applied() || dryRun,
+                selection.migrationDryRunRequired(),
+                selection.lossyMappingNotes(),
+                readiness);
+    }
+
+    private String readinessFor(String category, ProviderRegistryResponse registry) {
+        return registry.categories().stream()
+                .filter(value -> value.category().equals(category))
+                .map(value -> value.readiness().value())
+                .findFirst()
+                .orElse("unknown");
     }
 
     private List<SecretRefResponse> secretRefs(ProviderRegistryResponse registry) {

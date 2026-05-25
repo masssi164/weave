@@ -17,6 +17,11 @@ public record ProviderCategoryStatusResponse(
         @Schema(description = "Member-safe impact label. Does not expose raw provider setup.") String memberImpact,
         @Schema(description = "Provider registry modules contributing to this category.") List<String> modules,
         @Schema(description = "Support-safe provider choices/candidates for admin diagnostics.") List<String> providerCandidates,
+        @Schema(description = "Admin Console-selected provider key, or awaiting_admin_selection when not applied.") String selectedProviderKey,
+        @Schema(description = "Selected provider choice model: recommended_self_hosted_default, external_existing_provider, or managed_cloud_provider.") String choiceModel,
+        @Schema(description = "True only after an admin has applied a provider mapping for this category.") boolean selectedByAdmin,
+        @Schema(description = "True when defaults are being shown only as bootstrap/profile suggestions, not product truth.") boolean bootstrapSuggestionOnly,
+        @Schema(description = "Support-safe notes for known lossy mappings across provider families.") List<String> lossyMappingNotes,
         @Schema(description = "Support-safe diagnostics. Values are booleans/counts/keys only; no endpoints, secrets, or raw upstream errors.") Map<String, Object> diagnostics) {
 
     public ProviderCategoryStatusResponse {
@@ -30,6 +35,9 @@ public record ProviderCategoryStatusResponse(
         memberImpact = requireText(memberImpact, "memberImpact");
         modules = modules == null ? List.of() : List.copyOf(modules);
         providerCandidates = providerCandidates == null ? List.of() : List.copyOf(providerCandidates);
+        selectedProviderKey = selectedProviderKey == null || selectedProviderKey.isBlank() ? "awaiting_admin_selection" : selectedProviderKey.trim();
+        choiceModel = choiceModel == null || choiceModel.isBlank() ? "not_selected" : choiceModel.trim();
+        lossyMappingNotes = lossyMappingNotes == null ? List.of() : List.copyOf(lossyMappingNotes);
         diagnostics = diagnostics == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(diagnostics));
     }
 

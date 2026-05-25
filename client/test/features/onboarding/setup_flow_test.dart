@@ -88,7 +88,7 @@ void main() {
     });
 
     testWidgets(
-      'renders first step with provider, issuer, and client id fields',
+      'renders first step with identity endpoint and client id fields',
       (tester) async {
         await tester.pumpWidget(buildApp());
         await tester.pumpAndSettle();
@@ -99,21 +99,18 @@ void main() {
         expect(find.text('Identity/IDM'), findsOneWidget);
         expect(find.text('Documents/collaboration'), findsOneWidget);
         expect(find.text('Weaver'), findsOneWidget);
-        expect(find.text('Provider type'), findsOneWidget);
+        expect(find.text('Identity endpoint'), findsOneWidget);
+        expect(
+          find.textContaining(
+            'Provider selection is owned by the Weave Admin Console',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Provider type'), findsNothing);
         expect(find.text('OIDC Client ID'), findsOneWidget);
         expect(find.text('Next'), findsOneWidget);
       },
     );
-
-    testWidgets('shows public client registration guidance', (tester) async {
-      await tester.pumpWidget(buildApp());
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('Register Weave as a native/public client'),
-        findsOneWidget,
-      );
-    });
 
     testWidgets('derives service endpoints from the issuer host', (
       tester,

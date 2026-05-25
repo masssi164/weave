@@ -9,11 +9,11 @@ function mockApi(overrides: Partial<AdminControlPlaneApi> = {}): AdminControlPla
   return {
     getControlPlane: vi.fn().mockResolvedValue(sampleControlPlane),
     updateWhitelistPolicy: vi.fn().mockResolvedValue({
-      denyByDefault: true,
+      ...sampleControlPlane.whitelistPolicy,
       allowedCapabilities: ['files.read'],
-      blockedCapabilities: ['weaver.exec'],
     }),
-    testProviderReadiness: vi.fn().mockResolvedValue({ providerKey: 'identity-idm', state: 'ready', summary: 'Ready' }),
+    selectProvider: vi.fn().mockResolvedValue(undefined),
+    testProviderReadiness: vi.fn().mockResolvedValue({ providerKey: 'keycloak-realm', state: 'ready', summary: 'Ready' }),
     listAuditEvents: vi.fn().mockResolvedValue(sampleControlPlane.auditEvents),
     ...overrides,
   } as unknown as AdminControlPlaneApi;
@@ -32,10 +32,12 @@ describe('Admin Console MVP', () => {
     expect(await screen.findByRole('heading', { name: /weave organization admin console/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /organization overview/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /provider categories/i })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /provider detail and readiness/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /provider selection and readiness/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /policy and whitelist/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /secretref inventory/i })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /audit trail/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/identity \/ idm status is ready/i)).toBeInTheDocument();
+    expect(screen.getByText(/provider source of truth/i)).toBeInTheDocument();
     expect(screen.getByText(/policy is deny-by-default/i)).toBeInTheDocument();
   });
 
@@ -43,7 +45,8 @@ describe('Admin Console MVP', () => {
     render(<App api={mockApi()} />);
 
     expect(await screen.findByText(/calls only Weave backend admin APIs/i)).toBeInTheDocument();
-    expect(screen.getByText(/it does not call Keycloak, Nextcloud, Matrix, Microsoft Graph/i)).toBeInTheDocument();
+    expect(screen.getByText(/it does not call Keycloak, Nextcloud, Matrix, Microsoft Graph, Slack, Teams/i)).toBeInTheDocument();
+    expect(screen.getByText(/Secrets stay as SecretRef handles/i)).toBeInTheDocument();
     expect(screen.getByText(/use the provider-agnostic weave client/i)).toBeInTheDocument();
   });
 
@@ -61,6 +64,28 @@ describe('Admin Console MVP', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(/whitelist policy saved/i);
   });
 
+  it('applies selected providers as Admin Console source of truth through the backend API', async () => {
+    const api = mockApi();
+    const user = userEvent.setup();
+    render(<App api={api} />);
+
+    await user.click(await screen.findByRole('button', { name: /apply selected provider/i }));
+
+    await waitFor(() => expect(api.selectProvider).toHaveBeenCalledWith('identity-idm', 'keycloak-realm', 'recommended_self_hosted_default', false));
+    expect(await screen.findByRole('status')).toHaveTextContent(/provider selection applied/i);
+  });
+
+  it('dry-runs selected providers through the backend API before applying', async () => {
+    const api = mockApi();
+    const user = userEvent.setup();
+    render(<App api={api} />);
+
+    await user.click(await screen.findByRole('button', { name: /dry-run provider selection/i }));
+
+    await waitFor(() => expect(api.selectProvider).toHaveBeenCalledWith('identity-idm', 'keycloak-realm', 'recommended_self_hosted_default', true));
+    expect(await screen.findByRole('status')).toHaveTextContent(/dry-run validated/i);
+  });
+
   it('queues provider readiness tests through the backend API', async () => {
     const api = mockApi();
     const user = userEvent.setup();
@@ -68,7 +93,7 @@ describe('Admin Console MVP', () => {
 
     await user.click(await screen.findByRole('button', { name: /test readiness through backend/i }));
 
-    await waitFor(() => expect(api.testProviderReadiness).toHaveBeenCalledWith('identity-idm'));
+    await waitFor(() => expect(api.testProviderReadiness).toHaveBeenCalledWith('keycloak-realm'));
     expect(await screen.findByRole('status')).toHaveTextContent(/readiness test queued/i);
   });
 });

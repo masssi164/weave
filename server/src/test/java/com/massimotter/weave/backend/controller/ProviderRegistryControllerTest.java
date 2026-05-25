@@ -12,7 +12,11 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
+import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.provider.ProviderSelection;
+import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
+import java.time.Instant;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,6 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         ProviderRegistry.class,
+        InMemoryProviderSelectionRepository.class,
         ProviderCoreConfiguration.class,
         DevopsProviderConfiguration.class,
         DisabledOfficeProvider.class
@@ -72,8 +77,12 @@ class ProviderRegistryControllerTest {
     @MockBean
     private WorkspaceCapabilityService workspaceCapabilityService;
 
+    @Autowired
+    private ProviderSelectionRepository providerSelectionRepository;
+
     @BeforeEach
     void setUpWorkspaceCapabilitySnapshot() {
+        selectDefaultProviders();
         when(workspaceCapabilityService.snapshot()).thenReturn(new WorkspaceCapabilitiesResponse(
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Weave SSO shell access is available."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Chat is available through Weave."),
@@ -81,6 +90,30 @@ class ProviderRegistryControllerTest {
                 capability(WorkspaceCapabilityReadiness.DEGRADED, WorkspaceCapabilityPolicyState.ALLOWED, "Calendar is degraded. Ask an admin to inspect Workspace Health."),
                 capability(WorkspaceCapabilityReadiness.BLOCKED, WorkspaceCapabilityPolicyState.POLICY_BLOCKED, "Boards/tasks are blocked by your role or group policy."),
                 capability(WorkspaceCapabilityReadiness.UNAVAILABLE, WorkspaceCapabilityPolicyState.DISABLED, "Weaver is disabled by workspace policy.")));
+    }
+
+    private void selectDefaultProviders() {
+        providerSelectionRepository.save(selection("identity-idm", "keycloak-realm", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("chat", "synapse-homeserver", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("files", "nextcloud-files", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("calendar", "nextcloud-caldav", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("boards-tasks", "openproject-primary", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("meetings-calls", "livekit", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("documents-collaboration", "onlyoffice-community", "recommended_self_hosted_default"));
+    }
+
+    private ProviderSelection selection(String category, String providerKey, String choiceModel) {
+        return new ProviderSelection(
+                category,
+                providerKey,
+                choiceModel,
+                "secretref://weave/provider/" + providerKey,
+                "actor:test-admin",
+                Instant.parse("2026-05-24T18:00:00Z"),
+                true,
+                true,
+                false,
+                List.of());
     }
 
     @Test
@@ -100,12 +133,19 @@ class ProviderRegistryControllerTest {
     void providerStatusReportsAllFacadeSeamsWithoutSecrets() throws Exception {
         mockMvc.perform(get("/api/providers/status").with(adminJwt()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.releaseStatus").value("provider-stack-contract-v1"))
+                .andExpect(jsonPath("$.providerConfigSource").value("admin-control-plane-selected-provider-mappings"))
+                .andExpect(jsonPath("$.bootstrapDefaultsAreSuggestionsOnly").value(true))
+                .andExpect(jsonPath("$.adminSelectedMappingsRequired").value(true))
                 .andExpect(jsonPath("$.backendOwnedFacades").value(true))
                 .andExpect(jsonPath("$.flutterDirectProviderCallsAllowed").value(false))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
                         "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "weaver")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].readiness", hasItems("ready")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].selectedByAdmin", hasItems(true)))
+                .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].bootstrapSuggestionOnly", hasItems(false)))
+                .andExpect(jsonPath("$.selectedProviderMappings[*].providerKey", hasItems("keycloak-realm", "synapse-homeserver", "openproject-primary")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.defaultAdapters[*]", hasItems("keycloak-realm")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.externalAdapters[*]", hasItems("entra-id", "generic-oidc")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'identity-idm')].contract.choiceModels[*].choiceModel", hasItems("recommended_self_hosted_default", "external_existing_provider", "managed_cloud_provider")))
@@ -114,15 +154,15 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.category == 'calendar')].readiness", hasItems("degraded")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].readiness", hasItems("policy_blocked")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'meetings-calls')].readiness", hasItems("misconfigured")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].readiness", hasItems("disabled")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].readiness", hasItems("misconfigured")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].contract.featureCapabilities[*]", hasItems("documents.collaborate")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].contract.externalAdapters[*]", hasItems("microsoft-365-office-graph")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].readiness", hasItems("disabled")))
                 .andExpect(jsonPath("$.categories[*].contract.stableMemberImpactStates[*]", hasItems("usable", "disabled", "degraded", "policy-blocked")))
                 .andExpect(jsonPath("$.categories[*].contract.normalMembersConfigureProviders", hasItems(false)))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.defaultAdapters[*]", hasItems("synapse-homeserver")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.externalAdapters[*]", hasItems("microsoft-teams")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'files')].contract.externalAdapters[*]", hasItems("sharepoint", "onedrive")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'chat')].contract.externalAdapters[*]", hasItems("microsoft-teams", "slack")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'files')].contract.externalAdapters[*]", hasItems("sharepoint", "onedrive", "smb")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].contract.defaultAdapters[*]", hasItems("openproject-primary")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'boards-tasks')].contract.externalAdapters[*]", hasItems("microsoft-planner", "jira")))
                 .andExpect(jsonPath("$.categories[*].diagnostics.secretsReturned", hasItems(false)))

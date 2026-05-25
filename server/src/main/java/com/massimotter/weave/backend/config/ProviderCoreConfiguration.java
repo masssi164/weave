@@ -22,7 +22,7 @@ public class ProviderCoreConfiguration {
                 "Identity realm provider seam is reserved for the Keycloak dry-run/readiness contract from backend PR #103.",
                 Set.of("realm-readiness", "realm-dry-run", "client-scope-diff", "role-diff"),
                 Set.of("direct-frontend-keycloak-admin", "secret-export", "live-realm-mutation-without-audit"),
-                List.of("keycloak"),
+                List.of("keycloak", "entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap"),
                 Map.of("dependency", "weave-backend#103", "compatibleSeam", true));
     }
 
@@ -34,7 +34,7 @@ public class ProviderCoreConfiguration {
                 "Matrix/Synapse is the chat and room substrate; provider status stays support-safe and does not expose room keys or raw homeserver errors.",
                 Set.of("workspace-room-readiness", "message-sync-readiness", "e2ee-status-readiness", "homeserver-discovery"),
                 Set.of("room-key-export", "raw-homeserver-errors", "direct-flutter-admin-api", "credential-exposure"),
-                List.of("synapse"),
+                List.of("synapse-homeserver", "matrix", "synapse", "slack", "microsoft-teams"),
                 Map.of("substrate", "matrix", "chatE2eeBoundary", "matrix-chat-only", "mediaCallsCovered", false));
     }
 
@@ -58,7 +58,7 @@ public class ProviderCoreConfiguration {
                 "Files facade is backend-owned and backed by Nextcloud WebDAV/OCS when configured.",
                 Set.of("list", "upload", "download", "create-folder", "delete", "quota-status"),
                 Set.of("direct-flutter-webdav", "html-scraping", "credential-exposure", "public-links-by-default"),
-                List.of("nextcloud"),
+                List.of("nextcloud-files", "nextcloud", "webdav", "sharepoint", "onedrive", "microsoft-graph-files", "s3", "s3-compatible", "smb"),
                 Map.of("facade", "/api/files", "rawProviderUiIsProductSurface", false));
     }
 
@@ -70,7 +70,7 @@ public class ProviderCoreConfiguration {
                 "Calendar facade is backend-owned and maps workspace/team/channel scopes to CalDAV when configured.",
                 Set.of("list-events", "read-event", "create-event", "update-event", "delete-event", "client-setup-metadata"),
                 Set.of("private-user-calendar-ingestion", "credential-export", "direct-flutter-caldav"),
-                List.of("nextcloud-caldav"),
+                List.of("nextcloud-caldav", "generic-caldav", "microsoft-graph-calendar", "workspace-calendar", "team-channel-calendar"),
                 Map.of("facade", "/api/calendar", "scopeModel", "workspace/team/channel"));
     }
 
@@ -106,7 +106,7 @@ public class ProviderCoreConfiguration {
                 "Boards/PM facade remains provider-neutral; OpenProject is the primary workspace-sync provider, Deck stays optional.",
                 Set.of("project-list", "board-list", "task-list", "task-create-local-workspace", "task-move-local-workspace", "task-complete-local-workspace", "workspace-sync"),
                 Set.of("raw-openproject-ui-as-product", "provider-writes-without-audit", "direct-flutter-provider-api"),
-                List.of("openproject", "nextcloud-deck", "vikunja-comparison"),
+                List.of("openproject-primary", "openproject", "microsoft-planner", "jira", "vikunja", "nextcloud-deck"),
                 Map.of("primaryProvider", "openproject", "optionalProvider", "nextcloud-deck", "facade", "/api/boards/workspace"));
     }
 
@@ -146,7 +146,7 @@ public class ProviderCoreConfiguration {
                         "raw-provider-errors"),
                 List.of("meetings-provider-not-configured", "meetings-provider-disabled", "meetings-provider-unavailable", "meetings-token-unavailable"),
                 "support-safe: no LiveKit API keys, API secrets, bearer tokens, room tokens, credential-bearing URLs, or raw provider errors",
-                List.of("livekit"),
+                List.of("livekit", "microsoft-teams-meetings", "managed-meetings-provider", "external-meeting-link"),
                 Map.of(
                         "activeProvider", "livekit",
                         "livekitUrlConfigured", liveKit.urlConfigured(),
