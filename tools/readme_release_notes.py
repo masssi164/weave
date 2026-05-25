@@ -19,15 +19,18 @@ EVIDENCE_BLOCK = f"""{EVIDENCE_START}
 - Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
 - Release evidence gate: `./gradlew releaseEvidenceCheck`
 {EVIDENCE_END}"""
-FORBIDDEN_TRANSITION_PHRASES = [
-    "no longer positioned",
-    "formerly",
-    "previously",
-    "used to",
-    "now positioned",
-    "früher",
-    "war weave",
-    "aber jetzt",
+REQUIRED_TOP_LEVEL_SECTIONS = [
+    "Product architecture",
+    "Release notes",
+    "Product screenshots",
+    "Repository layout",
+    "v0.1 product truth",
+    "Boards and provider boundary",
+    "Infrastructure and OpenTofu",
+    "Evidence contract",
+    "Release evidence",
+    "Common local gates",
+    "Working agreements",
 ]
 
 
@@ -70,11 +73,9 @@ def replace_blocks(content: str, source: Path) -> str:
     return replace_marked_block(updated, EVIDENCE_START, EVIDENCE_END, EVIDENCE_BLOCK)
 
 
-def check_readme_consistency(content: str) -> None:
-    lowered = content.casefold()
-    for phrase in FORBIDDEN_TRANSITION_PHRASES:
-        if phrase.casefold() in lowered:
-            fail(f"README.md contains migration-diary wording: {phrase!r}")
+def check_readme_structure(content: str) -> None:
+    if content.count("# Weave Monorepo\n") != 1:
+        fail("README.md must contain exactly one top-level '# Weave Monorepo' heading")
 
     for marker in (START, END, EVIDENCE_START, EVIDENCE_END):
         if content.count(marker) != 1:
@@ -86,6 +87,24 @@ def check_readme_consistency(content: str) -> None:
     evidence_end = content.index(EVIDENCE_END)
     if not (generated_start < generated_end < evidence_start < evidence_end):
         fail("README.md release-note draft block must appear before the release evidence block")
+
+    top_level_sections = [line.removeprefix("## ").strip() for line in content.splitlines() if line.startswith("## ")]
+    missing = [section for section in REQUIRED_TOP_LEVEL_SECTIONS if section not in top_level_sections]
+    if missing:
+        fail("README.md is missing required top-level sections: " + ", ".join(missing))
+
+    repeated = [section for section in REQUIRED_TOP_LEVEL_SECTIONS if top_level_sections.count(section) != 1]
+    if repeated:
+        fail("README.md required top-level sections must appear exactly once: " + ", ".join(repeated))
+
+    release_section = content.index("## Release notes")
+    screenshots_section = content.index("## Product screenshots")
+    evidence_section = content.index("## Release evidence")
+    gates_section = content.index("## Common local gates")
+    if not (release_section < generated_start < generated_end < screenshots_section):
+        fail("README.md release-note draft markers must stay inside the Release notes section")
+    if not (evidence_section < evidence_start < evidence_end < gates_section):
+        fail("README.md release-evidence markers must stay inside the Release evidence section")
 
 
 def main() -> None:
@@ -104,7 +123,7 @@ def main() -> None:
 
     source = args.source if args.source.is_absolute() else ROOT / args.source
     content = README.read_text(encoding="utf-8")
-    check_readme_consistency(content)
+    check_readme_structure(content)
     updated = replace_blocks(content, source)
     if args.check:
         if updated != content:
