@@ -31,7 +31,7 @@ registerRootCommandTask('infraStatic', ['bash', '-lc', "cd infra/weave-workspace
 registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')
 registerRootCommandTask('docsStructureCheck', ['python3', 'tools/docs_check.py'], 'Run lightweight documentation structure checks.')
 registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
-registerRootCommandTask('releaseNotesLabelCheck', ['python3', 'tools/release_notes_label_check.py'], 'Validate the current PR release-notes label set from PR_LABELS_JSON.')
+registerRootCommandTask('releaseNotesLabelCheck', ['bash', '-lc', 'if [ -n "${PR_LABELS_JSON:-}" ]; then python3 tools/release_notes_label_check.py; else echo "release-notes-label-check: skipped (PR_LABELS_JSON is not set)"; fi'], 'Validate the current PR release-notes label set from PR_LABELS_JSON when available.')
 registerRootCommandTask('generateReleaseNotes', ['python3', 'tools/release_notes_generate.py', '--input', 'tools/fixtures/release_notes_prs.json'], 'Generate reviewable release notes under build/release-notes by default.')
 registerRootCommandTask('updateReadmeReleaseNotes', ['python3', 'tools/readme_release_notes.py', '--update'], 'Explicitly update the managed README release-notes evidence block.')
 registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'python3 tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check'], 'Validate release notes structure, README markers, labels, and generator fixture evidence.')
@@ -65,6 +65,7 @@ ext.ciEvidenceGates = [
     'adminCi',
     'infraStatic',
     'docsCheck',
+    'releaseNotesLabelCheck',
     'releaseEvidenceCheck'
 ]
 
@@ -225,10 +226,10 @@ tasks.register('doctor') {
 tasks.register('ci') {
     group = 'verification'
     description = 'Run the canonical monorepo CI orchestration checks.'
-    dependsOn 'doctor', 'acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseEvidenceCheck'
+    dependsOn 'doctor', 'acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck'
 }
 
-['acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseEvidenceCheck'].each { taskName ->
+['acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
     }
