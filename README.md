@@ -123,9 +123,17 @@ For behavior changes:
 4. Keep live-stack E2E sparse and focused on critical end-to-end contracts.
 5. Store only sanitized evidence artifacts. Never include secrets, tokens, cookies, private keys, raw provider errors, or personal data.
 
+## Release evidence
+
+<!-- WEAVE_RELEASE_NOTES:START -->
+- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
+- Generated review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
+- Release evidence gate: `./gradlew releaseEvidenceCheck`
+<!-- WEAVE_RELEASE_NOTES:END -->
+
 ## Common local gates
 
-Run the smallest meaningful gate for your change. `make` remains the CI-compatible entry point, and the root Gradle wrapper delegates to those same targets for contributors who prefer one orchestration surface:
+Run the smallest meaningful gate for your change. `./gradlew ci` is the canonical cross-stack entry point; `make` targets are temporary compatibility aliases that delegate to Gradle during the transition:
 
 ```bash
 make acceptance-contract
@@ -135,6 +143,7 @@ make server-ci
 make infra-static
 make ci
 
+./gradlew doctor
 ./gradlew acceptanceContract
 ./gradlew docsCheck
 ./gradlew serverCi
@@ -148,7 +157,8 @@ Use these defaults:
 - `make server-ci` for backend/provider changes.
 - `make infra-static` for infrastructure, operator scripts, and OpenTofu-facing changes.
 - `make docs-check` for documentation site, diagrams, or release notes changes.
-- `make ci` when a change crosses product-stack boundaries.
+- `./gradlew ci` when a change crosses product-stack boundaries.
+- `./gradlew releaseEvidenceCheck` for release notes, README release markers, and release-label evidence changes.
 
 Live-stack E2E is intentionally opt-in. Run it only with explicit runner power/storage budget and sanitized evidence handling.
 

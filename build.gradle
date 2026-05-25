@@ -32,7 +32,9 @@ registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build
 registerRootCommandTask('docsStructureCheck', ['python3', 'tools/docs_check.py'], 'Run lightweight documentation structure checks.')
 registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
 registerRootCommandTask('releaseNotesLabelCheck', ['python3', 'tools/release_notes_label_check.py'], 'Validate the current PR release-notes label set from PR_LABELS_JSON.')
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'python3 tools/docs_check.py --release-notes-only && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check'], 'Validate release notes structure, labels, and generator fixture evidence.')
+registerRootCommandTask('generateReleaseNotes', ['python3', 'tools/release_notes_generate.py', '--input', 'tools/fixtures/release_notes_prs.json'], 'Generate reviewable release notes under build/release-notes by default.')
+registerRootCommandTask('updateReadmeReleaseNotes', ['python3', 'tools/readme_release_notes.py', '--update'], 'Explicitly update the managed README release-notes evidence block.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'python3 tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check'], 'Validate release notes structure, README markers, labels, and generator fixture evidence.')
 
 tasks.register('docsCheck') {
     group = 'verification'
@@ -152,7 +154,7 @@ List<String> artifactPathsForGate(String gateName) {
         case 'docsCheck':
             return ['build/docs/user', 'build/docs/admin']
         case 'releaseEvidenceCheck':
-            return ['tools/fixtures/release_notes_unreleased.expected.md']
+            return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md']
         default:
             return []
     }

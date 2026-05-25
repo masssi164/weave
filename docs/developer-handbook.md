@@ -54,7 +54,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. Make target
 | `infraStatic` | Infrastructure script/static checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
-| `releaseEvidenceCheck` | Release notes structure, label behavior, and generator fixture checks. |
+| `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, and generator fixture checks. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
@@ -115,14 +115,16 @@ make docs-check
 
 Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
 
-Generated release notes come from merged PR metadata and labels. The local generator can read GitHub API data or a fixture and writes the checked-in unreleased draft:
+Generated release notes come from merged PR metadata and labels. The local generator writes review artifacts under `build/release-notes/**` by default; checked-in README or docs mutations are explicit update steps:
 
 ```sh
-GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output docs/release-notes/unreleased.md
+./gradlew generateReleaseNotes
+GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output build/release-notes/unreleased.md
 python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check
+./gradlew updateReadmeReleaseNotes
 ```
 
-Run `make release-notes-check` before requesting review when release notes are relevant; it validates release-note page structure, label edge cases, and the generator fixture.
+Run `./gradlew releaseEvidenceCheck` before requesting review when release notes are relevant; it validates release-note page structure, README release markers, label edge cases, and the generator fixture.
 
 ## Architecture conventions
 
