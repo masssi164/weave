@@ -54,7 +54,7 @@ The root Gradle build delegates to existing proven targets while preserving curr
 | `serverCi` | Existing server Gradle test path. |
 | `adminCi` | Admin console npm CI path. |
 | `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
-| `docsBuild` | Strict MkDocs build. |
+| `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
 | `releaseEvidenceCheck` | Release notes structure, label behavior, and generator fixture checks. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
