@@ -402,6 +402,50 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatProvisioningRetryButton => 'Status erneut prüfen';
 
   @override
+  String get chatProvisioningReadyGuidance =>
+      'Chat ist für diesen Workspace bereit.';
+
+  @override
+  String get chatProvisioningPendingGuidance =>
+      'Chat wird noch vorbereitet. Lass diese Ansicht offen oder versuche es gleich erneut.';
+
+  @override
+  String get chatProvisioningDegradedGuidance =>
+      'Chat ist möglicherweise eingeschränkt verfügbar, aber die Einrichtung braucht einen Admin-Gesundheitscheck.';
+
+  @override
+  String get chatProvisioningUnavailableGuidance =>
+      'Chat ist in diesem Workspace noch nicht verfügbar.';
+
+  @override
+  String get chatProvisioningFailedGuidance =>
+      'Chat konnte für diesen Workspace nicht vorbereitet werden.';
+
+  @override
+  String get chatProvisioningAdminAction =>
+      'Bitte einen Workspace-Admin, support-sichere Diagnosen zu prüfen.';
+
+  @override
+  String get chatErrorCancelledGuidance =>
+      'Die Chat-Anmeldung wurde abgebrochen. Verbinde Chat, um es erneut zu versuchen.';
+
+  @override
+  String get chatErrorAdminGuidance =>
+      'Die Chat-Einrichtung braucht Admin-Aufmerksamkeit. Bitte einen Workspace-Admin, support-sichere Diagnosen zu prüfen.';
+
+  @override
+  String get chatErrorSessionRequiredGuidance =>
+      'Chat ist für diese Workspace-Sitzung nicht verbunden. Verbinde Chat, um fortzufahren.';
+
+  @override
+  String get chatErrorUnsupportedPlatformGuidance =>
+      'Chat ist auf diesem Gerät noch nicht verfügbar.';
+
+  @override
+  String get chatErrorRetryGuidance =>
+      'Chat konnte gerade nicht geladen werden. Versuche es erneut, sobald die Verbindung zurück ist.';
+
+  @override
   String get chatScreenTitle => 'Chat';
 
   @override
@@ -1919,6 +1963,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatRoomRetrySendAction => 'Erneut senden';
+
+  @override
+  String get chatRoomLoadFailureMessage =>
+      'Diese Unterhaltung konnte gerade nicht geladen werden.';
+
+  @override
+  String get chatRoomSendFailureMessage =>
+      'Diese Nachricht konnte gerade nicht gesendet werden. Prüfe deine Verbindung und versuche es erneut.';
 
   @override
   String get chatRoomYouLabel => 'Du';

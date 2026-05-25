@@ -791,6 +791,72 @@ abstract class AppLocalizations {
   /// **'Retry status'**
   String get chatProvisioningRetryButton;
 
+  /// Provider-neutral guidance for a ready chat provisioning notice
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is ready for this workspace.'**
+  String get chatProvisioningReadyGuidance;
+
+  /// Provider-neutral guidance for a pending chat provisioning notice
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is still being prepared. Keep this screen open or retry shortly.'**
+  String get chatProvisioningPendingGuidance;
+
+  /// Provider-neutral guidance for a degraded chat provisioning notice
+  ///
+  /// In en, this message translates to:
+  /// **'Chat may be partially available, but setup needs an admin health check.'**
+  String get chatProvisioningDegradedGuidance;
+
+  /// Provider-neutral guidance when chat provisioning is not configured
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is not available in this workspace yet.'**
+  String get chatProvisioningUnavailableGuidance;
+
+  /// Provider-neutral guidance when chat provisioning failed
+  ///
+  /// In en, this message translates to:
+  /// **'Chat could not be prepared for this workspace.'**
+  String get chatProvisioningFailedGuidance;
+
+  /// Provider-neutral action for member-visible chat provisioning issues
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a workspace admin to inspect support-safe diagnostics.'**
+  String get chatProvisioningAdminAction;
+
+  /// Provider-neutral guidance after chat sign-in cancellation
+  ///
+  /// In en, this message translates to:
+  /// **'Chat sign-in was cancelled. Connect chat to try again.'**
+  String get chatErrorCancelledGuidance;
+
+  /// Provider-neutral guidance when chat setup or configuration is not member-actionable
+  ///
+  /// In en, this message translates to:
+  /// **'Chat setup needs admin attention. Ask a workspace admin to inspect support-safe diagnostics.'**
+  String get chatErrorAdminGuidance;
+
+  /// Provider-neutral guidance when a chat session is required
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is not connected for this workspace session. Connect chat to continue.'**
+  String get chatErrorSessionRequiredGuidance;
+
+  /// Provider-neutral guidance when chat cannot run on the current platform
+  ///
+  /// In en, this message translates to:
+  /// **'Chat is not available on this device yet.'**
+  String get chatErrorUnsupportedPlatformGuidance;
+
+  /// Provider-neutral guidance for retryable chat load failures
+  ///
+  /// In en, this message translates to:
+  /// **'Chat could not load right now. Retry when the connection is back.'**
+  String get chatErrorRetryGuidance;
+
   /// Title for the chat screen app bar
   ///
   /// In en, this message translates to:
@@ -1028,19 +1094,19 @@ abstract class AppLocalizations {
   /// Message shown while Matrix OAuth sign-in is in progress
   ///
   /// In en, this message translates to:
-  /// **'Connecting to Matrix…'**
+  /// **'Connecting to chat…'**
   String get chatConnectingLabel;
 
   /// Supporting copy shown while Matrix sign-in is connecting
   ///
   /// In en, this message translates to:
-  /// **'We are opening your secure Matrix session and syncing the first room list.'**
+  /// **'We are opening your secure Weave chat session and syncing the first conversation list.'**
   String get chatConnectingHint;
 
   /// Button label to start or retry Matrix sign-in
   ///
   /// In en, this message translates to:
-  /// **'Connect Matrix'**
+  /// **'Connect chat'**
   String get chatConnectButton;
 
   /// Accessibility label for the progress indicator shown while the existing chat room list is refreshing
@@ -1058,7 +1124,7 @@ abstract class AppLocalizations {
   /// Guidance for a chat notice shown when refresh failed but cached conversations remain visible
   ///
   /// In en, this message translates to:
-  /// **'We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.'**
+  /// **'Chat could not refresh just now. Your conversation list is preserved so you can keep your place and retry when the connection is back.'**
   String get chatStaleRoomsGuidance;
 
   /// Button label for retrying a stale chat room list refresh
@@ -1850,7 +1916,7 @@ abstract class AppLocalizations {
   /// Help copy for chat basics
   ///
   /// In en, this message translates to:
-  /// **'Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.'**
+  /// **'Chat is the daily place for conversations and messages. Open Chat from the main navigation, then choose a conversation. Weave keeps conversation and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.'**
   String get helpChatBody;
 
   /// Help section title for files
@@ -3298,6 +3364,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Retry send'**
   String get chatRoomRetrySendAction;
+
+  /// Provider-neutral message when a chat conversation timeline cannot be loaded
+  ///
+  /// In en, this message translates to:
+  /// **'Unable to load this conversation right now.'**
+  String get chatRoomLoadFailureMessage;
+
+  /// Provider-neutral message when a chat message send fails
+  ///
+  /// In en, this message translates to:
+  /// **'That message could not be sent right now. Check your connection and try again.'**
+  String get chatRoomSendFailureMessage;
 
   /// Sender label used for locally pending outgoing messages
   ///

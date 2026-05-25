@@ -104,6 +104,10 @@ class FirstRunModuleProvisioning {
   final FirstRunModuleStatus profile;
   final FirstRunModuleStatus matrix;
   final FirstRunModuleStatus nextcloud;
+
+  // The backend contract still carries provider-shaped storage while member
+  // surfaces consume stable Weave product modules.
+  FirstRunModuleStatus get chat => matrix;
 }
 
 class FirstRunStatus {

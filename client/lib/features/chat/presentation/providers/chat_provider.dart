@@ -97,7 +97,7 @@ class ChatController extends Notifier<ChatUiState> {
     } catch (error) {
       state = ChatUiState.error(
         ChatFailure.unknown(
-          'Unable to connect to Matrix right now.',
+          'Unable to connect to chat right now.',
           cause: error,
         ),
       );

@@ -397,6 +397,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatProvisioningRetryButton => 'Retry status';
 
   @override
+  String get chatProvisioningReadyGuidance =>
+      'Chat is ready for this workspace.';
+
+  @override
+  String get chatProvisioningPendingGuidance =>
+      'Chat is still being prepared. Keep this screen open or retry shortly.';
+
+  @override
+  String get chatProvisioningDegradedGuidance =>
+      'Chat may be partially available, but setup needs an admin health check.';
+
+  @override
+  String get chatProvisioningUnavailableGuidance =>
+      'Chat is not available in this workspace yet.';
+
+  @override
+  String get chatProvisioningFailedGuidance =>
+      'Chat could not be prepared for this workspace.';
+
+  @override
+  String get chatProvisioningAdminAction =>
+      'Ask a workspace admin to inspect support-safe diagnostics.';
+
+  @override
+  String get chatErrorCancelledGuidance =>
+      'Chat sign-in was cancelled. Connect chat to try again.';
+
+  @override
+  String get chatErrorAdminGuidance =>
+      'Chat setup needs admin attention. Ask a workspace admin to inspect support-safe diagnostics.';
+
+  @override
+  String get chatErrorSessionRequiredGuidance =>
+      'Chat is not connected for this workspace session. Connect chat to continue.';
+
+  @override
+  String get chatErrorUnsupportedPlatformGuidance =>
+      'Chat is not available on this device yet.';
+
+  @override
+  String get chatErrorRetryGuidance =>
+      'Chat could not load right now. Retry when the connection is back.';
+
+  @override
   String get chatScreenTitle => 'Chat';
 
   @override
@@ -1893,6 +1937,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatRoomRetrySendAction => 'Retry send';
+
+  @override
+  String get chatRoomLoadFailureMessage =>
+      'Unable to load this conversation right now.';
+
+  @override
+  String get chatRoomSendFailureMessage =>
+      'That message could not be sent right now. Check your connection and try again.';
 
   @override
   String get chatRoomYouLabel => 'You';

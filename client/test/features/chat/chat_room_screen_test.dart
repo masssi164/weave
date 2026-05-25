@@ -304,7 +304,7 @@ void main() {
   testWidgets('shows retryable failures in the room', (tester) async {
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async => throw const ChatFailure.protocol(
-        'Unable to load this Matrix room right now.',
+        'Raw room provider detail should not render.',
       ),
     );
 
@@ -317,8 +317,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Unable to load this Matrix room right now.'),
+      find.text('Unable to load this conversation right now.'),
       findsAtLeastNWidgets(1),
+    );
+    expect(
+      find.text('Raw room provider detail should not render.'),
+      findsNothing,
     );
     expect(find.text('Retry'), findsAtLeastNWidgets(1));
   });
@@ -334,7 +338,7 @@ void main() {
         sendAttempts++;
         if (sendAttempts == 1) {
           throw const ChatFailure.protocol(
-            'Message could not be sent. Check your connection and try again.',
+            'Raw send provider detail should not render.',
           );
         }
       },
@@ -356,9 +360,13 @@ void main() {
     expect(find.text('Not sent'), findsOneWidget);
     expect(
       find.text(
-        'Message could not be sent. Check your connection and try again.',
+        'That message could not be sent right now. Check your connection and try again.',
       ),
       findsOneWidget,
+    );
+    expect(
+      find.text('Raw send provider detail should not render.'),
+      findsNothing,
     );
     expect(
       find.byWidgetPredicate(
@@ -367,7 +375,7 @@ void main() {
             widget.properties.liveRegion == true &&
             widget.child is Text &&
             ((widget.child! as Text).data?.contains(
-                  'Message could not be sent',
+                  'That message could not be sent',
                 ) ??
                 false),
       ),
@@ -388,7 +396,7 @@ void main() {
     expect(find.text('Not sent'), findsNothing);
     expect(
       find.text(
-        'Message could not be sent. Check your connection and try again.',
+        'That message could not be sent right now. Check your connection and try again.',
       ),
       findsNothing,
     );
