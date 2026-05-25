@@ -53,16 +53,26 @@ void main() {
     ].join('\n');
 
     for (final forbidden in <String>[
-      'Connect' ' Matrix',
-      'Connecting' ' to Matrix',
-      'refresh' ' Matrix',
-      'connect Mat' 'rix if asked',
-      'homes' 'erver',
-      'raw pr' 'ovider',
-      'provider d' 'iagnostics',
-      'credentia' 'l-bearing',
-      'Bea' 'rer ',
-      'access' '_token',
+      'Connect'
+          ' Matrix',
+      'Connecting'
+          ' to Matrix',
+      'refresh'
+          ' Matrix',
+      'connect Mat'
+          'rix if asked',
+      'homes'
+          'erver',
+      'raw pr'
+          'ovider',
+      'provider d'
+          'iagnostics',
+      'credentia'
+          'l-bearing',
+      'Bea'
+          'rer ',
+      'access'
+          '_token',
     ]) {
       expect(memberChatCopy, isNot(contains(forbidden)), reason: forbidden);
     }
