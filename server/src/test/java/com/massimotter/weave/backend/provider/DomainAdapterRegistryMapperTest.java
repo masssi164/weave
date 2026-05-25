@@ -95,6 +95,7 @@ class DomainAdapterRegistryMapperTest {
                 true,
                 false,
                 List.of(),
+                List.of(),
                 Map.of("allFailClosed", true, "secretsReturned", false, "rawProviderErrorsReturned", false));
     }
 

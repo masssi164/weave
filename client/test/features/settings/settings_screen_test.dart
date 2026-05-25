@@ -659,6 +659,20 @@ void main() {
                   memberImpact: 'Calendar is degraded.',
                   modules: ['calendar'],
                   providerCandidates: ['nextcloud-calendar'],
+                  adapterEvidence: [
+                    ProviderAdapterReadinessEvidenceSnapshot(
+                      domain: 'calendar',
+                      adapterKey: 'nextcloud-caldav',
+                      configured: false,
+                      reachable: false,
+                      health: 'admin_selected_pending_backend_configuration',
+                      failClosed: true,
+                      supportSafeDiagnostics: {
+                        'secretsReturned': false,
+                        'rawProviderErrorsReturned': false,
+                      },
+                    ),
+                  ],
                   diagnostics: {
                     'secretsReturned': false,
                     'rawProviderErrorsReturned': false,
@@ -768,6 +782,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('calendar: degraded'), findsOneWidget);
+      expect(find.text('nextcloud-caldav: unconfigured'), findsOneWidget);
+      expect(find.text('Unavailable'), findsWidgets);
       expect(find.text('Weaver: Blocked'), findsOneWidget);
       expect(find.textContaining('provider-token-123'), findsNothing);
       expect(find.textContaining('https://gitlab.example.test'), findsNothing);

@@ -542,6 +542,25 @@ void main() {
                   'selectedByAdmin': true,
                   'bootstrapSuggestionOnly': false,
                   'lossyMappingNotes': [],
+                  'adapterEvidence': [
+                    {
+                      'domain': 'identity-idm',
+                      'adapterKey': 'keycloak-realm',
+                      'configured': true,
+                      'reachable': true,
+                      'health': 'ready',
+                      'failClosed': true,
+                      'supportSafeDiagnostics': {
+                        'providerState': 'ready',
+                        'supportSafe': true,
+                        'secretsReturned': false,
+                        'rawProviderErrorsReturned': false,
+                        'rawProviderError':
+                            'Authorization: Bearer should-not-render',
+                      },
+                      'evidenceTimestamp': '2026-05-25T18:00:00Z',
+                    },
+                  ],
                   'diagnostics': {
                     'providerCount': 2,
                     'allSupportSafe': true,
@@ -706,6 +725,27 @@ void main() {
         expect(snapshot.categories.first.selectedByAdmin, isTrue);
         expect(snapshot.categories.first.bootstrapSuggestionOnly, isFalse);
         expect(snapshot.categories.first.supportSafe, isTrue);
+        expect(
+          snapshot.categories.first.adapterEvidence.single.adapterKey,
+          'keycloak-realm',
+        );
+        expect(
+          snapshot.categories.first.adapterEvidence.single.configured,
+          isTrue,
+        );
+        expect(
+          snapshot.categories.first.adapterEvidence.single.reachable,
+          isTrue,
+        );
+        expect(
+          snapshot
+              .categories
+              .first
+              .adapterEvidence
+              .single
+              .supportSafeDiagnostics,
+          isNot(contains('rawProviderError')),
+        );
         expect(snapshot.categories.last.category, 'weaver');
         expect(
           snapshot.categories.last.readiness,
