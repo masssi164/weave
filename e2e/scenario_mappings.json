@@ -52,7 +52,7 @@
         {
           "path": "client/test/live_stack_contract_test.dart",
           "fragments": [
-            "provider stack readiness stays behind the Weave backend facade",
+            "provider stack readiness stays behind admin/operator backend facades",
             "direct Flutter provider calls remain blocked for optional provider stack modules"
           ]
         }

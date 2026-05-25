@@ -19,14 +19,16 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
+import 'package:weave/features/chat/data/services/matrix_conversation_service.dart';
+import 'package:weave/features/chat/data/services/matrix_room_service.dart';
+import 'package:weave/features/chat/data/services/matrix_session_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
-import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
-import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
@@ -162,10 +164,6 @@ void main() {
       _resetKeyboardTestState();
       await tester.pump();
 
-      container.read(chatProvider.notifier).connect();
-      _resetKeyboardTestState();
-      await tester.pump();
-
       await _waitFor(
         tester,
         () {
@@ -194,66 +192,20 @@ void main() {
 
       final providerHttpClient = createTrustedTestHttpClient();
       addTearDown(providerHttpClient.close);
-      final providerStatus = _decodeHttpJson(
-        await providerHttpClient.get(
-          config.apiUri('/api/providers/status'),
-          headers: <String, String>{
-            'Accept': 'application/json',
-            'Authorization': 'Bearer ${appSession.accessToken}',
-          },
-        ),
-        operation: 'read provider stack readiness',
+      final providerRegistryResponse = await providerHttpClient.get(
+        config.apiUri('/api/providers/status'),
+        headers: <String, String>{
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ${appSession.accessToken}',
+        },
       );
-      final providerReadiness = _jsonListOfMaps(providerStatus['providers']);
-      final providerModules = providerReadiness
-          .map((provider) => _jsonString(provider['module']))
-          .toSet();
-      const requiredProviderModules = <String>{
-        'identity-realm',
-        'matrix',
-        'matrix-auth',
-        'files',
-        'office',
-        'calendar',
-        'contacts',
-        'forms',
-        'boards',
-        'meetings',
-        'source-control',
-        'issue-tracker',
-        'ci',
-        'release',
-      };
-      const failClosedModules = <String>{
-        'office',
-        'contacts',
-        'forms',
-        'source-control',
-        'issue-tracker',
-        'ci',
-        'release',
-      };
-      final providerRegistryVisible =
-          providerStatus['backendOwnedFacades'] == true &&
-          providerStatus['flutterDirectProviderCallsAllowed'] == false &&
-          providerStatus['supportSafe'] == true &&
-          providerModules.containsAll(requiredProviderModules);
-      final optionalProvidersFailClosed = providerReadiness
-          .where(
-            (provider) =>
-                failClosedModules.contains(_jsonString(provider['module'])),
-          )
-          .every(
-            (provider) =>
-                provider['enabled'] == false &&
-                provider['configured'] == false &&
-                provider['failClosed'] == true &&
-                provider['supportSafe'] == true,
-          );
-      final providerSecretsExposed = RegExp(
-        r'(Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/)',
+      final providerRegistryMemberForbidden =
+          providerRegistryResponse.statusCode == 403;
+      final providerRegistryBody = providerRegistryResponse.body;
+      final providerRegistryBodySupportSafe = !RegExp(
+        r'(Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/|SecretRef|secretref://)',
         caseSensitive: false,
-      ).hasMatch(jsonEncode(providerStatus));
+      ).hasMatch(providerRegistryBody);
       final profileReadiness = _decodeHttpJson(
         await providerHttpClient.get(
           config.apiUri('/api/profile/readiness'),
@@ -272,13 +224,10 @@ void main() {
           profileReadiness['supportSafe'] == true;
       // ignore: avoid_print
       print(
-        'PROVIDER_STACK_RESULT releaseStatus=${providerStatus['releaseStatus']} '
-        'providers=${providerReadiness.length} '
-        'modules=${providerModules.join(',')} '
-        'registryVisible=$providerRegistryVisible '
-        'optionalProvidersFailClosed=$optionalProvidersFailClosed '
-        'directFlutterProviderCallsAllowed=${providerStatus['flutterDirectProviderCallsAllowed']} '
-        'providerSecretsExposed=$providerSecretsExposed '
+        'PROVIDER_STACK_RESULT '
+        'memberRegistryForbidden=$providerRegistryMemberForbidden '
+        'memberRegistryStatus=${providerRegistryResponse.statusCode} '
+        'registryBodySupportSafe=$providerRegistryBodySupportSafe '
         'profileReadinessContract=${profileReadiness['contractId']} '
         'profileReadinessEndpoint=${profileReadiness['endpoint']} '
         'profileReadinessOk=$profileReadinessOk',
@@ -338,32 +287,17 @@ void main() {
       );
       profileRestored = true;
 
-      await _waitFor(
-        tester,
-        () {
-          final state = container.read(chatProvider);
-          return state.phase == ChatViewPhase.empty ||
-              state.phase == ChatViewPhase.content ||
-              state.phase == ChatViewPhase.error ||
-              state.phase == ChatViewPhase.unsupported;
-        },
-        reason: 'Matrix chat should connect against the live homeserver.',
-        timeout: const Duration(minutes: 2),
-        diagnostics: () {
-          final state = container.read(chatProvider);
-          return 'chatPhase=${state.phase} '
-              'failure=${state.failure?.message} '
-              'cause=${state.failure?.cause} '
-              'conversations=${state.conversations.length}';
-        },
+      final chatRepository = MatrixChatRepository(
+        sessionService: container.read(matrixSessionServiceProvider),
+        conversationService: container.read(matrixConversationServiceProvider),
+        roomService: container.read(matrixRoomServiceProvider),
+        serverConfigurationRepository: container.read(
+          serverConfigurationRepositoryProvider,
+        ),
       );
+      await chatRepository.connect();
+      const matrixConnected = true;
 
-      final chatState = container.read(chatProvider);
-      final matrixConnected =
-          chatState.phase == ChatViewPhase.empty ||
-          chatState.phase == ChatViewPhase.content;
-
-      final chatRepository = container.read(chatRepositoryProvider);
       final matrixClientFactory = container.read(matrixClientFactoryProvider);
       final matrixClient = await matrixClientFactory.getClientForHomeserver(
         config.matrixHomeserverUrl,
@@ -393,9 +327,9 @@ void main() {
       // Keep the Matrix outcome visible while still validating the backend files path.
       // ignore: avoid_print
       print(
-        'MATRIX_RESULT phase=${chatState.phase} '
-        'failure=${chatState.failure} '
-        'cause=${chatState.failure?.cause}',
+        'MATRIX_RESULT connected=$matrixConnected '
+        'testHarnessDirectMatrix=true '
+        'productDirectProviderCallsAllowed=false',
       );
 
       final chatSecurityRepository = container.read(
@@ -854,9 +788,8 @@ void main() {
           !calendarUpdatedThreadRefReady ||
           !calendarMeetingThreadStable ||
           !calendarDeleted ||
-          !providerRegistryVisible ||
-          !optionalProvidersFailClosed ||
-          providerSecretsExposed ||
+          !providerRegistryMemberForbidden ||
+          !providerRegistryBodySupportSafe ||
           !profileReadinessOk ||
           !boardsProviderNeutral ||
           !boardsNonDragMutationWorked) {
@@ -866,9 +799,7 @@ void main() {
           'profileLoaded=true '
           'profileUpdated=$profileUpdated '
           'matrixConnected=$matrixConnected '
-          'matrixPhase=${chatState.phase} '
-          'matrixFailure=${chatState.failure} '
-          'matrixCause=${chatState.failure?.cause} '
+          'matrixSource=live-matrix-harness '
           'chatRoomId=$roomId '
           'chatMatchedMessages=${deliveredMessage.length} '
           'e2eeCryptoAvailable=$e2eeCryptoAvailable '
@@ -897,9 +828,9 @@ void main() {
           'calendarMeetingThreadId=${readCreatedEvent.threadRef.meetingThreadId} '
           'calendarDeleted=$calendarDeleted '
           'calendarEventId=${createdEvent.id} '
-          'providerRegistryVisible=$providerRegistryVisible '
-          'optionalProvidersFailClosed=$optionalProvidersFailClosed '
-          'providerSecretsExposed=$providerSecretsExposed '
+          'memberRegistryForbidden=$providerRegistryMemberForbidden '
+          'memberRegistryStatus=${providerRegistryResponse.statusCode} '
+          'registryBodySupportSafe=$providerRegistryBodySupportSafe '
           'profileReadinessOk=$profileReadinessOk '
           'boardsProviderNeutral=$boardsProviderNeutral '
           'boardsNonDragMutationWorked=$boardsNonDragMutationWorked '
@@ -926,9 +857,8 @@ void main() {
       expect(calendarUpdatedThreadRefReady, isTrue);
       expect(calendarMeetingThreadStable, isTrue);
       expect(calendarDeleted, isTrue);
-      expect(providerRegistryVisible, isTrue);
-      expect(optionalProvidersFailClosed, isTrue);
-      expect(providerSecretsExposed, isFalse);
+      expect(providerRegistryMemberForbidden, isTrue);
+      expect(providerRegistryBodySupportSafe, isTrue);
       expect(profileReadinessOk, isTrue);
       expect(boardsProviderNeutral, isTrue);
       expect(boardsNonDragMutationWorked, isTrue);

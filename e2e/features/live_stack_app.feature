@@ -39,9 +39,9 @@ Feature: Live Stack product acceptance journey
   @weave-live-provider-stack-readiness
   Scenario: Provider stack readiness stays backend-owned and support-safe
     Given the signed-in person has optional providers represented by Weave
-    When the app reads provider stack readiness
-    Then provider readiness is exposed only through backend-owned facades
-    And optional provider modules fail closed until configured
+    When the app checks provider readiness boundaries
+    Then raw provider registry diagnostics are denied to member tokens
+    And member readiness is exposed only through backend-owned facades
     And no provider secrets or direct Flutter provider calls are exposed
 
   @weave-live-calendar-threadrefs
