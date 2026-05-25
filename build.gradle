@@ -2,28 +2,123 @@ plugins {
     id 'base'
 }
 
-ext.registerMakeTask = { String taskName, String makeTarget, String taskDescription ->
+import org.gradle.internal.os.OperatingSystem
+
+ext.execCommand = { List<String> args ->
+    OperatingSystem.current().isWindows() ? ['cmd', '/c'] + args : args
+}
+
+ext.registerCommandTask = { String taskName, Object taskWorkingDir, List<String> args, String taskDescription ->
     tasks.register(taskName, Exec) {
         group = 'verification'
         description = taskDescription
-        commandLine 'make', makeTarget
+        workingDir taskWorkingDir
+        commandLine execCommand(args)
         outputs.upToDateWhen { false }
     }
 }
 
-registerMakeTask('serverCi', 'server-ci', 'Run server checks through the existing server Gradle build.')
-registerMakeTask('clientCi', 'client-ci', 'Run Flutter offline contract checks through the existing client Makefile.')
-registerMakeTask('adminCi', 'admin-ci', 'Run admin console npm CI checks through the existing Makefile.')
-registerMakeTask('infraStatic', 'infra-static', 'Run static infrastructure script checks through the existing Makefile.')
-registerMakeTask('docsBuild', 'docs-build', 'Build the MkDocs site with strict validation.')
-registerMakeTask('docsCheck', 'docs-check', 'Run documentation structure checks and strict MkDocs build.')
-registerMakeTask('acceptanceContract', 'acceptance-contract', 'Verify Gherkin scenario mappings and acceptance contracts.')
-registerMakeTask('releaseNotesCheck', 'release-notes-check', 'Validate release notes structure, labels, and generator fixtures.')
+ext.registerRootCommandTask = { String taskName, List<String> args, String taskDescription ->
+    registerCommandTask(taskName, projectDir, args, taskDescription)
+}
+
+registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json'], 'Verify Gherkin scenario mappings and acceptance contracts.')
+registerCommandTask('clientCi', file('client'), ['make', 'offline-contract-test'], 'Run Flutter offline contract checks through the client Makefile.')
+registerCommandTask('serverCi', file('server'), ['./gradlew', 'test'], 'Run server checks through the existing server Gradle build.')
+registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
+registerRootCommandTask('infraStatic', ['bash', '-lc', "find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash"], 'Run static infrastructure script checks.')
+registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs build --strict'], 'Build the MkDocs site with strict validation.')
+registerRootCommandTask('docsStructureCheck', ['python3', 'tools/docs_check.py'], 'Run lightweight documentation structure checks.')
+registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
+registerRootCommandTask('releaseNotesLabelCheck', ['python3', 'tools/release_notes_label_check.py'], 'Validate the current PR release-notes label set from PR_LABELS_JSON.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'python3 tools/docs_check.py --release-notes-only && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check'], 'Validate release notes structure, labels, and generator fixture evidence.')
+
+tasks.register('docsCheck') {
+    group = 'verification'
+    description = 'Run documentation structure checks and strict MkDocs build.'
+    dependsOn 'docsStructureCheck', 'docsBuild'
+}
+
+tasks.register('releaseNotesCheck') {
+    group = 'verification'
+    description = 'Compatibility alias for releaseEvidenceCheck.'
+    dependsOn 'releaseEvidenceCheck'
+}
+
+tasks.register('liveStackHelp') {
+    group = 'help'
+    description = 'Explain that live stack E2E is intentionally opt-in.'
+    doLast {
+        println 'Live stack E2E is intentionally opt-in. Use the GitHub workflow with I_HAVE_SOLAR_STORAGE_BUDGET when runner power/storage budget is available.'
+    }
+}
+
+tasks.register('doctor') {
+    group = 'verification'
+    description = 'Check required local build tools and pinned dependency files with actionable failures.'
+    doLast {
+        def failures = []
+        def checkCommand = { String label, List<String> args, String hint ->
+            def output = new ByteArrayOutputStream()
+            def result = exec {
+                commandLine execCommand(args)
+                standardOutput = output
+                errorOutput = output
+                ignoreExitValue = true
+            }
+            if (result.exitValue != 0) {
+                failures << "${label}: missing or unusable. ${hint}"
+            } else {
+                def firstLine = output.toString('UTF-8').readLines().find { it.trim() }
+                println "${label}: ${firstLine ?: 'ok'}"
+            }
+        }
+        def checkFile = { String label, String path, String hint ->
+            if (!file(path).exists()) {
+                failures << "${label}: ${path} not found. ${hint}"
+            } else {
+                println "${label}: ${path}"
+            }
+        }
+
+        println "Gradle: ${gradle.gradleVersion} via ${gradle.gradleHomeDir ?: 'wrapper/runtime'}"
+        println "JDK: ${System.getProperty('java.version')} (${System.getProperty('java.vendor')})"
+        if (!JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_21)) {
+            failures << 'JDK: Java 21 or newer is required. Install Temurin 21+ or run with JAVA_HOME pointing at a supported JDK.'
+        }
+
+        checkFile('Gradle wrapper pin', 'gradle/wrapper/gradle-wrapper.properties', 'Restore the checked-in Gradle wrapper metadata.')
+        checkFile('Admin npm lockfile', 'admin-console/package-lock.json', 'Run npm install in admin-console only when intentionally updating dependencies, then commit the lockfile.')
+        checkFile('Admin npm dependencies', 'admin-console/node_modules/.bin/tsc', 'Run npm ci in admin-console before adminCi/ci.')
+        checkFile('Client Flutter lockfile', 'client/pubspec.lock', 'Run flutter pub get in client/ and commit the lockfile if dependencies intentionally changed.')
+        checkFile('Client Flutter dependencies', 'client/.dart_tool/package_config.json', 'Run flutter pub get in client before clientCi/ci.')
+        checkFile('MkDocs requirements pin', 'docs/requirements.txt', 'Restore pinned docs dependencies.')
+
+        checkCommand('git', ['git', '--version'], 'Install Git and ensure it is on PATH.')
+        checkCommand('bash', ['bash', '--version'], 'Install Bash and ensure it is on PATH.')
+        checkCommand('python3', ['python3', '--version'], 'Install Python 3 and ensure it is on PATH.')
+        checkCommand('flutter', ['flutter', '--version'], 'Install Flutter stable and ensure flutter is on PATH.')
+        checkCommand('dart', ['dart', '--version'], 'Install the Dart SDK or use the Dart bundled with Flutter.')
+        checkCommand('node', ['node', '--version'], 'Install Node matching the CI setup or the repo .nvm policy when added.')
+        checkCommand('npm', ['npm', '--version'], 'Install npm and run npm ci in admin-console when needed.')
+        checkCommand('mkdocs', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs --version'], 'Install pinned docs dependencies with: python3 -m pip install -r docs/requirements.txt (or use build/docs-venv).')
+
+        if (!failures.isEmpty()) {
+            throw new GradleException('Doctor found problems:\n - ' + failures.join('\n - '))
+        }
+    }
+}
 
 tasks.register('ci') {
     group = 'verification'
-    description = 'Run the monorepo CI orchestration checks. Requires the same local prerequisites as the delegated Make targets.'
-    dependsOn 'acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesCheck'
+    description = 'Run the canonical monorepo CI orchestration checks.'
+    dependsOn 'doctor', 'acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseEvidenceCheck'
+}
+
+['acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseEvidenceCheck'].each { taskName ->
+    tasks.named(taskName) {
+        mustRunAfter tasks.named('doctor')
+    }
 }
 
 tasks.named('check') {

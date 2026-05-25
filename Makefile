@@ -1,42 +1,49 @@
-.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check live-stack-help
+.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check release-evidence-check live-stack-help doctor
 
-ci: acceptance-contract client-ci server-ci infra-static admin-ci
+GRADLE ?= ./gradlew
+
+ci:
+	$(GRADLE) ci
+
+doctor:
+	$(GRADLE) doctor
+
+client-ci:
+	$(GRADLE) clientCi
+
+server-ci:
+	$(GRADLE) serverCi
+
+infra-static:
+	$(GRADLE) infraStatic
+
+admin-ci:
+	$(GRADLE) adminCi
+
+acceptance-contract:
+	$(GRADLE) acceptanceContract
 
 # Install docs tooling with: python3 -m pip install -r docs/requirements.txt
 docs-build:
-	python3 -m mkdocs build --strict
+	$(GRADLE) docsBuild
 
-docs-check: docs-structure-check
-	python3 -m mkdocs build --strict
+docs-check:
+	$(GRADLE) docsCheck
 
 docs-serve:
-	python3 -m mkdocs serve
+	$(GRADLE) docsServe
 
 docs-structure-check:
-	python3 tools/docs_check.py
+	$(GRADLE) docsStructureCheck
 
 release-notes-check:
-	python3 tools/docs_check.py --release-notes-only
-	python3 tools/release_notes_label_check_test.py
-	python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check
+	$(GRADLE) releaseEvidenceCheck
+
+release-evidence-check:
+	$(GRADLE) releaseEvidenceCheck
 
 release-notes-label-check:
-	python3 tools/release_notes_label_check.py
-
-client-ci:
-	$(MAKE) -C client offline-contract-test
-
-server-ci:
-	cd server && ./gradlew test
-
-infra-static:
-	@find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash
-
-admin-ci:
-	cd admin-console && npm run ci
-
-acceptance-contract:
-	cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json
+	$(GRADLE) releaseNotesLabelCheck
 
 live-stack-help:
-	@printf '%s\n' 'Live stack E2E is intentionally opt-in. Use the GitHub workflow with I_HAVE_SOLAR_STORAGE_BUDGET when runner power/storage budget is available.'
+	$(GRADLE) liveStackHelp
