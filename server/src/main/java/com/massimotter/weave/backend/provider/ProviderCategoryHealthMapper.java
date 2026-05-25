@@ -102,7 +102,7 @@ final class ProviderCategoryHealthMapper {
                         ? capability.memberImpact()
                         : "Admin provider mapping is required before this category becomes product-ready.",
                 moduleNames(modules),
-                providerCandidates(providers, modules),
+                providerCandidates(category, providers, modules),
                 selection.providerKey(),
                 selection.choiceModel(),
                 selection.selectedByAdmin(),
@@ -143,7 +143,7 @@ final class ProviderCategoryHealthMapper {
                 policyState,
                 selection.selectedByAdmin() ? memberImpact : "Admin provider mapping is required before this category becomes product-ready.",
                 moduleNames(modules),
-                providerCandidates(providers, modules),
+                providerCandidates(category, providers, modules),
                 selection.providerKey(),
                 selection.choiceModel(),
                 selection.selectedByAdmin(),
@@ -205,8 +205,8 @@ final class ProviderCategoryHealthMapper {
         return diagnostics;
     }
 
-    private static List<String> providerCandidates(List<ProviderStatusResponse> providers, Set<ProviderModule> modules) {
-        return matching(providers, modules).stream()
+    private static List<String> providerCandidates(String category, List<ProviderStatusResponse> providers, Set<ProviderModule> modules) {
+        List<String> registeredCandidates = matching(providers, modules).stream()
                 .flatMap(provider -> {
                     List<String> values = new ArrayList<>();
                     values.add(provider.providerKey());
@@ -216,6 +216,10 @@ final class ProviderCategoryHealthMapper {
                 .distinct()
                 .sorted()
                 .toList();
+        if (!registeredCandidates.isEmpty()) {
+            return registeredCandidates;
+        }
+        return ProviderCapabilityContracts.providerCandidates(category);
     }
 
     private static List<String> moduleNames(Set<ProviderModule> modules) {

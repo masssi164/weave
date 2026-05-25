@@ -115,15 +115,9 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
       setStatusMessage(`Dry-run validated for ${selectedCategoryDetails.key}: ${providerDraft}.`);
       return;
     }
-    setControlPlane((current) => ({
-      ...current,
-      providerCategories: current.providerCategories.map((category) =>
-        category.key === selectedCategoryDetails.key
-          ? { ...category, selectedAdapter: providerDraft, selectedByAdmin: true, bootstrapSuggestionOnly: false, choiceModel: choiceModelDraft }
-          : category,
-      ),
-    }));
-    setStatusMessage(`Provider selection applied for ${selectedCategoryDetails.key}: ${providerDraft}.`);
+    const refreshed = await api.getControlPlane();
+    setControlPlane(refreshed);
+    setStatusMessage(`Provider selection applied for ${selectedCategoryDetails.key}: ${providerDraft}. Backend control plane refreshed as source of truth.`);
   }
 
   async function testReadiness(providerKey: string) {

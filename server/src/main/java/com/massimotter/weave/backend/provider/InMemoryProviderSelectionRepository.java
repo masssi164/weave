@@ -31,4 +31,8 @@ public class InMemoryProviderSelectionRepository implements ProviderSelectionRep
         selections.put(selection.category(), selection);
         return selection;
     }
+
+    public void clear() {
+        selections.clear();
+    }
 }

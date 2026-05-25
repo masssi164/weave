@@ -114,6 +114,9 @@ class AdminControlPlaneControllerTest {
     }
 
     private void selectDefaultProviders() {
+        if (providerSelectionRepository instanceof InMemoryProviderSelectionRepository memoryRepository) {
+            memoryRepository.clear();
+        }
         providerSelectionRepository.save(selection("identity-idm", "keycloak-realm", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("chat", "synapse-homeserver", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("files", "nextcloud-files", "recommended_self_hosted_default"));
@@ -207,12 +210,13 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/providers/readiness-tests")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"providerKey\":\"livekit\",\"testKind\":\"readiness\",\"secretRef\":\"secretref://weave/provider/livekit\"}"))
+                        .content("{\"providerKey\":\"slack\",\"testKind\":\"readiness\",\"secretRef\":\"secretref://weave/provider/slack\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.providerKey").value("livekit"))
+                .andExpect(jsonPath("$.providerKey").value("slack"))
                 .andExpect(jsonPath("$.auditEventPublished").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.rawSecretExposed").value(false))
+                .andExpect(jsonPath("$.diagnostics.backendAdapterKey").value("synapse-homeserver"))
                 .andExpect(jsonPath("$.diagnostics.secretsReturned").value(false));
 
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
@@ -231,6 +235,26 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$[*].payload.rawProviderError", hasItems("[redacted:provider-error]")))
                 .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))))
                 .andExpect(content().string(not(containsString("Bearer secret"))));
+    }
+
+    @Test
+    void weaverSelectionUsesContractCandidatesEvenWithoutRawProviderPort() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"weaver\",\"providerKey\":\"openclaw-governed-runtime\",\"choiceModel\":\"managed_cloud_provider\",\"secretRef\":\"secretref://weave/provider/openclaw-governed-runtime\",\"reason\":\"governed runtime pilot\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category").value("weaver"))
+                .andExpect(jsonPath("$.providerKey").value("openclaw-governed-runtime"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.migrationDryRunRequired").value(true));
+
+        mockMvc.perform(get("/api/admin/control-plane").with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].selectedByAdmin", hasItems(true)))
+                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].selectedProviderKey", hasItems("openclaw-governed-runtime")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].providerCandidates[*]", hasItems("openclaw-governed-runtime")))
+                .andExpect(content().string(not(containsString("raw provider"))));
     }
 
     private WorkspaceCapabilityStatusResponse capability(

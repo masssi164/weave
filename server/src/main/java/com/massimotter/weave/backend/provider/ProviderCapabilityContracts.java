@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class ProviderCapabilityContracts {
+public final class ProviderCapabilityContracts {
 
     private static final List<String> STABLE_MEMBER_IMPACT_STATES = List.of(
             "usable",
@@ -50,10 +50,7 @@ final class ProviderCapabilityContracts {
     }
 
     static ProviderCategoryContractResponse contract(String category, Set<ProviderModule> modules) {
-        Definition definition = DEFINITIONS.get(category);
-        if (definition == null) {
-            definition = new Definition(List.of(), List.of(), List.of());
-        }
+        Definition definition = definition(category);
         return new ProviderCategoryContractResponse(
                 category,
                 definition.featureCapabilities(),
@@ -64,6 +61,22 @@ final class ProviderCapabilityContracts {
                 STABLE_MEMBER_IMPACT_STATES,
                 true,
                 false);
+    }
+
+    public static List<String> providerCandidates(String category) {
+        Definition definition = definition(category);
+        return java.util.stream.Stream.concat(definition.defaultAdapters().stream(), definition.externalAdapters().stream())
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private static Definition definition(String category) {
+        Definition definition = DEFINITIONS.get(category);
+        if (definition == null) {
+            return new Definition(List.of(), List.of(), List.of());
+        }
+        return definition;
     }
 
     private static List<ProviderChoiceModelResponse> choiceModels(

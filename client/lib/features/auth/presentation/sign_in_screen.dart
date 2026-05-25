@@ -7,7 +7,6 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/weave_logo.dart';
 import 'package:weave/features/auth/presentation/providers/auth_flow_controller.dart';
-import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
@@ -105,13 +104,8 @@ class SignInScreen extends ConsumerWidget {
                                   ).textTheme.titleMedium,
                                 ),
                                 const SizedBox(height: 12),
-                                Text(
-                                  l10n.signInConfigurationProvider(
-                                    _providerLabel(
-                                      configuration.providerType,
-                                      l10n,
-                                    ),
-                                  ),
+                                const Text(
+                                  'Identity provider is selected by the Weave Admin Console; this client uses the organization sign-in endpoint.',
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
@@ -187,13 +181,6 @@ class SignInScreen extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  String _providerLabel(OidcProviderType providerType, AppLocalizations l10n) {
-    return switch (providerType) {
-      OidcProviderType.authentik => l10n.oidcProviderAuthentik,
-      OidcProviderType.keycloak => l10n.oidcProviderKeycloak,
-    };
   }
 }
 

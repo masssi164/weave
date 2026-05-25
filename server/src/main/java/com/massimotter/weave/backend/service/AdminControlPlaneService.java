@@ -16,6 +16,7 @@ import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
+import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
 import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
@@ -184,7 +185,7 @@ public class AdminControlPlaneService {
         }
         String providerKey = request.providerKey().trim();
         ProviderStatusResponse status = providerRegistry.status().providers().stream()
-                .filter(provider -> provider.providerKey().equals(providerKey))
+                .filter(provider -> providerKeyMatches(provider, providerKey))
                 .findFirst()
                 .orElseThrow(() -> new ApiErrorException(
                         HttpStatus.NOT_FOUND,
@@ -218,6 +219,7 @@ public class AdminControlPlaneService {
                 false,
                 Map.of(
                         "providerKey", providerKey,
+                        "backendAdapterKey", status.providerKey(),
                         "module", status.module().contractName(),
                         "configured", status.configured(),
                         "secretsReturned", false,
@@ -281,11 +283,22 @@ public class AdminControlPlaneService {
     }
 
     private boolean providerMatchesCategory(String providerKey, String category) {
-        String normalized = providerKey.toLowerCase(Locale.ROOT);
-        return providerRegistry.status().providers().stream()
+        boolean registeredCandidate = providerRegistry.status().providers().stream()
                 .filter(provider -> ProviderCategoryCatalog.providerMatchesCategory(provider, category))
-                .anyMatch(provider -> provider.providerKey().equals(providerKey)
-                        || provider.candidates().stream().map(value -> value.toLowerCase(Locale.ROOT)).anyMatch(normalized::equals));
+                .anyMatch(provider -> providerKeyMatches(provider, providerKey));
+        if (registeredCandidate) {
+            return true;
+        }
+        String normalized = providerKey.toLowerCase(Locale.ROOT);
+        return ProviderCapabilityContracts.providerCandidates(category).stream()
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .anyMatch(normalized::equals);
+    }
+
+    private boolean providerKeyMatches(ProviderStatusResponse provider, String providerKey) {
+        String normalized = providerKey.toLowerCase(Locale.ROOT);
+        return provider.providerKey().equals(providerKey)
+                || provider.candidates().stream().map(value -> value.toLowerCase(Locale.ROOT)).anyMatch(normalized::equals);
     }
 
     private String selectionChoiceModel(String value) {

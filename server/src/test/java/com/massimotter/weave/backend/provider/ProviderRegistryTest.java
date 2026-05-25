@@ -46,6 +46,11 @@ class ProviderRegistryTest {
         assertThat(chat.bootstrapSuggestionOnly()).isTrue();
         assertThat(chat.selectedProviderKey()).isEqualTo("awaiting_admin_selection");
         assertThat(chat.diagnostics()).containsEntry("selectionRequiredBeforeProviderUse", true);
+        ProviderCategoryStatusResponse weaver = response.categories().stream()
+                .filter(category -> category.category().equals("weaver"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(weaver.providerCandidates()).containsExactly("openclaw-governed-runtime", "weaver-runtime-disabled");
         assertThat(response.providers().get(0).enabled()).isFalse();
         assertThat(response.providers().get(0).diagnostics()).containsEntry("selectedByAdmin", false);
     }
