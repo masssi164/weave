@@ -42,6 +42,8 @@ nav:
       - Canonical feature models: canonical-feature-models.md
       - Acceptance contracts: acceptance-contracts.md
       - Quality and evidence: quality-and-evidence.md
+      - Build, evidence, and delivery system: build-evidence-delivery-system.md
+      - Sprint 1 completion report: sprint-1-completion-report.md
       - Accessibility release gate: accessibility-release-gate.md
       - ISO 9241-110 dogfood UX gate: iso-9241-110-dogfood-ux-gate.md
   - Product and Release Scope:
