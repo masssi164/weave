@@ -185,7 +185,7 @@
   "chatOverviewDescription": "Deine persönlichen Nachrichten, Favoriten, Kanäle und KI-Chats sind hier gruppiert, damit der Workspace nach Absicht startet statt als flache Raumliste.",
   "chatFavoritesSectionTitle": "Favoriten",
   "chatFavoritesSectionDescription": "Angepinnte Personen, Kanäle und KI-Chats, die du zuerst erreichen möchtest.",
-  "chatFavoritesSectionEmpty": "Noch keine Favoriten. Sobald Favoriten synchronisiert werden, bleiben wichtige Direktnachrichten, Kanäle und KI-Chats hier.",
+  "chatFavoritesSectionEmpty": "Noch keine Favoriten. Wichtige Direktnachrichten, Kanäle und KI-Chats, die als Favoriten markiert sind, bleiben hier.",
   "chatPersonalMessagesSectionTitle": "Persönliche Nachrichten",
   "chatPersonalMessagesSectionDescription": "Direkte Unterhaltungen mit Personen in deinem Workspace.",
   "chatPersonalMessagesSectionEmpty": "Noch keine persönlichen Nachrichten verfügbar.",

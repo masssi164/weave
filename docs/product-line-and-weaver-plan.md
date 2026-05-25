@@ -6,9 +6,21 @@ Status: active product direction, 2026-05-24.
 
 Weave is planned product-first, not agent-first.
 
-Weave is a provider-neutral organization suite and integration layer. It lets an organization keep existing systems for identity, chat, files, calendar, boards/tasks, documents, meetings, and collaboration while presenting them through coherent Weave product concepts.
+Weave is a provider-neutral organization operating layer and integration suite. It lets an organization keep existing systems for identity, chat, files, calendar, boards/tasks, documents, meetings, decisions, help/manuals, release evidence, and collaboration while presenting them through coherent Weave product concepts.
 
 Weaver is a later personal-assistant layer that plugs into this already-governed organization model. It must not define the product architecture by itself.
+
+## Priority realignment, 2026-05-25
+
+Current priority is not Office/ONLYOFFICE integration. Office remains a later provider category until the more fundamental provider-facade and documentation/release surfaces are in place.
+
+The active priority order is:
+
+1. **Complete server-side domain facading.** The client consumes Weave domains such as Chat, Files, Calendar, Boards/Tasks, Meetings, Decisions, and Health. Provider-specific mapping, credentials, readiness, migration, lossy conversion notes, and provider failures stay server/admin/operator side. For example, an admin may later replace Slack with Synapse/Matrix for the Chat domain through the Admin Console, while conversations, membership, history policy, attachments, and support-safe migration evidence are carried over by a server-owned migration path.
+2. **Embed manuals as product help.** The member Help surface embeds the MkDocs user manual in `weave/client`; the Admin Console embeds the admin/operator manual. Both manuals use the same CSS variables/design tokens/corporate design as the app surfaces and must remain accessible in iframe/webview form.
+3. **Automate README release evidence and repositioning.** README must automatically include generated release notes, describe what Weave is and where it is going, and stop presenting Weave as merely a collaboration platform. Public marketing copy still needs specialist review before final release positioning.
+
+Issue hygiene rule: close or supersede provider-specific implementation epics that are lower priority than the domain-facade/admin-console path, especially office-first or fixed-stack issues. Keep or rewrite issues only when they directly support domain contracts, provider swaps/migrations, admin readiness, embedded manuals, or release-note automation.
 
 ## Product line
 
@@ -60,7 +72,7 @@ The product surfaces remain Weave-owned:
 - Workspace/Admin Health for readiness and support;
 - accessible settings and policy-visible capability states.
 
-Provider adapters sit behind Weave contracts. A Microsoft-heavy organization should be able to use Entra ID, Teams, SharePoint, and Planner/Jira-style integrations. A self-hosted organization should be able to use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit. Mixed setups must be valid.
+Provider adapters sit behind Weave contracts. A Microsoft-heavy organization should be able to use Entra ID, Teams, SharePoint, and Planner/Jira-style integrations. A self-hosted organization should be able to use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit. Mixed setups must be valid. Provider swaps are admin-controlled domain migrations, not client rewrites: the server owns mapping old provider objects to canonical Weave domain objects, recording migration evidence, surfacing conflicts/lossy fields, and keeping member UX stable.
 
 The contract seam is category-first: feature capabilities for identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, and Weaver runtime are separate from adapter implementations. Workspace Health and policy enforcement must evaluate category contracts and stable member impact states, while concrete providers remain admin-selected adapters.
 
@@ -94,6 +106,24 @@ Admin policy controls:
 OpenClaw configuration remains an implementation target, not the product model. Weave should generate or constrain the Weaver/OpenClaw runtime from organization policy.
 
 ## Implementation plan
+
+### Phase 0: domain facade and documentation/release reset
+
+Goal: align the next work around Weave domains, provider migrations, embedded manuals, and release evidence before more provider-specific feature epics.
+
+- Define the `weave/server` domain facade contract for Chat first, including canonical conversation/message/membership/history/attachment identifiers, provider mapping records, support-safe migration reports, readiness, and fail-closed behavior.
+- Model provider replacement as an admin/operator action with preflight, dry-run, migration plan, reversible evidence where practical, and explicit lossy-field warnings.
+- Keep provider names out of normal member navigation; expose them only in Admin Console/provider readiness and support-safe diagnostics.
+- Add MkDocs user/admin manual embedding requirements and shared CSS-variable/design-token contract.
+- Add README release-note markers and automation contract; generated release notes must come from release metadata and be reviewable before publication.
+
+Evidence gate:
+
+- Specs make Chat provider replacement possible without changing member-facing domain vocabulary.
+- No new user-facing surface calls a raw chat/files/docs provider directly.
+- Manual embedding and README release-note automation have explicit acceptance criteria.
+- Office/provider-specific epics are marked postponed or superseded unless they support the domain-facade foundation.
+
 
 ### Phase A: product foundation
 

@@ -1,0 +1,572 @@
+package com.massimotter.weave.backend.service;
+
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditEvent;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.backend.audit.AuditWriteGate;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
+import com.massimotter.weave.backend.context.authz.ContextPermission;
+import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.model.chat.ChatAttachmentPolicyResponse;
+import com.massimotter.weave.backend.model.chat.ChatConversationResponse;
+import com.massimotter.weave.backend.model.chat.ChatConversationsResponse;
+import com.massimotter.weave.backend.model.chat.ChatHistoryPolicyResponse;
+import com.massimotter.weave.backend.model.chat.ChatMembershipResponse;
+import com.massimotter.weave.backend.model.chat.ChatMessageResponse;
+import com.massimotter.weave.backend.model.chat.ChatMessagesResponse;
+import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunRequest;
+import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunResponse;
+import com.massimotter.weave.backend.model.chat.ChatReadinessResponse;
+import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ChatFacadeService {
+
+    private static final String DEFAULT_CONTEXT_ID = "workspace-default";
+    private static final String DOMAIN = "chat";
+    private static final String SOURCE = "weave-chat-domain-facade";
+
+    private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
+    private final WorkspaceCapabilityService workspaceCapabilityService;
+    private final ContextAuthorizationPort contextAuthorizationPort;
+    private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final AuditEventPublisher auditEventPublisher;
+    private final ConcurrentMap<String, ConversationState> conversations = new ConcurrentHashMap<>();
+
+    public ChatFacadeService(
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties) {
+        this(
+                workspaceCapabilityProperties,
+                workspaceCapabilityService,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                new InMemoryAuditEventPublisher());
+    }
+
+    @Autowired
+    public ChatFacadeService(
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            AuditEventPublisher auditEventPublisher) {
+        this.workspaceCapabilityProperties = workspaceCapabilityProperties;
+        this.workspaceCapabilityService = workspaceCapabilityService;
+        this.contextAuthorizationPort = contextAuthorizationPort;
+        this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.auditEventPublisher = auditEventPublisher;
+        seedConversations();
+    }
+
+    public ChatReadinessResponse readiness(Jwt jwt) {
+        List<String> granted = grantedChatCapabilities(jwt);
+        WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
+        if (!chat.enabled()) {
+            return new ChatReadinessResponse(
+                    "disabled",
+                    "Chat is disabled by workspace policy.",
+                    granted,
+                    true);
+        }
+        if (jwt != null && !granted.contains("chat.read")) {
+            return new ChatReadinessResponse(
+                    "policy-blocked",
+                    "Chat is blocked by your role or group policy. Ask an admin if you need access.",
+                    granted,
+                    true);
+        }
+        WorkspaceCapabilityReadiness configured = chat.readiness();
+        if (configured == WorkspaceCapabilityReadiness.READY || (configured == null && hasText(chat.dependencyUrl()))) {
+            return new ChatReadinessResponse(
+                    "usable",
+                    "Weave Chat is available through the workspace Chat domain.",
+                    granted,
+                    true);
+        }
+        if (configured == WorkspaceCapabilityReadiness.UNAVAILABLE) {
+            return new ChatReadinessResponse(
+                    "disabled",
+                    "Chat is not available in this workspace. Ask an admin to review Workspace Health.",
+                    granted,
+                    true);
+        }
+        return new ChatReadinessResponse(
+                "degraded",
+                "Chat is degraded or missing a ready backend facade. Ask an admin to inspect Workspace Health.",
+                granted,
+                true);
+    }
+
+    public ChatConversationsResponse conversations(Jwt jwt) {
+        requireChatReady(jwt, "chat.read", "list_conversations");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
+        List<ChatConversationResponse> response = conversations.values().stream()
+                .filter(conversation -> conversation.contextId().equals(principal.contextId()))
+                .map(conversation -> conversation.toResponse(principal.principalRef()))
+                .sorted((left, right) -> left.id().compareTo(right.id()))
+                .toList();
+        return new ChatConversationsResponse(DOMAIN, "canonical-domain-facade", SOURCE, readiness(jwt), response);
+    }
+
+    public ChatMessagesResponse messages(Jwt jwt, String conversationId) {
+        requireChatReady(jwt, "chat.read", "list_messages");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
+        ConversationState conversation = requireConversation(conversationId, principal.contextId());
+        return new ChatMessagesResponse(conversation.id(), readiness(jwt), conversation.messages());
+    }
+
+    public ChatMessageResponse sendMessage(Jwt jwt, String conversationId, ChatSendMessageRequest request) {
+        requireChatReady(jwt, "chat.send", "send_message");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
+        ConversationState conversation = requireConversation(conversationId, principal.contextId());
+        List<String> attachmentRefs = sanitizeAttachmentRefs(request.attachmentRefs());
+        String text = normalizeMessageText(request.text());
+        Instant timestamp = Instant.now();
+        ChatMessageResponse message = new ChatMessageResponse(
+                "msg-" + UUID.randomUUID(),
+                conversation.id(),
+                principal.principalRef(),
+                text,
+                attachmentRefs,
+                false,
+                timestamp);
+        publishAudit(principal, AuditAction.CHAT_MESSAGE_SENT, "message:" + conversation.id(), timestamp, Map.of(
+                "command", "send_message",
+                "conversationId", conversation.id(),
+                "attachmentRefCount", attachmentRefs.size(),
+                "supportSafe", true));
+        conversation.add(message);
+        return message;
+    }
+
+    public ChatProviderReplacementDryRunResponse dryRunProviderReplacement(
+            Jwt jwt,
+            ChatProviderReplacementDryRunRequest request) {
+        requireChatReady(jwt, "chat.read", "provider_replacement_dry_run");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.ADMIN);
+        requireAdminRole(jwt);
+        String sourceAdapter = sanitizeAdapterKey(request.sourceAdapter());
+        String targetAdapter = sanitizeAdapterKey(request.targetAdapter());
+        Instant timestamp = Instant.now();
+        String dryRunId = "chat-dry-run-" + UUID.randomUUID();
+        publishAudit(principal, AuditAction.CHAT_PROVIDER_REPLACEMENT_DRY_RUN, dryRunId, timestamp, Map.of(
+                "command", "provider_replacement_dry_run",
+                "category", DOMAIN,
+                "sourceAdapter", sourceAdapter,
+                "targetAdapter", targetAdapter,
+                "supportSafe", true));
+
+        Map<String, Integer> inventory = new LinkedHashMap<>();
+        inventory.put("conversations", request.conversationCount());
+        inventory.put("messages", request.messageCount());
+        inventory.put("attachments", request.attachmentCount());
+        inventory.put("encryptedConversations", request.encryptedRoomCount());
+        inventory.put("identityConflicts", request.identityConflictCount());
+
+        List<String> warnings = new ArrayList<>();
+        warnings.add("Provider-specific reactions, pins, bot metadata, and thread semantics may require lossy canonical mapping.");
+        if (request.attachmentCount() > 0) {
+            warnings.add("Attachments must be re-linked through Weave file/attachment facades; raw provider media URLs stay redacted.");
+        }
+        if (request.encryptedRoomCount() > 0) {
+            warnings.add("Encrypted provider history is not backend-readable unless users export or re-share it through an approved migration path.");
+        }
+        if (request.messageCount() == 0 && request.conversationCount() > 0) {
+            warnings.add("Conversation shells can migrate before history import, but members must see the history gap clearly.");
+        }
+
+        List<String> conflicts = new ArrayList<>();
+        if (request.identityConflictCount() > 0) {
+            conflicts.add("Membership identity conflicts require admin resolution against the IDM/RBAC mapping before cutover.");
+        }
+        if (sourceAdapter.equals(targetAdapter)) {
+            conflicts.add("Source and target adapters are identical; no provider replacement should be scheduled.");
+        }
+
+        String status = conflicts.isEmpty() ? "dry-run-ready" : "requires-admin-review";
+        return new ChatProviderReplacementDryRunResponse(
+                dryRunId,
+                DOMAIN,
+                status,
+                sourceAdapter,
+                targetAdapter,
+                inventory,
+                List.of(
+                        "Context/Space authorization checked before provider access.",
+                        "Capability policy checked before provider access.",
+                        "No provider credentials, URLs, usernames, room ids, channel ids, or raw downstream errors included."),
+                List.copyOf(warnings),
+                List.copyOf(conflicts),
+                List.of(
+                        "Store canonical conversation/message mapping counts.",
+                        "Record cutover timestamp and support-safe conflict summary.",
+                        "Keep rollback evidence outside member responses and redact provider identifiers from support bundles."),
+                true,
+                true);
+    }
+
+    private void requireChatReady(Jwt jwt, String capability, String operation) {
+        workspaceCapabilityService.requireCapability(jwt, capability, DOMAIN, operation);
+        WorkspaceCapabilityProperties.Capability chat = workspaceCapabilityProperties.chat();
+        if (!chat.enabled()) {
+            throw chatUnavailable("disabled", "Chat is disabled by workspace policy.", operation);
+        }
+        WorkspaceCapabilityReadiness configured = chat.readiness();
+        if (configured == WorkspaceCapabilityReadiness.READY || (configured == null && hasText(chat.dependencyUrl()))) {
+            return;
+        }
+        String impact = configured == WorkspaceCapabilityReadiness.UNAVAILABLE ? "disabled" : "degraded";
+        throw chatUnavailable(impact, "Chat is not ready through the Weave Chat facade.", operation);
+    }
+
+    private PrincipalContext requireContextPermission(Jwt jwt, ContextPermission permission) {
+        PrincipalContext principal = principalContext(jwt);
+        var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
+                principal.tenantId(),
+                principal.contextId(),
+                principal.principalRef(),
+                permission));
+        if (!decision.allowed()) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "chat-forbidden",
+                    "Chat access is not allowed for this Context/Space.",
+                    Map.of(
+                            "module", DOMAIN,
+                            "contextId", principal.contextId(),
+                            "permission", permission.name().toLowerCase(Locale.ROOT),
+                            "policyState", "policy-blocked",
+                            "reason", decision.reason(),
+                            "diagnosticsRedacted", true));
+        }
+        return principal;
+    }
+
+    private PrincipalContext principalContext(Jwt jwt) {
+        if (jwt == null) {
+            throw new ApiErrorException(
+                    HttpStatus.UNAUTHORIZED,
+                    "unauthorized",
+                    "Chat access requires an authenticated principal.",
+                    Map.of("module", DOMAIN));
+        }
+        String tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantClaim());
+        if (tenantId == null) {
+            tenantId = jwtClaim(jwt, contextAuthorizationProperties.tenantFallbackClaim());
+        }
+        if (tenantId == null) {
+            tenantId = contextAuthorizationProperties.defaultTenantId();
+        }
+        String configuredClaim = jwtClaim(jwt, contextAuthorizationProperties.principalClaim());
+        String principalRef = contextAuthorizationProperties.principalRef(configuredClaim != null ? configuredClaim : jwt.getSubject());
+        if (principalRef == null) {
+            throw new ApiErrorException(
+                    HttpStatus.UNAUTHORIZED,
+                    "unauthorized",
+                    "Chat access requires an authenticated principal.",
+                    Map.of("module", DOMAIN, "reason", "principal claim is missing"));
+        }
+        String contextId = claimOrDefault(jwt, "weave_context_id", "context_id", DEFAULT_CONTEXT_ID);
+        return new PrincipalContext(tenantId, contextId, principalRef);
+    }
+
+    private String claimOrDefault(Jwt jwt, String primaryClaim, String fallbackClaim, String defaultValue) {
+        String primary = jwtClaim(jwt, primaryClaim);
+        if (primary != null) {
+            return primary;
+        }
+        String fallback = jwtClaim(jwt, fallbackClaim);
+        if (fallback != null) {
+            return fallback;
+        }
+        return defaultValue;
+    }
+
+    private String jwtClaim(Jwt jwt, String claimName) {
+        if (jwt == null || claimName == null || claimName.isBlank()) {
+            return null;
+        }
+        String value = jwt.getClaimAsString(claimName);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private ConversationState requireConversation(String conversationId, String contextId) {
+        ConversationState conversation = conversations.get(conversationId);
+        if (conversation == null || !conversation.contextId().equals(contextId)) {
+            throw new ApiErrorException(
+                    HttpStatus.NOT_FOUND,
+                    "chat-not_found",
+                    "Chat conversation was not found in this Context/Space.",
+                    Map.of(
+                            "module", DOMAIN,
+                            "resource", "conversation",
+                            "diagnosticsRedacted", true));
+        }
+        return conversation;
+    }
+
+    private ApiErrorException chatUnavailable(String impactState, String message, String operation) {
+        return new ApiErrorException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "chat-unavailable",
+                message,
+                Map.of(
+                        "module", DOMAIN,
+                        "operation", operation,
+                        "impactState", impactState,
+                        "diagnosticsRedacted", true));
+    }
+
+    private void requireAdminRole(Jwt jwt) {
+        List<String> roles = extractRealmRoles(jwt);
+        if (roles.stream().noneMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"))) {
+            throw new ApiErrorException(
+                    HttpStatus.FORBIDDEN,
+                    "admin-policy-blocked",
+                    "This Chat provider replacement action requires an owner, admin, or operator role.",
+                    Map.of(
+                            "module", DOMAIN,
+                            "operation", "provider_replacement_dry_run",
+                            "policyState", "policy-blocked",
+                            "diagnosticsRedacted", true));
+        }
+    }
+
+    private List<String> extractRealmRoles(Jwt jwt) {
+        if (jwt == null) {
+            return List.of();
+        }
+        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
+        if (realmAccess == null) {
+            return List.of();
+        }
+        Object roles = realmAccess.get("roles");
+        if (!(roles instanceof Collection<?> roleValues)) {
+            return List.of();
+        }
+        return roleValues.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(role -> role.trim().toLowerCase(Locale.ROOT))
+                .filter(role -> !role.isEmpty())
+                .sorted()
+                .toList();
+    }
+
+    private List<String> grantedChatCapabilities(Jwt jwt) {
+        if (jwt == null) {
+            return List.of();
+        }
+        return workspaceCapabilityService.grantedCapabilities(jwt).stream()
+                .filter(capability -> capability.startsWith("chat."))
+                .toList();
+    }
+
+    private String normalizeMessageText(String text) {
+        if (text == null || text.isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "chat-validation",
+                    "Chat message text is required.",
+                    Map.of("module", DOMAIN, "field", "text"));
+        }
+        return text.trim();
+    }
+
+    private List<String> sanitizeAttachmentRefs(List<String> attachmentRefs) {
+        if (attachmentRefs == null) {
+            return List.of();
+        }
+        List<String> sanitized = new ArrayList<>();
+        for (String ref : attachmentRefs) {
+            if (!hasText(ref)) {
+                continue;
+            }
+            String value = ref.trim();
+            String normalized = value.toLowerCase(Locale.ROOT);
+            if (value.length() > 256
+                    || normalized.contains("://")
+                    || normalized.contains("token")
+                    || normalized.contains("secret")
+                    || normalized.contains("password")
+                    || normalized.contains("apikey")
+                    || normalized.contains("api_key")) {
+                throw new ApiErrorException(
+                        HttpStatus.BAD_REQUEST,
+                        "chat-validation",
+                        "Chat attachment references must use Weave-safe references, not raw provider URLs or credentials.",
+                        Map.of("module", DOMAIN, "field", "attachmentRefs", "diagnosticsRedacted", true));
+            }
+            sanitized.add(value);
+        }
+        return List.copyOf(sanitized);
+    }
+
+    private String sanitizeAdapterKey(String adapterKey) {
+        if (!hasText(adapterKey)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "chat-validation",
+                    "Provider adapter key is required for Chat provider replacement dry-run.",
+                    Map.of("module", DOMAIN, "field", "adapterKey"));
+        }
+        String value = adapterKey.trim().toLowerCase(Locale.ROOT);
+        if (!value.matches("[a-z0-9][a-z0-9-]{1,63}") || containsSecretHint(value)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "chat-validation",
+                    "Provider adapter key must be support-safe and must not contain URLs, credentials, or provider object identifiers.",
+                    Map.of("module", DOMAIN, "field", "adapterKey", "diagnosticsRedacted", true));
+        }
+        return value;
+    }
+
+    private boolean containsSecretHint(String value) {
+        return value.contains("://")
+                || value.contains("token")
+                || value.contains("secret")
+                || value.contains("password")
+                || value.contains("apikey")
+                || value.contains("api-key")
+                || value.contains("cookie");
+    }
+
+    private void publishAudit(
+            PrincipalContext principal,
+            AuditAction action,
+            String subject,
+            Instant timestamp,
+            Map<String, Object> payload) {
+        Map<String, Object> auditPayload = new LinkedHashMap<>(payload);
+        auditPayload.put("domain", DOMAIN);
+        auditPayload.put("diagnosticsRedacted", true);
+        AuditWriteGate.publishRequired(auditEventPublisher, new AuditEvent(
+                principal.tenantId(),
+                principal.contextId(),
+                principal.principalRef(),
+                "weave:chat",
+                action,
+                timestamp,
+                action.wireName() + ":" + subject + ":" + timestamp,
+                AuditRedactionLevel.SUPPORT_SAFE,
+                auditPayload));
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private void seedConversations() {
+        if (!conversations.isEmpty()) {
+            return;
+        }
+        Instant seedTime = Instant.parse("2026-05-25T10:00:00Z");
+        ConversationState general = new ConversationState(
+                "channel-general",
+                DEFAULT_CONTEXT_ID,
+                "channel",
+                "General workspace channel",
+                new ChatHistoryPolicyResponse(
+                        "workspace-default-history",
+                        "joined-members",
+                        true,
+                        true),
+                new ChatAttachmentPolicyResponse(true, 8, false));
+        general.add(new ChatMessageResponse(
+                "msg-seed-welcome",
+                general.id(),
+                "user:system",
+                "Welcome to Weave Chat. Provider details stay behind the backend facade.",
+                List.of(),
+                false,
+                seedTime));
+        conversations.put(general.id(), general);
+    }
+
+    private record PrincipalContext(String tenantId, String contextId, String principalRef) {
+    }
+
+    private static final class ConversationState {
+        private final String id;
+        private final String contextId;
+        private final String kind;
+        private final String title;
+        private final ChatHistoryPolicyResponse historyPolicy;
+        private final ChatAttachmentPolicyResponse attachmentPolicy;
+        private final CopyOnWriteArrayList<ChatMessageResponse> messages = new CopyOnWriteArrayList<>();
+
+        private ConversationState(
+                String id,
+                String contextId,
+                String kind,
+                String title,
+                ChatHistoryPolicyResponse historyPolicy,
+                ChatAttachmentPolicyResponse attachmentPolicy) {
+            this.id = id;
+            this.contextId = contextId;
+            this.kind = kind;
+            this.title = title;
+            this.historyPolicy = historyPolicy;
+            this.attachmentPolicy = attachmentPolicy;
+        }
+
+        String id() {
+            return id;
+        }
+
+        String contextId() {
+            return contextId;
+        }
+
+        void add(ChatMessageResponse message) {
+            messages.add(message);
+        }
+
+        List<ChatMessageResponse> messages() {
+            return List.copyOf(messages);
+        }
+
+        ChatConversationResponse toResponse(String principalRef) {
+            Instant lastMessageAt = messages.stream()
+                    .map(ChatMessageResponse::sentAt)
+                    .max(Instant::compareTo)
+                    .orElse(null);
+            return new ChatConversationResponse(
+                    id,
+                    contextId,
+                    kind,
+                    title,
+                    new ChatMembershipResponse(principalRef, "joined", "member"),
+                    historyPolicy,
+                    attachmentPolicy,
+                    lastMessageAt);
+        }
+    }
+}

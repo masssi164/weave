@@ -420,7 +420,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatFavoritesSectionEmpty =>
-      'Noch keine Favoriten. Sobald Favoriten synchronisiert werden, bleiben wichtige Direktnachrichten, Kanäle und KI-Chats hier.';
+      'Noch keine Favoriten. Wichtige Direktnachrichten, Kanäle und KI-Chats, die als Favoriten markiert sind, bleiben hier.';
 
   @override
   String get chatPersonalMessagesSectionTitle => 'Persönliche Nachrichten';

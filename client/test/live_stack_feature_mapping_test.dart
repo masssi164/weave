@@ -38,6 +38,7 @@ void main() {
         'IDM roles and groups decide capability profiles before Weaver runtime',
         'Weaver runtime profiles are generated from organization policy',
         'A channel is the primary workspace surface',
+        'Chat uses a canonical backend domain facade',
         'A user board write is authorized and audited',
         'A meeting capsule keeps work connected',
         'Decisions are captured as product records',
@@ -196,4 +197,41 @@ ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted acces
     expect(sanitized, isNot(contains('id')));
     expect(sanitized, isNot(contains('displayName')));
   });
+
+  test(
+    'runtime evidence sanitizer drops provider locations and raw errors',
+    () {
+      final directory = Directory.systemTemp.createTempSync('weave_evidence_');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final logFile = File('${directory.path}${Platform.pathSeparator}e2e.log')
+        ..writeAsStringSync('''
+PROVIDER_STACK_RESULT status=degraded providerHost=matrix.internal endpoint=/admin rawError=SocketException error=provider-stack-timeout exception=TimeoutException providerUrl=https://matrix.internal/_matrix durationMs=17
+''');
+      const mapping = acceptance.ScenarioMapping(
+        tag: '@weave-live-provider-stack-readiness',
+        scenario:
+            'Provider stack readiness stays backend-owned and support-safe',
+        featurePath: 'e2e/features/live_stack_app.feature',
+        executableTest: 'integration_test/live_stack_e2e_test.dart',
+        evidenceMarkers: <String>['PROVIDER_STACK_RESULT'],
+        additionalEvidence: <acceptance.AdditionalEvidenceMapping>[],
+      );
+
+      final evidence = acceptance.extractRuntimeEvidence(
+        logFile,
+        <acceptance.ScenarioMapping>[mapping],
+      );
+      final sanitized =
+          evidence.markers['PROVIDER_STACK_RESULT']!.sanitizedFields;
+
+      expect(sanitized['status'], 'degraded');
+      expect(sanitized['durationMs'], '17');
+      expect(sanitized, isNot(contains('providerHost')));
+      expect(sanitized, isNot(contains('endpoint')));
+      expect(sanitized, isNot(contains('rawError')));
+      expect(sanitized, isNot(contains('error')));
+      expect(sanitized, isNot(contains('exception')));
+      expect(sanitized, isNot(contains('providerUrl')));
+    },
+  );
 }

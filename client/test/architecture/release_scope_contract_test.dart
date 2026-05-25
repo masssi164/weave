@@ -15,7 +15,25 @@ void main() {
           return false;
         }
 
+        const chatMemberKeys = <String>{
+          'chatOverviewTitle',
+          'chatOverviewDescription',
+          'chatFavoritesSectionTitle',
+          'chatFavoritesSectionDescription',
+          'chatFavoritesSectionEmpty',
+          'chatPersonalMessagesSectionTitle',
+          'chatPersonalMessagesSectionDescription',
+          'chatPersonalMessagesSectionEmpty',
+          'chatChannelsSectionTitle',
+          'chatChannelsSectionDescription',
+          'chatChannelsSectionEmpty',
+          'chatAiChatsSectionTitle',
+          'chatAiChatsSectionDescription',
+          'chatAiChatsSectionEmpty',
+        };
+
         return entry.key.startsWith('channelWorkspace') ||
+            chatMemberKeys.contains(entry.key) ||
             entry.key == 'settingsAdminBoundaryTitle' ||
             entry.key == 'settingsAdminBoundaryDescription' ||
             entry.key == 'helpSettingsBody' ||
@@ -23,7 +41,7 @@ void main() {
       });
 
       final forbiddenReleaseLanguage = RegExp(
-        r'\b(preview|scaffold|coming soon)\b',
+        r'\b(preview|scaffold|coming soon|roadmap)\b',
         caseSensitive: false,
       );
       final forbiddenProviderSetupLanguage = RegExp(
@@ -46,6 +64,18 @@ void main() {
       }
     },
   );
+
+  test('normal chat overview does not mount scaffold preview panels', () async {
+    final chatScreen = await File(
+      'lib/features/chat/presentation/chat_screen.dart',
+    ).readAsString();
+
+    expect(chatScreen, isNot(contains('WorkflowPreviewPanel')));
+    expect(chatScreen, isNot(contains('workflowPreviewFacadeProvider')));
+    expect(chatScreen, isNot(contains('_ChatContextCard')));
+    expect(chatScreen, isNot(contains('_AgentChatGovernancePanel')));
+    expect(chatScreen, isNot(contains('agentChatPreviewProvider')));
+  });
 
   test(
     'Router keeps feature-gated calendar and boards surfaces out of default navigation',

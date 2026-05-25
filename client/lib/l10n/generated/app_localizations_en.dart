@@ -415,7 +415,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatFavoritesSectionEmpty =>
-      'No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.';
+      'No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.';
 
   @override
   String get chatPersonalMessagesSectionTitle => 'Personal messages';

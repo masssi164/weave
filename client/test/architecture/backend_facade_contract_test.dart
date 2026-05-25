@@ -30,4 +30,20 @@ void main() {
     expect(source, isNot(contains('CalDavClient')));
     expect(source, isNot(contains('caldav_client.dart')));
   });
+
+  test(
+    'primary chat provider is wired through the backend Chat facade',
+    () async {
+      final source = await File(
+        'lib/features/chat/presentation/providers/chat_repository_provider.dart',
+      ).readAsString();
+
+      expect(source, contains('BackendChatRepository'));
+      expect(source, contains('if (!FeatureFlags.legacyDirectMatrixChat)'));
+      expect(
+        source.indexOf('BackendChatRepository'),
+        lessThan(source.indexOf('MatrixChatRepository(')),
+      );
+    },
+  );
 }

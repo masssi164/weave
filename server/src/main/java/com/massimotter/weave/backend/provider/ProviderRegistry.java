@@ -24,13 +24,18 @@ public class ProviderRegistry {
                         .comparing((ProviderStatusResponse status) -> status.module().contractName())
                         .thenComparing(ProviderStatusResponse::providerKey))
                 .toList();
+        Instant generatedAt = Instant.now();
+        List<ProviderCategoryStatusResponse> categories = ProviderCategoryHealthMapper.categories(
+                statuses,
+                workspaceCapabilityService.snapshot());
         return new ProviderRegistryResponse(
                 "provider-stack-contract-preview",
                 true,
                 false,
                 statuses.stream().allMatch(ProviderStatusResponse::supportSafe),
-                Instant.now(),
-                ProviderCategoryHealthMapper.categories(statuses, workspaceCapabilityService.snapshot()),
+                generatedAt,
+                DomainAdapterRegistryMapper.fromCategories(categories, generatedAt),
+                categories,
                 statuses);
     }
 }

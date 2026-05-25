@@ -65,6 +65,30 @@ final class ProviderCategoryHealthMapper {
                         safeProviders,
                         modules(ProviderModule.OFFICE, ProviderModule.FORMS, ProviderModule.CONTACTS)),
                 capabilityCategory(
+                        "decisions-evidence",
+                        "decisions/evidence",
+                        capabilities.decisionsEvidence(),
+                        safeProviders,
+                        Set.of()),
+                capabilityCategory(
+                        "manuals-help",
+                        "manuals/help",
+                        capabilities.manualsHelp(),
+                        safeProviders,
+                        Set.of()),
+                capabilityCategory(
+                        "release-evidence",
+                        "release evidence",
+                        capabilities.releaseEvidence(),
+                        safeProviders,
+                        modules(ProviderModule.RELEASE)),
+                capabilityCategory(
+                        "admin-control-plane",
+                        "admin control plane",
+                        capabilities.adminControlPlane(),
+                        safeProviders,
+                        Set.of()),
+                capabilityCategory(
                         "weaver",
                         "Weaver",
                         capabilities.weaver(),

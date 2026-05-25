@@ -11,7 +11,7 @@ It is intentionally not a generic proxy for Matrix, Nextcloud, Keycloak, OpenPro
 ## What the backend owns
 
 - JWT issuer, audience, client, and `weave:workspace` scope validation.
-- Product APIs for profile, onboarding, workspace capabilities, readiness, files, calendar, office launch, DevOps readiness, Matrix/MAS policy status, and provider-stack status.
+- Product APIs for profile, onboarding, workspace capabilities, readiness, files, calendar, DevOps readiness, Matrix/MAS policy status, provider-stack status, and later documents/collaboration launch seams once the domain-facade foundation is ready.
 - Backend-held actors and provider credentials for server-side facades.
 - Support-safe error envelopes, request IDs, redaction, and diagnostics.
 - Feature gates for unsafe or incomplete provider paths.
@@ -35,12 +35,14 @@ Currently implemented or contract-backed surfaces:
 - `GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status`.
 - `GET /api/onboarding/status`.
 - `GET /api/workspace/capabilities` and `GET /api/workspace/release-readiness`.
+- Chat domain facade at `/api/chat/**` for canonical conversations, messages, membership, history-policy, attachment-policy, support-safe readiness, and audited sends gated by `chat.read`, `chat.send`, and Context/Space authorization.
+- Admin/operator Chat provider replacement dry-run at `/api/admin/chat/provider-replacements/dry-run` with lossy-mapping warnings, conflict evidence, and redacted provider diagnostics.
 - Files facade backed by Nextcloud when a backend actor is configured; otherwise fail-closed.
 - Calendar facade for workspace/team/channel collections; unsafe private-personal calendar templates fail closed.
 - Secret-free calendar client setup metadata at `GET /api/calendar/client-setup`.
 - Provider stack readiness at `GET /api/providers/status`, including Nextcloud WebDAV/CalDAV/CardDAV/Forms, Keycloak OIDC, Synapse/Matrix, MAS, fail-closed meeting support, and OpenProject readiness seams.
 - DevOps readiness through backend facades; disabled/unconfigured providers expose support-safe, fail-closed status without product data leakage.
-- Office capabilities/launch through backend facades; launch errors stay support-safe and fail closed.
+- Documents/collaboration and Office-style launch seams remain postponed behind backend facades; any existing experimental launch errors stay support-safe and fail closed.
 - Boards/Tasks workspace facade and OpenProject workspace-sync validation contracts behind explicit runtime, authorization, and audit gates.
 - OpenAPI JSON at `/v3/api-docs`.
 
@@ -52,7 +54,7 @@ The provider stack is backend-owned by design:
 - Optional providers default off or not configured.
 - Diagnostics must not expose raw provider URLs, response bodies, bearer tokens, API tokens, cookies, app passwords, or signing secrets.
 - DevOps provider modules expose no linked projects, repositories, issues, merge requests, pipelines, or releases while disabled.
-- Office launch refuses unsafe states with stable error codes instead of leaking downstream details.
+- Documents/collaboration launch paths refuse unsafe states with stable error codes instead of leaking downstream details, and are lower priority than the shared domain-facade/provider-swap foundation.
 - Matrix/MAS status stays support-safe: Matrix client protocol remains the direct-client exception, encrypted message bodies are not server-readable, and video-call/meeting support is deferred/fail-closed.
 - Boards user writes stay backend-facade-owned, explicit, authorized, and auditable; OpenProject provider writes stay disabled until promotion gates pass.
 

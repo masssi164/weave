@@ -4,11 +4,30 @@
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
 </p>
 
-Weave is an accessibility-first, self-hostable organization suite and integration layer for chat, files, shared calendars, boards/tasks, meetings, decisions, and operator health.
+Weave is an accessibility-first, self-hostable organization operating layer for workspaces, communication, knowledge, provider governance, and operator health. Chat, files, shared calendars, boards/tasks, meetings, and decisions are product domains inside Weave, not the whole ambition.
 
-Weave is provider-neutral by design: an organization should be able to keep its existing identity, chat, file, calendar, collaboration, and project systems while exposing them through coherent Weave product concepts. The default dogfood stack can use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit, but those are provider choices behind Weave-owned contracts, not the product boundary.
+Weave is provider-neutral by design: an organization should be able to keep its existing identity, chat, file, calendar, collaboration, and project systems while exposing them through coherent Weave product concepts. The default dogfood stack can use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit, but those are provider choices behind Weave-owned domain contracts, not the product boundary. An admin should eventually be able to swap a domain provider, such as Slack to Synapse/Matrix for Chat, without turning the member client into provider-specific UX.
 
-This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, and release metadata as one release unit. The active product-line reference is [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md).
+This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, documentation, and release metadata as one release unit. The active product-line reference is [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md). Documentation and README release-note embedding are tracked in [Manuals and release notes integration](docs/manuals-and-release-notes-integration.md).
+
+## Current product direction
+
+Weave is no longer positioned as a pure collaboration platform. The product direction is:
+
+- **Domain-first provider facades:** clients consume Weave domains such as Chat, Files, Calendar, Boards/Tasks, Meetings, Decisions, and Health. Provider mapping, migrations, secrets, readiness, and lossy conversion details stay server/admin/operator side.
+- **Admin-governed provider swaps:** admins can change provider mappings through the Admin Console when the server supports the migration path; members keep using Weave concepts instead of vendor-specific flows.
+- **Accessible embedded manuals:** member help and admin/operator manuals are shipped from MkDocs and embedded in the client/admin console with the same design tokens and corporate design.
+- **Release evidence in public docs:** release notes are generated from release metadata and injected into README/release surfaces by automation, then reviewed before publication.
+
+Marketing copy for public release still needs specialist review before it is treated as final positioning.
+
+## Release notes
+
+Release notes must be generated from merged PR metadata/release-note files and inserted into this README by the release workflow. Do not hand-maintain this section except for the generated block markers and fallback text.
+
+<!-- WEAVE_RELEASE_NOTES_START -->
+Generated release notes are not available in this branch yet. See the release-notes automation work before publishing a release README.
+<!-- WEAVE_RELEASE_NOTES_END -->
 
 ## Product screenshots
 

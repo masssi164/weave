@@ -72,6 +72,15 @@ Feature: Weave v0.1 dogfood production release
     Then chat, files, board, calendar, meetings, and decisions are available as first-class tabs
     And provider details stay behind Weave-owned product surfaces
 
+  @weave-v01-chat-domain-facade
+  Scenario: Chat uses a canonical backend domain facade
+    Given a workspace member has chat.read and chat.send capability in a channel context
+    When they list conversations, read messages, and send a message through Weave Chat
+    Then the backend uses canonical conversation, message, membership, history-policy, and attachment-policy vocabulary
+    And capability policy and Context/Space authorization run before provider access
+    And chat writes produce support-safe audit evidence
+    And provider replacement dry-runs redact raw provider identifiers, credentials, URLs, and downstream errors
+
   @weave-v01-board-write-audit
   Scenario: A user board write is authorized and audited
     Given a workspace member has permission to update a channel board
