@@ -1255,6 +1255,26 @@
   "@helpHandbookDescription": {
     "description": "Introductory text for the in-app user handbook"
   },
+  "helpEmbeddedManualTitle": "Embedded user manual",
+  "@helpEmbeddedManualTitle": {
+    "description": "Title for the embedded MkDocs user manual card"
+  },
+  "helpEmbeddedManualDescription": "The Help surface embeds the MkDocs user manual as a constrained product manual surface. It follows Weave design tokens, keeps headings keyboard reachable, and never requires provider credentials or raw service URLs.",
+  "@helpEmbeddedManualDescription": {
+    "description": "Description for the embedded MkDocs user manual card"
+  },
+  "helpEmbeddedManualPathLabel": "Manual source:",
+  "@helpEmbeddedManualPathLabel": {
+    "description": "Label before the checked-in manual source path"
+  },
+  "helpEmbeddedManualPermissionLabel": "Constrained embed: no broad script, camera, microphone, or provider access",
+  "@helpEmbeddedManualPermissionLabel": {
+    "description": "Permission boundary label for embedded manuals"
+  },
+  "helpEmbeddedManualUnavailableLabel": "If built docs are unavailable, Weave keeps this support-safe fallback instead of showing filesystem or provider errors.",
+  "@helpEmbeddedManualUnavailableLabel": {
+    "description": "Fallback behavior label for embedded manuals"
+  },
   "helpWhatIsWeaveTitle": "What Weave is",
   "@helpWhatIsWeaveTitle": {
     "description": "Help section title explaining the product"
@@ -3454,6 +3474,14 @@
   "settingsAdminSetupDescription": "Workspace owners and admins manage OIDC, realm, organization, and service endpoints here. Members and guests only see sign-in and product settings.",
   "@settingsAdminSetupDescription": {
     "description": "Description for owner/admin setup responsibilities"
+  },
+  "settingsAdminManualTitle": "Embedded admin/operator manual",
+  "@settingsAdminManualTitle": {
+    "description": "Title for the embedded admin/operator manual card in settings"
+  },
+  "settingsAdminManualDescription": "The Admin Console embeds the MkDocs admin/operator manual next to readiness and setup controls so provider mapping, backup/restore, migration, and support-bundle guidance stay inside the product surface.",
+  "@settingsAdminManualDescription": {
+    "description": "Description for the embedded admin/operator manual card in settings"
   },
   "settingsAdminPermissionTitle": "Admin controls unlocked",
   "@settingsAdminPermissionTitle": {

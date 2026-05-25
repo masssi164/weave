@@ -1078,6 +1078,24 @@ class AppLocalizationsEn extends AppLocalizations {
       'This handbook explains the everyday Weave app in plain language. It is available offline with the app and will grow as more surfaces become ready.';
 
   @override
+  String get helpEmbeddedManualTitle => 'Embedded user manual';
+
+  @override
+  String get helpEmbeddedManualDescription =>
+      'The Help surface embeds the MkDocs user manual as a constrained product manual surface. It follows Weave design tokens, keeps headings keyboard reachable, and never requires provider credentials or raw service URLs.';
+
+  @override
+  String get helpEmbeddedManualPathLabel => 'Manual source:';
+
+  @override
+  String get helpEmbeddedManualPermissionLabel =>
+      'Constrained embed: no broad script, camera, microphone, or provider access';
+
+  @override
+  String get helpEmbeddedManualUnavailableLabel =>
+      'If built docs are unavailable, Weave keeps this support-safe fallback instead of showing filesystem or provider errors.';
+
+  @override
   String get helpWhatIsWeaveTitle => 'What Weave is';
 
   @override
@@ -2877,6 +2895,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsAdminSetupDescription =>
       'Workspace owners and admins manage OIDC, realm, organization, and service endpoints here. Members and guests only see sign-in and product settings.';
+
+  @override
+  String get settingsAdminManualTitle => 'Embedded admin/operator manual';
+
+  @override
+  String get settingsAdminManualDescription =>
+      'The Admin Console embeds the MkDocs admin/operator manual next to readiness and setup controls so provider mapping, backup/restore, migration, and support-bundle guidance stay inside the product surface.';
 
   @override
   String get settingsAdminPermissionTitle => 'Admin controls unlocked';

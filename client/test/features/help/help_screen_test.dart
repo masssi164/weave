@@ -30,7 +30,15 @@ void main() {
 
       expect(find.text('Help'), findsWidgets);
       expect(find.text('User handbook'), findsOneWidget);
-      expect(find.text('What Weave is'), findsOneWidget);
+      expect(find.text('Embedded user manual'), findsOneWidget);
+      expect(find.text('Manual source: docs/user-handbook.md'), findsOneWidget);
+      expect(
+        find.text(
+          'Constrained embed: no broad script, camera, microphone, or provider access',
+        ),
+        findsOneWidget,
+      );
+      await _expectVisibleAfterScroll(tester, 'What Weave is');
       final handbookSemantics = tester
           .getSemantics(find.text('User handbook'))
           .getSemanticsData();
@@ -61,7 +69,12 @@ void main() {
 
       expect(find.text('Hilfe'), findsWidgets);
       expect(find.text('Benutzerhandbuch'), findsOneWidget);
-      expect(find.text('Was Weave ist'), findsOneWidget);
+      expect(find.text('Eingebettetes Benutzerhandbuch'), findsOneWidget);
+      expect(
+        find.text('Handbuchquelle: docs/user-handbook.md'),
+        findsOneWidget,
+      );
+      await _expectVisibleAfterScroll(tester, 'Was Weave ist');
       await _expectVisibleAfterScroll(tester, 'Anmelden: Grundlagen');
       await _expectVisibleAfterScroll(
         tester,

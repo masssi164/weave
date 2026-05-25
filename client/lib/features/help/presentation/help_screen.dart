@@ -25,11 +25,22 @@ class HelpScreen extends StatelessWidget {
                     );
                   }
 
-                  return _HelpSectionCard(section: sections[index - 1]);
+                  if (index == 1) {
+                    return _EmbeddedManualCard(
+                      title: l10n.helpEmbeddedManualTitle,
+                      description: l10n.helpEmbeddedManualDescription,
+                      pathLabel: l10n.helpEmbeddedManualPathLabel,
+                      path: 'docs/user-handbook.md',
+                      permissionLabel: l10n.helpEmbeddedManualPermissionLabel,
+                      unavailableLabel: l10n.helpEmbeddedManualUnavailableLabel,
+                    );
+                  }
+
+                  return _HelpSectionCard(section: sections[index - 2]);
                 },
                 separatorBuilder: (context, index) =>
                     const SizedBox(height: 16),
-                itemCount: sections.length + 1,
+                itemCount: sections.length + 2,
               ),
             ),
           ],
@@ -76,6 +87,105 @@ class _HelpIntroCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmbeddedManualCard extends StatelessWidget {
+  const _EmbeddedManualCard({
+    required this.title,
+    required this.description,
+    required this.pathLabel,
+    required this.path,
+    required this.permissionLabel,
+    required this.unavailableLabel,
+  });
+
+  final String title;
+  final String description;
+  final String pathLabel;
+  final String path;
+  final String permissionLabel;
+  final String unavailableLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Semantics(
+      container: true,
+      label: '$title. $permissionLabel',
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.surfaceContainerLowest,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ExcludeSemantics(
+                    child: Icon(
+                      Icons.article_outlined,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Semantics(
+                      container: true,
+                      header: true,
+                      child: Text(title, style: theme.textTheme.titleLarge),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                description,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Semantics(
+                    label: '$pathLabel $path',
+                    child: Chip(
+                      avatar: const Icon(Icons.folder_zip_outlined, size: 18),
+                      label: Text('$pathLabel $path'),
+                    ),
+                  ),
+                  Semantics(
+                    label: permissionLabel,
+                    child: Chip(
+                      avatar: const Icon(Icons.lock_outline, size: 18),
+                      label: Text(permissionLabel),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                unavailableLabel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
