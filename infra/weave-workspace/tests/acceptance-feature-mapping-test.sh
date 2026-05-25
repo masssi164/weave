@@ -72,7 +72,8 @@ assert_file_contains "docs/openproject-boards-runtime.md" "WEAVE_OPENPROJECT_LIV
 
 assert_file_contains "weave-workspace/tests/support-bundle-redaction-test.sh" "TF_VAR_boards_openproject_api_token=openproject-super-secret"
 assert_file_contains "weave-workspace/tests/support-bundle-redaction-test.sh" "support bundle leaked a test secret"
-assert_file_contains "weave-workspace/tests/support-bundle-redaction-test.sh" "WEAVE_BOARDS_OPENPROJECT_BASE_URL=https://openproject.example"
+assert_file_contains "weave-workspace/tests/support-bundle-redaction-test.sh" "WEAVE_BOARDS_OPENPROJECT_BASE_URL_CONFIGURED=true"
+assert_file_contains "weave-workspace/tests/support-bundle-redaction-test.sh" "weave-support-safe-adapter-readiness-v1"
 
 assert_file_contains "weave-workspace/operator-check.sh" "Checking public product, issuer, API, files, and matrix routes"
 assert_file_contains "weave-workspace/operator-check.sh" "WEAVE_BASE_URL:=\$("

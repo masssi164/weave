@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -20,8 +21,10 @@ final class ProviderCategoryHealthMapper {
     static List<ProviderCategoryStatusResponse> categories(
             List<ProviderStatusResponse> providers,
             WorkspaceCapabilitiesResponse capabilities,
-            ProviderSelectionRepository selections) {
+            ProviderSelectionRepository selections,
+            Instant generatedAt) {
         List<ProviderStatusResponse> safeProviders = providers == null ? List.of() : List.copyOf(providers);
+        Instant evidenceTimestamp = generatedAt == null ? Instant.EPOCH : generatedAt;
         return List.of(
                 capabilityCategory(
                         "identity-idm",
@@ -29,84 +32,96 @@ final class ProviderCategoryHealthMapper {
                         capabilities.shellAccess(),
                         safeProviders,
                         modules(ProviderModule.IDENTITY_REALM, ProviderModule.MATRIX_AUTH),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "chat",
                         "chat",
                         capabilities.chat(),
                         safeProviders,
                         modules(ProviderModule.MATRIX),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "files",
                         "files",
                         capabilities.files(),
                         safeProviders,
                         modules(ProviderModule.FILES),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "calendar",
                         "calendar",
                         capabilities.calendar(),
                         safeProviders,
                         modules(ProviderModule.CALENDAR),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "boards-tasks",
                         "boards/tasks",
                         capabilities.boards(),
                         safeProviders,
                         modules(ProviderModule.BOARDS),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 providerCategory(
                         "meetings-calls",
                         "meetings/calls",
                         "Meetings and calls are available only when the configured media provider is ready behind the backend token facade.",
                         safeProviders,
                         modules(ProviderModule.MEETINGS),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 providerCategory(
                         "documents-collaboration",
                         "documents/collaboration",
                         "Document collaboration is available only through backend-owned launch/capability facades.",
                         safeProviders,
                         modules(ProviderModule.OFFICE, ProviderModule.FORMS, ProviderModule.CONTACTS),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "decisions-evidence",
                         "decisions/evidence",
                         capabilities.decisionsEvidence(),
                         safeProviders,
                         Set.of(),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "manuals-help",
                         "manuals/help",
                         capabilities.manualsHelp(),
                         safeProviders,
                         Set.of(),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "release-evidence",
                         "release evidence",
                         capabilities.releaseEvidence(),
                         safeProviders,
                         modules(ProviderModule.RELEASE),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "admin-control-plane",
                         "admin control plane",
                         capabilities.adminControlPlane(),
                         safeProviders,
                         Set.of(),
-                        selections),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "weaver",
                         "Weaver",
                         capabilities.weaver(),
                         safeProviders,
                         Set.of(),
-                        selections));
+                        selections,
+                        evidenceTimestamp));
     }
 
     private static ProviderCategoryStatusResponse capabilityCategory(
@@ -115,7 +130,8 @@ final class ProviderCategoryHealthMapper {
             WorkspaceCapabilityStatusResponse capability,
             List<ProviderStatusResponse> providers,
             Set<ProviderModule> modules,
-            ProviderSelectionRepository selections) {
+            ProviderSelectionRepository selections,
+            Instant evidenceTimestamp) {
         SelectionView selection = selectionView(category, selections);
         ProviderCategoryReadiness readiness = selection.selectedByAdmin() || modules.isEmpty()
                 ? fromCapability(capability)
@@ -136,6 +152,7 @@ final class ProviderCategoryHealthMapper {
                 selection.selectedByAdmin(),
                 !selection.selectedByAdmin(),
                 selection.lossyMappingNotes(),
+                adapterEvidence(category, providers, modules, selection, readiness, evidenceTimestamp),
                 diagnostics(providers, modules, Map.of(
                         "capabilityEnabled", capability.enabled(),
                         "capabilityReadiness", capability.readiness().value(),
@@ -152,7 +169,8 @@ final class ProviderCategoryHealthMapper {
             String memberImpact,
             List<ProviderStatusResponse> providers,
             Set<ProviderModule> modules,
-            ProviderSelectionRepository selections) {
+            ProviderSelectionRepository selections,
+            Instant evidenceTimestamp) {
         List<ProviderStatusResponse> matching = matching(providers, modules);
         SelectionView selection = selectionView(category, selections);
         ProviderCategoryReadiness readiness = selection.selectedByAdmin()
@@ -177,6 +195,7 @@ final class ProviderCategoryHealthMapper {
                 selection.selectedByAdmin(),
                 !selection.selectedByAdmin(),
                 selection.lossyMappingNotes(),
+                adapterEvidence(category, providers, modules, selection, readiness, evidenceTimestamp),
                 diagnostics(providers, modules, Map.of(
                         "effectivePolicyState", policyState.value(),
                         "providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE,
@@ -214,6 +233,58 @@ final class ProviderCategoryHealthMapper {
             return ProviderCategoryReadiness.READY;
         }
         return ProviderCategoryReadiness.DEGRADED;
+    }
+
+    private static List<ProviderAdapterReadinessEvidenceResponse> adapterEvidence(
+            String category,
+            List<ProviderStatusResponse> providers,
+            Set<ProviderModule> modules,
+            SelectionView selection,
+            ProviderCategoryReadiness readiness,
+            Instant evidenceTimestamp) {
+        List<ProviderStatusResponse> matching = matching(providers, modules);
+        if (matching.isEmpty()) {
+            return List.of();
+        }
+        return matching.stream()
+                .map(provider -> new ProviderAdapterReadinessEvidenceResponse(
+                        category,
+                        provider.providerKey(),
+                        provider.configured(),
+                        reachable(provider),
+                        selection.selectedByAdmin() ? provider.readiness() : readiness.value(),
+                        provider.failClosed(),
+                        providerEvidenceDiagnostics(provider, selection),
+                        evidenceTimestamp))
+                .toList();
+    }
+
+    private static boolean reachable(ProviderStatusResponse provider) {
+        return provider.enabled()
+                && provider.configured()
+                && (provider.state() == ProviderState.READY
+                || provider.state() == ProviderState.CONFIGURED
+                || provider.state() == ProviderState.DEGRADED);
+    }
+
+    private static Map<String, Object> providerEvidenceDiagnostics(
+            ProviderStatusResponse provider,
+            SelectionView selection) {
+        Map<String, Object> diagnostics = new LinkedHashMap<>();
+        diagnostics.put("providerState", provider.state().contractName());
+        diagnostics.put("configured", provider.configured());
+        diagnostics.put("enabled", provider.enabled());
+        diagnostics.put("selectedByAdmin", selection.selectedByAdmin());
+        diagnostics.put("bootstrapSuggestionOnly", !selection.selectedByAdmin());
+        diagnostics.put("supportSafe", provider.supportSafe());
+        diagnostics.put("failClosed", provider.failClosed());
+        diagnostics.put("supportedCapabilityCount", provider.supportedCapabilities().size());
+        diagnostics.put("unsupportedOperationCount", provider.unsupportedOperations().size());
+        diagnostics.put("supportSafeErrorCodes", provider.supportSafeErrorCodes());
+        diagnostics.put("secretsReturned", false);
+        diagnostics.put("rawProviderErrorsReturned", false);
+        diagnostics.put("diagnosticsRedacted", true);
+        return diagnostics;
     }
 
     private static Map<String, Object> diagnostics(

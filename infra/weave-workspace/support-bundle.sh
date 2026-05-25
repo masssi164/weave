@@ -187,6 +187,7 @@ collect_public_env_from_file() {
   local source_file="$1"
   local target_file="$2"
   local key
+  local line
 
   if [[ ! -f "${source_file}" ]]; then
     printf 'Skipped: file not found: %s\n' "${source_file}" >>"${target_file}"
@@ -195,9 +196,40 @@ collect_public_env_from_file() {
 
   printf '# %s\n' "${source_file}" >>"${target_file}"
   for key in "${PUBLIC_ENV_KEYS[@]}"; do
-    grep -E "^(export[[:space:]]+)?${key}=" "${source_file}" >>"${target_file}" || true
+    while IFS= read -r line; do
+      write_support_safe_env_line "${key}" "${line}" >>"${target_file}"
+    done < <(grep -E "^(export[[:space:]]+)?${key}=" "${source_file}" || true)
   done
   printf '\n' >>"${target_file}"
+}
+
+is_provider_endpoint_key() {
+  local key="$1"
+  case "${key}" in
+    WEAVE_DEVOPS_GITLAB_BASE_URL|WEAVE_DEVOPS_FORGEJO_BASE_URL|WEAVE_OFFICE_ONLYOFFICE_DOCUMENT_SERVER_URL|WEAVE_PUBLIC_BASE_URL|WEAVE_OIDC_ISSUER_URL|WEAVE_NEXTCLOUD_BASE_URL|WEAVE_BOARDS_OPENPROJECT_BASE_URL|WEAVE_MATRIX_HOMESERVER_URL)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+write_support_safe_env_line() {
+  local key="$1"
+  local line="$2"
+  local value=""
+
+  if [[ "${line}" == export[[:space:]]* ]]; then
+    line="${line#export }"
+  fi
+  value="${line#*=}"
+
+  if is_provider_endpoint_key "${key}"; then
+    printf '%s_CONFIGURED=%s\n' "${key}" "$(if [[ -n "${value}" ]]; then printf true; else printf false; fi)"
+  else
+    printf '%s\n' "${line}"
+  fi
 }
 
 collect_public_env() {
@@ -213,13 +245,103 @@ collect_public_env() {
     local key
     for key in "${PUBLIC_ENV_KEYS[@]}"; do
       if [[ -n "${!key:-}" ]]; then
-        printf '%s=%q\n' "${key}" "${!key}"
+        if is_provider_endpoint_key "${key}"; then
+          printf '%s_CONFIGURED=true\n' "${key}"
+        else
+          printf '%s=%q\n' "${key}" "${!key}"
+        fi
       fi
     done
   } >>"${target}"
 
   redact_stream <"${target}" >"${target}.redacted"
   mv "${target}.redacted" "${target}"
+}
+
+bool_from_env_presence() {
+  local key="$1"
+  [[ -n "${!key:-}" ]]
+}
+
+bool_from_env_files() {
+  local key="$1"
+  grep -hE "^(export[[:space:]]+)?${key}=.+" \
+    "${ROOT_DIR}/.generated/bootstrap.env" \
+    "${ROOT_DIR}/.generated/app-config.env" 2>/dev/null | grep -q .
+}
+
+health_from_env() {
+  local configured="$1"
+  if [[ "${configured}" != "true" ]]; then
+    printf 'not_configured'
+    return
+  fi
+  case "${WEAVE_PROVIDER_STACK_READINESS:-${TF_VAR_provider_stack_readiness:-fail-closed}}" in
+    ready|configured|degraded|fail-closed|not_configured|disabled)
+      printf '%s' "${WEAVE_PROVIDER_STACK_READINESS:-${TF_VAR_provider_stack_readiness:-fail-closed}}"
+      ;;
+    *)
+      printf 'fail-closed'
+      ;;
+  esac
+}
+
+adapter_evidence_object() {
+  local comma="$1"
+  local domain="$2"
+  local adapter_key="$3"
+  local configured="$4"
+  local health
+  health="$(health_from_env "${configured}")"
+  local reachable="false"
+  local fail_closed="true"
+  if [[ "${health}" == "ready" || "${health}" == "configured" || "${health}" == "degraded" ]]; then
+    reachable="true"
+  fi
+  if [[ "${health}" == "ready" || "${health}" == "configured" ]]; then
+    fail_closed="false"
+  fi
+  cat <<JSON
+${comma}    {
+      "domain": "${domain}",
+      "adapterKey": "${adapter_key}",
+      "configured": ${configured},
+      "reachable": ${reachable},
+      "health": "${health}",
+      "failClosed": ${fail_closed},
+      "supportSafeDiagnostics": {
+        "secretsReturned": false,
+        "rawProviderErrorsReturned": false,
+        "diagnosticsRedacted": true
+      },
+      "evidenceTimestamp": "${CREATED_AT}"
+    }
+JSON
+}
+
+collect_adapter_readiness_evidence() {
+  local target="${WORK_DIR}/checks/adapter-readiness-summary.json"
+  mkdir -p "$(dirname -- "${target}")"
+  local identity_configured="false" chat_configured="false" files_configured="false" calendar_configured="false" boards_configured="false" meetings_configured="false"
+
+  (bool_from_env_presence WEAVE_OIDC_ISSUER_URL || bool_from_env_files WEAVE_OIDC_ISSUER_URL) && identity_configured="true"
+  (bool_from_env_presence WEAVE_MATRIX_HOMESERVER_URL || bool_from_env_files WEAVE_MATRIX_HOMESERVER_URL) && chat_configured="true"
+  (bool_from_env_presence WEAVE_NEXTCLOUD_BASE_URL || bool_from_env_files WEAVE_NEXTCLOUD_BASE_URL) && files_configured="true" && calendar_configured="true"
+  (bool_from_env_presence WEAVE_BOARDS_OPENPROJECT_BASE_URL || bool_from_env_files WEAVE_BOARDS_OPENPROJECT_BASE_URL) && boards_configured="true"
+  if [[ "${WEAVE_LIVEKIT_ENABLED:-false}" == "true" || "${WEAVE_LIVEKIT_TOKEN_ENDPOINT_CONFIGURED:-false}" == "true" ]]; then
+    meetings_configured="true"
+  fi
+
+  {
+    printf '{\n  "schema": "weave-support-safe-adapter-readiness-v1",\n  "generatedAt": "%s",\n  "adapterEvidence": [\n' "${CREATED_AT}"
+    adapter_evidence_object "" "identity-idm" "keycloak-realm" "${identity_configured}"
+    adapter_evidence_object "," "chat" "synapse-matrix" "${chat_configured}"
+    adapter_evidence_object "," "files" "nextcloud-files" "${files_configured}"
+    adapter_evidence_object "," "calendar" "nextcloud-caldav" "${calendar_configured}"
+    adapter_evidence_object "," "boards-tasks" "openproject-primary" "${boards_configured}"
+    adapter_evidence_object "," "meetings-calls" "livekit" "${meetings_configured}"
+    printf '  ]\n}\n'
+  } >"${target}"
 }
 
 collect_recent_artifacts() {
@@ -300,6 +422,7 @@ MSG
   collect_if_command_exists docker docker/system-df.txt docker system df
   collect_logs
   collect_optional_checks
+  collect_adapter_readiness_evidence
   collect_recent_artifacts
 
   scan_for_unredacted_secrets "${WORK_DIR}"

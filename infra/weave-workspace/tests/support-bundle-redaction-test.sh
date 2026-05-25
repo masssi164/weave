@@ -90,10 +90,16 @@ extracted="$(find "${output_dir}" -maxdepth 1 -type d -name 'weave-support-*' -p
 grep -Fq 'This bundle is for support-safe diagnostics only. It is not a backup' "${extracted}/README.txt"
 grep -Fq 'TF_VAR_tenant_domain=weave.local' "${extracted}/config/public-env-summary.env"
 grep -Fq 'WEAVE_API_BASE_URL=https://api.weave.local/api' "${extracted}/config/public-env-summary.env"
+grep -Fq 'WEAVE_NEXTCLOUD_BASE_URL_CONFIGURED=true' "${extracted}/config/public-env-summary.env"
+grep -Fq 'WEAVE_BOARDS_OPENPROJECT_BASE_URL_CONFIGURED=true' "${extracted}/config/public-env-summary.env"
+grep -Fq '"schema": "weave-support-safe-adapter-readiness-v1"' "${extracted}/checks/adapter-readiness-summary.json"
+grep -Fq '"domain": "boards-tasks"' "${extracted}/checks/adapter-readiness-summary.json"
+grep -Fq '"adapterKey": "openproject-primary"' "${extracted}/checks/adapter-readiness-summary.json"
+grep -Fq '"configured": true' "${extracted}/checks/adapter-readiness-summary.json"
 
-if grep -R -Fq 'super-secret' "${extracted}" || grep -R -Fq 'calendar-token' "${extracted}" || grep -R -Fq 'slack-signing-secret' "${extracted}" || grep -R -Fq 'slack-client-secret-ref' "${extracted}" || grep -R -Fq 'openproject-super-secret' "${extracted}" || grep -R -Fq 'openproject-secret-key-base' "${extracted}" || grep -R -Fq 'openproject-app-token' "${extracted}" || grep -R -Fq 'boards-provider-secret' "${extracted}" || grep -R -Fq 'boards-runtime-token' "${extracted}"; then
+if grep -R -Fq 'super-secret' "${extracted}" || grep -R -Fq 'calendar-token' "${extracted}" || grep -R -Fq 'slack-signing-secret' "${extracted}" || grep -R -Fq 'slack-client-secret-ref' "${extracted}" || grep -R -Fq 'openproject-super-secret' "${extracted}" || grep -R -Fq 'openproject-secret-key-base' "${extracted}" || grep -R -Fq 'openproject-app-token' "${extracted}" || grep -R -Fq 'boards-provider-secret' "${extracted}" || grep -R -Fq 'boards-runtime-token' "${extracted}" || grep -R -Fq 'openproject.example' "${extracted}" || grep -R -Fq 'files.weave.local' "${extracted}"; then
   echo "support bundle leaked a test secret" >&2
-  grep -R -n -E 'super-secret|calendar-token|slack-signing-secret|slack-client-secret-ref|openproject-super-secret|openproject-secret-key-base|openproject-app-token|boards-provider-secret|boards-runtime-token' "${extracted}" >&2 || true
+  grep -R -n -E 'super-secret|calendar-token|slack-signing-secret|slack-client-secret-ref|openproject-super-secret|openproject-secret-key-base|openproject-app-token|boards-provider-secret|boards-runtime-token|openproject\.example|files\.weave\.local' "${extracted}" >&2 || true
   exit 1
 fi
 

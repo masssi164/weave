@@ -41,7 +41,8 @@ public class ProviderRegistry {
         List<ProviderCategoryStatusResponse> categories = ProviderCategoryHealthMapper.categories(
                 statuses,
                 workspaceCapabilityService.snapshot(),
-                selectionRepository);
+                selectionRepository,
+                generatedAt);
         return new ProviderRegistryResponse(
                 "provider-stack-contract-v1",
                 PROVIDER_CONFIG_SOURCE,

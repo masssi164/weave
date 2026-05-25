@@ -69,6 +69,7 @@ class ProviderCategoryStatusSnapshot {
     this.selectedByAdmin = false,
     this.bootstrapSuggestionOnly = true,
     this.lossyMappingNotes = const <String>[],
+    this.adapterEvidence = const <ProviderAdapterReadinessEvidenceSnapshot>[],
     required this.diagnostics,
   });
 
@@ -85,11 +86,34 @@ class ProviderCategoryStatusSnapshot {
   final bool selectedByAdmin;
   final bool bootstrapSuggestionOnly;
   final List<String> lossyMappingNotes;
+  final List<ProviderAdapterReadinessEvidenceSnapshot> adapterEvidence;
   final Map<String, Object?> diagnostics;
 
   bool get supportSafe =>
       diagnostics['secretsReturned'] == false &&
       diagnostics['rawProviderErrorsReturned'] == false;
+}
+
+class ProviderAdapterReadinessEvidenceSnapshot {
+  const ProviderAdapterReadinessEvidenceSnapshot({
+    required this.domain,
+    required this.adapterKey,
+    required this.configured,
+    required this.reachable,
+    required this.health,
+    required this.failClosed,
+    required this.supportSafeDiagnostics,
+    this.evidenceTimestamp,
+  });
+
+  final String domain;
+  final String adapterKey;
+  final bool configured;
+  final bool reachable;
+  final String health;
+  final bool failClosed;
+  final Map<String, Object?> supportSafeDiagnostics;
+  final DateTime? evidenceTimestamp;
 }
 
 class ProviderCategoryContractSnapshot {

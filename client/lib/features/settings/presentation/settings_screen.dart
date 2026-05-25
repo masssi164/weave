@@ -1111,6 +1111,21 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
                           _CompactStatusBadge(
                             label: l10n.settingsProviderStackRedacted,
                           ),
+                        for (final evidence in category.adapterEvidence) ...[
+                          _CompactStatusBadge(
+                            label:
+                                '${evidence.adapterKey}: ${evidence.configured ? l10n.settingsProviderStateConfigured : l10n.settingsProviderStateNotConfigured}',
+                          ),
+                          _CompactStatusBadge(
+                            label: evidence.reachable
+                                ? l10n.settingsProviderStateReady
+                                : l10n.settingsWorkspaceCapabilityUnavailable,
+                          ),
+                          if (evidence.failClosed)
+                            _CompactStatusBadge(
+                              label: l10n.settingsProviderStackFailClosedBadge,
+                            ),
+                        ],
                       ],
                     ),
                   ),

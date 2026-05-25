@@ -84,6 +84,7 @@ class ProviderCategoryStatusResponseDto {
     required this.selectedByAdmin,
     required this.bootstrapSuggestionOnly,
     required this.lossyMappingNotes,
+    required this.adapterEvidence,
     required this.diagnostics,
   });
 
@@ -116,6 +117,9 @@ class ProviderCategoryStatusResponseDto {
           ? _bool(json['bootstrapSuggestionOnly'])
           : true,
       lossyMappingNotes: _safeStringList(json['lossyMappingNotes']),
+      adapterEvidence: _listOfMaps(json['adapterEvidence'])
+          .map(ProviderAdapterReadinessEvidenceResponseDto.fromJson)
+          .toList(growable: false),
       diagnostics: _safeDiagnostics(json['diagnostics']),
     );
   }
@@ -133,6 +137,7 @@ class ProviderCategoryStatusResponseDto {
   final bool selectedByAdmin;
   final bool bootstrapSuggestionOnly;
   final List<String> lossyMappingNotes;
+  final List<ProviderAdapterReadinessEvidenceResponseDto> adapterEvidence;
   final Map<String, Object?> diagnostics;
 
   ProviderCategoryStatusSnapshot toSnapshot() => ProviderCategoryStatusSnapshot(
@@ -149,8 +154,60 @@ class ProviderCategoryStatusResponseDto {
     selectedByAdmin: selectedByAdmin,
     bootstrapSuggestionOnly: bootstrapSuggestionOnly,
     lossyMappingNotes: lossyMappingNotes,
+    adapterEvidence: adapterEvidence
+        .map((evidence) => evidence.toSnapshot())
+        .toList(growable: false),
     diagnostics: diagnostics,
   );
+}
+
+class ProviderAdapterReadinessEvidenceResponseDto {
+  const ProviderAdapterReadinessEvidenceResponseDto({
+    required this.domain,
+    required this.adapterKey,
+    required this.configured,
+    required this.reachable,
+    required this.health,
+    required this.failClosed,
+    required this.supportSafeDiagnostics,
+    required this.evidenceTimestamp,
+  });
+
+  factory ProviderAdapterReadinessEvidenceResponseDto.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return ProviderAdapterReadinessEvidenceResponseDto(
+      domain: _string(json['domain'], fallback: 'unknown'),
+      adapterKey: _safeProviderKey(json['adapterKey']),
+      configured: _bool(json['configured']),
+      reachable: _bool(json['reachable']),
+      health: _safeText(json['health']),
+      failClosed: _bool(json['failClosed']),
+      supportSafeDiagnostics: _safeDiagnostics(json['supportSafeDiagnostics']),
+      evidenceTimestamp: _dateTime(json['evidenceTimestamp']),
+    );
+  }
+
+  final String domain;
+  final String adapterKey;
+  final bool configured;
+  final bool reachable;
+  final String health;
+  final bool failClosed;
+  final Map<String, Object?> supportSafeDiagnostics;
+  final DateTime? evidenceTimestamp;
+
+  ProviderAdapterReadinessEvidenceSnapshot toSnapshot() =>
+      ProviderAdapterReadinessEvidenceSnapshot(
+        domain: domain,
+        adapterKey: adapterKey,
+        configured: configured,
+        reachable: reachable,
+        health: health,
+        failClosed: failClosed,
+        supportSafeDiagnostics: supportSafeDiagnostics,
+        evidenceTimestamp: evidenceTimestamp,
+      );
 }
 
 class ProviderCategoryContractResponseDto {

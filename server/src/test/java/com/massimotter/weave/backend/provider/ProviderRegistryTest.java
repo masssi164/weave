@@ -46,6 +46,16 @@ class ProviderRegistryTest {
         assertThat(chat.bootstrapSuggestionOnly()).isTrue();
         assertThat(chat.selectedProviderKey()).isEqualTo("awaiting_admin_selection");
         assertThat(chat.diagnostics()).containsEntry("selectionRequiredBeforeProviderUse", true);
+        assertThat(chat.adapterEvidence()).singleElement().satisfies(evidence -> {
+            assertThat(evidence.domain()).isEqualTo("chat");
+            assertThat(evidence.adapterKey()).isEqualTo("synapse-homeserver");
+            assertThat(evidence.configured()).isFalse();
+            assertThat(evidence.failClosed()).isTrue();
+            assertThat(evidence.supportSafeDiagnostics())
+                    .containsEntry("secretsReturned", false)
+                    .containsEntry("rawProviderErrorsReturned", false)
+                    .doesNotContainKeys("endpoint", "rawProviderError", "authorization");
+        });
         ProviderCategoryStatusResponse weaver = response.categories().stream()
                 .filter(category -> category.category().equals("weaver"))
                 .findFirst()
