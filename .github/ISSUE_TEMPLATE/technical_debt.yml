@@ -1,5 +1,5 @@
 name: Technical debt
-about: Track cleanup, consolidation, migration residue, architecture drift, or rebuild follow-up work
+description: Track cleanup, consolidation, migration residue, architecture drift, or rebuild follow-up work
 title: "debt: "
 labels: [technical-debt]
 body:

@@ -1,5 +1,5 @@
 name: Bug report
-about: Report broken behavior with enough evidence to reproduce it
+description: Report broken behavior with enough evidence to reproduce it
 title: "bug: "
 labels: [bug]
 body:

@@ -1,5 +1,5 @@
 name: Feature request
-about: Propose a product capability, workflow, provider facade, or professionalization slice
+description: Propose a product capability, workflow, provider facade, or professionalization slice
 title: "feat: "
 labels: [enhancement]
 body:
