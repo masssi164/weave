@@ -33,8 +33,9 @@ Choose exactly one before review/merge; CI fails otherwise.
 
 ## Checks run
 
-- [ ] `make docs-check` / `make docs-build` (for docs or release notes changes)
-- [ ] `make release-notes-check` (for release-affecting changes)
+- [ ] `./gradlew ci` (canonical cross-stack gate; attach or cite `build/evidence/ci-summary.json`)
+- [ ] `make docs-check` / `make docs-build` (temporary Gradle-delegating aliases for docs or release notes changes)
+- [ ] `make release-notes-check` (temporary Gradle-delegating alias for release-affecting changes)
 - [ ] `flutter pub get`
 - [ ] `flutter gen-l10n`
 - [ ] `dart run build_runner build --delete-conflicting-outputs`

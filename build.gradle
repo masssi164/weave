@@ -3,6 +3,7 @@ plugins {
 }
 
 import org.gradle.internal.os.OperatingSystem
+import groovy.json.JsonOutput
 
 ext.execCommand = { List<String> args ->
     OperatingSystem.current().isWindows() ? ['cmd', '/c'] + args : args
@@ -52,6 +53,111 @@ tasks.register('liveStackHelp') {
         println 'Live stack E2E is intentionally opt-in. Use the GitHub workflow with I_HAVE_SOLAR_STORAGE_BUDGET when runner power/storage budget is available.'
     }
 }
+
+
+ext.ciEvidenceGates = [
+    'doctor',
+    'acceptanceContract',
+    'clientCi',
+    'serverCi',
+    'adminCi',
+    'infraStatic',
+    'docsCheck',
+    'releaseEvidenceCheck'
+]
+
+ext.safeCommandOutput = { List<String> args ->
+    def output = new ByteArrayOutputStream()
+    try {
+        def result = exec {
+            commandLine execCommand(args)
+            standardOutput = output
+            errorOutput = output
+            ignoreExitValue = true
+        }
+        if (result.exitValue != 0) {
+            return 'unavailable'
+        }
+        return output.toString('UTF-8').readLines().find { it.trim() }?.trim() ?: 'unavailable'
+    } catch (Exception ignored) {
+        return 'unavailable'
+    }
+}
+
+tasks.register('ciSummary') {
+    group = 'verification'
+    description = 'Write the sanitized CI evidence summary to build/evidence/ci-summary.json.'
+    doLast {
+        writeCiSummary(null)
+    }
+}
+
+void writeCiSummary(Throwable buildFailure) {
+    def evidenceDir = layout.buildDirectory.dir('evidence').get().asFile
+    evidenceDir.mkdirs()
+    def evidenceFile = new File(evidenceDir, 'ci-summary.json')
+    def gateSummaries = ciEvidenceGates.collect { gateName ->
+        def task = tasks.findByName(gateName)
+        def outcome = 'skipped'
+        if (task != null && task.state.executed) {
+            outcome = task.state.failure == null ? 'passed' : 'failed'
+        } else if (task != null && task.state.skipped) {
+            outcome = 'skipped'
+        }
+        [
+            name: gateName,
+            outcome: outcome,
+            artifactPaths: artifactPathsForGate(gateName)
+        ]
+    }
+    def summary = [
+        schemaVersion: 1,
+        generatedAtUtc: new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC')),
+        commit: safeCommandOutput(['git', 'rev-parse', 'HEAD']),
+        branch: safeCommandOutput(['git', 'rev-parse', '--abbrev-ref', 'HEAD']),
+        build: [
+            result: buildFailure == null ? 'passed' : 'failed',
+            failureType: buildFailure == null ? null : buildFailure.class.name
+        ],
+        toolVersions: [
+            gradle: gradle.gradleVersion,
+            java: System.getProperty('java.version'),
+            python: safeCommandOutput(['python3', '--version']),
+            flutter: safeCommandOutput(['flutter', '--version']),
+            dart: safeCommandOutput(['dart', '--version']),
+            node: safeCommandOutput(['node', '--version']),
+            npm: safeCommandOutput(['npm', '--version'])
+        ],
+        gates: gateSummaries,
+        liveE2E: [
+            outcome: 'skipped',
+            reason: 'Live E2E is not part of default ci and requires explicit operator/budget confirmation.',
+            artifactPaths: []
+        ],
+        sanitized: true,
+        exclusions: [
+            'secrets',
+            'tokens',
+            'credential URLs',
+            'raw provider payloads',
+            'raw provider errors'
+        ]
+    ]
+    evidenceFile.text = JsonOutput.prettyPrint(JsonOutput.toJson(summary)) + System.lineSeparator()
+    logger.lifecycle("Wrote sanitized CI evidence summary to ${project.relativePath(evidenceFile)}")
+}
+
+List<String> artifactPathsForGate(String gateName) {
+    switch (gateName) {
+        case 'docsCheck':
+            return ['build/docs-site']
+        case 'releaseEvidenceCheck':
+            return ['tools/fixtures/release_notes_unreleased.expected.md']
+        default:
+            return []
+    }
+}
+
 
 tasks.register('doctor') {
     group = 'verification'
@@ -123,6 +229,17 @@ tasks.register('ci') {
 ['acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseEvidenceCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
+    }
+}
+
+gradle.buildFinished { result ->
+    def evidenceRequested = gradle.startParameter.taskNames.any { requested ->
+        requested == 'ci' || requested == ':ci' || requested.endsWith(':ci') ||
+            requested == 'check' || requested == ':check' || requested.endsWith(':check')
+    }
+    def evidenceTaskPresent = gradle.taskGraph.allTasks.any { it.name == 'ci' }
+    if (evidenceRequested || evidenceTaskPresent) {
+        writeCiSummary(result.failure)
     }
 }
 

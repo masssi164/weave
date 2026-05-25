@@ -59,6 +59,7 @@ The root Gradle build delegates to existing proven targets while preserving curr
 | `releaseEvidenceCheck` | Release notes structure, label behavior, and generator fixture checks. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
+| `ciSummary` | Writes sanitized CI evidence to `build/evidence/ci-summary.json`. |
 
 Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need `python3 -m pip install -r docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies.
 
