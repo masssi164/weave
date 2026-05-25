@@ -79,7 +79,7 @@ void main() {
       repository.loadConversationsHandler = () async {
         if (repository.connectCalls == 0) {
           throw const ChatFailure.sessionRequired(
-            'Connect Weave to your Matrix homeserver to load conversations.',
+            'Connect chat to load conversations.',
           );
         }
 
@@ -112,7 +112,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Connecting to Matrix…'), findsOneWidget);
+      expect(find.text('Connecting to chat…'), findsOneWidget);
       expect(repository.connectCalls, 1);
 
       connectCompleter.complete();
@@ -130,7 +130,7 @@ void main() {
         repository.loadConversationsHandler = () async {
           if (repository.connectCalls == 0) {
             throw const ChatFailure.sessionRequired(
-              'Connect Weave to your Matrix homeserver to load conversations.',
+              'Connect chat to load conversations.',
             );
           }
 
@@ -138,9 +138,7 @@ void main() {
         };
         repository.connectHandler = () async {
           throw const ChatFailure.unsupportedConfiguration(
-            'The configured Matrix homeserver at https://matrix.home.internal '
-            'does not advertise Matrix OAuth 2.0 metadata. '
-            'Weave currently requires Matrix Native OAuth 2.0 for chat.',
+            'Chat provider setup is unavailable to this member.',
           );
         };
 
@@ -159,10 +157,10 @@ void main() {
         await tester.pump();
 
         expect(
-          find.textContaining('does not advertise Matrix OAuth 2.0 metadata'),
+          find.textContaining('Chat setup needs admin attention'),
           findsOneWidget,
         );
-        expect(find.text('Connect Matrix'), findsOneWidget);
+        expect(find.text('Connect chat'), findsOneWidget);
       },
     );
 
@@ -174,13 +172,13 @@ void main() {
       repository.loadConversationsHandler = () async {
         if (repository.connectCalls == 0) {
           throw const ChatFailure.sessionRequired(
-            'Connect Weave to your Matrix homeserver to load conversations.',
+            'Connect chat to load conversations.',
           );
         }
 
         if (repository.connectCalls == 1) {
           throw const ChatFailure.sessionRequired(
-            'Connect Weave to your Matrix homeserver to load conversations.',
+            'Connect chat to load conversations.',
           );
         }
 
@@ -199,7 +197,7 @@ void main() {
       repository.connectHandler = () async {
         if (repository.connectCalls == 1) {
           throw const ChatFailure.cancelled(
-            'Matrix sign-in was cancelled before it completed.',
+            'Chat sign-in was cancelled before it completed.',
           );
         }
       };
@@ -219,9 +217,9 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(find.text('Connect Matrix'), findsOneWidget);
+      expect(find.text('Connect chat'), findsOneWidget);
 
-      await tester.tap(find.text('Connect Matrix'));
+      await tester.tap(find.text('Connect chat'));
       await tester.pumpAndSettle();
 
       expect(find.text('Sam'), findsOneWidget);
@@ -236,7 +234,7 @@ void main() {
           loadConversationsHandler: () async {
             if (homeserverChanged) {
               throw const ChatFailure.sessionRequired(
-                'Connect Weave to your Matrix homeserver to load conversations.',
+                'Connect chat to load conversations.',
               );
             }
 
@@ -293,7 +291,7 @@ void main() {
         await tester.pump();
 
         expect(repository.connectCalls, 0);
-        expect(find.text('Connect Matrix'), findsOneWidget);
+        expect(find.text('Connect chat'), findsOneWidget);
       },
     );
 
@@ -317,8 +315,8 @@ void main() {
                 (ref) async => _chatFirstRunStatus(
                   const FirstRunModuleStatus(
                     state: FirstRunProvisioningState.failed,
-                    message: 'Matrix chat provisioning failed.',
-                    action: 'Ask a workspace admin to inspect diagnostics.',
+                    message: 'Internal provider detail should not render.',
+                    action: 'Internal provider action should not render.',
                   ),
                 ),
               ),
@@ -328,9 +326,18 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Chat setup needs admin attention'), findsOneWidget);
-        expect(find.text('Matrix chat provisioning failed.'), findsOneWidget);
         expect(
-          find.text('Ask a workspace admin to inspect diagnostics.'),
+          find.text('Internal provider detail should not render.'),
+          findsNothing,
+        );
+        expect(
+          find.text('Internal provider action should not render.'),
+          findsNothing,
+        );
+        expect(
+          find.text(
+            'Ask a workspace admin to inspect support-safe diagnostics.',
+          ),
           findsOneWidget,
         );
         expect(find.text('Retry status'), findsOneWidget);
@@ -643,7 +650,9 @@ void main() {
       final repository = FakeChatRepository(
         loadConversationsHandler: () async {
           if (shouldFailRefresh) {
-            throw const ChatFailure.protocol('Matrix sync timed out.');
+            throw const ChatFailure.protocol(
+              'Raw chat sync timeout should not render.',
+            );
           }
 
           return const <ChatConversation>[
@@ -694,11 +703,14 @@ void main() {
       expect(find.text('Showing last known rooms'), findsOneWidget);
       expect(
         find.text(
-          'We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.',
+          'Chat could not refresh just now. Your conversation list is preserved so you can keep your place and retry when the connection is back.',
         ),
         findsOneWidget,
       );
-      expect(find.text('Matrix sync timed out.'), findsOneWidget);
+      expect(
+        find.text('Raw chat sync timeout should not render.'),
+        findsNothing,
+      );
       expect(find.text('Refresh rooms'), findsOneWidget);
 
       shouldFailRefresh = false;

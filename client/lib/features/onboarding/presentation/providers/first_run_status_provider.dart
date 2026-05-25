@@ -26,3 +26,14 @@ final firstRunStatusProvider = FutureProvider<FirstRunStatus?>((ref) async {
   ref.watch(weaveAuthenticatedSessionProvider);
   return ref.watch(firstRunStatusRepositoryProvider).loadStatus();
 });
+
+final chatProvisioningStatusProvider =
+    Provider<AsyncValue<FirstRunModuleStatus?>>((ref) {
+      return ref.watch(firstRunStatusProvider).whenData((status) {
+        return status?.moduleProvisioning.chat;
+      });
+    });
+
+void refreshChatProvisioningStatus(WidgetRef ref) {
+  ref.invalidate(firstRunStatusProvider);
+}

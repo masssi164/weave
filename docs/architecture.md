@@ -84,6 +84,8 @@ Shell destinations:
 
 The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest empty states for favorites and AI chats until backend/product metadata is ready. Channel detail treats a channel as a workspace container, but normal member copy may only show ready product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
 
+The server now owns a Chat domain facade seam. Member routes under `/api/chat/*` return Weave-domain readiness/conversation/message contracts and fail closed for missing, unsupported, degraded, blocked, or unconfigured Chat mappings. Admin/operator routes under `/api/admin/chat/*` may show support-safe selected mapping, redacted readiness diagnostics, and migration dry-run/preflight reports; destructive migration apply is intentionally out of scope.
+
 ## Shared server configuration
 `features/server_config/` owns the shared configuration model used by both onboarding and settings.
 

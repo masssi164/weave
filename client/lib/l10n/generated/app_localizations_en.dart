@@ -397,6 +397,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatProvisioningRetryButton => 'Retry status';
 
   @override
+  String get chatProvisioningReadyGuidance =>
+      'Chat is ready for this workspace.';
+
+  @override
+  String get chatProvisioningPendingGuidance =>
+      'Chat is still being prepared. Keep this screen open or retry shortly.';
+
+  @override
+  String get chatProvisioningDegradedGuidance =>
+      'Chat may be partially available, but setup needs an admin health check.';
+
+  @override
+  String get chatProvisioningUnavailableGuidance =>
+      'Chat is not available in this workspace yet.';
+
+  @override
+  String get chatProvisioningFailedGuidance =>
+      'Chat could not be prepared for this workspace.';
+
+  @override
+  String get chatProvisioningAdminAction =>
+      'Ask a workspace admin to inspect support-safe diagnostics.';
+
+  @override
+  String get chatErrorCancelledGuidance =>
+      'Chat sign-in was cancelled. Connect chat to try again.';
+
+  @override
+  String get chatErrorAdminGuidance =>
+      'Chat setup needs admin attention. Ask a workspace admin to inspect support-safe diagnostics.';
+
+  @override
+  String get chatErrorSessionRequiredGuidance =>
+      'Chat is not connected for this workspace session. Connect chat to continue.';
+
+  @override
+  String get chatErrorUnsupportedPlatformGuidance =>
+      'Chat is not available on this device yet.';
+
+  @override
+  String get chatErrorRetryGuidance =>
+      'Chat could not load right now. Retry when the connection is back.';
+
+  @override
   String get chatScreenTitle => 'Chat';
 
   @override
@@ -538,14 +582,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Gathering your latest rooms and recent conversation state.';
 
   @override
-  String get chatConnectingLabel => 'Connecting to Matrix…';
+  String get chatConnectingLabel => 'Connecting to chat…';
 
   @override
   String get chatConnectingHint =>
-      'We are opening your secure Matrix session and syncing the first room list.';
+      'We are opening your secure Weave chat session and syncing the first conversation list.';
 
   @override
-  String get chatConnectButton => 'Connect Matrix';
+  String get chatConnectButton => 'Connect chat';
 
   @override
   String get chatRefreshingRoomsLabel => 'Refreshing chat rooms';
@@ -555,7 +599,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatStaleRoomsGuidance =>
-      'We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.';
+      'Chat could not refresh just now. Your conversation list is preserved so you can keep your place and retry when the connection is back.';
 
   @override
   String get chatStaleRoomsRetryButton => 'Refresh rooms';
@@ -1052,7 +1096,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpChatBody =>
-      'Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.';
+      'Chat is the daily place for conversations and messages. Open Chat from the main navigation, then choose a conversation. Weave keeps conversation and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.';
 
   @override
   String get helpFilesTitle => 'Files';
@@ -1893,6 +1937,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatRoomRetrySendAction => 'Retry send';
+
+  @override
+  String get chatRoomLoadFailureMessage =>
+      'Unable to load this conversation right now.';
+
+  @override
+  String get chatRoomSendFailureMessage =>
+      'That message could not be sent right now. Check your connection and try again.';
 
   @override
   String get chatRoomYouLabel => 'You';

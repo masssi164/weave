@@ -376,7 +376,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
             children: [
               if (_failure != null && !_loading)
                 MaterialBanner(
-                  content: Text(_failure!.message),
+                  content: Text(_chatRoomLoadFailureMessage(l10n, _failure!)),
                   actions: [
                     TextButton(
                       onPressed: _loadTimeline,
@@ -409,7 +409,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                   content: Semantics(
                     container: true,
                     liveRegion: true,
-                    child: Text(failure.message),
+                    child: Text(_chatRoomSendFailureMessage(l10n, failure)),
                   ),
                   actions: [
                     TextButton(
@@ -452,7 +452,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     message: l10n.chatRoomLoadingLabel,
                   ),
                   (false, null, final failure?) => ErrorState(
-                    message: failure.message,
+                    message: _chatRoomLoadFailureMessage(l10n, failure),
                     onRetry: _loadTimeline,
                   ),
                   (false, final timeline?, _)
@@ -635,6 +635,34 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       child: scaffold,
     );
   }
+}
+
+String _chatRoomLoadFailureMessage(AppLocalizations l10n, ChatFailure failure) {
+  return switch (failure.type) {
+    ChatFailureType.configuration ||
+    ChatFailureType.unsupportedConfiguration => l10n.chatErrorAdminGuidance,
+    ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
+    ChatFailureType.unsupportedPlatform =>
+      l10n.chatErrorUnsupportedPlatformGuidance,
+    ChatFailureType.cancelled ||
+    ChatFailureType.protocol ||
+    ChatFailureType.storage ||
+    ChatFailureType.unknown => l10n.chatRoomLoadFailureMessage,
+  };
+}
+
+String _chatRoomSendFailureMessage(AppLocalizations l10n, ChatFailure failure) {
+  return switch (failure.type) {
+    ChatFailureType.configuration ||
+    ChatFailureType.unsupportedConfiguration => l10n.chatErrorAdminGuidance,
+    ChatFailureType.sessionRequired => l10n.chatErrorSessionRequiredGuidance,
+    ChatFailureType.unsupportedPlatform =>
+      l10n.chatErrorUnsupportedPlatformGuidance,
+    ChatFailureType.cancelled ||
+    ChatFailureType.protocol ||
+    ChatFailureType.storage ||
+    ChatFailureType.unknown => l10n.chatRoomSendFailureMessage,
+  };
 }
 
 class _ChannelWorkspaceTabs extends StatelessWidget {
