@@ -1,42 +1,28 @@
-# Weave Monorepo Agent Rules
+# Weave agent rules
 
-Weave is now developed as one product stack. Treat `client/`, `server/`, `infra/`, and `e2e/` as one release unit.
+Weave is one monorepo. `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `release/` ship as one product.
 
-## Release discipline
+Old `weave-backend` and `weave-infra` checkouts are stale. Ignore them.
 
-- v0.1 is a dogfood-production release. Do not add preview-only product claims to v0.1 scope.
-- No release surface may be described as shipped unless it has executable evidence.
-- Replace “preview” and “read-only” behavior in v0.1 surfaces with real user flows, permission checks, audit trails, and fail-closed error states.
-- Agent runtime integration is out of v0.1. Do not implement product agent features until the sandboxing/tool-whitelist research ADR is accepted.
+Current truth: this repo, README/docs, GitHub issues/PRs, and executable evidence. `~/code/specs` is orientation/cross-session contract context; repo-local docs remain the implementation authority when they are more current.
 
-## Architecture boundaries
+Product-line truth: read `docs/product-line-and-weaver-plan.md` before product direction, admin/provider, RBAC/whitelist, or Weaver work. Preserve the order: Weave provider-neutral organization suite first; admin portal/IDM/RBAC/readiness/whitelisting second; Weaver governed per-user PA runtime later. Do not regress to agent-first planning or a fixed Nextcloud/Matrix-only product boundary.
 
-- `client/`: Flutter app only. It must not hold provider secrets, LiveKit API secrets, backend service tokens, or raw credential-bearing URLs.
-- `server/`: all provider access goes through backend-owned facades with authorization, audit, support-safe errors, and contract tests.
-- `infra/`: OpenTofu-preferred infrastructure, deployment, backup/restore, operator checks, and support-bundle redaction.
-- `e2e/`: product-language Gherkin, scenario mappings, and sanitized evidence artifacts.
+v0.1 is dogfood-production, not preview. No scaffold, roadmap, or coming-soon UX in normal member paths.
 
-## ATDD / Gherkin rules
+Work spec-driven: intent → issue/spec note → acceptance/evidence → implementation → review.
 
-- Start product behavior with a Gherkin scenario in `e2e/features/`.
-- Add or update `e2e/scenario_mappings.json` in the same change.
-- Do not commit unmapped scenarios or mappings that reference missing tests/evidence markers.
-- Live-stack E2E is reserved for critical end-to-end contracts; detailed coverage belongs in lower-level tests.
-- Evidence artifacts must be deterministic and sanitized.
+Route work:
+- `client/`: Flutter UX, accessibility, l10n.
+- `server/`: facades, authz, audit, provider boundaries.
+- `infra/`: OpenTofu, deploy, backup/restore, support bundles.
+- `e2e/`: Gherkin contracts and evidence mapping.
+- `docs/`: current product truth.
 
-## Validation gates
+Default gates: `make acceptance-contract`, `make client-ci`, `make server-ci`, `make infra-static`; use `make ci` for cross-stack changes.
 
-For nontrivial changes, run the smallest meaningful subset and report it:
+`weave-co-leader` coordinates specialists. PRs should request `@copilot` review when review-ready.
 
-- `make acceptance-contract` for Gherkin/mapping changes.
-- `make client-ci` for Flutter/client changes.
-- `make server-ci` for backend/provider changes.
-- `make infra-static` for infrastructure/operator-script changes.
-- Live-stack E2E only when explicitly authorized and runner budget is available.
+Stop before secrets, data loss, live infra mutation, history rewrite, or hidden scope expansion.
 
-## Weave co-leader operating model
-
-- Protect release scope and product coherence over local code cleverness.
-- Prefer issues/ADRs over implicit TODOs for cross-cutting decisions.
-- Stop and escalate when a change risks data loss, secret leakage, history rewrites, live infra mutation, or hidden scope expansion.
-- Keep accessibility, supportability, auditability, and deployability as release blockers, not polish.
+Accessibility, supportability, auditability, and deployability are release blockers.

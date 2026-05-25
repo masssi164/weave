@@ -34,6 +34,17 @@ public class WorkspaceCapabilityService {
             "calendar.manage_events",
             "boards.read",
             "boards.update_task",
+            "meetings.join",
+            "meetings.host",
+            "documents.view",
+            "documents.edit",
+            "decisions.read",
+            "decisions.record",
+            "manuals.read",
+            "manuals.admin",
+            "release_evidence.read",
+            "release_evidence.manage",
+            "admin_control_plane.readiness_read",
             "weaver.exec_disabled");
     private static final List<String> MEMBER_CAPABILITIES = List.of(
             "chat.read",
@@ -42,10 +53,18 @@ public class WorkspaceCapabilityService {
             "files.upload",
             "calendar.read",
             "boards.read",
+            "meetings.join",
+            "documents.view",
+            "decisions.read",
+            "manuals.read",
+            "release_evidence.read",
             "weaver.exec_disabled");
     private static final Map<String, List<String>> GROUP_CAPABILITIES = Map.of(
             "weave-calendar-editors", List.of("calendar.manage_events"),
             "weave-board-editors", List.of("boards.update_task"),
+            "weave-meeting-hosts", List.of("meetings.host"),
+            "weave-document-editors", List.of("documents.edit"),
+            "weave-decision-recorders", List.of("decisions.record"),
             "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
@@ -119,6 +138,48 @@ public class WorkspaceCapabilityService {
                         List.of("boards.read", "boards.update_task"),
                         policy,
                         "Boards and tasks are available through Weave."),
+                standaloneStatus(
+                        workspaceCapabilityProperties.meetingsCalls(),
+                        WorkspaceCapabilityReadiness.UNAVAILABLE,
+                        "meetings/calls",
+                        List.of("meetings.join", "meetings.host"),
+                        policy,
+                        "Meetings and calls are available through Weave."),
+                standaloneStatus(
+                        workspaceCapabilityProperties.documentsCollaboration(),
+                        WorkspaceCapabilityReadiness.UNAVAILABLE,
+                        "documents/collaboration",
+                        List.of("documents.view", "documents.edit"),
+                        policy,
+                        "Documents and collaboration are available through Weave."),
+                standaloneStatus(
+                        workspaceCapabilityProperties.decisionsEvidence(),
+                        WorkspaceCapabilityReadiness.READY,
+                        "decisions/evidence",
+                        List.of("decisions.read", "decisions.record"),
+                        policy,
+                        "Decisions and evidence are available through Weave."),
+                standaloneStatus(
+                        workspaceCapabilityProperties.manualsHelp(),
+                        WorkspaceCapabilityReadiness.READY,
+                        "manuals/help",
+                        List.of("manuals.read", "manuals.admin"),
+                        policy,
+                        "Manuals and help are available through Weave."),
+                standaloneStatus(
+                        workspaceCapabilityProperties.releaseEvidence(),
+                        WorkspaceCapabilityReadiness.READY,
+                        "release evidence",
+                        List.of("release_evidence.read", "release_evidence.manage"),
+                        policy,
+                        "Release evidence is available through Weave."),
+                standaloneStatus(
+                        workspaceCapabilityProperties.adminControlPlane(),
+                        WorkspaceCapabilityReadiness.READY,
+                        "admin control plane",
+                        List.of("admin_control_plane.readiness_read"),
+                        policy,
+                        "Workspace Health exposes support-safe admin readiness without provider credentials."),
                 standaloneStatus(
                         workspaceCapabilityProperties.weaver(),
                         WorkspaceCapabilityReadiness.UNAVAILABLE,

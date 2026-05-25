@@ -1,6 +1,19 @@
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
 
-enum WorkspaceCapability { shellAccess, chat, files, calendar, boards, weaver }
+enum WorkspaceCapability {
+  shellAccess,
+  chat,
+  files,
+  calendar,
+  boards,
+  meetingsCalls,
+  documentsCollaboration,
+  decisionsEvidence,
+  manualsHelp,
+  releaseEvidence,
+  adminControlPlane,
+  weaver,
+}
 
 enum WorkspaceCapabilityReadiness { ready, degraded, blocked, unavailable }
 
@@ -48,6 +61,45 @@ class WorkspaceCapabilitySnapshot {
     required this.files,
     required this.calendar,
     required this.boards,
+    this.meetingsCalls = const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.meetingsCalls,
+      readiness: WorkspaceCapabilityReadiness.unavailable,
+      policyState: WorkspaceCapabilityPolicyState.disabled,
+      memberImpact: 'Meetings and calls are disabled in this workspace.',
+    ),
+    this.documentsCollaboration = const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.documentsCollaboration,
+      readiness: WorkspaceCapabilityReadiness.unavailable,
+      policyState: WorkspaceCapabilityPolicyState.disabled,
+      memberImpact:
+          'Documents and collaboration are disabled in this workspace.',
+    ),
+    this.decisionsEvidence = const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.decisionsEvidence,
+      readiness: WorkspaceCapabilityReadiness.ready,
+      policyState: WorkspaceCapabilityPolicyState.allowed,
+      memberImpact:
+          'Decisions and evidence are represented by the Weave domain model.',
+    ),
+    this.manualsHelp = const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.manualsHelp,
+      readiness: WorkspaceCapabilityReadiness.ready,
+      policyState: WorkspaceCapabilityPolicyState.allowed,
+      memberImpact: 'Manuals and help are available through Weave.',
+    ),
+    this.releaseEvidence = const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.releaseEvidence,
+      readiness: WorkspaceCapabilityReadiness.ready,
+      policyState: WorkspaceCapabilityPolicyState.allowed,
+      memberImpact: 'Release evidence is available through Weave.',
+    ),
+    this.adminControlPlane = const WorkspaceCapabilityState(
+      capability: WorkspaceCapability.adminControlPlane,
+      readiness: WorkspaceCapabilityReadiness.ready,
+      policyState: WorkspaceCapabilityPolicyState.allowed,
+      memberImpact:
+          'Workspace Health exposes support-safe admin readiness only.',
+    ),
     this.weaver = const WorkspaceCapabilityState(
       capability: WorkspaceCapability.weaver,
       readiness: WorkspaceCapabilityReadiness.unavailable,
@@ -62,6 +114,12 @@ class WorkspaceCapabilitySnapshot {
   final WorkspaceCapabilityState files;
   final WorkspaceCapabilityState calendar;
   final WorkspaceCapabilityState boards;
+  final WorkspaceCapabilityState meetingsCalls;
+  final WorkspaceCapabilityState documentsCollaboration;
+  final WorkspaceCapabilityState decisionsEvidence;
+  final WorkspaceCapabilityState manualsHelp;
+  final WorkspaceCapabilityState releaseEvidence;
+  final WorkspaceCapabilityState adminControlPlane;
   final WorkspaceCapabilityState weaver;
 
   List<WorkspaceCapabilityState> get all => <WorkspaceCapabilityState>[
@@ -70,6 +128,12 @@ class WorkspaceCapabilitySnapshot {
     files,
     calendar,
     boards,
+    meetingsCalls,
+    documentsCollaboration,
+    decisionsEvidence,
+    manualsHelp,
+    releaseEvidence,
+    adminControlPlane,
     weaver,
   ];
 }

@@ -3,13 +3,13 @@
 ## Overview
 Weave uses a feature-first clean architecture with deterministic bootstrap before routing. App-level OIDC bootstrap is resolved before navigation, while protocol-specific or platform-specific code lives either inside the owning feature or in `lib/integrations/<integration>/` when the boundary is shared across multiple features.
 
-Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, documents/collaboration, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave contracts. See [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md).
+Weave is product-first and provider-neutral. It models organization capabilities such as identity, chat, files, calendar, boards/tasks, meetings, decisions, documents/collaboration, embedded manuals, release evidence, and later Weaver. Concrete systems such as Keycloak, Entra ID, Matrix, Teams, Slack, Nextcloud, SharePoint, OpenProject, Jira, or LiveKit attach as provider adapters behind Weave domain contracts. See [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md).
 
 ## Provider-neutral capability contracts
 
 Canonical feature models come before control-plane, Admin Console, infra, or concrete adapter implementation. The active canonical model strategy is documented in [Canonical feature models and provider facades](canonical-feature-models.md), with Mermaid domain diagrams in [`docs/diagrams/`](diagrams/index.md). Server facades expose Weave-owned models per capability; they are not thin provider proxies and must not leak provider IDs, raw provider payloads, secrets, or downstream diagnostics into member or Admin Console product contracts.
 
-Workspace/Admin Health is organized around feature capability categories, not concrete systems. The stable contract categories are identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, and Weaver runtime. Each category publishes category-level capability keys, current dogfood/default adapters, external adapter placeholders, operational readiness modules, and the stable member impact states `usable`, `disabled`, `degraded`, and `policy-blocked`.
+Workspace/Admin Health is organized around feature capability categories, not concrete systems. The stable contract categories are identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, decisions/evidence, manuals/help, release evidence, admin control plane, and Weaver runtime. Each category publishes category-level capability keys, current dogfood/default adapters, external adapter placeholders, operational readiness modules, and the stable member impact states `usable`, `disabled`, `degraded`, and `policy-blocked`.
 
 The dogfood stack maps Keycloak, Matrix/Synapse, Nextcloud, OpenProject, ONLYOFFICE, and LiveKit as default adapters only. External adapters such as Entra ID, Microsoft Teams, SharePoint/OneDrive, Microsoft 365 Office/Graph, Planner/Jira, Authentik/Auth0/OIDC/SAML, and other providers attach behind the same category contracts. Normal members never configure raw provider endpoints, secrets, OIDC clients, or diagnostics; admins/operators choose adapters and see support-safe readiness through backend-owned facades.
 
@@ -20,6 +20,8 @@ Provider choices carry an explicit admin-visible posture:
 - `managed_cloud_provider`: a cloud/SaaS adapter posture that is valid behind the same capability contract but must surface privacy, compliance, availability, export, and vendor-lock-in risks to admins/operators.
 
 This means a mixed deployment such as Keycloak identity, Teams chat, SharePoint/OneDrive files, and OpenProject tasks is architecturally valid. It must not change member-facing state vocabulary or allow direct Flutter-to-provider calls.
+
+Provider replacement is also a backend/admin concern. If an organization swaps a domain provider, for example Slack to Synapse/Matrix for Chat, the server/admin control plane owns preflight, dry-run, mapping, migration, conflict reporting, lossy-field warnings, audit, and readiness. The member client continues to consume canonical Weave Chat models and support-safe impact states.
 
 Design evidence for these seams comes from established interoperability contracts: OpenID Connect describes interoperable authentication on OAuth 2.0; SCIM RFC 7644 standardizes HTTP-based identity management for users/groups; WebDAV RFC 4918 and CalDAV RFC 4791 cover distributed file authoring and calendar access patterns; OASIS CMIS defines a generic content repository model; Microsoft documents Microsoft 365 for the web integration for viewing/editing Office files in the browser. These standards inform adapter boundaries only; each adapter still needs its own risk and license review.
 

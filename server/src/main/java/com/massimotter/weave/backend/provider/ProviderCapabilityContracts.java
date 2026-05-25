@@ -12,39 +12,55 @@ public final class ProviderCapabilityContracts {
             "degraded",
             "policy-blocked");
 
-    private static final Map<String, Definition> DEFINITIONS = Map.of(
-            "identity-idm", new Definition(
+    private static final Map<String, Definition> DEFINITIONS = Map.ofEntries(
+            Map.entry("identity-idm", new Definition(
                     List.of("identity.sign_in", "identity.groups", "identity.roles"),
                     List.of("keycloak-realm", "matrix-authentication-service"),
-                    List.of("entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap")),
-            "chat", new Definition(
+                    List.of("entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap"))),
+            Map.entry("chat", new Definition(
                     List.of("chat.read", "chat.send", "chat.channels"),
                     List.of("synapse-homeserver"),
-                    List.of("microsoft-teams", "slack", "nextcloud-talk")),
-            "files", new Definition(
+                    List.of("microsoft-teams", "slack", "nextcloud-talk"))),
+            Map.entry("files", new Definition(
                     List.of("files.read", "files.upload", "files.download", "files.delete"),
                     List.of("nextcloud-files"),
-                    List.of("sharepoint", "onedrive", "s3-compatible", "smb")),
-            "calendar", new Definition(
+                    List.of("sharepoint", "onedrive", "s3-compatible", "smb"))),
+            Map.entry("calendar", new Definition(
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
                     List.of("nextcloud-caldav"),
-                    List.of("microsoft-graph-calendar", "generic-caldav", "workspace-calendar", "team-channel-calendar")),
-            "boards-tasks", new Definition(
+                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "workspace-calendar", "team-channel-calendar"))),
+            Map.entry("boards-tasks", new Definition(
                     List.of("boards.read", "boards.update_task", "boards.sync_workspace"),
                     List.of("openproject-primary"),
-                    List.of("microsoft-planner", "jira", "nextcloud-deck", "vikunja")),
-            "meetings-calls", new Definition(
+                    List.of("microsoft-planner", "jira", "nextcloud-deck", "vikunja"))),
+            Map.entry("meetings-calls", new Definition(
                     List.of("meetings.join", "meetings.host", "meetings.recording_policy"),
                     List.of("livekit"),
-                    List.of("microsoft-teams-meetings", "managed-meetings-provider", "external-meeting-link")),
-            "documents-collaboration", new Definition(
+                    List.of("microsoft-teams-meetings", "zoom", "google-meet", "jitsi", "managed-meetings-provider", "external-meeting-link"))),
+            Map.entry("documents-collaboration", new Definition(
                     List.of("documents.view", "documents.edit", "documents.comment", "documents.collaborate"),
                     List.of("onlyoffice-community"),
-                    List.of("microsoft-365-office-graph", "collabora-code", "wopi-host")),
-            "weaver", new Definition(
+                    List.of("microsoft-365-office-graph", "collabora-code", "google-workspace-docs", "wopi-host"))),
+            Map.entry("decisions-evidence", new Definition(
+                    List.of("decisions.read", "decisions.record", "evidence.attach", "evidence.audit_read"),
+                    List.of("weave-decisions-evidence"),
+                    List.of("confluence-decisions", "notion-databases", "sharepoint-lists"))),
+            Map.entry("manuals-help", new Definition(
+                    List.of("manuals.read", "manuals.admin", "help.search", "help.embed"),
+                    List.of("mkdocs-material-embedded"),
+                    List.of("confluence-space", "gitbook", "notion-wiki"))),
+            Map.entry("release-evidence", new Definition(
+                    List.of("release_evidence.read", "release_evidence.manage", "release_notes.draft"),
+                    List.of("weave-release-notes"),
+                    List.of("github-releases", "gitlab-releases", "jira-releases"))),
+            Map.entry("admin-control-plane", new Definition(
+                    List.of("admin_control_plane.readiness_read", "admin_control_plane.adapter_select", "admin_control_plane.support_bundle"),
+                    List.of("weave-admin-console"),
+                    List.of("service-now", "grafana", "backstage"))),
+            Map.entry("weaver", new Definition(
                     List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
                     List.of("weaver-runtime-disabled"),
-                    List.of("openclaw-governed-runtime")));
+                    List.of("openclaw-governed-runtime"))));
 
     private ProviderCapabilityContracts() {
     }

@@ -528,6 +528,35 @@
       ]
     },
     {
+      "tag": "@weave-v01-chat-domain-facade",
+      "scenario": "Chat uses a canonical backend domain facade",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+      "evidenceMarkers": [
+        "WEAVE_CHAT_DOMAIN_FACADE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "fragments": [
+            "chatConversationsUseCanonicalWeaveVocabularyWithoutProviderDiagnostics",
+            "chatReadIsDeniedByCapabilityPolicyBeforeContextOrProviderAccess",
+            "chatSendRequiresCapabilityAndContextPermissionThenPublishesSupportSafeAudit",
+            "chatProviderReplacementDryRunIsAdminOnlySupportSafeAndAudited"
+          ]
+        },
+        {
+          "path": "server/README.md",
+          "fragments": [
+            "Chat domain facade",
+            "provider replacement dry-run",
+            "chat.read",
+            "chat.send"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-board-write-audit",
       "scenario": "A user board write is authorized and audited",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

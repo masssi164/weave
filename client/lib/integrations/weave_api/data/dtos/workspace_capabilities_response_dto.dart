@@ -8,6 +8,12 @@ class WorkspaceCapabilitiesResponseDto {
     required this.files,
     required this.calendar,
     required this.boards,
+    required this.meetingsCalls,
+    required this.documentsCollaboration,
+    required this.decisionsEvidence,
+    required this.manualsHelp,
+    required this.releaseEvidence,
+    required this.adminControlPlane,
     required this.weaver,
   });
 
@@ -28,6 +34,69 @@ class WorkspaceCapabilitiesResponseDto {
       boards: WorkspaceCapabilityStatusDto.fromJson(
         _readNestedJson(json, 'boards'),
       ),
+      meetingsCalls: WorkspaceCapabilityStatusDto.fromJson(
+        _readOptionalNestedJson(
+          json,
+          'meetingsCalls',
+          enabled: false,
+          readiness: 'unavailable',
+          policyState: 'disabled',
+          memberImpact: 'Meetings and calls are disabled in this workspace.',
+        ),
+      ),
+      documentsCollaboration: WorkspaceCapabilityStatusDto.fromJson(
+        _readOptionalNestedJson(
+          json,
+          'documentsCollaboration',
+          enabled: false,
+          readiness: 'unavailable',
+          policyState: 'disabled',
+          memberImpact:
+              'Documents and collaboration are disabled in this workspace.',
+        ),
+      ),
+      decisionsEvidence: WorkspaceCapabilityStatusDto.fromJson(
+        _readOptionalNestedJson(
+          json,
+          'decisionsEvidence',
+          enabled: true,
+          readiness: 'ready',
+          policyState: 'allowed',
+          memberImpact:
+              'Decisions and evidence are represented by the Weave domain model.',
+        ),
+      ),
+      manualsHelp: WorkspaceCapabilityStatusDto.fromJson(
+        _readOptionalNestedJson(
+          json,
+          'manualsHelp',
+          enabled: true,
+          readiness: 'ready',
+          policyState: 'allowed',
+          memberImpact: 'Manuals and help are available through Weave.',
+        ),
+      ),
+      releaseEvidence: WorkspaceCapabilityStatusDto.fromJson(
+        _readOptionalNestedJson(
+          json,
+          'releaseEvidence',
+          enabled: true,
+          readiness: 'ready',
+          policyState: 'allowed',
+          memberImpact: 'Release evidence is available through Weave.',
+        ),
+      ),
+      adminControlPlane: WorkspaceCapabilityStatusDto.fromJson(
+        _readOptionalNestedJson(
+          json,
+          'adminControlPlane',
+          enabled: true,
+          readiness: 'ready',
+          policyState: 'allowed',
+          memberImpact:
+              'Workspace Health exposes support-safe admin readiness only.',
+        ),
+      ),
       weaver: WorkspaceCapabilityStatusDto.fromJson(
         json['weaver'] is Map<String, dynamic>
             ? _readNestedJson(json, 'weaver')
@@ -47,6 +116,12 @@ class WorkspaceCapabilitiesResponseDto {
   final WorkspaceCapabilityStatusDto files;
   final WorkspaceCapabilityStatusDto calendar;
   final WorkspaceCapabilityStatusDto boards;
+  final WorkspaceCapabilityStatusDto meetingsCalls;
+  final WorkspaceCapabilityStatusDto documentsCollaboration;
+  final WorkspaceCapabilityStatusDto decisionsEvidence;
+  final WorkspaceCapabilityStatusDto manualsHelp;
+  final WorkspaceCapabilityStatusDto releaseEvidence;
+  final WorkspaceCapabilityStatusDto adminControlPlane;
   final WorkspaceCapabilityStatusDto weaver;
 
   WorkspaceCapabilitySnapshot toSnapshot() {
@@ -58,8 +133,45 @@ class WorkspaceCapabilitiesResponseDto {
       files: files.toCapabilityState(WorkspaceCapability.files),
       calendar: calendar.toCapabilityState(WorkspaceCapability.calendar),
       boards: boards.toCapabilityState(WorkspaceCapability.boards),
+      meetingsCalls: meetingsCalls.toCapabilityState(
+        WorkspaceCapability.meetingsCalls,
+      ),
+      documentsCollaboration: documentsCollaboration.toCapabilityState(
+        WorkspaceCapability.documentsCollaboration,
+      ),
+      decisionsEvidence: decisionsEvidence.toCapabilityState(
+        WorkspaceCapability.decisionsEvidence,
+      ),
+      manualsHelp: manualsHelp.toCapabilityState(
+        WorkspaceCapability.manualsHelp,
+      ),
+      releaseEvidence: releaseEvidence.toCapabilityState(
+        WorkspaceCapability.releaseEvidence,
+      ),
+      adminControlPlane: adminControlPlane.toCapabilityState(
+        WorkspaceCapability.adminControlPlane,
+      ),
       weaver: weaver.toCapabilityState(WorkspaceCapability.weaver),
     );
+  }
+
+  static Map<String, dynamic> _readOptionalNestedJson(
+    Map<String, dynamic> json,
+    String key, {
+    required bool enabled,
+    required String readiness,
+    required String policyState,
+    required String memberImpact,
+  }) {
+    if (json[key] is Map<String, dynamic>) {
+      return _readNestedJson(json, key);
+    }
+    return <String, dynamic>{
+      'enabled': enabled,
+      'readiness': readiness,
+      'policyState': policyState,
+      'memberImpact': memberImpact,
+    };
   }
 
   static Map<String, dynamic> _readNestedJson(

@@ -6,17 +6,13 @@ import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
-import 'package:weave/features/chat/domain/entities/agent_chat_preview.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 import 'package:weave/features/chat/presentation/chat_room_screen.dart';
-import 'package:weave/features/chat/presentation/providers/agent_chat_preview_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_provider.dart';
 import 'package:weave/features/chat/presentation/widgets/chat_security_banner.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
-import 'package:weave/features/workflows/presentation/providers/workflow_preview_provider.dart';
-import 'package:weave/features/workflows/presentation/widgets/workflow_preview_panel.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
 /// The Chat feature screen.
@@ -30,7 +26,6 @@ class ChatScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(chatProvider);
-    final agentPreviews = ref.watch(agentChatPreviewProvider);
     final securityState = ref.watch(chatSecurityProvider);
     final chatProvisioning = switch (ref.watch(
       chatProvisioningStatusProvider,
@@ -122,7 +117,6 @@ class ChatScreen extends ConsumerWidget {
           ),
           ChatViewPhase.content => _ChatOverviewSliver(
             conversations: state.conversations,
-            agentPreviews: agentPreviews,
             onOpenConversation: (conversation) async {
               final router = GoRouter.maybeOf(context);
               if (router != null) {
@@ -388,26 +382,19 @@ class _ChatErrorState extends StatelessWidget {
   }
 }
 
-class _ChatOverviewSliver extends ConsumerWidget {
+class _ChatOverviewSliver extends StatelessWidget {
   const _ChatOverviewSliver({
     required this.conversations,
-    required this.agentPreviews,
     required this.onOpenConversation,
   });
 
   final List<ChatConversation> conversations;
-  final List<AgentChatPreviewCapability> agentPreviews;
   final ValueChanged<ChatConversation> onOpenConversation;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final overview = ChatOverview.fromConversations(conversations);
-    final workflowPreview = ref
-        .watch(workflowPreviewFacadeProvider)
-        .previewForWorkspace(
-          contexts: _workflowContextSeedsForConversations(conversations),
-        );
 
     return SliverToBoxAdapter(
       child: Padding(
@@ -429,10 +416,6 @@ class _ChatOverviewSliver extends ConsumerWidget {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
-            const SizedBox(height: 20),
-            const _ChatContextCard(),
-            const SizedBox(height: 20),
-            _AgentChatGovernancePanel(previews: agentPreviews),
             const SizedBox(height: 20),
             _ChatOverviewSection(
               title: l10n.chatFavoritesSectionTitle,
@@ -469,479 +452,8 @@ class _ChatOverviewSliver extends ConsumerWidget {
               conversations: overview.aiChats,
               onOpenConversation: onOpenConversation,
             ),
-            const SizedBox(height: 20),
-            WorkflowPreviewPanel(snapshot: workflowPreview),
           ],
         ),
-      ),
-    );
-  }
-}
-
-List<WorkflowContextSeed> _workflowContextSeedsForConversations(
-  List<ChatConversation> conversations,
-) {
-  return conversations
-      .where(
-        (conversation) =>
-            !conversation.isDirectMessage && !conversation.isAiChat,
-      )
-      .map(
-        (conversation) => WorkflowContextSeed(
-          id: conversation.id,
-          kind: WorkflowContextSeedKind.channel,
-          label: conversation.title,
-        ),
-      )
-      .toList(growable: false);
-}
-
-class _AgentChatGovernancePanel extends StatelessWidget {
-  const _AgentChatGovernancePanel({required this.previews});
-
-  final List<AgentChatPreviewCapability> previews;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
-    return Semantics(
-      container: true,
-      explicitChildNodes: true,
-      child: Card(
-        elevation: 0,
-        color: theme.colorScheme.surfaceContainerHighest,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    Icons.smart_toy_outlined,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            l10n.chatAgentGovernanceTitle,
-                            style: theme.textTheme.titleLarge,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.chatAgentGovernanceDescription,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const _AgentContextPackCard(),
-              const SizedBox(height: 16),
-              ...previews.map(
-                (preview) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _AgentPreviewTile(preview: preview),
-                ),
-              ),
-              const SizedBox(height: 4),
-              MergeSemantics(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.policy_outlined,
-                      size: 20,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        l10n.chatAgentGovernanceAuditNote,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AgentContextPackCard extends StatelessWidget {
-  const _AgentContextPackCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-
-    return MergeSemantics(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: theme.colorScheme.secondary.withValues(alpha: 0.36),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                l10n.chatAgentContextPackTitle,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSecondaryContainer,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                l10n.chatAgentContextPackDescription,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSecondaryContainer,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _AgentPolicyBullet(text: l10n.chatAgentContextPackScopedBullet),
-              _AgentPolicyBullet(text: l10n.chatAgentContextPackConsentBullet),
-              _AgentPolicyBullet(
-                text: l10n.chatAgentContextPackNoSurveillanceBullet,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AgentPolicyBullet extends StatelessWidget {
-  const _AgentPolicyBullet({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('•', style: theme.textTheme.bodyMedium),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
-        ],
-      ),
-    );
-  }
-}
-
-class _AgentPreviewTile extends StatelessWidget {
-  const _AgentPreviewTile({required this.preview});
-
-  final AgentChatPreviewCapability preview;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final statusLabel = _agentAvailabilityLabel(l10n, preview.availability);
-    final title = _agentTitle(l10n, preview.kind);
-    final description = _agentDescription(l10n, preview.kind);
-    final scope = _agentScope(l10n, preview.kind);
-    final boundary = _agentBoundary(l10n, preview.kind);
-    final audit = _agentAudit(l10n, preview.kind);
-    final semanticsLabel =
-        '$title. $statusLabel. $description. $scope. '
-        '$boundary. $audit';
-
-    return Semantics(
-      container: true,
-      label: semanticsLabel,
-      child: ExcludeSemantics(
-        child: Card(
-          elevation: 0,
-          color: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: theme.colorScheme.outlineVariant),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      _agentIcon(preview.kind),
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title, style: theme.textTheme.titleMedium),
-                          const SizedBox(height: 4),
-                          Text(description, style: theme.textTheme.bodyMedium),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Chip(
-                      avatar: Icon(
-                        _agentAvailabilityIcon(preview.availability),
-                        size: 18,
-                      ),
-                      label: Text(statusLabel),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _AgentPolicyBullet(text: scope),
-                _AgentPolicyBullet(text: boundary),
-                _AgentPolicyBullet(text: audit),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: FilledButton.icon(
-                    onPressed: preview.canStart ? () {} : null,
-                    icon: const Icon(Icons.lock_outline),
-                    label: Text(l10n.chatAgentStartDisabledButton),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _agentAvailabilityLabel(
-  AppLocalizations l10n,
-  AgentChatAvailability availability,
-) {
-  return switch (availability) {
-    AgentChatAvailability.disabledByPolicy => l10n.chatAgentAvailabilityPreview,
-    AgentChatAvailability.adminSetupRequired =>
-      l10n.chatAgentAvailabilityAdminSetup,
-    AgentChatAvailability.blocked => l10n.chatAgentAvailabilityBlocked,
-  };
-}
-
-IconData _agentAvailabilityIcon(AgentChatAvailability availability) {
-  return switch (availability) {
-    AgentChatAvailability.disabledByPolicy => Icons.policy_outlined,
-    AgentChatAvailability.adminSetupRequired => Icons.admin_panel_settings,
-    AgentChatAvailability.blocked => Icons.block,
-  };
-}
-
-IconData _agentIcon(AgentChatPreviewKind kind) {
-  return switch (kind) {
-    AgentChatPreviewKind.personalAssistant => Icons.person_search_outlined,
-    AgentChatPreviewKind.channelAgent => Icons.groups_outlined,
-  };
-}
-
-String _agentTitle(AppLocalizations l10n, AgentChatPreviewKind kind) {
-  return switch (kind) {
-    AgentChatPreviewKind.personalAssistant =>
-      l10n.chatAgentPersonalAssistantTitle,
-    AgentChatPreviewKind.channelAgent => l10n.chatAgentChannelAgentTitle,
-  };
-}
-
-String _agentDescription(AppLocalizations l10n, AgentChatPreviewKind kind) {
-  return switch (kind) {
-    AgentChatPreviewKind.personalAssistant =>
-      l10n.chatAgentPersonalAssistantDescription,
-    AgentChatPreviewKind.channelAgent => l10n.chatAgentChannelAgentDescription,
-  };
-}
-
-String _agentScope(AppLocalizations l10n, AgentChatPreviewKind kind) {
-  return switch (kind) {
-    AgentChatPreviewKind.personalAssistant => l10n.chatAgentPersonalScope,
-    AgentChatPreviewKind.channelAgent => l10n.chatAgentChannelScope,
-  };
-}
-
-String _agentBoundary(AppLocalizations l10n, AgentChatPreviewKind kind) {
-  return switch (kind) {
-    AgentChatPreviewKind.personalAssistant => l10n.chatAgentPersonalBoundary,
-    AgentChatPreviewKind.channelAgent => l10n.chatAgentChannelBoundary,
-  };
-}
-
-String _agentAudit(AppLocalizations l10n, AgentChatPreviewKind kind) {
-  return switch (kind) {
-    AgentChatPreviewKind.personalAssistant => l10n.chatAgentPersonalAudit,
-    AgentChatPreviewKind.channelAgent => l10n.chatAgentChannelAudit,
-  };
-}
-
-class _ChatContextCard extends StatelessWidget {
-  const _ChatContextCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final hints = <({IconData icon, String title, String description})>[
-      (
-        icon: Icons.forum_outlined,
-        title: l10n.chatContextChannelHintTitle,
-        description: l10n.chatContextChannelHintDescription,
-      ),
-      (
-        icon: Icons.fact_check_outlined,
-        title: l10n.chatContextEvidenceHintTitle,
-        description: l10n.chatContextEvidenceHintDescription,
-      ),
-      (
-        icon: Icons.psychology_alt_outlined,
-        title: l10n.chatContextAgentHintTitle,
-        description: l10n.chatContextAgentHintDescription,
-      ),
-    ];
-
-    return Semantics(
-      container: true,
-      explicitChildNodes: true,
-      child: Card(
-        elevation: 0,
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(
-            color: theme.colorScheme.primary.withValues(alpha: 0.42),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.hub_outlined, color: theme.colorScheme.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Semantics(
-                          header: true,
-                          child: Text(
-                            l10n.chatContextCardTitle,
-                            style: theme.textTheme.titleLarge,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          l10n.chatContextCardDescription,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              ...hints.map(
-                (hint) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _ChatContextHintTile(
-                    icon: hint.icon,
-                    title: hint.title,
-                    description: hint.description,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                l10n.chatContextCardPolicy,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ChatContextHintTile extends StatelessWidget {
-  const _ChatContextHintTile({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  final IconData icon;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return MergeSemantics(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: theme.colorScheme.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: theme.textTheme.titleSmall),
-                const SizedBox(height: 2),
-                Text(description, style: theme.textTheme.bodySmall),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

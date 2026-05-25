@@ -5,8 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/theme/app_theme.dart';
 import 'package:weave/features/app/domain/entities/integration_invalidation.dart';
-import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
-import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/app/presentation/providers/workspace_invalidation_provider.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
@@ -422,42 +420,24 @@ void main() {
                 securityRepository,
               ),
               firstRunStatusProvider.overrideWith((ref) async => null),
-              agentCapabilityPolicyProvider.overrideWithValue(
-                AsyncData(
-                  AgentCapabilityPolicy.disabled(canManageCapabilities: true),
-                ),
-              ),
             ],
           ),
         );
         await tester.pumpAndSettle();
 
         expect(find.text('Weave Home'), findsOneWidget);
-        expect(find.text('Context for this workspace'), findsOneWidget);
-        expect(find.text('Channel context'), findsOneWidget);
-        expect(find.text('Agent context packs'), findsOneWidget);
-        expect(
-          find.textContaining('Agents use scoped context on demand'),
-          findsOneWidget,
-        );
-        expect(find.text('Active workflows'), findsOneWidget);
-        expect(find.text('Linear view first'), findsOneWidget);
-        expect(find.text('Prepare a release'), findsOneWidget);
-        expect(find.text('Clear release blockers'), findsOneWidget);
+        expect(find.text('Context for this workspace'), findsNothing);
+        expect(find.text('Channel context'), findsNothing);
+        expect(find.text('Agent context packs'), findsNothing);
+        expect(find.text('Active workflows'), findsNothing);
+        expect(find.text('Prepare a release'), findsNothing);
         expect(
           find.text('Agent chats are governed by your workspace'),
-          findsOneWidget,
+          findsNothing,
         );
-        expect(find.text('Context pack before action'), findsOneWidget);
-        expect(
-          find.text('Agents do not continuously read rooms in the background.'),
-          findsOneWidget,
-        );
-        expect(find.text('Personal assistant'), findsOneWidget);
-        expect(find.text('Channel agent'), findsOneWidget);
-        expect(find.text('Disabled by policy'), findsOneWidget);
-        expect(find.text('Admin setup required'), findsOneWidget);
-        expect(find.text('Unavailable until enabled'), findsNWidgets(2));
+        expect(find.text('Personal assistant'), findsNothing);
+        expect(find.text('Channel agent'), findsNothing);
+        expect(find.text('Unavailable until enabled'), findsNothing);
         expect(find.text('Favorites'), findsOneWidget);
         expect(find.text('Personal messages'), findsOneWidget);
         expect(find.text('Channels'), findsOneWidget);
@@ -516,7 +496,7 @@ void main() {
         expect(find.text('Favorites'), findsOneWidget);
         expect(
           find.text(
-            'No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.',
+            'No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.',
           ),
           findsOneWidget,
         );

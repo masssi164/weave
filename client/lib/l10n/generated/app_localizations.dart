@@ -890,7 +890,7 @@ abstract class AppLocalizations {
   /// Empty state for the favorites section in the chat overview
   ///
   /// In en, this message translates to:
-  /// **'No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.'**
+  /// **'No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.'**
   String get chatFavoritesSectionEmpty;
 
   /// Title for the personal messages section in the chat overview

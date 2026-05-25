@@ -3,6 +3,8 @@ package com.massimotter.weave.backend.audit;
 public enum AuditAction {
     CONNECTOR_WRITE_ATTEMPTED("connector.write.attempted"),
     ASSISTANT_WRITE_ATTEMPTED("assistant.write.attempted"),
+    CHAT_MESSAGE_SENT("chat.message.sent"),
+    CHAT_PROVIDER_REPLACEMENT_DRY_RUN("chat.provider_replacement.dry_run"),
     BOARD_TASK_CREATED("board.task.created"),
     BOARD_TASK_MOVED("board.task.moved"),
     BOARD_TASK_COMPLETED("board.task.completed"),

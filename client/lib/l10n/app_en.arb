@@ -459,7 +459,7 @@
   "@chatFavoritesSectionDescription": {
     "description": "Description for the favorites section in the chat overview"
   },
-  "chatFavoritesSectionEmpty": "No favorites yet. When favorites sync is available, important direct messages, channels, and AI chats will stay here.",
+  "chatFavoritesSectionEmpty": "No favorites yet. Important direct messages, channels, and AI chats marked as favorites stay here.",
   "@chatFavoritesSectionEmpty": {
     "description": "Empty state for the favorites section in the chat overview"
   },

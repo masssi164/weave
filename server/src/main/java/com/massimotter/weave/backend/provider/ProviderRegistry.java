@@ -37,6 +37,11 @@ public class ProviderRegistry {
                         .comparing((ProviderStatusResponse status) -> status.module().contractName())
                         .thenComparing(ProviderStatusResponse::providerKey))
                 .toList();
+        Instant generatedAt = Instant.now();
+        List<ProviderCategoryStatusResponse> categories = ProviderCategoryHealthMapper.categories(
+                statuses,
+                workspaceCapabilityService.snapshot(),
+                selectionRepository);
         return new ProviderRegistryResponse(
                 "provider-stack-contract-v1",
                 PROVIDER_CONFIG_SOURCE,
@@ -45,9 +50,10 @@ public class ProviderRegistry {
                 true,
                 false,
                 statuses.stream().allMatch(ProviderStatusResponse::supportSafe),
-                Instant.now(),
+                generatedAt,
+                DomainAdapterRegistryMapper.fromCategories(categories, generatedAt),
                 selections,
-                ProviderCategoryHealthMapper.categories(statuses, workspaceCapabilityService.snapshot(), selectionRepository),
+                categories,
                 statuses);
     }
 
