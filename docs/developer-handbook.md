@@ -42,7 +42,9 @@ The app accepts local development service URLs such as `https://api.weave.local/
 
 ## Root Gradle orchestration
 
-The root `./gradlew` is the monorepo build/delivery source of truth. Make targets are temporary compatibility aliases that delegate to Gradle during the transition; do not add new root Make-only build logic.
+Sprint 2 makes the root `./gradlew` the monorepo build and delivery source of truth. Make targets are temporary compatibility aliases that delegate to Gradle during the transition; do not add new root Make-only build logic. During the transition Gradle is still a task runner around proven client/server/admin/infra/docs commands, but the stable command surface is Gradle-first: use `./gradlew ci` locally and in CI, then reduce Make after parity is proven. See [Build, Evidence & Delivery System charter](build-evidence-delivery-system.md) for the current task graph, evidence, and branch plan.
+
+The root Gradle build delegates to existing proven targets while preserving current CI behavior:
 
 | Gradle task | Purpose |
 | --- | --- |
@@ -90,7 +92,9 @@ make offline-contract-test
 
 ## GitFlow and PR workflow
 
-Use short-lived PR branches from `main`, keep changes issue/spec-driven, and request Copilot review on every review-ready PR. Every PR must deliberately choose exactly one release-notes label before review/merge:
+Use short-lived PR branches from `main`, keep changes issue/spec-driven, and request Copilot review on every review-ready PR. Sprint 2 build/delivery work uses the branch families documented in [Build, Evidence & Delivery System charter](build-evidence-delivery-system.md): `build/gradle-root-ssot`, `build/gradle-ci-parity`, `build/evidence-artifacts`, `docs/mkdocs-help-foundation`, `release/evidence-automation`, `build/ci-gradle-migration`, and `build/make-transition-reduction`.
+
+Every PR must deliberately choose exactly one release-notes label before review/merge:
 
 - `release-notes-feature`
 - `release-notes-bugfix`
