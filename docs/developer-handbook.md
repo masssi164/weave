@@ -118,7 +118,7 @@ Release-affecting changes must choose exactly one release-notes label in the PR.
 Generated release notes come from merged PR metadata and labels. The local generator writes review artifacts under `build/release-notes/**` by default; checked-in README or docs mutations are explicit update steps:
 
 ```sh
-./gradlew generateReleaseNotes
+./gradlew generateReleaseNotes  # offline fixture artifact for deterministic review
 GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output build/release-notes/unreleased.md
 python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check
 ./gradlew updateReadmeReleaseNotes
