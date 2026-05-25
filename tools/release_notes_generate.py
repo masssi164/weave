@@ -244,7 +244,7 @@ def render_release_notes(prs: Iterable[PullRequest]) -> str:
         "# Unreleased",
         "",
         "Generated from merged pull request metadata with exactly one release-notes label per PR.",
-        "Run `make release-notes-check` before review and regenerate this page when preparing a release draft.",
+        "Run `./gradlew releaseEvidenceCheck` before review and regenerate this page when preparing a release draft.",
         "",
     ]
     for category in CATEGORIES:
@@ -278,7 +278,7 @@ def main() -> None:
     parser.add_argument("--repo", help="GitHub owner/repo; defaults to origin remote when fetching")
     parser.add_argument("--base", default="main", help="base branch to query when fetching from GitHub")
     parser.add_argument("--input", type=Path, help="read pull request JSON from a local fixture instead of GitHub")
-    parser.add_argument("--output", type=Path, default=ROOT / "docs" / "release-notes" / "unreleased.md")
+    parser.add_argument("--output", type=Path, default=ROOT / "build" / "release-notes" / "unreleased.md")
     parser.add_argument("--since", help="include PRs merged at or after this UTC date/datetime")
     parser.add_argument("--until", help="include PRs merged at or before this UTC date/datetime")
     parser.add_argument("--limit", type=int, default=100, help="maximum closed PRs to fetch from GitHub")

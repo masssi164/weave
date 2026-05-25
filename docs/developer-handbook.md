@@ -42,9 +42,7 @@ The app accepts local development service URLs such as `https://api.weave.local/
 
 ## Root Gradle orchestration
 
-Sprint 2 makes the root `./gradlew` the monorepo build and delivery source of truth. Make targets are temporary compatibility aliases that delegate to Gradle during the transition; do not add new root Make-only build logic. During the transition Gradle is still a task runner around proven client/server/admin/infra/docs commands, but the stable command surface is Gradle-first: use `./gradlew ci` locally and in CI, then reduce Make after parity is proven. See [Build, Evidence & Delivery System charter](build-evidence-delivery-system.md) for the current task graph, evidence, and branch plan.
-
-The root Gradle build delegates to existing proven targets while preserving current CI behavior:
+The root `./gradlew` is the monorepo build/delivery source of truth. Make targets are temporary compatibility aliases that delegate to Gradle during the transition; do not add new root Make-only build logic.
 
 | Gradle task | Purpose |
 | --- | --- |
@@ -56,10 +54,9 @@ The root Gradle build delegates to existing proven targets while preserving curr
 | `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
-| `releaseEvidenceCheck` | Release notes structure, label behavior, and generator fixture checks. |
+| `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, and generator fixture checks. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
-| `ciSummary` | Writes sanitized CI evidence to `build/evidence/ci-summary.json`. |
 
 Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need `python3 -m pip install -r docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies.
 
@@ -93,9 +90,7 @@ make offline-contract-test
 
 ## GitFlow and PR workflow
 
-Use short-lived PR branches from `main`, keep changes issue/spec-driven, and request Copilot review on every review-ready PR. Sprint 2 build/delivery work uses the branch families documented in [Build, Evidence & Delivery System charter](build-evidence-delivery-system.md): `build/gradle-root-ssot`, `build/gradle-ci-parity`, `build/evidence-artifacts`, `docs/mkdocs-help-foundation`, `release/evidence-automation`, `build/ci-gradle-migration`, and `build/make-transition-reduction`.
-
-Every PR must deliberately choose exactly one release-notes label before review/merge:
+Use short-lived PR branches from `main`, keep changes issue/spec-driven, and request Copilot review on every review-ready PR. Every PR must deliberately choose exactly one release-notes label before review/merge:
 
 - `release-notes-feature`
 - `release-notes-bugfix`
@@ -120,14 +115,16 @@ make docs-check
 
 Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
 
-Generated release notes come from merged PR metadata and labels. The local generator can read GitHub API data or a fixture and writes the checked-in unreleased draft:
+Generated release notes come from merged PR metadata and labels. The local generator writes review artifacts under `build/release-notes/**` by default; checked-in README or docs mutations are explicit update steps:
 
 ```sh
-GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output docs/release-notes/unreleased.md
+./gradlew generateReleaseNotes  # offline fixture artifact for deterministic review
+GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output build/release-notes/unreleased.md
 python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check
+./gradlew updateReadmeReleaseNotes
 ```
 
-Run `make release-notes-check` before requesting review when release notes are relevant; it validates release-note page structure, label edge cases, and the generator fixture.
+Run `./gradlew releaseEvidenceCheck` before requesting review when release notes are relevant; it validates release-note page structure, README release markers, label edge cases, and the generator fixture.
 
 ## Architecture conventions
 
