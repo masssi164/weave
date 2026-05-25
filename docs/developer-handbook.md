@@ -42,7 +42,7 @@ The app accepts local development service URLs such as `https://api.weave.local/
 
 ## Root Gradle orchestration
 
-The root `./gradlew` is the monorepo build/delivery source of truth. Make targets are temporary compatibility aliases that delegate to Gradle during the transition; do not add new root Make-only build logic.
+The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Actions installs pinned ecosystem dependencies and runs `./gradlew ci`; Make targets are temporary compatibility aliases that delegate to Gradle during the transition. Do not add new root Make-only build logic.
 
 | Gradle task | Purpose |
 | --- | --- |
@@ -54,11 +54,12 @@ The root `./gradlew` is the monorepo build/delivery source of truth. Make target
 | `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
+| `releaseNotesLabelCheck` | Current PR release-notes label validation when `PR_LABELS_JSON` is available; skipped locally when unset. |
 | `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, and generator fixture checks. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
-Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need `python3 -m pip install -r docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies.
+Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts.
 
 ## Everyday Flutter workflow
 

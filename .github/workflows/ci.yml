@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       capture_marketing_screenshots:
-        description: "Regenerate deterministic README/marketing screenshots and upload them as a workflow artifact"
+        description: "Upload deterministic README/marketing screenshots produced by ./gradlew ci"
         required: false
         default: "false"
         type: choice
@@ -24,86 +24,57 @@ on:
 permissions:
   contents: read
 
-jobs:
-  release-notes-label-check:
-    name: Release Notes Label Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Validate exactly one release-notes label
-        if: github.event_name == 'pull_request'
-        env:
-          PR_LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
-        run: python3 tools/release_notes_label_check.py
-      - name: Skip release-notes label validation outside PRs
-        if: github.event_name != 'pull_request'
-        run: echo 'Release notes label validation only applies to pull requests.'
-      - name: Validate release notes tooling
-        run: make release-notes-check
+env:
+  WEAVE_DOCS_VENV: build/docs-venv
 
-  docs-checks:
-    name: Docs Checks
+jobs:
+  gradle-ci:
+    name: Gradle CI
     if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: admin-console/package-lock.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
           cache: pip
           cache-dependency-path: docs/requirements.txt
-      - name: Install docs dependencies
-        run: python -m pip install -r docs/requirements.txt
-      - name: Build documentation site
-        run: make docs-check
-
-  acceptance-contract:
-    name: Acceptance Contract
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: subosito/flutter-action@v2
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
         with:
-          channel: stable
-      - name: Install client dependencies
-        working-directory: client
-        run: flutter pub get
-      - name: Verify Gherkin mappings
-        run: make acceptance-contract
-
-  client-offline-checks:
-    name: Client Offline Checks
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-      - name: Install dependencies
-        working-directory: client
-        run: flutter pub get
-      - name: Generate l10n
-        working-directory: client
-        run: flutter gen-l10n
-      - name: Generate code
-        working-directory: client
-        run: dart run build_runner build --delete-conflicting-outputs
-      - name: Format check
-        working-directory: client
-        run: dart format --output=none --set-exit-if-changed .
-      - name: Analyze
-        working-directory: client
-        run: flutter analyze --fatal-infos
-      - name: Test
-        working-directory: client
-        run: flutter test
-      - name: Verify generated marketing screenshots
-        working-directory: client
+          tofu_version: 1.10.6
+          tofu_wrapper: false
+      - name: Install pinned dependencies
         run: |
-          make marketing-screenshots
-          git diff --exit-code -- ../docs/assets/marketing ../docs/assets/roadmap
+          python -m venv "$WEAVE_DOCS_VENV"
+          "$WEAVE_DOCS_VENV/bin/python" -m pip install -r docs/requirements.txt
+          npm ci --prefix admin-console
+          (cd client && flutter pub get)
+      - name: Run root Gradle CI
+        env:
+          PR_LABELS_JSON: ${{ github.event_name == 'pull_request' && toJson(github.event.pull_request.labels.*.name) || '' }}
+        run: ./gradlew ci
+      - name: Upload sanitized CI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weave-ci-evidence
+          path: |
+            build/evidence
+            build/docs
+          if-no-files-found: warn
       - name: Upload marketing screenshots
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.capture_marketing_screenshots == 'true' }}
         uses: actions/upload-artifact@v4
@@ -113,30 +84,10 @@ jobs:
             docs/assets/marketing
             docs/assets/roadmap
           if-no-files-found: error
-      - name: Offline contract test
-        working-directory: client
-        run: make offline-contract-test
 
-  admin-console-checks:
-    name: Admin Console Checks
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: admin-console/package-lock.json
-      - name: Install admin console dependencies
-        working-directory: admin-console
-        run: npm ci
-      - name: Test admin console
-        run: make admin-ci
-
-  server-checks:
-    name: Server Checks
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+  release-notes-label-check:
+    name: Release Notes Label Check
+    if: github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -144,36 +95,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Test server
-        working-directory: server
-        run: ./gradlew test
-
-  infra-static-checks:
-    name: Infra Static Checks
-    if: github.event_name != 'pull_request' || (github.event.action != 'labeled' && github.event.action != 'unlabeled')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
-      - name: OpenTofu infrastructure format check
-        working-directory: infra/weave-workspace/01-infrastructure
-        run: tofu fmt -check -recursive
-      - name: OpenTofu infrastructure validate
-        working-directory: infra/weave-workspace/01-infrastructure
-        run: |
-          tofu init -backend=false
-          tofu validate
-      - name: OpenTofu Keycloak setup format check
-        working-directory: infra/weave-workspace/02-keycloak-setup
-        run: tofu fmt -check -recursive
-      - name: OpenTofu Keycloak setup validate
-        working-directory: infra/weave-workspace/02-keycloak-setup
-        run: |
-          tofu init -backend=false
-          tofu validate
-      - name: Infra script tests
-        run: make infra-static
+      - name: Validate release notes label through Gradle
+        env:
+          PR_LABELS_JSON: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: ./gradlew releaseNotesLabelCheck
