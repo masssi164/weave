@@ -46,6 +46,42 @@ Feature: Weave v0.1 dogfood production release
     And member API writes are denied when IDM capability policy does not grant the required category capability
     And Weaver remains disabled by default unless governed organization policy explicitly enables it
 
+  @weave-v01-org-control-plane-provider-facade
+  Scenario: Server control plane owns provider policy and audit
+    Given an owner or admin opens the Organization/Admin Console
+    When provider status, policy whitelists, readiness tests, and audit events are requested
+    Then the server returns a support-safe control-plane contract with category readiness and SecretRefs only
+    And members cannot call admin control-plane APIs directly
+    And provider readiness tests and policy changes produce redacted audit events
+    And the member client still receives only effective capability states without raw provider configuration
+
+  @weave-v01-canonical-provider-neutral-models
+  Scenario: Self-hosted and external providers map to the same Weave feature models
+    Given an organization compares the recommended self-hosted defaults with external providers for chat, files, calendar, meetings, boards/tasks, and identity
+    When the backend provider registry maps each selected provider into Weave feature facades
+    Then Matrix or Slack-like chat maps to the same Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence model
+    And Nextcloud or SharePoint-like files map to the same Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession model
+    And CalDAV or Microsoft Graph-like calendar and LiveKit or Teams-like meetings map to the same Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, and Captions model
+    And OpenProject or Planner-like tasks map to the same Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField model
+    And Keycloak or Entra-like identity maps to the same Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent model
+
+  @weave-v01-member-provider-neutral-states
+  Scenario: Member client sees stable feature states without raw provider details
+    Given an admin has selected providers and the backend has evaluated readiness and capability policy
+    When a normal member opens Weave and fetches their organization manifest and feature surfaces
+    Then the member sees only ready, disabled, degraded, or policy-blocked feature states
+    And provider names may appear only as product-safe context when necessary
+    And provider URLs, raw provider identifiers, downstream payloads, secrets, readiness internals, and adapter diagnostics are not exposed to the member client
+
+  @weave-v01-admin-policy-decides-capabilities
+  Scenario: Admin provider policy decides capability availability before provider access
+    Given provider configs exist for recommended self-hosted defaults and at least one external provider placeholder
+    When capability policy, provider readiness, whitelists, and SecretRefs are evaluated
+    Then the backend denies unknown roles, unknown groups, missing readiness, and unapproved providers by default
+    And the Admin Console can enable, disable, degrade, or policy-block each capability without changing member client APIs
+    And provider access happens only after the backend has authorized the canonical Weave capability operation
+
+
   @weave-v01-idm-rbac-capability-policy
   Scenario: IDM roles and groups decide capability profiles before Weaver runtime
     Given an owner has selected an IDM provider for the organization
@@ -101,6 +137,22 @@ Feature: Weave v0.1 dogfood production release
     When a member records the decision
     Then Weave stores context, evidence, risks, open questions, and follow-up links
     And the decision is reachable from the channel, meeting, board task, and home view
+
+  @weave-v01-infra-control-plane-bootstrap
+  Scenario: Infra bootstrap feeds the backend control plane safely
+    Given an operator bootstraps the recommended sovereign default Weave stack
+    When Keycloak, provider profiles, admin console target metadata, and backend environment are generated
+    Then Keycloak is reachable as the central default identity broker
+    And the server manifest and provider registry are reachable through Weave backend APIs
+    And admin APIs reject member tokens while support bundles keep SecretRefs redacted
+
+  @weave-v01-admin-console-mvp
+  Scenario: Organization admins manage provider policy in a separate console
+    Given an owner, admin, or operator signs into the Organization/Admin Console
+    When they review org overview, provider categories, readiness details, whitelist policy, and audit events
+    Then every action goes through backend admin APIs
+    And no raw provider calls, provider secrets, or admin diagnostics are exposed to member clients
+    And the console remains keyboard reachable with semantic headings, forms, and status text
 
   @weave-v01-operator-release-path
   Scenario: Operators can deploy, verify, back up, restore, and diagnose safely

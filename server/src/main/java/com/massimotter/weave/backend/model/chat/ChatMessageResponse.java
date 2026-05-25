@@ -16,6 +16,8 @@ public record ChatMessageResponse(
         String text,
         @Schema(description = "Attachment references mediated by Weave product/file facades, never raw provider URLs.")
         List<String> attachmentRefs,
+        @Schema(description = "Whether this message belongs to the authenticated member, computed server-side from the Weave principal.", example = "true")
+        boolean isMine,
         @Schema(description = "Whether encrypted-provider content was redacted from this facade response.", example = "false")
         boolean encryptedProviderContentRedacted,
         Instant sentAt) {

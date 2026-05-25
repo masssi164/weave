@@ -22,7 +22,8 @@ Prerequisites:
 
 - Flutter SDK on the stable channel.
 - Xcode/macOS or another Flutter-supported target for local app runs.
-- `make`, Python 3, and the normal Dart/Flutter toolchain.
+- `make`, Python 3, Java 21 for backend checks, and the normal Dart/Flutter toolchain.
+- Node/npm for admin console checks.
 - Docker/OpenTofu only for live-stack validation.
 
 Clone the monorepo and prepare the client:
@@ -37,6 +38,28 @@ flutter run
 ```
 
 The app accepts local development service URLs such as `https://api.weave.local/api`, `https://auth.weave.local`, `https://matrix.weave.local`, and `https://files.weave.local` when a live stack is available.
+
+
+## Root Gradle orchestration
+
+The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Actions installs pinned ecosystem dependencies and runs `./gradlew ci`; Make targets are temporary compatibility aliases that delegate to Gradle during the transition. Do not add new root Make-only build logic.
+
+| Gradle task | Purpose |
+| --- | --- |
+| `doctor` | Checks required tools and pinned dependency files with actionable failures. |
+| `acceptanceContract` | Gherkin mapping and acceptance contract guard. |
+| `clientCi` | Flutter generated-code, format, analysis, tests, screenshot drift, and offline contract path. |
+| `serverCi` | Existing server Gradle test path. |
+| `adminCi` | Admin console npm CI path. |
+| `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
+| `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
+| `docsCheck` | Docs structure check plus strict MkDocs build. |
+| `releaseNotesLabelCheck` | Current PR release-notes label validation when `PR_LABELS_JSON` is available; skipped locally when unset. |
+| `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, and generator fixture checks. |
+| `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
+| `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
+
+Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts.
 
 ## Everyday Flutter workflow
 
@@ -65,6 +88,44 @@ make offline-contract-test
 - Run `flutter gen-l10n` after localization changes.
 - Run `dart run build_runner build --delete-conflicting-outputs` after model/provider/codegen changes.
 - Keep user-facing strings localizable; do not add hard-coded English text in widgets when the surrounding feature already uses l10n.
+
+## GitFlow and PR workflow
+
+Use short-lived PR branches from `main`, keep changes issue/spec-driven, and request Copilot review on every review-ready PR. Every PR must deliberately choose exactly one release-notes label before review/merge:
+
+- `release-notes-feature`
+- `release-notes-bugfix`
+- `release-notes-skip`
+
+Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` fails PRs with zero or multiple release-notes labels. See [GitFlow and PR workflow](gitflow-pr-workflow.md) for the full chapter, label semantics, and merge rules.
+
+## Documentation site
+
+Weave docs are published as a MkDocs site configured by `mkdocs.yml`. The site uses MkDocs Material; its MIT license was verified from upstream on 2026-05-24 and is safe for project use.
+
+For documentation-only changes:
+
+```sh
+python3 -m pip install -r docs/requirements.txt
+make docs-check
+```
+
+`make docs-check` runs the lightweight repository docs validator and a strict MkDocs build. `make docs-build` is available when you only need the strict MkDocs build after dependencies are installed. Keep existing docs linked from navigation or from handbook pages so product truth does not drift into orphaned Markdown.
+
+## Release notes workflow
+
+Release-affecting changes must choose exactly one release-notes label in the PR. Use the fixed page categories `Added`, `Changed`, `Fixed`, `Security`, `Accessibility`, `Migration/Operator Notes`, and `Known Issues` when drafting checked-in notes. Put provider setup, SecretRef, OpenTofu/bootstrap, backup/restore, support-bundle, readiness, audit, and policy/whitelist impacts under `Migration/Operator Notes`.
+
+Generated release notes come from merged PR metadata and labels. The local generator writes review artifacts under `build/release-notes/**` by default; checked-in README or docs mutations are explicit update steps:
+
+```sh
+./gradlew generateReleaseNotes  # offline fixture artifact for deterministic review
+GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output build/release-notes/unreleased.md
+python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check
+./gradlew updateReadmeReleaseNotes
+```
+
+Run `./gradlew releaseEvidenceCheck` before requesting review when release notes are relevant; it validates release-note page structure, README release markers, label edge cases, and the generator fixture.
 
 ## Architecture conventions
 

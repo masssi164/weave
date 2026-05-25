@@ -33,17 +33,19 @@ locals {
   ]
 
   weave_product_roles = {
-    owner  = "Full local/dev workspace ownership for bootstrap operators."
-    admin  = "Workspace administration without owner bootstrap authority."
-    member = "Standard authenticated workspace member."
-    guest  = "Constrained guest identity for feature-flagged guest portal flows."
+    owner    = "Full local/dev workspace ownership for bootstrap operators."
+    admin    = "Workspace administration without owner bootstrap authority."
+    operator = "Operational readiness, backup/restore, and support-bundle authority without ownership transfer."
+    member   = "Standard authenticated workspace member."
+    guest    = "Constrained guest identity for feature-flagged guest portal flows."
   }
 
   weave_product_role_groups = {
-    owner  = "workspace-owners"
-    admin  = "workspace-admins"
-    member = "workspace-members"
-    guest  = "workspace-guests"
+    owner    = "workspace-owners"
+    admin    = "workspace-admins"
+    operator = "workspace-operators"
+    member   = "workspace-members"
+    guest    = "workspace-guests"
   }
 
   client_defaults = {
@@ -77,6 +79,25 @@ locals {
       name        = "weave-backend"
       client_id   = "weave-backend"
       access_type = "BEARER-ONLY"
+    })
+    weave_admin_console = merge(local.client_defaults, {
+      name                       = "weave-admin-console"
+      client_id                  = "weave-admin-console"
+      access_type                = "PUBLIC"
+      standard_flow_enabled      = true
+      pkce_code_challenge_method = "S256"
+      valid_redirect_uris = [
+        "${var.admin_console_public_url}/*",
+        "http://localhost:5173/*",
+      ]
+      valid_post_logout_redirect_uris = [
+        "${var.admin_console_public_url}/*",
+        "http://localhost:5173/*",
+      ]
+      web_origins = [
+        var.admin_console_public_url,
+        "http://localhost:5173",
+      ]
     })
     matrix_mas = merge(local.client_defaults, {
       name                  = "matrix-mas"
@@ -216,6 +237,18 @@ resource "keycloak_openid_hardcoded_claim_protocol_mapper" "weave_tenant_id" {
   add_to_userinfo     = true
 }
 
+resource "keycloak_openid_hardcoded_claim_protocol_mapper" "weave_organization_name" {
+  realm_id            = keycloak_realm.tenant.id
+  client_scope_id     = keycloak_openid_client_scope.weave_workspace.id
+  name                = "weave-organization-name"
+  claim_name          = "weave_organization_name"
+  claim_value         = "Weave Dogfood"
+  claim_value_type    = "String"
+  add_to_id_token     = false
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
 resource "keycloak_openid_audience_protocol_mapper" "weave_backend_audience" {
   realm_id                 = keycloak_realm.tenant.id
   client_scope_id          = keycloak_openid_client_scope.weave_workspace.id
@@ -248,6 +281,17 @@ resource "keycloak_openid_client_optional_scopes" "weave_app" {
 resource "keycloak_openid_client_default_scopes" "weave_app" {
   realm_id  = keycloak_realm.tenant.id
   client_id = keycloak_openid_client.client["weave_app"].id
+
+  default_scopes = local.weave_app_default_scopes
+
+  depends_on = [
+    keycloak_openid_client_scope.weave_workspace,
+  ]
+}
+
+resource "keycloak_openid_client_default_scopes" "weave_admin_console" {
+  realm_id  = keycloak_realm.tenant.id
+  client_id = keycloak_openid_client.client["weave_admin_console"].id
 
   default_scopes = local.weave_app_default_scopes
 

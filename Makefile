@@ -1,18 +1,55 @@
-.PHONY: ci client-ci server-ci infra-static acceptance-contract live-stack-help
+.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check release-evidence-check generate-release-notes update-readme-release-notes live-stack-help doctor
 
-ci: acceptance-contract client-ci server-ci infra-static
+GRADLE ?= ./gradlew
+
+ci:
+	$(GRADLE) ci
+
+doctor:
+	$(GRADLE) doctor
 
 client-ci:
-	$(MAKE) -C client offline-contract-test
+	$(GRADLE) clientCi
 
 server-ci:
-	cd server && ./gradlew test
+	$(GRADLE) serverCi
 
 infra-static:
-	@find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash
+	$(GRADLE) infraStatic
+
+admin-ci:
+	$(GRADLE) adminCi
 
 acceptance-contract:
-	cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json
+	$(GRADLE) acceptanceContract
+
+# Install docs tooling with: python3 -m pip install -r docs/requirements.txt
+docs-build:
+	$(GRADLE) docsBuild
+
+docs-check:
+	$(GRADLE) docsCheck
+
+docs-serve:
+	$(GRADLE) docsServe
+
+docs-structure-check:
+	$(GRADLE) docsStructureCheck
+
+release-notes-check:
+	$(GRADLE) releaseEvidenceCheck
+
+release-evidence-check:
+	$(GRADLE) releaseEvidenceCheck
+
+release-notes-label-check:
+	$(GRADLE) releaseNotesLabelCheck
+
+generate-release-notes:
+	$(GRADLE) generateReleaseNotes
+
+update-readme-release-notes:
+	$(GRADLE) updateReadmeReleaseNotes
 
 live-stack-help:
-	@printf '%s\n' 'Live stack E2E is intentionally opt-in. Use the GitHub workflow with I_HAVE_SOLAR_STORAGE_BUDGET when runner power/storage budget is available.'
+	$(GRADLE) liveStackHelp

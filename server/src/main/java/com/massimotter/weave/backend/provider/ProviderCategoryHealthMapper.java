@@ -19,7 +19,8 @@ final class ProviderCategoryHealthMapper {
 
     static List<ProviderCategoryStatusResponse> categories(
             List<ProviderStatusResponse> providers,
-            WorkspaceCapabilitiesResponse capabilities) {
+            WorkspaceCapabilitiesResponse capabilities,
+            ProviderSelectionRepository selections) {
         List<ProviderStatusResponse> safeProviders = providers == null ? List.of() : List.copyOf(providers);
         return List.of(
                 capabilityCategory(
@@ -27,73 +28,85 @@ final class ProviderCategoryHealthMapper {
                         "identity/IDM",
                         capabilities.shellAccess(),
                         safeProviders,
-                        modules(ProviderModule.IDENTITY_REALM, ProviderModule.MATRIX_AUTH)),
+                        modules(ProviderModule.IDENTITY_REALM, ProviderModule.MATRIX_AUTH),
+                        selections),
                 capabilityCategory(
                         "chat",
                         "chat",
                         capabilities.chat(),
                         safeProviders,
-                        modules(ProviderModule.MATRIX)),
+                        modules(ProviderModule.MATRIX),
+                        selections),
                 capabilityCategory(
                         "files",
                         "files",
                         capabilities.files(),
                         safeProviders,
-                        modules(ProviderModule.FILES)),
+                        modules(ProviderModule.FILES),
+                        selections),
                 capabilityCategory(
                         "calendar",
                         "calendar",
                         capabilities.calendar(),
                         safeProviders,
-                        modules(ProviderModule.CALENDAR)),
+                        modules(ProviderModule.CALENDAR),
+                        selections),
                 capabilityCategory(
                         "boards-tasks",
                         "boards/tasks",
                         capabilities.boards(),
                         safeProviders,
-                        modules(ProviderModule.BOARDS)),
+                        modules(ProviderModule.BOARDS),
+                        selections),
                 providerCategory(
                         "meetings-calls",
                         "meetings/calls",
                         "Meetings and calls are available only when the configured media provider is ready behind the backend token facade.",
                         safeProviders,
-                        modules(ProviderModule.MEETINGS)),
+                        modules(ProviderModule.MEETINGS),
+                        selections),
                 providerCategory(
                         "documents-collaboration",
                         "documents/collaboration",
                         "Document collaboration is available only through backend-owned launch/capability facades.",
                         safeProviders,
-                        modules(ProviderModule.OFFICE, ProviderModule.FORMS, ProviderModule.CONTACTS)),
+                        modules(ProviderModule.OFFICE, ProviderModule.FORMS, ProviderModule.CONTACTS),
+                        selections),
                 capabilityCategory(
                         "decisions-evidence",
                         "decisions/evidence",
                         capabilities.decisionsEvidence(),
                         safeProviders,
-                        Set.of()),
+                        Set.of(),
+                        selections),
                 capabilityCategory(
                         "manuals-help",
                         "manuals/help",
                         capabilities.manualsHelp(),
                         safeProviders,
-                        Set.of()),
+                        Set.of(),
+                        selections),
                 capabilityCategory(
                         "release-evidence",
                         "release evidence",
                         capabilities.releaseEvidence(),
                         safeProviders,
-                        modules(ProviderModule.RELEASE)),
+                        modules(ProviderModule.RELEASE),
+                        selections),
                 capabilityCategory(
                         "admin-control-plane",
                         "admin control plane",
                         capabilities.adminControlPlane(),
                         safeProviders,
-                        Set.of()),
+                        Set.of(),
+                        selections),
                 capabilityCategory(
                         "weaver",
                         "Weaver",
                         capabilities.weaver(),
                         safeProviders,
-                        Set.of()));
+                        Set.of(),
+                        selections));
     }
 
     private static ProviderCategoryStatusResponse capabilityCategory(
@@ -101,21 +114,35 @@ final class ProviderCategoryHealthMapper {
             String label,
             WorkspaceCapabilityStatusResponse capability,
             List<ProviderStatusResponse> providers,
-            Set<ProviderModule> modules) {
+            Set<ProviderModule> modules,
+            ProviderSelectionRepository selections) {
+        SelectionView selection = selectionView(category, selections);
+        ProviderCategoryReadiness readiness = selection.selectedByAdmin() || modules.isEmpty()
+                ? fromCapability(capability)
+                : ProviderCategoryReadiness.MISCONFIGURED;
         return new ProviderCategoryStatusResponse(
                 category,
                 label,
                 ProviderCapabilityContracts.contract(category, modules),
-                fromCapability(capability),
+                readiness,
                 capability.policyState(),
-                capability.memberImpact(),
+                selection.selectedByAdmin() || modules.isEmpty()
+                        ? capability.memberImpact()
+                        : "Admin provider mapping is required before this category becomes product-ready.",
                 moduleNames(modules),
-                providerCandidates(providers, modules),
+                providerCandidates(category, providers, modules),
+                selection.providerKey(),
+                selection.choiceModel(),
+                selection.selectedByAdmin(),
+                !selection.selectedByAdmin(),
+                selection.lossyMappingNotes(),
                 diagnostics(providers, modules, Map.of(
                         "capabilityEnabled", capability.enabled(),
                         "capabilityReadiness", capability.readiness().value(),
                         "effectivePolicyState", capability.policyState().value(),
                         "grantedCapabilityCount", capability.grantedCapabilities().size(),
+                        "providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE,
+                        "selectionRequiredBeforeProviderUse", !selection.selectedByAdmin() && !modules.isEmpty(),
                         "diagnosticsRedacted", true)));
     }
 
@@ -124,9 +151,13 @@ final class ProviderCategoryHealthMapper {
             String label,
             String memberImpact,
             List<ProviderStatusResponse> providers,
-            Set<ProviderModule> modules) {
+            Set<ProviderModule> modules,
+            ProviderSelectionRepository selections) {
         List<ProviderStatusResponse> matching = matching(providers, modules);
-        ProviderCategoryReadiness readiness = fromProviders(matching);
+        SelectionView selection = selectionView(category, selections);
+        ProviderCategoryReadiness readiness = selection.selectedByAdmin()
+                ? fromProviders(matching)
+                : ProviderCategoryReadiness.MISCONFIGURED;
         WorkspaceCapabilityPolicyState policyState = readiness == ProviderCategoryReadiness.DISABLED
                 ? WorkspaceCapabilityPolicyState.DISABLED
                 : readiness == ProviderCategoryReadiness.MISCONFIGURED
@@ -138,11 +169,18 @@ final class ProviderCategoryHealthMapper {
                 ProviderCapabilityContracts.contract(category, modules),
                 readiness,
                 policyState,
-                memberImpact,
+                selection.selectedByAdmin() ? memberImpact : "Admin provider mapping is required before this category becomes product-ready.",
                 moduleNames(modules),
-                providerCandidates(providers, modules),
+                providerCandidates(category, providers, modules),
+                selection.providerKey(),
+                selection.choiceModel(),
+                selection.selectedByAdmin(),
+                !selection.selectedByAdmin(),
+                selection.lossyMappingNotes(),
                 diagnostics(providers, modules, Map.of(
                         "effectivePolicyState", policyState.value(),
+                        "providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE,
+                        "selectionRequiredBeforeProviderUse", !selection.selectedByAdmin(),
                         "diagnosticsRedacted", true)));
     }
 
@@ -195,8 +233,8 @@ final class ProviderCategoryHealthMapper {
         return diagnostics;
     }
 
-    private static List<String> providerCandidates(List<ProviderStatusResponse> providers, Set<ProviderModule> modules) {
-        return matching(providers, modules).stream()
+    private static List<String> providerCandidates(String category, List<ProviderStatusResponse> providers, Set<ProviderModule> modules) {
+        List<String> registeredCandidates = matching(providers, modules).stream()
                 .flatMap(provider -> {
                     List<String> values = new ArrayList<>();
                     values.add(provider.providerKey());
@@ -206,6 +244,10 @@ final class ProviderCategoryHealthMapper {
                 .distinct()
                 .sorted()
                 .toList();
+        if (!registeredCandidates.isEmpty()) {
+            return registeredCandidates;
+        }
+        return ProviderCapabilityContracts.providerCandidates(category);
     }
 
     private static List<String> moduleNames(Set<ProviderModule> modules) {
@@ -225,7 +267,34 @@ final class ProviderCategoryHealthMapper {
                 .toList();
     }
 
+    private static SelectionView selectionView(String category, ProviderSelectionRepository selections) {
+        if (selections == null) {
+            return SelectionView.awaiting();
+        }
+        return selections.findByCategory(category)
+                .map(selection -> new SelectionView(
+                        selection.providerKey(),
+                        selection.choiceModel(),
+                        true,
+                        selection.lossyMappingNotes()))
+                .orElseGet(SelectionView::awaiting);
+    }
+
     private static Set<ProviderModule> modules(ProviderModule... modules) {
         return Set.of(modules);
+    }
+
+    private record SelectionView(
+            String providerKey,
+            String choiceModel,
+            boolean selectedByAdmin,
+            List<String> lossyMappingNotes) {
+        private static SelectionView awaiting() {
+            return new SelectionView("awaiting_admin_selection", "not_selected", false, List.of());
+        }
+
+        private SelectionView {
+            lossyMappingNotes = lossyMappingNotes == null ? List.of() : List.copyOf(lossyMappingNotes);
+        }
     }
 }

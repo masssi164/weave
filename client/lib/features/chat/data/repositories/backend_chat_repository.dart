@@ -94,8 +94,8 @@ class BackendChatRepository implements ChatRepository {
   @override
   Future<void> connect() async {
     final readiness = await _getJson('/api/chat/readiness');
-    final state = readiness['impactState'];
-    if (state != 'usable') {
+    final state = readiness['impactState'] ?? readiness['memberState'];
+    if (state != 'usable' && state != 'ready') {
       throw ChatFailure.configuration(
         readiness['memberImpact'] is String
             ? readiness['memberImpact'] as String
@@ -139,7 +139,7 @@ class BackendChatRepository implements ChatRepository {
       sentAt:
           _readDateTime(json['sentAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      isMine: false,
+      isMine: json['isMine'] == true,
       deliveryState: ChatMessageDeliveryState.sent,
       contentType: redacted
           ? ChatMessageContentType.encrypted

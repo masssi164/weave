@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-final class ProviderCapabilityContracts {
+public final class ProviderCapabilityContracts {
 
     private static final List<String> STABLE_MEMBER_IMPACT_STATES = List.of(
             "usable",
@@ -16,7 +16,7 @@ final class ProviderCapabilityContracts {
             Map.entry("identity-idm", new Definition(
                     List.of("identity.sign_in", "identity.groups", "identity.roles"),
                     List.of("keycloak-realm", "matrix-authentication-service"),
-                    List.of("entra-id", "authentik", "auth0", "generic-oidc", "generic-saml"))),
+                    List.of("entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap"))),
             Map.entry("chat", new Definition(
                     List.of("chat.read", "chat.send", "chat.channels"),
                     List.of("synapse-homeserver"),
@@ -28,7 +28,7 @@ final class ProviderCapabilityContracts {
             Map.entry("calendar", new Definition(
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
                     List.of("nextcloud-caldav"),
-                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"))),
+                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "workspace-calendar", "team-channel-calendar"))),
             Map.entry("boards-tasks", new Definition(
                     List.of("boards.read", "boards.update_task", "boards.sync_workspace"),
                     List.of("openproject-primary"),
@@ -36,11 +36,11 @@ final class ProviderCapabilityContracts {
             Map.entry("meetings-calls", new Definition(
                     List.of("meetings.join", "meetings.host", "meetings.recording_policy"),
                     List.of("livekit"),
-                    List.of("microsoft-teams-meetings", "zoom", "google-meet", "jitsi"))),
+                    List.of("microsoft-teams-meetings", "zoom", "google-meet", "jitsi", "managed-meetings-provider", "external-meeting-link"))),
             Map.entry("documents-collaboration", new Definition(
                     List.of("documents.view", "documents.edit", "documents.comment", "documents.collaborate"),
                     List.of("onlyoffice-community"),
-                    List.of("microsoft-365-office-graph", "collabora-code", "google-workspace-docs"))),
+                    List.of("microsoft-365-office-graph", "collabora-code", "google-workspace-docs", "wopi-host"))),
             Map.entry("decisions-evidence", new Definition(
                     List.of("decisions.read", "decisions.record", "evidence.attach", "evidence.audit_read"),
                     List.of("weave-decisions-evidence"),
@@ -66,10 +66,7 @@ final class ProviderCapabilityContracts {
     }
 
     static ProviderCategoryContractResponse contract(String category, Set<ProviderModule> modules) {
-        Definition definition = DEFINITIONS.get(category);
-        if (definition == null) {
-            definition = new Definition(List.of(), List.of(), List.of());
-        }
+        Definition definition = definition(category);
         return new ProviderCategoryContractResponse(
                 category,
                 definition.featureCapabilities(),
@@ -80,6 +77,22 @@ final class ProviderCapabilityContracts {
                 STABLE_MEMBER_IMPACT_STATES,
                 true,
                 false);
+    }
+
+    public static List<String> providerCandidates(String category) {
+        Definition definition = definition(category);
+        return java.util.stream.Stream.concat(definition.defaultAdapters().stream(), definition.externalAdapters().stream())
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private static Definition definition(String category) {
+        Definition definition = DEFINITIONS.get(category);
+        if (definition == null) {
+            return new Definition(List.of(), List.of(), List.of());
+        }
+        return definition;
     }
 
     private static List<ProviderChoiceModelResponse> choiceModels(

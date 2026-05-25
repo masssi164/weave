@@ -136,7 +136,7 @@ public class ChatFacadeService {
         requireChatReady(jwt, "chat.read", "list_messages");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
         ConversationState conversation = requireConversation(conversationId, principal.contextId());
-        return new ChatMessagesResponse(conversation.id(), readiness(jwt), conversation.messages());
+        return new ChatMessagesResponse(conversation.id(), readiness(jwt), conversation.messagesFor(principal.principalRef()));
     }
 
     public ChatMessageResponse sendMessage(Jwt jwt, String conversationId, ChatSendMessageRequest request) {
@@ -152,6 +152,7 @@ public class ChatFacadeService {
                 principal.principalRef(),
                 text,
                 attachmentRefs,
+                true,
                 false,
                 timestamp);
         publishAudit(principal, AuditAction.CHAT_MESSAGE_SENT, "message:" + conversation.id(), timestamp, Map.of(
@@ -506,6 +507,7 @@ public class ChatFacadeService {
                 "Welcome to Weave Chat. Provider details stay behind the backend facade.",
                 List.of(),
                 false,
+                false,
                 seedTime));
         conversations.put(general.id(), general);
     }
@@ -549,8 +551,18 @@ public class ChatFacadeService {
             messages.add(message);
         }
 
-        List<ChatMessageResponse> messages() {
-            return List.copyOf(messages);
+        List<ChatMessageResponse> messagesFor(String principalRef) {
+            return messages.stream()
+                    .map(message -> new ChatMessageResponse(
+                            message.id(),
+                            message.conversationId(),
+                            message.senderRef(),
+                            message.text(),
+                            message.attachmentRefs(),
+                            message.senderRef().equals(principalRef),
+                            message.encryptedProviderContentRedacted(),
+                            message.sentAt()))
+                    .toList();
         }
 
         ChatConversationResponse toResponse(String principalRef) {

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/core/a11y/semantic_button.dart';
-import 'package:weave/features/auth/domain/entities/oidc_constants.dart';
-import 'package:weave/features/server_config/domain/entities/oidc_provider_type.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration_save_result.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_form_controller.dart';
@@ -124,38 +122,20 @@ class _ServerConfigurationFormState
     AppLocalizations l10n,
     ServerConfigurationFormState formState,
   ) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Text('Identity endpoint', style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
         Text(
-          l10n.serverConfigurationProviderLabel,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<OidcProviderType>(
-          initialValue: formState.providerType,
-          decoration: InputDecoration(
-            labelText: l10n.serverConfigurationProviderFieldLabel,
+          'Provider selection is owned by the Weave Admin Console and backend control plane. This member client stores only canonical Weave endpoints needed to sign in.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          items: [
-            DropdownMenuItem(
-              value: OidcProviderType.authentik,
-              child: Text(l10n.oidcProviderAuthentik),
-            ),
-            DropdownMenuItem(
-              value: OidcProviderType.keycloak,
-              child: Text(l10n.oidcProviderKeycloak),
-            ),
-          ],
-          onChanged: (value) {
-            if (value != null) {
-              ref
-                  .read(serverConfigurationFormControllerProvider.notifier)
-                  .updateProviderType(value);
-            }
-          },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         TextField(
           controller: _issuerController,
           keyboardType: TextInputType.url,
@@ -188,8 +168,6 @@ class _ServerConfigurationFormState
               .read(serverConfigurationFormControllerProvider.notifier)
               .updateClientId,
         ),
-        const SizedBox(height: 24),
-        _OidcRegistrationHelpCard(providerType: formState.providerType),
       ],
     );
   }
@@ -293,61 +271,6 @@ class _ServerConfigurationFormState
     controller.value = TextEditingValue(
       text: nextValue,
       selection: TextSelection.collapsed(offset: nextValue.length),
-    );
-  }
-}
-
-class _OidcRegistrationHelpCard extends StatelessWidget {
-  const _OidcRegistrationHelpCard({required this.providerType});
-
-  final OidcProviderType providerType;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final theme = Theme.of(context);
-    final providerSteps = switch (providerType) {
-      OidcProviderType.authentik => l10n.oidcRegistrationHelpAuthentikSteps,
-      OidcProviderType.keycloak => l10n.oidcRegistrationHelpKeycloakSteps,
-    };
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.oidcRegistrationHelpTitle,
-              style: theme.textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(l10n.oidcRegistrationHelpDescription),
-            const SizedBox(height: 8),
-            Text(
-              l10n.oidcRegistrationHelpNoSecret,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(providerSteps),
-            const SizedBox(height: 12),
-            Text(
-              l10n.oidcRegistrationHelpRedirectsTitle,
-              style: theme.textTheme.titleSmall,
-            ),
-            const SizedBox(height: 8),
-            Text(l10n.oidcRegistrationHelpRedirectValue(oidcRedirectUri)),
-            const SizedBox(height: 4),
-            Text(
-              l10n.oidcRegistrationHelpPostLogoutRedirectValue(
-                oidcPostLogoutRedirectUri,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

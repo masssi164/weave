@@ -1,12 +1,15 @@
 package com.massimotter.weave.backend.controller;
 
+import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightReport;
+import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightRequest;
+import com.massimotter.weave.backend.chat.domain.ChatReadiness;
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.chat.ChatConversationsResponse;
 import com.massimotter.weave.backend.model.chat.ChatMessageResponse;
 import com.massimotter.weave.backend.model.chat.ChatMessagesResponse;
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunRequest;
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunResponse;
-import com.massimotter.weave.backend.model.chat.ChatReadinessResponse;
 import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
 import com.massimotter.weave.backend.service.ChatFacadeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +21,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
@@ -42,17 +46,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChatController {
 
     private final ChatFacadeService chatFacadeService;
+    private final ChatDomainFacadeService chatDomainFacadeService;
 
-    public ChatController(ChatFacadeService chatFacadeService) {
+    public ChatController(ChatFacadeService chatFacadeService, ChatDomainFacadeService chatDomainFacadeService) {
         this.chatFacadeService = chatFacadeService;
+        this.chatDomainFacadeService = chatDomainFacadeService;
     }
 
-    @GetMapping("/api/chat/readiness")
+    @GetMapping({"/api/chat/readiness", "/api/v1/chat/readiness"})
     @Operation(summary = "Read member-safe Weave Chat readiness")
     @ApiResponse(responseCode = "200", description = "Member-safe Chat readiness.",
-            content = @Content(schema = @Schema(implementation = ChatReadinessResponse.class)))
-    public ChatReadinessResponse readiness(@AuthenticationPrincipal Jwt jwt) {
-        return chatFacadeService.readiness(jwt);
+            content = @Content(schema = @Schema(implementation = ChatReadiness.class)))
+    public ChatReadiness readiness(@AuthenticationPrincipal Jwt jwt) {
+        return chatDomainFacadeService.memberReadiness(jwt);
     }
 
     @GetMapping("/api/chat/conversations")
@@ -82,6 +88,22 @@ public class ChatController {
             @PathVariable @Size(max = 128) String conversationId,
             @Valid @RequestBody ChatSendMessageRequest request) {
         return chatFacadeService.sendMessage(jwt, conversationId, request);
+    }
+
+    @GetMapping({"/api/admin/chat/readiness", "/api/v1/admin/chat/readiness"})
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
+    @Operation(summary = "Get admin Chat readiness", description = "Returns support-safe Chat provider mapping and readiness diagnostics for admins/operators.")
+    public ChatReadiness adminReadiness(@AuthenticationPrincipal Jwt jwt) {
+        return chatDomainFacadeService.adminReadiness(jwt);
+    }
+
+    @PostMapping({"/api/admin/chat/migration-preflights", "/api/v1/admin/chat/migration-preflights"})
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
+    @Operation(summary = "Dry-run a future Chat provider replacement", description = "Creates a support-safe, audited dry-run report for Chat provider replacement. Destructive apply is intentionally unavailable in this contract.")
+    public ChatMigrationPreflightReport migrationPreflight(
+            @RequestBody(required = false) ChatMigrationPreflightRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return chatDomainFacadeService.preflight(request, jwt);
     }
 
     @PostMapping("/api/admin/chat/provider-replacements/dry-run")

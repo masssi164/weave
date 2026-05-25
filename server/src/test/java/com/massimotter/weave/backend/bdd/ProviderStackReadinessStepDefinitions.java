@@ -119,7 +119,9 @@ public class ProviderStackReadinessStepDefinitions {
     @Then("the provider registry is visible through {string}")
     public void theProviderRegistryIsVisibleThrough(String route) {
         assertThat(route).isEqualTo("GET /api/providers/status");
-        assertThat(lastJson.path("releaseStatus").asText()).isEqualTo("provider-stack-contract-preview");
+        assertThat(lastJson.path("releaseStatus").asText()).isEqualTo("provider-stack-contract-v1");
+        assertThat(lastJson.path("providerConfigSource").asText()).isEqualTo("admin-control-plane-selected-provider-mappings");
+        assertThat(lastJson.path("adminSelectedMappingsRequired").asBoolean()).isTrue();
         assertThat(lastJson.path("providers")).isNotEmpty();
     }
 

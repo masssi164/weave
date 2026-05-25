@@ -76,7 +76,7 @@ Settings and readiness surfaces should explain configured, disabled, degraded, o
 - `server/` — Spring Boot product API/BFF, provider facades, authorization, audit, support-safe errors, and backend acceptance tests.
 - `infra/` — Docker/OpenTofu operator stack, local and single-host deployment scripts, provider profiles, backup/restore, smoke checks, and support bundles.
 - `e2e/` — product-language Gherkin scenarios, scenario mappings, and sanitized evidence contracts.
-- `docs/` — product architecture, release scope, acceptance flows, roadmap boundaries, and research notes.
+- `docs/` — MkDocs-backed product, user/admin/operator/developer handbooks, architecture, release scope, acceptance flows, roadmap boundaries, release notes, and research notes.
 - `release/` — release manifests and stack compatibility metadata.
 
 ## v0.1 product truth
@@ -142,16 +142,31 @@ For behavior changes:
 4. Keep live-stack E2E sparse and focused on critical end-to-end contracts.
 5. Store only sanitized evidence artifacts. Never include secrets, tokens, cookies, private keys, raw provider errors, or personal data.
 
+## Release evidence
+
+<!-- WEAVE_RELEASE_NOTES:START -->
+- Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
+- Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
+- Release evidence gate: `./gradlew releaseEvidenceCheck`
+<!-- WEAVE_RELEASE_NOTES:END -->
+
 ## Common local gates
 
-Run the smallest meaningful gate for your change:
+Run the smallest meaningful gate for your change. `./gradlew ci` is the canonical cross-stack entry point; `make` targets are temporary compatibility aliases that delegate to Gradle during the transition:
 
 ```bash
 make acceptance-contract
+make docs-check
 make client-ci
 make server-ci
 make infra-static
 make ci
+
+./gradlew doctor
+./gradlew acceptanceContract
+./gradlew docsCheck
+./gradlew serverCi
+./gradlew ci
 ```
 
 Use these defaults:
@@ -160,7 +175,9 @@ Use these defaults:
 - `make client-ci` for Flutter/client changes.
 - `make server-ci` for backend/provider changes.
 - `make infra-static` for infrastructure, operator scripts, and OpenTofu-facing changes.
-- `make ci` when a change crosses product-stack boundaries.
+- `make docs-check` for documentation site, diagrams, or release notes changes.
+- `./gradlew ci` when a change crosses product-stack boundaries.
+- `./gradlew releaseEvidenceCheck` for release notes, README release markers, and release-label evidence changes.
 
 Live-stack E2E is intentionally opt-in. Run it only with explicit runner power/storage budget and sanitized evidence handling.
 

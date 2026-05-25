@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.model.migration.MigrationDryRunRequest;
 import com.massimotter.weave.backend.model.migration.MigrationDryRunResponse;
 import com.massimotter.weave.backend.service.interop.IdempotencyKeyService;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -31,7 +32,7 @@ public class MigrationDryRunService {
                 jobId,
                 "completed",
                 "dry-run",
-                request.sourceProvider().toLowerCase(),
+                normalizeProvider(request.sourceProvider()),
                 new MigrationDryRunResponse.InventorySummary(
                         inventory.workspaces(), inventory.channels(), inventory.users(), inventory.files(), inventory.messages()),
                 new MigrationDryRunResponse.MappingProposal(
@@ -62,7 +63,7 @@ public class MigrationDryRunService {
             String sourceProvider,
             MigrationDryRunRequest.SourceInventory inventory,
             int unmappableUsers) {
-        String provider = sourceProvider == null ? "external-provider" : sourceProvider.toLowerCase();
+        String provider = normalizeProvider(sourceProvider);
         return List.of(
                 new MigrationDryRunResponse.DomainMappingEvidence(
                         "chat",
@@ -95,10 +96,14 @@ public class MigrationDryRunService {
     }
 
     private List<String> requiredScopes(String provider) {
-        return switch (provider == null ? "" : provider.toLowerCase()) {
+        return switch (normalizeProvider(provider)) {
             case "slack" -> List.of("channels:read", "users:read", "files:read");
             case "teams" -> List.of("Channel.ReadBasic.All", "User.Read.All", "Files.Read.All");
             default -> List.of("inventory:read");
         };
+    }
+
+    private String normalizeProvider(String provider) {
+        return provider == null ? "external-provider" : provider.toLowerCase(Locale.ROOT);
     }
 }

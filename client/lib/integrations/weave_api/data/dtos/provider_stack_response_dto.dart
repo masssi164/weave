@@ -6,6 +6,9 @@ class ProviderRegistryResponseDto {
     required this.backendOwnedFacades,
     required this.flutterDirectProviderCallsAllowed,
     required this.supportSafe,
+    required this.providerConfigSource,
+    required this.bootstrapDefaultsAreSuggestionsOnly,
+    required this.adminSelectedMappingsRequired,
     required this.generatedAt,
     required this.categories,
     required this.providers,
@@ -19,6 +22,18 @@ class ProviderRegistryResponseDto {
         json['flutterDirectProviderCallsAllowed'],
       ),
       supportSafe: _bool(json['supportSafe']),
+      providerConfigSource: _string(
+        json['providerConfigSource'],
+        fallback: 'unknown',
+      ),
+      bootstrapDefaultsAreSuggestionsOnly:
+          json.containsKey('bootstrapDefaultsAreSuggestionsOnly')
+          ? _bool(json['bootstrapDefaultsAreSuggestionsOnly'])
+          : true,
+      adminSelectedMappingsRequired:
+          json.containsKey('adminSelectedMappingsRequired')
+          ? _bool(json['adminSelectedMappingsRequired'])
+          : true,
       generatedAt: _dateTime(json['generatedAt']),
       categories: _listOfMaps(
         json['categories'],
@@ -33,6 +48,9 @@ class ProviderRegistryResponseDto {
   final bool backendOwnedFacades;
   final bool flutterDirectProviderCallsAllowed;
   final bool supportSafe;
+  final String providerConfigSource;
+  final bool bootstrapDefaultsAreSuggestionsOnly;
+  final bool adminSelectedMappingsRequired;
   final DateTime? generatedAt;
   final List<ProviderCategoryStatusResponseDto> categories;
   final List<ProviderStatusResponseDto> providers;
@@ -42,6 +60,9 @@ class ProviderRegistryResponseDto {
     backendOwnedFacades: backendOwnedFacades,
     flutterDirectProviderCallsAllowed: flutterDirectProviderCallsAllowed,
     supportSafe: supportSafe,
+    providerConfigSource: providerConfigSource,
+    bootstrapDefaultsAreSuggestionsOnly: bootstrapDefaultsAreSuggestionsOnly,
+    adminSelectedMappingsRequired: adminSelectedMappingsRequired,
     generatedAt: generatedAt,
     categories: categories.map((category) => category.toSnapshot()).toList(),
     providers: providers.map((provider) => provider.toSnapshot()).toList(),
@@ -58,6 +79,11 @@ class ProviderCategoryStatusResponseDto {
     required this.memberImpact,
     required this.modules,
     required this.providerCandidates,
+    required this.selectedProviderKey,
+    required this.choiceModel,
+    required this.selectedByAdmin,
+    required this.bootstrapSuggestionOnly,
+    required this.lossyMappingNotes,
     required this.diagnostics,
   });
 
@@ -80,6 +106,16 @@ class ProviderCategoryStatusResponseDto {
       memberImpact: _safeText(json['memberImpact']),
       modules: _safeStringList(json['modules']),
       providerCandidates: _safeStringList(json['providerCandidates']),
+      selectedProviderKey: _string(
+        json['selectedProviderKey'],
+        fallback: 'awaiting_admin_selection',
+      ),
+      choiceModel: _string(json['choiceModel'], fallback: 'not_selected'),
+      selectedByAdmin: _bool(json['selectedByAdmin']),
+      bootstrapSuggestionOnly: json.containsKey('bootstrapSuggestionOnly')
+          ? _bool(json['bootstrapSuggestionOnly'])
+          : true,
+      lossyMappingNotes: _safeStringList(json['lossyMappingNotes']),
       diagnostics: _safeDiagnostics(json['diagnostics']),
     );
   }
@@ -92,6 +128,11 @@ class ProviderCategoryStatusResponseDto {
   final String memberImpact;
   final List<String> modules;
   final List<String> providerCandidates;
+  final String selectedProviderKey;
+  final String choiceModel;
+  final bool selectedByAdmin;
+  final bool bootstrapSuggestionOnly;
+  final List<String> lossyMappingNotes;
   final Map<String, Object?> diagnostics;
 
   ProviderCategoryStatusSnapshot toSnapshot() => ProviderCategoryStatusSnapshot(
@@ -103,6 +144,11 @@ class ProviderCategoryStatusResponseDto {
     memberImpact: memberImpact,
     modules: modules,
     providerCandidates: providerCandidates,
+    selectedProviderKey: selectedProviderKey,
+    choiceModel: choiceModel,
+    selectedByAdmin: selectedByAdmin,
+    bootstrapSuggestionOnly: bootstrapSuggestionOnly,
+    lossyMappingNotes: lossyMappingNotes,
     diagnostics: diagnostics,
   );
 }

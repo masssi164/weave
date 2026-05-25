@@ -402,6 +402,50 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatProvisioningRetryButton => 'Status erneut prüfen';
 
   @override
+  String get chatProvisioningReadyGuidance =>
+      'Chat ist für diesen Workspace bereit.';
+
+  @override
+  String get chatProvisioningPendingGuidance =>
+      'Chat wird noch vorbereitet. Lass diese Ansicht offen oder versuche es gleich erneut.';
+
+  @override
+  String get chatProvisioningDegradedGuidance =>
+      'Chat ist möglicherweise eingeschränkt verfügbar, aber die Einrichtung braucht einen Admin-Gesundheitscheck.';
+
+  @override
+  String get chatProvisioningUnavailableGuidance =>
+      'Chat ist in diesem Workspace noch nicht verfügbar.';
+
+  @override
+  String get chatProvisioningFailedGuidance =>
+      'Chat konnte für diesen Workspace nicht vorbereitet werden.';
+
+  @override
+  String get chatProvisioningAdminAction =>
+      'Bitte einen Workspace-Admin, support-sichere Diagnosen zu prüfen.';
+
+  @override
+  String get chatErrorCancelledGuidance =>
+      'Die Chat-Anmeldung wurde abgebrochen. Verbinde Chat, um es erneut zu versuchen.';
+
+  @override
+  String get chatErrorAdminGuidance =>
+      'Die Chat-Einrichtung braucht Admin-Aufmerksamkeit. Bitte einen Workspace-Admin, support-sichere Diagnosen zu prüfen.';
+
+  @override
+  String get chatErrorSessionRequiredGuidance =>
+      'Chat ist für diese Workspace-Sitzung nicht verbunden. Verbinde Chat, um fortzufahren.';
+
+  @override
+  String get chatErrorUnsupportedPlatformGuidance =>
+      'Chat ist auf diesem Gerät noch nicht verfügbar.';
+
+  @override
+  String get chatErrorRetryGuidance =>
+      'Chat konnte gerade nicht geladen werden. Versuche es erneut, sobald die Verbindung zurück ist.';
+
+  @override
   String get chatScreenTitle => 'Chat';
 
   @override
@@ -543,14 +587,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Deine aktuellen Räume und der letzte Gesprächsstand werden geladen.';
 
   @override
-  String get chatConnectingLabel => 'Verbinde mit Matrix…';
+  String get chatConnectingLabel => 'Verbinde mit Chat…';
 
   @override
   String get chatConnectingHint =>
-      'Die sichere Matrix-Sitzung wird geöffnet und die erste Raumliste synchronisiert.';
+      'Die sichere Weave-Chat-Sitzung wird geöffnet und die erste Unterhaltungsliste synchronisiert.';
 
   @override
-  String get chatConnectButton => 'Matrix verbinden';
+  String get chatConnectButton => 'Chat verbinden';
 
   @override
   String get chatRefreshingRoomsLabel => 'Chaträume werden aktualisiert';
@@ -560,7 +604,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatStaleRoomsGuidance =>
-      'Matrix konnte gerade nicht aktualisiert werden. Deine Raumliste bleibt erhalten, damit du den Überblick behältst und es erneut versuchen kannst, sobald die Verbindung zurück ist.';
+      'Chat konnte gerade nicht aktualisiert werden. Deine Unterhaltungsliste bleibt erhalten, damit du den Überblick behältst und es erneut versuchen kannst, sobald die Verbindung zurück ist.';
 
   @override
   String get chatStaleRoomsRetryButton => 'Räume aktualisieren';
@@ -1060,7 +1104,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpChatBody =>
-      'Chat ist der tägliche Ort für Räume und Nachrichten. Öffne Chat über die Hauptnavigation, verbinde Matrix, falls Weave danach fragt, und wähle dann einen Raum. Weave zeigt Raum- und Wiederherstellungszustände sichtbar an, damit du erkennst, ob Chat verbunden ist, wartet, beeinträchtigt ist oder Admin-Aufmerksamkeit braucht.';
+      'Chat ist der tägliche Ort für Unterhaltungen und Nachrichten. Öffne Chat über die Hauptnavigation und wähle dann eine Unterhaltung. Weave zeigt Unterhaltungs- und Wiederherstellungszustände sichtbar an, damit du erkennst, ob Chat verbunden ist, wartet, beeinträchtigt ist oder Admin-Aufmerksamkeit braucht.';
 
   @override
   String get helpFilesTitle => 'Dateien';
@@ -1919,6 +1963,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatRoomRetrySendAction => 'Erneut senden';
+
+  @override
+  String get chatRoomLoadFailureMessage =>
+      'Diese Unterhaltung konnte gerade nicht geladen werden.';
+
+  @override
+  String get chatRoomSendFailureMessage =>
+      'Diese Nachricht konnte gerade nicht gesendet werden. Prüfe deine Verbindung und versuche es erneut.';
 
   @override
   String get chatRoomYouLabel => 'Du';

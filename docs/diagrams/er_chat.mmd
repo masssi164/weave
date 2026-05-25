@@ -1,0 +1,85 @@
+erDiagram
+  SPACE ||--o{ CONVERSATION : contains
+  CONVERSATION ||--o{ MESSAGE : has
+  CONVERSATION ||--o{ MEMBERSHIP : grants
+  CONVERSATION ||--o{ PRESENCE : observes
+  USER ||--o{ MEMBERSHIP : joins
+  USER ||--o{ MESSAGE : authors
+  USER ||--o{ REACTION : reacts
+  USER ||--o{ PRESENCE : publishes
+  THREAD ||--o{ MESSAGE : groups
+  MESSAGE ||--o| THREAD : starts
+  MESSAGE ||--o{ REACTION : receives
+  MESSAGE ||--o{ ATTACHMENT : includes
+
+  SPACE {
+    string id PK
+    string organizationId FK
+    string name
+    string description
+    string visibility
+    string createdAt
+  }
+  CONVERSATION {
+    string id PK
+    string spaceId FK
+    string type
+    string title
+    string topic
+    string state
+    string createdAt
+  }
+  MESSAGE {
+    string id PK
+    string conversationId FK
+    string authorUserId FK
+    string threadId FK
+    string parentMessageId FK
+    string plainText
+    string safeHtml
+    string state
+    string sentAt
+    string editedAt
+  }
+  THREAD {
+    string id PK
+    string conversationId FK
+    string rootMessageId FK
+    string replyCount
+    string lastReplyAt
+  }
+  REACTION {
+    string id PK
+    string messageId FK
+    string userId FK
+    string emoji
+    string createdAt
+  }
+  ATTACHMENT {
+    string id PK
+    string messageId FK
+    string fileId FK
+    string name
+    string mimeType
+    string sizeBytes
+  }
+  MEMBERSHIP {
+    string id PK
+    string conversationId FK
+    string userId FK
+    string state
+    string role
+    string joinedAt
+  }
+  PRESENCE {
+    string id PK
+    string conversationId FK
+    string userId FK
+    string state
+    string updatedAt
+  }
+  USER {
+    string id PK
+    string organizationId FK
+    string displayName
+  }

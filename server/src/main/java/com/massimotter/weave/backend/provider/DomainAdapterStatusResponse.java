@@ -24,7 +24,9 @@ public record DomainAdapterStatusResponse(
         candidates = candidates == null ? List.of() : List.copyOf(candidates);
         violations = violations == null ? List.of() : List.copyOf(violations);
         long activeCount = candidates.stream().filter(DomainAdapterCandidateResponse::active).count();
-        if (enabled && activeCount == 1 && (activeAdapter == null || activeAdapter.isBlank())) {
+        if (!enabled || activeCount != 1) {
+            activeAdapter = null;
+        } else if (activeAdapter == null || activeAdapter.isBlank()) {
             activeAdapter = candidates.stream()
                     .filter(DomainAdapterCandidateResponse::active)
                     .findFirst()

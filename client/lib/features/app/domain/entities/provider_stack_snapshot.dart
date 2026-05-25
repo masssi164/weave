@@ -23,6 +23,9 @@ class ProviderStackSnapshot {
     required this.backendOwnedFacades,
     required this.flutterDirectProviderCallsAllowed,
     required this.supportSafe,
+    this.providerConfigSource = 'unknown',
+    this.bootstrapDefaultsAreSuggestionsOnly = true,
+    this.adminSelectedMappingsRequired = true,
     required this.providers,
     this.categories = const <ProviderCategoryStatusSnapshot>[],
     this.generatedAt,
@@ -32,6 +35,9 @@ class ProviderStackSnapshot {
   final bool backendOwnedFacades;
   final bool flutterDirectProviderCallsAllowed;
   final bool supportSafe;
+  final String providerConfigSource;
+  final bool bootstrapDefaultsAreSuggestionsOnly;
+  final bool adminSelectedMappingsRequired;
   final DateTime? generatedAt;
   final List<ProviderCategoryStatusSnapshot> categories;
   final List<ProviderStatusSnapshot> providers;
@@ -58,6 +64,11 @@ class ProviderCategoryStatusSnapshot {
     required this.memberImpact,
     required this.modules,
     required this.providerCandidates,
+    this.selectedProviderKey = 'awaiting_admin_selection',
+    this.choiceModel = 'not_selected',
+    this.selectedByAdmin = false,
+    this.bootstrapSuggestionOnly = true,
+    this.lossyMappingNotes = const <String>[],
     required this.diagnostics,
   });
 
@@ -69,6 +80,11 @@ class ProviderCategoryStatusSnapshot {
   final String memberImpact;
   final List<String> modules;
   final List<String> providerCandidates;
+  final String selectedProviderKey;
+  final String choiceModel;
+  final bool selectedByAdmin;
+  final bool bootstrapSuggestionOnly;
+  final List<String> lossyMappingNotes;
   final Map<String, Object?> diagnostics;
 
   bool get supportSafe =>

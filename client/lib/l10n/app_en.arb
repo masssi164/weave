@@ -395,6 +395,50 @@
   "chatProvisioningDegradedTitle": "Chat is available with degraded setup",
   "chatProvisioningActionNeededTitle": "Chat setup needs admin attention",
   "chatProvisioningRetryButton": "Retry status",
+  "chatProvisioningReadyGuidance": "Chat is ready for this workspace.",
+  "@chatProvisioningReadyGuidance": {
+    "description": "Provider-neutral guidance for a ready chat provisioning notice"
+  },
+  "chatProvisioningPendingGuidance": "Chat is still being prepared. Keep this screen open or retry shortly.",
+  "@chatProvisioningPendingGuidance": {
+    "description": "Provider-neutral guidance for a pending chat provisioning notice"
+  },
+  "chatProvisioningDegradedGuidance": "Chat may be partially available, but setup needs an admin health check.",
+  "@chatProvisioningDegradedGuidance": {
+    "description": "Provider-neutral guidance for a degraded chat provisioning notice"
+  },
+  "chatProvisioningUnavailableGuidance": "Chat is not available in this workspace yet.",
+  "@chatProvisioningUnavailableGuidance": {
+    "description": "Provider-neutral guidance when chat provisioning is not configured"
+  },
+  "chatProvisioningFailedGuidance": "Chat could not be prepared for this workspace.",
+  "@chatProvisioningFailedGuidance": {
+    "description": "Provider-neutral guidance when chat provisioning failed"
+  },
+  "chatProvisioningAdminAction": "Ask a workspace admin to inspect support-safe diagnostics.",
+  "@chatProvisioningAdminAction": {
+    "description": "Provider-neutral action for member-visible chat provisioning issues"
+  },
+  "chatErrorCancelledGuidance": "Chat sign-in was cancelled. Connect chat to try again.",
+  "@chatErrorCancelledGuidance": {
+    "description": "Provider-neutral guidance after chat sign-in cancellation"
+  },
+  "chatErrorAdminGuidance": "Chat setup needs admin attention. Ask a workspace admin to inspect support-safe diagnostics.",
+  "@chatErrorAdminGuidance": {
+    "description": "Provider-neutral guidance when chat setup or configuration is not member-actionable"
+  },
+  "chatErrorSessionRequiredGuidance": "Chat is not connected for this workspace session. Connect chat to continue.",
+  "@chatErrorSessionRequiredGuidance": {
+    "description": "Provider-neutral guidance when a chat session is required"
+  },
+  "chatErrorUnsupportedPlatformGuidance": "Chat is not available on this device yet.",
+  "@chatErrorUnsupportedPlatformGuidance": {
+    "description": "Provider-neutral guidance when chat cannot run on the current platform"
+  },
+  "chatErrorRetryGuidance": "Chat could not load right now. Retry when the connection is back.",
+  "@chatErrorRetryGuidance": {
+    "description": "Provider-neutral guidance for retryable chat load failures"
+  },
   "chatScreenTitle": "Chat",
   "@chatScreenTitle": {
     "description": "Title for the chat screen app bar"
@@ -551,15 +595,15 @@
   "@chatLoadingHint": {
     "description": "Supporting copy shown while the chat conversation list is loading"
   },
-  "chatConnectingLabel": "Connecting to Matrix…",
+  "chatConnectingLabel": "Connecting to chat…",
   "@chatConnectingLabel": {
     "description": "Message shown while Matrix OAuth sign-in is in progress"
   },
-  "chatConnectingHint": "We are opening your secure Matrix session and syncing the first room list.",
+  "chatConnectingHint": "We are opening your secure Weave chat session and syncing the first conversation list.",
   "@chatConnectingHint": {
     "description": "Supporting copy shown while Matrix sign-in is connecting"
   },
-  "chatConnectButton": "Connect Matrix",
+  "chatConnectButton": "Connect chat",
   "@chatConnectButton": {
     "description": "Button label to start or retry Matrix sign-in"
   },
@@ -571,7 +615,7 @@
   "@chatStaleRoomsTitle": {
     "description": "Title for a chat notice shown when refresh failed but cached conversations remain visible"
   },
-  "chatStaleRoomsGuidance": "We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.",
+  "chatStaleRoomsGuidance": "Chat could not refresh just now. Your conversation list is preserved so you can keep your place and retry when the connection is back.",
   "@chatStaleRoomsGuidance": {
     "description": "Guidance for a chat notice shown when refresh failed but cached conversations remain visible"
   },
@@ -1231,7 +1275,7 @@
   "@helpChatTitle": {
     "description": "Help section title for chat"
   },
-  "helpChatBody": "Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.",
+  "helpChatBody": "Chat is the daily place for conversations and messages. Open Chat from the main navigation, then choose a conversation. Weave keeps conversation and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.",
   "@helpChatBody": {
     "description": "Help copy for chat basics"
   },
@@ -2233,6 +2277,14 @@
     "description": "Button label shown while a room message is sending"
   },
   "chatRoomRetrySendAction": "Retry send",
+  "chatRoomLoadFailureMessage": "Unable to load this conversation right now.",
+  "@chatRoomLoadFailureMessage": {
+    "description": "Provider-neutral message when a chat conversation timeline cannot be loaded"
+  },
+  "chatRoomSendFailureMessage": "That message could not be sent right now. Check your connection and try again.",
+  "@chatRoomSendFailureMessage": {
+    "description": "Provider-neutral message when a chat message send fails"
+  },
   "@chatRoomRetrySendAction": {
     "description": "Action label for retrying a failed room message send"
   },

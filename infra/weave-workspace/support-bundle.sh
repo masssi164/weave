@@ -30,6 +30,7 @@ readonly PUBLIC_ENV_KEYS=(
   TF_VAR_public_scheme
   TF_VAR_auth_subdomain
   TF_VAR_api_subdomain
+  TF_VAR_admin_subdomain
   TF_VAR_matrix_subdomain
   TF_VAR_nextcloud_subdomain
   TF_VAR_proxy_host_port
@@ -64,6 +65,10 @@ readonly PUBLIC_ENV_KEYS=(
   WEAVE_API_BASE_URL
   WEAVE_BASE_URL
   WEAVE_AUTH_BASE_URL
+  WEAVE_ADMIN_CONSOLE_URL
+  WEAVE_ADMIN_CONSOLE_OIDC_CLIENT_ID
+  WEAVE_ORG_MANIFEST_URL
+  WEAVE_PROVIDER_PROFILE
   WEAVE_OIDC_ISSUER_URL
   WEAVE_OIDC_CLIENT_ID
   WEAVE_NEXTCLOUD_BASE_URL

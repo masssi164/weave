@@ -37,7 +37,7 @@ public class DisabledOfficeProvider implements OfficeProvider {
             Set.of("launch-session", "credential-bearing-url", "document-server-token-exposure", "raw-provider-errors"),
             List.of("office-provider-not-configured", "office-provider-unavailable", "office-unsupported-mode"),
             "support-safe: no document-server JWTs, signed URLs, app passwords, bearer tokens, callbacks secrets, or raw provider errors",
-            List.of("onlyoffice-community", "collabora-code"),
+            List.of("onlyoffice-community", "collabora-code", "microsoft-365-office-graph", "wopi-host"),
             Map.of(
                     "defaultProvider", "onlyoffice-community",
                     "nonDefaultProvider", "collabora-code",

@@ -1,0 +1,90 @@
+erDiagram
+  DRIVE ||--o{ NODE : owns
+  NODE ||--o{ NODE : parent_of
+  NODE ||--|| FOLDER : can_be
+  NODE ||--|| FILE : can_be
+  FILE ||--o{ VERSION : versions
+  NODE ||--o{ SHARE : shared_by
+  SHARE ||--o{ PERMISSION : grants
+  NODE ||--o{ LOCK : locks
+  FILE ||--o{ EDIT_SESSION : edits
+  USER ||--o{ SHARE : creates
+  USER ||--o{ LOCK : holds
+  USER ||--o{ EDIT_SESSION : starts
+
+  DRIVE {
+    string id PK
+    string organizationId FK
+    string name
+    string capabilityState
+    string rootNodeId FK
+  }
+  NODE {
+    string id PK
+    string driveId FK
+    string parentNodeId FK
+    string kind
+    string name
+    string path
+    string etag
+    string ctag
+    string createdByUserId FK
+    string modifiedAt
+  }
+  FOLDER {
+    string nodeId PK
+    string childCount
+  }
+  FILE {
+    string nodeId PK
+    string mimeType
+    string sizeBytes
+    string checksum
+    string currentVersionId FK
+  }
+  VERSION {
+    string id PK
+    string fileNodeId FK
+    string label
+    string createdByUserId FK
+    string createdAt
+    string sizeBytes
+    string checksum
+  }
+  SHARE {
+    string id PK
+    string nodeId FK
+    string createdByUserId FK
+    string targetType
+    string targetId
+    string expiresAt
+    string state
+  }
+  PERMISSION {
+    string id PK
+    string shareId FK
+    string action
+    string effect
+  }
+  LOCK {
+    string id PK
+    string nodeId FK
+    string ownerUserId FK
+    string mode
+    string tokenRef
+    string expiresAt
+  }
+  EDIT_SESSION {
+    string id PK
+    string fileNodeId FK
+    string userId FK
+    string editorKind
+    string wopiTokenRef
+    string launchUrlRef
+    string expiresAt
+  }
+  USER {
+    string id PK
+    string organizationId FK
+    string displayName
+  }

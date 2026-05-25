@@ -71,7 +71,8 @@ final class DomainAdapterRegistryMapper {
                 adapterKey,
                 choiceModel,
                 active,
-                active && category.readiness() != ProviderCategoryReadiness.DISABLED,
+                active && (category.readiness() == ProviderCategoryReadiness.READY
+                        || category.readiness() == ProviderCategoryReadiness.DEGRADED),
                 active ? category.readiness() : ProviderCategoryReadiness.DISABLED,
                 List.of("dry-run", "support-safe-evidence", "admin-review-required"),
                 choiceModel.equals("recommended_self_hosted_default")

@@ -1,7 +1,28 @@
 package com.massimotter.weave.backend.controller;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.chat.ChatDomainFacadeService;
+import com.massimotter.weave.backend.chat.domain.ChatHistoryPolicy;
+import com.massimotter.weave.backend.chat.domain.ChatMemberState;
+import com.massimotter.weave.backend.chat.domain.ChatMigrationPreflightReport;
+import com.massimotter.weave.backend.chat.domain.ChatReadiness;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
@@ -16,6 +37,9 @@ import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.ChatFacadeService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
@@ -29,20 +53,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-
-import static org.hamcrest.Matchers.everyItem;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.containsString;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(
         controllers = ChatController.class,
@@ -84,6 +94,61 @@ class ChatControllerTest {
     @MockBean
     private AuditEventPublisher auditEventPublisher;
 
+    @MockBean
+    private ChatDomainFacadeService chatDomainFacadeService;
+
+    @Test
+    void memberReadinessExposesOnlyStableProductState() throws Exception {
+        when(chatDomainFacadeService.memberReadiness(any())).thenReturn(memberReadiness());
+
+        mockMvc.perform(get("/api/chat/readiness").with(memberJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contractVersion").value("chat-domain-facade-v1"))
+                .andExpect(jsonPath("$.domain").value("chat"))
+                .andExpect(jsonPath("$.memberState").value("misconfigured"))
+                .andExpect(jsonPath("$.memberClientMayConfigureProvider").value(false))
+                .andExpect(jsonPath("$.providerMapping").doesNotExist())
+                .andExpect(content().string(not(containsString("secretref://"))))
+                .andExpect(content().string(not(containsString("access_token"))))
+                .andExpect(content().string(not(containsString("xoxb-"))));
+    }
+
+    @Test
+    void adminChatReadinessRejectsNormalMembers() throws Exception {
+        mockMvc.perform(get("/api/admin/chat/readiness").with(memberJwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminMigrationPreflightReturnsAuditedDryRunReport() throws Exception {
+        when(chatDomainFacadeService.preflight(any(), any())).thenReturn(new ChatMigrationPreflightReport(
+                "chat-preflight-1",
+                "dry-run",
+                "slack",
+                "microsoft-teams",
+                ChatMemberState.DEGRADED,
+                false,
+                true,
+                "audit-1",
+                Map.of("conversations", 3),
+                List.of("membership_identity_mapping"),
+                List.of("provider-specific reactions need Weave annotations"),
+                List.of("destructive_apply_not_available_in_chat_domain_facade_v1"),
+                List.of("Dry-run only: no provider data is mutated."),
+                Instant.parse("2026-05-25T08:00:00Z")));
+
+        mockMvc.perform(post("/api/admin/chat/migration-preflights")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetProviderKey\":\"microsoft-teams\",\"dryRun\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mode").value("dry-run"))
+                .andExpect(jsonPath("$.destructiveApplyAvailable").value(false))
+                .andExpect(jsonPath("$.auditEventPublished").value(true))
+                .andExpect(content().string(not(containsString("access_token"))))
+                .andExpect(content().string(not(containsString("secretref://"))));
+    }
+
     @Test
     void chatConversationsRequireAuthenticatedWorkspaceScope() throws Exception {
         mockMvc.perform(get("/api/chat/conversations"))
@@ -115,6 +180,25 @@ class ChatControllerTest {
     }
 
     @Test
+    void chatMessagesComputeIsMineServerSideFromAuthenticatedPrincipal() throws Exception {
+        allowChatPermission(ContextPermission.EDIT);
+        mockMvc.perform(post("/api/chat/conversations/channel-general/messages")
+                        .with(workspaceJwt("member"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"Release notes draft is ready.\",\"attachmentRefs\":[\"weave-file:release-notes\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.senderRef").value("user:test"))
+                .andExpect(jsonPath("$.isMine").value(true));
+
+        allowChatPermission(ContextPermission.VIEW);
+        mockMvc.perform(get("/api/chat/conversations/channel-general/messages")
+                        .with(workspaceJwt("member")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messages[?(@.id == 'msg-seed-welcome')].isMine").value(false))
+                .andExpect(jsonPath("$.messages[?(@.text == 'Release notes draft is ready.')].isMine").value(true));
+    }
+
+    @Test
     void chatReadIsDeniedByCapabilityPolicyBeforeContextOrProviderAccess() throws Exception {
         mockMvc.perform(get("/api/chat/conversations")
                         .with(workspaceJwt("guest")))
@@ -139,6 +223,7 @@ class ChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.conversationId").value("channel-general"))
                 .andExpect(jsonPath("$.senderRef").value("user:test"))
+                .andExpect(jsonPath("$.isMine").value(true))
                 .andExpect(jsonPath("$.text").value("Release notes draft is ready."))
                 .andExpect(jsonPath("$.attachmentRefs[0]").value("weave-file:release-notes"))
                 .andExpect(jsonPath("$.encryptedProviderContentRedacted").value(false))
@@ -205,6 +290,28 @@ class ChatControllerTest {
                         && Boolean.TRUE.equals(event.payload().get("supportSafe"))));
     }
 
+    private ChatReadiness memberReadiness() {
+        return new ChatReadiness(
+                "chat-domain-facade-v1",
+                "chat",
+                ChatMemberState.MISCONFIGURED,
+                "Chat is not ready for members in this workspace. Ask an admin to review Workspace Health.",
+                true,
+                true,
+                false,
+                false,
+                false,
+                null,
+                new ChatHistoryPolicy(
+                        "conversation_members",
+                        "organization_default_retention",
+                        false,
+                        true,
+                        List.of()),
+                Map.of("domain", "chat", "state", "misconfigured", "diagnosticsExposed", false),
+                Instant.parse("2026-05-25T08:00:00Z"));
+    }
+
     private void allowChatPermission(ContextPermission permission) {
         when(contextAuthorizationPort.check(argThat(request ->
                 request != null
@@ -220,8 +327,20 @@ class ChatControllerTest {
                         .subject("user-123")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
-                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of(role)))
-                        .claim("aud", java.util.List.of("weave-app")))
+                        .claim("realm_access", Map.of("roles", List.of(role)))
+                        .claim("aud", List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {
+        return jwt()
+                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"), new SimpleGrantedAuthority("ROLE_MEMBER"))
+                .jwt(jwt -> jwt.subject("member-123"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
+        return jwt()
+                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"), new SimpleGrantedAuthority("ROLE_ADMIN"))
+                .jwt(jwt -> jwt.subject("admin-123"));
     }
 }

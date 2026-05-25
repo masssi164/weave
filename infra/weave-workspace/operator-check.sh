@@ -550,6 +550,9 @@ assert_authenticated_backend_facades_accept_test_user() {
   ! grep -Eiq 'Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/' <<<"${provider_status}" || \
     fail "Operator check failed: provider registry leaked provider credentials or raw upstream paths"
 
+  admin_control_plane_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/admin/control-plane" || true)"
+  [[ "${admin_control_plane_status}" == "403" ]] || fail "Operator check failed: member token should receive 403 from admin control plane, got HTTP ${admin_control_plane_status}"
+
   files_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/files" || true)"
   [[ "${files_status}" == 2* ]] || fail "Operator check failed: authenticated files facade rejected the test-user app token with HTTP ${files_status}"
 }

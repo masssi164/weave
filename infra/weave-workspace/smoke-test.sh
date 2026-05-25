@@ -469,6 +469,10 @@ assert_json "${provider_status}" '[.providers[] | select(.module == "office" or 
 ! grep -Eiq 'Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/' <<<"${provider_status}" || \
   fail "Smoke check failed: provider registry leaked provider credentials or raw upstream paths"
 
+log "Checking admin API protection with a member token..."
+admin_control_plane_status="$(curl_auth_status "${access_token}" "${WEAVE_BASE_URL}/admin/control-plane" || true)"
+[[ "${admin_control_plane_status}" == "403" ]] || fail "Smoke check failed: member token should receive 403 from admin control plane, got ${admin_control_plane_status}"
+
 log "Checking backend files/calendar facade actor wiring..."
 assert_backend_nextcloud_actor_config
 probe_authenticated_facade "Files" "${access_token}" "${WEAVE_BASE_URL}/files"

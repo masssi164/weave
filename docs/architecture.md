@@ -7,7 +7,9 @@ Weave is product-first and provider-neutral. It models organization capabilities
 
 ## Provider-neutral capability contracts
 
-Workspace/Admin Health is organized around feature capability categories, not concrete systems. The stable contract categories are identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, manuals/help, release evidence, and Weaver runtime. Each category publishes category-level capability keys, current dogfood/default adapters, external adapter placeholders, operational readiness modules, and the stable member impact states `usable`, `disabled`, `degraded`, and `policy-blocked`.
+Canonical feature models come before control-plane, Admin Console, infra, or concrete adapter implementation. The active canonical model strategy is documented in [Canonical feature models and provider facades](canonical-feature-models.md), with Mermaid domain diagrams in [`docs/diagrams/`](diagrams/index.md). Server facades expose Weave-owned models per capability; they are not thin provider proxies and must not leak provider IDs, raw provider payloads, secrets, or downstream diagnostics into member or Admin Console product contracts.
+
+Workspace/Admin Health is organized around feature capability categories, not concrete systems. The stable contract categories are identity/IDM, chat, files, office/docs collaboration, meetings/calls, boards/tasks, calendar, decisions/evidence, manuals/help, release evidence, admin control plane, and Weaver runtime. Each category publishes category-level capability keys, current dogfood/default adapters, external adapter placeholders, operational readiness modules, and the stable member impact states `usable`, `disabled`, `degraded`, and `policy-blocked`.
 
 The dogfood stack maps Keycloak, Matrix/Synapse, Nextcloud, OpenProject, ONLYOFFICE, and LiveKit as default adapters only. External adapters such as Entra ID, Microsoft Teams, SharePoint/OneDrive, Microsoft 365 Office/Graph, Planner/Jira, Authentik/Auth0/OIDC/SAML, and other providers attach behind the same category contracts. Normal members never configure raw provider endpoints, secrets, OIDC clients, or diagnostics; admins/operators choose adapters and see support-safe readiness through backend-owned facades.
 
@@ -83,6 +85,10 @@ Shell destinations:
 - **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
 
 The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest empty states for favorites and AI chats until backend/product metadata is ready. Channel detail treats a channel as a workspace container, but normal member copy may only show ready product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
+
+The server now owns a Chat domain facade seam. Member routes under `/api/chat/*` return Weave-domain readiness/conversation/message contracts and fail closed for missing, unsupported, degraded, blocked, or unconfigured Chat mappings. Admin/operator routes under `/api/admin/chat/*` may show support-safe selected mapping, redacted readiness diagnostics, and migration dry-run/preflight reports; destructive migration apply is intentionally out of scope.
+
+The remaining canonical server domain facades are represented by non-Chat skeleton contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. They are Weave product contracts, not provider proxies: each names canonical object kinds and adapter-boundary operations, evaluates capability policy before provider lookup, fails closed for unknown capabilities, returns empty Weave-domain collections until a promoted adapter exists, and exposes only support-safe admin mappings with SecretRef presence flags rather than secret material, raw provider URLs, downstream payloads, or provider errors.
 
 ## Shared server configuration
 `features/server_config/` owns the shared configuration model used by both onboarding and settings.

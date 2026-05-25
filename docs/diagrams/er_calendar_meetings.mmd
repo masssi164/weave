@@ -1,0 +1,104 @@
+erDiagram
+  CALENDAR ||--o{ EVENT : contains
+  EVENT ||--o{ ATTENDEE : invites
+  EVENT ||--o| RECURRENCE : repeats
+  EVENT ||--o{ RESOURCE : reserves
+  EVENT ||--o| MEETING : links
+  USER ||--o{ ATTENDEE : attends
+  USER ||--o{ AVAILABILITY : publishes
+  MEETING ||--o{ PARTICIPANT : has
+  MEETING ||--o{ RECORDING : produces
+  RECORDING ||--o{ CAPTIONS : captions
+  ATTENDEE ||--o| PARTICIPANT : may_join_as
+
+  CALENDAR {
+    string id PK
+    string organizationId FK
+    string name
+    string scopeType
+    string state
+  }
+  EVENT {
+    string id PK
+    string calendarId FK
+    string title
+    string description
+    string startAt
+    string endAt
+    string timezone
+    string allDay
+    string visibility
+    string showAs
+    string status
+  }
+  ATTENDEE {
+    string id PK
+    string eventId FK
+    string userId FK
+    string email
+    string role
+    string responseStatus
+  }
+  RECURRENCE {
+    string id PK
+    string eventId FK
+    string rrule
+    string timezone
+    string exceptionsRef
+  }
+  AVAILABILITY {
+    string id PK
+    string userId FK
+    string startAt
+    string endAt
+    string status
+    string source
+  }
+  RESOURCE {
+    string id PK
+    string eventId FK
+    string type
+    string name
+    string location
+    string responseStatus
+  }
+  MEETING {
+    string id PK
+    string eventId FK
+    string joinUrlRef
+    string state
+    string startsAt
+    string endsAt
+  }
+  PARTICIPANT {
+    string id PK
+    string meetingId FK
+    string attendeeId FK
+    string userId FK
+    string state
+    string kind
+    string canPublish
+    string joinedAt
+    string leftAt
+  }
+  RECORDING {
+    string id PK
+    string meetingId FK
+    string type
+    string state
+    string storageNodeId FK
+    string startedAt
+    string endedAt
+  }
+  CAPTIONS {
+    string id PK
+    string recordingId FK
+    string language
+    string format
+    string storageNodeId FK
+  }
+  USER {
+    string id PK
+    string organizationId FK
+    string displayName
+  }

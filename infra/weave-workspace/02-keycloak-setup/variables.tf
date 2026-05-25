@@ -39,6 +39,12 @@ variable "api_subdomain" {
   default     = "api"
 }
 
+variable "admin_subdomain" {
+  description = "Subdomain used for the separate Organization/Admin Console deploy target."
+  type        = string
+  default     = "admin"
+}
+
 variable "public_scheme" {
   description = "Public URL scheme used by browser-facing services."
   type        = string

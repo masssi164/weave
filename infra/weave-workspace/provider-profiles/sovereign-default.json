@@ -1,0 +1,74 @@
+{
+  "profileVersion": "provider-profile-v1",
+  "profileKey": "sovereign-default",
+  "choiceModel": "recommended_self_hosted_default",
+  "description": "Recommended self-hosted Weave dev/demo/default organization profile. This is the default bootstrap posture, not the only supported product shape.",
+  "adminConsoleDeployTarget": {
+    "app": "organization-admin-console",
+    "route": "https://admin.weave.local",
+    "backendApi": "https://api.weave.local/api",
+    "oidcIssuer": "https://auth.weave.local/realms/weave",
+    "oidcClientId": "weave-admin-console"
+  },
+  "serverControlPlane": {
+    "organizationId": "weave-dogfood",
+    "manifestRoute": "/api/organization/manifest",
+    "adminControlPlaneRoute": "/api/admin/control-plane",
+    "providerRegistryRoute": "/api/providers/status",
+    "capabilityWhitelistRoute": "/api/admin/policies/capability-whitelist",
+    "auditRoute": "/api/admin/audit/events",
+    "secretRefPrefix": "secretref://weave/provider/"
+  },
+  "categories": {
+    "identity-idm": {
+      "selectedAdapter": "keycloak-realm",
+      "providerKey": "keycloak-realm",
+      "readinessSource": "02-keycloak-setup",
+      "secretRefs": ["secretref://weave/provider/keycloak-realm/client-secret"],
+      "externalAlternatives": ["entra-id", "authentik", "auth0", "generic-oidc", "generic-saml"]
+    },
+    "chat": {
+      "selectedAdapter": "synapse-homeserver",
+      "providerKey": "synapse-homeserver",
+      "secretRefs": ["secretref://weave/provider/synapse-homeserver/signing-key"],
+      "externalAlternatives": ["microsoft-teams", "slack", "nextcloud-talk"]
+    },
+    "files": {
+      "selectedAdapter": "nextcloud-files",
+      "providerKey": "nextcloud-files",
+      "secretRefs": ["secretref://weave/provider/nextcloud-files/backend-token"],
+      "externalAlternatives": ["sharepoint", "onedrive", "s3-compatible", "smb"]
+    },
+    "calendar": {
+      "selectedAdapter": "nextcloud-caldav",
+      "providerKey": "nextcloud-caldav",
+      "secretRefs": ["secretref://weave/provider/nextcloud-caldav/backend-token"],
+      "externalAlternatives": ["microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav"]
+    },
+    "boards-tasks": {
+      "selectedAdapter": "openproject-primary",
+      "providerKey": "openproject-primary",
+      "secretRefs": ["secretref://weave/provider/openproject-primary/api-token"],
+      "externalAlternatives": ["microsoft-planner", "jira", "nextcloud-deck", "vikunja"]
+    },
+    "meetings-calls": {
+      "selectedAdapter": "livekit",
+      "providerKey": "livekit",
+      "secretRefs": ["secretref://weave/provider/livekit/api-key", "secretref://weave/provider/livekit/api-secret"],
+      "externalAlternatives": ["microsoft-teams-meetings", "zoom", "google-meet", "jitsi"]
+    },
+    "documents-collaboration": {
+      "selectedAdapter": "onlyoffice-community",
+      "providerKey": "onlyoffice-community",
+      "secretRefs": ["secretref://weave/provider/onlyoffice-community/jwt-secret"],
+      "externalAlternatives": ["microsoft-365-office-graph", "collabora-code", "google-workspace-docs"]
+    },
+    "weaver": {
+      "selectedAdapter": "weaver-runtime-disabled",
+      "providerKey": "weaver-runtime-disabled",
+      "enabledByDefault": false,
+      "secretRefs": [],
+      "externalAlternatives": ["openclaw-governed-runtime"]
+    }
+  }
+}

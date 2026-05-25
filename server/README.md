@@ -35,8 +35,9 @@ Currently implemented or contract-backed surfaces:
 - `GET /api/profile`, `PATCH /api/profile`, and `GET /api/profile/sync-status`.
 - `GET /api/onboarding/status`.
 - `GET /api/workspace/capabilities` and `GET /api/workspace/release-readiness`.
-- Chat domain facade at `/api/chat/**` for canonical conversations, messages, membership, history-policy, attachment-policy, support-safe readiness, and audited sends gated by `chat.read`, `chat.send`, and Context/Space authorization.
+- Chat domain facade at `/api/chat/**`, `/api/v1/chat/**`, and `/api/admin/chat/**`: member APIs expose canonical Weave conversations/messages/readiness, membership, history-policy, attachment-policy, fail-closed state, and audited sends gated by `chat.read`, `chat.send`, and Context/Space authorization; admin APIs expose selected Chat mapping, support-safe readiness, and audited migration dry-run/preflight reports.
 - Admin/operator Chat provider replacement dry-run at `/api/admin/chat/provider-replacements/dry-run` with lossy-mapping warnings, conflict evidence, and redacted provider diagnostics.
+- Canonical non-Chat domain facade contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. These server-side seams evaluate Weave capability policy before provider lookup, fail closed for unknown capabilities, expose SecretRef-only admin mappings, and return empty Weave-domain skeleton collections until concrete adapters are promoted.
 - Files facade backed by Nextcloud when a backend actor is configured; otherwise fail-closed.
 - Calendar facade for workspace/team/channel collections; unsafe private-personal calendar templates fail closed.
 - Secret-free calendar client setup metadata at `GET /api/calendar/client-setup`.
@@ -53,6 +54,7 @@ The provider stack is backend-owned by design:
 - Missing credentials produce unavailable/degraded readiness instead of insecure fallback behavior.
 - Optional providers default off or not configured.
 - Diagnostics must not expose raw provider URLs, response bodies, bearer tokens, API tokens, cookies, app passwords, or signing secrets.
+- Chat and canonical non-Chat domain responses use stable product states (`ready`, `disabled`, `degraded`, `policy_blocked`, `unavailable`, `misconfigured`, `unsupported`) and never ask members to configure raw providers, endpoints, credentials, downstream payloads, or migration diagnostics.
 - DevOps provider modules expose no linked projects, repositories, issues, merge requests, pipelines, or releases while disabled.
 - Documents/collaboration launch paths refuse unsafe states with stable error codes instead of leaking downstream details, and are lower priority than the shared domain-facade/provider-swap foundation.
 - Matrix/MAS status stays support-safe: Matrix client protocol remains the direct-client exception, encrypted message bodies are not server-readable, and video-call/meeting support is deferred/fail-closed.
