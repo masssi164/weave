@@ -28,7 +28,7 @@ registerCommandTask('clientCi', file('client'), ['make', 'offline-contract-test'
 registerCommandTask('serverCi', file('server'), ['./gradlew', 'test'], 'Run server checks through the existing server Gradle build.')
 registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
 registerRootCommandTask('infraStatic', ['bash', '-lc', "find infra/weave-workspace/tests -maxdepth 1 -type f -name '*-test.sh' -print0 | sort -z | xargs -0 -n1 bash"], 'Run static infrastructure script checks.')
-registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs build --strict'], 'Build the MkDocs site with strict validation.')
+registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; rm -rf build/docs/user build/docs/admin; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/user; "$PYTHON" -m mkdocs build --strict --site-dir build/docs/admin'], 'Build deterministic user and admin MkDocs outputs with strict validation.')
 registerRootCommandTask('docsStructureCheck', ['python3', 'tools/docs_check.py'], 'Run lightweight documentation structure checks.')
 registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
 registerRootCommandTask('releaseNotesLabelCheck', ['python3', 'tools/release_notes_label_check.py'], 'Validate the current PR release-notes label set from PR_LABELS_JSON.')
@@ -150,7 +150,7 @@ void writeCiSummary(Throwable buildFailure) {
 List<String> artifactPathsForGate(String gateName) {
     switch (gateName) {
         case 'docsCheck':
-            return ['build/docs-site']
+            return ['build/docs/user', 'build/docs/admin']
         case 'releaseEvidenceCheck':
             return ['tools/fixtures/release_notes_unreleased.expected.md']
         default:

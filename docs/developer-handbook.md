@@ -52,7 +52,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. Make target
 | `serverCi` | Existing server Gradle test path. |
 | `adminCi` | Admin console npm CI path. |
 | `infraStatic` | Infrastructure script/static checks. |
-| `docsBuild` | Strict MkDocs build. |
+| `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
 | `releaseEvidenceCheck` | Release notes structure, label behavior, and generator fixture checks. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
