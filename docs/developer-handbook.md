@@ -42,21 +42,23 @@ The app accepts local development service URLs such as `https://api.weave.local/
 
 ## Root Gradle orchestration
 
-The root `./gradlew` is a monorepo task runner, not a rewrite of the subproject build systems. It delegates to the existing Makefile targets and preserves current CI behavior while giving one discoverable command surface:
+The root `./gradlew` is the monorepo build/delivery source of truth. Make targets are temporary compatibility aliases that delegate to Gradle during the transition; do not add new root Make-only build logic.
 
-| Gradle task | Delegates to | Purpose |
-| --- | --- | --- |
-| `acceptanceContract` | `make acceptance-contract` | Gherkin mapping and acceptance contract guard. |
-| `clientCi` | `make client-ci` | Flutter offline contract path. |
-| `serverCi` | `make server-ci` | Existing server Gradle test path. |
-| `adminCi` | `make admin-ci` | Admin console npm CI path. |
-| `infraStatic` | `make infra-static` | Infrastructure script/static checks. |
-| `docsBuild` | `make docs-build` | Strict MkDocs build. |
-| `docsCheck` | `make docs-check` | Docs structure check plus strict MkDocs build. |
-| `releaseNotesCheck` | `make release-notes-check` | Release notes structure, label behavior, and generator fixture checks. |
-| `ci` | aggregate | Runs the delegated monorepo gate set. |
+| Gradle task | Purpose |
+| --- | --- |
+| `doctor` | Checks required tools and pinned dependency files with actionable failures. |
+| `acceptanceContract` | Gherkin mapping and acceptance contract guard. |
+| `clientCi` | Flutter generated-code, format, analysis, tests, screenshot drift, and offline contract path. |
+| `serverCi` | Existing server Gradle test path. |
+| `adminCi` | Admin console npm CI path. |
+| `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
+| `docsBuild` | Strict MkDocs build. |
+| `docsCheck` | Docs structure check plus strict MkDocs build. |
+| `releaseEvidenceCheck` | Release notes structure, label behavior, and generator fixture checks. |
+| `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
+| `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
-Each task requires the same tools and dependency setup as its delegated Make target; for example docs tasks need `python3 -m pip install -r docs/requirements.txt`, server checks need Java, client checks need Flutter, and admin checks need npm dependencies.
+Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need `python3 -m pip install -r docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies.
 
 ## Everyday Flutter workflow
 
