@@ -12,6 +12,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | Deterministic screenshots | README and roadmap SVG assets match the checked-in generator and do not drift silently. | `make marketing-screenshots`, `docs/assets/marketing/`, `docs/assets/roadmap/`, CI screenshot drift step. |
 | Acceptance contract guard | Gherkin acceptance scenarios stay mapped to executable frontend/live-stack tests. | [Acceptance contracts](acceptance-contracts.md), [Product acceptance flows](product-acceptance-flows.md), `test/live_stack_feature_mapping_test.dart`. |
 | Admin-provisioned first-use guard | Normal members stay out of OIDC/provider/infra setup and Workspace Health remains the admin/operator control plane. | [Admin-provisioned first use boundary](admin-provisioned-first-use.md), `client/test/architecture/admin_provisioned_first_use_contract_test.dart`, `client/test/features/settings/settings_screen_test.dart`, `client/test/features/onboarding/first_run_screen_test.dart`. |
+| CI summary artifact | The root Gradle task graph emitted a sanitized summary of commit, branch, tool versions, gate outcomes, artifact paths, and live-E2E skip reason. | `build/evidence/ci-summary.json` from `./gradlew ci` or `./gradlew ciSummary`. |
 | Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
 
 ## Default PR validation
@@ -35,6 +36,14 @@ make marketing-screenshots
 git diff --exit-code -- docs/assets/marketing docs/assets/roadmap
 ```
 
+The canonical cross-stack command is:
+
+```sh
+./gradlew ci
+```
+
+It writes `build/evidence/ci-summary.json` even when the Gradle build fails, so reviewers can inspect a sanitized task-graph summary without reconstructing evidence from chat or raw logs. Use `./gradlew ciSummary` when you only need to regenerate the summary shape for review.
+
 These checks are intentionally cheap enough for normal pull requests and do not require live credentials.
 
 ## Live-stack evidence
@@ -56,6 +65,7 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 
 - Never commit live credentials, generated secret files, or raw logs that contain tokens/passwords.
 - Prefer redacted summaries in docs and PR bodies.
+- Use `build/evidence/ci-summary.json` for task outcomes; it must not include secrets, tokens, credential URLs, raw provider payloads, or raw provider errors.
 - Keep evidence explanations screen-reader friendly; do not make images or badge colors the only source of truth.
 - For permanent docs, link to workflow files and evidence procedures rather than transient artifact URLs.
 
