@@ -19,6 +19,16 @@ EVIDENCE_BLOCK = f"""{EVIDENCE_START}
 - Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
 - Release evidence gate: `./gradlew releaseEvidenceCheck`
 {EVIDENCE_END}"""
+FORBIDDEN_TRANSITION_PHRASES = [
+    "no longer positioned",
+    "formerly",
+    "previously",
+    "used to",
+    "now positioned",
+    "früher",
+    "war weave",
+    "aber jetzt",
+]
 
 
 def fail(message: str) -> None:
@@ -27,6 +37,8 @@ def fail(message: str) -> None:
 
 
 def replace_marked_block(content: str, start_marker: str, end_marker: str, block: str) -> str:
+    if content.count(start_marker) != 1 or content.count(end_marker) != 1:
+        fail(f"README.md must contain exactly one {start_marker} / {end_marker} marker pair")
     start = content.find(start_marker)
     end = content.find(end_marker)
     if start == -1 or end == -1 or end < start:
@@ -58,6 +70,24 @@ def replace_blocks(content: str, source: Path) -> str:
     return replace_marked_block(updated, EVIDENCE_START, EVIDENCE_END, EVIDENCE_BLOCK)
 
 
+def check_readme_consistency(content: str) -> None:
+    lowered = content.casefold()
+    for phrase in FORBIDDEN_TRANSITION_PHRASES:
+        if phrase.casefold() in lowered:
+            fail(f"README.md contains migration-diary wording: {phrase!r}")
+
+    for marker in (START, END, EVIDENCE_START, EVIDENCE_END):
+        if content.count(marker) != 1:
+            fail(f"README.md must contain exactly one {marker} marker")
+
+    generated_start = content.index(START)
+    generated_end = content.index(END)
+    evidence_start = content.index(EVIDENCE_START)
+    evidence_end = content.index(EVIDENCE_END)
+    if not (generated_start < generated_end < evidence_start < evidence_end):
+        fail("README.md release-note draft block must appear before the release evidence block")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--update", action="store_true", help="rewrite README.md with the expected managed blocks")
@@ -74,6 +104,7 @@ def main() -> None:
 
     source = args.source if args.source.is_absolute() else ROOT / args.source
     content = README.read_text(encoding="utf-8")
+    check_readme_consistency(content)
     updated = replace_blocks(content, source)
     if args.check:
         if updated != content:

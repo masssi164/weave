@@ -6,24 +6,21 @@
 
 Weave is an accessibility-first, self-hostable organization operating layer for workspaces, communication, knowledge, provider governance, and operator health. Chat, files, shared calendars, boards/tasks, meetings, and decisions are product domains inside Weave, not the whole ambition.
 
-Weave is provider-neutral by design: an organization should be able to keep its existing identity, chat, file, calendar, collaboration, and project systems while exposing them through coherent Weave product concepts. The default dogfood stack can use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit, but those are provider choices behind Weave-owned domain contracts, not the product boundary. An admin should eventually be able to swap a domain provider, such as Slack to Synapse/Matrix for Chat, without turning the member client into provider-specific UX.
+Weave is provider-neutral by design: an organization can keep its chosen identity, chat, file, calendar, collaboration, and project systems while exposing them through coherent Weave product concepts. The default dogfood stack can use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit, but those are adapter choices behind Weave-owned domain contracts, not the product boundary. Provider swaps are governed admin/operator capabilities that ship only when a supported migration contract, readiness evidence, authorization, audit trail, and rollback path exist.
 
 This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, documentation, and release metadata as one release unit. The active product-line reference is [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md). Documentation and README release-note embedding are tracked in [Manuals and release notes integration](docs/manuals-and-release-notes-integration.md).
 
-## Current product direction
-
-Weave is no longer positioned as a pure collaboration platform. The product direction is:
+## Product architecture
 
 - **Domain-first provider facades:** clients consume Weave domains such as Chat, Files, Calendar, Boards/Tasks, Meetings, Decisions, and Health. Provider mapping, migrations, secrets, readiness, and lossy conversion details stay server/admin/operator side.
-- **Admin-governed provider swaps:** admins can change provider mappings through the Admin Console when the server supports the migration path; members keep using Weave concepts instead of vendor-specific flows.
+- **Admin-governed adapter control:** admins configure provider categories and readiness through supported admin/operator paths; members keep using Weave concepts instead of vendor-specific flows.
+- **Evidence-scoped surfaces:** shipped member UX uses stable Weave states; guarded provider paths fail closed; future capabilities such as the governed Weaver PA runtime remain outside v0.1 until their contracts are promoted.
 - **Accessible embedded manuals:** member help and admin/operator manuals are shipped from MkDocs and embedded in the client/admin console with the same design tokens and corporate design.
 - **Release evidence in public docs:** release notes are generated from release metadata and injected into README/release surfaces by automation, then reviewed before publication.
 
-Marketing copy for public release still needs specialist review before it is treated as final positioning.
-
 ## Release notes
 
-Release notes must be generated from merged PR metadata/release-note files and inserted into this README by the release workflow. Do not hand-maintain this section except for the generated block markers and fallback text.
+The generated block below is the public README release-note draft for merged, unreleased changes. It is updated from `docs/release-notes/unreleased.md` or generated release-note artifacts by the release workflow; do not hand-maintain the block contents outside the managed markers.
 
 <!-- WEAVE_RELEASE_NOTES_START -->
 _Generated release notes are review artifacts. A release maintainer may update this block with `python3 tools/readme_release_notes.py --update --source <generated-notes>` before opening the release-draft review._
