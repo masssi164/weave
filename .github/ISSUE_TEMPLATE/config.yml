@@ -1,4 +1,4 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Developer handbook
     url: https://github.com/masssi164/weave/blob/main/docs/developer-handbook.md
@@ -6,3 +6,7 @@ contact_links:
   - name: Quality and acceptance evidence
     url: https://github.com/masssi164/weave/blob/main/docs/quality-and-evidence.md
     about: Understand offline checks, live-stack evidence, and acceptance artifacts.
+
+  - name: Technical debt guidance
+    url: https://github.com/masssi164/weave/issues/new?template=technical_debt.yml
+    about: Use this for rebuild residue, stale branches, architecture drift, or cleanup work.

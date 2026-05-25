@@ -1,0 +1,77 @@
+name: Technical debt
+about: Track cleanup, consolidation, migration residue, architecture drift, or rebuild follow-up work
+title: "debt: "
+labels: [technical-debt]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for cleanup after the rebuild: stale branches/worktrees, duplicated specs, unfinished migrations, brittle tests, old provider assumptions, missing docs links, or architecture drift.
+  - type: textarea
+    id: debt
+    attributes:
+      label: Debt / drift observed
+      description: What is currently messy, duplicated, stale, risky, or inconsistent?
+      placeholder: "Example: Closed issue has an unmerged local branch; docs say shipped but branch was never merged."
+    validations:
+      required: true
+  - type: dropdown
+    id: debt-kind
+    attributes:
+      label: Debt type
+      multiple: true
+      options:
+        - stale branch/worktree/unmerged slice
+        - duplicate or outdated issue/spec
+        - architecture drift/provider leakage
+        - test or CI brittleness
+        - release/process automation gap
+        - docs/manual mismatch
+        - accessibility/localization debt
+        - security/privacy/secrets redaction risk
+        - dependency/build/tooling cleanup
+        - migration/backfill required
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence / current state
+      description: Link issue/PR/branch/file/test output. Prefer exact paths and commands. No secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: target-state
+    attributes:
+      label: Target state
+      description: What should be true when this debt is resolved?
+    validations:
+      required: true
+  - type: textarea
+    id: cleanup-plan
+    attributes:
+      label: Suggested cleanup slice
+      description: Keep it small and reversible. Mention whether this needs a PR, issue close/reopen, docs update, migration, or branch archival.
+      value: |
+        -
+        -
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Suggested priority
+      options:
+        - release-blocking
+        - soon / blocks professionalization
+        - normal cleanup
+        - later / park safely
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checklist
+      options:
+        - label: This can be resolved without deleting unmerged work unless a backup/PR/archive exists.
+        - label: Cleanup will not hide a shipped/release claim without updating docs or release evidence.
+        - label: Sensitive data is not included in the report.
+          required: true
