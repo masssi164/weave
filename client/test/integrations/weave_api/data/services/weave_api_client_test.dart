@@ -484,7 +484,11 @@ void main() {
           httpClient: _RecordingHttpClient((request) async {
             capturedRequest = request;
             return _jsonResponse({
-              'releaseStatus': 'contract-preview',
+              'releaseStatus': 'provider-stack-contract-v1',
+              'providerConfigSource':
+                  'admin-control-plane-selected-provider-mappings',
+              'bootstrapDefaultsAreSuggestionsOnly': true,
+              'adminSelectedMappingsRequired': true,
               'backendOwnedFacades': true,
               'flutterDirectProviderCallsAllowed': false,
               'supportSafe': true,
@@ -533,6 +537,11 @@ void main() {
                   'memberImpact': 'Sign-in is available.',
                   'modules': ['identity-realm', 'matrix-auth'],
                   'providerCandidates': ['keycloak', 'oidc'],
+                  'selectedProviderKey': 'keycloak-realm',
+                  'choiceModel': 'recommended_self_hosted_default',
+                  'selectedByAdmin': true,
+                  'bootstrapSuggestionOnly': false,
+                  'lossyMappingNotes': [],
                   'diagnostics': {
                     'providerCount': 2,
                     'allSupportSafe': true,
@@ -571,6 +580,11 @@ void main() {
                   'memberImpact': 'Weaver is disabled by workspace policy.',
                   'modules': [],
                   'providerCandidates': [],
+                  'selectedProviderKey': 'awaiting_admin_selection',
+                  'choiceModel': 'not_selected',
+                  'selectedByAdmin': false,
+                  'bootstrapSuggestionOnly': true,
+                  'lossyMappingNotes': [],
                   'diagnostics': {
                     'providerCount': 0,
                     'allSupportSafe': true,
@@ -642,6 +656,12 @@ void main() {
         );
         expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
         expect(snapshot.failClosed, isTrue);
+        expect(
+          snapshot.providerConfigSource,
+          'admin-control-plane-selected-provider-mappings',
+        );
+        expect(snapshot.bootstrapDefaultsAreSuggestionsOnly, isTrue);
+        expect(snapshot.adminSelectedMappingsRequired, isTrue);
         expect(snapshot.categories, hasLength(2));
         expect(snapshot.categories.first.category, 'identity-idm');
         expect(
@@ -682,6 +702,9 @@ void main() {
           snapshot.categories.first.readiness,
           ProviderCategoryReadiness.ready,
         );
+        expect(snapshot.categories.first.selectedProviderKey, 'keycloak-realm');
+        expect(snapshot.categories.first.selectedByAdmin, isTrue);
+        expect(snapshot.categories.first.bootstrapSuggestionOnly, isFalse);
         expect(snapshot.categories.first.supportSafe, isTrue);
         expect(snapshot.categories.last.category, 'weaver');
         expect(

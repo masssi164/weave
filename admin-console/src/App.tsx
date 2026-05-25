@@ -24,19 +24,26 @@ import {
   Toolbar,
   Typography,
 } from '@mui/material';
-import { AdminControlPlaneApi, adminConsoleConfig, ControlPlaneResponse, ProviderCategory, sampleControlPlane } from './api';
+import { AdminControlPlaneApi, adminConsoleConfig, CapabilityState, ControlPlaneResponse, ProviderCategory, sampleControlPlane } from './api';
 
-const stateColor: Record<ProviderCategory['state'], 'success' | 'default' | 'warning' | 'error' | 'info'> = {
+const stateColor: Record<CapabilityState, 'success' | 'default' | 'warning' | 'error' | 'info'> = {
   ready: 'success',
   disabled: 'default',
   degraded: 'warning',
   'policy-blocked': 'info',
   misconfigured: 'error',
   unsupported: 'error',
+  not_configured: 'default',
+  configured: 'info',
 };
 
-function readableState(state: ProviderCategory['state']): string {
-  return state.replace('-', ' ');
+function readableState(state: string): string {
+  return state.replace(/[-_]/g, ' ');
+}
+
+function defaultProviderKey(category?: ProviderCategory): string {
+  if (!category) return '';
+  return category.selectedAdapter === 'awaiting_admin_selection' ? category.providerCandidates[0] ?? '' : category.selectedAdapter;
 }
 
 interface AppProps {
@@ -47,7 +54,9 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
   const [controlPlane, setControlPlane] = useState<ControlPlaneResponse>(sampleControlPlane);
   const [loadState, setLoadState] = useState<'loading' | 'loaded' | 'offline-sample'>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState(sampleControlPlane.providerCategories[0]?.key ?? '');
+  const [selectedCategory, setSelectedCategory] = useState(sampleControlPlane.providerCategories[0]?.key ?? '');
+  const [providerDraft, setProviderDraft] = useState(defaultProviderKey(sampleControlPlane.providerCategories[0]));
+  const [choiceModelDraft, setChoiceModelDraft] = useState('recommended_self_hosted_default');
   const [policyDraft, setPolicyDraft] = useState(sampleControlPlane.whitelistPolicy.allowedCapabilities.join('\n'));
   const [statusMessage, setStatusMessage] = useState('Admin Console is loading backend control-plane data.');
 
@@ -57,9 +66,12 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
       .getControlPlane()
       .then((response) => {
         if (!alive) return;
+        const firstCategory = response.providerCategories[0];
         setControlPlane(response);
         setPolicyDraft(response.whitelistPolicy.allowedCapabilities.join('\n'));
-        setSelectedProvider(response.providerCategories[0]?.key ?? '');
+        setSelectedCategory(firstCategory?.key ?? '');
+        setProviderDraft(defaultProviderKey(firstCategory));
+        setChoiceModelDraft(firstCategory?.choiceModel === 'not_selected' ? 'recommended_self_hosted_default' : firstCategory?.choiceModel ?? 'recommended_self_hosted_default');
         setLoadState('loaded');
         setStatusMessage('Backend control-plane data loaded.');
       })
@@ -74,10 +86,17 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
     };
   }, [api]);
 
-  const selectedProviderDetails = useMemo(
-    () => controlPlane.providerCategories.find((provider) => provider.key === selectedProvider) ?? controlPlane.providerCategories[0],
-    [controlPlane.providerCategories, selectedProvider],
+  const selectedCategoryDetails = useMemo(
+    () => controlPlane.providerCategories.find((category) => category.key === selectedCategory) ?? controlPlane.providerCategories[0],
+    [controlPlane.providerCategories, selectedCategory],
   );
+
+  function changeCategory(categoryKey: string) {
+    const category = controlPlane.providerCategories.find((candidate) => candidate.key === categoryKey);
+    setSelectedCategory(categoryKey);
+    setProviderDraft(defaultProviderKey(category));
+    setChoiceModelDraft(category?.choiceModel === 'not_selected' ? 'recommended_self_hosted_default' : category?.choiceModel ?? 'recommended_self_hosted_default');
+  }
 
   async function savePolicy() {
     const allowedCapabilities = policyDraft
@@ -86,7 +105,25 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
       .filter(Boolean);
     const response = await api.updateWhitelistPolicy(allowedCapabilities);
     setControlPlane((current) => ({ ...current, whitelistPolicy: response }));
-    setStatusMessage(`Whitelist policy saved with ${response.allowedCapabilities.length} allowed capabilities.`);
+    setStatusMessage(`Whitelist policy saved with ${allowedCapabilities.length} requested capabilities.`);
+  }
+
+  async function selectProvider(dryRun: boolean) {
+    if (!selectedCategoryDetails || !providerDraft) return;
+    await api.selectProvider(selectedCategoryDetails.key, providerDraft, choiceModelDraft, dryRun);
+    if (dryRun) {
+      setStatusMessage(`Dry-run validated for ${selectedCategoryDetails.key}: ${providerDraft}.`);
+      return;
+    }
+    setControlPlane((current) => ({
+      ...current,
+      providerCategories: current.providerCategories.map((category) =>
+        category.key === selectedCategoryDetails.key
+          ? { ...category, selectedAdapter: providerDraft, selectedByAdmin: true, bootstrapSuggestionOnly: false, choiceModel: choiceModelDraft }
+          : category,
+      ),
+    }));
+    setStatusMessage(`Provider selection applied for ${selectedCategoryDetails.key}: ${providerDraft}.`);
   }
 
   async function testReadiness(providerKey: string) {
@@ -118,7 +155,7 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
               </Typography>
               <Typography>
                 Sign in through OIDC/Keycloak client <strong>{adminConsoleConfig.oidcClientId}</strong>. This console calls only Weave backend admin APIs;
-                it does not call Keycloak, Nextcloud, Matrix, Microsoft Graph, or other providers directly.
+                it does not call Keycloak, Nextcloud, Matrix, Microsoft Graph, Slack, Teams, or other providers directly.
               </Typography>
               <Typography sx={{ mt: 1 }}>
                 Issuer: <code>{adminConsoleConfig.oidcIssuerUrl}</code>
@@ -139,11 +176,12 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
                   <strong>{controlPlane.organization.displayName}</strong> ({controlPlane.organization.id})
                 </Typography>
                 <Typography>
-                  Member manifest: <code>{controlPlane.organization.manifestUrl}</code>
+                  Provider source of truth: <code>{controlPlane.providerConfigSource}</code>
                 </Typography>
                 <Typography>
-                  Auth issuer: <code>{controlPlane.organization.authIssuerUrl}</code>
+                  Bootstrap defaults are suggestions only: <strong>{controlPlane.bootstrapDefaultsAreSuggestionsOnly ? 'yes' : 'no'}</strong>
                 </Typography>
+                <Typography>Member clients may configure providers: <strong>no</strong></Typography>
               </Stack>
             </CardContent>
           </Card>
@@ -153,20 +191,23 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
               <Typography id="providers-heading" variant="h2" sx={{ fontSize: '1.35rem', mb: 2 }}>
                 Provider categories
               </Typography>
-              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                {controlPlane.providerCategories.map((provider) => (
-                  <Card key={provider.key} variant="outlined" sx={{ flex: 1 }}>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ flexWrap: 'wrap' }} useFlexGap>
+                {controlPlane.providerCategories.map((category) => (
+                  <Card key={category.key} variant="outlined" sx={{ flex: '1 1 260px' }}>
                     <CardContent>
                       <Typography variant="h3" sx={{ fontSize: '1.05rem' }}>
-                        {provider.label}
+                        {category.label}
                       </Typography>
                       <Chip
                         sx={{ mt: 1 }}
-                        color={stateColor[provider.state]}
-                        label={`Status: ${readableState(provider.state)}`}
-                        aria-label={`${provider.label} status is ${readableState(provider.state)}`}
+                        color={stateColor[category.state]}
+                        label={`Status: ${readableState(category.state)}`}
+                        aria-label={`${category.label} status is ${readableState(category.state)}`}
                       />
-                      <Typography sx={{ mt: 1 }}>{provider.summary}</Typography>
+                      <Typography sx={{ mt: 1 }}>{category.summary}</Typography>
+                      <Typography variant="body2" sx={{ mt: 1 }}>
+                        Selected: {category.selectedAdapter}; candidates: {category.providerCandidates.join(', ')}
+                      </Typography>
                     </CardContent>
                   </Card>
                 ))}
@@ -174,38 +215,63 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
             </CardContent>
           </Card>
 
-          <Card component="section" aria-labelledby="provider-detail-heading">
+          <Card component="section" aria-labelledby="provider-selection-heading">
             <CardContent>
-              <Typography id="provider-detail-heading" variant="h2" sx={{ fontSize: '1.35rem', mb: 2 }}>
-                Provider detail and readiness
+              <Typography id="provider-selection-heading" variant="h2" sx={{ fontSize: '1.35rem', mb: 2 }}>
+                Provider selection and readiness
               </Typography>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel id="provider-select-label">Provider category</InputLabel>
-                <Select
-                  labelId="provider-select-label"
-                  id="provider-select"
-                  value={selectedProvider}
-                  label="Provider category"
-                  onChange={(event) => setSelectedProvider(event.target.value)}
-                >
-                  {controlPlane.providerCategories.map((provider) => (
-                    <MenuItem key={provider.key} value={provider.key}>
-                      {provider.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-                <FormHelperText>Readiness tests are sent to the backend control plane.</FormHelperText>
-              </FormControl>
-              {selectedProviderDetails ? (
-                <Stack spacing={1}>
-                  <Typography>Adapter: {selectedProviderDetails.selectedAdapter}</Typography>
-                  <Typography>Status text: {readableState(selectedProviderDetails.state)}</Typography>
-                  <Typography>Secret references: {selectedProviderDetails.secretRefs.length ? selectedProviderDetails.secretRefs.join(', ') : 'none'}</Typography>
-                  <Button variant="contained" onClick={() => void testReadiness(selectedProviderDetails.key)}>
-                    Test readiness through backend
-                  </Button>
-                </Stack>
-              ) : null}
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Admin Console-selected mappings are the source of truth. Secrets stay as SecretRef handles; readiness tests run only through backend admin APIs.
+              </Alert>
+              <Stack spacing={2}>
+                <FormControl fullWidth>
+                  <InputLabel id="provider-category-select-label">Provider category</InputLabel>
+                  <Select labelId="provider-category-select-label" id="provider-category-select" value={selectedCategory} label="Provider category" onChange={(event) => changeCategory(event.target.value)}>
+                    {controlPlane.providerCategories.map((category) => (
+                      <MenuItem key={category.key} value={category.key}>
+                        {category.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  <FormHelperText>Category-first canonical Weave contracts stay separate from adapter choices.</FormHelperText>
+                </FormControl>
+
+                {selectedCategoryDetails ? (
+                  <>
+                    <FormControl fullWidth>
+                      <InputLabel id="provider-candidate-select-label">Selected provider adapter</InputLabel>
+                      <Select labelId="provider-candidate-select-label" id="provider-candidate-select" value={providerDraft} label="Selected provider adapter" onChange={(event) => setProviderDraft(event.target.value)}>
+                        {selectedCategoryDetails.providerCandidates.map((candidate) => (
+                          <MenuItem key={candidate} value={candidate}>
+                            {candidate}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    <FormControl fullWidth>
+                      <InputLabel id="choice-model-select-label">Choice model</InputLabel>
+                      <Select labelId="choice-model-select-label" id="choice-model-select" value={choiceModelDraft} label="Choice model" onChange={(event) => setChoiceModelDraft(event.target.value)}>
+                        <MenuItem value="recommended_self_hosted_default">recommended self-hosted default</MenuItem>
+                        <MenuItem value="external_existing_provider">external existing provider</MenuItem>
+                        <MenuItem value="managed_cloud_provider">managed cloud provider</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Typography>SecretRefs: {selectedCategoryDetails.secretRefs.join(', ') || `secretref://weave/provider/${providerDraft}`}</Typography>
+                    <Typography>Never paste raw secrets, bearer tokens, provider URLs with credentials, or downstream diagnostics.</Typography>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                      <Button variant="outlined" onClick={() => void selectProvider(true)}>
+                        Dry-run provider selection
+                      </Button>
+                      <Button variant="contained" onClick={() => void selectProvider(false)}>
+                        Apply selected provider
+                      </Button>
+                      <Button variant="contained" color="secondary" onClick={() => void testReadiness(providerDraft)}>
+                        Test readiness through backend
+                      </Button>
+                    </Stack>
+                  </>
+                ) : null}
+              </Stack>
             </CardContent>
           </Card>
 
@@ -215,22 +281,29 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
                 Policy and whitelist
               </Typography>
               <Alert severity="info" sx={{ mb: 2 }}>
-                Policy is deny-by-default. Add one capability per line only after the organization has approved it.
+                Policy is deny-by-default. Add one canonical Weave capability per line only after the organization has approved it.
               </Alert>
-              <TextField
-                label="Allowed capabilities"
-                value={policyDraft}
-                onChange={(event) => setPolicyDraft(event.target.value)}
-                fullWidth
-                multiline
-                minRows={5}
-                helperText="Example: files.read. Do not paste secrets, provider tokens, or raw diagnostics here."
-              />
+              <TextField label="Allowed capabilities" value={policyDraft} onChange={(event) => setPolicyDraft(event.target.value)} fullWidth multiline minRows={5} helperText="Example: files.read. Do not paste secrets, provider tokens, raw diagnostics, or provider-specific payloads here." />
               <Button sx={{ mt: 2 }} variant="contained" onClick={() => void savePolicy()}>
                 Save whitelist policy
               </Button>
               <Divider sx={{ my: 2 }} />
               <Typography>Blocked examples: {controlPlane.whitelistPolicy.blockedCapabilities.join(', ')}</Typography>
+            </CardContent>
+          </Card>
+
+          <Card component="section" aria-labelledby="secrets-heading">
+            <CardContent>
+              <Typography id="secrets-heading" variant="h2" sx={{ fontSize: '1.35rem', mb: 1 }}>
+                SecretRef inventory
+              </Typography>
+              <List aria-label="Support-safe SecretRef handles">
+                {controlPlane.providerCategories.flatMap((category) => category.secretRefs.map((secretRef) => ({ category, secretRef }))).map(({ category, secretRef }) => (
+                  <ListItem key={`${category.key}-${secretRef}`} alignItems="flex-start">
+                    <ListItemText primary={`${category.label}: SecretRef handle`} secondary={`${secretRef} — raw secret exposed: no`} />
+                  </ListItem>
+                ))}
+              </List>
             </CardContent>
           </Card>
 
@@ -251,8 +324,7 @@ export default function App({ api = new AdminControlPlaneApi() }: AppProps) {
 
           <Box component="footer">
             <Typography variant="body2">
-              Need member behavior? Use the provider-agnostic Weave Client. Admin/provider setup belongs here and in backend policy.{' '}
-              <Link href="/api/organization/manifest">Organization manifest</Link>
+              Need member behavior? Use the provider-agnostic Weave Client. Admin/provider setup belongs here and in backend policy. <Link href="/api/organization/manifest">Organization manifest</Link>
             </Typography>
           </Box>
         </Stack>

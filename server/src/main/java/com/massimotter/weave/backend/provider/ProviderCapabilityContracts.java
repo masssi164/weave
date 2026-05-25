@@ -16,7 +16,7 @@ final class ProviderCapabilityContracts {
             "identity-idm", new Definition(
                     List.of("identity.sign_in", "identity.groups", "identity.roles"),
                     List.of("keycloak-realm", "matrix-authentication-service"),
-                    List.of("entra-id", "authentik", "auth0", "generic-oidc", "generic-saml")),
+                    List.of("entra-id", "authentik", "auth0", "generic-oidc", "generic-saml", "scim-ldap")),
             "chat", new Definition(
                     List.of("chat.read", "chat.send", "chat.channels"),
                     List.of("synapse-homeserver"),
@@ -28,7 +28,7 @@ final class ProviderCapabilityContracts {
             "calendar", new Definition(
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
                     List.of("nextcloud-caldav"),
-                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav")),
+                    List.of("microsoft-graph-calendar", "generic-caldav", "workspace-calendar", "team-channel-calendar")),
             "boards-tasks", new Definition(
                     List.of("boards.read", "boards.update_task", "boards.sync_workspace"),
                     List.of("openproject-primary"),
@@ -36,11 +36,11 @@ final class ProviderCapabilityContracts {
             "meetings-calls", new Definition(
                     List.of("meetings.join", "meetings.host", "meetings.recording_policy"),
                     List.of("livekit"),
-                    List.of("microsoft-teams-meetings", "zoom", "google-meet", "jitsi")),
+                    List.of("microsoft-teams-meetings", "managed-meetings-provider", "external-meeting-link")),
             "documents-collaboration", new Definition(
                     List.of("documents.view", "documents.edit", "documents.comment", "documents.collaborate"),
                     List.of("onlyoffice-community"),
-                    List.of("microsoft-365-office-graph", "collabora-code", "google-workspace-docs")),
+                    List.of("microsoft-365-office-graph", "collabora-code", "wopi-host")),
             "weaver", new Definition(
                     List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
                     List.of("weaver-runtime-disabled"),

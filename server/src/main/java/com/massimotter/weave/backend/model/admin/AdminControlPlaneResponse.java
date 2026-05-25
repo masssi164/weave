@@ -12,17 +12,21 @@ public record AdminControlPlaneResponse(
         String organizationId,
         String displayName,
         String recommendedIdentityBroker,
+        String providerConfigSource,
+        boolean bootstrapDefaultsAreSuggestionsOnly,
         boolean backendOwnedFacades,
         boolean denyByDefaultPolicy,
         boolean supportSafe,
         boolean memberClientMayConfigureProviders,
         Instant generatedAt,
         List<ProviderCategoryStatusResponse> categories,
+        List<ProviderSelectionResponse> selectedProviderMappings,
         CapabilityWhitelistResponse whitelist,
         List<SecretRefResponse> secretRefs,
         Map<String, String> adminApiRoutes) {
     public AdminControlPlaneResponse {
         categories = categories == null ? List.of() : List.copyOf(categories);
+        selectedProviderMappings = selectedProviderMappings == null ? List.of() : List.copyOf(selectedProviderMappings);
         secretRefs = secretRefs == null ? List.of() : List.copyOf(secretRefs);
         adminApiRoutes = adminApiRoutes == null ? Map.of() : Map.copyOf(adminApiRoutes);
     }

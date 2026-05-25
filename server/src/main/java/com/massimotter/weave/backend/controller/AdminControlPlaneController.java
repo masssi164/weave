@@ -7,6 +7,8 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
+import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
+import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -68,6 +70,16 @@ public class AdminControlPlaneController {
             @Valid @RequestBody CapabilityWhitelistUpdateRequest request,
             @AuthenticationPrincipal Jwt jwt) {
         return adminControlPlaneService.updateWhitelist(request, jwt);
+    }
+
+    @PostMapping({"/api/admin/providers/selections", "/api/v1/admin/providers/selections"})
+    @Operation(summary = "Apply or dry-run an Admin Console selected provider mapping")
+    @ApiResponse(responseCode = "200", description = "Support-safe selected provider mapping.",
+            content = @Content(schema = @Schema(implementation = ProviderSelectionResponse.class)))
+    public ProviderSelectionResponse selectProvider(
+            @Valid @RequestBody ProviderSelectionRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return adminControlPlaneService.selectProvider(request, jwt);
     }
 
     @PostMapping({"/api/admin/providers/readiness-tests", "/api/v1/admin/providers/readiness-tests"})

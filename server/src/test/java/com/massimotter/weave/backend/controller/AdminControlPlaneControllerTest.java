@@ -15,7 +15,11 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
+import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.provider.ProviderSelection;
+import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
+import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.util.List;
@@ -81,8 +85,12 @@ class AdminControlPlaneControllerTest {
     @MockBean
     private WorkspaceCapabilityService workspaceCapabilityService;
 
+    @Autowired
+    private ProviderSelectionRepository providerSelectionRepository;
+
     @BeforeEach
     void setUpWorkspaceCapabilitySnapshot() {
+        selectDefaultProviders();
         WorkspaceCapabilitiesResponse capabilities = new WorkspaceCapabilitiesResponse(
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "SSO ready."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Chat ready."),
@@ -105,6 +113,30 @@ class AdminControlPlaneControllerTest {
                 "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later"));
     }
 
+    private void selectDefaultProviders() {
+        providerSelectionRepository.save(selection("identity-idm", "keycloak-realm", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("chat", "synapse-homeserver", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("files", "nextcloud-files", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("calendar", "nextcloud-caldav", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("boards-tasks", "openproject-primary", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("meetings-calls", "livekit", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("documents-collaboration", "onlyoffice-community", "recommended_self_hosted_default"));
+    }
+
+    private ProviderSelection selection(String category, String providerKey, String choiceModel) {
+        return new ProviderSelection(
+                category,
+                providerKey,
+                choiceModel,
+                "secretref://weave/provider/" + providerKey,
+                "actor:test-admin",
+                Instant.parse("2026-05-24T18:00:00Z"),
+                true,
+                true,
+                false,
+                List.of());
+    }
+
     @Test
     void adminControlPlaneRejectsMembers() throws Exception {
         mockMvc.perform(get("/api/admin/control-plane").with(memberJwt()))
@@ -118,11 +150,17 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.contractVersion").value("admin-control-plane-v1"))
                 .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
                 .andExpect(jsonPath("$.recommendedIdentityBroker").value("keycloak"))
+                .andExpect(jsonPath("$.providerConfigSource").value("admin-control-plane-selected-provider-mappings"))
+                .andExpect(jsonPath("$.bootstrapDefaultsAreSuggestionsOnly").value(true))
                 .andExpect(jsonPath("$.backendOwnedFacades").value(true))
                 .andExpect(jsonPath("$.denyByDefaultPolicy").value(true))
                 .andExpect(jsonPath("$.memberClientMayConfigureProviders").value(false))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
                         "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "weaver")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'chat')].selectedByAdmin", hasItems(true)))
+                .andExpect(jsonPath("$.categories[?(@.category == 'chat')].selectedProviderKey", hasItems("synapse-homeserver")))
+                .andExpect(jsonPath("$.selectedProviderMappings[*].category", hasItems("identity-idm", "chat", "files")))
+                .andExpect(jsonPath("$.selectedProviderMappings[*].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.whitelist.denyByDefault").value(true))
                 .andExpect(jsonPath("$.whitelist.normalMembersMayAuthorPolicy").value(false))
                 .andExpect(jsonPath("$.whitelist.stableMemberImpactStates[*]", hasItems("ready", "disabled", "degraded", "policy-blocked")))
@@ -136,7 +174,36 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
+    void providerSelectionRejectsRawSecretsAndUnknownChoiceModels() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"chat\",\"providerKey\":\"slack\",\"choiceModel\":\"external_existing_provider\",\"secretRef\":\"xoxb-raw-token\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("provider-selection-secretref-invalid"))
+                .andExpect(content().string(not(containsString("xoxb-raw-token"))));
+
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"chat\",\"providerKey\":\"slack\",\"choiceModel\":\"hardcoded_default\",\"secretRef\":\"secretref://weave/provider/slack\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("provider-selection-choice-model-invalid"));
+    }
+
+    @Test
     void adminReadinessTestsAndPolicyUpdatesAreAuditedAndRedacted() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"chat\",\"providerKey\":\"slack\",\"choiceModel\":\"external_existing_provider\",\"secretRef\":\"secretref://weave/provider/slack\",\"lossyMappingNotes\":[\"Slack thread/broadcast semantics require migration dry-run.\"],\"reason\":\"compare external provider\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category").value("chat"))
+                .andExpect(jsonPath("$.providerKey").value("slack"))
+                .andExpect(jsonPath("$.applied").value(true))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.migrationDryRunRequired").value(true));
+
         mockMvc.perform(post("/api/admin/providers/readiness-tests")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -158,6 +225,7 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].action", hasItems("provider.readiness.tested", "admin.policy.updated")))
+                .andExpect(jsonPath("$[*].payload.providerConfigSource", hasItems("admin-control-plane-selected-provider-mappings")))
                 .andExpect(jsonPath("$[*].payload.token", hasItems("[redacted]")))
                 .andExpect(jsonPath("$[*].payload.apiSecret", hasItems("[redacted]")))
                 .andExpect(jsonPath("$[*].payload.rawProviderError", hasItems("[redacted:provider-error]")))
@@ -202,6 +270,11 @@ class AdminControlPlaneControllerTest {
         @Bean
         AuditEventPublisher auditEventPublisher() {
             return new InMemoryAuditEventPublisher();
+        }
+
+        @Bean
+        ProviderSelectionRepository providerSelectionRepository() {
+            return new InMemoryProviderSelectionRepository();
         }
     }
 }
