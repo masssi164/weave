@@ -36,6 +36,7 @@ Currently implemented or contract-backed surfaces:
 - `GET /api/onboarding/status`.
 - `GET /api/workspace/capabilities` and `GET /api/workspace/release-readiness`.
 - Chat domain facade at `/api/chat/*` and `/api/admin/chat/*`: member APIs expose canonical Weave conversations/messages/readiness and fail closed; admin APIs expose selected Chat mapping, support-safe readiness, and audited migration dry-run/preflight reports.
+- Canonical non-Chat domain facade contracts for Files/Documents, Calendar/Meetings, Boards/Tasks, and Identity/Admin/Policy. These server-side seams evaluate Weave capability policy before provider lookup, fail closed for unknown capabilities, expose SecretRef-only admin mappings, and return empty Weave-domain skeleton collections until concrete adapters are promoted.
 - Files facade backed by Nextcloud when a backend actor is configured; otherwise fail-closed.
 - Calendar facade for workspace/team/channel collections; unsafe private-personal calendar templates fail closed.
 - Secret-free calendar client setup metadata at `GET /api/calendar/client-setup`.
@@ -52,7 +53,7 @@ The provider stack is backend-owned by design:
 - Missing credentials produce unavailable/degraded readiness instead of insecure fallback behavior.
 - Optional providers default off or not configured.
 - Diagnostics must not expose raw provider URLs, response bodies, bearer tokens, API tokens, cookies, app passwords, or signing secrets.
-- Chat member responses use stable product states (`ready`, `disabled`, `degraded`, `policy_blocked`, `unavailable`, `misconfigured`) and never ask members to configure raw Chat providers, endpoints, credentials, or migration diagnostics.
+- Chat and canonical non-Chat domain responses use stable product states (`ready`, `disabled`, `degraded`, `policy_blocked`, `unavailable`, `misconfigured`, `unsupported`) and never ask members to configure raw providers, endpoints, credentials, downstream payloads, or migration diagnostics.
 - DevOps provider modules expose no linked projects, repositories, issues, merge requests, pipelines, or releases while disabled.
 - Office launch refuses unsafe states with stable error codes instead of leaking downstream details.
 - Matrix/MAS status stays support-safe: Matrix client protocol remains the direct-client exception, encrypted message bodies are not server-readable, and video-call/meeting support is deferred/fail-closed.
