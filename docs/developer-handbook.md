@@ -48,10 +48,10 @@ The root `./gradlew` is the monorepo build/delivery source of truth. Make target
 | --- | --- |
 | `doctor` | Checks required tools and pinned dependency files with actionable failures. |
 | `acceptanceContract` | Gherkin mapping and acceptance contract guard. |
-| `clientCi` | Flutter offline contract path. |
+| `clientCi` | Flutter generated-code, format, analysis, tests, screenshot drift, and offline contract path. |
 | `serverCi` | Existing server Gradle test path. |
 | `adminCi` | Admin console npm CI path. |
-| `infraStatic` | Infrastructure script/static checks. |
+| `infraStatic` | OpenTofu format/validate plus infrastructure script/static checks. |
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
 | `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, and generator fixture checks. |
