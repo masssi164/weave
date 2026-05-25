@@ -244,7 +244,7 @@ def render_release_notes(prs: Iterable[PullRequest]) -> str:
         "# Unreleased",
         "",
         "Generated from merged pull request metadata with exactly one release-notes label per PR.",
-        "Run `make release-notes-check` before review and regenerate this page when preparing a release draft.",
+        "Run `./gradlew releaseEvidenceCheck` before review and regenerate this page when preparing a release draft.",
         "",
     ]
     for category in CATEGORIES:

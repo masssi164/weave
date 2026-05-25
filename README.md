@@ -127,7 +127,7 @@ For behavior changes:
 
 <!-- WEAVE_RELEASE_NOTES:START -->
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
-- Generated review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
+- Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
 - Release evidence gate: `./gradlew releaseEvidenceCheck`
 <!-- WEAVE_RELEASE_NOTES:END -->
 
