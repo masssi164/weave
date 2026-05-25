@@ -543,14 +543,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Deine aktuellen Räume und der letzte Gesprächsstand werden geladen.';
 
   @override
-  String get chatConnectingLabel => 'Verbinde mit Matrix…';
+  String get chatConnectingLabel => 'Verbinde mit Chat…';
 
   @override
   String get chatConnectingHint =>
-      'Die sichere Matrix-Sitzung wird geöffnet und die erste Raumliste synchronisiert.';
+      'Die sichere Weave-Chat-Sitzung wird geöffnet und die erste Unterhaltungsliste synchronisiert.';
 
   @override
-  String get chatConnectButton => 'Matrix verbinden';
+  String get chatConnectButton => 'Chat verbinden';
 
   @override
   String get chatRefreshingRoomsLabel => 'Chaträume werden aktualisiert';
@@ -560,7 +560,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatStaleRoomsGuidance =>
-      'Matrix konnte gerade nicht aktualisiert werden. Deine Raumliste bleibt erhalten, damit du den Überblick behältst und es erneut versuchen kannst, sobald die Verbindung zurück ist.';
+      'Chat konnte gerade nicht aktualisiert werden. Deine Unterhaltungsliste bleibt erhalten, damit du den Überblick behältst und es erneut versuchen kannst, sobald die Verbindung zurück ist.';
 
   @override
   String get chatStaleRoomsRetryButton => 'Räume aktualisieren';
@@ -1060,7 +1060,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get helpChatBody =>
-      'Chat ist der tägliche Ort für Räume und Nachrichten. Öffne Chat über die Hauptnavigation, verbinde Matrix, falls Weave danach fragt, und wähle dann einen Raum. Weave zeigt Raum- und Wiederherstellungszustände sichtbar an, damit du erkennst, ob Chat verbunden ist, wartet, beeinträchtigt ist oder Admin-Aufmerksamkeit braucht.';
+      'Chat ist der tägliche Ort für Unterhaltungen und Nachrichten. Öffne Chat über die Hauptnavigation und wähle dann eine Unterhaltung. Weave zeigt Unterhaltungs- und Wiederherstellungszustände sichtbar an, damit du erkennst, ob Chat verbunden ist, wartet, beeinträchtigt ist oder Admin-Aufmerksamkeit braucht.';
 
   @override
   String get helpFilesTitle => 'Dateien';

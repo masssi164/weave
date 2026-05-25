@@ -538,14 +538,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Gathering your latest rooms and recent conversation state.';
 
   @override
-  String get chatConnectingLabel => 'Connecting to Matrix…';
+  String get chatConnectingLabel => 'Connecting to chat…';
 
   @override
   String get chatConnectingHint =>
-      'We are opening your secure Matrix session and syncing the first room list.';
+      'We are opening your secure Weave chat session and syncing the first conversation list.';
 
   @override
-  String get chatConnectButton => 'Connect Matrix';
+  String get chatConnectButton => 'Connect chat';
 
   @override
   String get chatRefreshingRoomsLabel => 'Refreshing chat rooms';
@@ -555,7 +555,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatStaleRoomsGuidance =>
-      'We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.';
+      'Chat could not refresh just now. Your conversation list is preserved so you can keep your place and retry when the connection is back.';
 
   @override
   String get chatStaleRoomsRetryButton => 'Refresh rooms';
@@ -1052,7 +1052,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpChatBody =>
-      'Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.';
+      'Chat is the daily place for conversations and messages. Open Chat from the main navigation, then choose a conversation. Weave keeps conversation and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.';
 
   @override
   String get helpFilesTitle => 'Files';

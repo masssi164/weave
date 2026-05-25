@@ -551,15 +551,15 @@
   "@chatLoadingHint": {
     "description": "Supporting copy shown while the chat conversation list is loading"
   },
-  "chatConnectingLabel": "Connecting to Matrix…",
+  "chatConnectingLabel": "Connecting to chat…",
   "@chatConnectingLabel": {
     "description": "Message shown while Matrix OAuth sign-in is in progress"
   },
-  "chatConnectingHint": "We are opening your secure Matrix session and syncing the first room list.",
+  "chatConnectingHint": "We are opening your secure Weave chat session and syncing the first conversation list.",
   "@chatConnectingHint": {
     "description": "Supporting copy shown while Matrix sign-in is connecting"
   },
-  "chatConnectButton": "Connect Matrix",
+  "chatConnectButton": "Connect chat",
   "@chatConnectButton": {
     "description": "Button label to start or retry Matrix sign-in"
   },
@@ -571,7 +571,7 @@
   "@chatStaleRoomsTitle": {
     "description": "Title for a chat notice shown when refresh failed but cached conversations remain visible"
   },
-  "chatStaleRoomsGuidance": "We could not refresh Matrix just now. Your room list is preserved so you can keep your place and retry when the connection is back.",
+  "chatStaleRoomsGuidance": "Chat could not refresh just now. Your conversation list is preserved so you can keep your place and retry when the connection is back.",
   "@chatStaleRoomsGuidance": {
     "description": "Guidance for a chat notice shown when refresh failed but cached conversations remain visible"
   },
@@ -1231,7 +1231,7 @@
   "@helpChatTitle": {
     "description": "Help section title for chat"
   },
-  "helpChatBody": "Chat is the daily place for rooms and messages. Open Chat from the main navigation, connect Matrix if asked, then choose a room. Weave keeps room and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.",
+  "helpChatBody": "Chat is the daily place for conversations and messages. Open Chat from the main navigation, then choose a conversation. Weave keeps conversation and recovery states visible so you can see when chat is connected, waiting, degraded, or needs admin attention.",
   "@helpChatBody": {
     "description": "Help copy for chat basics"
   },
