@@ -1,6 +1,6 @@
 # Canonical feature models and provider facades
 
-Status: active architecture contract, PR A slice.
+Status: active Sprint 3 architecture contract.
 
 Canonical feature models come before control-plane, admin-console, infra, or adapter implementation. The member client and Admin Console consume stable Weave contracts; they never call Matrix, Slack, Microsoft Graph, Nextcloud/WebDAV, OpenProject, Keycloak, LiveKit, WOPI, or similar provider APIs directly.
 
@@ -31,7 +31,7 @@ flowchart LR
   Facade --> Policy
 ```
 
-The diagram source lives in [`docs/diagrams/architecture_facade.mmd`](diagrams/architecture_facade.mmd).
+The diagram source lives in [`docs/diagrams/architecture_facade.mmd`](diagrams/architecture_facade.mmd). All canonical diagram sources are discoverable from the MkDocs [Diagrams](diagrams/index.md) hub and linked below by domain.
 
 ## Cross-capability primitives
 
@@ -97,15 +97,15 @@ The identity/admin facade maps Keycloak, Entra ID, Authentik/Auth0/OIDC/SAML, SC
 
 Diagram: [`docs/diagrams/er_identity_admin.mmd`](diagrams/er_identity_admin.mmd).
 
-## Adapter registry contract for later PRs
+## Adapter registry contract
 
-PR B should add backend skeletons for:
+Sprint 3 freezes these implementation boundaries for later vertical slices:
 
-- per-capability provider interfaces (`ChatProvider`, `FilesProvider`, `CalendarProvider`, `BoardsProvider`, `IdentityProvider`);
-- adapter registry lookup by organization, capability, provider posture, readiness, and policy;
-- mapper contracts that return canonical models plus mapping-loss notes;
-- readiness probes that return support-safe state only;
+- per-capability provider interfaces (`ChatProvider`, `FilesProvider`, `CalendarProvider`, `BoardsProvider`, `IdentityProvider`) stay backend-owned;
+- adapter registry lookup is by organization, capability, provider posture, readiness, and policy;
+- mapper contracts return canonical models plus mapping-loss notes;
+- readiness probes return support-safe state only;
 - authorization hooks that evaluate `CapabilityPolicy` before any provider access;
-- audit emission for admin changes, denied access, provider writes, readiness transitions, and lossy mapping.
+- audit emits admin changes, denied access, provider writes, readiness transitions, and lossy mapping.
 
-PR C should prove the first vertical slice with Identity/Keycloak plus Boards/Tasks/OpenProject and a Planner-like placeholder behind the same Weave boards/task model. PR D should ensure Admin Console and infra consume the registry/contracts rather than raw provider-specific assumptions.
+PR C should prove the first vertical slice with Identity/Keycloak plus Boards/Tasks/OpenProject and a Planner-like placeholder behind the same Weave boards/task model. Admin Console, infra, and support bundles consume the registry/readiness contracts rather than raw provider-specific assumptions.

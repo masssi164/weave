@@ -103,6 +103,8 @@ Release notes are generated from merged PR labels, not manually reconstructed la
 
 Weave docs are published as a MkDocs site configured by `mkdocs.yml`. The site uses MkDocs Material; its MIT license was verified from upstream on 2026-05-24 and is safe for project use.
 
+Canonical product/domain vocabulary lives in [Canonical feature models and provider facades](canonical-feature-models.md). Mermaid source diagrams are first-class review artifacts in [Diagrams](diagrams/index.md); keep provider-neutral domain models separate from adapter-specific notes so client and Admin Console contracts do not drift into provider SDK details.
+
 For documentation-only changes:
 
 ```sh
@@ -122,8 +124,10 @@ Generated release notes come from merged PR metadata and labels. The local gener
 ./gradlew generateReleaseNotes  # offline fixture artifact for deterministic review
 GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-24T21:09:00Z --output build/release-notes/unreleased.md
 python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check
-./gradlew updateReadmeReleaseNotes
+python3 tools/readme_release_notes.py --update --source build/release-notes/unreleased.md
 ```
+
+The `Release draft` GitHub Actions workflow is manual (`workflow_dispatch`) and creates or updates a **draft** release only. It generates notes from the same label policy, injects a README review artifact, uploads both artifacts, and never publishes automatically.
 
 Run `./gradlew releaseEvidenceCheck` before requesting review when release notes are relevant; it validates release-note page structure, README release markers, label edge cases, and the generator fixture.
 

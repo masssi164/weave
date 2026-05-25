@@ -1883,6 +1883,36 @@ abstract class AppLocalizations {
   /// **'This handbook explains the everyday Weave app in plain language. It is available offline with the app and will grow as more surfaces become ready.'**
   String get helpHandbookDescription;
 
+  /// Title for the embedded MkDocs user manual card
+  ///
+  /// In en, this message translates to:
+  /// **'Embedded user manual'**
+  String get helpEmbeddedManualTitle;
+
+  /// Description for the embedded MkDocs user manual card
+  ///
+  /// In en, this message translates to:
+  /// **'The Help surface embeds the MkDocs user manual as a constrained product manual surface. It follows Weave design tokens, keeps headings keyboard reachable, and never requires provider credentials or raw service URLs.'**
+  String get helpEmbeddedManualDescription;
+
+  /// Label before the checked-in manual source path
+  ///
+  /// In en, this message translates to:
+  /// **'Manual source:'**
+  String get helpEmbeddedManualPathLabel;
+
+  /// Permission boundary label for embedded manuals
+  ///
+  /// In en, this message translates to:
+  /// **'Constrained embed: no broad script, camera, microphone, or provider access'**
+  String get helpEmbeddedManualPermissionLabel;
+
+  /// Fallback behavior label for embedded manuals
+  ///
+  /// In en, this message translates to:
+  /// **'If built docs are unavailable, Weave keeps this support-safe fallback instead of showing filesystem or provider errors.'**
+  String get helpEmbeddedManualUnavailableLabel;
+
   /// Help section title explaining the product
   ///
   /// In en, this message translates to:
@@ -4821,6 +4851,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Workspace owners and admins manage OIDC, realm, organization, and service endpoints here. Members and guests only see sign-in and product settings.'**
   String get settingsAdminSetupDescription;
+
+  /// Title for the embedded admin/operator manual card in settings
+  ///
+  /// In en, this message translates to:
+  /// **'Embedded admin/operator manual'**
+  String get settingsAdminManualTitle;
+
+  /// Description for the embedded admin/operator manual card in settings
+  ///
+  /// In en, this message translates to:
+  /// **'The Admin Console embeds the MkDocs admin/operator manual next to readiness and setup controls so provider mapping, backup/restore, migration, and support-bundle guidance stay inside the product surface.'**
+  String get settingsAdminManualDescription;
 
   /// Title confirming admin controls are visible
   ///

@@ -310,6 +310,17 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('LiveKit Meetings readiness'), findsOneWidget);
+      expect(find.text('Embedded admin/operator manual'), findsOneWidget);
+      expect(
+        find.text('Manual source: docs/admin-operator-handbook.md'),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Constrained embed: no broad script, camera, microphone, or provider access',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Server Configuration'), findsOneWidget);
       expect(find.text('https://auth.home.internal'), findsWidgets);
       expect(find.text('weave-app'), findsWidgets);
@@ -413,6 +424,7 @@ void main() {
       expect(_textFieldWithLabel('Nextcloud Base URL'), findsNothing);
       expect(find.text('Provider stack readiness'), findsNothing);
       expect(find.text('Office readiness'), findsNothing);
+      expect(find.text('Embedded admin/operator manual'), findsNothing);
       expect(find.text('Identity realm: unconfigured'), findsNothing);
       expect(find.text('Meetings: unconfigured'), findsNothing);
       expect(find.textContaining('Flutter provider calls'), findsNothing);

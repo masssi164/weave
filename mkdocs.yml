@@ -48,6 +48,7 @@ nav:
       - ISO 9241-110 dogfood UX gate: iso-9241-110-dogfood-ux-gate.md
   - Product and Release Scope:
       - Product line and Weaver plan: product-line-and-weaver-plan.md
+      - Manuals and release notes integration: manuals-and-release-notes-integration.md
       - v0.1 dogfood plan: release-v0.1-dogfood-plan.md
       - Admin-provisioned first use: admin-provisioned-first-use.md
       - Product acceptance flows: product-acceptance-flows.md

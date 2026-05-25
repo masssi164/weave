@@ -1086,6 +1086,24 @@ class AppLocalizationsDe extends AppLocalizations {
       'Dieses Handbuch erklärt die tägliche Weave-App in klarer Sprache. Es ist offline mit der App verfügbar und wächst, wenn weitere Bereiche bereit werden.';
 
   @override
+  String get helpEmbeddedManualTitle => 'Eingebettetes Benutzerhandbuch';
+
+  @override
+  String get helpEmbeddedManualDescription =>
+      'Die Hilfe bettet das MkDocs-Benutzerhandbuch als eingeschränkte Produktoberfläche ein. Sie folgt den Weave-Design-Tokens, hält Überschriften per Tastatur erreichbar und benötigt keine Provider-Zugangsdaten oder rohen Dienst-URLs.';
+
+  @override
+  String get helpEmbeddedManualPathLabel => 'Handbuchquelle:';
+
+  @override
+  String get helpEmbeddedManualPermissionLabel =>
+      'Eingeschränkte Einbettung: kein breiter Skript-, Kamera-, Mikrofon- oder Provider-Zugriff';
+
+  @override
+  String get helpEmbeddedManualUnavailableLabel =>
+      'Wenn gebaute Dokumentation nicht verfügbar ist, zeigt Weave diesen support-sicheren Fallback statt Dateisystem- oder Provider-Fehlern.';
+
+  @override
   String get helpWhatIsWeaveTitle => 'Was Weave ist';
 
   @override
@@ -2917,6 +2935,14 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get settingsAdminSetupDescription =>
       'Workspace-Owner und Admins verwalten hier OIDC, Realm, Organisation und Dienstendpunkte. Mitglieder und Gäste sehen nur Anmeldung und Produkteinstellungen.';
+
+  @override
+  String get settingsAdminManualTitle =>
+      'Eingebettetes Admin-/Operator-Handbuch';
+
+  @override
+  String get settingsAdminManualDescription =>
+      'Die Admin Console bettet das MkDocs-Admin-/Operator-Handbuch neben Bereitschaft und Einrichtung ein, damit Provider-Mapping, Backup/Wiederherstellung, Migration und Support-Bundle-Hilfe in der Produktoberfläche bleiben.';
 
   @override
   String get settingsAdminPermissionTitle => 'Admin-Steuerung freigeschaltet';

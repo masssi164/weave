@@ -26,7 +26,41 @@ Marketing copy for public release still needs specialist review before it is tre
 Release notes must be generated from merged PR metadata/release-note files and inserted into this README by the release workflow. Do not hand-maintain this section except for the generated block markers and fallback text.
 
 <!-- WEAVE_RELEASE_NOTES_START -->
-Generated release notes are not available in this branch yet. See the release-notes automation work before publishing a release README.
+_Generated release notes are review artifacts. A release maintainer may update this block with `python3 tools/readme_release_notes.py --update --source <generated-notes>` before opening the release-draft review._
+
+Use this page for release-affecting changes that have merged but are not included in a tagged release yet.
+
+## Added
+
+- MkDocs documentation site foundation with handbook navigation, diagrams, GitFlow/PR workflow, and release notes process.
+- Root Gradle wrapper and orchestration tasks for delegated server, client, admin, infra, docs, acceptance, CI, and release-notes checks.
+- Local release notes generator for merged PR metadata grouped by release-notes labels.
+
+## Changed
+
+- Documentation validation now has a dedicated docs check/build path.
+- PR CI now enforces exactly one release-notes label before review/merge.
+- `make release-notes-check` now verifies release-notes label edge cases and generator fixture output.
+
+## Fixed
+
+- Nothing yet.
+
+## Security
+
+- Nothing yet.
+
+## Accessibility
+
+- Nothing yet.
+
+## Migration/Operator Notes
+
+- Operators can build the documentation site locally with `python3 -m pip install -r docs/requirements.txt` and `make docs-build`.
+
+## Known Issues
+
+- Nothing yet.
 <!-- WEAVE_RELEASE_NOTES_END -->
 
 ## Product screenshots

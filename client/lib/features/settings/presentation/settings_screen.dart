@@ -199,6 +199,15 @@ class _AdminSetupConfigurationCard extends ConsumerWidget {
             _AdminPermissionSummary(profile: profile),
             const SizedBox(height: 16),
             const ProviderCategorySummary(compact: true),
+            const SizedBox(height: 16),
+            _AdminManualEmbedCard(
+              title: l10n.settingsAdminManualTitle,
+              description: l10n.settingsAdminManualDescription,
+              pathLabel: l10n.helpEmbeddedManualPathLabel,
+              path: 'docs/admin-operator-handbook.md',
+              permissionLabel: l10n.helpEmbeddedManualPermissionLabel,
+              fallbackLabel: l10n.helpEmbeddedManualUnavailableLabel,
+            ),
             const SizedBox(height: 24),
             Text(
               l10n.settingsServerConfigurationTitle,
@@ -223,6 +232,85 @@ class _AdminSetupConfigurationCard extends ConsumerWidget {
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminManualEmbedCard extends StatelessWidget {
+  const _AdminManualEmbedCard({
+    required this.title,
+    required this.description,
+    required this.pathLabel,
+    required this.path,
+    required this.permissionLabel,
+    required this.fallbackLabel,
+  });
+
+  final String title;
+  final String description;
+  final String pathLabel;
+  final String path;
+  final String permissionLabel;
+  final String fallbackLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Semantics(
+      container: true,
+      label: '$title. $permissionLabel',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.28),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: theme.colorScheme.secondary.withValues(alpha: 0.45),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.menu_book_outlined,
+                    color: theme.colorScheme.secondary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Semantics(
+                      header: true,
+                      child: Text(title, style: theme.textTheme.titleMedium),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(description, style: theme.textTheme.bodyMedium),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(label: Text('$pathLabel $path')),
+                  Chip(label: Text(permissionLabel)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                fallbackLabel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

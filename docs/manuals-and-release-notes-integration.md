@@ -1,6 +1,6 @@
 # Manuals and release notes integration
 
-Status: active product direction, 2026-05-25.
+Status: implemented Sprint 3 contract, 2026-05-25.
 
 ## Decision
 
@@ -22,7 +22,13 @@ Both manuals must:
 - avoid image-only instructions and dense tables as the only source of truth;
 - keep provider secrets, raw URLs with credentials, tokens, downstream error bodies, and personal data out of examples and screenshots.
 
-The iframe integration must fail closed: if docs are unavailable, the app shows a support-safe unavailable/help-download state instead of broken provider or filesystem errors.
+The iframe/webview integration must fail closed: if docs are unavailable, the app shows a support-safe unavailable/help-download state instead of broken provider or filesystem errors.
+
+Sprint 3 implementation records the embed contract in product surfaces without granting broad runtime permissions:
+
+- `client/lib/features/help/presentation/help_screen.dart` exposes the MkDocs user manual as a constrained Help manual surface.
+- `client/lib/features/settings/presentation/settings_screen.dart` exposes the Admin/operator manual only in the owner/admin setup surface.
+- Both surfaces state the checked-in manual source, constrained embed permissions, shared design-token behavior, and support-safe fallback state.
 
 ## README release-note embedding
 
@@ -33,7 +39,7 @@ Required contract:
 - Keep `<!-- WEAVE_RELEASE_NOTES_START -->` and `<!-- WEAVE_RELEASE_NOTES_END -->` markers in `README.md`.
 - Generate release notes from merged PR metadata and/or versioned release-note files using the repo release-notes automation.
 - Reject release-note generation when a merged PR has zero or multiple release-note classification labels, except explicit `release-notes-skip`.
-- Preserve a reviewable GitHub release draft path before publishing.
+- Preserve a reviewable GitHub release draft path before publishing; the `Release draft` workflow must create/update drafts only and upload README/release-note artifacts for review.
 - Keep README copy honest about shipped, gated, disabled, and future surfaces.
 - Require marketing/product review before public positioning changes are declared final.
 
