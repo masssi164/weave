@@ -8,6 +8,8 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
+import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -45,6 +47,13 @@ public class WorkspaceCapabilityService {
             "release_evidence.read",
             "release_evidence.manage",
             "admin_control_plane.readiness_read",
+            "weaver.exec_disabled");
+    private static final List<String> OPERATOR_CAPABILITIES = List.of(
+            "admin_control_plane.readiness_read",
+            "operator.support_bundle.create",
+            "release_evidence.read",
+            "manuals.admin",
+            "manuals.read",
             "weaver.exec_disabled");
     private static final List<String> MEMBER_CAPABILITIES = List.of(
             "chat.read",
@@ -211,6 +220,44 @@ public class WorkspaceCapabilityService {
         return effectivePolicy(jwt).capabilities().stream().sorted().toList();
     }
 
+    public EffectivePolicyResponse effectivePolicySnapshot(Jwt jwt, String context) {
+        EffectivePolicy policy = effectivePolicy(jwt);
+        String subject = jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()
+                ? "system"
+                : jwt.getSubject();
+        String organization = firstText(claim(jwt, "weave_tenant"), claim(jwt, "tenant"), claim(jwt, "tid"), "weave-dogfood");
+        String issuer = jwt == null || jwt.getIssuer() == null ? "unknown-issuer" : jwt.getIssuer().toString();
+        String primaryIdentityKey = "issuer+subject:" + issuer + "#" + subject;
+        List<String> denies = List.of(
+                "admin.policy.edit",
+                "admin.provider.configure",
+                "weaver.enabled").stream()
+                .filter(capability -> !policy.capabilities().contains(capability))
+                .toList();
+        return new EffectivePolicyResponse(
+                subject,
+                organization,
+                context,
+                List.of(issuer),
+                policy.groups(),
+                policy.roles(),
+                contextRoles(jwt),
+                policy.providerRoleMappings(),
+                policy.capabilities().stream().sorted().toList(),
+                denies.stream()
+                        .map(capability -> new EffectivePolicyDenyResponse(
+                                capability,
+                                denyReason(policy, capability),
+                                "deny-by-default-capability-policy"))
+                        .toList(),
+                readinessImpact(policy),
+                List.of("effective-policy-preview:" + subject),
+                true,
+                true,
+                primaryIdentityKey,
+                false);
+    }
+
     public void requireCapability(Jwt jwt, String capability, String module, String operation) {
         if (jwt == null) {
             throw new ApiErrorException(
@@ -335,16 +382,23 @@ public class WorkspaceCapabilityService {
                     List.of("system"),
                     List.of(),
                     List.of("system-internal-readiness"),
-                    Set.copyOf(systemCapabilities));
+                    Set.copyOf(systemCapabilities),
+                    List.of("system:internal-readiness"));
         }
         List<String> roles = extractRealmRoles(jwt);
         List<String> groups = extractStringList(jwt, "groups");
         LinkedHashSet<String> capabilities = new LinkedHashSet<>();
         LinkedHashSet<String> profileKeys = new LinkedHashSet<>();
 
-        if (roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"))) {
+        if (roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin"))) {
             capabilities.addAll(OWNER_ADMIN_CAPABILITIES);
+            capabilities.add("admin.provider.configure");
+            capabilities.add("admin.policy.edit");
             profileKeys.add("workspace-admin");
+        }
+        if (roles.contains("operator")) {
+            capabilities.addAll(OPERATOR_CAPABILITIES);
+            profileKeys.add("workspace-operator");
         }
         if (roles.contains("member")) {
             capabilities.addAll(MEMBER_CAPABILITIES);
@@ -372,7 +426,47 @@ public class WorkspaceCapabilityService {
         // Weaver runtime enablement is deliberately absent from built-in role profiles.
         // Only explicit admin runtime policy groups may carry weaver.enabled, and only when
         // the runtime generator is enabled in organization configuration.
-        return new EffectivePolicy(roles, groups, List.copyOf(profileKeys), Set.copyOf(capabilities));
+        return new EffectivePolicy(
+                roles,
+                groups,
+                List.copyOf(profileKeys),
+                Set.copyOf(capabilities),
+                providerRoleMappings(roles, groups));
+    }
+
+    private List<String> providerRoleMappings(List<String> roles, List<String> groups) {
+        return Stream.concat(
+                        roles.stream().map(role -> "realm_role:" + role),
+                        groups.stream().map(group -> "group_claim:" + group))
+                .sorted()
+                .toList();
+    }
+
+    private List<String> contextRoles(Jwt jwt) {
+        return extractStringList(jwt, "weave_context_roles").stream()
+                .map(role -> role.toLowerCase(Locale.ROOT))
+                .sorted()
+                .toList();
+    }
+
+    private List<String> readinessImpact(EffectivePolicy policy) {
+        if (policy.profileKeys().contains("deny-by-default")) {
+            return List.of("all: policy-blocked until a known org role or mapped group grants capabilities");
+        }
+        if (policy.roles().contains("guest")) {
+            return List.of("guest: bounded external access; capabilities remain deny-by-default unless mapped");
+        }
+        return List.of("member-visible states remain ready, disabled, degraded, or policy-blocked");
+    }
+
+    private String denyReason(EffectivePolicy policy, String capability) {
+        if (capability.equals("weaver.enabled")) {
+            return "weaver runtime is disabled unless an organization policy group explicitly grants it";
+        }
+        if (policy.roles().contains("operator")) {
+            return "operator role does not automatically grant user, provider, or policy administration";
+        }
+        return "missing mapped org role, context role, or group capability";
     }
 
     private List<String> extractRealmRoles(Jwt jwt) {
@@ -410,11 +504,33 @@ public class WorkspaceCapabilityService {
                 .toList();
     }
 
+    private String claim(Jwt jwt, String claimName) {
+        if (jwt == null) {
+            return null;
+        }
+        Object value = jwt.getClaims().get(claimName);
+        return value instanceof String text && hasText(text) ? text.trim() : null;
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
-    private record EffectivePolicy(List<String> roles, List<String> groups, List<String> profileKeys, Set<String> capabilities) {
+    private record EffectivePolicy(
+            List<String> roles,
+            List<String> groups,
+            List<String> profileKeys,
+            Set<String> capabilities,
+            List<String> providerRoleMappings) {
         String profileKeyFor(String category) {
             return Stream.concat(Stream.of(category), profileKeys.stream()).toList().toString();
         }

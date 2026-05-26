@@ -14,6 +14,8 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
+import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
@@ -107,10 +109,27 @@ class AdminControlPlaneControllerTest {
                 List.of("admin"),
                 List.of("weave-board-editors"),
                 List.of("workspace-admin", "group:weave-board-editors"),
-                List.of("chat.read", "files.read", "boards.update_task", "weaver.exec_disabled"),
+                List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"),
                 true,
                 true,
                 "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later"));
+        when(workspaceCapabilityService.effectivePolicySnapshot(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new EffectivePolicyResponse(
+                "admin-123",
+                "weave-dogfood",
+                "organization",
+                List.of("https://auth.example.invalid/realms/weave"),
+                List.of("weave-board-editors"),
+                List.of("admin"),
+                List.of("context_admin"),
+                List.of("realm_role:admin", "group_claim:weave-board-editors"),
+                List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"),
+                List.of(new EffectivePolicyDenyResponse("weaver.enabled", "weaver runtime is disabled unless an organization policy group explicitly grants it", "deny-by-default-capability-policy")),
+                List.of("member-visible states remain ready, disabled, degraded, or policy-blocked"),
+                List.of("effective-policy-preview:admin-123"),
+                true,
+                true,
+                "issuer+subject:https://auth.example.invalid/realms/weave#admin-123",
+                false));
     }
 
     private void selectDefaultProviders() {
@@ -174,6 +193,40 @@ class AdminControlPlaneControllerTest {
                 .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))))
                 .andExpect(content().string(not(containsString("Authorization: Bearer"))))
                 .andExpect(content().string(not(containsString("access_token"))));
+    }
+
+    @Test
+    void effectivePolicyExplainsAdminGrantsWithoutEmailAsPrimaryKey() throws Exception {
+        mockMvc.perform(get("/api/admin/policies/effective").with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subject").value("admin-123"))
+                .andExpect(jsonPath("$.organization").value("weave-dogfood"))
+                .andExpect(jsonPath("$.capabilityGrants[*]", hasItems("admin.policy.edit", "admin.provider.configure")))
+                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("realm_role:admin", "group_claim:weave-board-editors")))
+                .andExpect(jsonPath("$.denies[0].capability").value("weaver.enabled"))
+                .andExpect(jsonPath("$.denyByDefault").value(true))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.primaryIdentityKey", containsString("issuer+subject:")))
+                .andExpect(jsonPath("$.emailPrimaryKey").value(false))
+                .andExpect(content().string(not(containsString("alice@example.com"))));
+    }
+
+    @Test
+    void operatorCanReadButCannotChangeProviderOrPolicy() throws Exception {
+        mockMvc.perform(get("/api/admin/control-plane").with(operatorJwt()))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
+                        .with(operatorJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileKey\":\"workspace-admin\",\"capabilityKeys\":[\"admin.policy.edit\"]}"))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(operatorJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"chat\",\"providerKey\":\"slack\",\"choiceModel\":\"external_existing_provider\",\"secretRef\":\"secretref://weave/provider/slack\"}"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -279,6 +332,17 @@ class AdminControlPlaneControllerTest {
                 .authorities(
                         new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                         new SimpleGrantedAuthority("ROLE_ADMIN"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor operatorJwt() {
+        return jwt().jwt(jwt -> jwt
+                        .subject("operator-123")
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("weave_tenant", "weave-dogfood")
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("operator"))))
+                .authorities(
+                        new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                        new SimpleGrantedAuthority("ROLE_OPERATOR"));
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {

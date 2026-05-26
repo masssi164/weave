@@ -2,7 +2,7 @@
 
 Status: active Sprint 3 architecture contract.
 
-Canonical feature models come before control-plane, admin-console, infra, or adapter implementation. The member client and Admin Console consume stable Weave contracts; they never call Matrix, Slack, Microsoft Graph, Nextcloud/WebDAV, OpenProject, Keycloak, LiveKit, WOPI, or similar provider APIs directly.
+Canonical feature models come before control-plane, admin-console, infra, or adapter implementation. The member client and Admin Console consume stable Weave contracts; they never call Matrix, Slack, Microsoft Graph, Nextcloud/WebDAV, OpenProject, Keycloak, LiveKit, WOPI, or similar provider APIs directly. Organization embedding and provider replacement are defined in [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), and [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md).
 
 Provider selection is category-first. The self-hosted dogfood stack is the recommended default where it is sensible, but an organization may choose external or managed providers per capability. The backend owns provider mapping, adapter readiness, `SecretRef` resolution, policy, whitelisting, audit, and support-safe error shaping. Server facades expose Weave-owned models per capability; they are not thin provider proxies.
 
@@ -10,7 +10,7 @@ Provider selection is category-first. The self-hosted dogfood stack is the recom
 
 - Canonical models are the product surface. Provider schemas are adapter input/output only.
 - Every domain object has a stable Weave ID. Provider IDs live only in backend-owned mapping tables and audit-safe adapter traces.
-- Admin/provider policy decides whether a capability is `ready`, `disabled`, `degraded`, or `policy-blocked` for a member.
+- Admin/provider policy decides whether a capability is `ready`, `disabled`, `degraded`, or `policy-blocked` for a member. `usable` is only plain-language copy for `ready`, not a separate contract state.
 - Policy is deny-by-default. Unknown role/group/provider states do not grant capability access.
 - Secrets are stored and displayed only as `SecretRef` handles. Raw secrets, bearer tokens, provider URLs with credentials, downstream bodies, and provider-internal IDs do not appear in member responses, diagnostics, support bundles, or acceptance evidence.
 - Lossy mappings are explicit adapter behavior, not accidental UI leaks.
@@ -93,7 +93,7 @@ Entities: `Organization`, `User`, `Group`, `Role`, `ProviderConfig`, `Capability
 
 The identity/admin canonical set is Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent.
 
-The identity/admin facade maps Keycloak, Entra ID, Authentik/Auth0/OIDC/SAML, SCIM, and LDAP-style systems into stable organization, user, group, role, and policy records. Keycloak is the self-hosted default; Entra or other OIDC/SAML sources are valid external choices. Admins configure provider posture, readiness, whitelists, and role/group mapping. Members see only effective capability states.
+The identity/admin facade maps Keycloak, Entra ID, Authentik/Auth0/OIDC/SAML, SCIM, and LDAP-style systems into stable organization, user, group, role, and policy records. Keycloak is the self-hosted default; Entra or other OIDC/SAML sources are valid external choices. LDAP/AD is normally an upstream directory source through an identity broker or provisioning bridge. Immutable provider identifiers, such as issuer+subject, SCIM externalId, Entra object ID, or LDAP/AD objectGUID/objectSid, anchor mappings; email is never a primary identity key. Admins configure provider posture, readiness, whitelists, source ownership, role/group mapping, guest policy, service principals, and deprovisioning behavior. Members see only effective capability states.
 
 Diagram: [`docs/diagrams/er_identity_admin.mmd`](diagrams/er_identity_admin.mmd).
 

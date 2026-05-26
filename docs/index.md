@@ -13,6 +13,8 @@ Weave is a provider-neutral organization suite and integration layer for chat, f
 
 The active product direction is [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md): Weave is product-first and provider-neutral. Admin/provider setup, IDM/RBAC, readiness, whitelisting, and support-safe diagnostics come before optional Weaver personal-assistant runtime work.
 
+Before new provider feature slices, the next strategic foundation is [Strategy Sprint: organization embedding and provider-neutrality proof](strategy-sprint-org-embedding-plan.md). Its supporting contracts are [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), and [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md). They define how Weave fits existing and new organizations, supports LDAP/AD/OIDC/SAML/SCIM identity paths, keeps mixed self-hosted/cloud/external providers valid, and allows adapter replacement without changing member workflows.
+
 v0.1 is a dogfood-production release, not a preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md).
 
 ## Documentation stack

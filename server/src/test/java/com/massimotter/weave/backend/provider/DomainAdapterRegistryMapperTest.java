@@ -65,6 +65,19 @@ class DomainAdapterRegistryMapperTest {
     }
 
     @Test
+    void categoryContractCarriesAntiSiloDomainAdapterFit() {
+        var contract = ProviderCapabilityContracts.contract("chat", Set.of(ProviderModule.MATRIX));
+
+        assertThat(contract.stableMemberImpactStates()).containsExactly("usable", "disabled", "degraded", "policy-blocked");
+        assertThat(contract.canonicalObjects()).contains("Conversation", "Message", "Membership");
+        assertThat(contract.externalAdapters()).contains("microsoft-teams", "slack");
+        assertThat(contract.lossyMappingRisks()).contains("Slack broadcast/thread semantics", "Teams channel permissions");
+        assertThat(contract.sourceOfTruth()).contains("selected chat provider owns message history");
+        assertThat(contract.replacementRequirement()).contains("dry-run");
+        assertThat(contract.choiceModels()).extracting(ProviderChoiceModelResponse::choiceModel).contains("hybrid_composite");
+    }
+
+    @Test
     void mapperDoesNotMarkMisconfiguredActiveAdapterAsConfigured() {
         var category = category("files", ProviderCategoryReadiness.MISCONFIGURED);
 
