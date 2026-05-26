@@ -48,7 +48,7 @@ public class AdminControlPlaneService {
             "degraded",
             "policy-blocked");
     private static final int MAX_BOOTSTRAP_ADMIN_KEYS = 25;
-    private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = 512;
+    private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = 528;
     private static final String PRIMARY_IDENTITY_KEY_PATTERN =
             "issuer\\+subject:[^#\\s]{1,384}#[^#\\s]{1,128}";
 
