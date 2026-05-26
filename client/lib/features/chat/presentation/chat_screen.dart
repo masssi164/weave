@@ -417,8 +417,16 @@ class _ChatOverviewSliver extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
+            _ChatHomeHeroCard(
+              overview: overview,
+              onOpenConversation: onOpenConversation,
+            ),
+            const SizedBox(height: 20),
             _ChatOverviewSection(
               title: l10n.chatFavoritesSectionTitle,
+              countLabel: l10n.chatOverviewSectionCount(
+                overview.favorites.length,
+              ),
               description: l10n.chatFavoritesSectionDescription,
               emptyMessage: l10n.chatFavoritesSectionEmpty,
               icon: Icons.star_outline,
@@ -428,6 +436,9 @@ class _ChatOverviewSliver extends StatelessWidget {
             const SizedBox(height: 20),
             _ChatOverviewSection(
               title: l10n.chatPersonalMessagesSectionTitle,
+              countLabel: l10n.chatOverviewSectionCount(
+                overview.personalMessages.length,
+              ),
               description: l10n.chatPersonalMessagesSectionDescription,
               emptyMessage: l10n.chatPersonalMessagesSectionEmpty,
               icon: Icons.person_outline,
@@ -437,6 +448,9 @@ class _ChatOverviewSliver extends StatelessWidget {
             const SizedBox(height: 20),
             _ChatOverviewSection(
               title: l10n.chatChannelsSectionTitle,
+              countLabel: l10n.chatOverviewSectionCount(
+                overview.channels.length,
+              ),
               description: l10n.chatChannelsSectionDescription,
               emptyMessage: l10n.chatChannelsSectionEmpty,
               icon: Icons.tag,
@@ -446,6 +460,9 @@ class _ChatOverviewSliver extends StatelessWidget {
             const SizedBox(height: 20),
             _ChatOverviewSection(
               title: l10n.chatAiChatsSectionTitle,
+              countLabel: l10n.chatOverviewSectionCount(
+                overview.aiChats.length,
+              ),
               description: l10n.chatAiChatsSectionDescription,
               emptyMessage: l10n.chatAiChatsSectionEmpty,
               icon: Icons.smart_toy_outlined,
@@ -459,9 +476,154 @@ class _ChatOverviewSliver extends StatelessWidget {
   }
 }
 
+class _ChatHomeHeroCard extends StatelessWidget {
+  const _ChatHomeHeroCard({
+    required this.overview,
+    required this.onOpenConversation,
+  });
+
+  final ChatOverview overview;
+  final ValueChanged<ChatConversation> onOpenConversation;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final nextConversation = overview.nextConversation;
+    final aiMetric = overview.aiChats.isEmpty
+        ? l10n.chatHomeAiMetricDisabled
+        : l10n.chatHomeAiMetricReady(overview.aiChats.length);
+
+    return Semantics(
+      container: true,
+      explicitChildNodes: true,
+      child: Card(
+        elevation: 0,
+        color: theme.colorScheme.primaryContainer,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: theme.colorScheme.primary),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.dashboard_customize_outlined,
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.chatHomeHeroTitle,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          l10n.chatHomeHeroDescription,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _ChatHomeMetricChip(
+                    icon: Icons.mark_unread_chat_alt_outlined,
+                    label: l10n.chatHomeUnreadMetric(overview.unreadCount),
+                  ),
+                  _ChatHomeMetricChip(
+                    icon: Icons.tag,
+                    label: l10n.chatHomeChannelsMetric(
+                      overview.channels.length,
+                    ),
+                  ),
+                  _ChatHomeMetricChip(
+                    icon: Icons.person_outline,
+                    label: l10n.chatHomePeopleMetric(
+                      overview.personalMessages.length,
+                    ),
+                  ),
+                  _ChatHomeMetricChip(
+                    icon: Icons.smart_toy_outlined,
+                    label: aiMetric,
+                  ),
+                ],
+              ),
+              if (nextConversation != null) ...[
+                const SizedBox(height: 16),
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: FilledButton.icon(
+                    onPressed: () => onOpenConversation(nextConversation),
+                    icon: const Icon(Icons.arrow_forward),
+                    label: Text(l10n.chatHomeContinueButton),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatHomeMetricChip extends StatelessWidget {
+  const _ChatHomeMetricChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ChatOverviewSection extends StatelessWidget {
   const _ChatOverviewSection({
     required this.title,
+    required this.countLabel,
     required this.description,
     required this.emptyMessage,
     required this.icon,
@@ -470,6 +632,7 @@ class _ChatOverviewSection extends StatelessWidget {
   });
 
   final String title;
+  final String countLabel;
   final String description;
   final String emptyMessage;
   final IconData icon;
@@ -494,6 +657,25 @@ class _ChatOverviewSection extends StatelessWidget {
                 child: Semantics(
                   header: true,
                   child: Text(title, style: theme.textTheme.titleLarge),
+                ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    countLabel,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: theme.colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
             ],

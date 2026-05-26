@@ -451,6 +451,78 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.';
 
   @override
+  String get chatHomeHeroTitle => 'Your organization workspace';
+
+  @override
+  String get chatHomeHeroDescription =>
+      'Start with messages, channel workspaces, and governed AI areas that are actually available to you.';
+
+  @override
+  String chatHomeUnreadMetric(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count unread items',
+      one: '1 unread item',
+      zero: 'No unread work',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatHomeChannelsMetric(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count channel workspaces',
+      one: '1 channel workspace',
+      zero: 'No channel workspaces',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatHomePeopleMetric(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count personal messages',
+      one: '1 personal message',
+      zero: 'No personal messages',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatHomeAiMetricReady(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count governed AI chats',
+      one: '1 governed AI chat',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatHomeAiMetricDisabled => 'AI governed by workspace policy';
+
+  @override
+  String get chatHomeContinueButton => 'Open next work item';
+
+  @override
+  String chatOverviewSectionCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count items',
+      one: '1 item',
+      zero: '0 items',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get chatFavoritesSectionTitle => 'Favorites';
 
   @override

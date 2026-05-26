@@ -61,4 +61,43 @@ class ChatOverview {
   final List<ChatConversation> personalMessages;
   final List<ChatConversation> channels;
   final List<ChatConversation> aiChats;
+
+  int get unreadCount {
+    final unique = <String>{};
+    var total = 0;
+
+    for (final conversation in [
+      ...favorites,
+      ...personalMessages,
+      ...channels,
+      ...aiChats,
+    ]) {
+      if (unique.add(conversation.id)) {
+        total += conversation.unreadCount;
+      }
+    }
+
+    return total;
+  }
+
+  ChatConversation? get nextConversation {
+    final unique = <String>{};
+    final candidates = <ChatConversation>[
+      ...favorites.where((conversation) => conversation.unreadCount > 0),
+      ...personalMessages.where((conversation) => conversation.unreadCount > 0),
+      ...channels.where((conversation) => conversation.unreadCount > 0),
+      ...favorites,
+      ...personalMessages,
+      ...channels,
+      ...aiChats,
+    ];
+
+    for (final conversation in candidates) {
+      if (unique.add(conversation.id)) {
+        return conversation;
+      }
+    }
+
+    return null;
+  }
 }
