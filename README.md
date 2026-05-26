@@ -45,6 +45,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
+- Added organization-embedding, identity-provisioning, and provider-replacement strategy contracts to make provider neutrality, mixed self-hosted/cloud/external deployments, and adapter replacement explicit before new feature slices.
 - Documentation validation now has a dedicated docs check/build path.
 - PR CI now enforces exactly one release-notes label before review/merge.
 - `make release-notes-check` now verifies release-notes label edge cases and generator fixture output.
