@@ -40,7 +40,7 @@ Feature: Weave v0.1 dogfood production release
   Scenario: Admin health enforces provider readiness and member policy boundaries
     Given an owner or admin opens Workspace Health after selecting provider categories
     When backend provider readiness and capability policy are evaluated
-    Then Workspace Health returns support-safe category readiness for ready, disabled, degraded, policy-blocked, and misconfigured states
+    Then Workspace Health returns overall posture, support-safe category readiness, next actions, and evidence for ready, disabled, degraded, policy-blocked, and misconfigured states
     And feature capabilities are separated from default and external provider adapters
     And members receive only usable, disabled, degraded, or policy-blocked impact states without raw provider setup
     And member API writes are denied when IDM capability policy does not grant the required category capability

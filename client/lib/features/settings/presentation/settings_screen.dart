@@ -1100,6 +1100,8 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
     final theme = Theme.of(context);
     final categories = stack.categories;
     final providers = stack.providers;
+    final posture = _overallPostureLabel(l10n, stack, categories, providers);
+    final nextActions = _nextActions(l10n, stack, categories, providers);
     final flutterCalls = stack.flutterDirectProviderCallsAllowed
         ? l10n.settingsProviderStackFlutterCallsAllowed
         : l10n.settingsProviderStackFlutterCallsBlocked;
@@ -1136,6 +1138,61 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
                 style: theme.textTheme.bodyMedium,
               ),
               const SizedBox(height: 12),
+              Semantics(
+                header: true,
+                child: Text(
+                  l10n.settingsAdminReadinessCockpitTitle,
+                  style: theme.textTheme.titleSmall,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                l10n.settingsAdminReadinessCockpitDescription,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _StatusPill(
+                    label: l10n.settingsAdminReadinessOverallPostureLabel,
+                    value: posture,
+                  ),
+                  _StatusPill(
+                    label: l10n.settingsAdminReadinessCategoryHealthLabel,
+                    value: l10n.settingsAdminReadinessCategoryHealthValue(
+                      _readyCategoryCount(categories),
+                      categories.length,
+                      _attentionCategoryCount(categories),
+                    ),
+                  ),
+                  _StatusPill(
+                    label: l10n.settingsAdminReadinessEvidenceLabel,
+                    value: stack.supportSafe
+                        ? l10n.settingsAdminReadinessEvidenceRedacted
+                        : l10n.settingsProviderStackNeedsReview,
+                  ),
+                  _StatusPill(
+                    label: l10n.settingsAdminReadinessMemberBoundaryLabel,
+                    value: l10n.settingsAdminReadinessMemberBoundaryHidden,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l10n.settingsAdminReadinessNextActionsTitle,
+                style: theme.textTheme.titleSmall,
+              ),
+              const SizedBox(height: 6),
+              for (final action in nextActions)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('• $action', style: theme.textTheme.bodySmall),
+                ),
+              const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -1166,60 +1223,131 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
               ],
               if (categories.isNotEmpty) ...[
                 const SizedBox(height: 12),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    l10n.settingsProviderCategoryHealthTitle,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
                 for (final category in categories)
                   Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        Text(
-                          '${category.label}: ${_providerCategoryReadinessLabel(l10n, category.readiness)}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                    padding: const EdgeInsets.only(top: 8),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
                         ),
-                        if (category.readiness ==
-                            ProviderCategoryReadiness.policyBlocked)
-                          _CompactStatusBadge(
-                            label: l10n.settingsWorkspaceCapabilityBlocked,
-                          ),
-                        if (category.readiness ==
-                            ProviderCategoryReadiness.disabled)
-                          _CompactStatusBadge(
-                            label: l10n.settingsProviderStateDisabled,
-                          ),
-                        if (category.readiness ==
-                            ProviderCategoryReadiness.misconfigured)
-                          _CompactStatusBadge(
-                            label: l10n.settingsProviderStateNotConfigured,
-                          ),
-                        if (category.supportSafe)
-                          _CompactStatusBadge(
-                            label: l10n.settingsProviderStackRedacted,
-                          ),
-                        for (final evidence in category.adapterEvidence) ...[
-                          _CompactStatusBadge(
-                            label:
-                                '${evidence.adapterKey}: ${evidence.configured ? l10n.settingsProviderStateConfigured : l10n.settingsProviderStateNotConfigured}',
-                          ),
-                          _CompactStatusBadge(
-                            label: evidence.reachable
-                                ? l10n.settingsProviderStateReady
-                                : l10n.settingsWorkspaceCapabilityUnavailable,
-                          ),
-                          if (evidence.failClosed)
-                            _CompactStatusBadge(
-                              label: l10n.settingsProviderStackFailClosedBadge,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                Text(
+                                  '${category.label}: ${_providerCategoryReadinessLabel(l10n, category.readiness)}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                if (category.readiness ==
+                                    ProviderCategoryReadiness.policyBlocked)
+                                  _CompactStatusBadge(
+                                    label:
+                                        l10n.settingsWorkspaceCapabilityBlocked,
+                                  ),
+                                if (category.readiness ==
+                                    ProviderCategoryReadiness.disabled)
+                                  _CompactStatusBadge(
+                                    label: l10n.settingsProviderStateDisabled,
+                                  ),
+                                if (category.readiness ==
+                                    ProviderCategoryReadiness.misconfigured)
+                                  _CompactStatusBadge(
+                                    label:
+                                        l10n.settingsProviderStateNotConfigured,
+                                  ),
+                                if (category.supportSafe)
+                                  _CompactStatusBadge(
+                                    label: l10n.settingsProviderStackRedacted,
+                                  ),
+                              ],
                             ),
-                        ],
-                      ],
+                            const SizedBox(height: 6),
+                            Text(
+                              '${l10n.settingsWorkspaceImpactLabel}: ${category.memberImpact}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${l10n.settingsWorkspacePolicyLabel}: ${category.policyState}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${l10n.settingsAdminReadinessNextActionLabel}: ${_categoryNextAction(l10n, category)}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (category.supportSafe) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                l10n.settingsAdminReadinessCategoryEvidence,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                            if (category.adapterEvidence.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  for (final evidence
+                                      in category.adapterEvidence) ...[
+                                    _CompactStatusBadge(
+                                      label:
+                                          '${evidence.adapterKey}: ${evidence.configured ? l10n.settingsProviderStateConfigured : l10n.settingsProviderStateNotConfigured}',
+                                    ),
+                                    _CompactStatusBadge(
+                                      label: evidence.reachable
+                                          ? l10n.settingsProviderStateReady
+                                          : l10n.settingsWorkspaceCapabilityUnavailable,
+                                    ),
+                                    if (evidence.failClosed)
+                                      _CompactStatusBadge(
+                                        label: l10n
+                                            .settingsProviderStackFailClosedBadge,
+                                      ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
               ],
               if (providers.isNotEmpty) ...[
                 const SizedBox(height: 12),
+                Semantics(
+                  header: true,
+                  child: Text(
+                    l10n.settingsProviderAdapterHealthTitle,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                ),
                 for (final provider in providers)
                   Padding(
                     padding: const EdgeInsets.only(top: 6),
@@ -1255,6 +1383,10 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
                             label: l10n
                                 .settingsProviderStackPaidFeaturesRequiredBadge,
                           ),
+                        _CompactStatusBadge(
+                          label:
+                              '${l10n.settingsAdminReadinessNextActionLabel}: ${_providerNextAction(l10n, provider)}',
+                        ),
                       ],
                     ),
                   ),
@@ -1264,6 +1396,134 @@ class _ProviderStackReadinessSummary extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  int _readyCategoryCount(List<ProviderCategoryStatusSnapshot> categories) {
+    return categories
+        .where(
+          (category) => category.readiness == ProviderCategoryReadiness.ready,
+        )
+        .length;
+  }
+
+  int _attentionCategoryCount(List<ProviderCategoryStatusSnapshot> categories) {
+    return categories
+        .where(
+          (category) => category.readiness != ProviderCategoryReadiness.ready,
+        )
+        .length;
+  }
+
+  String _overallPostureLabel(
+    AppLocalizations l10n,
+    ProviderStackSnapshot stack,
+    List<ProviderCategoryStatusSnapshot> categories,
+    List<ProviderStatusSnapshot> providers,
+  ) {
+    if (!stack.backendOwnedFacades || stack.flutterDirectProviderCallsAllowed) {
+      return l10n.settingsAdminReadinessPostureNeedsReview;
+    }
+
+    if (!stack.supportSafe) {
+      return l10n.settingsAdminReadinessPostureEvidenceUnsafe;
+    }
+
+    if (categories.any(
+          (category) =>
+              category.readiness == ProviderCategoryReadiness.misconfigured ||
+              category.readiness == ProviderCategoryReadiness.degraded,
+        ) ||
+        providers.any(
+          (provider) => provider.unconfigured || provider.failClosed,
+        )) {
+      return l10n.settingsAdminReadinessPostureAdminAction;
+    }
+
+    if (categories.any(
+      (category) =>
+          category.readiness == ProviderCategoryReadiness.disabled ||
+          category.readiness == ProviderCategoryReadiness.policyBlocked,
+    )) {
+      return l10n.settingsAdminReadinessPosturePolicyBoundary;
+    }
+
+    return l10n.settingsAdminReadinessPostureReady;
+  }
+
+  List<String> _nextActions(
+    AppLocalizations l10n,
+    ProviderStackSnapshot stack,
+    List<ProviderCategoryStatusSnapshot> categories,
+    List<ProviderStatusSnapshot> providers,
+  ) {
+    final actions = <String>[];
+    if (!stack.backendOwnedFacades) {
+      actions.add(l10n.settingsAdminReadinessActionRestoreBackendFacades);
+    }
+    if (stack.flutterDirectProviderCallsAllowed) {
+      actions.add(l10n.settingsAdminReadinessActionBlockDirectProviderCalls);
+    }
+    if (!stack.supportSafe) {
+      actions.add(l10n.settingsAdminReadinessActionRedactEvidence);
+    }
+
+    for (final category in categories) {
+      final action = _categoryNextAction(l10n, category);
+      if (action != l10n.settingsAdminReadinessActionNoOperatorAction &&
+          !actions.contains(action)) {
+        actions.add(action);
+      }
+    }
+
+    for (final provider in providers) {
+      final action = _providerNextAction(l10n, provider);
+      if (action != l10n.settingsAdminReadinessActionNoOperatorAction &&
+          !actions.contains(action)) {
+        actions.add(action);
+      }
+    }
+
+    if (actions.isEmpty) {
+      actions.add(l10n.settingsAdminReadinessActionNoOperatorAction);
+    }
+
+    return actions.take(4).toList(growable: false);
+  }
+
+  String _categoryNextAction(
+    AppLocalizations l10n,
+    ProviderCategoryStatusSnapshot category,
+  ) {
+    return switch (category.readiness) {
+      ProviderCategoryReadiness.ready =>
+        l10n.settingsAdminReadinessActionNoOperatorAction,
+      ProviderCategoryReadiness.disabled =>
+        l10n.settingsAdminReadinessActionEnableOnlyWithPolicy,
+      ProviderCategoryReadiness.degraded =>
+        l10n.settingsAdminReadinessActionRunReadinessSmoke,
+      ProviderCategoryReadiness.policyBlocked =>
+        l10n.settingsAdminReadinessActionReviewWhitelistPolicy,
+      ProviderCategoryReadiness.misconfigured =>
+        l10n.settingsAdminReadinessActionConfigureSecretRefs,
+      ProviderCategoryReadiness.unknown =>
+        l10n.settingsAdminReadinessActionConfirmBackendEvidence,
+    };
+  }
+
+  String _providerNextAction(
+    AppLocalizations l10n,
+    ProviderStatusSnapshot provider,
+  ) {
+    if (provider.unconfigured) {
+      return l10n.settingsAdminReadinessActionConfigureSecretRefs;
+    }
+    if (provider.disabled) {
+      return l10n.settingsAdminReadinessActionEnableOnlyWithPolicy;
+    }
+    if (provider.failClosed) {
+      return l10n.settingsAdminReadinessActionRunReadinessSmoke;
+    }
+    return l10n.settingsAdminReadinessActionNoOperatorAction;
   }
 
   String _providerCategoryReadinessLabel(
@@ -1443,11 +1703,14 @@ class _WorkspaceReadinessRow extends StatelessWidget {
                 value: _connectionLabel(l10n, connection.status),
               ),
               _StatusPill(
-                label: 'Policy',
-                value: _policyLabel(capability.policyState),
+                label: l10n.settingsWorkspacePolicyLabel,
+                value: _policyLabel(l10n, capability.policyState),
               ),
               if (capability.memberImpact case final impact?)
-                _StatusPill(label: 'Impact', value: impact),
+                _StatusPill(
+                  label: l10n.settingsWorkspaceImpactLabel,
+                  value: impact,
+                ),
               if (connection.lastInvalidation != null)
                 _StatusPill(
                   label: l10n.settingsWorkspaceLastChangeLabel,
@@ -1499,12 +1762,19 @@ class _WorkspaceReadinessRow extends StatelessWidget {
     };
   }
 
-  String _policyLabel(WorkspaceCapabilityPolicyState state) {
+  String _policyLabel(
+    AppLocalizations l10n,
+    WorkspaceCapabilityPolicyState state,
+  ) {
     return switch (state) {
-      WorkspaceCapabilityPolicyState.allowed => 'Allowed',
-      WorkspaceCapabilityPolicyState.policyBlocked => 'Policy blocked',
-      WorkspaceCapabilityPolicyState.disabled => 'Disabled by policy',
-      WorkspaceCapabilityPolicyState.unavailable => 'Unavailable',
+      WorkspaceCapabilityPolicyState.allowed =>
+        l10n.settingsWorkspacePolicyAllowed,
+      WorkspaceCapabilityPolicyState.policyBlocked =>
+        l10n.settingsWorkspacePolicyBlocked,
+      WorkspaceCapabilityPolicyState.disabled =>
+        l10n.settingsWorkspacePolicyDisabled,
+      WorkspaceCapabilityPolicyState.unavailable =>
+        l10n.settingsWorkspacePolicyUnavailable,
     };
   }
 

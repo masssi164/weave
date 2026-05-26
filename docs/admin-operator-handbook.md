@@ -56,7 +56,9 @@ Whitelists restrict which providers, adapters, tools, and later Weaver capabilit
 
 ## Readiness and audit
 
-Readiness states must be support-safe and action-oriented. They can explain that a capability is ready, disabled, degraded, or policy-blocked, but they must not expose raw downstream bodies, provider-internal IDs, credential-bearing URLs, tokens, cookies, or private keys.
+Readiness states must be support-safe and action-oriented. They can explain that a capability is ready, disabled, degraded, policy-blocked, admin-setup-required/misconfigured, or intentionally hidden from normal members, but they must not expose raw downstream bodies, provider-internal IDs, credential-bearing URLs, tokens, cookies, or private keys.
+
+Workspace/Admin Health is the operator control plane for this posture. The client readiness cockpit summarizes overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action from backend-owned readiness snapshots. Category rows should state member impact and policy state without leaking provider internals; provider adapter evidence remains admin-only.
 
 Audit records should cover admin changes, denied access, provider writes, readiness transitions, SecretRef rotations, mapping-loss events, and support-bundle generation.
 
