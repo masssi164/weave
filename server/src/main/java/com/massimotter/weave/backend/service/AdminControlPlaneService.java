@@ -390,14 +390,14 @@ public class AdminControlPlaneService {
                 .distinct()
                 .sorted()
                 .toList();
-        if (retained.size() > MAX_BOOTSTRAP_ADMIN_KEYS || retained.stream().anyMatch(this::unsafeBootstrapAdminKey)) {
+        if (suppliedKeys.size() > MAX_BOOTSTRAP_ADMIN_KEYS || retained.stream().anyMatch(this::unsafeBootstrapAdminKey)) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
                     "organization-bootstrap-admin-key-invalid",
                     "Organization bootstrap admin keys must be support-safe immutable issuer+subject keys.",
                     Map.of(
                             "requiredFormat", "issuer+subject:<issuer>#<subject>",
-                            "maxCount", MAX_BOOTSTRAP_ADMIN_KEYS,
+                            "maxSuppliedCount", MAX_BOOTSTRAP_ADMIN_KEYS,
                             "maxLength", MAX_BOOTSTRAP_ADMIN_KEY_LENGTH,
                             "supportSafe", true));
         }

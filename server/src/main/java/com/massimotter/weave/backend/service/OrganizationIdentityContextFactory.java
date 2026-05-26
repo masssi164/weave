@@ -35,10 +35,7 @@ final class OrganizationIdentityContextFactory {
                 claim(jwt, "org_id"),
                 "weave-dogfood");
         String primaryIdentityKey = "issuer+subject:" + issuer + "#" + subject;
-        String accountId = firstText(
-                claim(jwt, "weave_account_id"),
-                claim(jwt, "account_id"),
-                stableAccountId(primaryIdentityKey));
+        String accountId = stableAccountId(primaryIdentityKey);
         List<String> roles = canonicalRoles(jwt);
         List<String> groups = stringClaims(jwt, "weave_groups", "groups");
         List<String> contextRoles = stringClaims(jwt, "weave_context_roles").stream()
