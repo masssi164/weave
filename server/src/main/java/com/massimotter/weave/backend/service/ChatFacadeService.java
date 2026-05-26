@@ -24,6 +24,18 @@ import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunReq
 import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunResponse;
 import com.massimotter.weave.backend.model.chat.ChatReadinessResponse;
 import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
+import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
+import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordResponse;
+import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordsResponse;
+import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceRequest;
+import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceResponse;
+import com.massimotter.weave.backend.model.chat.MeetingCapsuleCreateRequest;
+import com.massimotter.weave.backend.model.chat.MeetingCapsuleResponse;
+import com.massimotter.weave.backend.model.chat.MeetingCapsulesResponse;
+import com.massimotter.weave.backend.model.chat.WeaverApprovalReceiptResponse;
+import com.massimotter.weave.backend.model.chat.WeaverScoutSourceResponse;
+import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryRequest;
+import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryResponse;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -53,6 +65,8 @@ public class ChatFacadeService {
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final AuditEventPublisher auditEventPublisher;
     private final ConcurrentMap<String, ConversationState> conversations = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, CopyOnWriteArrayList<DecisionLedgerRecordResponse>> decisions = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, CopyOnWriteArrayList<MeetingCapsuleResponse>> meetingCapsules = new ConcurrentHashMap<>();
 
     public ChatFacadeService(
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
@@ -162,6 +176,138 @@ public class ChatFacadeService {
                 "supportSafe", true));
         conversation.add(message);
         return message;
+    }
+
+    public DecisionLedgerRecordsResponse decisions(Jwt jwt, String conversationId) {
+        requireChatReady(jwt, "chat.read", "list_decisions");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
+        ConversationState conversation = requireConversation(conversationId, principal.contextId());
+        return new DecisionLedgerRecordsResponse(
+                conversation.id(),
+                conversation.contextId(),
+                false,
+                List.copyOf(decisionsFor(conversation.id())));
+    }
+
+    public DecisionLedgerRecordResponse createDecision(Jwt jwt, String conversationId, DecisionLedgerCreateRequest request) {
+        requireChatReady(jwt, "chat.send", "create_decision");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
+        ConversationState conversation = requireConversation(conversationId, principal.contextId());
+        List<DecisionLedgerReferenceResponse> references = sanitizeDecisionReferences(request.references());
+        if (references.isEmpty()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "chat-validation",
+                    "Decision Ledger records require at least one Weave source reference.",
+                    Map.of("module", DOMAIN, "field", "references", "diagnosticsRedacted", true));
+        }
+        Instant timestamp = Instant.now();
+        DecisionLedgerRecordResponse decision = new DecisionLedgerRecordResponse(
+                "decision-" + UUID.randomUUID(),
+                conversation.id(),
+                conversation.contextId(),
+                sanitizeText(request.title(), "title", 160),
+                request.status(),
+                principal.principalRef(),
+                timestamp,
+                references,
+                sanitizeTextList(request.risks(), 120),
+                sanitizeTextList(request.openQuestions(), 120),
+                sanitizeReferenceList(request.followUpRefs()),
+                true);
+        decisionsFor(conversation.id()).add(decision);
+        publishAudit(principal, AuditAction.DECISION_LEDGER_RECORD_CREATED, decision.id(), timestamp, Map.of(
+                "command", "create_decision",
+                "conversationId", conversation.id(),
+                "status", decision.status(),
+                "referenceCount", references.size(),
+                "supportSafe", true));
+        return decision;
+    }
+
+    public MeetingCapsulesResponse meetingCapsules(Jwt jwt, String conversationId) {
+        requireChatReady(jwt, "chat.read", "list_meeting_capsules");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
+        ConversationState conversation = requireConversation(conversationId, principal.contextId());
+        return new MeetingCapsulesResponse(
+                conversation.id(),
+                conversation.contextId(),
+                true,
+                List.copyOf(meetingCapsulesFor(conversation.id())));
+    }
+
+    public MeetingCapsuleResponse createMeetingCapsule(Jwt jwt, String conversationId, MeetingCapsuleCreateRequest request) {
+        requireChatReady(jwt, "chat.send", "create_meeting_capsule");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
+        ConversationState conversation = requireConversation(conversationId, principal.contextId());
+        List<String> agendaItems = sanitizeTextList(request.agendaItems(), 160);
+        if (agendaItems.isEmpty()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "chat-validation",
+                    "Meeting Capsules require at least one agenda item.",
+                    Map.of("module", DOMAIN, "field", "agendaItems", "diagnosticsRedacted", true));
+        }
+        Instant timestamp = Instant.now();
+        MeetingCapsuleResponse capsule = new MeetingCapsuleResponse(
+                "meeting-" + UUID.randomUUID(),
+                conversation.id(),
+                conversation.contextId(),
+                sanitizeText(request.title(), "title", 160),
+                "scheduled",
+                agendaItems,
+                List.of(principal.principalRef() + ":organizer"),
+                sanitizeReferenceList(request.followUpRefs()),
+                List.of("join", "start"),
+                "meeting-backend-capability-unavailable",
+                timestamp,
+                false,
+                false,
+                false,
+                false,
+                true);
+        meetingCapsulesFor(conversation.id()).add(capsule);
+        publishAudit(principal, AuditAction.MEETING_CAPSULE_CREATED, capsule.id(), timestamp, Map.of(
+                "command", "create_meeting_capsule",
+                "conversationId", conversation.id(),
+                "failClosed", true,
+                "supportSafe", true));
+        return capsule;
+    }
+
+    public WeaverScoutSummaryResponse weaverScoutSummary(Jwt jwt, String conversationId, WeaverScoutSummaryRequest request) {
+        requireChatReady(jwt, "chat.read", "weaver_scout_summary");
+        PrincipalContext principal = requireContextPermission(jwt, ContextPermission.VIEW);
+        ConversationState conversation = requireConversation(conversationId, principal.contextId());
+        String question = sanitizeText(request.question(), "question", 240);
+        List<WeaverScoutSourceResponse> sources = allowedWeaverSources(conversation, principal.principalRef());
+        List<WeaverApprovalReceiptResponse> receipts = approvalReceiptsForScoutRequest(
+                principal,
+                conversation,
+                request.requestedAction());
+        Instant timestamp = Instant.now();
+        publishAudit(principal, AuditAction.WEAVER_SCOUT_SUMMARY_REQUESTED, "weaver-scout:" + conversation.id(), timestamp, Map.of(
+                "command", "weaver_scout_summary",
+                "conversationId", conversation.id(),
+                "sourceCount", sources.size(),
+                "readOnly", true,
+                "supportSafe", true));
+        String answer = sources.isEmpty()
+                ? "I can only summarize explicit allowed channel context, and no readable sources are available yet."
+                : "Allowed context for " + conversation.title() + " includes " + sources.size()
+                        + " citable source(s). Question: " + question
+                        + ". I can summarize and propose next steps, but I cannot mutate the room.";
+        return new WeaverScoutSummaryResponse(
+                conversation.id(),
+                conversation.contextId(),
+                answer,
+                sources,
+                receipts,
+                true,
+                true,
+                false,
+                true,
+                sources.isEmpty() ? "no-allowed-sources" : "none");
     }
 
     public ChatProviderReplacementDryRunResponse dryRunProviderReplacement(
@@ -449,6 +595,148 @@ public class ChatFacadeService {
         return value;
     }
 
+    private List<DecisionLedgerReferenceResponse> sanitizeDecisionReferences(List<DecisionLedgerReferenceRequest> references) {
+        if (references == null) {
+            return List.of();
+        }
+        List<DecisionLedgerReferenceResponse> sanitized = new ArrayList<>();
+        for (DecisionLedgerReferenceRequest reference : references) {
+            if (reference == null) {
+                continue;
+            }
+            String type = sanitizeText(reference.type(), "reference.type", 32);
+            String ref = sanitizeReference(reference.ref(), "reference.ref");
+            sanitized.add(new DecisionLedgerReferenceResponse(
+                    type,
+                    ref,
+                    sanitizeText(reference.label(), "reference.label", 120),
+                    sanitizeOptionalText(reference.excerpt(), 280)));
+        }
+        return List.copyOf(sanitized);
+    }
+
+    private List<String> sanitizeTextList(List<String> values, int maxLength) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(this::hasText)
+                .map(value -> sanitizeText(value, "value", maxLength))
+                .toList();
+    }
+
+    private List<String> sanitizeReferenceList(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(this::hasText)
+                .map(value -> sanitizeReference(value, "reference"))
+                .toList();
+    }
+
+    private String sanitizeReference(String value, String field) {
+        String sanitized = sanitizeText(value, field, 160);
+        String normalized = sanitized.toLowerCase(Locale.ROOT);
+        if (normalized.contains("://") || containsSecretHint(normalized)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "chat-validation",
+                    "Channel work object references must be Weave-safe and must not contain URLs or credentials.",
+                    Map.of("module", DOMAIN, "field", field, "diagnosticsRedacted", true));
+        }
+        return sanitized;
+    }
+
+    private String sanitizeText(String value, String field, int maxLength) {
+        if (!hasText(value)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "chat-validation",
+                    "Required channel work object text is missing.",
+                    Map.of("module", DOMAIN, "field", field, "diagnosticsRedacted", true));
+        }
+        String sanitized = value.replaceAll("\\s+", " ").trim();
+        if (sanitized.length() > maxLength || containsSecretHint(sanitized.toLowerCase(Locale.ROOT))) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "chat-validation",
+                    "Channel work object text must be support-safe.",
+                    Map.of("module", DOMAIN, "field", field, "diagnosticsRedacted", true));
+        }
+        return sanitized;
+    }
+
+    private String sanitizeOptionalText(String value, int maxLength) {
+        if (!hasText(value)) {
+            return "";
+        }
+        return sanitizeText(value, "excerpt", maxLength);
+    }
+
+    private CopyOnWriteArrayList<DecisionLedgerRecordResponse> decisionsFor(String conversationId) {
+        return decisions.computeIfAbsent(conversationId, ignored -> new CopyOnWriteArrayList<>());
+    }
+
+    private CopyOnWriteArrayList<MeetingCapsuleResponse> meetingCapsulesFor(String conversationId) {
+        return meetingCapsules.computeIfAbsent(conversationId, ignored -> new CopyOnWriteArrayList<>());
+    }
+
+    private List<WeaverScoutSourceResponse> allowedWeaverSources(ConversationState conversation, String principalRef) {
+        List<WeaverScoutSourceResponse> sources = new ArrayList<>();
+        conversation.messagesFor(principalRef).stream()
+                .filter(message -> hasText(message.text()))
+                .limit(3)
+                .map(message -> new WeaverScoutSourceResponse(
+                        "message",
+                        "message:" + message.id(),
+                        "Message in " + conversation.title(),
+                        truncate(message.text(), 160)))
+                .forEach(sources::add);
+        decisionsFor(conversation.id()).stream()
+                .limit(3)
+                .map(decision -> new WeaverScoutSourceResponse(
+                        "decision",
+                        "decision:" + decision.id(),
+                        decision.title(),
+                        decision.status()))
+                .forEach(sources::add);
+        meetingCapsulesFor(conversation.id()).stream()
+                .limit(3)
+                .map(capsule -> new WeaverScoutSourceResponse(
+                        "meeting",
+                        "meeting:" + capsule.id(),
+                        capsule.title(),
+                        String.join("; ", capsule.agendaItems())))
+                .forEach(sources::add);
+        return List.copyOf(sources);
+    }
+
+    private List<WeaverApprovalReceiptResponse> approvalReceiptsForScoutRequest(
+            PrincipalContext principal,
+            ConversationState conversation,
+            String requestedAction) {
+        if (!hasText(requestedAction)) {
+            return List.of();
+        }
+        Instant timestamp = Instant.now();
+        return List.of(new WeaverApprovalReceiptResponse(
+                "receipt-" + UUID.randomUUID(),
+                principal.principalRef(),
+                sanitizeText(requestedAction, "requestedAction", 160),
+                "none - Sprint 4 Weaver scout is read-only",
+                "conversation:" + conversation.id(),
+                timestamp,
+                "blocked"));
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength - 1) + "…";
+    }
+
     private boolean containsSecretHint(String value) {
         return value.contains("://")
                 || value.contains("token")
@@ -545,6 +833,10 @@ public class ChatFacadeService {
 
         String contextId() {
             return contextId;
+        }
+
+        String title() {
+            return title;
         }
 
         void add(ChatMessageResponse message) {

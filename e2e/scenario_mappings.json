@@ -519,6 +519,14 @@
       ],
       "additionalEvidence": [
         {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "fragments": [
+            "decisionLedgerCreateAndReadUseSourceLinkedLifecycleRecords",
+            "meetingCapsuleCreateAndReadStayFailClosedWithoutProviderLeakage",
+            "weaverScoutSummarizesAllowedContextAndBlocksWritesWithReceipts"
+          ]
+        },
+        {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
             "Tabs for Chat, Decisions, Files, Board, Calendar, Meetings, and read-only Weaver scout",
@@ -580,11 +588,21 @@
       "tag": "@weave-v01-meeting-capsule",
       "scenario": "A meeting capsule keeps work connected",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
       "evidenceMarkers": [
         "V01_MEETING_CAPSULE"
       ],
       "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "fragments": [
+            "meetingCapsuleCreateAndReadStayFailClosedWithoutProviderLeakage",
+            "/api/v1/chat/conversations/channel-general/meeting-capsules",
+            "meeting-backend-capability-unavailable",
+            "liveKitProviderDetailsExposed",
+            "matrixE2eeClaimedForMedia"
+          ]
+        },
         {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
@@ -598,11 +616,20 @@
       "tag": "@weave-v01-decision-ledger",
       "scenario": "Decisions are captured as product records",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
-      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
       "evidenceMarkers": [
         "V01_DECISION_LEDGER"
       ],
       "additionalEvidence": [
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
+          "fragments": [
+            "decisionLedgerCreateAndReadUseSourceLinkedLifecycleRecords",
+            "/api/v1/chat/conversations/channel-general/decisions",
+            "source-linked",
+            "DECISION_LEDGER_RECORD_CREATED"
+          ]
+        },
         {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
