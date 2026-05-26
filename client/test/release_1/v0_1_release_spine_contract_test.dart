@@ -8,6 +8,7 @@ void main() {
     final productLine = File('../docs/product-line-and-weaver-plan.md');
     final firstUse = File('../docs/admin-provisioned-first-use.md');
     final canonicalModels = File('../docs/canonical-feature-models.md');
+    final architecture = File('../docs/architecture.md');
     final mapping = File('../e2e/scenario_mappings.json');
     final feature = File('../e2e/features/v0_1_dogfood_release.feature');
 
@@ -59,64 +60,97 @@ void main() {
       }
     });
 
-    test(
-      'documents provider-category admin foundation before Weaver runtime',
-      () {
-        // V01_ADMIN_PROVIDER_CATEGORIES
-        expect(productLine.existsSync(), isTrue);
-        expect(firstUse.existsSync(), isTrue);
+    test('documents provider-category admin foundation before Weaver runtime', () {
+      // V01_ADMIN_PROVIDER_CATEGORIES
+      // V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT
+      // V01_ADMIN_HEALTH_POLICY_ENFORCEMENT
+      // V01_ORG_CONTROL_PLANE_PROVIDER_FACADE
+      // V01_IDM_RBAC_CAPABILITY_POLICY
+      // V01_GOVERNED_WEAVER_RUNTIME_POLICY
+      // V01_INFRA_CONTROL_PLANE_BOOTSTRAP
+      // V01_ADMIN_CONSOLE_MVP
+      expect(productLine.existsSync(), isTrue);
+      expect(firstUse.existsSync(), isTrue);
+      expect(architecture.existsSync(), isTrue);
 
-        final productLineText = productLine.readAsStringSync();
-        final firstUseText = firstUse.readAsStringSync();
-        final planText = plan.readAsStringSync();
+      final productLineText = productLine.readAsStringSync();
+      final firstUseText = firstUse.readAsStringSync();
+      final planText = plan.readAsStringSync();
+      final architectureText = architecture.readAsStringSync();
 
-        for (final required in <String>[
-          'identity/IDM',
-          'chat',
-          'files',
-          'calendar',
-          'boards/tasks',
-          'meetings/calls',
-          'documents/collaboration',
-          'Weaver',
-          'disabled by default',
-          'Keycloak/Auth',
-          'Matrix/Chat',
-          'Nextcloud/Files and Calendar backing',
-          'OpenProject Boards validation',
-          'LiveKit Meetings readiness',
-        ]) {
-          expect(productLineText, contains(required));
-        }
+      for (final required in <String>[
+        'identity/IDM',
+        'chat',
+        'files',
+        'calendar',
+        'boards/tasks',
+        'meetings/calls',
+        'documents/collaboration',
+        'Weaver',
+        'disabled by default',
+        'Keycloak/Auth',
+        'Matrix/Chat',
+        'Nextcloud/Files and Calendar backing',
+        'OpenProject Boards validation',
+        'LiveKit Meetings readiness',
+        'IDM/RBAC capability profiles and whitelisting',
+        'Governed Weaver runtime integration',
+      ]) {
+        expect(productLineText, contains(required));
+      }
 
-        for (final required in <String>[
-          'Provider-category admin boundary',
-          'Normal members never configure raw providers',
-          'service endpoints',
-          'provider secrets',
-          'provider diagnostics',
-          'support-safe readiness and next actions',
-        ]) {
-          expect(firstUseText, contains(required));
-        }
+      for (final required in <String>[
+        'Provider-category admin boundary',
+        'Normal members never configure raw providers',
+        'service endpoints',
+        'provider secrets',
+        'provider diagnostics',
+        'support-safe readiness and next actions',
+        'IDM/RBAC capability profiles',
+        'Governed Weaver runtime policy',
+      ]) {
+        expect(firstUseText, contains(required));
+      }
 
-        for (final required in <String>[
-          'Provider categories are first-class product/admin concepts',
-          'Weaver is represented only as a disabled-by-default category',
-          'never raw provider setup, service endpoints, provider secrets, or diagnostics',
-        ]) {
-          expect(planText, contains(required));
-        }
+      for (final required in <String>[
+        'Provider categories are first-class product/admin concepts',
+        'Weaver is represented only as a disabled-by-default category',
+        'never raw provider setup, service endpoints, provider secrets, or diagnostics',
+        'IDM/RBAC and capability whitelisting acceptance',
+        'Governed Weaver runtime policy evidence',
+      ]) {
+        expect(planText, contains(required));
+      }
 
+      for (final required in <String>[
+        'The Organization/Admin Console remains the control plane',
+        'Workspace/Admin Health is organized around feature capability categories',
+        'Capability policy responses are support-safe',
+        'Weaver runtime integration consumes the workspace capability policy',
+      ]) {
+        expect(architectureText, contains(required));
+      }
+
+      for (final marker in <String>[
+        'V01_ADMIN_PROVIDER_CATEGORIES',
+        'V01_ORG_MANIFEST_CLIENT_ADMIN_SPLIT',
+        'V01_ADMIN_HEALTH_POLICY_ENFORCEMENT',
+        'V01_ORG_CONTROL_PLANE_PROVIDER_FACADE',
+        'V01_IDM_RBAC_CAPABILITY_POLICY',
+        'V01_GOVERNED_WEAVER_RUNTIME_POLICY',
+        'V01_INFRA_CONTROL_PLANE_BOOTSTRAP',
+        'V01_ADMIN_CONSOLE_MVP',
+      ]) {
         // ignore: avoid_print
-        print('V01_ADMIN_PROVIDER_CATEGORIES');
-      },
-    );
+        print(marker);
+      }
+    });
 
     test('documents canonical feature models and provider facade boundaries', () {
       // V01_CANONICAL_PROVIDER_NEUTRAL_MODELS
       // V01_MEMBER_PROVIDER_NEUTRAL_STATES
       // V01_ADMIN_POLICY_DECIDES_CAPABILITIES
+      // WEAVE_CHAT_DOMAIN_FACADE
       expect(canonicalModels.existsSync(), isTrue);
       final markdown = canonicalModels.readAsStringSync();
 
@@ -131,6 +165,7 @@ void main() {
         'Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField',
         'Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent',
         'Identity/Keycloak plus Boards/Tasks/OpenProject and a Planner-like placeholder',
+        'The chat canonical set is Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence.',
       ]) {
         expect(markdown, contains(required));
       }
@@ -150,6 +185,7 @@ void main() {
         'V01_CANONICAL_PROVIDER_NEUTRAL_MODELS',
         'V01_MEMBER_PROVIDER_NEUTRAL_STATES',
         'V01_ADMIN_POLICY_DECIDES_CAPABILITIES',
+        'WEAVE_CHAT_DOMAIN_FACADE',
       ]) {
         // ignore: avoid_print
         print(marker);
@@ -173,9 +209,12 @@ void main() {
         '@weave-v01-idm-rbac-capability-policy',
         '@weave-v01-governed-weaver-runtime-policy',
         '@weave-v01-channel-workspace',
+        '@weave-v01-chat-domain-facade',
         '@weave-v01-board-write-audit',
         '@weave-v01-meeting-capsule',
         '@weave-v01-decision-ledger',
+        '@weave-v01-infra-control-plane-bootstrap',
+        '@weave-v01-admin-console-mvp',
         '@weave-v01-operator-release-path',
       ]) {
         expect(featureText, contains(tag));

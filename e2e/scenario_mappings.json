@@ -52,7 +52,7 @@
         {
           "path": "client/test/live_stack_contract_test.dart",
           "fragments": [
-            "provider stack readiness stays behind the Weave backend facade",
+            "provider stack readiness stays behind admin/operator backend facades",
             "direct Flutter provider calls remain blocked for optional provider stack modules"
           ]
         }
@@ -60,7 +60,7 @@
     },
     {
       "tag": "@weave-live-calendar-threadrefs",
-      "scenario": "Channel calendar events keep their meeting thread reference",
+      "scenario": "Calendar scopes are readable and event writes obey capability policy",
       "feature": "e2e/features/live_stack_app.feature",
       "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
       "evidenceMarkers": [

@@ -19,14 +19,16 @@ import 'package:weave/features/auth/data/services/flutter_appauth_oidc_client.da
 import 'package:weave/features/calendar/domain/entities/calendar_event.dart';
 import 'package:weave/features/calendar/domain/repositories/calendar_repository.dart';
 import 'package:weave/features/calendar/presentation/providers/calendar_provider.dart';
+import 'package:weave/features/chat/data/repositories/matrix_chat_repository.dart';
 import 'package:weave/features/chat/data/services/matrix_auth_browser.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory.dart';
 import 'package:weave/features/chat/data/services/matrix_client_factory_io.dart';
+import 'package:weave/features/chat/data/services/matrix_conversation_service.dart';
+import 'package:weave/features/chat/data/services/matrix_room_service.dart';
+import 'package:weave/features/chat/data/services/matrix_session_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_room_timeline.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 import 'package:weave/features/chat/domain/repositories/chat_repository.dart';
-import 'package:weave/features/chat/presentation/providers/chat_provider.dart';
-import 'package:weave/features/chat/presentation/providers/chat_repository_provider.dart';
 import 'package:weave/features/chat/presentation/providers/chat_security_repository_provider.dart';
 import 'package:weave/features/files/domain/repositories/files_repository.dart';
 import 'package:weave/features/files/domain/entities/file_upload_request.dart';
@@ -162,10 +164,6 @@ void main() {
       _resetKeyboardTestState();
       await tester.pump();
 
-      container.read(chatProvider.notifier).connect();
-      _resetKeyboardTestState();
-      await tester.pump();
-
       await _waitFor(
         tester,
         () {
@@ -194,66 +192,20 @@ void main() {
 
       final providerHttpClient = createTrustedTestHttpClient();
       addTearDown(providerHttpClient.close);
-      final providerStatus = _decodeHttpJson(
-        await providerHttpClient.get(
-          config.apiUri('/api/providers/status'),
-          headers: <String, String>{
-            'Accept': 'application/json',
-            'Authorization': 'Bearer ${appSession.accessToken}',
-          },
-        ),
-        operation: 'read provider stack readiness',
+      final providerRegistryResponse = await providerHttpClient.get(
+        config.apiUri('/api/providers/status'),
+        headers: <String, String>{
+          'Accept': 'application/json',
+          'Authorization': 'Bearer ${appSession.accessToken}',
+        },
       );
-      final providerReadiness = _jsonListOfMaps(providerStatus['providers']);
-      final providerModules = providerReadiness
-          .map((provider) => _jsonString(provider['module']))
-          .toSet();
-      const requiredProviderModules = <String>{
-        'identity-realm',
-        'matrix',
-        'matrix-auth',
-        'files',
-        'office',
-        'calendar',
-        'contacts',
-        'forms',
-        'boards',
-        'meetings',
-        'source-control',
-        'issue-tracker',
-        'ci',
-        'release',
-      };
-      const failClosedModules = <String>{
-        'office',
-        'contacts',
-        'forms',
-        'source-control',
-        'issue-tracker',
-        'ci',
-        'release',
-      };
-      final providerRegistryVisible =
-          providerStatus['backendOwnedFacades'] == true &&
-          providerStatus['flutterDirectProviderCallsAllowed'] == false &&
-          providerStatus['supportSafe'] == true &&
-          providerModules.containsAll(requiredProviderModules);
-      final optionalProvidersFailClosed = providerReadiness
-          .where(
-            (provider) =>
-                failClosedModules.contains(_jsonString(provider['module'])),
-          )
-          .every(
-            (provider) =>
-                provider['enabled'] == false &&
-                provider['configured'] == false &&
-                provider['failClosed'] == true &&
-                provider['supportSafe'] == true,
-          );
-      final providerSecretsExposed = RegExp(
-        r'(Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/)',
+      final providerRegistryMemberForbidden =
+          providerRegistryResponse.statusCode == 403;
+      final providerRegistryBody = providerRegistryResponse.body;
+      final providerRegistryBodySupportSafe = !RegExp(
+        r'(Authorization|api[_-]?token|/api/v3/|/work_packages/|/projects/|SecretRef|secretref://)',
         caseSensitive: false,
-      ).hasMatch(jsonEncode(providerStatus));
+      ).hasMatch(providerRegistryBody);
       final profileReadiness = _decodeHttpJson(
         await providerHttpClient.get(
           config.apiUri('/api/profile/readiness'),
@@ -272,13 +224,10 @@ void main() {
           profileReadiness['supportSafe'] == true;
       // ignore: avoid_print
       print(
-        'PROVIDER_STACK_RESULT releaseStatus=${providerStatus['releaseStatus']} '
-        'providers=${providerReadiness.length} '
-        'modules=${providerModules.join(',')} '
-        'registryVisible=$providerRegistryVisible '
-        'optionalProvidersFailClosed=$optionalProvidersFailClosed '
-        'directFlutterProviderCallsAllowed=${providerStatus['flutterDirectProviderCallsAllowed']} '
-        'providerSecretsExposed=$providerSecretsExposed '
+        'PROVIDER_STACK_RESULT '
+        'memberRegistryForbidden=$providerRegistryMemberForbidden '
+        'memberRegistryStatus=${providerRegistryResponse.statusCode} '
+        'registryBodySupportSafe=$providerRegistryBodySupportSafe '
         'profileReadinessContract=${profileReadiness['contractId']} '
         'profileReadinessEndpoint=${profileReadiness['endpoint']} '
         'profileReadinessOk=$profileReadinessOk',
@@ -338,32 +287,34 @@ void main() {
       );
       profileRestored = true;
 
-      await _waitFor(
-        tester,
-        () {
-          final state = container.read(chatProvider);
-          return state.phase == ChatViewPhase.empty ||
-              state.phase == ChatViewPhase.content ||
-              state.phase == ChatViewPhase.error ||
-              state.phase == ChatViewPhase.unsupported;
-        },
-        reason: 'Matrix chat should connect against the live homeserver.',
-        timeout: const Duration(minutes: 2),
-        diagnostics: () {
-          final state = container.read(chatProvider);
-          return 'chatPhase=${state.phase} '
-              'failure=${state.failure?.message} '
-              'cause=${state.failure?.cause} '
-              'conversations=${state.conversations.length}';
-        },
+      final chatRepository = MatrixChatRepository(
+        sessionService: container.read(matrixSessionServiceProvider),
+        conversationService: container.read(matrixConversationServiceProvider),
+        roomService: container.read(matrixRoomServiceProvider),
+        serverConfigurationRepository: container.read(
+          serverConfigurationRepositoryProvider,
+        ),
       );
+      var matrixConnected = false;
+      Object? matrixConnectError;
+      try {
+        await chatRepository.connect();
+        matrixConnected = true;
+      } catch (error) {
+        matrixConnectError = error;
+      }
+      if (!matrixConnected) {
+        final connectError = _supportSafeDiagnostic(matrixConnectError);
+        // ignore: avoid_print
+        print(
+          'MATRIX_RESULT connected=false '
+          'testHarnessDirectMatrix=true '
+          'productDirectProviderCallsAllowed=false '
+          'connectError=$connectError',
+        );
+        fail('matrix_connect_failed error=$connectError');
+      }
 
-      final chatState = container.read(chatProvider);
-      final matrixConnected =
-          chatState.phase == ChatViewPhase.empty ||
-          chatState.phase == ChatViewPhase.content;
-
-      final chatRepository = container.read(chatRepositoryProvider);
       final matrixClientFactory = container.read(matrixClientFactoryProvider);
       final matrixClient = await matrixClientFactory.getClientForHomeserver(
         config.matrixHomeserverUrl,
@@ -393,9 +344,9 @@ void main() {
       // Keep the Matrix outcome visible while still validating the backend files path.
       // ignore: avoid_print
       print(
-        'MATRIX_RESULT phase=${chatState.phase} '
-        'failure=${chatState.failure} '
-        'cause=${chatState.failure?.cause}',
+        'MATRIX_RESULT connected=$matrixConnected '
+        'testHarnessDirectMatrix=true '
+        'productDirectProviderCallsAllowed=false',
       );
 
       final chatSecurityRepository = container.read(
@@ -615,108 +566,165 @@ void main() {
       final channelScope = channelScopes.isNotEmpty
           ? channelScopes.first
           : CalendarScope.workspace;
+      final calendarReadSnapshot = await calendarRepository.loadEvents(
+        scope: channelScope,
+      );
+      final calendarReadReady =
+          calendarReadSnapshot.scope.type == channelScope.type &&
+          calendarReadSnapshot.scope.teamId == channelScope.teamId &&
+          calendarReadSnapshot.scope.channelId == channelScope.channelId;
+
       final calendarTitle = 'Weave live E2E $liveE2eSuffix';
       final calendarStart = DateTime.now().toUtc().add(const Duration(days: 1));
-      final calendarDraft = CalendarEventDraft(
-        title: calendarTitle,
-        description:
-            'Created by the live-stack shared channel calendar E2E gate.',
-        startTime: calendarStart,
-        endTime: calendarStart.add(const Duration(minutes: 30)),
-        timezone: 'UTC',
-        scope: channelScope,
-      );
-      final createdEvent = await _createCalendarEventWithReadAfterWrite(
-        tester,
-        calendarRepository,
-        calendarDraft,
-      );
-      final loadedCalendar = await _waitForCalendarEventInScope(
-        tester,
-        calendarRepository,
-        scope: channelScope,
-        eventId: createdEvent.id,
-        title: calendarTitle,
-      );
-      final readCreatedEvent = await calendarRepository.readEvent(
-        createdEvent.id,
-      );
-      final calendarCreatedThreadRefReady = _channelMeetingThreadReady(
-        readCreatedEvent,
-        channelScope,
-      );
-      final calendarCreatedAndRead =
-          loadedCalendar.scope.isChannel &&
-          loadedCalendar.scope.teamId == channelScope.teamId &&
-          loadedCalendar.scope.channelId == channelScope.channelId &&
-          loadedCalendar.events.any(
-            (event) =>
-                event.id == createdEvent.id &&
-                event.title == calendarTitle &&
-                event.scope.isChannel,
-          ) &&
-          readCreatedEvent.id == createdEvent.id &&
-          readCreatedEvent.title == calendarTitle &&
-          readCreatedEvent.scope.isChannel;
-      final updatedCalendarTitle = '$calendarTitle updated';
-      final updatedEvent = await calendarRepository.updateEvent(
-        createdEvent.id,
-        CalendarEventDraft(
-          title: updatedCalendarTitle,
+      var calendarEventId = 'policy-blocked';
+      var calendarManageEventsAllowed = false;
+      var calendarWritePolicyBlocked = false;
+      var calendarCreatedAndRead = false;
+      var calendarUpdatedAndRead = false;
+      var calendarCreatedThreadRefReady = false;
+      var calendarUpdatedThreadRefReady = false;
+      var calendarMeetingThreadStable = false;
+      var calendarDeleted = false;
+      String? calendarMeetingThreadId;
+      CalendarEvent? createdEventForCleanup;
+
+      try {
+        final calendarDraft = CalendarEventDraft(
+          title: calendarTitle,
           description:
-              'Updated by the live-stack channel Calendar CRUD E2E gate.',
-          startTime: calendarStart.add(const Duration(hours: 1)),
-          endTime: calendarStart.add(const Duration(hours: 1, minutes: 45)),
+              'Created by the live-stack shared channel calendar E2E gate.',
+          startTime: calendarStart,
+          endTime: calendarStart.add(const Duration(minutes: 30)),
           timezone: 'UTC',
           scope: channelScope,
-        ),
-      );
-      final readUpdatedEvent = await calendarRepository.readEvent(
-        createdEvent.id,
-      );
-      final calendarUpdatedThreadRefReady = _channelMeetingThreadReady(
-        readUpdatedEvent,
-        channelScope,
-      );
-      final calendarMeetingThreadStable =
-          readCreatedEvent.threadRef.meetingThreadId != null &&
-          readCreatedEvent.threadRef.meetingThreadId ==
-              readUpdatedEvent.threadRef.meetingThreadId;
-      final calendarUpdatedAndRead =
-          updatedEvent.id == createdEvent.id &&
-          updatedEvent.title == updatedCalendarTitle &&
-          updatedEvent.scope.isChannel &&
-          readUpdatedEvent.id == createdEvent.id &&
-          readUpdatedEvent.title == updatedCalendarTitle &&
-          readUpdatedEvent.scope.isChannel;
-      await calendarRepository.deleteEvent(createdEvent.id);
-      final calendarAfterDelete = await _waitForCalendarEventDeleted(
-        tester,
-        calendarRepository,
-        scope: channelScope,
-        eventId: createdEvent.id,
-      );
-      final calendarDeleted = calendarAfterDelete.events.every(
-        (event) => event.id != createdEvent.id,
-      );
+        );
+        final createdEvent = await _createCalendarEventWithReadAfterWrite(
+          tester,
+          calendarRepository,
+          calendarDraft,
+        );
+        createdEventForCleanup = createdEvent;
+        calendarEventId = createdEvent.id;
+        calendarManageEventsAllowed = true;
+        final loadedCalendar = await _waitForCalendarEventInScope(
+          tester,
+          calendarRepository,
+          scope: channelScope,
+          eventId: createdEvent.id,
+          title: calendarTitle,
+        );
+        final readCreatedEvent = await calendarRepository.readEvent(
+          createdEvent.id,
+        );
+        calendarCreatedThreadRefReady = _channelMeetingThreadReady(
+          readCreatedEvent,
+          channelScope,
+        );
+        calendarCreatedAndRead =
+            loadedCalendar.scope.isChannel &&
+            loadedCalendar.scope.teamId == channelScope.teamId &&
+            loadedCalendar.scope.channelId == channelScope.channelId &&
+            loadedCalendar.events.any(
+              (event) =>
+                  event.id == createdEvent.id &&
+                  event.title == calendarTitle &&
+                  event.scope.isChannel,
+            ) &&
+            readCreatedEvent.id == createdEvent.id &&
+            readCreatedEvent.title == calendarTitle &&
+            readCreatedEvent.scope.isChannel;
+        final updatedCalendarTitle = '$calendarTitle updated';
+        final updatedEvent = await calendarRepository.updateEvent(
+          createdEvent.id,
+          CalendarEventDraft(
+            title: updatedCalendarTitle,
+            description:
+                'Updated by the live-stack channel Calendar CRUD E2E gate.',
+            startTime: calendarStart.add(const Duration(hours: 1)),
+            endTime: calendarStart.add(const Duration(hours: 1, minutes: 45)),
+            timezone: 'UTC',
+            scope: channelScope,
+          ),
+        );
+        final readUpdatedEvent = await calendarRepository.readEvent(
+          createdEvent.id,
+        );
+        calendarUpdatedThreadRefReady = _channelMeetingThreadReady(
+          readUpdatedEvent,
+          channelScope,
+        );
+        calendarMeetingThreadStable =
+            readCreatedEvent.threadRef.meetingThreadId != null &&
+            readCreatedEvent.threadRef.meetingThreadId ==
+                readUpdatedEvent.threadRef.meetingThreadId;
+        calendarMeetingThreadId = readCreatedEvent.threadRef.meetingThreadId;
+        calendarUpdatedAndRead =
+            updatedEvent.id == createdEvent.id &&
+            updatedEvent.title == updatedCalendarTitle &&
+            updatedEvent.scope.isChannel &&
+            readUpdatedEvent.id == createdEvent.id &&
+            readUpdatedEvent.title == updatedCalendarTitle &&
+            readUpdatedEvent.scope.isChannel;
+        await calendarRepository.deleteEvent(createdEvent.id);
+        createdEventForCleanup = null;
+        final calendarAfterDelete = await _waitForCalendarEventDeleted(
+          tester,
+          calendarRepository,
+          scope: channelScope,
+          eventId: createdEvent.id,
+        );
+        calendarDeleted = calendarAfterDelete.events.every(
+          (event) => event.id != createdEvent.id,
+        );
+      } on AppFailure catch (error) {
+        if (!_isCapabilityPolicyBlockedFailure(error)) {
+          rethrow;
+        }
+        calendarWritePolicyBlocked = true;
+      } finally {
+        final event = createdEventForCleanup;
+        if (event != null) {
+          try {
+            await calendarRepository.deleteEvent(event.id);
+          } catch (_) {
+            // The main calendar assertion below carries the product evidence;
+            // cleanup should not hide the original live-stack signal.
+          }
+        }
+      }
+
       // ignore: avoid_print
       print(
-        'CALENDAR_RESULT eventId=${createdEvent.id} '
+        'CALENDAR_RESULT eventId=$calendarEventId '
         'scopes=${calendarScopes.scopes.map((scope) => scope.type).join(',')} '
         'workspaceScopes=${workspaceScopes.length} '
         'teamScopes=${teamScopes.length} '
         'channelScopes=${channelScopes.length} '
-        'scope=${loadedCalendar.scope.type} '
-        'teamId=${loadedCalendar.scope.teamId} '
-        'channelId=${loadedCalendar.scope.channelId} '
+        'scopesReady=$calendarScopesReady '
+        'readReady=$calendarReadReady '
+        'readEvents=${calendarReadSnapshot.events.length} '
+        'scope=${calendarReadSnapshot.scope.type} '
+        'teamId=${calendarReadSnapshot.scope.teamId} '
+        'channelId=${calendarReadSnapshot.scope.channelId} '
+        'manageEventsAllowed=$calendarManageEventsAllowed '
+        'writePolicyBlocked=$calendarWritePolicyBlocked '
         'createdAndRead=$calendarCreatedAndRead '
         'updatedAndRead=$calendarUpdatedAndRead '
         'createdThreadRefReady=$calendarCreatedThreadRefReady '
         'updatedThreadRefReady=$calendarUpdatedThreadRefReady '
         'meetingThreadStable=$calendarMeetingThreadStable '
-        'meetingThreadId=${readCreatedEvent.threadRef.meetingThreadId} '
+        'meetingThreadId=${calendarMeetingThreadId ?? 'none'} '
         'deleted=$calendarDeleted',
       );
+
+      final calendarWritePathValid = calendarManageEventsAllowed
+          ? calendarCreatedAndRead &&
+                calendarUpdatedAndRead &&
+                calendarCreatedThreadRefReady &&
+                calendarUpdatedThreadRefReady &&
+                calendarMeetingThreadStable &&
+                calendarDeleted
+          : calendarWritePolicyBlocked;
 
       final liveHttpClient = createTrustedTestHttpClient();
       addTearDown(liveHttpClient.close);
@@ -848,15 +856,10 @@ void main() {
           matchedFiles.isEmpty ||
           !fileDownloadMatched ||
           !calendarScopesReady ||
-          !calendarCreatedAndRead ||
-          !calendarUpdatedAndRead ||
-          !calendarCreatedThreadRefReady ||
-          !calendarUpdatedThreadRefReady ||
-          !calendarMeetingThreadStable ||
-          !calendarDeleted ||
-          !providerRegistryVisible ||
-          !optionalProvidersFailClosed ||
-          providerSecretsExposed ||
+          !calendarReadReady ||
+          !calendarWritePathValid ||
+          !providerRegistryMemberForbidden ||
+          !providerRegistryBodySupportSafe ||
           !profileReadinessOk ||
           !boardsProviderNeutral ||
           !boardsNonDragMutationWorked) {
@@ -866,9 +869,7 @@ void main() {
           'profileLoaded=true '
           'profileUpdated=$profileUpdated '
           'matrixConnected=$matrixConnected '
-          'matrixPhase=${chatState.phase} '
-          'matrixFailure=${chatState.failure} '
-          'matrixCause=${chatState.failure?.cause} '
+          'matrixSource=live-matrix-harness '
           'chatRoomId=$roomId '
           'chatMatchedMessages=${deliveredMessage.length} '
           'e2eeCryptoAvailable=$e2eeCryptoAvailable '
@@ -886,20 +887,24 @@ void main() {
           'filesDownloadMatched=$fileDownloadMatched '
           'seededFileName=$seededFileName '
           'calendarScopesReady=$calendarScopesReady '
-          'calendarScope=${loadedCalendar.scope.type} '
-          'calendarTeamId=${loadedCalendar.scope.teamId} '
-          'calendarChannelId=${loadedCalendar.scope.channelId} '
+          'calendarReadReady=$calendarReadReady '
+          'calendarScope=${calendarReadSnapshot.scope.type} '
+          'calendarTeamId=${calendarReadSnapshot.scope.teamId} '
+          'calendarChannelId=${calendarReadSnapshot.scope.channelId} '
+          'calendarManageEventsAllowed=$calendarManageEventsAllowed '
+          'calendarWritePolicyBlocked=$calendarWritePolicyBlocked '
+          'calendarWritePathValid=$calendarWritePathValid '
           'calendarCreatedAndRead=$calendarCreatedAndRead '
           'calendarUpdatedAndRead=$calendarUpdatedAndRead '
           'calendarCreatedThreadRefReady=$calendarCreatedThreadRefReady '
           'calendarUpdatedThreadRefReady=$calendarUpdatedThreadRefReady '
           'calendarMeetingThreadStable=$calendarMeetingThreadStable '
-          'calendarMeetingThreadId=${readCreatedEvent.threadRef.meetingThreadId} '
+          'calendarMeetingThreadId=${calendarMeetingThreadId ?? 'none'} '
           'calendarDeleted=$calendarDeleted '
-          'calendarEventId=${createdEvent.id} '
-          'providerRegistryVisible=$providerRegistryVisible '
-          'optionalProvidersFailClosed=$optionalProvidersFailClosed '
-          'providerSecretsExposed=$providerSecretsExposed '
+          'calendarEventId=$calendarEventId '
+          'memberRegistryForbidden=$providerRegistryMemberForbidden '
+          'memberRegistryStatus=${providerRegistryResponse.statusCode} '
+          'registryBodySupportSafe=$providerRegistryBodySupportSafe '
           'profileReadinessOk=$profileReadinessOk '
           'boardsProviderNeutral=$boardsProviderNeutral '
           'boardsNonDragMutationWorked=$boardsNonDragMutationWorked '
@@ -920,15 +925,20 @@ void main() {
       expect(matchedFiles, isNotEmpty);
       expect(fileDownloadMatched, isTrue);
       expect(calendarScopesReady, isTrue);
-      expect(calendarCreatedAndRead, isTrue);
-      expect(calendarUpdatedAndRead, isTrue);
-      expect(calendarCreatedThreadRefReady, isTrue);
-      expect(calendarUpdatedThreadRefReady, isTrue);
-      expect(calendarMeetingThreadStable, isTrue);
-      expect(calendarDeleted, isTrue);
-      expect(providerRegistryVisible, isTrue);
-      expect(optionalProvidersFailClosed, isTrue);
-      expect(providerSecretsExposed, isFalse);
+      expect(calendarReadReady, isTrue);
+      expect(calendarWritePathValid, isTrue);
+      if (calendarManageEventsAllowed) {
+        expect(calendarCreatedAndRead, isTrue);
+        expect(calendarUpdatedAndRead, isTrue);
+        expect(calendarCreatedThreadRefReady, isTrue);
+        expect(calendarUpdatedThreadRefReady, isTrue);
+        expect(calendarMeetingThreadStable, isTrue);
+        expect(calendarDeleted, isTrue);
+      } else {
+        expect(calendarWritePolicyBlocked, isTrue);
+      }
+      expect(providerRegistryMemberForbidden, isTrue);
+      expect(providerRegistryBodySupportSafe, isTrue);
       expect(profileReadinessOk, isTrue);
       expect(boardsProviderNeutral, isTrue);
       expect(boardsNonDragMutationWorked, isTrue);
@@ -1016,6 +1026,27 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 }
 
 String _jsonString(Object? value) => value is String ? value : '';
+
+String _supportSafeDiagnostic(Object? error) {
+  if (error == null) {
+    return 'none';
+  }
+  return error
+      .toString()
+      .replaceAll(
+        RegExp(r'Bearer\s+[^\s,]+', caseSensitive: false),
+        'Bearer ***',
+      )
+      .replaceAllMapped(
+        RegExp(
+          r'(access[_-]?token|refresh[_-]?token|id[_-]?token|password|secret)=([^\s,]+)',
+          caseSensitive: false,
+        ),
+        (match) => '${match.group(1)}=***',
+      )
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
 
 class _EncryptedWireProof {
   const _EncryptedWireProof({
@@ -1270,6 +1301,14 @@ bool _isRetryableCalendarConsistencyError(Object error) {
       message.contains('unavailable') ||
       message.contains('timed out') ||
       message.contains('timeout');
+}
+
+bool _isCapabilityPolicyBlockedFailure(AppFailure error) {
+  final message = error.message.toLowerCase();
+  return message.contains('blocked by workspace role') ||
+      message.contains('capability-policy-blocked') ||
+      message.contains('policy blocked') ||
+      message.contains('policy-blocked');
 }
 
 Future<void> _waitFor(

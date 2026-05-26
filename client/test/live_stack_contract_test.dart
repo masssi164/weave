@@ -90,17 +90,20 @@ void main() {
       );
     });
 
-    test('provider stack readiness stays behind the Weave backend facade', () {
-      final providerStatusUri = liveConfig.apiUri('/api/providers/status');
-      final profileReadinessUri = liveConfig.apiUri('/api/profile/readiness');
+    test(
+      'provider stack readiness stays behind admin/operator backend facades',
+      () {
+        final providerStatusUri = liveConfig.apiUri('/api/providers/status');
+        final profileReadinessUri = liveConfig.apiUri('/api/profile/readiness');
 
-      expect(providerStatusUri.host, liveConfig.backendApiBaseUrl.host);
-      expect(providerStatusUri.port, liveConfig.backendApiBaseUrl.port);
-      expect(providerStatusUri.path, '/api/providers/status');
-      expect(profileReadinessUri.host, liveConfig.backendApiBaseUrl.host);
-      expect(profileReadinessUri.port, liveConfig.backendApiBaseUrl.port);
-      expect(profileReadinessUri.path, '/api/profile/readiness');
-    });
+        expect(providerStatusUri.host, liveConfig.backendApiBaseUrl.host);
+        expect(providerStatusUri.port, liveConfig.backendApiBaseUrl.port);
+        expect(providerStatusUri.path, '/api/providers/status');
+        expect(profileReadinessUri.host, liveConfig.backendApiBaseUrl.host);
+        expect(profileReadinessUri.port, liveConfig.backendApiBaseUrl.port);
+        expect(profileReadinessUri.path, '/api/profile/readiness');
+      },
+    );
 
     test(
       'direct Flutter provider calls remain blocked for optional provider stack modules',
@@ -132,7 +135,7 @@ void main() {
           offenders,
           isEmpty,
           reason:
-              'Flutter must call backend facades such as /api/providers/status and /profile/readiness, not provider APIs directly.',
+              'Flutter must call member-safe backend facades such as /profile/readiness; raw /api/providers/status diagnostics stay admin/operator-only.',
         );
       },
     );
