@@ -64,8 +64,8 @@ class ProfileControllerTest {
     @BeforeEach
     void setUpProfileRepository() {
         profileOverrides.clear();
-        when(profileRepository.findBySubject(anyString())).thenAnswer(invocation -> profileOverrides.get(invocation.getArgument(0)));
-        when(profileRepository.save(anyString(), any(ProductProfileOverride.class))).thenAnswer(invocation -> {
+        when(profileRepository.findByPrimaryIdentityKey(anyString())).thenAnswer(invocation -> profileOverrides.get(invocation.getArgument(0)));
+        when(profileRepository.saveForPrimaryIdentityKey(anyString(), any(ProductProfileOverride.class))).thenAnswer(invocation -> {
             profileOverrides.put(invocation.getArgument(0), invocation.getArgument(1));
             return invocation.getArgument(1);
         });

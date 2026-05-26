@@ -78,7 +78,9 @@ public class ProductProfileService {
         OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
         validateRequest(request);
         try {
-            profileRepository.save(identity.primaryIdentityKey(), merge(profileRepository.findBySubject(identity.primaryIdentityKey()), request));
+            profileRepository.saveForPrimaryIdentityKey(
+                    identity.primaryIdentityKey(),
+                    merge(profileRepository.findByPrimaryIdentityKey(identity.primaryIdentityKey()), request));
         } catch (ProductProfileStoreException exception) {
             throw new ApiErrorException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
@@ -97,7 +99,7 @@ public class ProductProfileService {
     private ProductProfileSnapshot snapshot(Jwt jwt) {
         OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
         String username = firstText(jwt.getClaimAsString("preferred_username"), identity.subject());
-        ProductProfileOverride stored = profileRepository.findBySubject(identity.primaryIdentityKey());
+        ProductProfileOverride stored = profileRepository.findByPrimaryIdentityKey(identity.primaryIdentityKey());
         String displayName = stored != null && hasText(stored.displayName())
                 ? stored.displayName()
                 : firstText(jwt.getClaimAsString("name"), username);

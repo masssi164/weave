@@ -38,14 +38,14 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
     }
 
     @Override
-    public ProductProfileOverride findBySubject(String subject) {
-        return profiles.get(subject);
+    public ProductProfileOverride findByPrimaryIdentityKey(String primaryIdentityKey) {
+        return profiles.get(primaryIdentityKey);
     }
 
     @Override
-    public ProductProfileOverride save(String subject, ProductProfileOverride profile) {
+    public ProductProfileOverride saveForPrimaryIdentityKey(String primaryIdentityKey, ProductProfileOverride profile) {
         synchronized (persistenceLock) {
-            profiles.put(subject, profile);
+            profiles.put(primaryIdentityKey, profile);
             persist();
             return profile;
         }

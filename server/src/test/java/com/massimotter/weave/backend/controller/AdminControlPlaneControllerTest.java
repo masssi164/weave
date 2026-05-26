@@ -254,6 +254,18 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
+    void bootstrapRejectsUnsafeAdminRecoveryKeys() throws Exception {
+        mockMvc.perform(post("/api/admin/organizations/bootstrap")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminSubjectKeys\":[\"alice@example.com\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("organization-bootstrap-admin-key-invalid"))
+                .andExpect(content().string(not(containsString("alice@example.com"))))
+                .andExpect(content().string(containsString("issuer+subject:<issuer>#<subject>")));
+    }
+
+    @Test
     void lastAdminGuardRejectsWorkspaceAdminPolicyThatRemovesPolicyEdit() throws Exception {
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
                         .with(adminJwt())
@@ -262,6 +274,16 @@ class AdminControlPlaneControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("last-admin-guard"))
                 .andExpect(content().string(not(containsString("alice@example.com"))));
+    }
+
+    @Test
+    void lastAdminGuardRejectsEmptyWorkspaceAdminPolicy() throws Exception {
+        mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileKey\":\"workspace-admin\",\"capabilityKeys\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("last-admin-guard"));
     }
 
     @Test

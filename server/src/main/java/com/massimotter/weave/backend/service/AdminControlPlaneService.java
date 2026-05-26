@@ -47,6 +47,10 @@ public class AdminControlPlaneService {
             "disabled",
             "degraded",
             "policy-blocked");
+    private static final int MAX_BOOTSTRAP_ADMIN_KEYS = 25;
+    private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = 512;
+    private static final String PRIMARY_IDENTITY_KEY_PATTERN =
+            "issuer\\+subject:[A-Za-z][A-Za-z0-9+.-]*://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._~:/-]*)?#[A-Za-z0-9._:-]{1,128}";
 
     private final ProviderRegistry providerRegistry;
     private final WorkspaceCapabilityService workspaceCapabilityService;
@@ -339,7 +343,7 @@ public class AdminControlPlaneService {
             return;
         }
         List<String> capabilities = safeCapabilities(request.capabilityKeys());
-        if (capabilities.isEmpty() || capabilities.contains("admin.policy.edit")) {
+        if (capabilities.contains("admin.policy.edit")) {
             return;
         }
         throw new ApiErrorException(
@@ -386,6 +390,17 @@ public class AdminControlPlaneService {
                 .distinct()
                 .sorted()
                 .toList();
+        if (retained.size() > MAX_BOOTSTRAP_ADMIN_KEYS || retained.stream().anyMatch(this::unsafeBootstrapAdminKey)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "organization-bootstrap-admin-key-invalid",
+                    "Organization bootstrap admin keys must be support-safe immutable issuer+subject keys.",
+                    Map.of(
+                            "requiredFormat", "issuer+subject:<issuer>#<subject>",
+                            "maxCount", MAX_BOOTSTRAP_ADMIN_KEYS,
+                            "maxLength", MAX_BOOTSTRAP_ADMIN_KEY_LENGTH,
+                            "supportSafe", true));
+        }
         if (!retained.contains(actorPrimaryIdentityKey)) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
@@ -394,6 +409,10 @@ public class AdminControlPlaneService {
                     Map.of("supportSafe", true));
         }
         return retained;
+    }
+
+    private boolean unsafeBootstrapAdminKey(String value) {
+        return value.length() > MAX_BOOTSTRAP_ADMIN_KEY_LENGTH || !value.matches(PRIMARY_IDENTITY_KEY_PATTERN);
     }
 
     private boolean providerMatchesCategory(String providerKey, String category) {
