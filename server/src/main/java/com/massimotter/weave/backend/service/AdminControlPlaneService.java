@@ -58,6 +58,7 @@ public class AdminControlPlaneService {
     private final ProviderRegistry providerRegistry;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ProviderSelectionRepository providerSelectionRepository;
+    private final OrganizationBootstrapRepository organizationBootstrapRepository;
     private final AuditEventPublisher auditEventPublisher;
     private final Clock clock;
 
@@ -66,19 +67,22 @@ public class AdminControlPlaneService {
             ProviderRegistry providerRegistry,
             WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher) {
-        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, auditEventPublisher, Clock.systemUTC());
+        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher, Clock.systemUTC());
     }
 
     AdminControlPlaneService(
             ProviderRegistry providerRegistry,
             WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
             Clock clock) {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionRepository = providerSelectionRepository;
+        this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
         this.clock = clock;
     }
@@ -206,32 +210,39 @@ public class AdminControlPlaneService {
         String organizationId = safeOrganizationId(request.organizationId());
         String bootstrapMode = bootstrapMode(request.bootstrapMode());
         List<String> retainedAdmins = retainedAdminSubjectKeys(request.adminSubjectKeys(), identity.primaryIdentityKey());
-        String auditRef = "organization-bootstrap-" + organizationId + "-" + Instant.now(clock).toEpochMilli();
-        auditEventPublisher.publish(new AuditEvent(
+        Instant bootstrappedAt = Instant.now(clock);
+        OrganizationBootstrapRecord record = organizationBootstrapRepository.save(new OrganizationBootstrapRecord(
                 organizationId,
+                bootstrapMode,
+                identity.primaryIdentityKey(),
+                retainedAdmins,
+                bootstrappedAt));
+        String auditRef = "organization-bootstrap-" + record.organizationId() + "-" + bootstrappedAt.toEpochMilli();
+        auditEventPublisher.publish(new AuditEvent(
+                record.organizationId(),
                 "admin-control-plane",
                 actorRef(jwt),
                 "organization-bootstrap",
                 AuditAction.ADMIN_POLICY_UPDATED,
-                Instant.now(clock),
+                bootstrappedAt,
                 auditRef,
                 AuditRedactionLevel.SECRET_REDACTED,
                 Map.of(
-                        "bootstrapMode", bootstrapMode,
-                        "actorPrimaryIdentityKey", identity.primaryIdentityKey(),
-                        "retainedAdminSubjectKeyCount", retainedAdmins.size(),
+                        "bootstrapMode", record.bootstrapMode(),
+                        "actorPrimaryIdentityKey", record.actorPrimaryIdentityKey(),
+                        "retainedAdminSubjectKeyCount", record.retainedAdminSubjectKeys().size(),
                         "lastAdminGuardPassed", true,
                         "supportSafe", true,
                         "emailPrimaryKey", false,
                         "reason", safeText(request.reason()))));
         return new OrganizationBootstrapResponse(
-                organizationId,
-                bootstrapMode,
-                identity.primaryIdentityKey(),
-                retainedAdmins,
+                record.organizationId(),
+                record.bootstrapMode(),
+                record.actorPrimaryIdentityKey(),
+                record.retainedAdminSubjectKeys(),
                 true,
                 true,
-                Instant.now(clock),
+                record.bootstrappedAt(),
                 List.of(auditRef));
     }
 

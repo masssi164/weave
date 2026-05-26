@@ -23,6 +23,8 @@ import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
+import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
+import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -434,6 +436,11 @@ class AdminControlPlaneControllerTest {
         @Bean
         ProviderSelectionRepository providerSelectionRepository() {
             return new InMemoryProviderSelectionRepository();
+        }
+
+        @Bean
+        OrganizationBootstrapRepository organizationBootstrapRepository() {
+            return new InMemoryOrganizationBootstrapRepository();
         }
     }
 }
