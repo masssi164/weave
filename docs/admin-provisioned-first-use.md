@@ -4,6 +4,8 @@ Status: v0.1 release contract for issues #259, #250, and #212.
 
 ## Product rule
 
+The detailed strategic contracts are [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), and [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md). This page remains the v0.1 first-use boundary for member/admin separation.
+
 Normal organization members land in an admin-provisioned workspace. They sign in with Weave SSO, use Weave-owned chat, files, calendar, boards, meetings, and decisions surfaces, and see either complete capabilities or simple impact/fallback states.
 
 Normal members must not configure OIDC, realms, provider URLs, service endpoints, backup/restore, policy, or infrastructure readiness. They must not see provider setup diagnostics, raw provider errors, scaffold cards, roadmap cards, preview cards, or coming-soon setup explanations in the normal product path.
@@ -35,11 +37,13 @@ Normal members never configure raw providers, service endpoints, OIDC clients, p
 
 ## Role boundary
 
+v0.1 keeps the compact role vocabulary below, while the strategy contract sharpens delegated scopes for `org_admin`, `security_admin`, context roles, guests, and machine principals. `operator` is intentionally distinct from `admin`: operators may diagnose and execute delegated operational actions, but they do not automatically manage identity, policy, retention, or user invitations.
+
 | Role | First-use experience | Setup and health scope |
 | --- | --- | --- |
-| `owner` | Can enter the workspace and administer release readiness. | Full Workspace Health, identity/provider setup, invite activation, policy, backup/restore, and support-bundle actions. |
+| `owner` | Can enter the workspace and administer release readiness. | Full Workspace Health, identity/provider setup, invite activation, policy, backup/restore, support-bundle actions, domain ownership, and break-glass governance. |
 | `admin` | Can enter the workspace and administer delegated readiness. | Workspace Health, provider readiness, user activation, policy, and support diagnostics allowed by owner policy. |
-| `operator` | Can enter the workspace to execute delegated operational readiness. | Workspace Health diagnostics, provider/service readiness verification, and support-safe remediation actions delegated by owner/admin policy. |
+| `operator` | Can enter the workspace to execute delegated operational readiness. | Workspace Health diagnostics, provider/service readiness verification, backup/restore/support-bundle actions, and support-safe remediation delegated by owner/admin policy; not automatic user or policy administration. |
 | `member` | Lands in the ready workspace after invite/activation. | No OIDC/provider/infra setup. Sees only complete capabilities or simple impact/fallback states such as “Calendar is unavailable; ask an admin.” |
 | `guest` | Lands only in explicitly permitted guest scopes. | No workspace setup, provider diagnostics, or member/admin affordances. |
 

@@ -11,6 +11,7 @@ import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
+import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
@@ -128,12 +129,18 @@ public class AdminControlPlaneService {
         return toSelectionResponse(applied, dryRun, dryRun ? "dry_run_valid" : "admin_selected_pending_readiness");
     }
 
+    public EffectivePolicyResponse effectivePolicy(Jwt jwt) {
+        return workspaceCapabilityService.effectivePolicySnapshot(jwt, "organization");
+    }
+
     public CapabilityWhitelistResponse whitelist(Jwt jwt) {
         WorkspaceCapabilityPolicyResponse policy = workspaceCapabilityService.policySnapshot(jwt);
         Map<String, List<String>> profileCapabilities = new LinkedHashMap<>();
         profileCapabilities.put("workspace-admin", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
-                "boards.read", "boards.update_task", "weaver.exec_disabled"));
+                "boards.read", "boards.update_task", "admin.provider.configure", "admin.policy.edit", "weaver.exec_disabled"));
+        profileCapabilities.put("workspace-operator", List.of(
+                "admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "weaver.exec_disabled"));
         profileCapabilities.put("member-default", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "weaver.exec_disabled"));
         profileCapabilities.put("guest-deny-default", List.of());
@@ -308,7 +315,8 @@ public class AdminControlPlaneService {
         String trimmed = value.trim();
         if (trimmed.equals("recommended_self_hosted_default")
                 || trimmed.equals("external_existing_provider")
-                || trimmed.equals("managed_cloud_provider")) {
+                || trimmed.equals("managed_cloud_provider")
+                || trimmed.equals("hybrid_composite")) {
             return trimmed;
         }
         throw new ApiErrorException(
@@ -336,7 +344,8 @@ public class AdminControlPlaneService {
     private boolean requiresMigrationDryRun(ProviderSelectionRequest request) {
         return request.lossyMappingNotes() != null && !request.lossyMappingNotes().isEmpty()
                 || "external_existing_provider".equals(request.choiceModel())
-                || "managed_cloud_provider".equals(request.choiceModel());
+                || "managed_cloud_provider".equals(request.choiceModel())
+                || "hybrid_composite".equals(request.choiceModel());
     }
 
     private List<String> safeLossyMappingNotes(List<String> notes) {

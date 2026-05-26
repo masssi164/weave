@@ -87,6 +87,19 @@ class IdentityControllerTest {
     }
 
     @Test
+    void includesOperatorAsAProductRole() throws Exception {
+        mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
+                        .subject("operator-123")
+                        .claim("preferred_username", "ops")
+                        .claim("realm_access", Map.of("roles", List.of("operator")))
+                        .claim("aud", List.of("weave-app")))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles[0]").value("operator"))
+                .andExpect(jsonPath("$.realmRoles[0]").value("operator"));
+    }
+
+    @Test
     void rejectsAnonymousRequests() throws Exception {
         mockMvc.perform(get("/api/me"))
                 .andExpect(status().isUnauthorized());

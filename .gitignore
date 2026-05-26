@@ -1,4 +1,5 @@
 # Miscellaneous
+.gradle/
 *.class
 *.log
 *.pyc

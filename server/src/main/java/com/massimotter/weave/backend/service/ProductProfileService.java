@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProductProfileService {
 
-    private static final List<String> MVP_ROLES = List.of("owner", "admin", "member", "guest");
+    private static final List<String> MVP_ROLES = List.of("owner", "admin", "operator", "member", "guest");
     private static final ModuleSyncStatusResponse NOT_CONFIGURED_SYNC =
             new ModuleSyncStatusResponse("not_configured", "not_configured");
 

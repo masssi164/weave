@@ -4,6 +4,8 @@ This handbook is for organization owners, admins, and operators responsible for 
 
 ## Organization setup
 
+The strategic setup contracts are [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), and [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md). They are the source for real-organization onboarding, LDAP/AD/OIDC/SAML/SCIM provisioning, mixed provider topologies, adapter replacement, and anti-silo guarantees.
+
 Admin/operator setup owns:
 
 - organization creation and verified domains;
@@ -21,7 +23,7 @@ The current product order remains: provider-neutral Weave suite first, admin por
 
 Keycloak is the self-hosted default identity choice for dogfood deployments. The product contract remains provider-neutral: Entra ID, Authentik, Auth0, OIDC/SAML, SCIM, or LDAP-style sources can attach through adapter contracts when supported.
 
-Admins map identity claims, groups, and roles into Weave capability profiles. Unknown roles, groups, or provider states must fail closed.
+Admins map identity claims, groups, and roles into Weave capability profiles. Unknown roles, groups, or provider states must fail closed. Email addresses are never primary identity keys; immutable provider IDs such as OIDC/SAML issuer+subject, SCIM externalId, Entra object ID, or LDAP/AD objectGUID/objectSid are the mapping anchors.
 
 ## Provider selection
 
@@ -56,7 +58,7 @@ Whitelists restrict which providers, adapters, tools, and later Weaver capabilit
 
 ## Readiness and audit
 
-Readiness states must be support-safe and action-oriented. They can explain that a capability is ready, disabled, degraded, policy-blocked, admin-setup-required/misconfigured, or intentionally hidden from normal members, but they must not expose raw downstream bodies, provider-internal IDs, credential-bearing URLs, tokens, cookies, or private keys.
+Readiness states must be support-safe and action-oriented. Member contracts encode `ready`, `disabled`, `degraded`, or `policy-blocked`; admin/operator views may additionally show `admin-setup-required`, `misconfigured`, `sync-pending`, `conflict-quarantined`, `migration-dry-run-required`, or `unsupported`. They must not expose raw downstream bodies, provider-internal IDs, credential-bearing URLs, tokens, cookies, or private keys.
 
 Workspace/Admin Health is the operator control plane for this posture. The client readiness cockpit summarizes overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action from backend-owned readiness snapshots. Category rows should state member impact and policy state without leaking provider internals; provider adapter evidence remains admin-only.
 
