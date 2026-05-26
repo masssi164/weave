@@ -59,7 +59,7 @@ public class ProductProfileService {
     }
 
     public ProfileReadinessResponse readiness(Jwt jwt) {
-        requireSubject(jwt);
+        OrganizationIdentityContextFactory.fromJwt(jwt);
         return new ProfileReadinessResponse(
                 "CEFACADE",
                 "/profile/readiness",
@@ -201,18 +201,6 @@ public class ProductProfileService {
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> sanitized.put(entry.getKey().trim(), entry.getValue().trim()));
         return Map.copyOf(sanitized);
-    }
-
-    private String requireSubject(Jwt jwt) {
-        String subject = jwt.getSubject();
-        if (!hasText(subject)) {
-            throw new ApiErrorException(
-                    HttpStatus.BAD_REQUEST,
-                    "missing-subject",
-                    "Authenticated token is missing a stable subject.",
-                    Map.of("claim", "sub"));
-        }
-        return subject;
     }
 
     private String issuedFor(Jwt jwt) {

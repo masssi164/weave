@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -52,6 +53,7 @@ public class AdminControlPlaneService {
             "policy-blocked");
     private static final int MAX_BOOTSTRAP_ADMIN_KEYS = 25;
     private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = MAX_PRIMARY_IDENTITY_KEY_LENGTH;
+    private static final Pattern PRIMARY_IDENTITY_KEY_REGEX = Pattern.compile(PRIMARY_IDENTITY_KEY_PATTERN);
 
     private final ProviderRegistry providerRegistry;
     private final WorkspaceCapabilityService workspaceCapabilityService;
@@ -415,7 +417,7 @@ public class AdminControlPlaneService {
     }
 
     private boolean unsafeBootstrapAdminKey(String value) {
-        return value.length() > MAX_BOOTSTRAP_ADMIN_KEY_LENGTH || !value.matches(PRIMARY_IDENTITY_KEY_PATTERN);
+        return value.length() > MAX_BOOTSTRAP_ADMIN_KEY_LENGTH || !PRIMARY_IDENTITY_KEY_REGEX.matcher(value).matches();
     }
 
     private boolean providerMatchesCategory(String providerKey, String category) {
