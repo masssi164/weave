@@ -1,0 +1,77 @@
+name: Bug report
+description: Report broken behavior with enough evidence to reproduce it
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for behavior that is broken now. If the problem is cleanup after the rebuild, use **Technical debt** instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the broken behavior and who it affects.
+      placeholder: "Example: A member sees provider setup controls in the normal client."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should Weave do instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Keep this deterministic where possible.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - client/member UX
+        - admin console
+        - server/backend facade
+        - infra/operator stack
+        - e2e/acceptance evidence
+        - docs/manuals/release notes
+        - accessibility/localization
+        - security/privacy/secrets
+        - unknown
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, screenshots, failing test, support bundle, CI run, or local command output. Do not paste secrets/tokens/raw provider payloads.
+      placeholder: "Command/run/artifact URL, sanitized logs, screenshot alt text, etc."
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Accessibility, localization, privacy, or operator impact
+      description: Mention screen reader/keyboard/text scaling/locales/secrets/provider URLs/support bundles if relevant.
+  - type: textarea
+    id: contracts
+    attributes:
+      label: Related contract, spec, or acceptance scenario
+      description: Link README/docs/e2e scenario/API contract if known.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checklist
+      options:
+        - label: I removed secrets, tokens, cookies, private URLs, raw provider payloads, and personal data from the report.
+          required: true

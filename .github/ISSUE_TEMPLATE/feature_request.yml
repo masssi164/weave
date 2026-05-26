@@ -1,0 +1,88 @@
+name: Feature request
+description: Propose a product capability, workflow, provider facade, or professionalization slice
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for new or changed product behavior. Keep Weave domain-first: client/member UX should see Weave concepts, not raw provider administration.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What user, admin, operator, or contributor outcome should improve?
+      placeholder: "Example: Admin can dry-run replacing the Chat provider while members keep seeing Weave Chat."
+    validations:
+      required: true
+  - type: dropdown
+    id: domain
+    attributes:
+      label: Primary Weave domain
+      options:
+        - chat
+        - files/docs
+        - calendar
+        - boards/tasks
+        - meetings
+        - decisions
+        - identity/IDM
+        - admin/provider readiness
+        - manuals/help
+        - release/evidence
+        - weaver/AI runtime
+        - cross-cutting
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      value: |
+        In scope:
+        -
+
+        Out of scope:
+        -
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria / evidence gate
+      description: How do we know this is done? Name tests, docs, scenarios, screenshots, CI, or support-safe evidence.
+      value: |
+        -
+        -
+        -
+    validations:
+      required: true
+  - type: checkboxes
+    id: architecture
+    attributes:
+      label: Architecture boundaries
+      options:
+        - label: Client/member UX stays Weave-domain-first and does not call raw provider/admin APIs directly.
+        - label: Provider secrets, app passwords, bearer tokens, and raw provider errors stay out of client UX, logs, docs, and support bundles.
+        - label: Admin/operator-only setup/readiness/migration details are separated from normal member flows.
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility and localization considerations
+      description: Keyboard, screen reader, semantics, visible focus, text scaling, localization, non-color-only states.
+  - type: textarea
+    id: monorepo-impact
+    attributes:
+      label: Monorepo / release impact
+      description: Note affected areas such as client, server, infra, e2e, docs, release notes, README, manuals, or screenshots.
+  - type: dropdown
+    id: release-notes
+    attributes:
+      label: Expected release-notes label
+      description: Pick the label the eventual PR should carry.
+      options:
+        - release-notes-feature
+        - release-notes-bugfix
+        - release-notes-skip
+    validations:
+      required: true
