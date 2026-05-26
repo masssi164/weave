@@ -8,7 +8,17 @@ Weave is an accessibility-first, self-hostable organization operating layer for 
 
 Weave is provider-neutral by design: an organization can keep its chosen identity, chat, file, calendar, collaboration, and project systems while exposing them through coherent Weave product concepts. The default dogfood stack can use Keycloak, Matrix, Nextcloud, OpenProject, and LiveKit, but those are adapter/admin/operator choices behind Weave-owned domain contracts, not the member-facing product identity. Provider swaps are governed admin/operator capabilities that ship only when a supported migration contract, readiness evidence, authorization, audit trail, and rollback path exist.
 
-This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, documentation, and release metadata as one release unit. The active product-line reference is [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md). Documentation and README release-note embedding are tracked in [Manuals and release notes integration](docs/manuals-and-release-notes-integration.md).
+This repository is the single source of truth for the product stack. Treat client, backend, infrastructure, acceptance evidence, documentation, and release metadata as one release unit. The active product-line reference is [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md). For a fast professional-demo review, start with the [v0.1 Golden Path readiness](docs/v0.1-golden-path.md) page; it summarizes what is ready, admin-setup-required, disabled, degraded, hidden, and evidenced. Documentation and README release-note embedding are tracked in [Manuals and release notes integration](docs/manuals-and-release-notes-integration.md).
+
+## v0.1 Golden Path quick read
+
+- **What it is:** a provider-neutral organization operating layer, not a fixed bundle of provider screens.
+- **Member entry:** organization URL, invite link, or deep link after admin provisioning; no normal-member raw provider setup.
+- **Demo spine:** Weave Home, personal messages, channels/workspaces, chat, files, boards/tasks, calendar, meetings, decisions, and support-safe health impact.
+- **Admin/operator spine:** Workspace/Admin Health for provider categories, readiness, policy, backup/restore, smoke evidence, and support bundles.
+- **Evidence posture:** live E2E is a standard release-evidence path on the dedicated live runner when scheduled/manual, not a solar-budget exception.
+
+See [v0.1 Golden Path readiness](docs/v0.1-golden-path.md) for the concise status map and reviewer checklist.
 
 ## Product architecture
 

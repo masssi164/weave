@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('v0.1 release spine', () {
     final plan = File('../docs/release-v0.1-dogfood-plan.md');
+    final goldenPath = File('../docs/v0.1-golden-path.md');
     final productLine = File('../docs/product-line-and-weaver-plan.md');
     final firstUse = File('../docs/admin-provisioned-first-use.md');
     final canonicalModels = File('../docs/canonical-feature-models.md');
@@ -58,6 +59,39 @@ void main() {
         // ignore: avoid_print
         print(marker);
       }
+    });
+
+    test('documents professional demo golden path status', () {
+      expect(goldenPath.existsSync(), isTrue);
+      final markdown = goldenPath.readAsStringSync();
+      final readme = File('../README.md').readAsStringSync();
+
+      for (final required in <String>[
+        'professional demo review contract',
+        'provider-neutral organization operating layer',
+        'organization URL, invite link, or deep link',
+        'personal messages, channels/workspaces, upcoming work, decisions, and health impact',
+        'ready, admin-setup-required, disabled by policy, degraded, or hidden',
+        'Live E2E is standard release evidence on the dedicated self-hosted live runner',
+        'not gated by a solar or power-budget exception',
+        'exactly one release-notes label',
+        'no admin bypass',
+      ]) {
+        expect(markdown, contains(required));
+      }
+
+      for (final required in <String>[
+        'Product positioning',
+        'Weave Home and chat overview',
+        'Workspace/Admin Health',
+        'Governed Weaver runtime',
+        'Operator release path',
+      ]) {
+        expect(markdown, contains(required));
+      }
+
+      expect(readme, contains('v0.1 Golden Path quick read'));
+      expect(readme, contains('docs/v0.1-golden-path.md'));
     });
 
     test('documents provider-category admin foundation before Weaver runtime', () {

@@ -111,6 +111,13 @@
             "Upcoming events/meetings",
             "Recent decisions"
           ]
+        },
+        {
+          "path": "docs/v0.1-golden-path.md",
+          "fragments": [
+            "Weave Home communicates recent work, personal messages, channels/workspaces, upcoming work, decisions, and health impact.",
+            "Release evidence states whether a capability is ready, admin-setup-required, disabled by policy, degraded, or hidden."
+          ]
         }
       ]
     },
@@ -136,6 +143,13 @@
           "fragments": [
             "keeps provider diagnostics admin-only for members",
             "Provider stack readiness"
+          ]
+        },
+        {
+          "path": "docs/v0.1-golden-path.md",
+          "fragments": [
+            "A member opens an organization URL, invite link, or deep link after an admin has provisioned the organization.",
+            "The member completes SSO and lands in Weave without raw provider setup."
           ]
         }
       ]
