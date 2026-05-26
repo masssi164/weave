@@ -266,6 +266,17 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
+    void bootstrapRejectsNullAdminRecoveryKeysAsValidationError() throws Exception {
+        mockMvc.perform(post("/api/admin/organizations/bootstrap")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminSubjectKeys\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation-error"))
+                .andExpect(content().string(containsString("adminSubjectKeys")));
+    }
+
+    @Test
     void lastAdminGuardRejectsWorkspaceAdminPolicyThatRemovesPolicyEdit() throws Exception {
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
                         .with(adminJwt())

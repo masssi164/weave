@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_PRIMARY_IDENTITY_KEY_LENGTH;
@@ -25,6 +27,6 @@ public record OrganizationBootstrapRequest(
         String reason) {
 
     public OrganizationBootstrapRequest {
-        adminSubjectKeys = adminSubjectKeys == null ? List.of() : List.copyOf(adminSubjectKeys);
+        adminSubjectKeys = adminSubjectKeys == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(adminSubjectKeys));
     }
 }
