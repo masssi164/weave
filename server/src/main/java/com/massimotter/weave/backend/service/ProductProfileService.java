@@ -88,7 +88,7 @@ public class ProductProfileService {
                     "Product profile update could not be persisted.",
                     Map.of("store", "profile-overrides"));
         }
-        return profile(jwt);
+        return snapshot(jwt, identity).toResponse();
     }
 
     public ModuleSyncStatusResponse syncStatus(Jwt jwt) {
@@ -97,7 +97,10 @@ public class ProductProfileService {
     }
 
     private ProductProfileSnapshot snapshot(Jwt jwt) {
-        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
+        return snapshot(jwt, OrganizationIdentityContextFactory.fromJwt(jwt));
+    }
+
+    private ProductProfileSnapshot snapshot(Jwt jwt, OrganizationIdentityContext identity) {
         String username = firstText(jwt.getClaimAsString("preferred_username"), identity.subject());
         ProductProfileOverride stored = profileRepository.findByPrimaryIdentityKey(identity.primaryIdentityKey());
         String displayName = stored != null && hasText(stored.displayName())

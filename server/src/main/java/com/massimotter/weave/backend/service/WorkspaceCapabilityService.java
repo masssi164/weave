@@ -219,8 +219,8 @@ public class WorkspaceCapabilityService {
     }
 
     public EffectivePolicyResponse effectivePolicySnapshot(Jwt jwt, String context) {
-        EffectivePolicy policy = effectivePolicy(jwt);
         OrganizationIdentityContext identity = jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt);
+        EffectivePolicy policy = effectivePolicy(identity);
         String subject = identity == null ? "system" : identity.subject();
         String organization = identity == null ? "weave-dogfood" : identity.organizationId();
         String issuer = identity == null ? "unknown-issuer" : identity.issuer();
@@ -372,7 +372,11 @@ public class WorkspaceCapabilityService {
     }
 
     private EffectivePolicy effectivePolicy(Jwt jwt) {
-        if (jwt == null) {
+        return effectivePolicy(jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt));
+    }
+
+    private EffectivePolicy effectivePolicy(OrganizationIdentityContext identity) {
+        if (identity == null) {
             LinkedHashSet<String> systemCapabilities = new LinkedHashSet<>(OWNER_ADMIN_CAPABILITIES);
             systemCapabilities.remove("weaver.enabled");
             return new EffectivePolicy(
@@ -382,7 +386,6 @@ public class WorkspaceCapabilityService {
                     Set.copyOf(systemCapabilities),
                     List.of("system:internal-readiness"));
         }
-        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
         List<String> roles = identity.roles();
         List<String> groups = identity.groups();
         LinkedHashSet<String> capabilities = new LinkedHashSet<>();
