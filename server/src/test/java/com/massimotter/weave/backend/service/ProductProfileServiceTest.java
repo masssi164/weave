@@ -68,6 +68,27 @@ class ProductProfileServiceTest {
         assertThat(service.authenticatedUser(renamedEmail).emailPrimaryKey()).isFalse();
     }
 
+    @Test
+    void migratesLegacySubjectProfileOverrideToPrimaryIdentityKey() throws Exception {
+        Path storagePath = tempDir.resolve("profile-overrides.json");
+        new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(storagePath.toFile(), Map.of(
+                "user-123", new ProductProfileOverride(
+                        "Alice Legacy",
+                        null,
+                        "fr-FR",
+                        "Europe/Paris",
+                        Map.of(),
+                        "workspace")));
+
+        ProductProfileService service = new ProductProfileService(
+                new FileProductProfileOverrideRepository(new ObjectMapper(), storagePath));
+
+        assertThat(service.profile(profileJwt()).displayName()).isEqualTo("Alice Legacy");
+        String persisted = java.nio.file.Files.readString(storagePath);
+        assertThat(persisted).contains("issuer+subject:https://auth.weave.local/realms/weave#user-123");
+        assertThat(persisted).doesNotContain("\"user-123\"");
+    }
+
     private static Jwt profileJwt() {
         return profileJwt("alice@example.com");
     }

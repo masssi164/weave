@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.model.IdentityKeyFormat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,7 +40,11 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
 
     @Override
     public ProductProfileOverride findByPrimaryIdentityKey(String primaryIdentityKey) {
-        return profiles.get(primaryIdentityKey);
+        ProductProfileOverride profile = profiles.get(primaryIdentityKey);
+        if (profile != null) {
+            return profile;
+        }
+        return migrateLegacySubjectProfile(primaryIdentityKey);
     }
 
     @Override
@@ -64,6 +69,30 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
         } catch (IOException exception) {
             throw new ProductProfileStoreException(
                     "Failed to load product profile overrides from " + storagePath, exception);
+        }
+    }
+
+    private ProductProfileOverride migrateLegacySubjectProfile(String primaryIdentityKey) {
+        if (primaryIdentityKey == null || !primaryIdentityKey.matches(IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN)) {
+            return null;
+        }
+        String legacySubjectKey = primaryIdentityKey.substring(primaryIdentityKey.lastIndexOf('#') + 1);
+        ProductProfileOverride legacyProfile = profiles.get(legacySubjectKey);
+        if (legacyProfile == null) {
+            return null;
+        }
+        synchronized (persistenceLock) {
+            ProductProfileOverride current = profiles.get(primaryIdentityKey);
+            if (current != null) {
+                return current;
+            }
+            ProductProfileOverride migrated = profiles.remove(legacySubjectKey);
+            if (migrated == null) {
+                return null;
+            }
+            profiles.put(primaryIdentityKey, migrated);
+            persist();
+            return migrated;
         }
     }
 
