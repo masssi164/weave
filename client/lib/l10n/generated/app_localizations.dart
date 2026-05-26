@@ -3819,6 +3819,90 @@ abstract class AppLocalizations {
   /// **'Require approval receipts'**
   String get chatWeaverScoutApprovalReceiptCapability;
 
+  /// Weaver scout capability description for summarizing allowed context
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize only explicitly allowed channel context.'**
+  String get chatWeaverScoutSummarizeDescription;
+
+  /// Weaver scout capability description for citing allowed sources
+  ///
+  /// In en, this message translates to:
+  /// **'Cite messages, files, tasks, meetings, and decisions.'**
+  String get chatWeaverScoutCiteSourcesDescription;
+
+  /// Weaver scout capability description for proposal-only actions
+  ///
+  /// In en, this message translates to:
+  /// **'Draft or propose actions without mutating team data.'**
+  String get chatWeaverScoutProposeOnlyDescription;
+
+  /// Weaver scout capability description for approval receipts
+  ///
+  /// In en, this message translates to:
+  /// **'Require approval receipts for any future write path.'**
+  String get chatWeaverScoutApprovalReceiptDescription;
+
+  /// Weaver scout source label for explicit channel messages
+  ///
+  /// In en, this message translates to:
+  /// **'Explicit channel messages'**
+  String get chatWeaverScoutMessageSourceLabel;
+
+  /// Weaver scout source excerpt for explicit channel messages
+  ///
+  /// In en, this message translates to:
+  /// **'Messages selected or allowed by the member context policy.'**
+  String get chatWeaverScoutMessageSourceExcerpt;
+
+  /// Weaver scout source label for decision ledger entries
+  ///
+  /// In en, this message translates to:
+  /// **'Decision ledger'**
+  String get chatWeaverScoutDecisionSourceLabel;
+
+  /// Weaver scout source excerpt for decision ledger entries
+  ///
+  /// In en, this message translates to:
+  /// **'Captured decisions with source references.'**
+  String get chatWeaverScoutDecisionSourceExcerpt;
+
+  /// Weaver scout source label for shared files
+  ///
+  /// In en, this message translates to:
+  /// **'Shared files'**
+  String get chatWeaverScoutFileSourceLabel;
+
+  /// Weaver scout source excerpt for shared files
+  ///
+  /// In en, this message translates to:
+  /// **'File names and support-safe metadata visible to the member.'**
+  String get chatWeaverScoutFileSourceExcerpt;
+
+  /// Weaver scout source label for open tasks
+  ///
+  /// In en, this message translates to:
+  /// **'Open tasks'**
+  String get chatWeaverScoutTaskSourceLabel;
+
+  /// Weaver scout source excerpt for open tasks
+  ///
+  /// In en, this message translates to:
+  /// **'Task status and follow-up links visible to the member.'**
+  String get chatWeaverScoutTaskSourceExcerpt;
+
+  /// Weaver scout source label for meeting capsules
+  ///
+  /// In en, this message translates to:
+  /// **'Meeting capsules'**
+  String get chatWeaverScoutMeetingSourceLabel;
+
+  /// Weaver scout source excerpt for meeting capsules
+  ///
+  /// In en, this message translates to:
+  /// **'Agenda and follow-up references, not recordings or transcripts.'**
+  String get chatWeaverScoutMeetingSourceExcerpt;
+
   /// Empty state message for the files screen
   ///
   /// In en, this message translates to:

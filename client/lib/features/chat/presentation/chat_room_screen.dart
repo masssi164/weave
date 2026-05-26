@@ -1060,7 +1060,11 @@ class _ChannelWeaverScoutPanel extends StatelessWidget {
         .map((capability) => _weaverScoutCapabilityLabel(l10n, capability.kind))
         .join(', ');
     final sourceSummary = scout.allowedSources
-        .map((source) => '${source.label}: ${source.supportSafeExcerpt}')
+        .map(
+          (source) =>
+              '${_weaverScoutSourceLabel(l10n, source.kind)}: '
+              '${_weaverScoutSourceExcerpt(l10n, source.kind)}',
+        )
         .join('. ');
     final semanticsLabel = [
       l10n.chatWeaverScoutPanelTitle,
@@ -1147,7 +1151,10 @@ class _ChannelWeaverScoutPanel extends StatelessWidget {
                     _ChannelWeaverScoutInfoRow(
                       icon: _weaverScoutCapabilityIcon(capability.kind),
                       title: _weaverScoutCapabilityLabel(l10n, capability.kind),
-                      body: capability.description,
+                      body: _weaverScoutCapabilityDescription(
+                        l10n,
+                        capability.kind,
+                      ),
                     ),
                   const SizedBox(height: 16),
                   Text(
@@ -1158,8 +1165,8 @@ class _ChannelWeaverScoutPanel extends StatelessWidget {
                   for (final source in scout.allowedSources)
                     _ChannelWeaverScoutInfoRow(
                       icon: _weaverScoutSourceIcon(source.kind),
-                      title: source.label,
-                      body: source.supportSafeExcerpt,
+                      title: _weaverScoutSourceLabel(l10n, source.kind),
+                      body: _weaverScoutSourceExcerpt(l10n, source.kind),
                     ),
                   const SizedBox(height: 16),
                   MergeSemantics(
@@ -1273,6 +1280,54 @@ String _weaverScoutCapabilityLabel(
       l10n.chatWeaverScoutProposeOnlyCapability,
     ChannelWeaverScoutCapabilityKind.approvalReceiptRequired =>
       l10n.chatWeaverScoutApprovalReceiptCapability,
+  };
+}
+
+String _weaverScoutCapabilityDescription(
+  AppLocalizations l10n,
+  ChannelWeaverScoutCapabilityKind kind,
+) {
+  return switch (kind) {
+    ChannelWeaverScoutCapabilityKind.summarizeAllowedContext =>
+      l10n.chatWeaverScoutSummarizeDescription,
+    ChannelWeaverScoutCapabilityKind.citeSources =>
+      l10n.chatWeaverScoutCiteSourcesDescription,
+    ChannelWeaverScoutCapabilityKind.proposeOnly =>
+      l10n.chatWeaverScoutProposeOnlyDescription,
+    ChannelWeaverScoutCapabilityKind.approvalReceiptRequired =>
+      l10n.chatWeaverScoutApprovalReceiptDescription,
+  };
+}
+
+String _weaverScoutSourceLabel(
+  AppLocalizations l10n,
+  ChannelWeaverScoutSourceKind kind,
+) {
+  return switch (kind) {
+    ChannelWeaverScoutSourceKind.message =>
+      l10n.chatWeaverScoutMessageSourceLabel,
+    ChannelWeaverScoutSourceKind.decision =>
+      l10n.chatWeaverScoutDecisionSourceLabel,
+    ChannelWeaverScoutSourceKind.file => l10n.chatWeaverScoutFileSourceLabel,
+    ChannelWeaverScoutSourceKind.task => l10n.chatWeaverScoutTaskSourceLabel,
+    ChannelWeaverScoutSourceKind.meeting =>
+      l10n.chatWeaverScoutMeetingSourceLabel,
+  };
+}
+
+String _weaverScoutSourceExcerpt(
+  AppLocalizations l10n,
+  ChannelWeaverScoutSourceKind kind,
+) {
+  return switch (kind) {
+    ChannelWeaverScoutSourceKind.message =>
+      l10n.chatWeaverScoutMessageSourceExcerpt,
+    ChannelWeaverScoutSourceKind.decision =>
+      l10n.chatWeaverScoutDecisionSourceExcerpt,
+    ChannelWeaverScoutSourceKind.file => l10n.chatWeaverScoutFileSourceExcerpt,
+    ChannelWeaverScoutSourceKind.task => l10n.chatWeaverScoutTaskSourceExcerpt,
+    ChannelWeaverScoutSourceKind.meeting =>
+      l10n.chatWeaverScoutMeetingSourceExcerpt,
   };
 }
 

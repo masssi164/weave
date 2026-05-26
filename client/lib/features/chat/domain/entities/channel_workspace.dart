@@ -223,6 +223,7 @@ class ChannelWeaverApprovalReceipt {
   final ChannelWeaverApprovalResultCategory resultCategory;
 
   bool get isComplete =>
+      id.isNotEmpty &&
       actorRef.isNotEmpty &&
       requestedAction.isNotEmpty &&
       approvedAction.isNotEmpty &&
@@ -288,6 +289,13 @@ class ChannelWeaverScoutPreview {
           sourceId: 'decision-ledger:channel',
           label: 'Decision ledger',
           supportSafeExcerpt: 'Captured decisions with source references.',
+        ),
+        ChannelWeaverScoutSource(
+          kind: ChannelWeaverScoutSourceKind.file,
+          sourceId: 'files:channel-shared-metadata',
+          label: 'Shared files',
+          supportSafeExcerpt:
+              'File names and support-safe metadata visible to the member.',
         ),
         ChannelWeaverScoutSource(
           kind: ChannelWeaverScoutSourceKind.task,
@@ -434,6 +442,8 @@ class ChannelWorkspacePreview {
       explicitContextOnly &&
       !backgroundRoomReadingEnabled &&
       !adminSetupExposedToMembers &&
+      // Sprint 4 exposes Weaver as a governed read-only scout; keep the
+      // workspace-level predicate fail-closed if that invariant regresses.
       weaverScoutPreview.isGovernedReadOnlyScout;
 
   ChannelWorkspaceSurface surface(ChannelWorkspaceSurfaceKind kind) {

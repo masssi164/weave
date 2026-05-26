@@ -2262,6 +2262,58 @@ class AppLocalizationsDe extends AppLocalizations {
       'Freigabebelege verlangen';
 
   @override
+  String get chatWeaverScoutSummarizeDescription =>
+      'Nur ausdrücklich erlaubten Kanal-Kontext zusammenfassen.';
+
+  @override
+  String get chatWeaverScoutCiteSourcesDescription =>
+      'Nachrichten, Dateien, Aufgaben, Meetings und Entscheidungen zitieren.';
+
+  @override
+  String get chatWeaverScoutProposeOnlyDescription =>
+      'Aktionen entwerfen oder vorschlagen, ohne Teamdaten zu verändern.';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptDescription =>
+      'Freigabebelege für jeden künftigen Schreibpfad verlangen.';
+
+  @override
+  String get chatWeaverScoutMessageSourceLabel =>
+      'Ausdrückliche Kanalnachrichten';
+
+  @override
+  String get chatWeaverScoutMessageSourceExcerpt =>
+      'Nachrichten, die durch die Mitglieder-Kontextrichtlinie ausgewählt oder erlaubt sind.';
+
+  @override
+  String get chatWeaverScoutDecisionSourceLabel => 'Entscheidungsprotokoll';
+
+  @override
+  String get chatWeaverScoutDecisionSourceExcerpt =>
+      'Erfasste Entscheidungen mit Quellenverweisen.';
+
+  @override
+  String get chatWeaverScoutFileSourceLabel => 'Geteilte Dateien';
+
+  @override
+  String get chatWeaverScoutFileSourceExcerpt =>
+      'Dateinamen und support-sichere Metadaten, die für das Mitglied sichtbar sind.';
+
+  @override
+  String get chatWeaverScoutTaskSourceLabel => 'Offene Aufgaben';
+
+  @override
+  String get chatWeaverScoutTaskSourceExcerpt =>
+      'Aufgabenstatus und Follow-up-Links, die für das Mitglied sichtbar sind.';
+
+  @override
+  String get chatWeaverScoutMeetingSourceLabel => 'Meeting-Kapseln';
+
+  @override
+  String get chatWeaverScoutMeetingSourceExcerpt =>
+      'Agenda- und Follow-up-Verweise, keine Aufzeichnungen oder Transkripte.';
+
+  @override
   String get filesEmptyMessage => 'Noch keine Dateien';
 
   @override

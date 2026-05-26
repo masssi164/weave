@@ -60,6 +60,7 @@ void main() {
       everyElement(isNot(contains('preview'))),
     );
     expect(preview.meetingPreview.contextId, preview.contextId);
+    expect(preview.weaverScoutPreview.contextId, preview.contextId);
     expect(preview.meetingPreview.isFailClosed, isTrue);
     expect(preview.meetingPreview.requiresExplicitConsent, isTrue);
     expect(preview.meetingPreview.backgroundRoomReadingEnabled, isFalse);
@@ -81,6 +82,16 @@ void main() {
         ChannelWeaverScoutCapabilityKind.citeSources,
         ChannelWeaverScoutCapabilityKind.proposeOnly,
         ChannelWeaverScoutCapabilityKind.approvalReceiptRequired,
+      ],
+    );
+    expect(
+      preview.weaverScoutPreview.allowedSources.map((source) => source.kind),
+      [
+        ChannelWeaverScoutSourceKind.message,
+        ChannelWeaverScoutSourceKind.decision,
+        ChannelWeaverScoutSourceKind.file,
+        ChannelWeaverScoutSourceKind.task,
+        ChannelWeaverScoutSourceKind.meeting,
       ],
     );
     expect(

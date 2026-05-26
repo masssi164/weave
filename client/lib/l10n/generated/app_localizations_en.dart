@@ -2231,6 +2231,57 @@ class AppLocalizationsEn extends AppLocalizations {
       'Require approval receipts';
 
   @override
+  String get chatWeaverScoutSummarizeDescription =>
+      'Summarize only explicitly allowed channel context.';
+
+  @override
+  String get chatWeaverScoutCiteSourcesDescription =>
+      'Cite messages, files, tasks, meetings, and decisions.';
+
+  @override
+  String get chatWeaverScoutProposeOnlyDescription =>
+      'Draft or propose actions without mutating team data.';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptDescription =>
+      'Require approval receipts for any future write path.';
+
+  @override
+  String get chatWeaverScoutMessageSourceLabel => 'Explicit channel messages';
+
+  @override
+  String get chatWeaverScoutMessageSourceExcerpt =>
+      'Messages selected or allowed by the member context policy.';
+
+  @override
+  String get chatWeaverScoutDecisionSourceLabel => 'Decision ledger';
+
+  @override
+  String get chatWeaverScoutDecisionSourceExcerpt =>
+      'Captured decisions with source references.';
+
+  @override
+  String get chatWeaverScoutFileSourceLabel => 'Shared files';
+
+  @override
+  String get chatWeaverScoutFileSourceExcerpt =>
+      'File names and support-safe metadata visible to the member.';
+
+  @override
+  String get chatWeaverScoutTaskSourceLabel => 'Open tasks';
+
+  @override
+  String get chatWeaverScoutTaskSourceExcerpt =>
+      'Task status and follow-up links visible to the member.';
+
+  @override
+  String get chatWeaverScoutMeetingSourceLabel => 'Meeting capsules';
+
+  @override
+  String get chatWeaverScoutMeetingSourceExcerpt =>
+      'Agenda and follow-up references, not recordings or transcripts.';
+
+  @override
   String get filesEmptyMessage => 'No files yet';
 
   @override
