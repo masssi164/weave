@@ -81,6 +81,10 @@ import org.springframework.test.web.servlet.MockMvc;
 class ChatControllerTest {
 
     // WEAVE_CHAT_DOMAIN_FACADE
+    // V01_CHANNEL_WORKSPACE
+    // V01_MEETING_CAPSULE
+    // V01_DECISION_LEDGER
+    // source-linked
 
     @Autowired
     private MockMvc mockMvc;
@@ -236,6 +240,148 @@ class ChatControllerTest {
                         && "weave:chat".equals(event.sourceRef())
                         && Boolean.TRUE.equals(event.payload().get("supportSafe"))
                         && Boolean.TRUE.equals(event.payload().get("diagnosticsRedacted"))));
+    }
+
+    @Test
+    void decisionLedgerCreateAndReadUseSourceLinkedLifecycleRecords() throws Exception {
+        allowChatPermission(ContextPermission.EDIT);
+        allowChatPermission(ContextPermission.VIEW);
+        String payload = """
+                {
+                  "title":"Use governed channel workspace tabs for Sprint 4",
+                  "status":"accepted",
+                  "risks":["Keep background room reading disabled"],
+                  "openQuestions":["When do we enable richer meeting media?"],
+                  "followUpRefs":["task:release-evidence"],
+                  "references":[{
+                    "type":"chat-message",
+                    "ref":"message:msg-seed-welcome",
+                    "label":"Seed welcome message",
+                    "excerpt":"Provider details stay behind the backend facade"
+                  }]
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/decisions")
+                        .with(workspaceJwt("member"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversationId").value("channel-general"))
+                .andExpect(jsonPath("$.contextId").value("workspace-default"))
+                .andExpect(jsonPath("$.status").value("accepted"))
+                .andExpect(jsonPath("$.authorRef").value("user:test"))
+                .andExpect(jsonPath("$.references[0].ref").value("message:msg-seed-welcome"))
+                .andExpect(jsonPath("$.risks[0]").value("Keep background room reading disabled"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$..roomId").doesNotExist())
+                .andExpect(jsonPath("$..providerUrl").doesNotExist());
+
+        mockMvc.perform(get("/api/v1/chat/conversations/channel-general/decisions")
+                        .with(workspaceJwt("member")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.backgroundRoomReadingEnabled").value(false))
+                .andExpect(content().string(containsString("Use governed channel workspace tabs for Sprint 4")))
+                .andExpect(content().string(containsString("Seed welcome message")));
+
+        verify(auditEventPublisher).publish(argThat(event ->
+                event != null
+                        && event.action() == AuditAction.DECISION_LEDGER_RECORD_CREATED
+                        && Boolean.TRUE.equals(event.payload().get("supportSafe"))
+                        && Integer.valueOf(1).equals(event.payload().get("referenceCount"))));
+    }
+
+    @Test
+    void meetingCapsuleCreateAndReadStayFailClosedWithoutProviderLeakage() throws Exception {
+        allowChatPermission(ContextPermission.EDIT);
+        allowChatPermission(ContextPermission.VIEW);
+        String payload = """
+                {
+                  "title":"Sprint 4 evidence review",
+                  "agendaItems":["Review decisions", "Confirm follow-up tasks"],
+                  "followUpRefs":["decision:sprint-4-close"]
+                }
+                """;
+
+        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/meeting-capsules")
+                        .with(workspaceJwt("member"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversationId").value("channel-general"))
+                .andExpect(jsonPath("$.state").value("scheduled"))
+                .andExpect(jsonPath("$.agendaItems[0]").value("Review decisions"))
+                .andExpect(jsonPath("$.participants[0]").value("user:test:organizer"))
+                .andExpect(jsonPath("$.disabledControls[0]").value("join"))
+                .andExpect(jsonPath("$.disabledReason").value("meeting-backend-capability-unavailable"))
+                .andExpect(jsonPath("$.liveKitProviderDetailsExposed").value(false))
+                .andExpect(jsonPath("$.matrixE2eeClaimedForMedia").value(false))
+                .andExpect(jsonPath("$.recordingEnabled").value(false))
+                .andExpect(content().string(not(containsString("livekit://"))))
+                .andExpect(content().string(not(containsString("access_token"))));
+
+        mockMvc.perform(get("/api/v1/chat/conversations/channel-general/meeting-capsules")
+                        .with(workspaceJwt("member")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.failClosed").value(true))
+                .andExpect(jsonPath("$.capsules[0].title").value("Sprint 4 evidence review"));
+
+        verify(auditEventPublisher).publish(argThat(event ->
+                event != null
+                        && event.action() == AuditAction.MEETING_CAPSULE_CREATED
+                        && Boolean.TRUE.equals(event.payload().get("failClosed"))
+                        && Boolean.TRUE.equals(event.payload().get("supportSafe"))));
+    }
+
+    @Test
+    void weaverScoutSummarizesAllowedContextAndBlocksWritesWithReceipts() throws Exception {
+        allowChatPermission(ContextPermission.EDIT);
+        allowChatPermission(ContextPermission.VIEW);
+        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/decisions")
+                        .with(workspaceJwt("member"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title":"Keep Weaver read-only in Sprint 4",
+                                  "references":[{
+                                    "type":"chat-message",
+                                    "ref":"message:msg-seed-welcome",
+                                    "label":"Seed welcome message"
+                                  }]
+                                }
+                                """))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/chat/conversations/channel-general/weaver/scout/summaries")
+                        .with(workspaceJwt("member"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "question":"What is open in this channel?",
+                                  "requestedAction":"Create a task from the summary"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversationId").value("channel-general"))
+                .andExpect(jsonPath("$.readOnly").value(true))
+                .andExpect(jsonPath("$.proposalOnly").value(true))
+                .andExpect(jsonPath("$.backgroundRoomReadingEnabled").value(false))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.sources[0].kind").value("message"))
+                .andExpect(content().string(containsString("\"kind\":\"decision\"")))
+                .andExpect(jsonPath("$.approvalReceipts[0].actorRef").value("user:test"))
+                .andExpect(jsonPath("$.approvalReceipts[0].requestedAction").value("Create a task from the summary"))
+                .andExpect(jsonPath("$.approvalReceipts[0].approvedAction").value("none - Sprint 4 Weaver scout is read-only"))
+                .andExpect(jsonPath("$.approvalReceipts[0].targetRef").value("conversation:channel-general"))
+                .andExpect(jsonPath("$.approvalReceipts[0].resultCategory").value("blocked"))
+                .andExpect(content().string(not(containsString("secretref://"))))
+                .andExpect(content().string(not(containsString("access_token"))));
+
+        verify(auditEventPublisher).publish(argThat(event ->
+                event != null
+                        && event.action() == AuditAction.WEAVER_SCOUT_SUMMARY_REQUESTED
+                        && Boolean.TRUE.equals(event.payload().get("readOnly"))
+                        && Boolean.TRUE.equals(event.payload().get("supportSafe"))));
     }
 
     @Test
