@@ -202,6 +202,7 @@ class WorkspaceCapabilityServiceTest {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-1")
+                .issuer("https://auth.example.invalid/realms/acme")
                 .claim("realm_access", Map.of("roles", roles))
                 .claim("groups", groups)
                 .build();

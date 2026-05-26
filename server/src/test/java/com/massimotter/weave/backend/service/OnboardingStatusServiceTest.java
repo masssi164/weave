@@ -75,6 +75,7 @@ class OnboardingStatusServiceTest {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(600))
                 .claim("preferred_username", "alice")

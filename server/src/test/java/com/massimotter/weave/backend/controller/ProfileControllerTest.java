@@ -166,6 +166,7 @@ class ProfileControllerTest {
                         .content("{\"displayName\":\"Alice Weave\"}")
                         .with(jwt().jwt(jwt -> jwt
                                 .subject("user-123")
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("preferred_username", "alice")
                                 .claim("aud", List.of("weave-app")))))
                 .andExpect(status().isForbidden());
@@ -174,6 +175,7 @@ class ProfileControllerTest {
     private static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor profileJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")

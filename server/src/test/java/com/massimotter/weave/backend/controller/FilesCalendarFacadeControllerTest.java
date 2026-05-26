@@ -326,6 +326,7 @@ class FilesCalendarFacadeControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
                 .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
@@ -336,6 +337,7 @@ class FilesCalendarFacadeControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))

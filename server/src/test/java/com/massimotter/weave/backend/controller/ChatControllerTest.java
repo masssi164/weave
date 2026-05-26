@@ -471,6 +471,7 @@ class ChatControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt(String role) {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("realm_access", Map.of("roles", List.of(role)))
@@ -481,12 +482,16 @@ class ChatControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {
         return jwt()
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"), new SimpleGrantedAuthority("ROLE_MEMBER"))
-                .jwt(jwt -> jwt.subject("member-123"));
+                .jwt(jwt -> jwt
+                        .subject("member-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme"));
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
         return jwt()
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"), new SimpleGrantedAuthority("ROLE_ADMIN"))
-                .jwt(jwt -> jwt.subject("admin-123"));
+                .jwt(jwt -> jwt
+                        .subject("admin-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme"));
     }
 }

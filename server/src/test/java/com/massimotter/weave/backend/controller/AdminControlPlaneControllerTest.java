@@ -260,9 +260,9 @@ class AdminControlPlaneControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminSubjectKeys\":[\"alice@example.com\"]}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("organization-bootstrap-admin-key-invalid"))
+                .andExpect(jsonPath("$.code").value("validation-error"))
                 .andExpect(content().string(not(containsString("alice@example.com"))))
-                .andExpect(content().string(containsString("issuer+subject:<issuer>#<subject>")));
+                .andExpect(content().string(containsString("adminSubjectKeys")));
     }
 
     @Test

@@ -68,6 +68,7 @@ class OnboardingControllerTest {
     void returnsFirstRunStatusForAuthenticatedUser() throws Exception {
         mockMvc.perform(get("/api/onboarding/status").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
@@ -99,6 +100,7 @@ class OnboardingControllerTest {
             boolean canUseModules) throws Exception {
         mockMvc.perform(get("/api/onboarding/status").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", realmRole + "-user")
                         .claim("name", "Role User")
                         .claim("email", realmRole + "@example.com")
@@ -117,6 +119,7 @@ class OnboardingControllerTest {
     void returnsPendingInviteAndProfileStatusWithoutRawDownstreamErrors() throws Exception {
         mockMvc.perform(get("/api/onboarding/status").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")

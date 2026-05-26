@@ -69,7 +69,12 @@ final class OrganizationIdentityContextFactory {
         if (jwt != null && jwt.getIssuer() != null && hasText(jwt.getIssuer().toString())) {
             return jwt.getIssuer().toString().trim();
         }
-        return Optional.ofNullable(claim(jwt, "iss")).orElse("unknown-issuer");
+        return Optional.ofNullable(claim(jwt, "iss"))
+                .orElseThrow(() -> new ApiErrorException(
+                        HttpStatus.BAD_REQUEST,
+                        "missing-issuer",
+                        "Authenticated token is missing a stable issuer.",
+                        Map.of("claim", "iss")));
     }
 
     private static List<String> canonicalRoles(Jwt jwt) {

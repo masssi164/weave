@@ -84,6 +84,7 @@ class IdentityControllerTest {
     void exposesCanonicalMeEndpoint() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
@@ -100,6 +101,7 @@ class IdentityControllerTest {
     void includesOperatorAsAProductRole() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("operator-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "ops")
                         .claim("realm_access", Map.of("roles", List.of("operator")))
                         .claim("aud", List.of("weave-app")))
@@ -136,6 +138,7 @@ class IdentityControllerTest {
     void fallsBackToClientIdWhenAzpIsAbsent() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("client_id", "weave-app")
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
