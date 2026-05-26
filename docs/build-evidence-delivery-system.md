@@ -13,7 +13,7 @@ Root Gradle is the build and delivery source of truth. `./gradlew ci` is the can
 - Default checks do not mutate tracked source; mutations happen only through explicit update tasks.
 - Default checks require no secrets, live services, nondeterministic GitHub API calls, or remote CDN assets.
 - Flutter/Dart and admin/npm checks are orchestrated through typed Gradle `Exec` tasks first; do not force Flutter Android into root Gradle prematurely.
-- Live E2E remains opt-in and preserves explicit operator/budget confirmation semantics.
+- Live E2E runs on the dedicated self-hosted live runner by default for scheduled/manual release evidence; concrete infrastructure blockers must be recorded instead of using power/storage budget as a standing gate.
 
 ## Stable Gradle command surface
 

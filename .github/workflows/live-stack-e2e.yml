@@ -7,10 +7,9 @@ on:
         description: "Backend image to boot inside the infra stack; ghcr.io/* is pulled, other refs are built from monorepo server/"
         required: false
         default: "weave-backend:live-stack-ci"
-      power_storage_confirmation:
-        description: "Type I_HAVE_SOLAR_STORAGE_BUDGET to confirm the self-hosted runner has enough power/storage budget for expensive live E2E"
-        required: true
-        default: ""
+  schedule:
+    # Nightly release-evidence run on the dedicated self-hosted live runner.
+    - cron: "17 2 * * *"
   workflow_call:
     inputs:
       weave_backend_image:
@@ -30,28 +29,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  live-stack-e2e-not-confirmed:
-    name: Explain missing manual dispatch confirmation
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.power_storage_confirmation != 'I_HAVE_SOLAR_STORAGE_BUDGET'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Explain why live-stack E2E did not start
-        run: |
-          cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
-          # Live Stack E2E was not started
-
-          The expensive self-hosted live-stack run is gated behind an explicit
-          power/storage confirmation. Re-dispatch this workflow with
-          `power_storage_confirmation` set exactly to
-          `I_HAVE_SOLAR_STORAGE_BUDGET` when an operator has confirmed runner
-          power and storage budget.
-          EOF
-          echo "::error::Live Stack E2E not started: set power_storage_confirmation=I_HAVE_SOLAR_STORAGE_BUDGET after operator budget approval."
-          exit 1
-
   live-stack-e2e:
     name: Bootstrap Stack And Run App E2E
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.power_storage_confirmation == 'I_HAVE_SOLAR_STORAGE_BUDGET'
     runs-on:
       - self-hosted
       - macOS
