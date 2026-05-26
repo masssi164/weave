@@ -6,6 +6,10 @@ enum DecisionEvidenceStatus { active, resolved, archived }
 
 enum DecisionEvidenceSourceType { chatMessage }
 
+enum DecisionLedgerStatus { proposed, accepted, superseded, rejected }
+
+enum DecisionLedgerReferenceType { chatMessage, file, meeting, task }
+
 class DecisionEvidenceSource {
   const DecisionEvidenceSource({
     required this.type,
@@ -100,6 +104,83 @@ class DecisionEvidenceRecord {
   }
 }
 
+class DecisionLedgerReference {
+  const DecisionLedgerReference({
+    required this.type,
+    required this.ref,
+    required this.label,
+    required this.excerpt,
+  });
+
+  factory DecisionLedgerReference.fromEvidenceSource(
+    DecisionEvidenceSource source,
+  ) {
+    return DecisionLedgerReference(
+      type: DecisionLedgerReferenceType.chatMessage,
+      ref: '${source.roomId}/${source.messageId}',
+      label: 'Message from ${source.senderDisplayName}',
+      excerpt: source.excerpt,
+    );
+  }
+
+  final DecisionLedgerReferenceType type;
+  final String ref;
+  final String label;
+  final String excerpt;
+
+  bool get isSourceLinked => ref.isNotEmpty && label.isNotEmpty;
+}
+
+class ChannelDecisionRecord {
+  const ChannelDecisionRecord({
+    required this.id,
+    required this.channelId,
+    required this.title,
+    required this.status,
+    required this.authorLabel,
+    required this.decidedAt,
+    required this.references,
+  });
+
+  factory ChannelDecisionRecord.fromEvidenceRecord({
+    required String channelId,
+    required DecisionEvidenceRecord record,
+    DecisionLedgerStatus status = DecisionLedgerStatus.proposed,
+  }) {
+    return ChannelDecisionRecord(
+      id: record.id,
+      channelId: channelId,
+      title: record.title,
+      status: status,
+      authorLabel: record.ownerLabel,
+      decidedAt: record.createdAt,
+      references: [DecisionLedgerReference.fromEvidenceSource(record.source)],
+    );
+  }
+
+  final String id;
+  final String channelId;
+  final String title;
+  final DecisionLedgerStatus status;
+  final String authorLabel;
+  final DateTime decidedAt;
+  final List<DecisionLedgerReference> references;
+
+  bool get hasLifecycleState => DecisionLedgerStatus.values.contains(status);
+
+  bool get isSourceLinked =>
+      references.isNotEmpty &&
+      references.every((source) => source.isSourceLinked);
+
+  bool get isReadable =>
+      id.isNotEmpty &&
+      channelId.isNotEmpty &&
+      title.isNotEmpty &&
+      authorLabel.isNotEmpty &&
+      hasLifecycleState &&
+      isSourceLinked;
+}
+
 class RoomDecisionEvidenceSnapshot {
   const RoomDecisionEvidenceSnapshot({
     required this.roomId,
@@ -124,6 +205,17 @@ class RoomDecisionEvidenceSnapshot {
   Iterable<DecisionEvidenceRecord> recordsFor(DecisionEvidenceKind kind) =>
       records.where((record) => record.kind == kind);
 
+  List<ChannelDecisionRecord> get decisionLedgerRecords =>
+      recordsFor(DecisionEvidenceKind.decision)
+          .map(
+            (record) => ChannelDecisionRecord.fromEvidenceRecord(
+              channelId: roomId,
+              record: record,
+            ),
+          )
+          .where((decision) => decision.isReadable)
+          .toList(growable: false);
+
   int countFor(DecisionEvidenceKind kind) => recordsFor(kind).length;
 
   bool get hasRecords => records.isNotEmpty;
@@ -131,4 +223,8 @@ class RoomDecisionEvidenceSnapshot {
   bool get isExplicitAndSourceLinked =>
       !backgroundRoomReadingEnabled &&
       records.every((record) => record.isExplainable);
+
+  bool get isDecisionLedgerMvpReady =>
+      !backgroundRoomReadingEnabled &&
+      decisionLedgerRecords.every((decision) => decision.isReadable);
 }

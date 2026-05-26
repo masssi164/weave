@@ -2207,6 +2207,48 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get chatDecisionLedgerTitle => 'Entscheidungsprotokoll';
+
+  @override
+  String get chatDecisionLedgerEmptyState =>
+      'Noch keine Produktentscheidungen aufgezeichnet.';
+
+  @override
+  String get chatDecisionLedgerRecordLabel => 'Entscheidungseintrag';
+
+  @override
+  String get chatDecisionLedgerStatusProposed => 'Vorgeschlagen';
+
+  @override
+  String get chatDecisionLedgerStatusAccepted => 'Angenommen';
+
+  @override
+  String get chatDecisionLedgerStatusSuperseded => 'Ersetzt';
+
+  @override
+  String get chatDecisionLedgerStatusRejected => 'Abgelehnt';
+
+  @override
+  String chatDecisionLedgerRecordMeta(
+    String status,
+    String owner,
+    String source,
+  ) {
+    return '$status. Aufgezeichnet von $owner. Quelle: $source.';
+  }
+
+  @override
+  String chatDecisionLedgerSourceCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Quellenverweise',
+      one: '1 Quellenverweis',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get chatDecisionEvidenceCaptureDecisionAction =>
       'Als Entscheidung erfassen';
 

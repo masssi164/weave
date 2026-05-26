@@ -47,4 +47,23 @@ class DecisionEvidenceController
     };
     return record;
   }
+
+  ChannelDecisionRecord createDecisionFromMessage({
+    required String roomId,
+    required ChatMessage message,
+    required DateTime capturedAt,
+    required String ownerLabel,
+  }) {
+    final evidence = captureMessage(
+      roomId: roomId,
+      message: message,
+      kind: DecisionEvidenceKind.decision,
+      capturedAt: capturedAt,
+      ownerLabel: ownerLabel,
+    );
+    return ChannelDecisionRecord.fromEvidenceRecord(
+      channelId: roomId,
+      record: evidence,
+    );
+  }
 }

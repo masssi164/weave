@@ -2563,6 +2563,58 @@
       }
     }
   },
+  "chatDecisionLedgerTitle": "Decision Ledger",
+  "@chatDecisionLedgerTitle": {
+    "description": "Heading for first-class channel decision ledger records"
+  },
+  "chatDecisionLedgerEmptyState": "No product decisions recorded yet.",
+  "@chatDecisionLedgerEmptyState": {
+    "description": "Empty state for first-class channel decision ledger records"
+  },
+  "chatDecisionLedgerRecordLabel": "Decision record",
+  "@chatDecisionLedgerRecordLabel": {
+    "description": "Label for a first-class channel decision ledger record"
+  },
+  "chatDecisionLedgerStatusProposed": "Proposed",
+  "@chatDecisionLedgerStatusProposed": {
+    "description": "Decision ledger lifecycle status for proposed decisions"
+  },
+  "chatDecisionLedgerStatusAccepted": "Accepted",
+  "@chatDecisionLedgerStatusAccepted": {
+    "description": "Decision ledger lifecycle status for accepted decisions"
+  },
+  "chatDecisionLedgerStatusSuperseded": "Superseded",
+  "@chatDecisionLedgerStatusSuperseded": {
+    "description": "Decision ledger lifecycle status for superseded decisions"
+  },
+  "chatDecisionLedgerStatusRejected": "Rejected",
+  "@chatDecisionLedgerStatusRejected": {
+    "description": "Decision ledger lifecycle status for rejected decisions"
+  },
+  "chatDecisionLedgerRecordMeta": "{status}. Recorded by {owner}. Source: {source}.",
+  "@chatDecisionLedgerRecordMeta": {
+    "description": "Metadata shown for a first-class channel decision ledger record",
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "owner": {
+        "type": "String"
+      },
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "chatDecisionLedgerSourceCount": "{count, plural, =1 {1 source reference} other {{count} source references}}",
+  "@chatDecisionLedgerSourceCount": {
+    "description": "Source-reference count for a first-class channel decision ledger record",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatDecisionEvidenceCaptureDecisionAction": "Capture as decision",
   "@chatDecisionEvidenceCaptureDecisionAction": {
     "description": "Message menu action to capture a message as a decision"

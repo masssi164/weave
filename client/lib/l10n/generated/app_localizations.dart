@@ -3723,6 +3723,64 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1 {1 more record} other {{count} more records}}'**
   String chatDecisionEvidenceMoreRecords(int count);
 
+  /// Heading for first-class channel decision ledger records
+  ///
+  /// In en, this message translates to:
+  /// **'Decision Ledger'**
+  String get chatDecisionLedgerTitle;
+
+  /// Empty state for first-class channel decision ledger records
+  ///
+  /// In en, this message translates to:
+  /// **'No product decisions recorded yet.'**
+  String get chatDecisionLedgerEmptyState;
+
+  /// Label for a first-class channel decision ledger record
+  ///
+  /// In en, this message translates to:
+  /// **'Decision record'**
+  String get chatDecisionLedgerRecordLabel;
+
+  /// Decision ledger lifecycle status for proposed decisions
+  ///
+  /// In en, this message translates to:
+  /// **'Proposed'**
+  String get chatDecisionLedgerStatusProposed;
+
+  /// Decision ledger lifecycle status for accepted decisions
+  ///
+  /// In en, this message translates to:
+  /// **'Accepted'**
+  String get chatDecisionLedgerStatusAccepted;
+
+  /// Decision ledger lifecycle status for superseded decisions
+  ///
+  /// In en, this message translates to:
+  /// **'Superseded'**
+  String get chatDecisionLedgerStatusSuperseded;
+
+  /// Decision ledger lifecycle status for rejected decisions
+  ///
+  /// In en, this message translates to:
+  /// **'Rejected'**
+  String get chatDecisionLedgerStatusRejected;
+
+  /// Metadata shown for a first-class channel decision ledger record
+  ///
+  /// In en, this message translates to:
+  /// **'{status}. Recorded by {owner}. Source: {source}.'**
+  String chatDecisionLedgerRecordMeta(
+    String status,
+    String owner,
+    String source,
+  );
+
+  /// Source-reference count for a first-class channel decision ledger record
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {1 source reference} other {{count} source references}}'**
+  String chatDecisionLedgerSourceCount(int count);
+
   /// Message menu action to capture a message as a decision
   ///
   /// In en, this message translates to:
