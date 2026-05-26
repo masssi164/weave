@@ -12,6 +12,8 @@ import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
+import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
+import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
@@ -31,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -79,7 +82,7 @@ public class AdminControlPlaneService {
                 "admin-control-plane-v1",
                 organizationId(jwt),
                 organizationName(jwt),
-                "keycloak",
+                "OIDC/SAML selected IDM",
                 registry.providerConfigSource(),
                 registry.bootstrapDefaultsAreSuggestionsOnly(),
                 registry.backendOwnedFacades(),
@@ -163,6 +166,7 @@ public class AdminControlPlaneService {
                     "Capability whitelist update requires a profile key.",
                     Map.of("reason", "profileKey is required"));
         }
+        enforceLastAdminGuard(request);
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
                 "admin-control-plane",
@@ -180,6 +184,47 @@ public class AdminControlPlaneService {
                         "rawProviderError", "redacted before audit",
                         "token", "not-stored")));
         return whitelist(jwt);
+    }
+
+    public OrganizationBootstrapResponse bootstrapOrganization(OrganizationBootstrapRequest request, Jwt jwt) {
+        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
+        if (request == null || request.organizationId() == null || request.organizationId().isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "organization-bootstrap-invalid",
+                    "Organization bootstrap requires an organization id.",
+                    Map.of("reason", "organizationId is required"));
+        }
+        String organizationId = safeOrganizationId(request.organizationId());
+        String bootstrapMode = bootstrapMode(request.bootstrapMode());
+        List<String> retainedAdmins = retainedAdminSubjectKeys(request.adminSubjectKeys(), identity.primaryIdentityKey());
+        String auditRef = "organization-bootstrap-" + organizationId + "-" + Instant.now(clock).toEpochMilli();
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId,
+                "admin-control-plane",
+                actorRef(jwt),
+                "organization-bootstrap",
+                AuditAction.ADMIN_POLICY_UPDATED,
+                Instant.now(clock),
+                auditRef,
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "bootstrapMode", bootstrapMode,
+                        "actorPrimaryIdentityKey", identity.primaryIdentityKey(),
+                        "retainedAdminSubjectKeyCount", retainedAdmins.size(),
+                        "lastAdminGuardPassed", true,
+                        "supportSafe", true,
+                        "emailPrimaryKey", false,
+                        "reason", safeText(request.reason()))));
+        return new OrganizationBootstrapResponse(
+                organizationId,
+                bootstrapMode,
+                identity.primaryIdentityKey(),
+                retainedAdmins,
+                true,
+                true,
+                Instant.now(clock),
+                List.of(auditRef));
     }
 
     public ProviderReadinessTestResponse testProviderReadiness(ProviderReadinessTestRequest request, Jwt jwt) {
@@ -287,6 +332,68 @@ public class AdminControlPlaneService {
                 true,
                 requiresMigrationDryRun(request),
                 safeLossyMappingNotes(request.lossyMappingNotes()));
+    }
+
+    private void enforceLastAdminGuard(CapabilityWhitelistUpdateRequest request) {
+        if (!"workspace-admin".equals(request.profileKey().trim())) {
+            return;
+        }
+        List<String> capabilities = safeCapabilities(request.capabilityKeys());
+        if (capabilities.isEmpty() || capabilities.contains("admin.policy.edit")) {
+            return;
+        }
+        throw new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "last-admin-guard",
+                "Workspace admin policy updates must retain at least one admin policy editor.",
+                Map.of(
+                        "profileKey", "workspace-admin",
+                        "requiredCapability", "admin.policy.edit",
+                        "supportSafe", true));
+    }
+
+    private String safeOrganizationId(String value) {
+        String trimmed = value.trim().toLowerCase(Locale.ROOT);
+        if (!trimmed.matches("[a-z0-9][a-z0-9-]{1,62}")) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "organization-id-invalid",
+                    "Organization id must be a support-safe slug.",
+                    Map.of("organizationId", "invalid-organization-id-redacted"));
+        }
+        return trimmed;
+    }
+
+    private String bootstrapMode(String value) {
+        if (value == null || value.isBlank()) {
+            return "existing_org";
+        }
+        String trimmed = value.trim();
+        if (trimmed.equals("existing_org") || trimmed.equals("new_org")) {
+            return trimmed;
+        }
+        throw new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "organization-bootstrap-mode-invalid",
+                "Organization bootstrap mode must be existing_org or new_org.",
+                Map.of("bootstrapMode", "invalid-bootstrap-mode-redacted"));
+    }
+
+    private List<String> retainedAdminSubjectKeys(List<String> suppliedKeys, String actorPrimaryIdentityKey) {
+        List<String> retained = Stream.concat(suppliedKeys.stream(), Stream.of(actorPrimaryIdentityKey))
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .toList();
+        if (!retained.contains(actorPrimaryIdentityKey)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "last-admin-guard",
+                    "Organization bootstrap must retain the current owner/admin as a recovery administrator.",
+                    Map.of("supportSafe", true));
+        }
+        return retained;
     }
 
     private boolean providerMatchesCategory(String providerKey, String category) {

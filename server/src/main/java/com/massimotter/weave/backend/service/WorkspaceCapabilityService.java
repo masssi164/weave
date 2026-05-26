@@ -11,10 +11,8 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -202,9 +200,9 @@ public class WorkspaceCapabilityService {
         EffectivePolicy policy = effectivePolicy(jwt);
         return new WorkspaceCapabilityPolicyResponse(
                 "identity/IDM",
-                "Keycloak",
-                "OIDC/SAML adapter contract; Keycloak is the self-hosted default, not a product lock-in",
-                "JWT realm roles plus groups claims from the selected IDM",
+                "OIDC/SAML selected IDM",
+                "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
+                "OIDC role claims plus group claims from the selected IDM",
                 policy.roles(),
                 policy.groups(),
                 policy.profileKeys(),
@@ -222,12 +220,11 @@ public class WorkspaceCapabilityService {
 
     public EffectivePolicyResponse effectivePolicySnapshot(Jwt jwt, String context) {
         EffectivePolicy policy = effectivePolicy(jwt);
-        String subject = jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()
-                ? "system"
-                : jwt.getSubject();
-        String organization = firstText(claim(jwt, "weave_tenant"), claim(jwt, "tenant"), claim(jwt, "tid"), "weave-dogfood");
-        String issuer = jwt == null || jwt.getIssuer() == null ? "unknown-issuer" : jwt.getIssuer().toString();
-        String primaryIdentityKey = "issuer+subject:" + issuer + "#" + subject;
+        OrganizationIdentityContext identity = jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt);
+        String subject = identity == null ? "system" : identity.subject();
+        String organization = identity == null ? "weave-dogfood" : identity.organizationId();
+        String issuer = identity == null ? "unknown-issuer" : identity.issuer();
+        String primaryIdentityKey = identity == null ? "issuer+subject:unknown-issuer#system" : identity.primaryIdentityKey();
         List<String> denies = List.of(
                 "admin.policy.edit",
                 "admin.provider.configure",
@@ -241,7 +238,7 @@ public class WorkspaceCapabilityService {
                 List.of(issuer),
                 policy.groups(),
                 policy.roles(),
-                contextRoles(jwt),
+                identity == null ? List.of() : identity.contextRoles(),
                 policy.providerRoleMappings(),
                 policy.capabilities().stream().sorted().toList(),
                 denies.stream()
@@ -385,8 +382,9 @@ public class WorkspaceCapabilityService {
                     Set.copyOf(systemCapabilities),
                     List.of("system:internal-readiness"));
         }
-        List<String> roles = extractRealmRoles(jwt);
-        List<String> groups = extractStringList(jwt, "groups");
+        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
+        List<String> roles = identity.roles();
+        List<String> groups = identity.groups();
         LinkedHashSet<String> capabilities = new LinkedHashSet<>();
         LinkedHashSet<String> profileKeys = new LinkedHashSet<>();
 
@@ -431,22 +429,7 @@ public class WorkspaceCapabilityService {
                 groups,
                 List.copyOf(profileKeys),
                 Set.copyOf(capabilities),
-                providerRoleMappings(roles, groups));
-    }
-
-    private List<String> providerRoleMappings(List<String> roles, List<String> groups) {
-        return Stream.concat(
-                        roles.stream().map(role -> "realm_role:" + role),
-                        groups.stream().map(group -> "group_claim:" + group))
-                .sorted()
-                .toList();
-    }
-
-    private List<String> contextRoles(Jwt jwt) {
-        return extractStringList(jwt, "weave_context_roles").stream()
-                .map(role -> role.toLowerCase(Locale.ROOT))
-                .sorted()
-                .toList();
+                identity.providerRoleMappings());
     }
 
     private List<String> readinessImpact(EffectivePolicy policy) {
@@ -467,58 +450,6 @@ public class WorkspaceCapabilityService {
             return "operator role does not automatically grant user, provider, or policy administration";
         }
         return "missing mapped org role, context role, or group capability";
-    }
-
-    private List<String> extractRealmRoles(Jwt jwt) {
-        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) {
-            return List.of();
-        }
-
-        Object roles = realmAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
-        }
-
-        return roleValues.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(role -> role.trim().toLowerCase(Locale.ROOT))
-                .filter(role -> !role.isEmpty())
-                .sorted()
-                .toList();
-    }
-
-    private List<String> extractStringList(Jwt jwt, String claimName) {
-        Object claim = jwt.getClaims().get(claimName);
-        if (!(claim instanceof Collection<?> values)) {
-            return List.of();
-        }
-
-        return values.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(value -> !value.isEmpty())
-                .sorted()
-                .toList();
-    }
-
-    private String claim(Jwt jwt, String claimName) {
-        if (jwt == null) {
-            return null;
-        }
-        Object value = jwt.getClaims().get(claimName);
-        return value instanceof String text && hasText(text) ? text.trim() : null;
-    }
-
-    private String firstText(String... values) {
-        for (String value : values) {
-            if (hasText(value)) {
-                return value.trim();
-            }
-        }
-        return null;
     }
 
     private boolean hasText(String value) {

@@ -24,6 +24,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -74,7 +75,7 @@ class ProfileControllerTest {
     void returnsProfileDerivedFromAuthenticatedPrincipal() throws Exception {
         mockMvc.perform(get("/api/profile").with(profileJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("user-123"))
+                .andExpect(jsonPath("$.userId", startsWith("acct_")))
                 .andExpect(jsonPath("$.username").value("alice"))
                 .andExpect(jsonPath("$.displayName").value("Alice Example"))
                 .andExpect(jsonPath("$.avatar").value("https://example.test/alice.png"))

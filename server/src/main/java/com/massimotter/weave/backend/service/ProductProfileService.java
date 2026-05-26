@@ -8,10 +8,8 @@ import com.massimotter.weave.backend.model.ProductProfileResponse;
 import com.massimotter.weave.backend.model.UpdateProductProfileRequest;
 import java.time.DateTimeException;
 import java.time.ZoneId;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
@@ -21,7 +19,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProductProfileService {
 
-    private static final List<String> MVP_ROLES = List.of("owner", "admin", "operator", "member", "guest");
     private static final ModuleSyncStatusResponse NOT_CONFIGURED_SYNC =
             new ModuleSyncStatusResponse("not_configured", "not_configured");
 
@@ -33,19 +30,27 @@ public class ProductProfileService {
 
     public AuthenticatedUserResponse authenticatedUser(Jwt jwt) {
         ProductProfileSnapshot snapshot = snapshot(jwt);
+        OrganizationIdentityContext identity = snapshot.identity();
         return new AuthenticatedUserResponse(
-                snapshot.userId(),
+                identity.accountId(),
                 snapshot.username(),
                 snapshot.email(),
                 snapshot.emailVerified(),
                 snapshot.displayName(),
                 snapshot.locale(),
                 snapshot.timezone(),
-                productRoles(snapshot.realmRoles()),
-                snapshot.groups(),
+                identity.roles(),
+                identity.groups(),
                 issuedFor(jwt),
                 jwt.getAudience(),
-                snapshot.realmRoles(),
+                identity.organizationId(),
+                identity.issuer(),
+                identity.subject(),
+                identity.primaryIdentityKey(),
+                identity.accountId(),
+                identity.contextRoles(),
+                identity.providerRoleMappings(),
+                false,
                 snapshot.moduleSyncStatus());
     }
 
@@ -70,10 +75,10 @@ public class ProductProfileService {
     }
 
     public ProductProfileResponse update(Jwt jwt, UpdateProductProfileRequest request) {
-        String subject = requireSubject(jwt);
+        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
         validateRequest(request);
         try {
-            profileRepository.save(subject, merge(profileRepository.findBySubject(subject), request));
+            profileRepository.save(identity.primaryIdentityKey(), merge(profileRepository.findBySubject(identity.primaryIdentityKey()), request));
         } catch (ProductProfileStoreException exception) {
             throw new ApiErrorException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
@@ -90,9 +95,9 @@ public class ProductProfileService {
     }
 
     private ProductProfileSnapshot snapshot(Jwt jwt) {
-        String subject = requireSubject(jwt);
-        String username = firstText(jwt.getClaimAsString("preferred_username"), subject);
-        ProductProfileOverride stored = profileRepository.findBySubject(subject);
+        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
+        String username = firstText(jwt.getClaimAsString("preferred_username"), identity.subject());
+        ProductProfileOverride stored = profileRepository.findBySubject(identity.primaryIdentityKey());
         String displayName = stored != null && hasText(stored.displayName())
                 ? stored.displayName()
                 : firstText(jwt.getClaimAsString("name"), username);
@@ -113,7 +118,7 @@ public class ProductProfileService {
                 : "workspace";
 
         return new ProductProfileSnapshot(
-                subject,
+                identity,
                 username,
                 jwt.getClaimAsString("email"),
                 emailVerified(jwt),
@@ -123,8 +128,6 @@ public class ProductProfileService {
                 timezone,
                 accessibilityPreferences,
                 profileVisibility,
-                extractStringList(jwt, "groups"),
-                extractRealmRoles(jwt),
                 NOT_CONFIGURED_SYNC);
     }
 
@@ -215,53 +218,9 @@ public class ProductProfileService {
                 .orElse(null);
     }
 
-    private List<String> extractRealmRoles(Jwt jwt) {
-        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) {
-            return List.of();
-        }
-
-        Object roles = realmAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
-        }
-
-        return roleValues.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(role -> !role.isEmpty())
-                .sorted()
-                .toList();
-    }
-
-    private List<String> extractStringList(Jwt jwt, String claimName) {
-        Object claim = jwt.getClaims().get(claimName);
-        if (!(claim instanceof Collection<?> values)) {
-            return List.of();
-        }
-
-        return values.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(value -> !value.isEmpty())
-                .sorted()
-                .toList();
-    }
-
     private boolean emailVerified(Jwt jwt) {
         Object value = jwt.getClaims().get("email_verified");
         return value instanceof Boolean verified && verified;
-    }
-
-    private List<String> productRoles(List<String> realmRoles) {
-        return realmRoles.stream()
-                .map(role -> role.toLowerCase(Locale.ROOT))
-                .filter(MVP_ROLES::contains)
-                .distinct()
-                .sorted()
-                .toList();
     }
 
     private String valueOrExisting(String supplied, String existing) {
@@ -280,7 +239,7 @@ public class ProductProfileService {
     }
 
     private record ProductProfileSnapshot(
-            String userId,
+            OrganizationIdentityContext identity,
             String username,
             String email,
             boolean emailVerified,
@@ -290,13 +249,11 @@ public class ProductProfileService {
             String timezone,
             Map<String, String> accessibilityPreferences,
             String profileVisibility,
-            List<String> groups,
-            List<String> realmRoles,
             ModuleSyncStatusResponse moduleSyncStatus) {
 
         ProductProfileResponse toResponse() {
             return new ProductProfileResponse(
-                    userId,
+                    identity.accountId(),
                     username,
                     email,
                     emailVerified,

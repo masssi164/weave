@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -118,21 +119,24 @@ class FirstPartyIdentityContractTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer client-id-only"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.issuedFor").value(FIRST_PARTY_CLIENT_ID))
-                .andExpect(jsonPath("$.userId").value("user-123"));
+                .andExpect(jsonPath("$.userId", startsWith("acct_")))
+                .andExpect(jsonPath("$.subject").value("user-123"));
     }
 
     @Test
     void acceptsValidFullFirstPartyToken() throws Exception {
         mockMvc.perform(get("/api/me")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer valid-full-token"))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer valid-full-token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("user-123"))
+                .andExpect(jsonPath("$.userId", startsWith("acct_")))
                 .andExpect(jsonPath("$.username").value("alice"))
                 .andExpect(jsonPath("$.emailVerified").value(false))
                 .andExpect(jsonPath("$.displayName").value("Alice Example"))
                 .andExpect(jsonPath("$.issuedFor").value(FIRST_PARTY_CLIENT_ID))
                 .andExpect(jsonPath("$.audience[0]").value(REQUIRED_AUDIENCE))
-                .andExpect(jsonPath("$.realmRoles[0]").value("member"));
+                .andExpect(jsonPath("$.subject").value("user-123"))
+                .andExpect(jsonPath("$.primaryIdentityKey").value("issuer+subject:https://auth.weave.local/realms/weave#user-123"))
+                .andExpect(jsonPath("$.providerRoleMappings[0]").value("role_claim:member"));
     }
 
     private Jwt decode(String tokenValue) {

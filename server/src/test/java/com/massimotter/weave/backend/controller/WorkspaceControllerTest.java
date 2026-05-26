@@ -219,7 +219,7 @@ class WorkspaceControllerTest {
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                                 new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.defaultIdmProvider").value("Keycloak"))
+                .andExpect(jsonPath("$.defaultIdmProvider").value("OIDC/SAML selected IDM"))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.grantedCapabilities").isArray())
