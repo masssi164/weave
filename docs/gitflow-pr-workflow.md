@@ -1,16 +1,25 @@
-# GitFlow and PR workflow
+# Trunk-based PR and release workflow
 
-Weave uses short-lived PR branches on top of `main`. Keep changes spec-driven: intent -> issue/spec note -> acceptance/evidence -> implementation -> review.
+Weave uses protected `main` plus short-lived PR branches. Do not add long-lived `dev`, `develop`, `testing`, `staging`, or `release/*` branches as the primary flow. Keep changes spec-driven: intent -> issue/spec note -> acceptance/evidence -> implementation -> review. For the full delivery contract, see [Weave operating model](weave-operating-model.md).
 
 ## Branch and PR rules
 
-1. Start from current `origin/main`.
+1. Start from current `origin/main`; `main` is the only long-lived integration branch.
 2. Create a focused branch named for the scope, for example `docs/mkdocs-handbook-foundation`, `feat/admin-policy-profiles`, or `fix/chat-empty-state`.
 3. Keep unrelated local files and assistant workspace files out of commits.
 4. Open a PR early enough for CI and review, but mark it draft if it is not review-ready.
 5. Before requesting review, run the smallest meaningful local gate and record it in the PR body.
 6. Request GitHub Copilot review on every review-ready PR.
-7. Do not merge until CI is green and the release-notes label gate passes.
+7. Do not merge until protected checks are green, conversations are resolved, and the release-notes label gate passes.
+
+
+## Dev, testing, staging, and production
+
+- Local development and temporary previews use a developer machine or disposable worktree, not a durable `dev` branch.
+- Testing/staging is represented by GitHub Environments or workflow targets, especially for release-candidate and Live Stack E2E evidence.
+- Release candidates are tags on `main` such as `vX.Y.Z-rc.N`.
+- Production releases use final SemVer tags such as `vX.Y.Z` plus explicit production approval.
+- A merge to `main` makes Weave release-capable; it is not an automatic production deploy.
 
 ## Mandatory release-notes label policy
 

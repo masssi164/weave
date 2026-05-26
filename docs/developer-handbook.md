@@ -89,15 +89,15 @@ make offline-contract-test
 - Run `dart run build_runner build --delete-conflicting-outputs` after model/provider/codegen changes.
 - Keep user-facing strings localizable; do not add hard-coded English text in widgets when the surrounding feature already uses l10n.
 
-## GitFlow and PR workflow
+## Trunk-based PR and release workflow
 
-Use short-lived PR branches from `main`, keep changes issue/spec-driven, and request Copilot review on every review-ready PR. Every PR must deliberately choose exactly one release-notes label before review/merge:
+Use protected `main` plus short-lived PR branches; do not introduce long-lived `dev`, `develop`, `testing`, `staging`, or `release/*` branches as the primary flow. Keep changes issue/spec-driven and request Copilot review on every review-ready PR. Every PR must deliberately choose exactly one release-notes label before review/merge:
 
 - `release-notes-feature`
 - `release-notes-bugfix`
 - `release-notes-skip`
 
-Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [GitFlow and PR workflow](gitflow-pr-workflow.md) for the full chapter, label semantics, and merge rules.
+Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Trunk-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
 
 ## Documentation site
 

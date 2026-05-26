@@ -6,6 +6,13 @@
 
 -
 
+## Branch, target, and release path
+
+- [ ] Branch started from current `origin/main`
+- [ ] PR targets protected `main`
+- [ ] No long-lived `dev`/`testing`/`staging` branch involved
+- [ ] Production release is not implied by this merge
+
 ## Screenshots or docs impact
 
 -
@@ -30,6 +37,7 @@ Choose exactly one before review/merge; CI fails otherwise.
 ## Review readiness
 
 - [ ] Copilot review requested for this review-ready PR
+- [ ] Copilot findings addressed or fallback review evidence documented
 
 ## Checks run
 
@@ -44,7 +52,7 @@ Choose exactly one before review/merge; CI fails otherwise.
 - [ ] `flutter test`
 - [ ] `make offline-contract-test`
 - [ ] `make marketing-screenshots` (if README/docs screenshot assets changed)
-- [ ] Live-stack validation (only when relevant):
+- [ ] Live-stack validation (only when relevant; record run, artifact, or skip reason):
 
 ## Notes for reviewers
 

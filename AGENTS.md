@@ -10,7 +10,7 @@ Product-line truth: read `docs/product-line-and-weaver-plan.md` before product d
 
 v0.1 is dogfood-production, not preview. No scaffold, roadmap, or coming-soon UX in normal member paths.
 
-Work spec-driven: intent → issue/spec note → acceptance/evidence → implementation → review.
+Work spec-driven: intent → issue/spec note → acceptance/evidence → implementation → review. Use `docs/weave-operating-model.md` as the delivery/agent orchestration contract.
 
 Route work:
 - `client/`: Flutter UX, accessibility, l10n.
@@ -19,9 +19,9 @@ Route work:
 - `e2e/`: Gherkin contracts and evidence mapping.
 - `docs/`: current product truth.
 
-Default gates: `make acceptance-contract`, `make client-ci`, `make server-ci`, `make infra-static`; use `make ci` for cross-stack changes.
+Default gates: `./gradlew acceptanceContract`, `./gradlew clientCi`, `./gradlew serverCi`, `./gradlew infraStatic`; use `./gradlew ci` for cross-stack changes.
 
-`weave-co-leader` coordinates specialists. PRs should request `@copilot` review when review-ready.
+`weave-co-leader` coordinates specialists using five compact templates: Truth-Recovery, Specialist-Brief, Evidence-Return, Integration-Gate, and Session-Handoff. PRs should request `@copilot` review when review-ready.
 
 Stop before secrets, data loss, live infra mutation, history rewrite, or hidden scope expansion.
 
