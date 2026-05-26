@@ -92,7 +92,7 @@ public class ProductProfileService {
     }
 
     public ModuleSyncStatusResponse syncStatus(Jwt jwt) {
-        requireSubject(jwt);
+        OrganizationIdentityContextFactory.fromJwt(jwt);
         return NOT_CONFIGURED_SYNC;
     }
 

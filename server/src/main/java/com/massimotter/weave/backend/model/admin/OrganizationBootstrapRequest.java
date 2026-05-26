@@ -15,7 +15,9 @@ public record OrganizationBootstrapRequest(
         String bootstrapMode,
         @Schema(description = "Immutable issuer+subject keys that retain owner/admin recovery access after bootstrap.")
         @Size(max = 25)
-        List<@NotBlank @Size(max = 512) @Pattern(regexp = "issuer\\+subject:[A-Za-z][A-Za-z0-9+.-]*://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/[A-Za-z0-9._~:/-]*)?#[A-Za-z0-9._:-]{1,128}") String> adminSubjectKeys,
+        List<@NotBlank @Size(max = 512) @Pattern(
+                regexp = "issuer\\+subject:[^#\\s]{1,384}#[^#\\s]{1,128}",
+                message = "must be a support-safe issuer+subject key") String> adminSubjectKeys,
         @Schema(description = "Support-safe reason recorded in audit.")
         String reason) {
 
