@@ -1,6 +1,6 @@
 # Sprint 4 plan: accessible work rooms and governed Weaver scout
 
-Status: planning draft, created after Sprint 3 closure.
+Status: planning draft, 2026-05-26.
 
 ## Product intent
 
