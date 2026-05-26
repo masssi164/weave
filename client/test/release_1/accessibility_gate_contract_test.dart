@@ -16,6 +16,7 @@ void main() {
         'Manual assistive-technology evidence required before release sign-off',
         'Non-negotiable pass criteria',
         'Release accounting',
+        'Sprint 4 dogfood evidence gate',
       ]) {
         expect(
           markdown,
@@ -32,6 +33,11 @@ void main() {
         'Files list/upload/download/status/error',
         'Calendar list/create/delete/status/error',
         'Admin/status surfaces consumed by app',
+        'Weave Home',
+        'Channel Work Rooms',
+        'Decision Ledger',
+        'Meeting Capsule',
+        'Weaver Scout',
       ]) {
         expect(
           markdown,
