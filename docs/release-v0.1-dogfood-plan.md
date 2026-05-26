@@ -44,7 +44,7 @@ Exit gate:
 - `make acceptance-contract`
 - `make infra-static`
 - client/server CI green in GitHub
-- Live Stack E2E manually green with explicit runner budget
+- Live Stack E2E green from the dedicated self-hosted live runner
 
 ## Phase 2 — OpenTofu-first infra
 

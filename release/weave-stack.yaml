@@ -30,7 +30,7 @@ components:
     path: e2e
     required_gates:
       - make acceptance-contract
-      - Live Stack E2E with explicit runner budget
+      - Live Stack E2E acceptance evidence from the dedicated self-hosted live runner
 scope:
   required:
     - weave-home

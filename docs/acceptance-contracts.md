@@ -32,7 +32,8 @@ For new product behavior:
 4. Keep live-stack E2E sparse. It proves critical end-to-end contracts only;
    lower-level tests carry the detailed technical coverage.
 5. Run `make offline-contract-test` before review. Use `make integration-test`
-   only for authorized live-stack runs with runner power/storage budget.
+   only on the dedicated live-stack runner or another explicitly prepared local
+   stack, keeping generated evidence sanitized.
 
 ## Feature-file language rules
 

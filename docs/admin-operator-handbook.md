@@ -81,4 +81,4 @@ make server-ci
 make docs-check
 ```
 
-Use live-stack E2E only when explicitly authorized and runner power/storage budget is available.
+Live Stack E2E is available by default on the dedicated self-hosted live runner. Use the GitHub workflow for manual release-candidate evidence; nightly runs should produce acceptance evidence unless a concrete infrastructure blocker is recorded.

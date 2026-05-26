@@ -50,9 +50,9 @@ tasks.register('releaseNotesCheck') {
 
 tasks.register('liveStackHelp') {
     group = 'help'
-    description = 'Explain that live stack E2E is intentionally opt-in.'
+    description = 'Explain how to run Live Stack E2E release evidence.'
     doLast {
-        println 'Live stack E2E is intentionally opt-in. Use the GitHub workflow with I_HAVE_SOLAR_STORAGE_BUDGET when runner power/storage budget is available.'
+        println 'Live Stack E2E is available by default on the dedicated self-hosted live runner. Use the GitHub workflow for manual release-candidate evidence; nightly runs also produce live-stack acceptance evidence when infrastructure is healthy.'
     }
 }
 
@@ -133,9 +133,9 @@ void writeCiSummary(Throwable buildFailure) {
         ],
         gates: gateSummaries,
         liveE2E: [
-            outcome: 'skipped',
-            reason: 'Live E2E is not part of default ci and requires explicit operator/budget confirmation.',
-            artifactPaths: []
+            outcome: 'separate-required-release-evidence',
+            reason: 'Live E2E runs on the dedicated self-hosted live runner by manual dispatch and nightly schedule; it is required for release-candidate evidence but remains outside default PR-safe ci.',
+            artifactPaths: ['weave-live-stack-acceptance-evidence']
         ],
         sanitized: true,
         exclusions: [
