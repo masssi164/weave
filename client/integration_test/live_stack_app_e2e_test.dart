@@ -295,8 +295,25 @@ void main() {
           serverConfigurationRepositoryProvider,
         ),
       );
-      await chatRepository.connect();
-      const matrixConnected = true;
+      var matrixConnected = false;
+      Object? matrixConnectError;
+      try {
+        await chatRepository.connect();
+        matrixConnected = true;
+      } catch (error) {
+        matrixConnectError = error;
+      }
+      if (!matrixConnected) {
+        final connectError = _supportSafeDiagnostic(matrixConnectError);
+        // ignore: avoid_print
+        print(
+          'MATRIX_RESULT connected=false '
+          'testHarnessDirectMatrix=true '
+          'productDirectProviderCallsAllowed=false '
+          'connectError=$connectError',
+        );
+        fail('matrix_connect_failed error=$connectError');
+      }
 
       final matrixClientFactory = container.read(matrixClientFactoryProvider);
       final matrixClient = await matrixClientFactory.getClientForHomeserver(
@@ -1009,6 +1026,27 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 }
 
 String _jsonString(Object? value) => value is String ? value : '';
+
+String _supportSafeDiagnostic(Object? error) {
+  if (error == null) {
+    return 'none';
+  }
+  return error
+      .toString()
+      .replaceAll(
+        RegExp(r'Bearer\s+[^\s,]+', caseSensitive: false),
+        'Bearer ***',
+      )
+      .replaceAllMapped(
+        RegExp(
+          r'(access[_-]?token|refresh[_-]?token|id[_-]?token|password|secret)=([^\s,]+)',
+          caseSensitive: false,
+        ),
+        (match) => '${match.group(1)}=***',
+      )
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
 
 class _EncryptedWireProof {
   const _EncryptedWireProof({
