@@ -1,6 +1,6 @@
 # Sprint 4 closure report: accessible work rooms and governed Weaver scout
 
-Status: closure PR evidence, 2026-05-26.
+Status: final closure evidence, 2026-05-26.
 
 ## Closure scope
 
@@ -8,7 +8,8 @@ Sprint 4 closes the transition from Sprint 3's provider-neutral control plane in
 
 ## Final closure status
 
-- Sprint 4 umbrella: #323, ready to close with this closure report after the final PR merge.
+- Sprint 4 umbrella: #323 closes with this final closure report.
+- Sprint implementation issues #326 through #330 are already closed as completed by their respective epic PRs and evidence gates.
 - Operating model and DevOps setup: PR #338 merged after branch-protection-required checks passed on `main`.
 - Branch model: protected `main`, short-lived PR branches, GitHub Environments for testing/staging, and one release-notes label per PR.
 - Current open Sprint 4 implementation gap: none found in the audited acceptance graph. Remaining broad/post-MVP issues are explicitly out of this closure scope unless they are linked below as closed by the Sprint 4 evidence graph.
