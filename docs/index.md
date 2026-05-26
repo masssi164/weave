@@ -6,13 +6,14 @@ Weave is a provider-neutral organization suite and integration layer for chat, f
 - [Admin/Operator Handbook](admin-operator-handbook.md) for organization setup, provider selection, policies, readiness, audit, infra, and support bundles.
 - [Developer Handbook](developer-handbook.md) and [GitFlow/PR workflow](gitflow-pr-workflow.md) for architecture, canonical models, facades/adapters, testing, release-note labels, release process, and contribution rules.
 - [Diagrams](diagrams/index.md) for Mermaid domain and facade architecture sources.
+- [v0.1 Golden Path readiness](v0.1-golden-path.md) for the professional-demo status map, evidence expectations, and reviewer checklist.
 - [Release Notes](release-notes/index.md) for unreleased notes, v0.1 notes, categories, and operator-impact tracking.
 
 ## Current product truth
 
 The active product direction is [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md): Weave is product-first and provider-neutral. Admin/provider setup, IDM/RBAC, readiness, whitelisting, and support-safe diagnostics come before optional Weaver personal-assistant runtime work.
 
-v0.1 is a dogfood-production release, not a preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets.
+v0.1 is a dogfood-production release, not a preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md).
 
 ## Documentation stack
 
