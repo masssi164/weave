@@ -85,6 +85,7 @@ public class SecurityConfig {
 
     private List<String> extractRoles(Jwt jwt) {
         LinkedHashSet<String> roles = new LinkedHashSet<>();
+        roles.addAll(extractStringClaims(jwt, "weave_roles"));
         roles.addAll(extractStringClaims(jwt, "roles"));
         roles.addAll(extractRealmRoles(jwt));
         roles.addAll(extractClientRoles(jwt));

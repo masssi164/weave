@@ -270,7 +270,7 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"profileKey\":\"workspace-admin\",\"capabilityKeys\":[\"chat.read\"]}"))
+                        .content("{\"profileKey\":\"Workspace-Admin\",\"capabilityKeys\":[\"chat.read\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("last-admin-guard"))
                 .andExpect(content().string(not(containsString("alice@example.com"))));

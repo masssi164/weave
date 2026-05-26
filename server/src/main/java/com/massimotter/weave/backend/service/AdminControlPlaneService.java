@@ -171,6 +171,7 @@ public class AdminControlPlaneService {
                     "Capability whitelist update requires a profile key.",
                     Map.of("reason", "profileKey is required"));
         }
+        String profileKey = request.profileKey().trim().toLowerCase(Locale.ROOT);
         enforceLastAdminGuard(request);
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
@@ -182,7 +183,7 @@ public class AdminControlPlaneService {
                 "admin-policy-" + Instant.now(clock).toEpochMilli(),
                 AuditRedactionLevel.SECRET_REDACTED,
                 Map.of(
-                        "profileKey", request.profileKey().trim(),
+                        "profileKey", profileKey,
                         "capabilityKeys", safeCapabilities(request.capabilityKeys()),
                         "reason", safeText(request.reason()),
                         "denyByDefault", true,
@@ -340,7 +341,7 @@ public class AdminControlPlaneService {
     }
 
     private void enforceLastAdminGuard(CapabilityWhitelistUpdateRequest request) {
-        if (!"workspace-admin".equals(request.profileKey().trim())) {
+        if (!"workspace-admin".equals(request.profileKey().trim().toLowerCase(Locale.ROOT))) {
             return;
         }
         List<String> capabilities = safeCapabilities(request.capabilityKeys());
