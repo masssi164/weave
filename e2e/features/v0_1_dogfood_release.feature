@@ -105,8 +105,9 @@ Feature: Weave v0.1 dogfood production release
   Scenario: A channel is the primary workspace surface
     Given a workspace member enters a project channel
     When they navigate the channel workspace
-    Then chat, files, board, calendar, meetings, and decisions are available as first-class tabs
+    Then chat, decisions, files, board, calendar, meetings, and Weaver scout are available as first-class tabs
     And provider details stay behind Weave-owned product surfaces
+    And Weaver scout stays read-only, source-cited, and receipt-gated for any future write path
 
   @weave-v01-chat-domain-facade
   Scenario: Chat uses a canonical backend domain facade

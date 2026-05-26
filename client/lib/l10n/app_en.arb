@@ -2579,6 +2579,110 @@
   "@chatDecisionEvidenceCaptureEvidenceAction": {
     "description": "Message menu action to capture a message as evidence"
   },
+  "chatWeaverScoutPanelTitle": "Weaver scout",
+  "@chatWeaverScoutPanelTitle": {
+    "description": "Title for the governed read-only Weaver scout panel"
+  },
+  "chatWeaverScoutPanelDescription": "Ask for channel context from allowed sources only. Sprint 4 Weaver is read-only and proposal-first; it cannot change room data silently.",
+  "@chatWeaverScoutPanelDescription": {
+    "description": "Description for the governed read-only Weaver scout panel"
+  },
+  "chatWeaverScoutReadOnlyStatus": "Read-only",
+  "@chatWeaverScoutReadOnlyStatus": {
+    "description": "Status chip for the Weaver scout read-only mode"
+  },
+  "chatWeaverScoutProposalOnlyStatus": "Proposal only",
+  "@chatWeaverScoutProposalOnlyStatus": {
+    "description": "Status chip for the Weaver scout proposal-only mode"
+  },
+  "chatWeaverScoutReceiptStatus": "Receipt required",
+  "@chatWeaverScoutReceiptStatus": {
+    "description": "Status chip for approval receipts required by Weaver scout"
+  },
+  "chatWeaverScoutCapabilitiesTitle": "What Weaver may do",
+  "@chatWeaverScoutCapabilitiesTitle": {
+    "description": "Heading for Weaver scout allowed capabilities"
+  },
+  "chatWeaverScoutSourcesTitle": "Allowed sources",
+  "@chatWeaverScoutSourcesTitle": {
+    "description": "Heading for Weaver scout allowed source references"
+  },
+  "chatWeaverScoutApprovalReceiptsRequired": "Any future write or team-room mutation must create an approval receipt with actor, requested action, approved action, target, timestamp, and result category.",
+  "@chatWeaverScoutApprovalReceiptsRequired": {
+    "description": "Governance note for Weaver scout approval receipts"
+  },
+  "chatWeaverScoutSummarizeCapability": "Summarize allowed context",
+  "@chatWeaverScoutSummarizeCapability": {
+    "description": "Weaver scout capability label for summarizing allowed context"
+  },
+  "chatWeaverScoutCiteSourcesCapability": "Cite sources",
+  "@chatWeaverScoutCiteSourcesCapability": {
+    "description": "Weaver scout capability label for citing sources"
+  },
+  "chatWeaverScoutProposeOnlyCapability": "Draft proposals only",
+  "@chatWeaverScoutProposeOnlyCapability": {
+    "description": "Weaver scout capability label for proposal-only actions"
+  },
+  "chatWeaverScoutApprovalReceiptCapability": "Require approval receipts",
+  "@chatWeaverScoutApprovalReceiptCapability": {
+    "description": "Weaver scout capability label for approval receipt requirement"
+  },
+  "chatWeaverScoutSummarizeDescription": "Summarize only explicitly allowed channel context.",
+  "@chatWeaverScoutSummarizeDescription": {
+    "description": "Weaver scout capability description for summarizing allowed context"
+  },
+  "chatWeaverScoutCiteSourcesDescription": "Cite messages, files, tasks, meetings, and decisions.",
+  "@chatWeaverScoutCiteSourcesDescription": {
+    "description": "Weaver scout capability description for citing allowed sources"
+  },
+  "chatWeaverScoutProposeOnlyDescription": "Draft or propose actions without mutating team data.",
+  "@chatWeaverScoutProposeOnlyDescription": {
+    "description": "Weaver scout capability description for proposal-only actions"
+  },
+  "chatWeaverScoutApprovalReceiptDescription": "Require approval receipts for any future write path.",
+  "@chatWeaverScoutApprovalReceiptDescription": {
+    "description": "Weaver scout capability description for approval receipts"
+  },
+  "chatWeaverScoutMessageSourceLabel": "Explicit channel messages",
+  "@chatWeaverScoutMessageSourceLabel": {
+    "description": "Weaver scout source label for explicit channel messages"
+  },
+  "chatWeaverScoutMessageSourceExcerpt": "Messages selected or allowed by the member context policy.",
+  "@chatWeaverScoutMessageSourceExcerpt": {
+    "description": "Weaver scout source excerpt for explicit channel messages"
+  },
+  "chatWeaverScoutDecisionSourceLabel": "Decision ledger",
+  "@chatWeaverScoutDecisionSourceLabel": {
+    "description": "Weaver scout source label for decision ledger entries"
+  },
+  "chatWeaverScoutDecisionSourceExcerpt": "Captured decisions with source references.",
+  "@chatWeaverScoutDecisionSourceExcerpt": {
+    "description": "Weaver scout source excerpt for decision ledger entries"
+  },
+  "chatWeaverScoutFileSourceLabel": "Shared files",
+  "@chatWeaverScoutFileSourceLabel": {
+    "description": "Weaver scout source label for shared files"
+  },
+  "chatWeaverScoutFileSourceExcerpt": "File names and support-safe metadata visible to the member.",
+  "@chatWeaverScoutFileSourceExcerpt": {
+    "description": "Weaver scout source excerpt for shared files"
+  },
+  "chatWeaverScoutTaskSourceLabel": "Open tasks",
+  "@chatWeaverScoutTaskSourceLabel": {
+    "description": "Weaver scout source label for open tasks"
+  },
+  "chatWeaverScoutTaskSourceExcerpt": "Task status and follow-up links visible to the member.",
+  "@chatWeaverScoutTaskSourceExcerpt": {
+    "description": "Weaver scout source excerpt for open tasks"
+  },
+  "chatWeaverScoutMeetingSourceLabel": "Meeting capsules",
+  "@chatWeaverScoutMeetingSourceLabel": {
+    "description": "Weaver scout source label for meeting capsules"
+  },
+  "chatWeaverScoutMeetingSourceExcerpt": "Agenda and follow-up references, not recordings or transcripts.",
+  "@chatWeaverScoutMeetingSourceExcerpt": {
+    "description": "Weaver scout source excerpt for meeting capsules"
+  },
   "filesEmptyMessage": "No files yet",
   "@filesEmptyMessage": {
     "description": "Empty state message for the files screen"

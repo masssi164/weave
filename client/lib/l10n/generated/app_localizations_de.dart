@@ -2222,6 +2222,98 @@ class AppLocalizationsDe extends AppLocalizations {
       'Als Evidenz erfassen';
 
   @override
+  String get chatWeaverScoutPanelTitle => 'Weaver-Scout';
+
+  @override
+  String get chatWeaverScoutPanelDescription =>
+      'Frage nur erlaubte Quellen nach Kanal-Kontext. Sprint-4-Weaver ist nur lesend und vorschlagsbasiert; er kann Raumdaten nicht still verändern.';
+
+  @override
+  String get chatWeaverScoutReadOnlyStatus => 'Nur lesend';
+
+  @override
+  String get chatWeaverScoutProposalOnlyStatus => 'Nur Vorschläge';
+
+  @override
+  String get chatWeaverScoutReceiptStatus => 'Beleg erforderlich';
+
+  @override
+  String get chatWeaverScoutCapabilitiesTitle => 'Was Weaver darf';
+
+  @override
+  String get chatWeaverScoutSourcesTitle => 'Erlaubte Quellen';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptsRequired =>
+      'Jeder künftige Schreibzugriff oder jede Teamraum-Änderung muss einen Freigabebeleg mit Akteur, angefragter Aktion, freigegebener Aktion, Ziel, Zeitstempel und Ergebniskategorie erzeugen.';
+
+  @override
+  String get chatWeaverScoutSummarizeCapability =>
+      'Erlaubten Kontext zusammenfassen';
+
+  @override
+  String get chatWeaverScoutCiteSourcesCapability => 'Quellen zitieren';
+
+  @override
+  String get chatWeaverScoutProposeOnlyCapability => 'Nur Entwürfe vorschlagen';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptCapability =>
+      'Freigabebelege verlangen';
+
+  @override
+  String get chatWeaverScoutSummarizeDescription =>
+      'Nur ausdrücklich erlaubten Kanal-Kontext zusammenfassen.';
+
+  @override
+  String get chatWeaverScoutCiteSourcesDescription =>
+      'Nachrichten, Dateien, Aufgaben, Meetings und Entscheidungen zitieren.';
+
+  @override
+  String get chatWeaverScoutProposeOnlyDescription =>
+      'Aktionen entwerfen oder vorschlagen, ohne Teamdaten zu verändern.';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptDescription =>
+      'Freigabebelege für jeden künftigen Schreibpfad verlangen.';
+
+  @override
+  String get chatWeaverScoutMessageSourceLabel =>
+      'Ausdrückliche Kanalnachrichten';
+
+  @override
+  String get chatWeaverScoutMessageSourceExcerpt =>
+      'Nachrichten, die durch die Mitglieder-Kontextrichtlinie ausgewählt oder erlaubt sind.';
+
+  @override
+  String get chatWeaverScoutDecisionSourceLabel => 'Entscheidungsprotokoll';
+
+  @override
+  String get chatWeaverScoutDecisionSourceExcerpt =>
+      'Erfasste Entscheidungen mit Quellenverweisen.';
+
+  @override
+  String get chatWeaverScoutFileSourceLabel => 'Geteilte Dateien';
+
+  @override
+  String get chatWeaverScoutFileSourceExcerpt =>
+      'Dateinamen und support-sichere Metadaten, die für das Mitglied sichtbar sind.';
+
+  @override
+  String get chatWeaverScoutTaskSourceLabel => 'Offene Aufgaben';
+
+  @override
+  String get chatWeaverScoutTaskSourceExcerpt =>
+      'Aufgabenstatus und Follow-up-Links, die für das Mitglied sichtbar sind.';
+
+  @override
+  String get chatWeaverScoutMeetingSourceLabel => 'Meeting-Kapseln';
+
+  @override
+  String get chatWeaverScoutMeetingSourceExcerpt =>
+      'Agenda- und Follow-up-Verweise, keine Aufzeichnungen oder Transkripte.';
+
+  @override
   String get filesEmptyMessage => 'Noch keine Dateien';
 
   @override

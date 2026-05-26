@@ -101,7 +101,7 @@ Exit gate:
 
 ### Channels as workspaces
 
-- Tabs for Chat, Files, Board, Calendar, Meetings, Decisions.
+- Tabs for Chat, Decisions, Files, Board, Calendar, Meetings, and read-only Weaver scout.
 - Keyboard and screen-reader navigation across tabs.
 - Empty/error/recovery states that explain what to do next.
 

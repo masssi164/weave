@@ -1,6 +1,14 @@
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 
-enum ChannelWorkspaceSurfaceKind { chat, files, boards, calendar, meetings }
+enum ChannelWorkspaceSurfaceKind {
+  chat,
+  decisions,
+  files,
+  boards,
+  calendar,
+  meetings,
+  weaver,
+}
 
 enum ChannelWorkspaceSurfaceAvailability {
   available,
@@ -156,6 +164,191 @@ class ChannelMeetingPreview {
       !recordingEnabled && !transcriptionEnabled;
 }
 
+enum ChannelWeaverScoutCapabilityKind {
+  summarizeAllowedContext,
+  citeSources,
+  proposeOnly,
+  approvalReceiptRequired,
+}
+
+enum ChannelWeaverScoutSourceKind { message, decision, file, task, meeting }
+
+enum ChannelWeaverApprovalResultCategory { proposed, approved, denied, blocked }
+
+class ChannelWeaverScoutCapability {
+  const ChannelWeaverScoutCapability({
+    required this.kind,
+    required this.enabled,
+    required this.description,
+  });
+
+  final ChannelWeaverScoutCapabilityKind kind;
+  final bool enabled;
+  final String description;
+}
+
+class ChannelWeaverScoutSource {
+  const ChannelWeaverScoutSource({
+    required this.kind,
+    required this.sourceId,
+    required this.label,
+    required this.supportSafeExcerpt,
+  });
+
+  final ChannelWeaverScoutSourceKind kind;
+  final String sourceId;
+  final String label;
+  final String supportSafeExcerpt;
+
+  bool get isCitable => sourceId.isNotEmpty && label.isNotEmpty;
+}
+
+class ChannelWeaverApprovalReceipt {
+  const ChannelWeaverApprovalReceipt({
+    required this.id,
+    required this.actorRef,
+    required this.requestedAction,
+    required this.approvedAction,
+    required this.targetRef,
+    required this.timestamp,
+    required this.resultCategory,
+  });
+
+  final String id;
+  final String actorRef;
+  final String requestedAction;
+  final String approvedAction;
+  final String targetRef;
+  final DateTime timestamp;
+  final ChannelWeaverApprovalResultCategory resultCategory;
+
+  bool get isComplete =>
+      id.isNotEmpty &&
+      actorRef.isNotEmpty &&
+      requestedAction.isNotEmpty &&
+      approvedAction.isNotEmpty &&
+      targetRef.isNotEmpty;
+}
+
+class ChannelWeaverScoutPreview {
+  const ChannelWeaverScoutPreview({
+    required this.channelId,
+    required this.channelTitle,
+    required this.contextId,
+    required this.providerContractId,
+    required this.capabilities,
+    required this.allowedSources,
+    required this.approvalReceipts,
+    required this.readOnly,
+    required this.proposalOnly,
+    required this.backgroundRoomReadingEnabled,
+    required this.supportSafeFailureMode,
+  });
+
+  factory ChannelWeaverScoutPreview.forConversation(
+    ChatConversation conversation, {
+    required String contextId,
+  }) {
+    return ChannelWeaverScoutPreview(
+      channelId: conversation.id,
+      channelTitle: conversation.title,
+      contextId: contextId,
+      providerContractId: 'weave-weaver-channel-scout',
+      capabilities: const [
+        ChannelWeaverScoutCapability(
+          kind: ChannelWeaverScoutCapabilityKind.summarizeAllowedContext,
+          enabled: true,
+          description: 'Summarize only explicitly allowed channel context.',
+        ),
+        ChannelWeaverScoutCapability(
+          kind: ChannelWeaverScoutCapabilityKind.citeSources,
+          enabled: true,
+          description: 'Cite messages, files, tasks, meetings, and decisions.',
+        ),
+        ChannelWeaverScoutCapability(
+          kind: ChannelWeaverScoutCapabilityKind.proposeOnly,
+          enabled: true,
+          description: 'Draft or propose actions without mutating team data.',
+        ),
+        ChannelWeaverScoutCapability(
+          kind: ChannelWeaverScoutCapabilityKind.approvalReceiptRequired,
+          enabled: true,
+          description: 'Require approval receipts for any future write path.',
+        ),
+      ],
+      allowedSources: const [
+        ChannelWeaverScoutSource(
+          kind: ChannelWeaverScoutSourceKind.message,
+          sourceId: 'channel-messages:explicit',
+          label: 'Explicit channel messages',
+          supportSafeExcerpt:
+              'Messages selected or allowed by the member context policy.',
+        ),
+        ChannelWeaverScoutSource(
+          kind: ChannelWeaverScoutSourceKind.decision,
+          sourceId: 'decision-ledger:channel',
+          label: 'Decision ledger',
+          supportSafeExcerpt: 'Captured decisions with source references.',
+        ),
+        ChannelWeaverScoutSource(
+          kind: ChannelWeaverScoutSourceKind.file,
+          sourceId: 'files:channel-shared-metadata',
+          label: 'Shared files',
+          supportSafeExcerpt:
+              'File names and support-safe metadata visible to the member.',
+        ),
+        ChannelWeaverScoutSource(
+          kind: ChannelWeaverScoutSourceKind.task,
+          sourceId: 'boards:channel-open-tasks',
+          label: 'Open tasks',
+          supportSafeExcerpt:
+              'Task status and follow-up links visible to the member.',
+        ),
+        ChannelWeaverScoutSource(
+          kind: ChannelWeaverScoutSourceKind.meeting,
+          sourceId: 'meeting-capsules:channel',
+          label: 'Meeting capsules',
+          supportSafeExcerpt:
+              'Agenda and follow-up references, not recordings or transcripts.',
+        ),
+      ],
+      approvalReceipts: const <ChannelWeaverApprovalReceipt>[],
+      readOnly: true,
+      proposalOnly: true,
+      backgroundRoomReadingEnabled: false,
+      supportSafeFailureMode: true,
+    );
+  }
+
+  final String channelId;
+  final String channelTitle;
+  final String contextId;
+  final String providerContractId;
+  final List<ChannelWeaverScoutCapability> capabilities;
+  final List<ChannelWeaverScoutSource> allowedSources;
+  final List<ChannelWeaverApprovalReceipt> approvalReceipts;
+  final bool readOnly;
+  final bool proposalOnly;
+  final bool backgroundRoomReadingEnabled;
+  final bool supportSafeFailureMode;
+
+  bool get isGovernedReadOnlyScout =>
+      readOnly &&
+      proposalOnly &&
+      !backgroundRoomReadingEnabled &&
+      supportSafeFailureMode &&
+      capabilities.every((capability) => capability.enabled) &&
+      allowedSources.every((source) => source.isCitable) &&
+      approvalReceipts.every((receipt) => receipt.isComplete);
+
+  bool get requiresApprovalReceiptsForWrites => capabilities.any(
+    (capability) =>
+        capability.kind ==
+            ChannelWeaverScoutCapabilityKind.approvalReceiptRequired &&
+        capability.enabled,
+  );
+}
+
 class ChannelWorkspacePreview {
   const ChannelWorkspacePreview({
     required this.channelId,
@@ -163,6 +356,7 @@ class ChannelWorkspacePreview {
     required this.contextId,
     required this.surfaces,
     required this.meetingPreview,
+    required this.weaverScoutPreview,
     required this.explicitContextOnly,
     required this.backgroundRoomReadingEnabled,
     required this.adminSetupExposedToMembers,
@@ -181,6 +375,12 @@ class ChannelWorkspacePreview {
           kind: ChannelWorkspaceSurfaceKind.chat,
           availability: ChannelWorkspaceSurfaceAvailability.available,
           providerContractId: 'matrix-room',
+          contextId: contextId,
+        ),
+        ChannelWorkspaceSurface(
+          kind: ChannelWorkspaceSurfaceKind.decisions,
+          availability: ChannelWorkspaceSurfaceAvailability.available,
+          providerContractId: 'weave-decision-ledger-channel',
           contextId: contextId,
         ),
         ChannelWorkspaceSurface(
@@ -207,8 +407,18 @@ class ChannelWorkspacePreview {
           providerContractId: 'weave-meetings-channel-capability',
           contextId: contextId,
         ),
+        ChannelWorkspaceSurface(
+          kind: ChannelWorkspaceSurfaceKind.weaver,
+          availability: ChannelWorkspaceSurfaceAvailability.gated,
+          providerContractId: 'weave-weaver-channel-scout',
+          contextId: contextId,
+        ),
       ],
       meetingPreview: ChannelMeetingPreview.forConversation(
+        conversation,
+        contextId: contextId,
+      ),
+      weaverScoutPreview: ChannelWeaverScoutPreview.forConversation(
         conversation,
         contextId: contextId,
       ),
@@ -223,6 +433,7 @@ class ChannelWorkspacePreview {
   final String contextId;
   final List<ChannelWorkspaceSurface> surfaces;
   final ChannelMeetingPreview meetingPreview;
+  final ChannelWeaverScoutPreview weaverScoutPreview;
   final bool explicitContextOnly;
   final bool backgroundRoomReadingEnabled;
   final bool adminSetupExposedToMembers;
@@ -230,7 +441,10 @@ class ChannelWorkspacePreview {
   bool get isChannelWorkspaceGoverned =>
       explicitContextOnly &&
       !backgroundRoomReadingEnabled &&
-      !adminSetupExposedToMembers;
+      !adminSetupExposedToMembers &&
+      // Sprint 4 exposes Weaver as a governed read-only scout; keep the
+      // workspace-level predicate fail-closed if that invariant regresses.
+      weaverScoutPreview.isGovernedReadOnlyScout;
 
   ChannelWorkspaceSurface surface(ChannelWorkspaceSurfaceKind kind) {
     return surfaces.singleWhere((surface) => surface.kind == kind);

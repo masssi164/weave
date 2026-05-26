@@ -20,13 +20,19 @@ void main() {
     expect(preview.isChannelWorkspaceGoverned, isTrue);
     expect(preview.surfaces.map((surface) => surface.kind), [
       ChannelWorkspaceSurfaceKind.chat,
+      ChannelWorkspaceSurfaceKind.decisions,
       ChannelWorkspaceSurfaceKind.files,
       ChannelWorkspaceSurfaceKind.boards,
       ChannelWorkspaceSurfaceKind.calendar,
       ChannelWorkspaceSurfaceKind.meetings,
+      ChannelWorkspaceSurfaceKind.weaver,
     ]);
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.chat).availability,
+      ChannelWorkspaceSurfaceAvailability.available,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.decisions).availability,
       ChannelWorkspaceSurfaceAvailability.available,
     );
     expect(
@@ -46,13 +52,54 @@ void main() {
       'weave-meetings-channel-capability',
     );
     expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.weaver).providerContractId,
+      'weave-weaver-channel-scout',
+    );
+    expect(
       preview.surfaces.map((surface) => surface.providerContractId),
       everyElement(isNot(contains('preview'))),
     );
     expect(preview.meetingPreview.contextId, preview.contextId);
+    expect(preview.weaverScoutPreview.contextId, preview.contextId);
     expect(preview.meetingPreview.isFailClosed, isTrue);
     expect(preview.meetingPreview.requiresExplicitConsent, isTrue);
     expect(preview.meetingPreview.backgroundRoomReadingEnabled, isFalse);
+    expect(preview.weaverScoutPreview.isGovernedReadOnlyScout, isTrue);
+    expect(preview.weaverScoutPreview.readOnly, isTrue);
+    expect(preview.weaverScoutPreview.proposalOnly, isTrue);
+    expect(preview.weaverScoutPreview.backgroundRoomReadingEnabled, isFalse);
+    expect(
+      preview.weaverScoutPreview.requiresApprovalReceiptsForWrites,
+      isTrue,
+    );
+    expect(preview.weaverScoutPreview.approvalReceipts, isEmpty);
+    expect(
+      preview.weaverScoutPreview.capabilities.map(
+        (capability) => capability.kind,
+      ),
+      [
+        ChannelWeaverScoutCapabilityKind.summarizeAllowedContext,
+        ChannelWeaverScoutCapabilityKind.citeSources,
+        ChannelWeaverScoutCapabilityKind.proposeOnly,
+        ChannelWeaverScoutCapabilityKind.approvalReceiptRequired,
+      ],
+    );
+    expect(
+      preview.weaverScoutPreview.allowedSources.map((source) => source.kind),
+      [
+        ChannelWeaverScoutSourceKind.message,
+        ChannelWeaverScoutSourceKind.decision,
+        ChannelWeaverScoutSourceKind.file,
+        ChannelWeaverScoutSourceKind.task,
+        ChannelWeaverScoutSourceKind.meeting,
+      ],
+    );
+    expect(
+      preview.weaverScoutPreview.allowedSources.every(
+        (source) => source.isCitable,
+      ),
+      isTrue,
+    );
     expect(preview.meetingPreview.contextItems.map((item) => item.kind), [
       ChannelMeetingContextItemKind.agenda,
       ChannelMeetingContextItemKind.files,

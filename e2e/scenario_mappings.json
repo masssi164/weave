@@ -521,8 +521,9 @@
         {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
-            "Tabs for Chat, Files, Board, Calendar, Meetings, Decisions",
-            "Backend facade only"
+            "Tabs for Chat, Decisions, Files, Board, Calendar, Meetings, and read-only Weaver scout",
+            "Backend facade only",
+            "read-only Weaver scout"
           ]
         }
       ]

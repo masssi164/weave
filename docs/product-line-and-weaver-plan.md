@@ -68,7 +68,7 @@ The product surfaces remain Weave-owned:
 - Home and activity overview;
 - personal messages;
 - channels as workspaces;
-- channel tabs for chat, files, boards/tasks, calendar/events, meetings, and decisions;
+- channel tabs for chat, decisions, files, boards/tasks, calendar/events, meetings, and read-only Weaver scout;
 - Workspace/Admin Health for readiness and support;
 - accessible settings and policy-visible capability states.
 
