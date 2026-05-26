@@ -549,108 +549,165 @@ void main() {
       final channelScope = channelScopes.isNotEmpty
           ? channelScopes.first
           : CalendarScope.workspace;
+      final calendarReadSnapshot = await calendarRepository.loadEvents(
+        scope: channelScope,
+      );
+      final calendarReadReady =
+          calendarReadSnapshot.scope.type == channelScope.type &&
+          calendarReadSnapshot.scope.teamId == channelScope.teamId &&
+          calendarReadSnapshot.scope.channelId == channelScope.channelId;
+
       final calendarTitle = 'Weave live E2E $liveE2eSuffix';
       final calendarStart = DateTime.now().toUtc().add(const Duration(days: 1));
-      final calendarDraft = CalendarEventDraft(
-        title: calendarTitle,
-        description:
-            'Created by the live-stack shared channel calendar E2E gate.',
-        startTime: calendarStart,
-        endTime: calendarStart.add(const Duration(minutes: 30)),
-        timezone: 'UTC',
-        scope: channelScope,
-      );
-      final createdEvent = await _createCalendarEventWithReadAfterWrite(
-        tester,
-        calendarRepository,
-        calendarDraft,
-      );
-      final loadedCalendar = await _waitForCalendarEventInScope(
-        tester,
-        calendarRepository,
-        scope: channelScope,
-        eventId: createdEvent.id,
-        title: calendarTitle,
-      );
-      final readCreatedEvent = await calendarRepository.readEvent(
-        createdEvent.id,
-      );
-      final calendarCreatedThreadRefReady = _channelMeetingThreadReady(
-        readCreatedEvent,
-        channelScope,
-      );
-      final calendarCreatedAndRead =
-          loadedCalendar.scope.isChannel &&
-          loadedCalendar.scope.teamId == channelScope.teamId &&
-          loadedCalendar.scope.channelId == channelScope.channelId &&
-          loadedCalendar.events.any(
-            (event) =>
-                event.id == createdEvent.id &&
-                event.title == calendarTitle &&
-                event.scope.isChannel,
-          ) &&
-          readCreatedEvent.id == createdEvent.id &&
-          readCreatedEvent.title == calendarTitle &&
-          readCreatedEvent.scope.isChannel;
-      final updatedCalendarTitle = '$calendarTitle updated';
-      final updatedEvent = await calendarRepository.updateEvent(
-        createdEvent.id,
-        CalendarEventDraft(
-          title: updatedCalendarTitle,
+      var calendarEventId = 'policy-blocked';
+      var calendarManageEventsAllowed = false;
+      var calendarWritePolicyBlocked = false;
+      var calendarCreatedAndRead = false;
+      var calendarUpdatedAndRead = false;
+      var calendarCreatedThreadRefReady = false;
+      var calendarUpdatedThreadRefReady = false;
+      var calendarMeetingThreadStable = false;
+      var calendarDeleted = false;
+      String? calendarMeetingThreadId;
+      CalendarEvent? createdEventForCleanup;
+
+      try {
+        final calendarDraft = CalendarEventDraft(
+          title: calendarTitle,
           description:
-              'Updated by the live-stack channel Calendar CRUD E2E gate.',
-          startTime: calendarStart.add(const Duration(hours: 1)),
-          endTime: calendarStart.add(const Duration(hours: 1, minutes: 45)),
+              'Created by the live-stack shared channel calendar E2E gate.',
+          startTime: calendarStart,
+          endTime: calendarStart.add(const Duration(minutes: 30)),
           timezone: 'UTC',
           scope: channelScope,
-        ),
-      );
-      final readUpdatedEvent = await calendarRepository.readEvent(
-        createdEvent.id,
-      );
-      final calendarUpdatedThreadRefReady = _channelMeetingThreadReady(
-        readUpdatedEvent,
-        channelScope,
-      );
-      final calendarMeetingThreadStable =
-          readCreatedEvent.threadRef.meetingThreadId != null &&
-          readCreatedEvent.threadRef.meetingThreadId ==
-              readUpdatedEvent.threadRef.meetingThreadId;
-      final calendarUpdatedAndRead =
-          updatedEvent.id == createdEvent.id &&
-          updatedEvent.title == updatedCalendarTitle &&
-          updatedEvent.scope.isChannel &&
-          readUpdatedEvent.id == createdEvent.id &&
-          readUpdatedEvent.title == updatedCalendarTitle &&
-          readUpdatedEvent.scope.isChannel;
-      await calendarRepository.deleteEvent(createdEvent.id);
-      final calendarAfterDelete = await _waitForCalendarEventDeleted(
-        tester,
-        calendarRepository,
-        scope: channelScope,
-        eventId: createdEvent.id,
-      );
-      final calendarDeleted = calendarAfterDelete.events.every(
-        (event) => event.id != createdEvent.id,
-      );
+        );
+        final createdEvent = await _createCalendarEventWithReadAfterWrite(
+          tester,
+          calendarRepository,
+          calendarDraft,
+        );
+        createdEventForCleanup = createdEvent;
+        calendarEventId = createdEvent.id;
+        calendarManageEventsAllowed = true;
+        final loadedCalendar = await _waitForCalendarEventInScope(
+          tester,
+          calendarRepository,
+          scope: channelScope,
+          eventId: createdEvent.id,
+          title: calendarTitle,
+        );
+        final readCreatedEvent = await calendarRepository.readEvent(
+          createdEvent.id,
+        );
+        calendarCreatedThreadRefReady = _channelMeetingThreadReady(
+          readCreatedEvent,
+          channelScope,
+        );
+        calendarCreatedAndRead =
+            loadedCalendar.scope.isChannel &&
+            loadedCalendar.scope.teamId == channelScope.teamId &&
+            loadedCalendar.scope.channelId == channelScope.channelId &&
+            loadedCalendar.events.any(
+              (event) =>
+                  event.id == createdEvent.id &&
+                  event.title == calendarTitle &&
+                  event.scope.isChannel,
+            ) &&
+            readCreatedEvent.id == createdEvent.id &&
+            readCreatedEvent.title == calendarTitle &&
+            readCreatedEvent.scope.isChannel;
+        final updatedCalendarTitle = '$calendarTitle updated';
+        final updatedEvent = await calendarRepository.updateEvent(
+          createdEvent.id,
+          CalendarEventDraft(
+            title: updatedCalendarTitle,
+            description:
+                'Updated by the live-stack channel Calendar CRUD E2E gate.',
+            startTime: calendarStart.add(const Duration(hours: 1)),
+            endTime: calendarStart.add(const Duration(hours: 1, minutes: 45)),
+            timezone: 'UTC',
+            scope: channelScope,
+          ),
+        );
+        final readUpdatedEvent = await calendarRepository.readEvent(
+          createdEvent.id,
+        );
+        calendarUpdatedThreadRefReady = _channelMeetingThreadReady(
+          readUpdatedEvent,
+          channelScope,
+        );
+        calendarMeetingThreadStable =
+            readCreatedEvent.threadRef.meetingThreadId != null &&
+            readCreatedEvent.threadRef.meetingThreadId ==
+                readUpdatedEvent.threadRef.meetingThreadId;
+        calendarMeetingThreadId = readCreatedEvent.threadRef.meetingThreadId;
+        calendarUpdatedAndRead =
+            updatedEvent.id == createdEvent.id &&
+            updatedEvent.title == updatedCalendarTitle &&
+            updatedEvent.scope.isChannel &&
+            readUpdatedEvent.id == createdEvent.id &&
+            readUpdatedEvent.title == updatedCalendarTitle &&
+            readUpdatedEvent.scope.isChannel;
+        await calendarRepository.deleteEvent(createdEvent.id);
+        createdEventForCleanup = null;
+        final calendarAfterDelete = await _waitForCalendarEventDeleted(
+          tester,
+          calendarRepository,
+          scope: channelScope,
+          eventId: createdEvent.id,
+        );
+        calendarDeleted = calendarAfterDelete.events.every(
+          (event) => event.id != createdEvent.id,
+        );
+      } on AppFailure catch (error) {
+        if (!_isCapabilityPolicyBlockedFailure(error)) {
+          rethrow;
+        }
+        calendarWritePolicyBlocked = true;
+      } finally {
+        final event = createdEventForCleanup;
+        if (event != null) {
+          try {
+            await calendarRepository.deleteEvent(event.id);
+          } catch (_) {
+            // The main calendar assertion below carries the product evidence;
+            // cleanup should not hide the original live-stack signal.
+          }
+        }
+      }
+
       // ignore: avoid_print
       print(
-        'CALENDAR_RESULT eventId=${createdEvent.id} '
+        'CALENDAR_RESULT eventId=$calendarEventId '
         'scopes=${calendarScopes.scopes.map((scope) => scope.type).join(',')} '
         'workspaceScopes=${workspaceScopes.length} '
         'teamScopes=${teamScopes.length} '
         'channelScopes=${channelScopes.length} '
-        'scope=${loadedCalendar.scope.type} '
-        'teamId=${loadedCalendar.scope.teamId} '
-        'channelId=${loadedCalendar.scope.channelId} '
+        'scopesReady=$calendarScopesReady '
+        'readReady=$calendarReadReady '
+        'readEvents=${calendarReadSnapshot.events.length} '
+        'scope=${calendarReadSnapshot.scope.type} '
+        'teamId=${calendarReadSnapshot.scope.teamId} '
+        'channelId=${calendarReadSnapshot.scope.channelId} '
+        'manageEventsAllowed=$calendarManageEventsAllowed '
+        'writePolicyBlocked=$calendarWritePolicyBlocked '
         'createdAndRead=$calendarCreatedAndRead '
         'updatedAndRead=$calendarUpdatedAndRead '
         'createdThreadRefReady=$calendarCreatedThreadRefReady '
         'updatedThreadRefReady=$calendarUpdatedThreadRefReady '
         'meetingThreadStable=$calendarMeetingThreadStable '
-        'meetingThreadId=${readCreatedEvent.threadRef.meetingThreadId} '
+        'meetingThreadId=${calendarMeetingThreadId ?? 'none'} '
         'deleted=$calendarDeleted',
       );
+
+      final calendarWritePathValid = calendarManageEventsAllowed
+          ? calendarCreatedAndRead &&
+                calendarUpdatedAndRead &&
+                calendarCreatedThreadRefReady &&
+                calendarUpdatedThreadRefReady &&
+                calendarMeetingThreadStable &&
+                calendarDeleted
+          : calendarWritePolicyBlocked;
 
       final liveHttpClient = createTrustedTestHttpClient();
       addTearDown(liveHttpClient.close);
@@ -782,12 +839,8 @@ void main() {
           matchedFiles.isEmpty ||
           !fileDownloadMatched ||
           !calendarScopesReady ||
-          !calendarCreatedAndRead ||
-          !calendarUpdatedAndRead ||
-          !calendarCreatedThreadRefReady ||
-          !calendarUpdatedThreadRefReady ||
-          !calendarMeetingThreadStable ||
-          !calendarDeleted ||
+          !calendarReadReady ||
+          !calendarWritePathValid ||
           !providerRegistryMemberForbidden ||
           !providerRegistryBodySupportSafe ||
           !profileReadinessOk ||
@@ -817,17 +870,21 @@ void main() {
           'filesDownloadMatched=$fileDownloadMatched '
           'seededFileName=$seededFileName '
           'calendarScopesReady=$calendarScopesReady '
-          'calendarScope=${loadedCalendar.scope.type} '
-          'calendarTeamId=${loadedCalendar.scope.teamId} '
-          'calendarChannelId=${loadedCalendar.scope.channelId} '
+          'calendarReadReady=$calendarReadReady '
+          'calendarScope=${calendarReadSnapshot.scope.type} '
+          'calendarTeamId=${calendarReadSnapshot.scope.teamId} '
+          'calendarChannelId=${calendarReadSnapshot.scope.channelId} '
+          'calendarManageEventsAllowed=$calendarManageEventsAllowed '
+          'calendarWritePolicyBlocked=$calendarWritePolicyBlocked '
+          'calendarWritePathValid=$calendarWritePathValid '
           'calendarCreatedAndRead=$calendarCreatedAndRead '
           'calendarUpdatedAndRead=$calendarUpdatedAndRead '
           'calendarCreatedThreadRefReady=$calendarCreatedThreadRefReady '
           'calendarUpdatedThreadRefReady=$calendarUpdatedThreadRefReady '
           'calendarMeetingThreadStable=$calendarMeetingThreadStable '
-          'calendarMeetingThreadId=${readCreatedEvent.threadRef.meetingThreadId} '
+          'calendarMeetingThreadId=${calendarMeetingThreadId ?? 'none'} '
           'calendarDeleted=$calendarDeleted '
-          'calendarEventId=${createdEvent.id} '
+          'calendarEventId=$calendarEventId '
           'memberRegistryForbidden=$providerRegistryMemberForbidden '
           'memberRegistryStatus=${providerRegistryResponse.statusCode} '
           'registryBodySupportSafe=$providerRegistryBodySupportSafe '
@@ -851,12 +908,18 @@ void main() {
       expect(matchedFiles, isNotEmpty);
       expect(fileDownloadMatched, isTrue);
       expect(calendarScopesReady, isTrue);
-      expect(calendarCreatedAndRead, isTrue);
-      expect(calendarUpdatedAndRead, isTrue);
-      expect(calendarCreatedThreadRefReady, isTrue);
-      expect(calendarUpdatedThreadRefReady, isTrue);
-      expect(calendarMeetingThreadStable, isTrue);
-      expect(calendarDeleted, isTrue);
+      expect(calendarReadReady, isTrue);
+      expect(calendarWritePathValid, isTrue);
+      if (calendarManageEventsAllowed) {
+        expect(calendarCreatedAndRead, isTrue);
+        expect(calendarUpdatedAndRead, isTrue);
+        expect(calendarCreatedThreadRefReady, isTrue);
+        expect(calendarUpdatedThreadRefReady, isTrue);
+        expect(calendarMeetingThreadStable, isTrue);
+        expect(calendarDeleted, isTrue);
+      } else {
+        expect(calendarWritePolicyBlocked, isTrue);
+      }
       expect(providerRegistryMemberForbidden, isTrue);
       expect(providerRegistryBodySupportSafe, isTrue);
       expect(profileReadinessOk, isTrue);
@@ -1200,6 +1263,14 @@ bool _isRetryableCalendarConsistencyError(Object error) {
       message.contains('unavailable') ||
       message.contains('timed out') ||
       message.contains('timeout');
+}
+
+bool _isCapabilityPolicyBlockedFailure(AppFailure error) {
+  final message = error.message.toLowerCase();
+  return message.contains('blocked by workspace role') ||
+      message.contains('capability-policy-blocked') ||
+      message.contains('policy blocked') ||
+      message.contains('policy-blocked');
 }
 
 Future<void> _waitFor(

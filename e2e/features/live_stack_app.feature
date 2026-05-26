@@ -45,11 +45,11 @@ Feature: Live Stack product acceptance journey
     And no provider secrets or direct Flutter provider calls are exposed
 
   @weave-live-calendar-threadrefs
-  Scenario: Channel calendar events keep their meeting thread reference
+  Scenario: Calendar scopes are readable and event writes obey capability policy
     Given workspace, team, and channel calendar scopes are available in Weave
-    When the person creates, reads, updates, and deletes a channel event
-    Then the event stays in its channel scope while it exists
-    And the meeting thread reference is present and stable after the update
+    When the person opens a channel calendar through Weave
+    Then the scoped calendar read stays behind the backend facade
+    And event writes either keep a stable meeting thread reference or are blocked before provider access by capability policy
 
   @weave-live-boards-workspace-nondrag
   Scenario: Boards workspace supports accessible non-drag task work

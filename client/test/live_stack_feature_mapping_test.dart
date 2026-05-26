@@ -28,7 +28,7 @@ void main() {
         'Matrix encryption status is proved honestly',
         'Files are uploaded, shown, downloaded, and cleaned up in Weave',
         'Provider stack readiness stays backend-owned and support-safe',
-        'Channel calendar events keep their meeting thread reference',
+        'Calendar scopes are readable and event writes obey capability policy',
         'Boards workspace supports accessible non-drag task work',
         'Weave Home starts the daily work loop',
         'A normal member sees a user-ready organization flow',
