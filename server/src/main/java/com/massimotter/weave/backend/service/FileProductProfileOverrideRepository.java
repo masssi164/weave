@@ -10,6 +10,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
@@ -19,6 +20,7 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
 
     private static final TypeReference<Map<String, ProductProfileOverride>> PROFILE_MAP = new TypeReference<>() {
     };
+    private static final Pattern PRIMARY_IDENTITY_KEY_PATTERN = Pattern.compile(IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN);
 
     private final ObjectMapper objectMapper;
     private final Path storagePath;
@@ -73,7 +75,7 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
     }
 
     private ProductProfileOverride migrateLegacySubjectProfile(String primaryIdentityKey) {
-        if (primaryIdentityKey == null || !primaryIdentityKey.matches(IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN)) {
+        if (primaryIdentityKey == null || !PRIMARY_IDENTITY_KEY_PATTERN.matcher(primaryIdentityKey).matches()) {
             return null;
         }
         String legacySubjectKey = primaryIdentityKey.substring(primaryIdentityKey.lastIndexOf('#') + 1);
