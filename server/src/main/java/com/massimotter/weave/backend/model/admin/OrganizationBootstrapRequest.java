@@ -6,6 +6,9 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
+import static com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_PRIMARY_IDENTITY_KEY_LENGTH;
+import static com.massimotter.weave.backend.model.IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN;
+
 @Schema(description = "Admin-owned first-use organization bootstrap contract for existing or newly provisioned organizations.")
 public record OrganizationBootstrapRequest(
         @NotBlank
@@ -15,8 +18,8 @@ public record OrganizationBootstrapRequest(
         String bootstrapMode,
         @Schema(description = "Immutable issuer+subject keys that retain owner/admin recovery access after bootstrap.")
         @Size(max = 25)
-        List<@NotBlank @Size(max = 528) @Pattern(
-                regexp = "issuer\\+subject:[^#\\s]{1,384}#[^#\\s]{1,128}",
+        List<@NotBlank @Size(max = MAX_PRIMARY_IDENTITY_KEY_LENGTH) @Pattern(
+                regexp = PRIMARY_IDENTITY_KEY_PATTERN,
                 message = "must be a support-safe issuer+subject key") String> adminSubjectKeys,
         @Schema(description = "Support-safe reason recorded in audit.")
         String reason) {

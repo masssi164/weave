@@ -39,6 +39,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
+import static com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_PRIMARY_IDENTITY_KEY_LENGTH;
+import static com.massimotter.weave.backend.model.IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN;
+
 @Service
 public class AdminControlPlaneService {
 
@@ -48,9 +51,7 @@ public class AdminControlPlaneService {
             "degraded",
             "policy-blocked");
     private static final int MAX_BOOTSTRAP_ADMIN_KEYS = 25;
-    private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = 528;
-    private static final String PRIMARY_IDENTITY_KEY_PATTERN =
-            "issuer\\+subject:[^#\\s]{1,384}#[^#\\s]{1,128}";
+    private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = MAX_PRIMARY_IDENTITY_KEY_LENGTH;
 
     private final ProviderRegistry providerRegistry;
     private final WorkspaceCapabilityService workspaceCapabilityService;
@@ -358,7 +359,7 @@ public class AdminControlPlaneService {
 
     private String safeOrganizationId(String value) {
         String trimmed = value.trim().toLowerCase(Locale.ROOT);
-        if (!trimmed.matches("[a-z0-9][a-z0-9-]{1,62}")) {
+        if (!trimmed.matches("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
                     "organization-id-invalid",
@@ -384,13 +385,14 @@ public class AdminControlPlaneService {
     }
 
     private List<String> retainedAdminSubjectKeys(List<String> suppliedKeys, String actorPrimaryIdentityKey) {
-        List<String> retained = Stream.concat(suppliedKeys.stream(), Stream.of(actorPrimaryIdentityKey))
+        List<String> supplied = suppliedKeys == null ? List.of() : suppliedKeys;
+        List<String> retained = Stream.concat(supplied.stream(), Stream.of(actorPrimaryIdentityKey))
                 .filter(value -> value != null && !value.isBlank())
                 .map(String::trim)
                 .distinct()
                 .sorted()
                 .toList();
-        if (suppliedKeys.size() > MAX_BOOTSTRAP_ADMIN_KEYS || retained.stream().anyMatch(this::unsafeBootstrapAdminKey)) {
+        if (supplied.size() > MAX_BOOTSTRAP_ADMIN_KEYS || retained.stream().anyMatch(this::unsafeBootstrapAdminKey)) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
                     "organization-bootstrap-admin-key-invalid",

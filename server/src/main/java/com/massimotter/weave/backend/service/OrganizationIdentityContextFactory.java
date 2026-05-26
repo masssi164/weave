@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collection;
@@ -17,8 +18,9 @@ import org.springframework.security.oauth2.jwt.Jwt;
 final class OrganizationIdentityContextFactory {
 
     private static final List<String> WEAVE_ORG_ROLES = List.of("owner", "admin", "operator", "member", "guest");
-    private static final int MAX_IDENTITY_ISSUER_LENGTH = 384;
-    private static final int MAX_IDENTITY_SUBJECT_LENGTH = 128;
+
+    private static final int MAX_IDENTITY_ISSUER_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_ISSUER_LENGTH;
+    private static final int MAX_IDENTITY_SUBJECT_LENGTH = com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_SUBJECT_LENGTH;
 
     private OrganizationIdentityContextFactory() {
     }
@@ -203,11 +205,7 @@ final class OrganizationIdentityContextFactory {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(primaryIdentityKey.getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder("acct_");
-            for (int index = 0; index < 16; index++) {
-                builder.append(String.format("%02x", hash[index]));
-            }
-            return builder.toString();
+            return "acct_" + HexFormat.of().formatHex(hash, 0, 16);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 digest is required for stable account identifiers", exception);
         }
