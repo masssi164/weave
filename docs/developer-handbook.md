@@ -97,7 +97,7 @@ Use short-lived PR branches from `main`, keep changes issue/spec-driven, and req
 - `release-notes-bugfix`
 - `release-notes-skip`
 
-Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` fails PRs with zero or multiple release-notes labels. See [GitFlow and PR workflow](gitflow-pr-workflow.md) for the full chapter, label semantics, and merge rules.
+Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [GitFlow and PR workflow](gitflow-pr-workflow.md) for the full chapter, label semantics, and merge rules.
 
 ## Documentation site
 

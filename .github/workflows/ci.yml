@@ -87,7 +87,7 @@ jobs:
 
   release-notes-label-check:
     name: Release Notes Label Check
-    if: github.event_name == 'pull_request' && (github.event.action == 'labeled' || github.event.action == 'unlabeled')
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
