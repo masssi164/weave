@@ -2192,6 +2192,45 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatDecisionEvidenceCaptureEvidenceAction => 'Capture as evidence';
 
   @override
+  String get chatWeaverScoutPanelTitle => 'Weaver scout';
+
+  @override
+  String get chatWeaverScoutPanelDescription =>
+      'Ask for channel context from allowed sources only. Sprint 4 Weaver is read-only and proposal-first; it cannot change room data silently.';
+
+  @override
+  String get chatWeaverScoutReadOnlyStatus => 'Read-only';
+
+  @override
+  String get chatWeaverScoutProposalOnlyStatus => 'Proposal only';
+
+  @override
+  String get chatWeaverScoutReceiptStatus => 'Receipt required';
+
+  @override
+  String get chatWeaverScoutCapabilitiesTitle => 'What Weaver may do';
+
+  @override
+  String get chatWeaverScoutSourcesTitle => 'Allowed sources';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptsRequired =>
+      'Any future write or team-room mutation must create an approval receipt with actor, requested action, approved action, target, timestamp, and result category.';
+
+  @override
+  String get chatWeaverScoutSummarizeCapability => 'Summarize allowed context';
+
+  @override
+  String get chatWeaverScoutCiteSourcesCapability => 'Cite sources';
+
+  @override
+  String get chatWeaverScoutProposeOnlyCapability => 'Draft proposals only';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptCapability =>
+      'Require approval receipts';
+
+  @override
   String get filesEmptyMessage => 'No files yet';
 
   @override

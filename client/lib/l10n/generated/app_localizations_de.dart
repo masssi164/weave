@@ -2222,6 +2222,46 @@ class AppLocalizationsDe extends AppLocalizations {
       'Als Evidenz erfassen';
 
   @override
+  String get chatWeaverScoutPanelTitle => 'Weaver-Scout';
+
+  @override
+  String get chatWeaverScoutPanelDescription =>
+      'Frage nur erlaubte Quellen nach Kanal-Kontext. Sprint-4-Weaver ist nur lesend und vorschlagsbasiert; er kann Raumdaten nicht still verändern.';
+
+  @override
+  String get chatWeaverScoutReadOnlyStatus => 'Nur lesend';
+
+  @override
+  String get chatWeaverScoutProposalOnlyStatus => 'Nur Vorschläge';
+
+  @override
+  String get chatWeaverScoutReceiptStatus => 'Beleg erforderlich';
+
+  @override
+  String get chatWeaverScoutCapabilitiesTitle => 'Was Weaver darf';
+
+  @override
+  String get chatWeaverScoutSourcesTitle => 'Erlaubte Quellen';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptsRequired =>
+      'Jeder künftige Schreibzugriff oder jede Teamraum-Änderung muss einen Freigabebeleg mit Akteur, angefragter Aktion, freigegebener Aktion, Ziel, Zeitstempel und Ergebniskategorie erzeugen.';
+
+  @override
+  String get chatWeaverScoutSummarizeCapability =>
+      'Erlaubten Kontext zusammenfassen';
+
+  @override
+  String get chatWeaverScoutCiteSourcesCapability => 'Quellen zitieren';
+
+  @override
+  String get chatWeaverScoutProposeOnlyCapability => 'Nur Entwürfe vorschlagen';
+
+  @override
+  String get chatWeaverScoutApprovalReceiptCapability =>
+      'Freigabebelege verlangen';
+
+  @override
   String get filesEmptyMessage => 'Noch keine Dateien';
 
   @override

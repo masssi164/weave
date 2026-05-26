@@ -3747,6 +3747,78 @@ abstract class AppLocalizations {
   /// **'Capture as evidence'**
   String get chatDecisionEvidenceCaptureEvidenceAction;
 
+  /// Title for the governed read-only Weaver scout panel
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver scout'**
+  String get chatWeaverScoutPanelTitle;
+
+  /// Description for the governed read-only Weaver scout panel
+  ///
+  /// In en, this message translates to:
+  /// **'Ask for channel context from allowed sources only. Sprint 4 Weaver is read-only and proposal-first; it cannot change room data silently.'**
+  String get chatWeaverScoutPanelDescription;
+
+  /// Status chip for the Weaver scout read-only mode
+  ///
+  /// In en, this message translates to:
+  /// **'Read-only'**
+  String get chatWeaverScoutReadOnlyStatus;
+
+  /// Status chip for the Weaver scout proposal-only mode
+  ///
+  /// In en, this message translates to:
+  /// **'Proposal only'**
+  String get chatWeaverScoutProposalOnlyStatus;
+
+  /// Status chip for approval receipts required by Weaver scout
+  ///
+  /// In en, this message translates to:
+  /// **'Receipt required'**
+  String get chatWeaverScoutReceiptStatus;
+
+  /// Heading for Weaver scout allowed capabilities
+  ///
+  /// In en, this message translates to:
+  /// **'What Weaver may do'**
+  String get chatWeaverScoutCapabilitiesTitle;
+
+  /// Heading for Weaver scout allowed source references
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed sources'**
+  String get chatWeaverScoutSourcesTitle;
+
+  /// Governance note for Weaver scout approval receipts
+  ///
+  /// In en, this message translates to:
+  /// **'Any future write or team-room mutation must create an approval receipt with actor, requested action, approved action, target, timestamp, and result category.'**
+  String get chatWeaverScoutApprovalReceiptsRequired;
+
+  /// Weaver scout capability label for summarizing allowed context
+  ///
+  /// In en, this message translates to:
+  /// **'Summarize allowed context'**
+  String get chatWeaverScoutSummarizeCapability;
+
+  /// Weaver scout capability label for citing sources
+  ///
+  /// In en, this message translates to:
+  /// **'Cite sources'**
+  String get chatWeaverScoutCiteSourcesCapability;
+
+  /// Weaver scout capability label for proposal-only actions
+  ///
+  /// In en, this message translates to:
+  /// **'Draft proposals only'**
+  String get chatWeaverScoutProposeOnlyCapability;
+
+  /// Weaver scout capability label for approval receipt requirement
+  ///
+  /// In en, this message translates to:
+  /// **'Require approval receipts'**
+  String get chatWeaverScoutApprovalReceiptCapability;
+
   /// Empty state message for the files screen
   ///
   /// In en, this message translates to:

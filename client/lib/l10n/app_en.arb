@@ -2579,6 +2579,54 @@
   "@chatDecisionEvidenceCaptureEvidenceAction": {
     "description": "Message menu action to capture a message as evidence"
   },
+  "chatWeaverScoutPanelTitle": "Weaver scout",
+  "@chatWeaverScoutPanelTitle": {
+    "description": "Title for the governed read-only Weaver scout panel"
+  },
+  "chatWeaverScoutPanelDescription": "Ask for channel context from allowed sources only. Sprint 4 Weaver is read-only and proposal-first; it cannot change room data silently.",
+  "@chatWeaverScoutPanelDescription": {
+    "description": "Description for the governed read-only Weaver scout panel"
+  },
+  "chatWeaverScoutReadOnlyStatus": "Read-only",
+  "@chatWeaverScoutReadOnlyStatus": {
+    "description": "Status chip for the Weaver scout read-only mode"
+  },
+  "chatWeaverScoutProposalOnlyStatus": "Proposal only",
+  "@chatWeaverScoutProposalOnlyStatus": {
+    "description": "Status chip for the Weaver scout proposal-only mode"
+  },
+  "chatWeaverScoutReceiptStatus": "Receipt required",
+  "@chatWeaverScoutReceiptStatus": {
+    "description": "Status chip for approval receipts required by Weaver scout"
+  },
+  "chatWeaverScoutCapabilitiesTitle": "What Weaver may do",
+  "@chatWeaverScoutCapabilitiesTitle": {
+    "description": "Heading for Weaver scout allowed capabilities"
+  },
+  "chatWeaverScoutSourcesTitle": "Allowed sources",
+  "@chatWeaverScoutSourcesTitle": {
+    "description": "Heading for Weaver scout allowed source references"
+  },
+  "chatWeaverScoutApprovalReceiptsRequired": "Any future write or team-room mutation must create an approval receipt with actor, requested action, approved action, target, timestamp, and result category.",
+  "@chatWeaverScoutApprovalReceiptsRequired": {
+    "description": "Governance note for Weaver scout approval receipts"
+  },
+  "chatWeaverScoutSummarizeCapability": "Summarize allowed context",
+  "@chatWeaverScoutSummarizeCapability": {
+    "description": "Weaver scout capability label for summarizing allowed context"
+  },
+  "chatWeaverScoutCiteSourcesCapability": "Cite sources",
+  "@chatWeaverScoutCiteSourcesCapability": {
+    "description": "Weaver scout capability label for citing sources"
+  },
+  "chatWeaverScoutProposeOnlyCapability": "Draft proposals only",
+  "@chatWeaverScoutProposeOnlyCapability": {
+    "description": "Weaver scout capability label for proposal-only actions"
+  },
+  "chatWeaverScoutApprovalReceiptCapability": "Require approval receipts",
+  "@chatWeaverScoutApprovalReceiptCapability": {
+    "description": "Weaver scout capability label for approval receipt requirement"
+  },
   "filesEmptyMessage": "No files yet",
   "@filesEmptyMessage": {
     "description": "Empty state message for the files screen"
