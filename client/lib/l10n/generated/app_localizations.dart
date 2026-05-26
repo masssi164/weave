@@ -2981,6 +2981,214 @@ abstract class AppLocalizations {
   /// **'Provider stack readiness'**
   String get settingsProviderStackTitle;
 
+  /// Heading for the admin/operator readiness control-plane summary
+  ///
+  /// In en, this message translates to:
+  /// **'Admin/operator readiness cockpit'**
+  String get settingsAdminReadinessCockpitTitle;
+
+  /// Description for the admin/operator readiness cockpit
+  ///
+  /// In en, this message translates to:
+  /// **'Review the workspace posture before member rollout: category health, support-safe evidence, policy boundaries, and the next operator action.'**
+  String get settingsAdminReadinessCockpitDescription;
+
+  /// Label for the overall readiness posture fact
+  ///
+  /// In en, this message translates to:
+  /// **'Overall posture'**
+  String get settingsAdminReadinessOverallPostureLabel;
+
+  /// Label for category readiness counts
+  ///
+  /// In en, this message translates to:
+  /// **'Category health'**
+  String get settingsAdminReadinessCategoryHealthLabel;
+
+  /// Category readiness count summary
+  ///
+  /// In en, this message translates to:
+  /// **'{ready} ready of {total}; {attention} need action'**
+  String settingsAdminReadinessCategoryHealthValue(
+    int ready,
+    int total,
+    int attention,
+  );
+
+  /// Label for readiness evidence safety
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence'**
+  String get settingsAdminReadinessEvidenceLabel;
+
+  /// Value when readiness evidence is support-safe and redacted
+  ///
+  /// In en, this message translates to:
+  /// **'Support-safe and redacted'**
+  String get settingsAdminReadinessEvidenceRedacted;
+
+  /// Label for member/admin readiness boundary
+  ///
+  /// In en, this message translates to:
+  /// **'Member boundary'**
+  String get settingsAdminReadinessMemberBoundaryLabel;
+
+  /// Value explaining provider diagnostics are admin-only
+  ///
+  /// In en, this message translates to:
+  /// **'Provider diagnostics hidden from normal members'**
+  String get settingsAdminReadinessMemberBoundaryHidden;
+
+  /// Heading for operator next actions in readiness cockpit
+  ///
+  /// In en, this message translates to:
+  /// **'Next actions'**
+  String get settingsAdminReadinessNextActionsTitle;
+
+  /// Inline label for a readiness next action
+  ///
+  /// In en, this message translates to:
+  /// **'Next action'**
+  String get settingsAdminReadinessNextActionLabel;
+
+  /// Overall posture when the provider stack is ready
+  ///
+  /// In en, this message translates to:
+  /// **'Ready behind backend facades'**
+  String get settingsAdminReadinessPostureReady;
+
+  /// Overall posture when admin action is needed
+  ///
+  /// In en, this message translates to:
+  /// **'Admin action required'**
+  String get settingsAdminReadinessPostureAdminAction;
+
+  /// Overall posture when disabled or policy-blocked categories are intentional
+  ///
+  /// In en, this message translates to:
+  /// **'Policy boundary active'**
+  String get settingsAdminReadinessPosturePolicyBoundary;
+
+  /// Overall posture when control-plane ownership needs review
+  ///
+  /// In en, this message translates to:
+  /// **'Control-plane review required'**
+  String get settingsAdminReadinessPostureNeedsReview;
+
+  /// Overall posture when evidence is not support-safe
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence redaction required'**
+  String get settingsAdminReadinessPostureEvidenceUnsafe;
+
+  /// Next action for missing backend facades
+  ///
+  /// In en, this message translates to:
+  /// **'Restore backend-owned facades before enabling member workflows.'**
+  String get settingsAdminReadinessActionRestoreBackendFacades;
+
+  /// Next action for direct provider calls
+  ///
+  /// In en, this message translates to:
+  /// **'Block direct provider API calls from Flutter and route through backend policy.'**
+  String get settingsAdminReadinessActionBlockDirectProviderCalls;
+
+  /// Next action for unsafe evidence
+  ///
+  /// In en, this message translates to:
+  /// **'Redact diagnostics before sharing support or release evidence.'**
+  String get settingsAdminReadinessActionRedactEvidence;
+
+  /// Next action for misconfigured or unconfigured providers
+  ///
+  /// In en, this message translates to:
+  /// **'Configure endpoint mappings and SecretRefs, then rerun readiness.'**
+  String get settingsAdminReadinessActionConfigureSecretRefs;
+
+  /// Next action for degraded readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Run readiness smoke checks and capture sanitized evidence before rollout.'**
+  String get settingsAdminReadinessActionRunReadinessSmoke;
+
+  /// Next action for policy-blocked categories
+  ///
+  /// In en, this message translates to:
+  /// **'Review capability policy and whitelists; keep members policy-blocked until approved.'**
+  String get settingsAdminReadinessActionReviewWhitelistPolicy;
+
+  /// Next action for disabled categories/providers
+  ///
+  /// In en, this message translates to:
+  /// **'Keep disabled unless an admin enables the category with policy, consent, and audit.'**
+  String get settingsAdminReadinessActionEnableOnlyWithPolicy;
+
+  /// Next action for unknown readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm backend readiness evidence before exposing the capability.'**
+  String get settingsAdminReadinessActionConfirmBackendEvidence;
+
+  /// Next action when no action is required
+  ///
+  /// In en, this message translates to:
+  /// **'No operator action required now; keep monitoring release evidence.'**
+  String get settingsAdminReadinessActionNoOperatorAction;
+
+  /// Heading for provider category readiness rows
+  ///
+  /// In en, this message translates to:
+  /// **'Category health and member impact'**
+  String get settingsProviderCategoryHealthTitle;
+
+  /// Heading for provider adapter readiness rows
+  ///
+  /// In en, this message translates to:
+  /// **'Adapter evidence'**
+  String get settingsProviderAdapterHealthTitle;
+
+  /// Support-safe evidence statement for category readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence: support-safe readiness only; no secrets, raw provider errors, or credential-bearing URLs.'**
+  String get settingsAdminReadinessCategoryEvidence;
+
+  /// Label for workspace readiness policy state
+  ///
+  /// In en, this message translates to:
+  /// **'Policy'**
+  String get settingsWorkspacePolicyLabel;
+
+  /// Workspace policy value when capability is allowed
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed'**
+  String get settingsWorkspacePolicyAllowed;
+
+  /// Workspace policy value when capability is blocked by policy
+  ///
+  /// In en, this message translates to:
+  /// **'Policy blocked'**
+  String get settingsWorkspacePolicyBlocked;
+
+  /// Workspace policy value when capability is disabled by policy
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by policy'**
+  String get settingsWorkspacePolicyDisabled;
+
+  /// Workspace policy value when capability policy is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get settingsWorkspacePolicyUnavailable;
+
+  /// Label for member impact in admin readiness
+  ///
+  /// In en, this message translates to:
+  /// **'Member impact'**
+  String get settingsWorkspaceImpactLabel;
+
   /// Accessibility label for provider readiness summary
   ///
   /// In en, this message translates to:

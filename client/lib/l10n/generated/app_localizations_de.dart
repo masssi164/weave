@@ -1790,6 +1790,134 @@ class AppLocalizationsDe extends AppLocalizations {
   String get settingsProviderStackTitle => 'Provider-Stack-Bereitschaft';
 
   @override
+  String get settingsAdminReadinessCockpitTitle =>
+      'Admin-/Operator-Bereitschaftscockpit';
+
+  @override
+  String get settingsAdminReadinessCockpitDescription =>
+      'Prüfe den Workspace vor dem Member-Rollout: Kategoriegesundheit, support-sichere Evidenz, Policy-Grenzen und die nächste Operator-Aktion.';
+
+  @override
+  String get settingsAdminReadinessOverallPostureLabel => 'Gesamtstatus';
+
+  @override
+  String get settingsAdminReadinessCategoryHealthLabel => 'Kategoriegesundheit';
+
+  @override
+  String settingsAdminReadinessCategoryHealthValue(
+    int ready,
+    int total,
+    int attention,
+  ) {
+    return '$ready von $total bereit; $attention brauchen Aktion';
+  }
+
+  @override
+  String get settingsAdminReadinessEvidenceLabel => 'Evidenz';
+
+  @override
+  String get settingsAdminReadinessEvidenceRedacted =>
+      'Support-sicher und redigiert';
+
+  @override
+  String get settingsAdminReadinessMemberBoundaryLabel => 'Member-Grenze';
+
+  @override
+  String get settingsAdminReadinessMemberBoundaryHidden =>
+      'Provider-Diagnostik bleibt vor normalen Mitgliedern verborgen';
+
+  @override
+  String get settingsAdminReadinessNextActionsTitle => 'Nächste Aktionen';
+
+  @override
+  String get settingsAdminReadinessNextActionLabel => 'Nächste Aktion';
+
+  @override
+  String get settingsAdminReadinessPostureReady =>
+      'Bereit hinter Backend-Fassaden';
+
+  @override
+  String get settingsAdminReadinessPostureAdminAction =>
+      'Admin-Aktion erforderlich';
+
+  @override
+  String get settingsAdminReadinessPosturePolicyBoundary =>
+      'Policy-Grenze aktiv';
+
+  @override
+  String get settingsAdminReadinessPostureNeedsReview =>
+      'Control-Plane-Prüfung erforderlich';
+
+  @override
+  String get settingsAdminReadinessPostureEvidenceUnsafe =>
+      'Evidenzredaktion erforderlich';
+
+  @override
+  String get settingsAdminReadinessActionRestoreBackendFacades =>
+      'Backend-eigene Fassaden wiederherstellen, bevor Member-Workflows aktiviert werden.';
+
+  @override
+  String get settingsAdminReadinessActionBlockDirectProviderCalls =>
+      'Direkte Provider-API-Aufrufe aus Flutter blockieren und über Backend-Policy routen.';
+
+  @override
+  String get settingsAdminReadinessActionRedactEvidence =>
+      'Diagnostik redigieren, bevor Support- oder Release-Evidenz geteilt wird.';
+
+  @override
+  String get settingsAdminReadinessActionConfigureSecretRefs =>
+      'Endpoint-Mappings und SecretRefs konfigurieren, dann Bereitschaft erneut prüfen.';
+
+  @override
+  String get settingsAdminReadinessActionRunReadinessSmoke =>
+      'Readiness-Smoke-Checks ausführen und sanitisierte Evidenz vor dem Rollout erfassen.';
+
+  @override
+  String get settingsAdminReadinessActionReviewWhitelistPolicy =>
+      'Capability-Policy und Whitelists prüfen; Mitglieder bleiben bis zur Freigabe policy-blockiert.';
+
+  @override
+  String get settingsAdminReadinessActionEnableOnlyWithPolicy =>
+      'Deaktiviert lassen, außer ein Admin aktiviert die Kategorie mit Policy, Consent und Audit.';
+
+  @override
+  String get settingsAdminReadinessActionConfirmBackendEvidence =>
+      'Backend-Readiness-Evidenz bestätigen, bevor die Capability sichtbar wird.';
+
+  @override
+  String get settingsAdminReadinessActionNoOperatorAction =>
+      'Aktuell keine Operator-Aktion nötig; Release-Evidenz weiter beobachten.';
+
+  @override
+  String get settingsProviderCategoryHealthTitle =>
+      'Kategoriegesundheit und Member-Auswirkung';
+
+  @override
+  String get settingsProviderAdapterHealthTitle => 'Adapter-Evidenz';
+
+  @override
+  String get settingsAdminReadinessCategoryEvidence =>
+      'Evidenz: nur support-sichere Readiness; keine Secrets, Rohfehler von Providern oder URLs mit Zugangsdaten.';
+
+  @override
+  String get settingsWorkspacePolicyLabel => 'Policy';
+
+  @override
+  String get settingsWorkspacePolicyAllowed => 'Erlaubt';
+
+  @override
+  String get settingsWorkspacePolicyBlocked => 'Policy-blockiert';
+
+  @override
+  String get settingsWorkspacePolicyDisabled => 'Per Policy deaktiviert';
+
+  @override
+  String get settingsWorkspacePolicyUnavailable => 'Nicht verfügbar';
+
+  @override
+  String get settingsWorkspaceImpactLabel => 'Member-Auswirkung';
+
+  @override
   String settingsProviderStackSemanticLabel(
     String backendOwnedFacades,
     String flutterCalls,

@@ -212,6 +212,7 @@
             "Keycloak/Auth",
             "Matrix/Chat",
             "Disabled by default",
+            "Admin/operator readiness cockpit",
             "hides OIDC and service endpoint setup from members"
           ]
         }
@@ -302,6 +303,23 @@
             "keepsMemberSemanticsStable",
             "external_existing_provider",
             "rawProviderErrorsReturned"
+          ]
+        },
+        {
+          "path": "client/test/features/settings/settings_screen_test.dart",
+          "fragments": [
+            "Admin/operator readiness cockpit",
+            "Overall posture: Admin action required",
+            "Category health and member impact",
+            "Provider diagnostics hidden from normal members",
+            "Configure endpoint mappings and SecretRefs"
+          ]
+        },
+        {
+          "path": "docs/admin-operator-handbook.md",
+          "fragments": [
+            "Workspace/Admin Health is the operator control plane for this posture.",
+            "overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action"
           ]
         }
       ]

@@ -504,6 +504,7 @@ void main() {
 
       expect(find.text('Workspace Readiness'), findsOneWidget);
       expect(find.text('Provider stack readiness'), findsNothing);
+      expect(find.text('Admin/operator readiness cockpit'), findsNothing);
       expect(find.textContaining('nextcloud-files'), findsNothing);
       expect(find.textContaining('Flutter provider calls'), findsNothing);
     });
@@ -778,6 +779,38 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Provider stack readiness'), findsOneWidget);
+      expect(find.text('Admin/operator readiness cockpit'), findsOneWidget);
+      expect(
+        find.text('Overall posture: Admin action required', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Category health: 0 ready of 2; 2 need action',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Evidence: Support-safe and redacted', findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Member boundary: Provider diagnostics hidden from normal members',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Next actions'), findsOneWidget);
+      expect(
+        find.textContaining('Configure endpoint mappings and SecretRefs'),
+        findsWidgets,
+      );
+      expect(find.text('Category health and member impact'), findsOneWidget);
+      expect(find.text('Member impact: Calendar is degraded.'), findsOneWidget);
+      expect(find.text('Policy: allowed'), findsOneWidget);
+      expect(find.textContaining('support-safe readiness only'), findsWidgets);
       expect(
         find.text('Flutter provider calls: Blocked', findRichText: true),
         findsOneWidget,

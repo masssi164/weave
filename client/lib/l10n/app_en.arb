@@ -2027,6 +2027,147 @@
   "@settingsProviderStackTitle": {
     "description": "Title for provider stack readiness summary in settings"
   },
+  "settingsAdminReadinessCockpitTitle": "Admin/operator readiness cockpit",
+  "@settingsAdminReadinessCockpitTitle": {
+    "description": "Heading for the admin/operator readiness control-plane summary"
+  },
+  "settingsAdminReadinessCockpitDescription": "Review the workspace posture before member rollout: category health, support-safe evidence, policy boundaries, and the next operator action.",
+  "@settingsAdminReadinessCockpitDescription": {
+    "description": "Description for the admin/operator readiness cockpit"
+  },
+  "settingsAdminReadinessOverallPostureLabel": "Overall posture",
+  "@settingsAdminReadinessOverallPostureLabel": {
+    "description": "Label for the overall readiness posture fact"
+  },
+  "settingsAdminReadinessCategoryHealthLabel": "Category health",
+  "@settingsAdminReadinessCategoryHealthLabel": {
+    "description": "Label for category readiness counts"
+  },
+  "settingsAdminReadinessCategoryHealthValue": "{ready} ready of {total}; {attention} need action",
+  "@settingsAdminReadinessCategoryHealthValue": {
+    "description": "Category readiness count summary",
+    "placeholders": {
+      "ready": {"type": "int"},
+      "total": {"type": "int"},
+      "attention": {"type": "int"}
+    }
+  },
+  "settingsAdminReadinessEvidenceLabel": "Evidence",
+  "@settingsAdminReadinessEvidenceLabel": {
+    "description": "Label for readiness evidence safety"
+  },
+  "settingsAdminReadinessEvidenceRedacted": "Support-safe and redacted",
+  "@settingsAdminReadinessEvidenceRedacted": {
+    "description": "Value when readiness evidence is support-safe and redacted"
+  },
+  "settingsAdminReadinessMemberBoundaryLabel": "Member boundary",
+  "@settingsAdminReadinessMemberBoundaryLabel": {
+    "description": "Label for member/admin readiness boundary"
+  },
+  "settingsAdminReadinessMemberBoundaryHidden": "Provider diagnostics hidden from normal members",
+  "@settingsAdminReadinessMemberBoundaryHidden": {
+    "description": "Value explaining provider diagnostics are admin-only"
+  },
+  "settingsAdminReadinessNextActionsTitle": "Next actions",
+  "@settingsAdminReadinessNextActionsTitle": {
+    "description": "Heading for operator next actions in readiness cockpit"
+  },
+  "settingsAdminReadinessNextActionLabel": "Next action",
+  "@settingsAdminReadinessNextActionLabel": {
+    "description": "Inline label for a readiness next action"
+  },
+  "settingsAdminReadinessPostureReady": "Ready behind backend facades",
+  "@settingsAdminReadinessPostureReady": {
+    "description": "Overall posture when the provider stack is ready"
+  },
+  "settingsAdminReadinessPostureAdminAction": "Admin action required",
+  "@settingsAdminReadinessPostureAdminAction": {
+    "description": "Overall posture when admin action is needed"
+  },
+  "settingsAdminReadinessPosturePolicyBoundary": "Policy boundary active",
+  "@settingsAdminReadinessPosturePolicyBoundary": {
+    "description": "Overall posture when disabled or policy-blocked categories are intentional"
+  },
+  "settingsAdminReadinessPostureNeedsReview": "Control-plane review required",
+  "@settingsAdminReadinessPostureNeedsReview": {
+    "description": "Overall posture when control-plane ownership needs review"
+  },
+  "settingsAdminReadinessPostureEvidenceUnsafe": "Evidence redaction required",
+  "@settingsAdminReadinessPostureEvidenceUnsafe": {
+    "description": "Overall posture when evidence is not support-safe"
+  },
+  "settingsAdminReadinessActionRestoreBackendFacades": "Restore backend-owned facades before enabling member workflows.",
+  "@settingsAdminReadinessActionRestoreBackendFacades": {
+    "description": "Next action for missing backend facades"
+  },
+  "settingsAdminReadinessActionBlockDirectProviderCalls": "Block direct provider API calls from Flutter and route through backend policy.",
+  "@settingsAdminReadinessActionBlockDirectProviderCalls": {
+    "description": "Next action for direct provider calls"
+  },
+  "settingsAdminReadinessActionRedactEvidence": "Redact diagnostics before sharing support or release evidence.",
+  "@settingsAdminReadinessActionRedactEvidence": {
+    "description": "Next action for unsafe evidence"
+  },
+  "settingsAdminReadinessActionConfigureSecretRefs": "Configure endpoint mappings and SecretRefs, then rerun readiness.",
+  "@settingsAdminReadinessActionConfigureSecretRefs": {
+    "description": "Next action for misconfigured or unconfigured providers"
+  },
+  "settingsAdminReadinessActionRunReadinessSmoke": "Run readiness smoke checks and capture sanitized evidence before rollout.",
+  "@settingsAdminReadinessActionRunReadinessSmoke": {
+    "description": "Next action for degraded readiness"
+  },
+  "settingsAdminReadinessActionReviewWhitelistPolicy": "Review capability policy and whitelists; keep members policy-blocked until approved.",
+  "@settingsAdminReadinessActionReviewWhitelistPolicy": {
+    "description": "Next action for policy-blocked categories"
+  },
+  "settingsAdminReadinessActionEnableOnlyWithPolicy": "Keep disabled unless an admin enables the category with policy, consent, and audit.",
+  "@settingsAdminReadinessActionEnableOnlyWithPolicy": {
+    "description": "Next action for disabled categories/providers"
+  },
+  "settingsAdminReadinessActionConfirmBackendEvidence": "Confirm backend readiness evidence before exposing the capability.",
+  "@settingsAdminReadinessActionConfirmBackendEvidence": {
+    "description": "Next action for unknown readiness"
+  },
+  "settingsAdminReadinessActionNoOperatorAction": "No operator action required now; keep monitoring release evidence.",
+  "@settingsAdminReadinessActionNoOperatorAction": {
+    "description": "Next action when no action is required"
+  },
+  "settingsProviderCategoryHealthTitle": "Category health and member impact",
+  "@settingsProviderCategoryHealthTitle": {
+    "description": "Heading for provider category readiness rows"
+  },
+  "settingsProviderAdapterHealthTitle": "Adapter evidence",
+  "@settingsProviderAdapterHealthTitle": {
+    "description": "Heading for provider adapter readiness rows"
+  },
+  "settingsAdminReadinessCategoryEvidence": "Evidence: support-safe readiness only; no secrets, raw provider errors, or credential-bearing URLs.",
+  "@settingsAdminReadinessCategoryEvidence": {
+    "description": "Support-safe evidence statement for category readiness"
+  },
+  "settingsWorkspacePolicyLabel": "Policy",
+  "@settingsWorkspacePolicyLabel": {
+    "description": "Label for workspace readiness policy state"
+  },
+  "settingsWorkspacePolicyAllowed": "Allowed",
+  "@settingsWorkspacePolicyAllowed": {
+    "description": "Workspace policy value when capability is allowed"
+  },
+  "settingsWorkspacePolicyBlocked": "Policy blocked",
+  "@settingsWorkspacePolicyBlocked": {
+    "description": "Workspace policy value when capability is blocked by policy"
+  },
+  "settingsWorkspacePolicyDisabled": "Disabled by policy",
+  "@settingsWorkspacePolicyDisabled": {
+    "description": "Workspace policy value when capability is disabled by policy"
+  },
+  "settingsWorkspacePolicyUnavailable": "Unavailable",
+  "@settingsWorkspacePolicyUnavailable": {
+    "description": "Workspace policy value when capability policy is unavailable"
+  },
+  "settingsWorkspaceImpactLabel": "Member impact",
+  "@settingsWorkspaceImpactLabel": {
+    "description": "Label for member impact in admin readiness"
+  },
   "settingsProviderStackSemanticLabel": "Provider stack readiness. Backend-owned facades: {backendOwnedFacades}. Flutter provider calls: {flutterCalls}.",
   "@settingsProviderStackSemanticLabel": {
     "description": "Accessibility label for provider readiness summary",
