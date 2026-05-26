@@ -213,15 +213,21 @@ void main() {
     await tester.tap(find.text('Capture as decision'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Decision Ledger'), findsOneWidget);
+    expect(find.text('Decision record'), findsOneWidget);
     expect(find.text('Decision'), findsOneWidget);
     expect(find.text('Decisions: 1'), findsOneWidget);
     expect(find.text('Hey there'), findsAtLeastNWidgets(1));
+    expect(
+      find.text('Proposed. Recorded by You. Source: Message from Alex.'),
+      findsOneWidget,
+    );
     expect(
       find.text('Active. Captured by You. Source: message from Alex.'),
       findsOneWidget,
     );
     expect(
-      find.text('Captured as decision. Source linked to this message.'),
+      find.text('Captured as decision record. Source linked to this message.'),
       findsOneWidget,
     );
     semantics.dispose();

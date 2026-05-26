@@ -309,21 +309,32 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     DecisionEvidenceKind kind,
   ) {
     final l10n = AppLocalizations.of(context);
-    final record = ref
-        .read(decisionEvidenceProvider.notifier)
-        .captureMessage(
-          roomId: widget.conversation.id,
-          message: message,
-          kind: kind,
-          capturedAt: DateTime.now(),
-          ownerLabel: l10n.chatDecisionEvidenceOwnerYou,
-        );
+    final controller = ref.read(decisionEvidenceProvider.notifier);
+    final now = DateTime.now();
+    if (kind == DecisionEvidenceKind.decision) {
+      controller.createDecisionFromMessage(
+        roomId: widget.conversation.id,
+        message: message,
+        capturedAt: now,
+        ownerLabel: l10n.chatDecisionEvidenceOwnerYou,
+      );
+    } else {
+      controller.captureMessage(
+        roomId: widget.conversation.id,
+        message: message,
+        kind: kind,
+        capturedAt: now,
+        ownerLabel: l10n.chatDecisionEvidenceOwnerYou,
+      );
+    }
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           l10n.chatDecisionEvidenceCapturedMessage(
-            _decisionEvidenceKindLabel(l10n, record.kind).toLowerCase(),
+            kind == DecisionEvidenceKind.decision
+                ? l10n.chatDecisionLedgerRecordLabel.toLowerCase()
+                : _decisionEvidenceKindLabel(l10n, kind).toLowerCase(),
           ),
         ),
       ),
@@ -1788,6 +1799,7 @@ class _RoomDecisionEvidenceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final ledgerRecords = snapshot.decisionLedgerRecords;
     final counts = DecisionEvidenceKind.values
         .map(
           (kind) => l10n.chatDecisionEvidenceCountLabel(
@@ -1806,12 +1818,24 @@ class _RoomDecisionEvidenceCard extends StatelessWidget {
                     '${l10n.chatDecisionEvidenceSourceLabel(record.source.senderDisplayName)}.',
               )
               .join(' ');
+    final ledgerSummary = ledgerRecords.isEmpty
+        ? l10n.chatDecisionLedgerEmptyState
+        : ledgerRecords
+              .map(
+                (decision) =>
+                    '${l10n.chatDecisionLedgerRecordLabel}: '
+                    '${decision.title}. '
+                    '${_decisionLedgerStatusLabel(l10n, decision.status)}. '
+                    '${l10n.chatDecisionLedgerSourceCount(decision.references.length)}.',
+              )
+              .join(' ');
 
     return Semantics(
       container: true,
       label: [
         l10n.chatDecisionEvidencePanelTitle,
         counts,
+        ledgerSummary,
         recordSummary,
         l10n.chatDecisionEvidenceNoBackgroundReading,
       ].join('. '),
@@ -1870,6 +1894,16 @@ class _RoomDecisionEvidenceCard extends StatelessWidget {
                       .toList(growable: false),
                 ),
                 const SizedBox(height: 12),
+                if (ledgerRecords.isNotEmpty) ...[
+                  Text(
+                    l10n.chatDecisionLedgerTitle,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  for (final decision in ledgerRecords.take(compact ? 2 : 4))
+                    _DecisionLedgerRecordTile(decision: decision),
+                  const SizedBox(height: 12),
+                ],
                 if (snapshot.records.isEmpty)
                   Text(
                     l10n.chatDecisionEvidenceEmptyState,
@@ -1978,6 +2012,56 @@ class _DecisionEvidenceRecordTile extends StatelessWidget {
   }
 }
 
+class _DecisionLedgerRecordTile extends StatelessWidget {
+  const _DecisionLedgerRecordTile({required this.decision});
+
+  final ChannelDecisionRecord decision;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: MergeSemantics(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.assignment_turned_in_outlined,
+              size: 20,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.chatDecisionLedgerRecordLabel,
+                    style: theme.textTheme.labelLarge,
+                  ),
+                  Text(decision.title, style: theme.textTheme.bodyMedium),
+                  Text(
+                    l10n.chatDecisionLedgerRecordMeta(
+                      _decisionLedgerStatusLabel(l10n, decision.status),
+                      decision.authorLabel,
+                      decision.references.first.label,
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 IconData _decisionEvidenceKindIcon(DecisionEvidenceKind kind) {
   return switch (kind) {
     DecisionEvidenceKind.decision => Icons.check_circle_outline,
@@ -2022,6 +2106,18 @@ String _decisionEvidenceStatusLabel(
     DecisionEvidenceStatus.active => l10n.chatDecisionEvidenceStatusActive,
     DecisionEvidenceStatus.resolved => l10n.chatDecisionEvidenceStatusResolved,
     DecisionEvidenceStatus.archived => l10n.chatDecisionEvidenceStatusArchived,
+  };
+}
+
+String _decisionLedgerStatusLabel(
+  AppLocalizations l10n,
+  DecisionLedgerStatus status,
+) {
+  return switch (status) {
+    DecisionLedgerStatus.proposed => l10n.chatDecisionLedgerStatusProposed,
+    DecisionLedgerStatus.accepted => l10n.chatDecisionLedgerStatusAccepted,
+    DecisionLedgerStatus.superseded => l10n.chatDecisionLedgerStatusSuperseded,
+    DecisionLedgerStatus.rejected => l10n.chatDecisionLedgerStatusRejected,
   };
 }
 
