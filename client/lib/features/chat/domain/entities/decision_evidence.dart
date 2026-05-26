@@ -213,6 +213,7 @@ class RoomDecisionEvidenceSnapshot {
               record: record,
             ),
           )
+          .where((decision) => decision.isReadable)
           .toList(growable: false);
 
   int countFor(DecisionEvidenceKind kind) => recordsFor(kind).length;

@@ -2021,6 +2021,10 @@ class _DecisionLedgerRecordTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
+    final sourceLabel = decision.references
+        .map((reference) => reference.label)
+        .where((label) => label.isNotEmpty)
+        .firstOrNull;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: MergeSemantics(
@@ -2046,7 +2050,10 @@ class _DecisionLedgerRecordTile extends StatelessWidget {
                     l10n.chatDecisionLedgerRecordMeta(
                       _decisionLedgerStatusLabel(l10n, decision.status),
                       decision.authorLabel,
-                      decision.references.first.label,
+                      sourceLabel ??
+                          l10n.chatDecisionLedgerSourceCount(
+                            decision.references.length,
+                          ),
                     ),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,

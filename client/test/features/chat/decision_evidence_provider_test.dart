@@ -90,6 +90,34 @@ void main() {
     expect(snapshot.isDecisionLedgerMvpReady, isTrue);
     expect(snapshot.backgroundRoomReadingEnabled, isFalse);
   });
+
+  test('filters unreadable decision ledger records from snapshots', () {
+    final snapshot = RoomDecisionEvidenceSnapshot(
+      roomId: '!room:home.internal',
+      records: [
+        DecisionEvidenceRecord(
+          id: 'decision-evidence:bad',
+          kind: DecisionEvidenceKind.decision,
+          status: DecisionEvidenceStatus.active,
+          title: 'Keep this off the ledger until it is source linked',
+          ownerLabel: '',
+          source: DecisionEvidenceSource(
+            type: DecisionEvidenceSourceType.chatMessage,
+            roomId: '',
+            messageId: '',
+            senderDisplayName: 'Alex',
+            sentAt: DateTime(2026, 5, 22, 12),
+            excerpt: 'Unsourced draft decision',
+          ),
+          createdAt: DateTime(2026, 5, 22, 12, 5),
+        ),
+      ],
+      backgroundRoomReadingEnabled: false,
+    );
+
+    expect(snapshot.decisionLedgerRecords, isEmpty);
+    expect(snapshot.isDecisionLedgerMvpReady, isTrue);
+  });
 }
 
 class DecisionEvidenceControllerContainer {
