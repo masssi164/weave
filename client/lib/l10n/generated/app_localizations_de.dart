@@ -456,6 +456,78 @@ class AppLocalizationsDe extends AppLocalizations {
       'Deine persönlichen Nachrichten, Favoriten, Kanäle und KI-Chats sind hier gruppiert, damit der Workspace nach Absicht startet statt als flache Raumliste.';
 
   @override
+  String get chatHomeHeroTitle => 'Dein Organisations-Workspace';
+
+  @override
+  String get chatHomeHeroDescription =>
+      'Starte mit Nachrichten, Kanal-Workspaces und gesteuerten KI-Bereichen, die für dich tatsächlich verfügbar sind.';
+
+  @override
+  String chatHomeUnreadMetric(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count ungelesene Einträge',
+      one: '1 ungelesener Eintrag',
+      zero: 'Keine ungelesene Arbeit',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatHomeChannelsMetric(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Kanal-Workspaces',
+      one: '1 Kanal-Workspace',
+      zero: 'Keine Kanal-Workspaces',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatHomePeopleMetric(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count persönliche Nachrichten',
+      one: '1 persönliche Nachricht',
+      zero: 'Keine persönlichen Nachrichten',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chatHomeAiMetricReady(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count gesteuerte KI-Chats',
+      one: '1 gesteuerter KI-Chat',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get chatHomeAiMetricDisabled => 'KI durch Workspace-Policy gesteuert';
+
+  @override
+  String get chatHomeContinueButton => 'Nächsten Arbeitseintrag öffnen';
+
+  @override
+  String chatOverviewSectionCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Einträge',
+      one: '1 Eintrag',
+      zero: '0 Einträge',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get chatFavoritesSectionTitle => 'Favoriten';
 
   @override

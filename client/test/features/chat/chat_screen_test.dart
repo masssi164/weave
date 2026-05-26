@@ -426,6 +426,12 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Weave Home'), findsOneWidget);
+        expect(find.text('Your organization workspace'), findsOneWidget);
+        expect(find.text('3 unread items'), findsOneWidget);
+        expect(find.text('1 channel workspace'), findsOneWidget);
+        expect(find.text('1 personal message'), findsOneWidget);
+        expect(find.text('1 governed AI chat'), findsOneWidget);
+        expect(find.text('Open next work item'), findsOneWidget);
         expect(find.text('Context for this workspace'), findsNothing);
         expect(find.text('Channel context'), findsNothing);
         expect(find.text('Agent context packs'), findsNothing);
@@ -493,6 +499,10 @@ void main() {
         );
         await tester.pumpAndSettle();
 
+        expect(find.text('No unread work'), findsOneWidget);
+        expect(find.text('1 channel workspace'), findsOneWidget);
+        expect(find.text('1 personal message'), findsOneWidget);
+        expect(find.text('AI governed by workspace policy'), findsOneWidget);
         expect(find.text('Favorites'), findsOneWidget);
         expect(
           find.text(

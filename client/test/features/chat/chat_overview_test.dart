@@ -40,5 +40,7 @@ void main() {
     expect(overview.personalMessages, [dm]);
     expect(overview.channels, [favoriteChannel]);
     expect(overview.aiChats, [aiChat]);
+    expect(overview.unreadCount, 2);
+    expect(overview.nextConversation, favoriteChannel);
   });
 }

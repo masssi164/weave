@@ -875,6 +875,60 @@ abstract class AppLocalizations {
   /// **'Your personal messages, favorites, channels, and AI chats are grouped here so the workspace starts from intent instead of a flat room list.'**
   String get chatOverviewDescription;
 
+  /// Title for the professional Weave Home cockpit card
+  ///
+  /// In en, this message translates to:
+  /// **'Your organization workspace'**
+  String get chatHomeHeroTitle;
+
+  /// Description for the professional Weave Home cockpit card
+  ///
+  /// In en, this message translates to:
+  /// **'Start with messages, channel workspaces, and governed AI areas that are actually available to you.'**
+  String get chatHomeHeroDescription;
+
+  /// Metric summarizing unread work in Weave Home
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {No unread work} =1 {1 unread item} other {{count} unread items}}'**
+  String chatHomeUnreadMetric(int count);
+
+  /// Metric summarizing available channel workspaces in Weave Home
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {No channel workspaces} =1 {1 channel workspace} other {{count} channel workspaces}}'**
+  String chatHomeChannelsMetric(int count);
+
+  /// Metric summarizing available personal-message conversations in Weave Home
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {No personal messages} =1 {1 personal message} other {{count} personal messages}}'**
+  String chatHomePeopleMetric(int count);
+
+  /// Metric summarizing governed AI chats when available in Weave Home
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1 {1 governed AI chat} other {{count} governed AI chats}}'**
+  String chatHomeAiMetricReady(int count);
+
+  /// Metric copy for AI chats when no governed AI chat is available
+  ///
+  /// In en, this message translates to:
+  /// **'AI governed by workspace policy'**
+  String get chatHomeAiMetricDisabled;
+
+  /// Button that opens the highest-priority available conversation from Weave Home
+  ///
+  /// In en, this message translates to:
+  /// **'Open next work item'**
+  String get chatHomeContinueButton;
+
+  /// Small count badge for a Weave Home overview section
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0 {0 items} =1 {1 item} other {{count} items}}'**
+  String chatOverviewSectionCount(int count);
+
   /// Title for the favorites section in the chat overview
   ///
   /// In en, this message translates to:

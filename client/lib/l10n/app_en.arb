@@ -451,6 +451,67 @@
   "@chatOverviewDescription": {
     "description": "Description for the chat overview/home surface"
   },
+  "chatHomeHeroTitle": "Your organization workspace",
+  "@chatHomeHeroTitle": {
+    "description": "Title for the professional Weave Home cockpit card"
+  },
+  "chatHomeHeroDescription": "Start with messages, channel workspaces, and governed AI areas that are actually available to you.",
+  "@chatHomeHeroDescription": {
+    "description": "Description for the professional Weave Home cockpit card"
+  },
+  "chatHomeUnreadMetric": "{count, plural, =0 {No unread work} =1 {1 unread item} other {{count} unread items}}",
+  "@chatHomeUnreadMetric": {
+    "description": "Metric summarizing unread work in Weave Home",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatHomeChannelsMetric": "{count, plural, =0 {No channel workspaces} =1 {1 channel workspace} other {{count} channel workspaces}}",
+  "@chatHomeChannelsMetric": {
+    "description": "Metric summarizing available channel workspaces in Weave Home",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatHomePeopleMetric": "{count, plural, =0 {No personal messages} =1 {1 personal message} other {{count} personal messages}}",
+  "@chatHomePeopleMetric": {
+    "description": "Metric summarizing available personal-message conversations in Weave Home",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatHomeAiMetricReady": "{count, plural, =1 {1 governed AI chat} other {{count} governed AI chats}}",
+  "@chatHomeAiMetricReady": {
+    "description": "Metric summarizing governed AI chats when available in Weave Home",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatHomeAiMetricDisabled": "AI governed by workspace policy",
+  "@chatHomeAiMetricDisabled": {
+    "description": "Metric copy for AI chats when no governed AI chat is available"
+  },
+  "chatHomeContinueButton": "Open next work item",
+  "@chatHomeContinueButton": {
+    "description": "Button that opens the highest-priority available conversation from Weave Home"
+  },
+  "chatOverviewSectionCount": "{count, plural, =0 {0 items} =1 {1 item} other {{count} items}}",
+  "@chatOverviewSectionCount": {
+    "description": "Small count badge for a Weave Home overview section",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "chatFavoritesSectionTitle": "Favorites",
   "@chatFavoritesSectionTitle": {
     "description": "Title for the favorites section in the chat overview"
