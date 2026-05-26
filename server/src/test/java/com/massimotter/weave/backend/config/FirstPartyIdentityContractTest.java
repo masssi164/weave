@@ -114,6 +114,14 @@ class FirstPartyIdentityContractTest {
     }
 
     @Test
+    void grantsMethodSecurityRolesFromClientResourceAccess() throws Exception {
+        mockMvc.perform(get("/api/admin/policies/effective")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer client-admin-role"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orgRoles[0]").value("admin"));
+    }
+
+    @Test
     void normalizesIssuedForFromClientIdWhenAzpIsAbsent() throws Exception {
         mockMvc.perform(get("/api/me")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer client-id-only"))
@@ -145,6 +153,10 @@ class FirstPartyIdentityContractTest {
                     Map.of("azp", FIRST_PARTY_CLIENT_ID));
             case "client-id-only" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
                     Map.of("client_id", FIRST_PARTY_CLIENT_ID));
+            case "client-admin-role" -> jwt(tokenValue, List.of(REQUIRED_AUDIENCE), "weave:workspace",
+                    Map.of(
+                            "azp", FIRST_PARTY_CLIENT_ID,
+                            "resource_access", Map.of(FIRST_PARTY_CLIENT_ID, Map.of("roles", List.of("admin")))));
             case "wrong-audience" -> jwt(tokenValue, List.of("other-api"), "weave:workspace",
                     Map.of("azp", FIRST_PARTY_CLIENT_ID));
             case "missing-audience" -> jwt(tokenValue, null, "weave:workspace",

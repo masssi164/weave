@@ -17,6 +17,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 final class OrganizationIdentityContextFactory {
 
     private static final List<String> WEAVE_ORG_ROLES = List.of("owner", "admin", "operator", "member", "guest");
+    private static final int MAX_IDENTITY_ISSUER_LENGTH = 384;
+    private static final int MAX_IDENTITY_SUBJECT_LENGTH = 128;
 
     private OrganizationIdentityContextFactory() {
     }
@@ -26,7 +28,9 @@ final class OrganizationIdentityContextFactory {
         String issuer = issuer(jwt);
         String organizationId = firstText(
                 claim(jwt, "weave_tenant"),
+                claim(jwt, "weave_tenant_id"),
                 claim(jwt, "tenant"),
+                claim(jwt, "tenant_id"),
                 claim(jwt, "tid"),
                 claim(jwt, "org_id"),
                 "weave-dogfood");
@@ -62,19 +66,35 @@ final class OrganizationIdentityContextFactory {
                     "Authenticated token is missing a stable subject.",
                     Map.of("claim", "sub"));
         }
-        return jwt.getSubject().trim();
+        String subject = jwt.getSubject().trim();
+        validateIdentitySegment(subject, "sub", MAX_IDENTITY_SUBJECT_LENGTH);
+        return subject;
     }
 
     private static String issuer(Jwt jwt) {
         if (jwt != null && jwt.getIssuer() != null && hasText(jwt.getIssuer().toString())) {
-            return jwt.getIssuer().toString().trim();
+            String issuer = jwt.getIssuer().toString().trim();
+            validateIdentitySegment(issuer, "iss", MAX_IDENTITY_ISSUER_LENGTH);
+            return issuer;
         }
-        return Optional.ofNullable(claim(jwt, "iss"))
+        String issuer = Optional.ofNullable(claim(jwt, "iss"))
                 .orElseThrow(() -> new ApiErrorException(
                         HttpStatus.BAD_REQUEST,
                         "missing-issuer",
                         "Authenticated token is missing a stable issuer.",
                         Map.of("claim", "iss")));
+        validateIdentitySegment(issuer, "iss", MAX_IDENTITY_ISSUER_LENGTH);
+        return issuer;
+    }
+
+    private static void validateIdentitySegment(String value, String claim, int maxLength) {
+        if (value.length() > maxLength || value.indexOf('#') >= 0 || value.chars().anyMatch(Character::isWhitespace)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "invalid-identity-claim",
+                    "Authenticated token identity claims are not support-safe issuer+subject components.",
+                    Map.of("claim", claim));
+        }
     }
 
     private static List<String> canonicalRoles(Jwt jwt) {

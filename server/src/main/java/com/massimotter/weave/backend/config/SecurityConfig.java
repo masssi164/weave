@@ -76,11 +76,19 @@ public class SecurityConfig {
             authorities.addAll(scopeAuthorities);
         }
 
-        for (String role : extractRealmRoles(jwt)) {
+        for (String role : extractRoles(jwt)) {
             authorities.add(new SimpleGrantedAuthority("ROLE_" + normalizeAuthoritySegment(role)));
         }
 
         return List.copyOf(authorities);
+    }
+
+    private List<String> extractRoles(Jwt jwt) {
+        LinkedHashSet<String> roles = new LinkedHashSet<>();
+        roles.addAll(extractStringClaims(jwt, "roles"));
+        roles.addAll(extractRealmRoles(jwt));
+        roles.addAll(extractClientRoles(jwt));
+        return List.copyOf(roles);
     }
 
     private List<String> extractRealmRoles(Jwt jwt) {
@@ -95,6 +103,44 @@ public class SecurityConfig {
         }
 
         return roleValues.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(String::trim)
+                .filter(role -> !role.isEmpty())
+                .toList();
+    }
+
+    private List<String> extractClientRoles(Jwt jwt) {
+        Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
+        if (resourceAccess == null) {
+            return List.of();
+        }
+
+        for (String client : new String[] {"weave", "weave-app", jwt.getClaimAsString("azp"), jwt.getClaimAsString("client_id")}) {
+            if (client == null || client.isBlank() || !(resourceAccess.get(client) instanceof Map<?, ?> clientAccess)) {
+                continue;
+            }
+            Object roles = clientAccess.get("roles");
+            if (roles instanceof Collection<?> roleValues) {
+                return stringValues(roleValues);
+            }
+        }
+        return List.of();
+    }
+
+    private List<String> extractStringClaims(Jwt jwt, String claimName) {
+        Object claim = jwt.getClaims().get(claimName);
+        if (claim instanceof String value) {
+            return value.isBlank() ? List.of() : List.of(value.trim());
+        }
+        if (claim instanceof Collection<?> values) {
+            return stringValues(values);
+        }
+        return List.of();
+    }
+
+    private List<String> stringValues(Collection<?> values) {
+        return values.stream()
                 .filter(String.class::isInstance)
                 .map(String.class::cast)
                 .map(String::trim)
