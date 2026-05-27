@@ -82,6 +82,50 @@ Every Live Stack E2E artifact directory must include a support-safe manifest:
 
 This makes evidence portable: a release owner can inspect one artifact directory and know what commit, run, lane, and contract it represents without reading private runner logs.
 
+
+## Repeatable RC readiness check
+
+Use the local/CI-safe readiness check before creating or promoting an RC tag:
+
+```sh
+./gradlew releaseReadinessCheck \
+  -PcandidateVersion=0.1.0-rc.1 \
+  -PcandidateTag=v0.1.0-rc.1 \
+  -PcandidateCommit=<sha>
+# or pass explicit evidence paths when reviewing downloaded artifacts:
+python3 tools/release_readiness_check.py \
+  --candidate-version 0.1.0-rc.1 \
+  --candidate-tag v0.1.0-rc.1 \
+  --candidate-commit <sha> \
+  --ci-summary build/evidence/ci-summary.json \
+  --live-evidence-dir weave-live-stack-acceptance-evidence \
+  --blockers-json build/evidence/release-blockers.json \
+  --json
+```
+
+The command does not publish a release, create a tag, call providers, or read live logs. It validates only support-safe summaries and pointers:
+
+- clean version/tag/commit inputs;
+- release notes have the required sections and at least one candidate entry;
+- sanitized CI summary exists, matches the candidate commit, and includes the release evidence gate;
+- release lane and offline evidence pointers stay present;
+- Live Stack E2E `release-evidence-manifest.json` is credentialed runtime evidence for the same commit and contains all required markers;
+- `release-blocker` issue evidence is supplied and has no open blockers;
+- any waiver is an explicit release-owner marker with owner, reason, exact candidate commit/tag, expiry, scoped gate, and compensating evidence.
+
+If the CI summary is absent, the tool writes a local pointer under `build/evidence/rc-readiness/` but still blocks readiness; generated pointers are not a substitute for green CI. If credentialed Live Stack E2E or release blockers are waived, the JSON and Markdown output mark the check as `waived` rather than pretending it passed.
+
+### RC promotion workflow
+
+1. Prepare the candidate on protected `main`; do not create the RC tag yet.
+2. Run `./gradlew ci` and keep the sanitized `build/evidence/ci-summary.json` artifact.
+3. Review release notes or generate a draft release artifact; the GitHub release remains a draft/prerelease until signoff.
+4. Dispatch `.github/workflows/live-stack-e2e.yml` on the candidate commit using the dedicated self-hosted runner and collect the `weave-live-stack-acceptance-evidence` artifact directory.
+5. Export a support-safe release-blocker summary, for example open GitHub issues labeled `release-blocker`, to `build/evidence/release-blockers.json`.
+6. Run `tools/release_readiness_check.py` with the exact candidate version, tag, commit, CI summary, Live Stack artifact, release notes, and blocker summary.
+7. Record the result in the signoff issue with artifact links, rollback note, and release-owner decision.
+8. Only after green or explicitly waived readiness should the release owner create the RC tag and publish the prerelease.
+
 ## Product/context alignment
 
 Sprint 6 changes must keep these layers coherent:
