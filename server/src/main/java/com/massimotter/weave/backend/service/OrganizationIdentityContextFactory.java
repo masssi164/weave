@@ -41,7 +41,6 @@ final class OrganizationIdentityContextFactory {
         List<String> roles = canonicalRoles(jwt);
         List<String> groups = stringClaims(jwt, "weave_groups", "groups");
         List<String> contextRoles = stringClaims(jwt, "weave_context_roles").stream()
-                .map(String::trim)
                 .map(role -> role.toLowerCase(Locale.ROOT))
                 .distinct()
                 .sorted()
