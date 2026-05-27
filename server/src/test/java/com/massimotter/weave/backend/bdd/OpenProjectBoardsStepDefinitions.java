@@ -19,10 +19,13 @@ import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.support.BoardsErrorCode;
 import com.massimotter.weave.backend.boards.support.BoardsException;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.model.boards.BoardsWorkspaceResponse;
 import com.massimotter.weave.backend.service.BoardsFacadeService;
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import io.cucumber.java.Before;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -32,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -250,7 +254,8 @@ public class OpenProjectBoardsStepDefinitions {
                 request -> denyContext
                         ? ContextAuthorizationDecision.deny("no matching context membership")
                         : ContextAuthorizationDecision.allow("context membership matched"),
-                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null));
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+                workspaceCapabilityService());
     }
 
     private void ensureScenarioState() {
@@ -297,13 +302,25 @@ public class OpenProjectBoardsStepDefinitions {
                 .encodeToString(("apikey:" + API_TOKEN).getBytes(StandardCharsets.UTF_8));
     }
 
+    private WorkspaceCapabilityService workspaceCapabilityService() {
+        OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        return new WorkspaceCapabilityService(
+                properties,
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+    }
+
     private Jwt jwt() {
         Instant now = Instant.parse("2026-05-20T18:00:00Z");
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-acme")
                 .claim("weave_context_id", "ctx-product-channel")
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                .claim("groups", java.util.List.of("weave-board-editors"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

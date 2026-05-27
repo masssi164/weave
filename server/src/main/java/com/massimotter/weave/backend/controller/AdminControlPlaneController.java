@@ -123,7 +123,7 @@ public class AdminControlPlaneController {
     @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
     @Operation(summary = "Read support-safe admin/provider audit events")
     @ApiResponse(responseCode = "200", description = "Audit event list.")
-    public List<AdminAuditEventResponse> auditEvents() {
-        return adminControlPlaneService.auditEvents();
+    public List<AdminAuditEventResponse> auditEvents(@AuthenticationPrincipal Jwt jwt) {
+        return adminControlPlaneService.auditEvents(jwt);
     }
 }

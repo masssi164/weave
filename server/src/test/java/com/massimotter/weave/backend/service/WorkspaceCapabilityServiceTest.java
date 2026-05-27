@@ -157,6 +157,56 @@ class WorkspaceCapabilityServiceTest {
     }
 
     @Test
+    void ownerAndAdminCanConfigureProvidersAndPolicyButOperatorCannotMutate() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.local/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+
+        service.requireCapability(jwt(List.of("owner"), List.of()), "admin.provider.configure", "admin-control-plane", "select-provider");
+        service.requireCapability(jwt(List.of("admin"), List.of()), "admin.policy.edit", "admin-control-plane", "update-capability-whitelist");
+
+        assertThatThrownBy(() -> service.requireCapability(
+                jwt(List.of("operator"), List.of()),
+                "admin.provider.configure",
+                "admin-control-plane",
+                "select-provider"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status().value()).isEqualTo(403);
+                    assertThat(exception.code()).isEqualTo("capability-policy-blocked");
+                    assertThat(exception.details()).containsEntry("requiredCapability", "admin.provider.configure");
+                    assertThat(exception.details()).containsEntry("diagnosticsRedacted", true);
+                });
+    }
+
+    @Test
+    void guestsUnknownRolesAndUnmappedGroupsFailClosedForRepresentativeAdminReads() {
+        WorkspaceCapabilityService service = new WorkspaceCapabilityService(
+                resourceServerProperties("https://auth.weave.local/realms/weave"),
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+
+        List<Jwt> deniedIdentities = List.of(
+                jwt(List.of("guest"), List.of()),
+                jwt(List.of("unknown"), List.of("unmapped-group")),
+                jwt(List.of(), List.of("unmapped-group")));
+
+        for (Jwt deniedIdentity : deniedIdentities) {
+            assertThatThrownBy(() -> service.requireCapability(
+                    deniedIdentity,
+                    "admin_control_plane.readiness_read",
+                    "admin-control-plane",
+                    "overview"))
+                    .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                        assertThat(exception.status().value()).isEqualTo(403);
+                        assertThat(exception.code()).isEqualTo("capability-policy-blocked");
+                        assertThat(exception.details()).containsEntry("policyState", "policy_blocked");
+                        assertThat(exception.details()).containsEntry("diagnosticsRedacted", true);
+                    });
+        }
+    }
+
+    @Test
     void requireCapabilityAllowsExplicitGroupGrants() {
         WorkspaceCapabilityService service = new WorkspaceCapabilityService(
                 resourceServerProperties("https://auth.weave.local/realms/weave"),

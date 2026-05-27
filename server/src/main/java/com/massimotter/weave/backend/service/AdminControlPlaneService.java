@@ -88,6 +88,7 @@ public class AdminControlPlaneService {
     }
 
     public AdminControlPlaneResponse overview(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "overview");
         ProviderRegistryResponse registry = providerRegistry.status();
         return new AdminControlPlaneResponse(
                 "admin-control-plane-v1",
@@ -116,6 +117,7 @@ public class AdminControlPlaneService {
     }
 
     public ProviderSelectionResponse selectProvider(ProviderSelectionRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.provider.configure", "admin-control-plane", "select-provider");
         ProviderSelection selection = validateProviderSelection(request, jwt);
         boolean dryRun = request.dryRun();
         ProviderSelection applied = dryRun ? selection : providerSelectionRepository.save(selection);
@@ -144,10 +146,12 @@ public class AdminControlPlaneService {
     }
 
     public EffectivePolicyResponse effectivePolicy(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "effective-policy");
         return workspaceCapabilityService.effectivePolicySnapshot(jwt, "organization");
     }
 
     public CapabilityWhitelistResponse whitelist(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "read-capability-whitelist");
         WorkspaceCapabilityPolicyResponse policy = workspaceCapabilityService.policySnapshot(jwt);
         Map<String, List<String>> profileCapabilities = new LinkedHashMap<>();
         profileCapabilities.put("workspace-admin", List.of(
@@ -170,6 +174,7 @@ public class AdminControlPlaneService {
     }
 
     public CapabilityWhitelistResponse updateWhitelist(CapabilityWhitelistUpdateRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.policy.edit", "admin-control-plane", "update-capability-whitelist");
         if (request == null || request.profileKey() == null || request.profileKey().isBlank()) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
@@ -199,6 +204,7 @@ public class AdminControlPlaneService {
     }
 
     public OrganizationBootstrapResponse bootstrapOrganization(OrganizationBootstrapRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.policy.edit", "admin-control-plane", "bootstrap-organization");
         OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
         if (request == null || request.organizationId() == null || request.organizationId().isBlank()) {
             throw new ApiErrorException(
@@ -247,6 +253,7 @@ public class AdminControlPlaneService {
     }
 
     public ProviderReadinessTestResponse testProviderReadiness(ProviderReadinessTestRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "provider-readiness-test");
         if (request == null || request.providerKey() == null || request.providerKey().isBlank()) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
@@ -298,7 +305,8 @@ public class AdminControlPlaneService {
                         "secretRef", safeSecretRef(request.secretRef())));
     }
 
-    public List<AdminAuditEventResponse> auditEvents() {
+    public List<AdminAuditEventResponse> auditEvents(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "read-audit-events");
         if (auditEventPublisher instanceof InMemoryAuditEventPublisher memoryAudit) {
             return memoryAudit.events().stream()
                     .map(event -> new AdminAuditEventResponse(

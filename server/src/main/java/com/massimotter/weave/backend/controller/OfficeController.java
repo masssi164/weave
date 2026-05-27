@@ -13,6 +13,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,8 +41,8 @@ public class OfficeController {
     @Operation(summary = "Read Office provider-neutral capabilities")
     @ApiResponse(responseCode = "200", description = "Secret-free Office capability metadata.",
             content = @Content(schema = @Schema(implementation = OfficeCapabilitiesResponse.class)))
-    public OfficeCapabilitiesResponse capabilities() {
-        return officeFacadeService.capabilities();
+    public OfficeCapabilitiesResponse capabilities(@AuthenticationPrincipal Jwt jwt) {
+        return officeFacadeService.capabilities(jwt);
     }
 
     @PostMapping("/api/office/launch")
@@ -49,7 +51,9 @@ public class OfficeController {
             content = @Content(schema = @Schema(implementation = OfficeLaunchResponse.class)))
     @ApiResponse(responseCode = "503", description = "Office provider is not configured or unavailable.",
             content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
-    public OfficeLaunchResponse launch(@Valid @RequestBody OfficeLaunchRequest request) {
-        return officeFacadeService.launch(request);
+    public OfficeLaunchResponse launch(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody OfficeLaunchRequest request) {
+        return officeFacadeService.launch(jwt, request);
     }
 }

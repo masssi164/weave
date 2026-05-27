@@ -142,8 +142,8 @@ public class WorkspaceController {
             @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public WorkspaceReleaseReadinessResponse releaseReadiness() {
-        return workspaceReleaseReadinessService.snapshot();
+    public WorkspaceReleaseReadinessResponse releaseReadiness(@AuthenticationPrincipal Jwt jwt) {
+        return workspaceReleaseReadinessService.snapshot(jwt);
     }
 
     @GetMapping({"/api/workspace/home", "/api/v1/workspace/home"})

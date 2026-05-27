@@ -45,6 +45,8 @@ public class WorkspaceCapabilityService {
             "release_evidence.read",
             "release_evidence.manage",
             "admin_control_plane.readiness_read",
+            "admin.policy.edit",
+            "admin.provider.configure",
             "weaver.exec_disabled");
     private static final List<String> OPERATOR_CAPABILITIES = List.of(
             "admin_control_plane.readiness_read",

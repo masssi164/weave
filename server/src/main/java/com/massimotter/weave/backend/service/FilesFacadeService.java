@@ -28,14 +28,17 @@ public class FilesFacadeService {
     private final FilesStorageAdapter filesStorageAdapter;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final WorkspaceCapabilityService workspaceCapabilityService;
 
     public FilesFacadeService(
             ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
             ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService) {
         this.filesStorageAdapter = filesStorageAdapterProvider.getIfAvailable();
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.workspaceCapabilityService = workspaceCapabilityService;
     }
 
     public FileListResponse list(String path) {
@@ -72,6 +75,8 @@ public class FilesFacadeService {
                     "Authentication is required.",
                     Map.of("module", "files", "operation", operation));
         }
+        Jwt jwt = jwtPrincipal(authentication, operation);
+        workspaceCapabilityService.requireCapability(jwt, capabilityFor(permission), "files", operation);
         PrincipalContext principalContext = principalContext(authentication, operation);
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
                 principalContext.tenantId(),
@@ -90,6 +95,17 @@ public class FilesFacadeService {
                             "contextId", DEFAULT_CONTEXT_ID,
                             "permission", permission.name().toLowerCase()));
         }
+    }
+
+    private Jwt jwtPrincipal(Authentication authentication, String operation) {
+        if (authentication.getPrincipal() instanceof Jwt jwt) {
+            return jwt;
+        }
+        throw invalidAuthentication(operation, "JWT principal is required");
+    }
+
+    private String capabilityFor(ContextPermission permission) {
+        return permission == ContextPermission.VIEW ? "files.read" : "files.upload";
     }
 
     private PrincipalContext principalContext(Authentication authentication, String operation) {

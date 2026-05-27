@@ -38,7 +38,6 @@ import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryRequest;
 import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryResponse;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -492,39 +491,11 @@ public class ChatFacadeService {
     }
 
     private void requireAdminRole(Jwt jwt) {
-        List<String> roles = extractRealmRoles(jwt);
-        if (roles.stream().noneMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"))) {
-            throw new ApiErrorException(
-                    HttpStatus.FORBIDDEN,
-                    "admin-policy-blocked",
-                    "This Chat provider replacement action requires an owner, admin, or operator role.",
-                    Map.of(
-                            "module", DOMAIN,
-                            "operation", "provider_replacement_dry_run",
-                            "policyState", "policy-blocked",
-                            "diagnosticsRedacted", true));
-        }
-    }
-
-    private List<String> extractRealmRoles(Jwt jwt) {
-        if (jwt == null) {
-            return List.of();
-        }
-        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) {
-            return List.of();
-        }
-        Object roles = realmAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
-        }
-        return roleValues.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(role -> role.trim().toLowerCase(Locale.ROOT))
-                .filter(role -> !role.isEmpty())
-                .sorted()
-                .toList();
+        workspaceCapabilityService.requireCapability(
+                jwt,
+                "admin_control_plane.readiness_read",
+                DOMAIN,
+                "provider_replacement_dry_run");
     }
 
     private List<String> grantedChatCapabilities(Jwt jwt) {
