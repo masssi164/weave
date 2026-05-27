@@ -14,6 +14,7 @@ Start with:
 4. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
 5. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
 6. [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md) — active RC/provider-ops entry slice.
+7. [Sprint 6 epic closure report](sprint-6-epic-closure-report.md) — #212/#233 acceptance evidence after the merged identity/admin slices.
 
 ### Member / user
 
@@ -88,6 +89,7 @@ Release and evidence docs:
 - [Manuals and release notes integration](manuals-and-release-notes-integration.md)
 - [Sprint 5 closure report](sprint-5-closure-report.md)
 - [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md)
+- [Sprint 6 epic closure report](sprint-6-epic-closure-report.md)
 
 Historical/context docs:
 
