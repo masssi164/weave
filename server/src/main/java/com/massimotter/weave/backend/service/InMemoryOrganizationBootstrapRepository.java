@@ -3,9 +3,6 @@ package com.massimotter.weave.backend.service;
 import java.util.Optional;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.stereotype.Repository;
-
-@Repository
 public class InMemoryOrganizationBootstrapRepository implements OrganizationBootstrapRepository {
 
     private final ConcurrentHashMap<String, OrganizationBootstrapRecord> records = new ConcurrentHashMap<>();
