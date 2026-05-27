@@ -48,6 +48,19 @@ locals {
     guest    = "workspace-guests"
   }
 
+  weave_capability_groups = {
+    board_editors    = "weave-board-editors"
+    calendar_editors = "weave-calendar-editors"
+    document_editors = "weave-document-editors"
+    meeting_hosts    = "weave-meeting-hosts"
+    decision_records = "weave-decision-recorders"
+    weaver_pilot     = "weave-weaver-pilot"
+  }
+
+  live_e2e_test_user_capability_groups = [
+    "board_editors",
+  ]
+
   client_defaults = {
     enabled                             = true
     standard_flow_enabled               = false
@@ -171,6 +184,13 @@ resource "keycloak_group" "weave_product_role" {
   name     = each.value
 }
 
+resource "keycloak_group" "weave_capability" {
+  for_each = local.weave_capability_groups
+
+  realm_id = keycloak_realm.tenant.id
+  name     = each.value
+}
+
 resource "keycloak_group_roles" "weave_product_role" {
   for_each = local.weave_product_role_groups
 
@@ -192,9 +212,10 @@ resource "keycloak_user_groups" "test_member" {
 
   realm_id = keycloak_realm.tenant.id
   user_id  = keycloak_user.test[0].id
-  group_ids = [
-    keycloak_group.weave_product_role["member"].id,
-  ]
+  group_ids = concat(
+    [keycloak_group.weave_product_role["member"].id],
+    [for group_key in local.live_e2e_test_user_capability_groups : keycloak_group.weave_capability[group_key].id],
+  )
 }
 
 resource "keycloak_openid_client" "client" {
@@ -298,6 +319,28 @@ resource "keycloak_openid_client_default_scopes" "weave_admin_console" {
   depends_on = [
     keycloak_openid_client_scope.weave_workspace,
   ]
+}
+
+resource "keycloak_openid_group_membership_protocol_mapper" "weave_app_groups" {
+  realm_id            = keycloak_realm.tenant.id
+  client_id           = keycloak_openid_client.client["weave_app"].id
+  name                = "groups"
+  claim_name          = "groups"
+  full_path           = false
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
+}
+
+resource "keycloak_openid_group_membership_protocol_mapper" "weave_admin_console_groups" {
+  realm_id            = keycloak_realm.tenant.id
+  client_id           = keycloak_openid_client.client["weave_admin_console"].id
+  name                = "groups"
+  claim_name          = "groups"
+  full_path           = false
+  add_to_id_token     = true
+  add_to_access_token = true
+  add_to_userinfo     = true
 }
 
 resource "keycloak_openid_group_membership_protocol_mapper" "nextcloud_groups" {
