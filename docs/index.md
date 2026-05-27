@@ -12,6 +12,7 @@ Start with:
 2. Root README — public product entry point and architecture-at-a-glance.
 3. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
 4. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
+5. [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md) — active RC/provider-ops entry slice.
 
 ### Member / user
 
@@ -83,6 +84,7 @@ Release and evidence docs:
 - [Build evidence delivery system](build-evidence-delivery-system.md)
 - [Manuals and release notes integration](manuals-and-release-notes-integration.md)
 - [Sprint 5 closure report](sprint-5-closure-report.md)
+- [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md)
 
 Historical/context docs:
 

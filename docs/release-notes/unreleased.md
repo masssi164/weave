@@ -7,6 +7,7 @@ Use this page for release-affecting changes that have merged but are not include
 - MkDocs documentation site foundation with handbook navigation, diagrams, GitFlow/PR workflow, and release notes process.
 - Root Gradle wrapper and orchestration tasks for delegated server, client, admin, infra, docs, acceptance, CI, and release-notes checks.
 - Local release notes generator for merged PR metadata grouped by release-notes labels.
+- Sprint 6 kickoff plan and initial Keycloak realm dry-run provider contract scaffold for admin-owned identity/provider operations.
 
 ## Changed
 
