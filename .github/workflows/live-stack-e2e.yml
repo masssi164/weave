@@ -245,15 +245,14 @@ jobs:
             --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
-      - name: Dump stack logs on failure
+      - name: Generate support-safe failure diagnostics
         if: failure()
+        env:
+          WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR: ${{ env.WEAVE_ACCEPTANCE_EVIDENCE_DIR }}/failure-diagnostics
+          WEAVE_LIVE_STACK_SUPPORT_BUNDLE_LOG_LINES: '80'
         run: |
-          bash weave/infra/weave-workspace/operator-check.sh || true
-          docker ps -a
-          for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synapse weave-nextcloud weave-db; do
-            echo "--- ${container}"
-            docker logs "${container}" || true
-          done
+          set -euo pipefail
+          bash weave/infra/weave-workspace/live-stack-failure-diagnostics.sh "$WEAVE_LIVE_STACK_FAILURE_DIAGNOSTICS_DIR"
 
       - name: Destroy stack and scrub stale resources
         if: always()

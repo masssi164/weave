@@ -115,14 +115,17 @@ cleanup() {
     rm -rf "${WORK_DIR}"
   fi
 }
-trap cleanup EXIT
-
 redact_stream() {
   perl -0pe '
     s/-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----/<redacted-private-key>/gs;
+    s#([a-z][a-z0-9+.-]*://)([^\s/@:]+):([^\s/@]+)@#${1}<redacted>@#gi;
     s/(Authorization:\s*)(Bearer|Basic)\s+[^\r\n]+/${1}<redacted>/gi;
     s/((?:Set-)?Cookie:\s*)[^\r\n]+/${1}<redacted>/gi;
-    s/((?:password|passwd|token|secret|private[_-]?key|signing[_-]?key|credential|authorization|cookie)\s*[=:]\s*)([^\s\r\n"'"'"']+)/${1}<redacted>/gi;
+    s/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/<redacted-email>/gi;
+    s/\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/<redacted-cloud-token>/g;
+    s/\b(?:ghp|gho|ghu|ghs|ghr|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]{20,}\b/<redacted-cloud-token>/g;
+    s/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/<redacted-jwt>/g;
+    s/(([A-Za-z0-9_]*(?:password|passwd|token|secret|private[_-]?key|signing[_-]?key|credential|authorization|cookie)[A-Za-z0-9_]*\s*[=:]\s*)([^\s\r\n"'"'"']+))/${2}<redacted>/gi;
     s/("(?:password|passwd|token|secret|privateKey|signingKey|credential|authorization|cookie)"\s*:\s*")[^"]+/${1}<redacted>/gi;
   '
 }
@@ -131,12 +134,12 @@ scan_for_unredacted_secrets() {
   local path="$1"
   local findings=""
 
-  findings="$(grep -RInE \
-    'BEGIN (RSA |EC |OPENSSH |)?PRIVATE KEY|Authorization:[[:space:]]+(Bearer|Basic)[[:space:]]+[^<[:space:]]|Cookie:[[:space:]]+[^<[:space:]]|Set-Cookie:[[:space:]]+[^<[:space:]]|([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|PRIVATE_KEY|SIGNING_KEY|CREDENTIAL)[A-Za-z0-9_]*[=:][[:space:]]*[^<[:space:]]+)' \
+  findings="$(grep -RIliE \
+    'BEGIN ((RSA|EC|OPENSSH) )?PRIVATE KEY|[a-z][a-z0-9+.-]*://[^[:space:]/@:]+:[^[:space:]/@]+@|Authorization:[[:space:]]+(Bearer|Basic)[[:space:]]+[^<[:space:]]|Cookie:[[:space:]]+[^<[:space:]]|Set-Cookie:[[:space:]]+[^<[:space:]]|([A-Za-z0-9_]*(PASSWORD|TOKEN|SECRET|PRIVATE_KEY|SIGNING_KEY|CREDENTIAL)[A-Za-z0-9_]*[=:][[:space:]]*[^<[:space:]]+)|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|(AKIA|ASIA)[A-Z0-9]{16}|(ghp|gho|ghu|ghs|ghr|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}' \
     "${path}" 2>/dev/null || true)"
 
   if [[ -n "${findings}" ]]; then
-    printf 'Support bundle redaction check failed. Possible secret material remains:\n%s\n' "${findings}" >&2
+    printf 'Support bundle redaction check failed. Possible secret material remains in these files only; values are intentionally not printed:\n%s\n' "${findings}" >&2
     return 1
   fi
 }
@@ -444,8 +447,11 @@ main() {
     fail "WEAVE_SUPPORT_BUNDLE_LOG_LINES must be numeric"
   fi
 
+  trap cleanup EXIT
   local output_dir="${1:-${SUPPORT_BUNDLE_OUTPUT_DIR}}"
   create_bundle "${output_dir}"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
