@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "status": "sprint-6-enterprise-foundation",
+  "promotionModel": {
+    "branching": "protected-main-with-short-lived-pr-branches",
+    "releaseCandidateSource": "main",
+    "promotionRule": "no-v0.1-rc-promotion-without-green-credentialed-live-stack-e2e-or-explicit-release-owner-waiver",
+    "waiverOwner": "release-owner",
+    "waiverEvidence": "checked-in or issue-linked support-safe rationale with exact blocker, compensating evidence, commit, expiry, and owner"
+  },
+  "lanes": [
+    {
+      "id": "pr-safe-ci",
+      "purpose": "fast deterministic monorepo confidence before merge",
+      "trigger": "pull_request and push",
+      "requiredFor": ["merge-readiness"],
+      "gates": [
+        {
+          "id": "gradle-ci",
+          "command": "./gradlew ci",
+          "required": true,
+          "evidence": ["build/evidence/ci-summary.json", "build/docs"]
+        },
+        {
+          "id": "release-notes-label-check",
+          "command": "./gradlew releaseNotesLabelCheck",
+          "required": true,
+          "evidence": ["exactly-one-release-notes-label"]
+        }
+      ]
+    },
+    {
+      "id": "release-candidate-live-evidence",
+      "purpose": "credentialed product-flow proof on the dedicated self-hosted live runner",
+      "trigger": "manual workflow_dispatch, nightly schedule, or approved workflow_call",
+      "requiredFor": ["v0.1-rc-promotion", "dogfood-production-tag"],
+      "gates": [
+        {
+          "id": "credentialed-live-stack-e2e",
+          "workflow": ".github/workflows/live-stack-e2e.yml",
+          "required": true,
+          "evidence": [
+            "weave-live-stack-acceptance-evidence/acceptance-summary.md",
+            "weave-live-stack-acceptance-evidence/scenario-mapping-results.json",
+            "weave-live-stack-acceptance-evidence/evidence-markers.json",
+            "weave-live-stack-acceptance-evidence/release-evidence-manifest.json"
+          ],
+          "mustObserveMarkers": ["AUTH_RESULT", "PROFILE_RESULT", "CHAT_RESULT", "MATRIX_RESULT", "E2EE_RESULT", "FILES_RESULT", "PROVIDER_STACK_RESULT", "CALENDAR_RESULT", "BOARDS_RESULT"],
+          "supportSafeExclusions": ["raw credentials", "credential-bearing URLs", "provider internals", "downstream provider error bodies", "private live logs"]
+        }
+      ]
+    },
+    {
+      "id": "release-promotion",
+      "purpose": "reviewable release candidate decision and draft publication",
+      "trigger": "release owner decision after evidence review",
+      "requiredFor": ["release-draft", "tagging"],
+      "gates": [
+        {
+          "id": "release-draft-review",
+          "workflow": ".github/workflows/release-draft.yml",
+          "required": true,
+          "evidence": ["release-draft-review-<tag>", "docs/release-notes/v0.1.md"]
+        },
+        {
+          "id": "release-owner-signoff",
+          "required": true,
+          "evidence": ["GitHub issue or release checklist naming commit, artifacts, blocker/waiver if any, rollback note, owner"]
+        }
+      ]
+    }
+  ],
+  "ownership": {
+    "releaseOwner": "human release owner",
+    "orchestration": "weave-co-leader coordinates specialist agents; main session verifies gates and reports",
+    "secrets": "GitHub environment/repository secrets and SecretRef-style runtime configuration only",
+    "logs": "support-safe summaries by default; raw provider logs stay private runner/operator diagnostics"
+  }
+}

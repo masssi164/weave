@@ -15,9 +15,13 @@ machine-readable mapping to executable evidence.
   - `gherkin-scenarios.json`
   - `scenario-mapping-results.json`
   - `evidence-markers.json`
+  - `release-evidence-manifest.json`
 
-The artifact includes sanitized marker summaries only. It must not include raw
-secrets, tokens, cookies, private keys, or full live E2E logs.
+The artifact includes sanitized marker summaries and a release-evidence manifest
+that names the source lane, commit, workflow run metadata, required artifact
+files, and RC promotion rule. It must not include raw secrets, tokens, cookies,
+private keys, credential-bearing URLs, provider internals, downstream provider
+bodies, or full live E2E logs.
 
 ## ATDD/TDD rule
 
@@ -29,8 +33,10 @@ For new product behavior:
    evidence exists.
 3. Drive the implementation with focused unit, provider, widget, integration, or
    backend tests. Do not push implementation details into the feature file.
-4. Keep live-stack E2E sparse. It proves critical end-to-end contracts only;
-   lower-level tests carry the detailed technical coverage.
+4. Keep live-stack E2E sparse. It proves critical end-to-end product contracts
+   only; lower-level tests carry the detailed technical coverage. Admin/provider
+   setup and policy checks belong in backend/admin/control-plane CI unless the
+   member/operator product journey explicitly consumes the stable facade state.
 5. Run `make offline-contract-test` before review. Use `make integration-test`
    only on the dedicated live-stack runner or another explicitly prepared local
    stack, keeping generated evidence sanitized.

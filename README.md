@@ -20,6 +20,7 @@ Current maturity is honest and evidence-scoped:
 - [Documentation landing page](docs/index.md) for audience-specific manuals and evidence maps.
 - [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md) for current product ordering.
 - [Sprint 5 closure report](docs/sprint-5-closure-report.md) for project-readiness evidence and release-candidate gaps.
+- [Enterprise release foundation](docs/enterprise-release-foundation.md) for Sprint 6 release lanes, RC evidence, waiver rules, and support-safe artifacts.
 
 ## Product architecture
 
@@ -50,6 +51,7 @@ Use this page for release-affecting changes that have merged but are not include
 - Root Gradle wrapper and orchestration tasks for delegated server, client, admin, infra, docs, acceptance, CI, and release-notes checks.
 - Local release notes generator for merged PR metadata grouped by release-notes labels.
 - Sprint 6 kickoff plan and initial Keycloak realm dry-run provider contract scaffold for admin-owned identity/provider operations.
+- Enterprise release foundation with machine-checked release lanes, support-safe Live Stack evidence manifest, RC promotion/waiver contract, and required runtime marker policy.
 
 ## Changed
 
@@ -58,6 +60,7 @@ Use this page for release-affecting changes that have merged but are not include
 - Documentation validation now has a dedicated docs check/build path.
 - PR CI now enforces exactly one release-notes label before review/merge.
 - `make release-notes-check` now verifies release-notes label edge cases and generator fixture output.
+- Live Stack acceptance artifacts now include `release-evidence-manifest.json` with commit/run metadata, artifact list, support-safe exclusions, and the RC promotion rule.
 
 ## Fixed
 
