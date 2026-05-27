@@ -14,13 +14,17 @@ public class InMemoryOrganizationBootstrapRepository implements OrganizationBoot
         if (organizationId == null || organizationId.isBlank()) {
             return Optional.empty();
         }
-        return Optional.ofNullable(records.get(organizationId.trim().toLowerCase()));
+        return Optional.ofNullable(records.get(normalizeOrganizationId(organizationId)));
     }
 
     @Override
     public OrganizationBootstrapRecord save(OrganizationBootstrapRecord record) {
-        records.put(record.organizationId(), record);
+        records.put(normalizeOrganizationId(record.organizationId()), record);
         return record;
+    }
+
+    private String normalizeOrganizationId(String organizationId) {
+        return organizationId.trim().toLowerCase();
     }
 
     public void clear() {
