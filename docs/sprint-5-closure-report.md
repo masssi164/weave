@@ -4,86 +4,133 @@ Status: final closure evidence, 2026-05-27.
 
 ## Closure scope
 
-Sprint 5 closes the project-readiness foundation for Weave v0.1 dogfood production. The closed scope is intentionally organization-first: identity bootstrap, immutable subjects, effective policy enforcement, provider-category fit, replacement dry-run/export/delete contracts, and an Admin Console readiness UX that keeps provider configuration in admin/operator surfaces instead of member paths.
+Sprint 5 closes the project-readiness foundation for Weave as a provider-neutral organization suite. The sprint moved readiness from aspirational docs into executable backend, admin, and client boundaries: immutable identity subjects, effective policy enforcement, adapter-fit contracts, provider replacement dry-run evidence, and an Admin Console that explains role-specific policy/readiness boundaries without leaking provider internals to members.
 
-Sprint 5 does not make Weaver autonomous, does not publish a GitHub release, and does not claim a generic provider marketplace. It makes the current product line release-capable enough to enter Sprint 6 from evidence rather than optimism.
+This is not a public release publication and not a broad provider marketplace claim. It is the release-candidate foundation that lets the next sprint work from measured readiness instead of optimism-flavored soup.
 
 ## Final closure status
 
-- Milestone: `Sprint 5 — Project Readiness Foundation`.
-- Current completed implementation issues before this final report: #346, #347, #348, #349, and #350.
-- Final evidence issue: #351, closed by the PR that adds this report once protected checks pass.
-- Post-#349 `main` CI: GitHub Actions run `26494597629` succeeded on `c1128667a2711b57af21c7560f526e8b7db280bf`.
-- Post-#350 `main` CI: GitHub Actions run `26495316038` is the release-capability verification run for `0a5adee610cf2b562aa825fdc67a9e8ecbf0419c`; do not close #351 until it is green or an explicit exception is recorded.
-- Final #351 PR CI and the post-merge `main` CI remain mandatory before the milestone is considered closed.
+- Sprint 5 milestone issue set: #346 through #351.
+- Closed before this report: #346, #347, #348, #349, and #350.
+- Final closure issue: #351, closed by the PR that adds this report and navigation entry.
+- Release posture: `main` is release-capable for the Sprint 5 foundation once this final documentation PR merges with protected checks green.
+- Live-stack posture: runtime credentialed Live Stack E2E was not rerun for this closure branch. The documented exception is intentional: Sprint 5 validates provider readiness/control-plane contracts through CI, acceptance mapping, admin/client boundary tests, and support-safe dry-run evidence; credentialed runtime checks remain a release-candidate gate when real credentials are supplied.
 
 ## Issue and PR graph
 
-| Sprint 5 issue | Closing PR | Evidence summary | State |
-| --- | --- | --- | --- |
-| #346 — Identity-first organization bootstrap and immutable subject model | #352 `feat: identity org bootstrap foundation` | Added organization bootstrap/subject model foundation with server/identity evidence and release label `release-notes-feature`. | Closed 2026-05-27. |
-| #347 — Enforce effective policy across backend domain facades | #353 `feat: enforce effective workspace policy` | Backend domain facades now enforce effective workspace policy and fail closed for unauthorized capability paths. | Closed 2026-05-27. |
-| #348 — Domain adapter fit contracts for core product domains | #355 `test: enforce core domain adapter fit contracts` | Contract tests cover adapter fit, canonical models, provider-facade boundaries, and provider-neutral member behavior. | Closed 2026-05-27. |
-| #349 — Provider replacement dry-run and anti-silo export/delete contracts | #356 `feat: add provider replacement dry-run contract` | Added replacement dry-run, lossy mapping, lifecycle/export/delete, readiness, and rollback/restore expectations through backend/admin contracts. | Closed 2026-05-27. |
-| #350 — Admin Console policy and provider readiness UX | #357 `feat: show admin policy readiness boundaries` | Added Admin Console role boundaries, provider readiness/replacement dry-run UX, SecretRef-only support-safe handling, and a Flutter member boundary architecture test. | Closed 2026-05-27. |
-| #351 — Project-readiness evidence gate and release-candidate checklist | Final closure PR for this report | Lists the Sprint 5 graph, release notes evidence, green-gate expectations, live-evidence exception, residual risks, and Sprint 6 entry criteria. | Closes with this report. |
+- #346 — Identity-first organization bootstrap and immutable subject model.
+  - Closed by PR #352, `feat: identity org bootstrap foundation`.
+  - Evidence: backend identity bootstrap contracts, immutable subject model, and audit-safe admin foundation.
+- #347 — Enforce effective policy across backend domain facades.
+  - Closed by PR #353, `feat: enforce effective workspace policy`.
+  - Evidence: backend facade policy enforcement and fail-closed capability states.
+- #348 — Domain adapter fit contracts for core product domains.
+  - Closed by PR #355, `test: enforce core domain adapter fit contracts`.
+  - Evidence: canonical feature/domain adapter-fit contracts for identity, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, decisions/evidence, manuals/help, admin health/readiness, and guarded Weaver runtime.
+- #349 — Provider replacement dry-run and anti-silo export/delete contracts.
+  - Closed by PR #356, `feat: add provider replacement dry-run contract`.
+  - Evidence: admin-owned provider replacement dry-run API, lossy-mapping/readiness/lifecycle reports, export/delete expectations, and support-safe audit output.
+- #350 — Admin Console policy and provider readiness UX.
+  - Closed by PR #357, `feat: show admin policy readiness boundaries`.
+  - Evidence: Admin Console role boundaries for owner/admin, operator, and member views; provider replacement dry-run presentation; and member-client architecture tests that block admin/provider control-plane leakage.
+- #351 — Project-readiness evidence gate and release-candidate checklist.
+  - Closed by this final report PR.
 
 ## Frozen readiness contract
 
-Sprint 5 freezes these rules for the next release-candidate pass:
+Sprint 5 defines "project-ready" for this phase as all of the following:
 
-- Identity bootstrap and immutable subject identity are organization control-plane responsibilities, not per-client setup shortcuts.
-- Effective policy is enforced by backend domain facades before provider adapters are reached.
-- Provider adapters must prove fit against canonical Weave domain contracts before becoming release candidates.
-- Replacement dry-runs must be support-safe: readiness state, lossy mapping notes, export/delete expectations, rollback/restore gates, and member-impact states are exposed without raw secrets or downstream error bodies.
-- Admin Console owner/admin views may configure provider categories, policy, whitelists, readiness tests, and replacement dry-runs.
-- Operators may inspect support-safe readiness/audit evidence.
-- Members see stable product capability states only: `usable`, `disabled`, `degraded`, or `policy-blocked`.
-- Normal member clients must not call admin control-plane endpoints, optional provider SDKs, raw provider URLs, provider secrets, SecretRefs, or provider replacement diagnostics directly.
+- All Sprint 5 implementation issues are closed by merged PRs with exactly one release-notes label.
+- Protected GitHub checks are green on every Sprint 5 PR before merge.
+- `main` has green post-merge CI after each implementation merge before the next closure claim.
+- Release evidence tooling remains deterministic: release notes, README markers, docs checks, and scenario mappings are validated by CI/local gates.
+- Admin/operator surfaces may inspect provider category readiness, replacement dry-runs, migration lifecycle evidence, and support-safe diagnostics.
+- Member surfaces receive only Weave product capabilities and stable states such as ready, disabled, degraded, policy-blocked, or admin setup required.
+- Raw provider secrets, tenant URLs, downstream bodies, SecretRefs, raw diagnostics, and admin-only remediation controls stay out of member UX.
+- Mixed-provider deployments are valid, but provider swaps are only claimed where a specific migration/dry-run contract proves authorization, lossy mapping, readiness, audit, rollback/restore, export/delete, and stable member impact.
+- Weaver remains disabled by default unless governed organization policy enables it; future runtime work must stay opt-in, audited, and capability-whitelisted.
+
+## Mixed-provider/readiness scenario exercised
+
+Sprint 5 exercised the realistic composite-provider case instead of pretending Weave is either fully self-hosted or fully SaaS-only:
+
+- Organization embedding contracts classify identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, decisions/evidence, manuals/help, admin health/readiness, and Weaver as provider categories.
+- Adapter-fit contracts verify that those categories map through Weave-owned domain contracts before member UX depends on them.
+- Provider replacement dry-run evidence verifies a target adapter swap before apply, including lossy mapping, cutover gates, lifecycle expectations, audit publication, export/delete posture, and member impact.
+- Admin Console UX exposes that evidence differently by role:
+  - owner/admin: configure mappings, whitelist policy, and dry-run/apply through backend admin APIs;
+  - operator: inspect readiness and support-safe diagnostics without raw secrets or downstream bodies;
+  - member: see only stable capability states and product-safe impact language.
 
 ## Evidence snapshot
 
-| Evidence | Run / artifact | Result |
-| --- | --- | --- |
-| Post-#349 main CI | GitHub Actions `26494597629` on `c1128667a2711b57af21c7560f526e8b7db280bf` | Success. |
-| Post-#350 main CI | GitHub Actions `26495316038` on `0a5adee610cf2b562aa825fdc67a9e8ecbf0419c` | Pending at report authoring; must be success or explicitly excepted before #351 closes. |
-| #350 PR CI | PR #357 required checks on `720f0c9566ddb6d3987cb19aef5650932f1335b4` | Gradle CI, release-notes label check, and Copilot check completed successfully before merge. |
-| Local #350 admin gate | `cd admin-console && npm run ci` and `./gradlew adminCi` | Passed: 2 test files, 10 tests; Vite/TypeScript build passed. |
-| Local #350 client gate | `./gradlew clientCi` | Passed in `1m 32s`; offline contract mode passed 5 checks and skipped live credential tests as expected. |
-| Acceptance mapping | `./gradlew acceptanceContract` | Passed; `V01_ADMIN_CONSOLE_MVP`, identity bootstrap, effective policy, adapter fit, replacement dry-run, and operator release path markers are mapped. |
-| Release notes evidence | `GH_TOKEN=… python3 tools/release_notes_generate.py --repo masssi164/weave --since 2026-05-27T00:00:00Z --output build/release-notes/sprint-5-unreleased.md` | Generated review artifact from merged Sprint 5 PR labels; #352, #353, #355, #356, and #357 all carry exactly one `release-notes-feature` label. |
-| Local aggregate attempt | `./gradlew ci` | Blocked locally by Java 17: `Doctor found problems: Java 21 or newer is required`; GitHub Actions uses Temurin 21 and remains the authoritative aggregate gate. |
+- PR #352 merged: identity org bootstrap foundation.
+- PR #353 merged: effective workspace policy enforcement.
+- PR #355 merged: core domain adapter-fit contracts.
+- PR #356 merged: provider replacement dry-run contract.
+- PR #357 merged: admin policy/readiness boundary UX.
+- Post-#356 `main` CI: GitHub Actions run `26494597629` succeeded.
+- Post-#357 `main` CI: GitHub Actions run `26495316038` succeeded (`Gradle CI: success`; release-notes label check skipped as expected on `main`).
+- Local gate after #357 merge:
+  - `./gradlew acceptanceContract releaseEvidenceCheck docsCheck` succeeded.
+  - `./gradlew adminCi` succeeded.
+  - `./gradlew clientCi` succeeded.
+- Project-readiness evidence gate:
+  - `tools/project_readiness_evidence_check.py` is now part of `releaseEvidenceCheck`.
+  - It validates this closure report, Sprint 5 acceptance mappings for identity/control-plane, effective policy, adapter fit, replacement dry-run, Admin Console UX, operator release evidence, support-safe source assertions, and obvious credential/SecretRef leakage in the checked-in report.
+- Local aggregate `./gradlew ci`: blocked by `doctor` because this shell runs JDK 17.0.18; Java 21+ is required. GitHub Actions uses Temurin 21 and remains the authoritative aggregate gate.
+- Acceptance contract summary:
+  - scenario mapping guard passed;
+  - 26 release scenarios mapped;
+  - runtime evidence was not collected for this closure branch.
+- Client offline contract evidence:
+  - offline contract mode passed provider-facade and member boundary checks;
+  - live credential checks were skipped as expected without real `WEAVE_TEST_USERNAME` / `WEAVE_TEST_PASSWORD` dart-defines.
+
+## Local gates used during closure
+
+```bash
+./gradlew adminCi
+./gradlew clientCi
+./gradlew acceptanceContract releaseEvidenceCheck docsCheck
+./gradlew ci  # blocked locally by doctor: JDK 17.0.18; Java 21+ required
+```
 
 ## Release-candidate checklist
 
-Before a Sprint 5 release candidate can be tagged:
+A v0.1 release-candidate promotion can start only when:
 
-- [ ] Final #351 PR has exactly one release-notes label and green protected checks.
-- [ ] Post-#351 merge `main` CI is green.
-- [ ] `./gradlew releaseEvidenceCheck` has passed locally or in CI for the release-draft path.
-- [ ] Release notes are generated from merged PR metadata, not hand-curated memory.
-- [ ] Support bundles and evidence artifacts expose stable codes, counts, states, and SecretRef handles only.
-- [ ] No generated local build outputs, assistant workspace files, raw provider credentials, tenant URLs with secrets, or downstream provider error bodies are committed.
-- [ ] Live Stack E2E is either run on the release-candidate head or has an explicit release-gate exception accepted by the owner.
+- [ ] all Sprint 5 closure PRs are merged with protected checks green;
+- [ ] `main` CI is green after the final Sprint 5 merge;
+- [ ] `./gradlew releaseEvidenceCheck` passes with the project-readiness evidence check included;
+- [ ] release notes are generated from merged PR metadata, not hand-curated memory;
+- [ ] no generated local build outputs, assistant workspace files, raw provider credentials, credential-bearing URLs, tenant secrets, or downstream provider error bodies are committed;
+- [ ] credentialed Live Stack E2E is either green with sanitized artifacts or explicitly waived by a release owner for a non-release documentation-only change;
+- [ ] support-safe evidence proves member/admin/provider separation for the chosen release slice.
 
 ## Live Stack E2E status and exception
 
-Live Stack E2E with real provider credentials was not run during this final local closure pass. That is an explicit Sprint 5 closure exception, not a hidden pass. The PR-safe evidence path is offline contract validation plus GitHub Actions aggregate CI. A release candidate must either run the Live Stack E2E workflow against the final `main` head or carry an owner-accepted exception that names the unavailable credential/environment blocker and the compensating offline evidence.
+Live Stack E2E with real provider credentials was not run in this final documentation branch. That is a documented closure exception, not a product release waiver: credentialed Live Stack E2E remains required before tagging or promoting a v0.1 dogfood release candidate. If it cannot run on the release-candidate head, the release owner must accept a named environment/credential blocker and compensating offline evidence.
 
 ## Residual risks and non-goals
 
-- The Admin Console now exposes readiness and replacement dry-run UX, but production-grade account lifecycle operations still need release-candidate validation against the live stack.
-- Provider replacement is contract-backed dry-run evidence, not a broad marketplace or one-click migration claim.
-- Anti-silo export/delete expectations are specified as backend/admin contracts; every real provider still needs adapter-specific evidence before being promoted.
-- Java 21 is mandatory for the aggregate local `ci` gate; local Java 17 shells will fail `doctor` before implementation gates run.
-- Sprint 5 does not publish a GitHub release, change production infrastructure automatically, or make Weaver a write-capable autonomous runtime.
+- No GitHub release was published by Sprint 5 closure work.
+- Credentialed Live Stack E2E was not rerun in this final documentation branch; it remains required for an actual release-candidate promotion when live credentials are available.
+- Sprint 5 does not claim generic provider marketplace support. Provider replacement remains contract-scoped and category-specific.
+- Sprint 5 does not claim autonomous Weaver writes. Weaver runtime stays disabled by default until governed runtime policy, consent, receipts, audit, and capability controls are mature.
+- Sprint 5 does not complete enterprise public documentation; issue #354 remains open for README/enterprise architecture communication.
+- Older stale labels such as `status:awaiting-review` on already-merged historical PRs are cleanup noise, not closure blockers.
 
 ## Sprint 6 entry criteria
 
-Sprint 6 should start only after the final #351 PR and post-merge `main` CI are green. Candidate scope should be evidence-led:
+Sprint 6 should start only if the Sprint 5 gates are green on `main`, the release-candidate Live Stack status is explicit, and the first provider slice is scoped narrowly enough to preserve support-safe evidence.
 
-1. Promote the first real provider slice from these contracts, with live readiness, export/delete, rollback/restore, and support-bundle proof.
-2. Run the release-candidate Live Stack E2E path or resolve the recorded environment blocker.
-3. Convert Admin Console readiness into operator runbooks and support flows.
-4. Keep normal member UX provider-neutral while adding only proven, policy-owned capability states.
-5. Keep #283 deferred unless it is re-scoped as the first provider slice after the Sprint 5 foundation gates are green.
+Candidate scope derived from evidence:
+
+Sprint 6 should start from measured gaps, not wishcasting:
+
+- Finish public README/enterprise documentation positioning in #354: product-first Weave, optional opt-in governed Weaver/AI PA, trust, effectiveness, and time savings without autonomy hype.
+- Promote credentialed release-candidate evidence: run Live Stack E2E with real credentials, attach sanitized output, and decide whether the v0.1 dogfood candidate can be tagged.
+- Deepen admin-owned identity/provider operations from the proven control plane: Keycloak/OIDC realm import/dry-run/apply architecture (#212, #233) and the blocked vertical mapping prototype (#283) only where evidence is ready.
+- Continue accessible context-driven workflow and meeting work (#218, #216) while preserving the member/admin/provider boundary frozen by Sprints 3 through 5.
+- Keep Weaver work opt-in, governed, audited, capability-whitelisted, and disabled by default until runtime policy proves otherwise.
