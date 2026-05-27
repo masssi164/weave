@@ -26,7 +26,8 @@ Root Gradle is the build and delivery source of truth. `./gradlew ci` is the can
 | `adminCi` | Run admin console checks. |
 | `infraStatic` | Run static infrastructure checks. |
 | `docsBuild` | Build user/admin manuals deterministically. |
-| `releaseEvidenceCheck` | Validate release labels, README release markers, and generated-release evidence behavior. |
+| `enterpriseReleaseGateCheck` | Validate `release/enterprise-release-gates.json`, the enterprise release foundation doc, required lanes/gates, support-safe Live Stack artifacts, and runtime marker requirements. |
+| `releaseEvidenceCheck` | Validate release labels, README release markers, generated-release evidence behavior, Sprint closure evidence, and enterprise release gates. |
 | `ci` | Canonical aggregate for default PR-safe checks. |
 
 ## Branch map for small PRs
@@ -38,6 +39,7 @@ Use short-lived branches from `origin/main`:
 - `build/evidence-artifacts` — sanitized `build/evidence/ci-summary.json` and PR checklist integration.
 - `docs/mkdocs-help-foundation` — pinned MkDocs user/admin manual build outputs.
 - `release/evidence-automation` — release evidence checks, generated release-note artifacts, explicit README update task.
+- `release/enterprise-foundation` — release lanes, RC promotion contract, support-safe manifest, and live-evidence artifact contract.
 - `build/ci-gradle-migration` — GitHub Actions migration to `./gradlew ci` and least permissions.
 - `build/make-transition-reduction` — remove or reduce Make after Gradle parity is proven.
 

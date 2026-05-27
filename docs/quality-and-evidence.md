@@ -14,6 +14,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | Admin-provisioned first-use guard | Normal members stay out of OIDC/provider/infra setup and Workspace Health remains the admin/operator control plane. | [Admin-provisioned first use boundary](admin-provisioned-first-use.md), `client/test/architecture/admin_provisioned_first_use_contract_test.dart`, `client/test/features/settings/settings_screen_test.dart`, `client/test/features/onboarding/first_run_screen_test.dart`. |
 | Docs build | User/admin handbook content builds without broken links, secret-pattern docs drift, or image-only instructions. | `build/docs/user` and `build/docs/admin` from `./gradlew docsBuild`. |
 | CI summary artifact | The root Gradle task graph emitted a sanitized summary of commit, branch, tool versions, gate outcomes, artifact paths, and live-E2E skip reason. | `build/evidence/ci-summary.json` from `./gradlew ci` or `./gradlew ciSummary`. |
+| Enterprise release gate contract | Release lanes, required gates, Live Stack artifact names, marker requirements, and waiver rules stay machine-checkable. | [Enterprise release foundation](enterprise-release-foundation.md), `release/enterprise-release-gates.json`, `./gradlew enterpriseReleaseGateCheck`. |
 | Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
 
 ## Default PR validation
@@ -51,14 +52,14 @@ These checks are intentionally cheap enough for normal pull requests and do not 
 
 The live-stack path is expensive and runs on a dedicated self-hosted macOS ARM64 runner. Use it when a change affects sign-in, backend facade contracts, Matrix/files/calendar live behavior, acceptance scenarios, or integration boundaries.
 
-The workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads artifacts such as logs and acceptance evidence from the run. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, and the PR evidence instead.
+The workflow prepares an acceptance evidence directory, runs the app-level live-stack E2E, and uploads support-safe acceptance evidence from the run. The artifact set includes `release-evidence-manifest.json`, which names the source lane, commit, workflow run metadata, artifact list, and RC promotion rule. Do not cite a single workflow run ID as a permanent product claim; link to the workflow, the relevant docs, the manifest, and the PR evidence instead.
 
 ## Interpreting pass/fail states
 
 - **Offline Flutter failure**: inspect the failing command first. Re-run locally after regenerating l10n/build output.
 - **Screenshot drift**: run `make marketing-screenshots`, review the SVG diff as product copy, and commit the regenerated assets if intentional.
 - **Acceptance mapping failure**: update the scenario-to-test mapping or remove stale scenario claims. Do not leave product acceptance text unmapped.
-- **Live-stack contract failure**: confirm the stack bootstrapped correctly, then inspect backend/API, auth, and app logs. Treat credential or runner-budget problems as infrastructure blockers, not product proof.
+- **Live-stack contract failure**: confirm the stack bootstrapped correctly, then inspect backend/API, auth, and app logs. Treat credential, runner, or environment problems as named infrastructure blockers, not product proof. Missing required markers such as `BOARDS_RESULT` block RC promotion until a green rerun or explicit release-owner waiver exists.
 - **Accessibility evidence gap**: do not promote the flow as release-ready until the automated and manual evidence in the accessibility gate is complete.
 - **Admin-provisioned first-use failure**: inspect member-visible first-use, settings, and navigation copy first. Normal members must not see provider setup diagnostics, OIDC/provider/infra setup fields, preview/scaffold/coming-soon release-scope language, or raw provider errors; move setup/readiness detail to Workspace Health for admins/operators.
 
@@ -79,3 +80,4 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 - [Accessibility Release Gate](accessibility-release-gate.md)
 - [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md)
 - [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md)
+- [Enterprise release foundation](enterprise-release-foundation.md)

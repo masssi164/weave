@@ -12,7 +12,8 @@ Start with:
 2. Root README — public product entry point and architecture-at-a-glance.
 3. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
 4. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
-5. [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md) — active RC/provider-ops entry slice.
+5. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
+6. [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md) — active RC/provider-ops entry slice.
 
 ### Member / user
 
@@ -39,6 +40,7 @@ Start with:
 2. [Control-plane infra bootstrap](control-plane-infra-bootstrap.md) — infra/control-plane foundation.
 3. [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md) — dry-run, migration, export/delete, rollback, and evidence requirements.
 4. [Quality and acceptance evidence](quality-and-evidence.md) — evidence handling and sanitized artifacts.
+5. [Enterprise release foundation](enterprise-release-foundation.md) — release-candidate promotion, live evidence, and waiver contract.
 
 ### Developer / contributor
 
@@ -82,6 +84,7 @@ Release and evidence docs:
 - [Release notes](release-notes/index.md)
 - [Quality and acceptance evidence](quality-and-evidence.md)
 - [Build evidence delivery system](build-evidence-delivery-system.md)
+- [Enterprise release foundation](enterprise-release-foundation.md)
 - [Manuals and release notes integration](manuals-and-release-notes-integration.md)
 - [Sprint 5 closure report](sprint-5-closure-report.md)
 - [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md)

@@ -237,7 +237,13 @@ jobs:
             --mapping e2e/scenario_mappings.json \
             --out "$WEAVE_ACCEPTANCE_EVIDENCE_DIR" \
             --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
-            --append-summary "$GITHUB_STEP_SUMMARY"
+            --append-summary "$GITHUB_STEP_SUMMARY" \
+            --source live-stack-e2e \
+            --lane release-candidate-live-evidence \
+            --commit "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Dump stack logs on failure
         if: failure()
