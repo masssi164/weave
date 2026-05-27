@@ -127,6 +127,7 @@ class WeaverRuntimeServiceTest {
                 Map.of("alg", "none"),
                 Map.of(
                         "sub", subject,
+                        "iss", "https://auth.example.invalid/realms/acme",
                         "realm_access", Map.of("roles", roles),
                         "groups", groups));
     }

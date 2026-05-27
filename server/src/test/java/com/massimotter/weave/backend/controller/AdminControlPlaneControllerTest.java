@@ -23,6 +23,8 @@ import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
+import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
+import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -103,9 +105,9 @@ class AdminControlPlaneControllerTest {
         when(workspaceCapabilityService.snapshot()).thenReturn(capabilities);
         when(workspaceCapabilityService.policySnapshot(org.mockito.ArgumentMatchers.any())).thenReturn(new WorkspaceCapabilityPolicyResponse(
                 "identity/IDM",
-                "Keycloak",
-                "OIDC/SAML adapter contract; Keycloak is the self-hosted default, not a product lock-in",
-                "JWT realm roles plus groups claims from the selected IDM",
+                "OIDC/SAML selected IDM",
+                "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
+                "OIDC role claims plus group claims from the selected IDM",
                 List.of("admin"),
                 List.of("weave-board-editors"),
                 List.of("workspace-admin", "group:weave-board-editors"),
@@ -121,7 +123,7 @@ class AdminControlPlaneControllerTest {
                 List.of("weave-board-editors"),
                 List.of("admin"),
                 List.of("context_admin"),
-                List.of("realm_role:admin", "group_claim:weave-board-editors"),
+                List.of("role_claim:admin", "group_claim:weave-board-editors"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"),
                 List.of(new EffectivePolicyDenyResponse("weaver.enabled", "weaver runtime is disabled unless an organization policy group explicitly grants it", "deny-by-default-capability-policy")),
                 List.of("member-visible states remain ready, disabled, degraded, or policy-blocked"),
@@ -171,7 +173,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.contractVersion").value("admin-control-plane-v1"))
                 .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
-                .andExpect(jsonPath("$.recommendedIdentityBroker").value("keycloak"))
+                .andExpect(jsonPath("$.recommendedIdentityBroker").value("OIDC/SAML selected IDM"))
                 .andExpect(jsonPath("$.providerConfigSource").value("admin-control-plane-selected-provider-mappings"))
                 .andExpect(jsonPath("$.bootstrapDefaultsAreSuggestionsOnly").value(true))
                 .andExpect(jsonPath("$.backendOwnedFacades").value(true))
@@ -202,7 +204,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.subject").value("admin-123"))
                 .andExpect(jsonPath("$.organization").value("weave-dogfood"))
                 .andExpect(jsonPath("$.capabilityGrants[*]", hasItems("admin.policy.edit", "admin.provider.configure")))
-                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("realm_role:admin", "group_claim:weave-board-editors")))
+                .andExpect(jsonPath("$.providerRoleMappings[*]", hasItems("role_claim:admin", "group_claim:weave-board-editors")))
                 .andExpect(jsonPath("$.denies[0].capability").value("weaver.enabled"))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
@@ -227,6 +229,74 @@ class AdminControlPlaneControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"category\":\"chat\",\"providerKey\":\"slack\",\"choiceModel\":\"external_existing_provider\",\"secretRef\":\"secretref://weave/provider/slack\"}"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminsCanBootstrapExistingAndNewOrganizationsWithLastAdminRecoveryKey() throws Exception {
+        mockMvc.perform(post("/api/admin/organizations/bootstrap")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminPrimaryIdentityKeys\":[]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("acme-prod"))
+                .andExpect(jsonPath("$.bootstrapMode").value("existing_org"))
+                .andExpect(jsonPath("$.actorPrimaryIdentityKey").value("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"))
+                .andExpect(jsonPath("$.retainedAdminPrimaryIdentityKeys[*]", hasItems("issuer+subject:https://auth.example.invalid/realms/weave#admin-123")))
+                .andExpect(jsonPath("$.lastAdminGuardPassed").value(true))
+                .andExpect(jsonPath("$.supportSafe").value(true));
+
+        mockMvc.perform(post("/api/admin/organizations/bootstrap")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"newco\",\"bootstrapMode\":\"new_org\",\"adminPrimaryIdentityKeys\":[\"issuer+subject:https://auth.example.invalid/realms/weave#admin-123\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.organizationId").value("newco"))
+                .andExpect(jsonPath("$.bootstrapMode").value("new_org"))
+                .andExpect(jsonPath("$.emailPrimaryKey").doesNotExist());
+    }
+
+    @Test
+    void bootstrapRejectsUnsafeAdminRecoveryKeys() throws Exception {
+        mockMvc.perform(post("/api/admin/organizations/bootstrap")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminPrimaryIdentityKeys\":[\"alice@example.com\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation-error"))
+                .andExpect(content().string(not(containsString("alice@example.com"))))
+                .andExpect(content().string(containsString("adminPrimaryIdentityKeys")));
+    }
+
+    @Test
+    void bootstrapRejectsNullAdminRecoveryKeysAsValidationError() throws Exception {
+        mockMvc.perform(post("/api/admin/organizations/bootstrap")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminPrimaryIdentityKeys\":[null]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("validation-error"))
+                .andExpect(content().string(containsString("adminPrimaryIdentityKeys")));
+    }
+
+    @Test
+    void lastAdminGuardRejectsWorkspaceAdminPolicyThatRemovesPolicyEdit() throws Exception {
+        mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileKey\":\"Workspace-Admin\",\"capabilityKeys\":[\"chat.read\"]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("last-admin-guard"))
+                .andExpect(content().string(not(containsString("alice@example.com"))));
+    }
+
+    @Test
+    void lastAdminGuardRejectsEmptyWorkspaceAdminPolicy() throws Exception {
+        mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileKey\":\"workspace-admin\",\"capabilityKeys\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("last-admin-guard"));
     }
 
     @Test
@@ -275,7 +345,7 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"profileKey\":\"workspace-admin\",\"capabilityKeys\":[\"chat.read\",\"calendar.manage_events\"],\"reason\":\"grant through Admin Console\"}"))
+                        .content("{\"profileKey\":\"workspace-admin\",\"capabilityKeys\":[\"admin.policy.edit\",\"chat.read\",\"calendar.manage_events\"],\"reason\":\"grant through Admin Console\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.denyByDefault").value(true));
 
@@ -326,6 +396,7 @@ class AdminControlPlaneControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("admin-123")
+                        .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant", "weave-dogfood")
                         .claim("realm_access", java.util.Map.of("roles", java.util.List.of("admin"))))
@@ -337,6 +408,7 @@ class AdminControlPlaneControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor operatorJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("operator-123")
+                        .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("weave_tenant", "weave-dogfood")
                         .claim("realm_access", java.util.Map.of("roles", java.util.List.of("operator"))))
@@ -348,6 +420,7 @@ class AdminControlPlaneControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor memberJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/weave")
                         .claim("aud", java.util.List.of("weave-app"))
                         .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member"))))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
@@ -363,6 +436,11 @@ class AdminControlPlaneControllerTest {
         @Bean
         ProviderSelectionRepository providerSelectionRepository() {
             return new InMemoryProviderSelectionRepository();
+        }
+
+        @Bean
+        OrganizationBootstrapRepository organizationBootstrapRepository() {
+            return new InMemoryOrganizationBootstrapRepository();
         }
     }
 }

@@ -5,13 +5,13 @@ import java.util.Map;
 
 @Schema(description = "Product profile facade data for the authenticated Weave user.")
 public record ProductProfileResponse(
-        @Schema(description = "Stable immutable Weave user identifier, backed by the Keycloak subject.")
+        @Schema(description = "Stable immutable Weave account identifier derived from issuer plus subject, never from email.")
         String userId,
         @Schema(description = "Stable login/workspace handle.")
         String username,
         @Schema(description = "Email address from the identity authority when available.")
         String email,
-        @Schema(description = "Whether Keycloak reports the email address as verified.")
+        @Schema(description = "Whether the identity source reports the email address as verified.")
         boolean emailVerified,
         @Schema(description = "User-visible product display name.")
         String displayName,

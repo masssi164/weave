@@ -6,6 +6,8 @@ import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
+import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
+import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
@@ -71,6 +73,17 @@ public class AdminControlPlaneController {
             content = @Content(schema = @Schema(implementation = EffectivePolicyResponse.class)))
     public EffectivePolicyResponse effectivePolicy(@AuthenticationPrincipal Jwt jwt) {
         return adminControlPlaneService.effectivePolicy(jwt);
+    }
+
+    @PostMapping({"/api/admin/organizations/bootstrap", "/api/v1/admin/organizations/bootstrap"})
+    @PreAuthorize("hasAnyRole('OWNER','ADMIN')")
+    @Operation(summary = "Bootstrap or bind an organization with immutable identity recovery administrators")
+    @ApiResponse(responseCode = "200", description = "Support-safe organization bootstrap result.",
+            content = @Content(schema = @Schema(implementation = OrganizationBootstrapResponse.class)))
+    public OrganizationBootstrapResponse bootstrapOrganization(
+            @Valid @RequestBody OrganizationBootstrapRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return adminControlPlaneService.bootstrapOrganization(request, jwt);
     }
 
     @PatchMapping({"/api/admin/policies/capability-whitelist", "/api/v1/admin/policies/capability-whitelist"})

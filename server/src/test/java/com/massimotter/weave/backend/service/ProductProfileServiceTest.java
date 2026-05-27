@@ -45,13 +45,62 @@ class ProductProfileServiceTest {
         assertThat(recreatedService.authenticatedUser(jwt).displayName()).isEqualTo("Alice Durable");
     }
 
+    @Test
+    void emailRenameKeepsStableAccountAndProfileKey() {
+        ProductProfileService service = new ProductProfileService(
+                new FileProductProfileOverrideRepository(new ObjectMapper(), tempDir.resolve("profile-overrides.json")));
+        Jwt original = profileJwt("alice@example.com");
+        Jwt renamedEmail = profileJwt("alice.renamed@example.com");
+
+        service.update(original, new UpdateProductProfileRequest(
+                "Alice Stable",
+                null,
+                null,
+                null,
+                null,
+                null));
+
+        assertThat(service.authenticatedUser(renamedEmail).userId())
+                .isEqualTo(service.authenticatedUser(original).userId());
+        assertThat(service.authenticatedUser(renamedEmail).primaryIdentityKey())
+                .isEqualTo("issuer+subject:https://auth.weave.local/realms/weave#user-123");
+        assertThat(service.authenticatedUser(renamedEmail).displayName()).isEqualTo("Alice Stable");
+        assertThat(service.authenticatedUser(renamedEmail).emailPrimaryKey()).isFalse();
+    }
+
+    @Test
+    void migratesLegacySubjectProfileOverrideToPrimaryIdentityKey() throws Exception {
+        Path storagePath = tempDir.resolve("profile-overrides.json");
+        new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(storagePath.toFile(), Map.of(
+                "user-123", new ProductProfileOverride(
+                        "Alice Legacy",
+                        null,
+                        "fr-FR",
+                        "Europe/Paris",
+                        Map.of(),
+                        "workspace")));
+
+        ProductProfileService service = new ProductProfileService(
+                new FileProductProfileOverrideRepository(new ObjectMapper(), storagePath));
+
+        assertThat(service.profile(profileJwt()).displayName()).isEqualTo("Alice Legacy");
+        String persisted = java.nio.file.Files.readString(storagePath);
+        assertThat(persisted).contains("issuer+subject:https://auth.weave.local/realms/weave#user-123");
+        assertThat(persisted).doesNotContain("\"user-123\"");
+    }
+
     private static Jwt profileJwt() {
+        return profileJwt("alice@example.com");
+    }
+
+    private static Jwt profileJwt(String email) {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .claim("iss", "https://auth.weave.local/realms/weave")
                 .claim("preferred_username", "alice")
                 .claim("name", "Alice Example")
-                .claim("email", "alice@example.com")
+                .claim("email", email)
                 .claim("email_verified", true)
                 .claim("locale", "en")
                 .claim("timezone", "UTC")

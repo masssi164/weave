@@ -128,7 +128,7 @@ class WorkspaceCapabilityServiceTest {
 
         var policy = service.policySnapshot(jwt(List.of("admin"), List.of("weave-board-editors")));
 
-        assertThat(policy.defaultIdmProvider()).isEqualTo("Keycloak");
+        assertThat(policy.defaultIdmProvider()).isEqualTo("OIDC/SAML selected IDM");
         assertThat(policy.adapterContract()).contains("OIDC/SAML");
         assertThat(policy.roles()).containsExactly("admin");
         assertThat(policy.groups()).containsExactly("weave-board-editors");
@@ -202,6 +202,7 @@ class WorkspaceCapabilityServiceTest {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-1")
+                .issuer("https://auth.example.invalid/realms/acme")
                 .claim("realm_access", Map.of("roles", roles))
                 .claim("groups", groups)
                 .build();

@@ -24,6 +24,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
@@ -63,8 +64,8 @@ class ProfileControllerTest {
     @BeforeEach
     void setUpProfileRepository() {
         profileOverrides.clear();
-        when(profileRepository.findBySubject(anyString())).thenAnswer(invocation -> profileOverrides.get(invocation.getArgument(0)));
-        when(profileRepository.save(anyString(), any(ProductProfileOverride.class))).thenAnswer(invocation -> {
+        when(profileRepository.findByPrimaryIdentityKey(anyString())).thenAnswer(invocation -> profileOverrides.get(invocation.getArgument(0)));
+        when(profileRepository.saveForPrimaryIdentityKey(anyString(), any(ProductProfileOverride.class))).thenAnswer(invocation -> {
             profileOverrides.put(invocation.getArgument(0), invocation.getArgument(1));
             return invocation.getArgument(1);
         });
@@ -74,7 +75,7 @@ class ProfileControllerTest {
     void returnsProfileDerivedFromAuthenticatedPrincipal() throws Exception {
         mockMvc.perform(get("/api/profile").with(profileJwt()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("user-123"))
+                .andExpect(jsonPath("$.userId", startsWith("acct_")))
                 .andExpect(jsonPath("$.username").value("alice"))
                 .andExpect(jsonPath("$.displayName").value("Alice Example"))
                 .andExpect(jsonPath("$.avatar").value("https://example.test/alice.png"))
@@ -165,6 +166,7 @@ class ProfileControllerTest {
                         .content("{\"displayName\":\"Alice Weave\"}")
                         .with(jwt().jwt(jwt -> jwt
                                 .subject("user-123")
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("preferred_username", "alice")
                                 .claim("aud", List.of("weave-app")))))
                 .andExpect(status().isForbidden());
@@ -173,6 +175,7 @@ class ProfileControllerTest {
     private static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor profileJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")

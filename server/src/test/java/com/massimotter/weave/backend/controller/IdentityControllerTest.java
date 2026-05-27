@@ -18,6 +18,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -45,6 +47,8 @@ class IdentityControllerTest {
     void returnsAuthenticatedPrincipalDetails() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim("weave_tenant", "acme-prod")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
@@ -54,10 +58,11 @@ class IdentityControllerTest {
                         .claim("azp", "weave-app")
                         .claim("aud", List.of("weave-app", "account"))
                         .claim("realm_access", Map.of("roles", List.of("member", "admin")))
-                        .claim("groups", List.of("team-alpha", "team-beta")))
+                        .claim("groups", List.of("team-alpha", "team-beta"))
+                        .claim("weave_context_roles", List.of("channel-admin")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("user-123"))
+                .andExpect(jsonPath("$.userId", startsWith("acct_")))
                 .andExpect(jsonPath("$.username").value("alice"))
                 .andExpect(jsonPath("$.displayName").value("Alice Example"))
                 .andExpect(jsonPath("$.emailVerified").value(true))
@@ -66,7 +71,12 @@ class IdentityControllerTest {
                 .andExpect(jsonPath("$.moduleSyncStatus.matrix").value("not_configured"))
                 .andExpect(jsonPath("$.issuedFor").value("weave-app"))
                 .andExpect(jsonPath("$.audience[0]").value("weave-app"))
-                .andExpect(jsonPath("$.realmRoles[0]").value("admin"))
+                .andExpect(jsonPath("$.organizationId").value("acme-prod"))
+                .andExpect(jsonPath("$.subject").value("user-123"))
+                .andExpect(jsonPath("$.primaryIdentityKey").value("issuer+subject:https://auth.example.invalid/realms/acme#user-123"))
+                .andExpect(jsonPath("$.emailPrimaryKey").value(false))
+                .andExpect(jsonPath("$.providerRoleMappings[0]").value("group_claim:team-alpha"))
+                .andExpect(jsonPath("$.contextRoles[0]").value("channel-admin"))
                 .andExpect(jsonPath("$.groups[1]").value("team-beta"));
     }
 
@@ -74,13 +84,14 @@ class IdentityControllerTest {
     void exposesCanonicalMeEndpoint() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.userId").value("user-123"))
+                .andExpect(jsonPath("$.userId", startsWith("acct_")))
                 .andExpect(jsonPath("$.username").value("alice"))
                 .andExpect(jsonPath("$.email").value("alice@example.com"))
                 .andExpect(jsonPath("$.displayName").value("Alice Example"));
@@ -90,13 +101,31 @@ class IdentityControllerTest {
     void includesOperatorAsAProductRole() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("operator-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "ops")
                         .claim("realm_access", Map.of("roles", List.of("operator")))
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.roles[0]").value("operator"))
-                .andExpect(jsonPath("$.realmRoles[0]").value("operator"));
+                .andExpect(jsonPath("$.providerRoleMappings[0]").value("role_claim:operator"));
+    }
+
+    @Test
+    void emailRenameDoesNotChangePrimaryIdentity() throws Exception {
+        mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
+                        .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim("email", "alice.renamed@example.com")
+                        .claim("preferred_username", "alice")
+                        .claim("realm_access", Map.of("roles", List.of("member")))
+                        .claim("aud", List.of("weave-app")))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.primaryIdentityKey").value("issuer+subject:https://auth.example.invalid/realms/acme#user-123"))
+                .andExpect(jsonPath("$.userId", startsWith("acct_")))
+                .andExpect(jsonPath("$.userId", not("alice.renamed@example.com")))
+                .andExpect(jsonPath("$.emailPrimaryKey").value(false));
     }
 
     @Test
@@ -109,6 +138,7 @@ class IdentityControllerTest {
     void fallsBackToClientIdWhenAzpIsAbsent() throws Exception {
         mockMvc.perform(get("/api/me").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("client_id", "weave-app")
                         .claim("aud", List.of("weave-app")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
