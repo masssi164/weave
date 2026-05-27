@@ -288,6 +288,75 @@ class AdminControlPlaneControllerTest {
                 .andExpect(content().string(not(containsString("alice@example.com"))));
     }
 
+
+    @Test
+    void effectivePolicySimulationIsAdminOperatorOnlySupportSafeAndAudited() throws Exception {
+        String request = """
+                {
+                  "subject": "alice@example.com",
+                  "organizationId": "weave-dogfood",
+                  "roles": ["member"],
+                  "groups": ["weave-board-editors"],
+                  "requestedCapabilities": ["chat.send", "boards.update_task", "admin.provider.configure", "weaver.enabled"],
+                  "reason": "preview before provider change with Bearer secret-token and client_secret"
+                }
+                """;
+
+        mockMvc.perform(post("/api/admin/policies/effective/simulations")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subject").value("identity-ref-redacted"))
+                .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.unknownInputsFailClosed").value(false))
+                .andExpect(jsonPath("$.weaverDefaultDisabled").value(true))
+                .andExpect(jsonPath("$.grantedCapabilities[*]", hasItems("chat.send", "boards.update_task")))
+                .andExpect(jsonPath("$.deniedInputs").isEmpty())
+                .andExpect(jsonPath("$.capabilityStates[*].state", hasItems("ready", "disabled", "policy-blocked")))
+                .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'weaver.enabled')].reasonCode", hasItems("weaver-default-disabled")))
+                .andExpect(jsonPath("$.capabilityStates[?(@.capability == 'admin.provider.configure')].state", hasItems("policy-blocked")))
+                .andExpect(content().string(not(containsString("alice@example.com"))))
+                .andExpect(content().string(not(containsString("secret-token"))))
+                .andExpect(content().string(not(containsString("client_secret"))))
+                .andExpect(content().string(not(containsString("keycloak-realm"))));
+
+        mockMvc.perform(post("/api/admin/policies/effective/simulations")
+                        .with(operatorJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"member\"],\"requestedCapabilities\":[\"chat.read\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.grantedCapabilities[*]", hasItems("chat.read")));
+
+        mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].action", hasItems("effective_policy.simulated")))
+                .andExpect(jsonPath("$[*].payload.roleCount", hasItems(1)))
+                .andExpect(jsonPath("$[*].payload.groupCount", hasItems(1)))
+                .andExpect(jsonPath("$[*].payload.requestedCapabilityCount", hasItems(4)))
+                .andExpect(jsonPath("$[*].payload.supportSafe", hasItems(true)))
+                .andExpect(jsonPath("$[*].payload.reasonProvided", hasItems(true)))
+                .andExpect(content().string(not(containsString("preview before provider change"))))
+                .andExpect(content().string(not(containsString("secret-token"))))
+                .andExpect(content().string(not(containsString("alice@example.com"))));
+    }
+
+    @Test
+    void memberCannotRunEffectivePolicySimulationOrSeePolicyInternals() throws Exception {
+        mockMvc.perform(post("/api/admin/policies/effective/simulations")
+                        .with(memberJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"roles\":[\"admin\"],\"groups\":[\"weave-board-editors\"],\"requestedCapabilities\":[\"admin.provider.configure\"]}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true))
+                .andExpect(content().string(not(containsString("admin.provider.configure"))))
+                .andExpect(content().string(not(containsString("weave-board-editors"))))
+                .andExpect(content().string(not(containsString("keycloak-realm"))));
+    }
+
     @Test
     void adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe() throws Exception {
         String request = """

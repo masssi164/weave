@@ -13,6 +13,7 @@ public enum AuditAction {
     BOARD_TASK_COMPLETED("board.task.completed"),
     CONSENT_GRANTED("consent.granted"),
     CONSENT_REVOKED("consent.revoked"),
+    EFFECTIVE_POLICY_SIMULATED("effective_policy.simulated"),
     ADMIN_POLICY_UPDATED("admin.policy.updated"),
     PROVIDER_READINESS_TESTED("provider.readiness.tested"),
     PROVIDER_REPLACEMENT_DRY_RUN("provider.replacement.dry_run"),
