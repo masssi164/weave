@@ -107,7 +107,7 @@ Admin policy controls:
 - sandbox/workspace defaults;
 - connector/package approval, versioning, revocation, and audit.
 
-OpenClaw configuration remains an implementation target, not the product model. Weave should generate or constrain the Weaver/OpenClaw runtime from organization policy.
+OpenClaw configuration remains an implementation target, not the product model. Weave should generate or constrain the Weaver/OpenClaw runtime from organization policy. ACP/Codex-style developer assistance may become one governed capability channel for approved users, but only inside the same opt-in, per-user, organization-whitelisted policy boundary; it must not become autonomous team-agent scope or a shortcut around disabled exec/elevated defaults.
 
 ## Implementation plan
 

@@ -10,6 +10,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
+- Repositioned the root README as a Sprint 6 readiness/kickoff enterprise product entry point with audience-directed documentation navigation, explicit maturity status, Java 21 gate guidance, E2E/release-candidate evidence boundaries, and governed Weaver/AI PA boundaries.
 - Added organization-embedding, identity-provisioning, and provider-replacement strategy contracts to make provider neutrality, mixed self-hosted/cloud/external deployments, and adapter replacement explicit before new feature slices.
 - Documentation validation now has a dedicated docs check/build path.
 - PR CI now enforces exactly one release-notes label before review/merge.

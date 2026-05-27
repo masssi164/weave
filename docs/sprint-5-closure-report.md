@@ -118,7 +118,7 @@ Live Stack E2E with real provider credentials was not run in this final document
 - Credentialed Live Stack E2E was not rerun in this final documentation branch; it remains required for an actual release-candidate promotion when live credentials are available.
 - Sprint 5 does not claim generic provider marketplace support. Provider replacement remains contract-scoped and category-specific.
 - Sprint 5 does not claim autonomous Weaver writes. Weaver runtime stays disabled by default until governed runtime policy, consent, receipts, audit, and capability controls are mature.
-- Sprint 5 does not complete enterprise public documentation; issue #354 remains open for README/enterprise architecture communication.
+- Enterprise public documentation is outside this closure scope. Sprint 6 release-candidate readiness tracks it as #354.
 - Older stale labels such as `status:awaiting-review` on already-merged historical PRs are cleanup noise, not closure blockers.
 
 ## Sprint 6 entry criteria
@@ -129,7 +129,7 @@ Candidate scope derived from evidence:
 
 Sprint 6 should start from measured gaps, not wishcasting:
 
-- Finish public README/enterprise documentation positioning in #354: product-first Weave, optional opt-in governed Weaver/AI PA, trust, effectiveness, and time savings without autonomy hype.
+- Complete public README/enterprise documentation positioning in #354 as Sprint 6 readiness/kickoff work: product-first Weave, optional opt-in governed Weaver/AI PA, trust, effectiveness, and time savings without autonomy hype.
 - Promote credentialed release-candidate evidence: run Live Stack E2E with real credentials, attach sanitized output, and decide whether the v0.1 dogfood candidate can be tagged.
 - Deepen admin-owned identity/provider operations from the proven control plane: Keycloak/OIDC realm import/dry-run/apply architecture (#212, #233) and the blocked vertical mapping prototype (#283) only where evidence is ready.
 - Continue accessible context-driven workflow and meeting work (#218, #216) while preserving the member/admin/provider boundary frozen by Sprints 3 through 5.
