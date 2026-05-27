@@ -57,6 +57,7 @@ Use this page for release-affecting changes that have merged but are not include
 - Admin/operator effective policy simulation endpoint with support-safe capability impact output, fail-closed unknown identity inputs, Weaver disabled-by-default evidence, and audited counts before provider or realm changes apply.
 - Guarded identity realm apply decision path with explicit confirmation, retained-admin lockout protection, risky/destructive rollback evidence gates, support-safe audit counts, and decision-only provider mutation semantics.
 - Sprint 6 epic closure map for admin-owned OIDC setup (#212) and Keycloak realm dry-run/apply architecture (#233), linking role/setup contracts, realm baseline fixtures, Workspace Health readiness, policy simulation, and guarded apply evidence.
+- Sprint 6 final closure report recording the RC/provider-ops foundation, post-merge main CI, credentialed Live Stack evidence scope, residual risks, and first-release entry criteria without claiming a public release.
 
 ## Changed
 
