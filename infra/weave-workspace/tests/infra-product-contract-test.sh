@@ -110,8 +110,11 @@ for role in owner admin member guest; do
   grep -Eq "^[[:space:]]+${role}[[:space:]]+=" "${keycloak_main}" || fail "Expected Keycloak product role/group entry for: ${role}"
 done
 assert_file_contains "${keycloak_main}" 'workspace-guests'
+assert_file_contains "${keycloak_main}" 'weave-board-editors'
+assert_file_contains "${keycloak_main}" 'live_e2e_test_user_capability_groups'
 assert_file_contains "${keycloak_main}" 'keycloak_group_roles'
 assert_file_contains "${keycloak_main}" 'keycloak_user_roles'
+assert_file_contains "${keycloak_main}" 'keycloak_openid_group_membership_protocol_mapper" "weave_app_groups"'
 assert_file_contains "${admin_doc}" 'Guests are mapped to `workspace-guests`, not member/admin groups.'
 
 # Connector/interop runtime guardrails must default closed and keep public provider callbacks blocked.
