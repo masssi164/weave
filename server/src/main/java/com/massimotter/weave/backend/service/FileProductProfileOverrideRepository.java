@@ -42,6 +42,9 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
 
     @Override
     public ProductProfileOverride findByPrimaryIdentityKey(String primaryIdentityKey) {
+        if (primaryIdentityKey == null || primaryIdentityKey.isBlank()) {
+            return null;
+        }
         ProductProfileOverride profile = profiles.get(primaryIdentityKey);
         if (profile != null) {
             return profile;
@@ -51,6 +54,9 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
 
     @Override
     public ProductProfileOverride saveForPrimaryIdentityKey(String primaryIdentityKey, ProductProfileOverride profile) {
+        if (primaryIdentityKey == null || primaryIdentityKey.isBlank()) {
+            throw new IllegalArgumentException("Product profile override key must be a non-blank primary identity key.");
+        }
         synchronized (persistenceLock) {
             profiles.put(primaryIdentityKey, profile);
             persist();
