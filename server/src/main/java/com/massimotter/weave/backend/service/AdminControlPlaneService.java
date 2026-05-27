@@ -434,14 +434,18 @@ public class AdminControlPlaneService {
         workspaceCapabilityService.requireCapability(jwt, "admin.provider.configure", "identity-realm", "apply");
         IdentityRealmProvider provider = identityRealmProvider("keycloak-realm");
         IdentityRealmDryRunReport dryRun = provider.dryRun(request == null ? null : request.dryRunRequest());
-        boolean hasRisky = dryRun.changes().stream().anyMatch(change -> "risky".equals(change.classification()));
-        boolean hasDestructive = dryRun.changes().stream().anyMatch(change -> "destructive".equals(change.classification()));
+        long safeChangeCount = dryRun.changes().stream().filter(change -> "safe".equals(change.classification())).count();
+        long riskyChangeCount = dryRun.changes().stream().filter(change -> "risky".equals(change.classification())).count();
+        long destructiveChangeCount = dryRun.changes().stream().filter(change -> "destructive".equals(change.classification())).count();
+        boolean hasRisky = riskyChangeCount > 0;
+        boolean hasDestructive = destructiveChangeCount > 0;
         boolean rollbackRequired = hasRisky || hasDestructive;
         boolean rollbackAccepted = !rollbackRequired || hasText(request == null ? null : request.rollbackEvidenceRef());
         boolean lastAdminGuardPassed = request != null && request.retainedAdminPrimaryIdentityKeys().stream()
                 .anyMatch(this::safePrimaryIdentityKey);
+        boolean confirmationProvided = request != null && "APPLY WEAVE IDENTITY REALM".equals(request.confirmationPhrase());
         List<String> blocked = new ArrayList<>();
-        if (request == null || !"APPLY WEAVE IDENTITY REALM".equals(request.confirmationPhrase())) {
+        if (!confirmationProvided) {
             blocked.add("explicit confirmation phrase is required");
         }
         if (!lastAdminGuardPassed) {
@@ -461,33 +465,49 @@ public class AdminControlPlaneService {
         }
         blocked.addAll(dryRun.blockers());
         boolean accepted = blocked.isEmpty();
+        boolean providerMutationPerformed = false;
+        String executionMode = "guarded-provider-apply-decision-only";
+        List<String> nextActions = applyNextActions(accepted, blocked, rollbackRequired, hasRisky, hasDestructive);
         String auditRef = "identity-realm-apply-" + Instant.now(clock).toEpochMilli();
+        String actorRef = actorRef(jwt);
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
                 "admin-control-plane",
-                actorRef(jwt),
+                actorRef,
                 "identity-realm-apply",
-                AuditAction.ADMIN_POLICY_UPDATED,
+                AuditAction.IDENTITY_REALM_APPLY_GUARDED,
                 Instant.now(clock),
                 auditRef,
-                AuditRedactionLevel.SECRET_REDACTED,
-                Map.of(
-                        "providerKey", provider.providerKey(),
-                        "realmId", dryRun.realmId(),
-                        "decision", accepted ? "accepted" : "blocked",
-                        "changeCount", dryRun.changes().size(),
-                        "blockedReasonCount", blocked.size(),
-                        "lastAdminGuardPassed", lastAdminGuardPassed,
-                        "rollbackEvidenceAccepted", rollbackAccepted,
-                        "supportSafe", true,
-                        "rawSecretExposed", false)));
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.ofEntries(
+                        Map.entry("actorRef", actorRef),
+                        Map.entry("candidateRef", "identity-realm:" + dryRun.realmId()),
+                        Map.entry("planRef", dryRun.dryRunId()),
+                        Map.entry("providerKey", provider.providerKey()),
+                        Map.entry("realmId", dryRun.realmId()),
+                        Map.entry("decision", accepted ? "accepted" : "blocked"),
+                        Map.entry("result", accepted ? "accepted-without-provider-mutation" : "blocked-before-provider-mutation"),
+                        Map.entry("executionMode", executionMode),
+                        Map.entry("providerMutationPerformed", providerMutationPerformed),
+                        Map.entry("safeChangeCount", safeChangeCount),
+                        Map.entry("riskyChangeCount", riskyChangeCount),
+                        Map.entry("destructiveChangeCount", destructiveChangeCount),
+                        Map.entry("blockedReasonCount", blocked.size()),
+                        Map.entry("nextActionCount", nextActions.size()),
+                        Map.entry("confirmationProvided", confirmationProvided),
+                        Map.entry("retainedAdminIdentityKeyCount", request == null ? 0 : request.retainedAdminPrimaryIdentityKeys().stream().filter(this::safePrimaryIdentityKey).count()),
+                        Map.entry("rollbackRestoreEvidencePresent", request != null && hasText(request.rollbackEvidenceRef())),
+                        Map.entry("lastAdminGuardPassed", lastAdminGuardPassed),
+                        Map.entry("rollbackEvidenceAccepted", rollbackAccepted),
+                        Map.entry("supportSafe", true))));
         return new IdentityRealmApplyReport(
                 provider.providerKey(),
                 dryRun.realmId(),
                 dryRun.dryRunId(),
                 accepted ? "accepted" : "blocked",
-                "guarded-provider-apply-contract",
-                accepted,
+                executionMode,
+                false,
+                providerMutationPerformed,
                 true,
                 false,
                 lastAdminGuardPassed,
@@ -495,10 +515,39 @@ public class AdminControlPlaneService {
                 rollbackAccepted,
                 blocked.stream().distinct().toList(),
                 dryRun.changes(),
-                accepted
-                        ? List.of("Provider adapter may now execute the guarded apply operation under operator monitoring.")
-                        : List.of("Resolve blocked reasons and re-run dry-run before applying."),
+                nextActions,
                 List.of(auditRef));
+    }
+
+    private List<String> applyNextActions(
+            boolean accepted,
+            List<String> blocked,
+            boolean rollbackRequired,
+            boolean hasRisky,
+            boolean hasDestructive) {
+        if (accepted) {
+            return List.of(
+                    "Guarded apply decision accepted; no live provider mutation was performed in this sprint slice.",
+                    "Archive the dry-run, policy simulation, retained-admin, and rollback evidence with the audit ref before any future provider adapter executor is enabled.");
+        }
+        List<String> nextActions = new ArrayList<>();
+        if (blocked.stream().anyMatch(reason -> reason.contains("confirmation"))) {
+            nextActions.add("Re-submit with confirmationPhrase=APPLY WEAVE IDENTITY REALM after reviewing the dry-run.");
+        }
+        if (blocked.stream().anyMatch(reason -> reason.contains("last-admin"))) {
+            nextActions.add("Retain at least one immutable owner/admin primary identity key such as issuer+subject before retrying.");
+        }
+        if (hasRisky) {
+            nextActions.add("Review risky change classifications, run effective policy simulation, and set approveRisky=true only with operator evidence.");
+        }
+        if (hasDestructive) {
+            nextActions.add("Treat destructive changes as unavailable until provider destructive apply support and restore evidence are explicitly proven.");
+        }
+        if (rollbackRequired && blocked.stream().anyMatch(reason -> reason.contains("rollback/restore evidence"))) {
+            nextActions.add("Attach a support-safe rollback/restore evidence reference before retrying risky or destructive apply.");
+        }
+        nextActions.add("Resolve blockedReasons and re-run /api/admin/identity/realm/dry-run before another apply attempt.");
+        return nextActions.stream().distinct().toList();
     }
 
     public CapabilityWhitelistResponse whitelist(Jwt jwt) {
