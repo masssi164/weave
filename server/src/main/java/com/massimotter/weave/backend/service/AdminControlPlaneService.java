@@ -209,7 +209,7 @@ public class AdminControlPlaneService {
         }
         String organizationId = safeOrganizationId(request.organizationId());
         String bootstrapMode = bootstrapMode(request.bootstrapMode());
-        List<String> retainedAdmins = retainedAdminSubjectKeys(request.adminSubjectKeys(), identity.primaryIdentityKey());
+        List<String> retainedAdmins = retainedAdminPrimaryIdentityKeys(request.adminPrimaryIdentityKeys(), identity.primaryIdentityKey());
         Instant bootstrappedAt = Instant.now(clock);
         OrganizationBootstrapRecord record = organizationBootstrapRepository.save(new OrganizationBootstrapRecord(
                 organizationId,
@@ -230,7 +230,7 @@ public class AdminControlPlaneService {
                 Map.of(
                         "bootstrapMode", record.bootstrapMode(),
                         "actorPrimaryIdentityKey", record.actorPrimaryIdentityKey(),
-                        "retainedAdminSubjectKeyCount", record.retainedAdminSubjectKeys().size(),
+                        "retainedAdminPrimaryIdentityKeyCount", record.retainedAdminPrimaryIdentityKeys().size(),
                         "lastAdminGuardPassed", true,
                         "supportSafe", true,
                         "emailPrimaryKey", false,
@@ -239,7 +239,7 @@ public class AdminControlPlaneService {
                 record.organizationId(),
                 record.bootstrapMode(),
                 record.actorPrimaryIdentityKey(),
-                record.retainedAdminSubjectKeys(),
+                record.retainedAdminPrimaryIdentityKeys(),
                 true,
                 true,
                 record.bootstrappedAt(),
@@ -398,7 +398,7 @@ public class AdminControlPlaneService {
                 Map.of("bootstrapMode", "invalid-bootstrap-mode-redacted"));
     }
 
-    private List<String> retainedAdminSubjectKeys(List<String> suppliedKeys, String actorPrimaryIdentityKey) {
+    private List<String> retainedAdminPrimaryIdentityKeys(List<String> suppliedKeys, String actorPrimaryIdentityKey) {
         List<String> supplied = suppliedKeys == null ? List.of() : suppliedKeys;
         List<String> retained = Stream.concat(supplied.stream(), Stream.of(actorPrimaryIdentityKey))
                 .filter(value -> value != null && !value.isBlank())

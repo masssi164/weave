@@ -236,19 +236,19 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/organizations/bootstrap")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminSubjectKeys\":[]}"))
+                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminPrimaryIdentityKeys\":[]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.organizationId").value("acme-prod"))
                 .andExpect(jsonPath("$.bootstrapMode").value("existing_org"))
                 .andExpect(jsonPath("$.actorPrimaryIdentityKey").value("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"))
-                .andExpect(jsonPath("$.retainedAdminSubjectKeys[*]", hasItems("issuer+subject:https://auth.example.invalid/realms/weave#admin-123")))
+                .andExpect(jsonPath("$.retainedAdminPrimaryIdentityKeys[*]", hasItems("issuer+subject:https://auth.example.invalid/realms/weave#admin-123")))
                 .andExpect(jsonPath("$.lastAdminGuardPassed").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true));
 
         mockMvc.perform(post("/api/admin/organizations/bootstrap")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"organizationId\":\"newco\",\"bootstrapMode\":\"new_org\",\"adminSubjectKeys\":[\"issuer+subject:https://auth.example.invalid/realms/weave#admin-123\"]}"))
+                        .content("{\"organizationId\":\"newco\",\"bootstrapMode\":\"new_org\",\"adminPrimaryIdentityKeys\":[\"issuer+subject:https://auth.example.invalid/realms/weave#admin-123\"]}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.organizationId").value("newco"))
                 .andExpect(jsonPath("$.bootstrapMode").value("new_org"))
@@ -260,11 +260,11 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/organizations/bootstrap")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminSubjectKeys\":[\"alice@example.com\"]}"))
+                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminPrimaryIdentityKeys\":[\"alice@example.com\"]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("validation-error"))
                 .andExpect(content().string(not(containsString("alice@example.com"))))
-                .andExpect(content().string(containsString("adminSubjectKeys")));
+                .andExpect(content().string(containsString("adminPrimaryIdentityKeys")));
     }
 
     @Test
@@ -272,10 +272,10 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/organizations/bootstrap")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminSubjectKeys\":[null]}"))
+                        .content("{\"organizationId\":\"acme-prod\",\"bootstrapMode\":\"existing_org\",\"adminPrimaryIdentityKeys\":[null]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("validation-error"))
-                .andExpect(content().string(containsString("adminSubjectKeys")));
+                .andExpect(content().string(containsString("adminPrimaryIdentityKeys")));
     }
 
     @Test

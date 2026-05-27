@@ -7,10 +7,10 @@ public record OrganizationBootstrapRecord(
         String organizationId,
         String bootstrapMode,
         String actorPrimaryIdentityKey,
-        List<String> retainedAdminSubjectKeys,
+        List<String> retainedAdminPrimaryIdentityKeys,
         Instant bootstrappedAt) {
 
     public OrganizationBootstrapRecord {
-        retainedAdminSubjectKeys = retainedAdminSubjectKeys == null ? List.of() : List.copyOf(retainedAdminSubjectKeys);
+        retainedAdminPrimaryIdentityKeys = retainedAdminPrimaryIdentityKeys == null ? List.of() : List.copyOf(retainedAdminPrimaryIdentityKeys);
     }
 }

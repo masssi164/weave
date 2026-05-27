@@ -22,11 +22,11 @@ public record OrganizationBootstrapRequest(
         @Size(max = 25)
         List<@NotBlank @Size(max = MAX_PRIMARY_IDENTITY_KEY_LENGTH) @Pattern(
                 regexp = PRIMARY_IDENTITY_KEY_PATTERN,
-                message = "must be a support-safe issuer+subject key") String> adminSubjectKeys,
+                message = "must be a support-safe issuer+subject key") String> adminPrimaryIdentityKeys,
         @Schema(description = "Support-safe reason recorded in audit.")
         String reason) {
 
     public OrganizationBootstrapRequest {
-        adminSubjectKeys = adminSubjectKeys == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(adminSubjectKeys));
+        adminPrimaryIdentityKeys = adminPrimaryIdentityKeys == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(adminPrimaryIdentityKeys));
     }
 }
