@@ -22,9 +22,17 @@ Prerequisites:
 
 - Flutter SDK on the stable channel.
 - Xcode/macOS or another Flutter-supported target for local app runs.
-- `make`, Python 3, Java 21 for backend checks, and the normal Dart/Flutter toolchain.
+- `make`, Python 3, Java 21+ for Gradle/backend checks, and the normal Dart/Flutter toolchain.
 - Node/npm for admin console checks.
 - Docker/OpenTofu only for live-stack validation.
+
+On macOS with Homebrew JDK 21, use the same Java line as CI before running Gradle gates:
+
+```sh
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21
+export PATH="$JAVA_HOME/bin:$PATH"
+java -version
+```
 
 Clone the monorepo and prepare the client:
 
@@ -59,7 +67,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
-Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts.
+Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts. If local `./gradlew doctor` reports JDK 17, point `JAVA_HOME` at JDK 21+ rather than weakening the gate.
 
 ## Everyday Flutter workflow
 
