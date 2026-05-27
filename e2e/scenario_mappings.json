@@ -615,6 +615,13 @@
             "chat.read",
             "chat.send"
           ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/PlatformProductContractControllerTest.java",
+          "fragments": [
+            "providerReplacementDryRunReportsAntiSiloEvidenceAndRedactsDiagnostics",
+            "providerReplacementDryRunRejectsRawSecretsAndUnsupportedAdapterCombinations"
+          ]
         }
       ]
     },

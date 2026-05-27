@@ -10,6 +10,8 @@ import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
+import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRequest;
+import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
@@ -117,6 +119,17 @@ public class AdminControlPlaneController {
             @Valid @RequestBody ProviderReadinessTestRequest request,
             @AuthenticationPrincipal Jwt jwt) {
         return adminControlPlaneService.testProviderReadiness(request, jwt);
+    }
+
+    @PostMapping({"/api/admin/providers/replacements/dry-run", "/api/v1/admin/providers/replacements/dry-run"})
+    @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
+    @Operation(summary = "Dry-run a provider replacement before activation")
+    @ApiResponse(responseCode = "200", description = "Support-safe provider replacement dry-run report.",
+            content = @Content(schema = @Schema(implementation = ProviderReplacementDryRunResponse.class)))
+    public ProviderReplacementDryRunResponse dryRunProviderReplacement(
+            @Valid @RequestBody ProviderReplacementDryRunRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return adminControlPlaneService.dryRunProviderReplacement(request, jwt);
     }
 
     @GetMapping({"/api/admin/audit/events", "/api/v1/admin/audit/events"})
