@@ -33,10 +33,10 @@ public class WorkspaceReleaseReadinessService {
 
     public WorkspaceReleaseReadinessResponse snapshot(Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "workspace-release-readiness", "read");
-        return snapshot();
+        return supportSafeSnapshot();
     }
 
-    public WorkspaceReleaseReadinessResponse snapshot() {
+    WorkspaceReleaseReadinessResponse supportSafeSnapshot() {
         WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot();
 
         List<WorkspaceReleaseReadinessCheckResponse> checks = List.of(

@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-        @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
+        @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope or document capability policy denies Office access.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class OfficeController {

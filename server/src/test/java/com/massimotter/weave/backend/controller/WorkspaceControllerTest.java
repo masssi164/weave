@@ -252,7 +252,10 @@ class WorkspaceControllerTest {
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
     }
 
     @Test

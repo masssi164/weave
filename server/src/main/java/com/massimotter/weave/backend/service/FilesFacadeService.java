@@ -77,7 +77,7 @@ public class FilesFacadeService {
         }
         Jwt jwt = jwtPrincipal(authentication, operation);
         workspaceCapabilityService.requireCapability(jwt, capabilityFor(permission), "files", operation);
-        PrincipalContext principalContext = principalContext(authentication, operation);
+        PrincipalContext principalContext = principalContext(jwt, operation);
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
                 principalContext.tenantId(),
                 DEFAULT_CONTEXT_ID,
@@ -108,15 +108,8 @@ public class FilesFacadeService {
         return permission == ContextPermission.VIEW ? "files.read" : "files.upload";
     }
 
-    private PrincipalContext principalContext(Authentication authentication, String operation) {
-        if (authentication.getPrincipal() instanceof Jwt jwt) {
-            return new PrincipalContext(jwtTenantId(jwt, operation), jwtPrincipalRef(jwt, operation));
-        }
-        String principalRef = contextAuthorizationProperties.principalRef(authentication.getName());
-        if (principalRef == null) {
-            throw invalidAuthentication(operation, "principal claim is missing");
-        }
-        return new PrincipalContext(contextAuthorizationProperties.defaultTenantId(), principalRef);
+    private PrincipalContext principalContext(Jwt jwt, String operation) {
+        return new PrincipalContext(jwtTenantId(jwt, operation), jwtPrincipalRef(jwt, operation));
     }
 
     private String jwtTenantId(Jwt jwt, String operation) {

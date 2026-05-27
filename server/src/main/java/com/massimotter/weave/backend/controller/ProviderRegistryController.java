@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-        @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope or is not an owner/admin/operator.",
+        @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope or effective workspace capability policy denies provider readiness access.",
                 content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
 })
 public class ProviderRegistryController {
@@ -38,7 +38,7 @@ public class ProviderRegistryController {
     }
 
     @GetMapping("/api/providers/status")
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
+    @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(summary = "Read support-safe admin/provider category capability and readiness status")
     @ApiResponse(responseCode = "200", description = "Provider registry snapshot.",
             content = @Content(schema = @Schema(implementation = ProviderRegistryResponse.class)))

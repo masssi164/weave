@@ -314,7 +314,7 @@ public class ChatFacadeService {
             ChatProviderReplacementDryRunRequest request) {
         requireChatReady(jwt, "chat.read", "provider_replacement_dry_run");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.ADMIN);
-        requireAdminRole(jwt);
+        requireAdminReadinessCapability(jwt);
         String sourceAdapter = sanitizeAdapterKey(request.sourceAdapter());
         String targetAdapter = sanitizeAdapterKey(request.targetAdapter());
         Instant timestamp = Instant.now();
@@ -490,7 +490,7 @@ public class ChatFacadeService {
                         "diagnosticsRedacted", true));
     }
 
-    private void requireAdminRole(Jwt jwt) {
+    private void requireAdminReadinessCapability(Jwt jwt) {
         workspaceCapabilityService.requireCapability(
                 jwt,
                 "admin_control_plane.readiness_read",
