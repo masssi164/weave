@@ -384,6 +384,18 @@
           ]
         },
         {
+          "path": "server/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java",
+          "fragments": [
+            "coreProductDomainsCarryExecutableAdapterFitContracts",
+            "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
+            "microsoft-teams",
+            "slack",
+            "sharepoint",
+            "openproject-primary",
+            "microsoft-planner"
+          ]
+        },
+        {
           "path": "docs/diagrams/architecture_facade.mmd",
           "fragments": [
             "Canonical feature APIs",

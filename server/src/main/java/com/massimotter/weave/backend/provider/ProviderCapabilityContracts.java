@@ -29,7 +29,7 @@ public final class ProviderCapabilityContracts {
                     List.of("Space", "Conversation", "Message", "Thread", "Reaction", "Attachment", "Membership", "Presence"),
                     "selected chat provider owns message history unless an admin migrates or declares Weave-owned retention",
                     List.of("Slack broadcast/thread semantics", "Teams channel permissions", "Matrix E2EE recovery", "rich cards/adaptive blocks", "attachment retention"),
-                    "export conversation/message/attachment provenance or document provider export boundary",
+                    "export conversation/message/attachment provenance or document provider export boundary; delete/deprovision follows provider and retention policy",
                     "chat replacement requires preflight, dry-run, membership/history/attachment loss report, and rollback/retention note")),
             Map.entry("files", new Definition(
                     List.of("files.read", "files.upload", "files.download", "files.delete"),

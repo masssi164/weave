@@ -57,7 +57,7 @@ Feature: Weave v0.1 dogfood production release
 
   @weave-v01-canonical-provider-neutral-models
   Scenario: Self-hosted and external providers map to the same Weave feature models
-    Given an organization compares the recommended self-hosted defaults with external providers for chat, files, calendar, meetings, boards/tasks, and identity
+    Given an organization compares self-hosted identity with Teams or Slack chat, SharePoint files, and OpenProject or Planner boards
     When the backend provider registry maps each selected provider into Weave feature facades
     Then Matrix or Slack-like chat maps to the same Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence model
     And Nextcloud or SharePoint-like files map to the same Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession model
