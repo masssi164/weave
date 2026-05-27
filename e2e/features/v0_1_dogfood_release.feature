@@ -61,7 +61,7 @@ Feature: Weave v0.1 dogfood production release
     When the backend provider registry maps each selected provider into Weave feature facades
     Then Matrix or Slack-like chat maps to the same Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence model
     And Nextcloud or SharePoint-like files map to the same Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession model
-    And CalDAV or Microsoft Graph-like calendar and LiveKit or Teams-like meetings map to the same Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, and Captions model
+    And CalDAV or Microsoft Graph-like calendar and LiveKit or Teams-like meetings map to the same Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, Captions, and MediaSession model
     And OpenProject or Planner-like tasks map to the same Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField model
     And Keycloak or Entra-like identity maps to the same Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent model
 

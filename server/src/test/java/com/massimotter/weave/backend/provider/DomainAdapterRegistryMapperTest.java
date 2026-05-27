@@ -11,10 +11,10 @@ import org.junit.jupiter.api.Test;
 class DomainAdapterRegistryMapperTest {
 
     private static final Map<String, List<String>> CORE_DOMAIN_OBJECTS = Map.of(
-            "chat", List.of("Conversation", "Message", "Thread", "Membership", "Attachment"),
-            "files", List.of("Drive", "Node", "Version", "Share", "Permission", "Lock"),
-            "calendar", List.of("Calendar", "Event", "Attendee", "Recurrence", "Resource"),
-            "boards-tasks", List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "Dependency", "CustomField"),
+            "chat", List.of("Space", "Conversation", "Message", "Thread", "Reaction", "Attachment", "Membership", "Presence"),
+            "files", List.of("Drive", "Node", "Folder", "File", "Version", "Share", "Permission", "Lock", "EditSession"),
+            "calendar", List.of("Calendar", "Event", "Attendee", "Recurrence", "Availability", "Resource"),
+            "boards-tasks", List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "Attachment", "Dependency", "CustomField"),
             "meetings-calls", List.of("Meeting", "Participant", "Recording", "Captions", "MediaSession"));
 
     private static final Map<String, List<String>> MIXED_PROVIDER_POSTURE = Map.of(
@@ -96,7 +96,7 @@ class DomainAdapterRegistryMapperTest {
             var contract = ProviderCapabilityContracts.contract(category, modulesFor(category));
 
             assertThat(contract.stableMemberImpactStates()).containsExactly("usable", "disabled", "degraded", "policy-blocked");
-            assertThat(contract.canonicalObjects()).containsAll(canonicalObjects);
+            assertThat(contract.canonicalObjects()).containsExactlyInAnyOrderElementsOf(canonicalObjects);
             assertThat(contract.sourceOfTruth()).isNotBlank();
             assertThat(contract.lossyMappingRisks()).isNotEmpty();
             assertThat(contract.exportDeleteExpectation()).containsIgnoringCase("export");
