@@ -87,6 +87,8 @@ Preflight checks:
 
 No data is mutated during preflight.
 
+The backend exposes this as an Admin Console contract at `POST /api/admin/providers/replacements/dry-run`. The request carries `category`, `currentAdapter`, `targetAdapter`, `choiceModel`, `secretRef`, and a source-of-truth declaration. The response is support-safe: it reports canonical objects, lossy mapping risks, export/delete/deprovision expectations, readiness before activation, cutover gates, and audit references without returning raw secrets, tenant URLs, bearer tokens, or downstream provider bodies.
+
 ### 2. Dry-run mapping
 
 Dry-run maps source provider objects to canonical Weave objects and target-provider capabilities.

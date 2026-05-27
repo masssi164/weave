@@ -152,6 +152,26 @@ public final class ProviderCapabilityContracts {
                 .toList();
     }
 
+    public static List<String> canonicalObjects(String category) {
+        return List.copyOf(definition(category).canonicalObjects());
+    }
+
+    public static String sourceOfTruth(String category) {
+        return definition(category).sourceOfTruth();
+    }
+
+    public static List<String> lossyMappingRisks(String category) {
+        return List.copyOf(definition(category).lossyMappingRisks());
+    }
+
+    public static String exportDeleteExpectation(String category) {
+        return definition(category).exportDeleteExpectation();
+    }
+
+    public static String replacementRequirement(String category) {
+        return definition(category).replacementRequirement();
+    }
+
     private static Definition definition(String category) {
         Definition definition = DEFINITIONS.get(category);
         if (definition == null) {

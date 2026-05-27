@@ -16,6 +16,8 @@ import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
+import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRequest;
+import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
@@ -113,6 +115,7 @@ public class AdminControlPlaneService {
                         "policy", "/api/admin/policies/capability-whitelist",
                         "audit", "/api/admin/audit/events",
                         "readinessTest", "/api/admin/providers/readiness-tests",
+                        "providerReplacementDryRun", "/api/admin/providers/replacements/dry-run",
                         "providerSelections", "/api/admin/providers/selections"));
     }
 
@@ -131,18 +134,114 @@ public class AdminControlPlaneService {
                     Instant.now(clock),
                     "provider-selection-" + selection.category() + "-" + Instant.now(clock).toEpochMilli(),
                     AuditRedactionLevel.SECRET_REDACTED,
-                    Map.of(
-                            "category", selection.category(),
-                            "providerKey", selection.providerKey(),
-                            "choiceModel", selection.choiceModel(),
-                            "secretRef", safeSecretRef(selection.secretRef()),
-                            "reason", safeText(request.reason()),
-                            "providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE,
-                            "migrationDryRunRequired", selection.migrationDryRunRequired(),
-                            "lossyMappingNoteCount", selection.lossyMappingNotes().size(),
-                            "token", "not-stored")));
+                    Map.ofEntries(
+                            Map.entry("category", selection.category()),
+                            Map.entry("providerKey", selection.providerKey()),
+                            Map.entry("choiceModel", selection.choiceModel()),
+                            Map.entry("secretRef", safeSecretRef(selection.secretRef())),
+                            Map.entry("reason", safeText(request.reason())),
+                            Map.entry("providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE),
+                            Map.entry("migrationDryRunRequired", selection.migrationDryRunRequired()),
+                            Map.entry("lossyMappingNoteCount", selection.lossyMappingNotes().size()),
+                            Map.entry("replacementApplyAttempt", true),
+                            Map.entry("dryRunEvidenceRequired", selection.migrationDryRunRequired()),
+                            Map.entry("token", "not-stored"))));
         }
         return toSelectionResponse(applied, dryRun, dryRun ? "dry_run_valid" : "admin_selected_pending_readiness");
+    }
+
+    public ProviderReplacementDryRunResponse dryRunProviderReplacement(ProviderReplacementDryRunRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.provider.configure", "admin-control-plane", "provider-replacement-dry-run");
+        if (request == null || request.category() == null || request.category().isBlank()
+                || request.currentAdapter() == null || request.currentAdapter().isBlank()
+                || request.targetAdapter() == null || request.targetAdapter().isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-invalid",
+                    "Provider replacement dry-run requires category, current adapter, and target adapter.",
+                    Map.of("reason", "category/currentAdapter/targetAdapter are required"));
+        }
+        String category = request.category().trim();
+        String currentAdapter = request.currentAdapter().trim();
+        String targetAdapter = request.targetAdapter().trim();
+        if (ProviderCategoryCatalog.category(category).isEmpty()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-category-unknown",
+                    "Provider category is not part of the Weave canonical control-plane contract.",
+                    Map.of("category", category));
+        }
+        if (!providerMatchesCategory(currentAdapter, category) || !providerMatchesCategory(targetAdapter, category)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-category-mismatch",
+                    "Provider replacement adapters must both be registered as support-safe candidates for the selected category.",
+                    Map.of("category", category, "adapters", "unsupported-adapter-redacted"));
+        }
+        String choiceModel = selectionChoiceModel(request.choiceModel());
+        requiredSecretRef(request.secretRef());
+        String declaredSourceOfTruth = safeSourceOfTruth(request.sourceOfTruth());
+        List<String> adminNotes = safeLossyMappingNotes(request.lossyMappingNotes());
+        List<String> conflicts = currentAdapter.equalsIgnoreCase(targetAdapter)
+                ? List.of("Current and target adapters are identical; record no-op or choose a distinct target before activation.")
+                : List.of();
+        boolean migrationRequired = true;
+        String status = conflicts.isEmpty() ? "dry-run-ready" : "requires-admin-review";
+        String dryRunId = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
+        String auditRef = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                "admin-control-plane",
+                actorRef(jwt),
+                "provider-replacement-dry-run",
+                AuditAction.PROVIDER_REPLACEMENT_DRY_RUN,
+                Instant.now(clock),
+                auditRef,
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.ofEntries(
+                        Map.entry("category", category),
+                        Map.entry("currentAdapter", currentAdapter),
+                        Map.entry("targetAdapter", targetAdapter),
+                        Map.entry("choiceModel", choiceModel),
+                        Map.entry("sourceOfTruth", declaredSourceOfTruth),
+                        Map.entry("secretRefPresent", true),
+                        Map.entry("secretRef", safeSecretRef(request.secretRef())),
+                        Map.entry("migrationDryRunRequired", migrationRequired),
+                        Map.entry("lossyMappingNoteCount", adminNotes.size()),
+                        Map.entry("rawProviderError", "redacted before audit"),
+                        Map.entry("token", "not-stored"))));
+        return new ProviderReplacementDryRunResponse(
+                dryRunId,
+                status,
+                "dry-run",
+                category,
+                currentAdapter,
+                targetAdapter,
+                choiceModel,
+                declaredSourceOfTruth,
+                true,
+                conflicts.isEmpty() ? "ready-for-admin-review" : "blocked-until-conflicts-resolved",
+                migrationRequired,
+                new ProviderReplacementDryRunResponse.LossyMappingReport(
+                        ProviderCapabilityContracts.canonicalObjects(category),
+                        ProviderCapabilityContracts.lossyMappingRisks(category),
+                        adminNotes,
+                        conflicts,
+                        ProviderCapabilityContracts.replacementRequirement(category)),
+                new ProviderReplacementDryRunResponse.LifecycleExpectations(
+                        ProviderCapabilityContracts.sourceOfTruth(category),
+                        ProviderCapabilityContracts.exportDeleteExpectation(category),
+                        ProviderCapabilityContracts.exportDeleteExpectation(category),
+                        "deprovision source identities, groups, memberships, grants, and service principals through the authoritative provider before capability cutover",
+                        "rollback is an admin decision boundary; dry-run does not mutate provider state and apply must preserve mapping history"),
+                List.of(
+                        "SecretRef exists and remains backend-only; raw credentials are never returned.",
+                        "Admin confirms source-of-truth, export/delete, lossy mapping, and rollback/support notes.",
+                        "Readiness test and migration dry-run evidence are reviewed before activation."),
+                List.of("usable", "disabled", "degraded", "policy-blocked"),
+                true,
+                true,
+                List.of(auditRef));
     }
 
     public EffectivePolicyResponse effectivePolicy(Jwt jwt) {
@@ -480,15 +579,50 @@ public class AdminControlPlaneService {
         if (value == null || value.isBlank()) {
             return null;
         }
+        return validateSecretRef(value, "provider-selection-secretref-invalid", "Provider selections may reference credentials only through SecretRef URIs.");
+    }
+
+    private String requiredSecretRef(String value) {
+        if (value == null || value.isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-secretref-invalid",
+                    "Provider replacement dry-run requires a backend SecretRef before activation can be evaluated.",
+                    Map.of("secretRef", "invalid-secret-ref-redacted"));
+        }
+        return validateSecretRef(value, "provider-replacement-secretref-invalid", "Provider replacement dry-run may reference credentials only through SecretRef URIs.");
+    }
+
+    private String validateSecretRef(String value, String code, String message) {
         String trimmed = value.trim();
         if (trimmed.toLowerCase(Locale.ROOT).startsWith("secretref://")) {
             return trimmed;
         }
         throw new ApiErrorException(
                 HttpStatus.BAD_REQUEST,
-                "provider-selection-secretref-invalid",
-                "Provider selections may reference credentials only through SecretRef URIs.",
+                code,
+                message,
                 Map.of("secretRef", "invalid-secret-ref-redacted"));
+    }
+
+    private String safeSourceOfTruth(String value) {
+        if (value == null || value.isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-source-of-truth-invalid",
+                    "Provider replacement dry-run requires a support-safe source-of-truth declaration.",
+                    Map.of("sourceOfTruth", "invalid-source-of-truth-redacted"));
+        }
+        String trimmed = value.trim();
+        String redacted = safeText(trimmed);
+        if (!redacted.equals(trimmed) || trimmed.length() > 160) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-source-of-truth-invalid",
+                    "Provider replacement source-of-truth declaration must not contain URLs, bearer tokens, or secret material.",
+                    Map.of("sourceOfTruth", "invalid-source-of-truth-redacted"));
+        }
+        return trimmed;
     }
 
     private boolean requiresMigrationDryRun(ProviderSelectionRequest request) {
@@ -580,7 +714,11 @@ public class AdminControlPlaneService {
         if (value == null || value.isBlank()) {
             return "not-provided";
         }
-        return value.trim().replaceAll("(?i)bearer\\s+[^\\s]+", "Bearer [redacted]");
+        return value.trim()
+                .replaceAll("(?i)bearer\\s+[^\\s]+", "Bearer [redacted]")
+                .replaceAll("(?i)xox[baprs]-[A-Za-z0-9-]+", "slack-token-[redacted]")
+                .replaceAll("(?i)https?://[^\\s]+", "url-[redacted]")
+                .replaceAll("(?i)secret(ref)?://[^\\s]+", "secret-ref-[redacted]");
     }
 
     private String organizationId(Jwt jwt) {

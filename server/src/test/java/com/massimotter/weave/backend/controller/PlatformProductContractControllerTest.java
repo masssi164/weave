@@ -159,6 +159,88 @@ class PlatformProductContractControllerTest {
     }
 
     @Test
+    void providerReplacementDryRunReportsAntiSiloEvidenceAndRedactsDiagnostics() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/replacements/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "category": "chat",
+                                  "currentAdapter": "synapse-homeserver",
+                                  "targetAdapter": "slack",
+                                  "choiceModel": "external_existing_provider",
+                                  "secretRef": "secretref://weave/provider/slack",
+                                  "sourceOfTruth": "selected chat provider owns message history",
+                                  "lossyMappingNotes": ["Slack rich cards need review", "Bearer raw-token is redacted", "https://tenant.example.invalid/private is redacted"],
+                                  "reason": "evaluate provider swap before activation"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mode").value("dry-run"))
+                .andExpect(jsonPath("$.status").value("dry-run-ready"))
+                .andExpect(jsonPath("$.category").value("chat"))
+                .andExpect(jsonPath("$.currentAdapter").value("synapse-homeserver"))
+                .andExpect(jsonPath("$.targetAdapter").value("slack"))
+                .andExpect(jsonPath("$.secretRefPresent").value(true))
+                .andExpect(jsonPath("$.migrationDryRunRequired").value(true))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
+                .andExpect(jsonPath("$.lossyMappingReport.canonicalObjects", hasItem("Message")))
+                .andExpect(jsonPath("$.lossyMappingReport.contractRisks", hasItem(containsString("Slack"))))
+                .andExpect(jsonPath("$.lifecycleExpectations.exportExpectation", containsString("export")))
+                .andExpect(jsonPath("$.lifecycleExpectations.deprovisionExpectation", containsString("deprovision")))
+                .andExpect(jsonPath("$.memberImpactStates", hasItem("policy-blocked")))
+                .andExpect(jsonPath("$.auditRefs[0]", containsString("provider-replacement-dry-run-chat")))
+                .andExpect(content().string(not(containsString("raw-token"))))
+                .andExpect(content().string(not(containsString("tenant.example.invalid"))))
+                .andExpect(content().string(not(containsString("Authorization: Bearer"))));
+
+        mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("provider.replacement.dry_run")))
+                .andExpect(content().string(not(containsString("raw-token"))))
+                .andExpect(content().string(not(containsString("tenant.example.invalid"))));
+    }
+
+    @Test
+    void providerReplacementDryRunRejectsRawSecretsAndUnsupportedAdapterCombinations() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/replacements/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "category": "chat",
+                                  "currentAdapter": "synapse-homeserver",
+                                  "targetAdapter": "slack",
+                                  "choiceModel": "external_existing_provider",
+                                  "secretRef": "xoxb-raw-token",
+                                  "sourceOfTruth": "selected chat provider owns message history"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("provider-replacement-secretref-invalid"))
+                .andExpect(jsonPath("$.details.secretRef").value("invalid-secret-ref-redacted"))
+                .andExpect(content().string(not(containsString("xoxb-raw-token"))));
+
+        mockMvc.perform(post("/api/admin/providers/replacements/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "category": "chat",
+                                  "currentAdapter": "synapse-homeserver",
+                                  "targetAdapter": "sharepoint",
+                                  "choiceModel": "external_existing_provider",
+                                  "secretRef": "secretref://weave/provider/sharepoint",
+                                  "sourceOfTruth": "selected chat provider owns message history"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("provider-replacement-category-mismatch"))
+                .andExpect(content().string(not(containsString("sharepoint.example"))));
+    }
+
+    @Test
     void calendarAccessPolicyAndSetupCredentialsAreRevocableWithoutSecretOutput() throws Exception {
         mockMvc.perform(get("/api/calendar/access-policy").with(workspaceJwt()))
                 .andExpect(status().isOk())
@@ -196,5 +278,18 @@ class PlatformProductContractControllerTest {
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("aud", java.util.List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
+        return jwt().jwt(jwt -> jwt
+                        .subject("admin-123")
+                        .issuer("https://auth.example.invalid/realms/weave")
+                        .claim("preferred_username", "admin")
+                        .claim("weave_tenant_id", "tenant-default")
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("admin"))))
+                .authorities(
+                        new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                        new SimpleGrantedAuthority("ROLE_ADMIN"));
     }
 }

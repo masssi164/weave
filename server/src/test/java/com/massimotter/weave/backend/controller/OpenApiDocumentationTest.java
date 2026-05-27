@@ -68,6 +68,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/api/guest/access-contract']").exists())
                 .andExpect(jsonPath("$.paths['/api/guest/invitations']").exists())
                 .andExpect(jsonPath("$.paths['/api/migration/dry-runs']").exists())
+                .andExpect(jsonPath("$.paths['/api/admin/providers/replacements/dry-run']").exists())
                 .andExpect(jsonPath("$.paths['/api/connectors/boundary']").exists())
                 .andExpect(jsonPath("$.paths['/api/connectors/manifest/validate']").exists())
                 .andExpect(jsonPath("$.components.schemas.BoardsWorkspaceResponse.properties.syncMetadata").exists())

@@ -15,6 +15,7 @@ public enum AuditAction {
     CONSENT_REVOKED("consent.revoked"),
     ADMIN_POLICY_UPDATED("admin.policy.updated"),
     PROVIDER_READINESS_TESTED("provider.readiness.tested"),
+    PROVIDER_REPLACEMENT_DRY_RUN("provider.replacement.dry_run"),
     CHAT_MIGRATION_PREFLIGHTED("chat.migration.preflighted"),
     WEAVER_RUNTIME_PROFILE_GENERATED("weaver.runtime_profile.generated"),
     TASK_CREATED("task.created"),
