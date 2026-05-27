@@ -43,6 +43,15 @@ Required artifacts:
 - `weave-live-stack-acceptance-evidence/evidence-markers.json`
 - `weave-live-stack-acceptance-evidence/release-evidence-manifest.json`
 
+Failure-only support-safe diagnostics:
+
+- `weave-live-stack-acceptance-evidence/failure-diagnostics/failure-summary.md`
+- `weave-live-stack-acceptance-evidence/failure-diagnostics/failure-summary.json`
+- `weave-live-stack-acceptance-evidence/failure-diagnostics/container-status.tsv`
+- `weave-live-stack-acceptance-evidence/failure-diagnostics/failed-markers.json`
+- `weave-live-stack-acceptance-evidence/failure-diagnostics/health-checks/operator-check.txt`
+- `weave-live-stack-acceptance-evidence/failure-diagnostics/support-bundle/weave-support-*.tar.gz`
+
 Required runtime markers for the v0.1 dogfood candidate:
 
 - `AUTH_RESULT`
@@ -79,6 +88,8 @@ Every Live Stack E2E artifact directory must include a support-safe manifest:
 - acceptance artifact file list;
 - support-safe exclusions;
 - RC rule reminder.
+
+On failure, diagnostics are additive and support-safe: container state, health/readiness output after redaction, failed or missing runtime markers, and a redacted support bundle reference. The workflow must not print or upload raw container logs as default evidence. If an operator deliberately enables private raw-log capture for deeper debugging, the destination must stay outside the uploaded evidence directory and remain a private runner/operator artifact.
 
 This makes evidence portable: a release owner can inspect one artifact directory and know what commit, run, lane, and contract it represents without reading private runner logs.
 

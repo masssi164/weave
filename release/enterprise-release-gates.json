@@ -43,7 +43,13 @@
             "weave-live-stack-acceptance-evidence/acceptance-summary.md",
             "weave-live-stack-acceptance-evidence/scenario-mapping-results.json",
             "weave-live-stack-acceptance-evidence/evidence-markers.json",
-            "weave-live-stack-acceptance-evidence/release-evidence-manifest.json"
+            "weave-live-stack-acceptance-evidence/release-evidence-manifest.json",
+            "weave-live-stack-acceptance-evidence/failure-diagnostics/failure-summary.md",
+            "weave-live-stack-acceptance-evidence/failure-diagnostics/failure-summary.json",
+            "weave-live-stack-acceptance-evidence/failure-diagnostics/container-status.tsv",
+            "weave-live-stack-acceptance-evidence/failure-diagnostics/failed-markers.json",
+            "weave-live-stack-acceptance-evidence/failure-diagnostics/health-checks/operator-check.txt",
+            "weave-live-stack-acceptance-evidence/failure-diagnostics/support-bundle/weave-support-*.tar.gz"
           ],
           "mustObserveMarkers": ["AUTH_RESULT", "PROFILE_RESULT", "CHAT_RESULT", "MATRIX_RESULT", "E2EE_RESULT", "FILES_RESULT", "PROVIDER_STACK_RESULT", "CALENDAR_RESULT", "BOARDS_RESULT"],
           "supportSafeExclusions": ["raw credentials", "credential-bearing URLs", "provider internals", "downstream provider error bodies", "private live logs"]
