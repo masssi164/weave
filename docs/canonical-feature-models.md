@@ -71,7 +71,7 @@ Diagram: [`docs/diagrams/er_files_docs.mmd`](diagrams/er_files_docs.mmd).
 
 Entities: `Calendar`, `Event`, `Attendee`, `Recurrence`, `Availability`, `Resource`, `Meeting`, `Participant`, `Recording`, and `Captions`.
 
-The calendar/meetings canonical set is Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, and Captions.
+The calendar/meetings canonical set is Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, Captions, and MediaSession.
 
 The calendar/meetings facade maps CalDAV/iCalendar, Microsoft Graph calendar/onlineMeeting, and LiveKit rooms/participants/egress into stable scheduling and meeting records. RRULE/time-zone semantics are normalized before client use. Meeting tokens, media provider secrets, room SIDs, egress IDs, and webhook payloads remain backend-only mapping data.
 

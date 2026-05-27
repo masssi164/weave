@@ -195,7 +195,7 @@ void main() {
         'Policy is deny-by-default.',
         'Space, Conversation, Message, Thread, Reaction, Attachment, Membership, and Presence',
         'Drive, Node, Folder, File, Version, Share, Permission, Lock, and EditSession',
-        'Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, and Captions',
+        'Calendar, Event, Attendee, Recurrence, Availability, Resource, Meeting, Participant, Recording, Captions, and MediaSession',
         'Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, and CustomField',
         'Organization, User, Group, Role, ProviderConfig, CapabilityPolicy, Whitelist, SecretRef, Readiness, and AuditEvent',
         'Identity/Keycloak plus Boards/Tasks/OpenProject and a Planner-like placeholder',
