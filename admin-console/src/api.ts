@@ -3,6 +3,7 @@ export type CapabilityState =
   | 'disabled'
   | 'degraded'
   | 'policy-blocked'
+  | 'admin-action-required'
   | 'misconfigured'
   | 'unsupported'
   | 'not_configured'
@@ -21,6 +22,32 @@ export interface ProviderCategory {
   providerCandidates: string[];
   lastCheckedAt?: string;
   secretRefs: string[];
+}
+
+export interface IdentityProviderReadinessCard {
+  key: string;
+  label: string;
+  state: CapabilityState;
+  summary: string;
+  memberImpact: 'ready' | 'disabled' | 'degraded' | 'policy-blocked';
+  remediation: string;
+  nextActions: string[];
+  evidenceRefs: string[];
+}
+
+export interface IdentityProviderReadiness {
+  contractVersion: string;
+  category: string;
+  providerKey: string;
+  overallState: CapabilityState;
+  supportSafe: boolean;
+  providerDiagnosticsRedacted: boolean;
+  backendOwnedFacade: boolean;
+  memberClientMayConfigureIdentityProvider: boolean;
+  optionalForMemberFlows: boolean;
+  stableStates: CapabilityState[];
+  cards: IdentityProviderReadinessCard[];
+  nextActions: string[];
 }
 
 export interface WhitelistPolicy {
@@ -97,6 +124,7 @@ export interface ControlPlaneResponse {
   providerConfigSource: string;
   bootstrapDefaultsAreSuggestionsOnly: boolean;
   providerCategories: ProviderCategory[];
+  identityProviderReadiness: IdentityProviderReadiness;
   whitelistPolicy: WhitelistPolicy;
   auditEvents: AuditEvent[];
 }
@@ -152,7 +180,32 @@ interface ServerControlPlaneResponse {
     secretRef?: string;
   }>;
   whitelist?: ServerWhitelistPolicy;
+  identityProviderReadiness?: ServerIdentityProviderReadiness;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
+}
+
+interface ServerIdentityProviderReadiness {
+  contractVersion?: string;
+  category?: string;
+  providerKey?: string;
+  overallState?: string;
+  supportSafe?: boolean;
+  providerDiagnosticsRedacted?: boolean;
+  backendOwnedFacade?: boolean;
+  memberClientMayConfigureIdentityProvider?: boolean;
+  optionalForMemberFlows?: boolean;
+  stableStates?: string[];
+  cards?: Array<{
+    key?: string;
+    label?: string;
+    state?: string;
+    summary?: string;
+    memberImpact?: string;
+    remediation?: string;
+    nextActions?: string[];
+    evidenceRefs?: string[];
+  }>;
+  nextActions?: string[];
 }
 
 interface ServerProviderCategory {
@@ -269,6 +322,13 @@ export class AdminControlPlaneApi {
     );
   }
 
+  async getIdentityProviderReadiness(): Promise<IdentityProviderReadiness> {
+    const response = await this.request<ServerIdentityProviderReadiness>(
+      '/admin/identity/readiness',
+    );
+    return normalizeIdentityProviderReadiness(response);
+  }
+
   async testProviderReadiness(
     providerKey: string,
   ): Promise<{ providerKey: string; state: CapabilityState; summary: string }> {
@@ -350,8 +410,74 @@ function normalizeControlPlane(
         controlPlane.generatedAt,
       ),
     ),
+    identityProviderReadiness: normalizeIdentityProviderReadiness(
+      controlPlane.identityProviderReadiness,
+    ),
     whitelistPolicy: normalizeWhitelist(controlPlane.whitelist),
     auditEvents,
+  };
+}
+
+function normalizeIdentityProviderReadiness(
+  readiness?: ServerIdentityProviderReadiness,
+): IdentityProviderReadiness {
+  const cards = (readiness?.cards ?? []).map((card) => ({
+    key: card.key ?? 'identity-readiness-card',
+    label: card.label ?? 'Identity provider readiness',
+    state: normalizeState(card.state),
+    summary:
+      card.summary ??
+      'Identity readiness is provided by the backend control-plane facade.',
+    memberImpact: normalizeIdentityMemberImpact(card.memberImpact),
+    remediation:
+      card.remediation ??
+      'Run the backend readiness contract and resolve admin-action-required items.',
+    nextActions: card.nextActions ?? [],
+    evidenceRefs: card.evidenceRefs ?? [],
+  }));
+  const versionSkewCards = [
+    {
+      key: 'identity-readiness-contract-missing',
+      label: 'Identity readiness contract missing',
+      state: 'admin-action-required' as CapabilityState,
+      summary:
+        'The backend did not return identity readiness details; Admin Console fails closed during version skew.',
+      memberImpact: 'degraded' as const,
+      remediation:
+        'Upgrade or restart the backend control-plane facade, then run the identity readiness check again.',
+      nextActions: [
+        'Verify GET /api/admin/identity/readiness on the backend',
+        'Keep member provider setup blocked until readiness evidence exists',
+      ],
+      evidenceRefs: ['version-skew-fail-closed'],
+    },
+  ];
+  return {
+    contractVersion:
+      readiness?.contractVersion ?? 'identity-provider-readiness-v1',
+    category: readiness?.category ?? 'identity-idm',
+    providerKey: readiness?.providerKey ?? 'awaiting_admin_selection',
+    overallState: normalizeState(
+      readiness?.overallState ?? 'admin-action-required',
+    ),
+    supportSafe: readiness?.supportSafe ?? true,
+    providerDiagnosticsRedacted:
+      readiness?.providerDiagnosticsRedacted ?? true,
+    backendOwnedFacade: readiness?.backendOwnedFacade ?? true,
+    memberClientMayConfigureIdentityProvider:
+      readiness?.memberClientMayConfigureIdentityProvider ?? false,
+    optionalForMemberFlows: readiness?.optionalForMemberFlows ?? true,
+    stableStates: (readiness?.stableStates ?? [
+      'ready',
+      'degraded',
+      'policy-blocked',
+      'admin-action-required',
+      'disabled',
+    ]).map(normalizeState),
+    cards: cards.length > 0 ? cards : versionSkewCards,
+    nextActions: readiness?.nextActions ?? [
+      'Treat missing identity readiness as admin-action-required and fail closed.',
+    ],
   };
 }
 
@@ -459,6 +585,24 @@ function normalizeProviderReplacementDryRun(
   };
 }
 
+function normalizeIdentityMemberImpact(
+  value?: string,
+): 'ready' | 'disabled' | 'degraded' | 'policy-blocked' {
+  switch (value) {
+    case 'ready':
+    case 'disabled':
+    case 'degraded':
+    case 'policy-blocked':
+      return value;
+    case 'policy_blocked':
+      return 'policy-blocked';
+    case 'usable':
+      return 'ready';
+    default:
+      return 'degraded';
+  }
+}
+
 function normalizeMemberImpactStates(
   values?: string[],
 ): Array<'usable' | 'disabled' | 'degraded' | 'policy-blocked'> {
@@ -489,6 +633,9 @@ function normalizeState(value?: string): CapabilityState {
     case 'policy_blocked':
     case 'policy-blocked':
       return 'policy-blocked';
+    case 'admin_action_required':
+    case 'admin-action-required':
+      return 'admin-action-required';
     default:
       return 'degraded';
   }
@@ -660,6 +807,82 @@ export const sampleControlPlane: ControlPlaneResponse = {
       secretRefs: [],
     },
   ],
+  identityProviderReadiness: {
+    contractVersion: 'identity-provider-readiness-v1',
+    category: 'identity-idm',
+    providerKey: 'keycloak-realm',
+    overallState: 'ready',
+    supportSafe: true,
+    providerDiagnosticsRedacted: true,
+    backendOwnedFacade: true,
+    memberClientMayConfigureIdentityProvider: false,
+    optionalForMemberFlows: true,
+    stableStates: [
+      'ready',
+      'degraded',
+      'policy-blocked',
+      'admin-action-required',
+      'disabled',
+    ],
+    cards: [
+      {
+        key: 'realm-import',
+        label: 'Realm import readiness',
+        state: 'ready',
+        summary:
+          'Backend dry-run evidence confirms realm desired-state readiness without exposing realm internals.',
+        memberImpact: 'ready',
+        remediation: 'Run the realm dry-run again before apply if drift is suspected.',
+        nextActions: ['Run /api/admin/identity/realm/dry-run before apply'],
+        evidenceRefs: ['identity-realm-dry-run'],
+      },
+      {
+        key: 'oidc-client-readiness',
+        label: 'OIDC client readiness',
+        state: 'ready',
+        summary:
+          'OIDC client readiness is summarized by backend contracts; client identifiers are redacted from support views.',
+        memberImpact: 'ready',
+        remediation: 'Keep client secrets as SecretRef handles only.',
+        nextActions: ['Validate client scopes through backend dry-run output'],
+        evidenceRefs: ['identity-client-contract'],
+      },
+      {
+        key: 'roles-groups-mapping',
+        label: 'Roles and groups mapping',
+        state: 'ready',
+        summary:
+          'Roles and groups map into canonical Weave capability profiles with deny-by-default fallback.',
+        memberImpact: 'ready',
+        remediation: 'Map unknown roles/groups before activation.',
+        nextActions: ['Review effective policy simulation'],
+        evidenceRefs: ['effective-policy-simulation'],
+      },
+      {
+        key: 'login-readiness',
+        label: 'Login readiness',
+        state: 'ready',
+        summary:
+          'Member login is exposed only as product-level availability; provider endpoints stay backend-owned.',
+        memberImpact: 'ready',
+        remediation: 'Keep member sign-in fail-closed until readiness evidence exists.',
+        nextActions: ['Verify member clients expose only stable capability states'],
+        evidenceRefs: ['member-boundary'],
+      },
+      {
+        key: 'policy-readiness',
+        label: 'Policy readiness',
+        state: 'ready',
+        summary:
+          'Capability policy gates identity claims before product access.',
+        memberImpact: 'ready',
+        remediation: 'Retain deny-by-default and last-admin recovery capabilities.',
+        nextActions: ['Review policy simulation before realm apply'],
+        evidenceRefs: ['capability-whitelist'],
+      },
+    ],
+    nextActions: ['Monitor audit/readiness transitions and keep support bundles redacted.'],
+  },
   whitelistPolicy: {
     denyByDefault: true,
     allowedCapabilities: ['chat.read', 'files.read'],

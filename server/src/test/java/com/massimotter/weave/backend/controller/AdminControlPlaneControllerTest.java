@@ -225,12 +225,51 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.whitelist.normalMembersMayAuthorPolicy").value(false))
                 .andExpect(jsonPath("$.whitelist.stableMemberImpactStates[*]", hasItems("ready", "disabled", "degraded", "policy-blocked")))
                 .andExpect(jsonPath("$.whitelist.profileCapabilities['guest-deny-default']").isArray())
+                .andExpect(jsonPath("$.identityProviderReadiness.contractVersion").value("identity-provider-readiness-v1"))
+                .andExpect(jsonPath("$.identityProviderReadiness.backendOwnedFacade").value(true))
+                .andExpect(jsonPath("$.identityProviderReadiness.memberClientMayConfigureIdentityProvider").value(false))
+                .andExpect(jsonPath("$.identityProviderReadiness.stableStates[*]", hasItems("ready", "degraded", "policy-blocked", "admin-action-required", "disabled")))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[*].key", hasItems("realm-import", "oidc-client-readiness", "roles-groups-mapping", "login-readiness", "policy-readiness")))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[*].diagnostics.secretsReturned", hasItems(false)))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[*].diagnostics.rawProviderErrorsReturned", hasItems(false)))
+                .andExpect(jsonPath("$.adminApiRoutes.identityReadiness").value("/api/admin/identity/readiness"))
                 .andExpect(jsonPath("$.secretRefs[*].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.secretRefs[*].rawSecretExposed", hasItems(false)))
                 .andExpect(jsonPath("$.adminApiRoutes.policy").value("/api/admin/policies/capability-whitelist"))
                 .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))))
+                .andExpect(content().string(not(containsString("weave-app"))))
+                .andExpect(content().string(not(containsString("client_secret"))))
                 .andExpect(content().string(not(containsString("Authorization: Bearer"))))
                 .andExpect(content().string(not(containsString("access_token"))));
+    }
+
+    @Test
+    void identityProviderReadinessIsBackendOwnedAndMembersCannotReadIt() throws Exception {
+        mockMvc.perform(get("/api/admin/identity/readiness").with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contractVersion").value("identity-provider-readiness-v1"))
+                .andExpect(jsonPath("$.category").value("identity-idm"))
+                .andExpect(jsonPath("$.overallState").value("admin-action-required"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
+                .andExpect(jsonPath("$.backendOwnedFacade").value(true))
+                .andExpect(jsonPath("$.memberClientMayConfigureIdentityProvider").value(false))
+                .andExpect(jsonPath("$.optionalForMemberFlows").value(true))
+                .andExpect(jsonPath("$.cards[*].key", hasItems("realm-import", "oidc-client-readiness", "roles-groups-mapping", "login-readiness", "policy-readiness")))
+                .andExpect(jsonPath("$.cards[*].state", hasItems("ready", "admin-action-required")))
+                .andExpect(jsonPath("$.cards[*].remediation").isArray())
+                .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))))
+                .andExpect(content().string(not(containsString("weave-app"))))
+                .andExpect(content().string(not(containsString("client_secret"))))
+                .andExpect(content().string(not(containsString("Authorization: Bearer"))));
+
+        mockMvc.perform(get("/api/admin/identity/readiness").with(memberJwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true))
+                .andExpect(content().string(not(containsString("keycloak-realm"))))
+                .andExpect(content().string(not(containsString("weave-app"))));
     }
 
     @Test

@@ -14,6 +14,8 @@ void main() {
 
       final forbiddenFragments = <String>[
         '/admin/control-plane',
+        '/admin/identity/readiness',
+        '/identity/readiness',
         '/admin/providers',
         '/admin/policies',
         '/admin/audit',

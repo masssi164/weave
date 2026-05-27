@@ -52,6 +52,20 @@ The desired-state contract covers realm basics, OIDC clients, roles, groups, sco
 
 Evidence must stay support-safe: no raw provider bodies, provider-internal IDs, credential-bearing URLs, private keys, tokens, or SecretRef payloads. A sanitized sample is checked in at `docs/evidence/identity-realm-dry-run-sample.json`; contract fixtures live under `server/src/test/resources/identity-realm-dry-run/`.
 
+## Identity provider readiness in Workspace Health
+
+Workspace Health reads identity/provider readiness from backend-owned facades only. Use `GET /api/admin/identity/readiness` or the embedded `identityProviderReadiness` block on `GET /api/admin/control-plane`; normal members must not call these admin endpoints.
+
+The identity readiness contract is optional/version-skew safe: if an older backend omits it, Admin Console treats identity readiness as `admin-action-required` and fails closed rather than enabling member provider setup. Stable admin states are:
+
+- `ready`;
+- `degraded`;
+- `policy-blocked`;
+- `admin-action-required`;
+- `disabled`.
+
+Workspace Health currently renders five operator cards: realm import, OIDC client readiness, roles/groups mapping, login readiness, and policy readiness. Each card must include support-safe remediation and next actions. Do not include OIDC issuer URLs, client IDs, redirect URIs, realm internals, raw provider errors, credentials, tokens, or service endpoints in these cards. Member clients only see product-level capability states (`ready`, `disabled`, `degraded`, or `policy-blocked`) and never provider setup controls.
+
 ## Whitelisting and policies
 
 Weave policy is deny-by-default. Capability profiles should use category-level permissions before low-level adapter details, for example:
@@ -66,7 +80,7 @@ Whitelists restrict which providers, adapters, tools, and later Weaver capabilit
 
 ## Readiness and audit
 
-Readiness states must be support-safe and action-oriented. Member contracts encode `ready`, `disabled`, `degraded`, or `policy-blocked`; admin/operator views may additionally show `admin-setup-required`, `misconfigured`, `sync-pending`, `conflict-quarantined`, `migration-dry-run-required`, or `unsupported`. They must not expose raw downstream bodies, provider-internal IDs, credential-bearing URLs, tokens, cookies, or private keys.
+Readiness states must be support-safe and action-oriented. Member contracts encode `ready`, `disabled`, `degraded`, or `policy-blocked`; admin/operator identity readiness uses `ready`, `degraded`, `policy-blocked`, `admin-action-required`, or `disabled`. Other admin/operator provider views may additionally show `misconfigured`, `sync-pending`, `conflict-quarantined`, `migration-dry-run-required`, or `unsupported`. They must not expose raw downstream bodies, provider-internal IDs, credential-bearing URLs, tokens, cookies, or private keys.
 
 Workspace/Admin Health is the operator control plane for this posture. The client readiness cockpit summarizes overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action from backend-owned readiness snapshots. Category rows should state member impact and policy state without leaking provider internals; provider adapter evidence remains admin-only.
 

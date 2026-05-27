@@ -20,6 +20,8 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateReques
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
+import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessCardResponse;
+import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessResponse;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
@@ -32,9 +34,11 @@ import com.massimotter.weave.backend.model.admin.SecretRefResponse;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
 import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
 import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
+import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import java.time.Clock;
 import java.time.Instant;
@@ -157,6 +161,7 @@ public class AdminControlPlaneService {
                         .map(selection -> toSelectionResponse(selection, false, readinessFor(selection.category(), registry)))
                         .toList(),
                 whitelist(jwt),
+                identityProviderReadiness(registry, jwt),
                 secretRefs(registry),
                 Map.of(
                         "providers", "/api/providers/status",
@@ -164,10 +169,16 @@ public class AdminControlPlaneService {
                         "audit", "/api/admin/audit/events",
                         "readinessTest", "/api/admin/providers/readiness-tests",
                         "providerReplacementDryRun", "/api/admin/providers/replacements/dry-run",
+                        "identityReadiness", "/api/admin/identity/readiness",
                         "identityRealmDryRun", "/api/admin/identity/realm/dry-run",
                         "identityRealmApply", "/api/admin/identity/realm/apply",
                         "effectivePolicySimulation", "/api/admin/policies/effective/simulations",
                         "providerSelections", "/api/admin/providers/selections"));
+    }
+
+    public IdentityProviderReadinessResponse identityProviderReadiness(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "identity-provider", "readiness");
+        return identityProviderReadiness(providerRegistry.status(), jwt);
     }
 
     public ProviderSelectionResponse selectProvider(ProviderSelectionRequest request, Jwt jwt) {
@@ -664,6 +675,192 @@ public class AdminControlPlaneService {
                     .toList();
         }
         return List.of();
+    }
+
+    private IdentityProviderReadinessResponse identityProviderReadiness(ProviderRegistryResponse registry, Jwt jwt) {
+        var identityCategory = registry.categories().stream()
+                .filter(category -> "identity-idm".equals(category.category()))
+                .findFirst();
+        ProviderStatusResponse identityProvider = registry.providers().stream()
+                .filter(provider -> provider.module() == ProviderModule.IDENTITY_REALM)
+                .findFirst()
+                .orElse(null);
+        boolean selectedByAdmin = identityCategory.map(category -> category.selectedByAdmin()).orElse(false);
+        boolean configured = identityProvider != null && identityProvider.configured();
+        boolean enabled = identityProvider != null && identityProvider.enabled();
+        boolean failClosed = identityProvider == null || identityProvider.failClosed();
+        boolean supportSafe = identityProvider == null || identityProvider.supportSafe();
+        String providerKey = identityCategory.map(category -> category.selectedProviderKey())
+                .filter(value -> value != null && !value.isBlank())
+                .orElse(identityProvider == null ? "awaiting_admin_selection" : identityProvider.providerKey());
+        CapabilityWhitelistResponse whitelist = whitelist(jwt);
+
+        List<IdentityProviderReadinessCardResponse> cards = List.of(
+                readinessCard(
+                        "realm-import",
+                        "Realm import readiness",
+                        !selectedByAdmin ? "admin-action-required" : configured ? "ready" : "admin-action-required",
+                        selectedByAdmin
+                                ? "Identity realm is selected in the backend control plane; import/apply evidence is evaluated by backend dry-run contracts."
+                                : "Identity realm provider mapping has not been selected by an admin.",
+                        selectedByAdmin && configured ? "ready" : "degraded",
+                        selectedByAdmin
+                                ? "Run the realm desired-state dry-run and attach support-safe evidence before apply."
+                                : "Select an identity provider mapping in Admin Console before exposing sign-in readiness.",
+                        List.of("Run /api/admin/identity/realm/dry-run", "Review blockers and audit refs before apply"),
+                        List.of("identity-realm-dry-run", "admin-control-plane-selection"),
+                        Map.of(
+                                "selectedByAdmin", selectedByAdmin,
+                                "configured", configured,
+                                "enabled", enabled,
+                                "secretsReturned", false,
+                                "rawProviderErrorsReturned", false)),
+                readinessCard(
+                        "oidc-client-readiness",
+                        "OIDC client readiness",
+                        selectedByAdmin && configured ? "ready" : "admin-action-required",
+                        "OIDC client posture is summarized by the backend; client identifiers, redirect details, and secrets are not exposed to members.",
+                        selectedByAdmin && configured ? "ready" : "degraded",
+                        "Confirm client scopes and redirect allowlists through backend dry-run output, not frontend provider APIs.",
+                        List.of("Validate client scope mappings", "Keep client secrets as SecretRef handles only"),
+                        List.of("identity-client-contract", "secretref-boundary"),
+                        Map.of(
+                                "clientDetailsRedacted", true,
+                                "clientSecretsReturned", false,
+                                "selectedByAdmin", selectedByAdmin,
+                                "configured", configured)),
+                readinessCard(
+                        "roles-groups-mapping",
+                        "Roles and groups mapping",
+                        whitelist.denyByDefault() ? "ready" : "policy-blocked",
+                        "Known roles and groups map into canonical Weave capability profiles; unknown inputs deny by default.",
+                        whitelist.denyByDefault() ? "ready" : "policy-blocked",
+                        "Map unknown roles/groups before activation and keep email out of primary identity keys.",
+                        List.of("Review effective policy simulation", "Map unknown identity inputs before they affect members"),
+                        List.of("effective-policy-simulation", "deny-by-default-policy"),
+                        Map.of(
+                                "denyByDefault", whitelist.denyByDefault(),
+                                "profileCount", whitelist.profileCapabilities().size(),
+                                "stableMemberImpactStateCount", whitelist.stableMemberImpactStates().size(),
+                                "emailPrimaryKeyAllowed", false)),
+                readinessCard(
+                        "login-readiness",
+                        "Login readiness",
+                        loginReadinessState(selectedByAdmin, configured, enabled, failClosed),
+                        "Member login is exposed only as product-level availability; provider endpoints and raw auth errors stay out of member flows.",
+                        selectedByAdmin && configured && enabled ? "ready" : "degraded",
+                        "Keep member sign-in fail-closed until selected provider configuration and backend readiness evidence are present.",
+                        List.of("Verify backend auth facade readiness", "Confirm member client shows only stable capability states"),
+                        List.of("member-boundary", "backend-auth-facade"),
+                        Map.of(
+                                "memberClientMayConfigureProvider", false,
+                                "providerEndpointsReturned", false,
+                                "rawAuthErrorsReturned", false,
+                                "failClosed", failClosed)),
+                readinessCard(
+                        "policy-readiness",
+                        "Policy readiness",
+                        whitelist.denyByDefault() && failClosed ? "ready" : "policy-blocked",
+                        "Capability policy is the gate between provider claims and Weave product access.",
+                        whitelist.denyByDefault() && failClosed ? "ready" : "policy-blocked",
+                        "Retain deny-by-default policy and last-admin recovery capabilities before provider apply.",
+                        List.of("Retain admin.policy.edit for workspace-admin", "Review policy simulation before realm apply"),
+                        List.of("capability-whitelist", "last-admin-guard"),
+                        Map.of(
+                                "denyByDefault", whitelist.denyByDefault(),
+                                "failClosed", failClosed,
+                                "normalMembersMayAuthorPolicy", whitelist.normalMembersMayAuthorPolicy())));
+        String overallState = aggregateIdentityReadiness(cards);
+        return new IdentityProviderReadinessResponse(
+                "identity-provider-readiness-v1",
+                "identity-idm",
+                providerKey,
+                overallState,
+                supportSafe,
+                true,
+                true,
+                false,
+                true,
+                registry.generatedAt(),
+                List.of("ready", "degraded", "policy-blocked", "admin-action-required", "disabled"),
+                cards,
+                identityNextActions(overallState),
+                Map.of(
+                        "overview", "/api/admin/control-plane",
+                        "readiness", "/api/admin/identity/readiness",
+                        "realmDryRun", "/api/admin/identity/realm/dry-run",
+                        "effectivePolicySimulation", "/api/admin/policies/effective/simulations"),
+                Map.of(
+                        "contractOptional", true,
+                        "versionSkewSafe", true,
+                        "memberClientMayConfigureIdentityProvider", false,
+                        "providerDiagnosticsRedacted", true,
+                        "selectedByAdmin", selectedByAdmin,
+                        "configured", configured,
+                        "enabled", enabled,
+                        "secretsReturned", false,
+                        "rawProviderErrorsReturned", false));
+    }
+
+    private IdentityProviderReadinessCardResponse readinessCard(
+            String key,
+            String label,
+            String state,
+            String summary,
+            String memberImpact,
+            String remediation,
+            List<String> nextActions,
+            List<String> evidenceRefs,
+            Map<String, Object> diagnostics) {
+        return new IdentityProviderReadinessCardResponse(
+                key,
+                label,
+                state,
+                summary,
+                memberImpact,
+                remediation,
+                nextActions,
+                evidenceRefs,
+                diagnostics);
+    }
+
+    private String loginReadinessState(boolean selectedByAdmin, boolean configured, boolean enabled, boolean failClosed) {
+        if (!enabled) {
+            return selectedByAdmin ? "admin-action-required" : "disabled";
+        }
+        if (!selectedByAdmin || !configured) {
+            return "admin-action-required";
+        }
+        return failClosed ? "ready" : "policy-blocked";
+    }
+
+    private List<String> identityNextActions(String overallState) {
+        return switch (overallState) {
+            case "ready" -> List.of("Monitor audit/readiness transitions and keep support bundles redacted.");
+            case "policy-blocked" -> List.of("Resolve policy blockers, unknown mappings, or last-admin guard failures before provider apply.");
+            case "disabled" -> List.of("Select an identity provider mapping or keep member flows disabled by policy.");
+            default -> List.of(
+                    "Run the backend identity realm dry-run.",
+                    "Resolve admin-action-required cards before treating sign-in as ready.",
+                    "Verify member clients expose only product-level states.");
+        };
+    }
+
+    private String aggregateIdentityReadiness(List<IdentityProviderReadinessCardResponse> cards) {
+        List<String> states = cards.stream().map(IdentityProviderReadinessCardResponse::state).toList();
+        if (states.contains("policy-blocked")) {
+            return "policy-blocked";
+        }
+        if (states.contains("admin-action-required")) {
+            return "admin-action-required";
+        }
+        if (states.contains("degraded")) {
+            return "degraded";
+        }
+        if (states.stream().allMatch("disabled"::equals)) {
+            return "disabled";
+        }
+        return "ready";
     }
 
     private IdentityRealmProvider identityRealmProvider(String providerKey) {

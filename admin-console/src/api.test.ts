@@ -8,8 +8,40 @@ describe('AdminControlPlaneApi provider boundary', () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       calls.push(String(input));
       const path = String(input);
-      const body = path.includes('/replacements/dry-run')
+      const body = path.includes('/identity/readiness')
         ? {
+            contractVersion: 'identity-provider-readiness-v1',
+            category: 'identity-idm',
+            providerKey: 'keycloak-realm',
+            overallState: 'admin-action-required',
+            supportSafe: true,
+            providerDiagnosticsRedacted: true,
+            backendOwnedFacade: true,
+            memberClientMayConfigureIdentityProvider: false,
+            optionalForMemberFlows: true,
+            stableStates: [
+              'ready',
+              'degraded',
+              'policy-blocked',
+              'admin-action-required',
+              'disabled',
+            ],
+            cards: [
+              {
+                key: 'realm-import',
+                label: 'Realm import readiness',
+                state: 'admin-action-required',
+                summary: 'Select an identity provider mapping.',
+                memberImpact: 'degraded',
+                remediation: 'Run backend realm dry-run.',
+                nextActions: ['Run dry-run'],
+                evidenceRefs: ['identity-realm-dry-run'],
+              },
+            ],
+            nextActions: ['Resolve admin-action-required cards'],
+          }
+        : path.includes('/replacements/dry-run')
+          ? {
             status: 'dry_run_ready',
             category: 'chat',
             currentAdapter: 'synapse-homeserver',
@@ -56,9 +88,13 @@ describe('AdminControlPlaneApi provider boundary', () => {
     };
 
     await api.selectProvider('chat', 'slack');
+    const identityReadiness = await api.getIdentityProviderReadiness();
     await api.testProviderReadiness('slack');
     const report = await api.dryRunProviderReplacement(category, 'slack');
 
+    expect(identityReadiness.overallState).toBe('admin-action-required');
+    expect(identityReadiness.memberClientMayConfigureIdentityProvider).toBe(false);
+    expect(identityReadiness.cards[0]?.memberImpact).toBe('degraded');
     expect(report.supportSafe).toBe(true);
     expect(report.memberImpactStates).toEqual([
       'usable',
@@ -68,6 +104,7 @@ describe('AdminControlPlaneApi provider boundary', () => {
     ]);
     expect(calls).toEqual([
       'https://api.example.invalid/api/admin/providers/selections',
+      'https://api.example.invalid/api/admin/identity/readiness',
       'https://api.example.invalid/api/admin/providers/readiness-tests',
       'https://api.example.invalid/api/admin/providers/replacements/dry-run',
     ]);
