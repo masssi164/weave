@@ -1,4 +1,12 @@
-export type CapabilityState = 'ready' | 'disabled' | 'degraded' | 'policy-blocked' | 'misconfigured' | 'unsupported' | 'not_configured' | 'configured';
+export type CapabilityState =
+  | 'ready'
+  | 'disabled'
+  | 'degraded'
+  | 'policy-blocked'
+  | 'misconfigured'
+  | 'unsupported'
+  | 'not_configured'
+  | 'configured';
 
 export interface ProviderCategory {
   key: string;
@@ -29,6 +37,56 @@ export interface AuditEvent {
   summary: string;
 }
 
+export interface ProviderReplacementDryRunReport {
+  dryRunId: string;
+  status: string;
+  category: string;
+  currentAdapter: string;
+  targetAdapter: string;
+  readinessState: CapabilityState;
+  migrationDryRunRequired: boolean;
+  memberImpactStates: Array<
+    'usable' | 'disabled' | 'degraded' | 'policy-blocked'
+  >;
+  supportSafe: boolean;
+  providerDiagnosticsRedacted: boolean;
+  cutoverGates: string[];
+  lossyMappingReport: {
+    canonicalObjects: string[];
+    contractRisks: string[];
+    adminNotes: string[];
+    conflicts: string[];
+    replacementRequirement: string;
+  };
+  lifecycleExpectations: {
+    sourceOfTruthPolicy: string;
+    exportExpectation: string;
+    deleteExpectation: string;
+    deprovisionExpectation: string;
+    rollbackSupportBoundary: string;
+  };
+}
+
+interface ServerProviderReplacementDryRunReport {
+  dryRunId?: string;
+  status?: string;
+  category?: string;
+  currentAdapter?: string;
+  targetAdapter?: string;
+  readinessState?: string;
+  migrationDryRunRequired?: boolean;
+  memberImpactStates?: string[];
+  supportSafe?: boolean;
+  providerDiagnosticsRedacted?: boolean;
+  cutoverGates?: string[];
+  lossyMappingReport?: Partial<
+    ProviderReplacementDryRunReport['lossyMappingReport']
+  >;
+  lifecycleExpectations?: Partial<
+    ProviderReplacementDryRunReport['lifecycleExpectations']
+  >;
+}
+
 export interface ControlPlaneResponse {
   organization: {
     id: string;
@@ -49,14 +107,27 @@ export interface AdminConsoleConfig {
   oidcClientId: string;
 }
 
-type RuntimeEnv = Partial<Record<'VITE_WEAVE_API_BASE_URL' | 'VITE_WEAVE_OIDC_ISSUER_URL' | 'VITE_WEAVE_ADMIN_OIDC_CLIENT_ID', string>>;
+type RuntimeEnv = Partial<
+  Record<
+    | 'VITE_WEAVE_API_BASE_URL'
+    | 'VITE_WEAVE_OIDC_ISSUER_URL'
+    | 'VITE_WEAVE_ADMIN_OIDC_CLIENT_ID',
+    string
+  >
+>;
 
-const runtimeEnv: RuntimeEnv = (import.meta as ImportMeta & { env?: RuntimeEnv }).env ?? {};
+const runtimeEnv: RuntimeEnv =
+  (import.meta as ImportMeta & { env?: RuntimeEnv }).env ?? {};
 
 export const adminConsoleConfig: AdminConsoleConfig = {
-  apiBaseUrl: (runtimeEnv.VITE_WEAVE_API_BASE_URL ?? 'https://api.weave.local:44443/api').replace(/\/$/, ''),
-  oidcIssuerUrl: runtimeEnv.VITE_WEAVE_OIDC_ISSUER_URL ?? 'https://auth.weave.local:44443/realms/weave',
-  oidcClientId: runtimeEnv.VITE_WEAVE_ADMIN_OIDC_CLIENT_ID ?? 'weave-admin-console',
+  apiBaseUrl: (
+    runtimeEnv.VITE_WEAVE_API_BASE_URL ?? 'https://api.weave.local:44443/api'
+  ).replace(/\/$/, ''),
+  oidcIssuerUrl:
+    runtimeEnv.VITE_WEAVE_OIDC_ISSUER_URL ??
+    'https://auth.weave.local:44443/realms/weave',
+  oidcClientId:
+    runtimeEnv.VITE_WEAVE_ADMIN_OIDC_CLIENT_ID ?? 'weave-admin-console',
 };
 
 export class AdminApiError extends Error {
@@ -75,7 +146,11 @@ interface ServerControlPlaneResponse {
   bootstrapDefaultsAreSuggestionsOnly?: boolean;
   generatedAt?: string;
   categories?: ServerProviderCategory[];
-  selectedProviderMappings?: Array<{ category?: string; providerKey?: string; secretRef?: string }>;
+  selectedProviderMappings?: Array<{
+    category?: string;
+    providerKey?: string;
+    secretRef?: string;
+  }>;
   whitelist?: ServerWhitelistPolicy;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
 }
@@ -116,20 +191,37 @@ export class AdminControlPlaneApi {
   ) {}
 
   async getControlPlane(): Promise<ControlPlaneResponse> {
-    const controlPlane = await this.request<ServerControlPlaneResponse>('/admin/control-plane');
+    const controlPlane = await this.request<ServerControlPlaneResponse>(
+      '/admin/control-plane',
+    );
     const auditEvents = await this.listAuditEvents().catch(() => []);
     return normalizeControlPlane(controlPlane, auditEvents);
   }
 
-  async updateWhitelistPolicy(allowedCapabilities: string[], profileKey = 'workspace-admin'): Promise<WhitelistPolicy> {
-    const response = await this.request<ServerWhitelistPolicy>('/admin/policies/capability-whitelist', {
-      method: 'PATCH',
-      body: JSON.stringify({ profileKey, capabilityKeys: allowedCapabilities, reason: 'Updated through Organization/Admin Console' }),
-    });
+  async updateWhitelistPolicy(
+    allowedCapabilities: string[],
+    profileKey = 'workspace-admin',
+  ): Promise<WhitelistPolicy> {
+    const response = await this.request<ServerWhitelistPolicy>(
+      '/admin/policies/capability-whitelist',
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          profileKey,
+          capabilityKeys: allowedCapabilities,
+          reason: 'Updated through Organization/Admin Console',
+        }),
+      },
+    );
     return normalizeWhitelist(response);
   }
 
-  async selectProvider(category: string, providerKey: string, choiceModel = 'recommended_self_hosted_default', dryRun = false): Promise<void> {
+  async selectProvider(
+    category: string,
+    providerKey: string,
+    choiceModel = 'recommended_self_hosted_default',
+    dryRun = false,
+  ): Promise<void> {
     await this.request('/admin/providers/selections', {
       method: 'POST',
       body: JSON.stringify({
@@ -138,27 +230,72 @@ export class AdminControlPlaneApi {
         choiceModel,
         dryRun,
         secretRef: `secretref://weave/provider/${providerKey}`,
-        reason: dryRun ? 'Dry-run through Organization/Admin Console' : 'Selected through Organization/Admin Console',
+        reason: dryRun
+          ? 'Dry-run through Organization/Admin Console'
+          : 'Selected through Organization/Admin Console',
       }),
     });
   }
 
-  async testProviderReadiness(providerKey: string): Promise<{ providerKey: string; state: CapabilityState; summary: string }> {
-    const response = await this.request<{ providerKey?: string; state?: string; readiness?: string }>('/admin/providers/readiness-tests', {
+  async dryRunProviderReplacement(
+    category: ProviderCategory,
+    targetAdapter: string,
+    choiceModel = 'external_existing_provider',
+  ): Promise<ProviderReplacementDryRunReport> {
+    const response = await this.request<ServerProviderReplacementDryRunReport>(
+      '/admin/providers/replacements/dry-run',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          category: category.key,
+          currentAdapter: category.selectedAdapter,
+          targetAdapter,
+          choiceModel,
+          secretRef: `secretref://weave/provider/${targetAdapter}`,
+          sourceOfTruth:
+            'Admin Console-selected provider category remains Weave source of truth until apply.',
+          lossyMappingNotes: [
+            'Admin Console requested support-safe preflight; backend redaction owns provider diagnostics.',
+          ],
+          reason:
+            'Evaluate provider replacement before activation through Organization/Admin Console',
+        }),
+      },
+    );
+    return normalizeProviderReplacementDryRun(
+      response,
+      category,
+      targetAdapter,
+    );
+  }
+
+  async testProviderReadiness(
+    providerKey: string,
+  ): Promise<{ providerKey: string; state: CapabilityState; summary: string }> {
+    const response = await this.request<{
+      providerKey?: string;
+      state?: string;
+      readiness?: string;
+    }>('/admin/providers/readiness-tests', {
       method: 'POST',
       body: JSON.stringify({ providerKey }),
     });
     return {
       providerKey: response.providerKey ?? providerKey,
       state: normalizeState(response.state ?? response.readiness),
-      summary: response.readiness ?? 'readiness tested through backend control plane',
+      summary:
+        response.readiness ?? 'readiness tested through backend control plane',
     };
   }
 
   async listAuditEvents(): Promise<AuditEvent[]> {
-    const events = await this.request<ServerAuditEvent[]>('/admin/audit/events');
+    const events = await this.request<ServerAuditEvent[]>(
+      '/admin/audit/events',
+    );
     return events.map((event) => ({
-      id: event.idempotencyKey ?? `${event.action ?? 'audit'}-${event.occurredAt ?? 'unknown'}`,
+      id:
+        event.idempotencyKey ??
+        `${event.action ?? 'audit'}-${event.occurredAt ?? 'unknown'}`,
       action: event.action ?? 'unknown',
       actor: event.actorRef ?? 'unknown-actor',
       createdAt: event.occurredAt ?? '',
@@ -173,15 +310,24 @@ export class AdminControlPlaneApi {
     if (init.body) headers.set('Content-Type', 'application/json');
     if (token) headers.set('Authorization', `Bearer ${token}`);
 
-    const response = await this.fetchImpl(`${this.config.apiBaseUrl}${path}`, { ...init, headers });
+    const response = await this.fetchImpl(`${this.config.apiBaseUrl}${path}`, {
+      ...init,
+      headers,
+    });
     if (!response.ok) {
-      throw new AdminApiError(`Admin API request failed with HTTP ${response.status}`, response.status);
+      throw new AdminApiError(
+        `Admin API request failed with HTTP ${response.status}`,
+        response.status,
+      );
     }
     return response.json() as Promise<T>;
   }
 }
 
-function normalizeControlPlane(controlPlane: ServerControlPlaneResponse, auditEvents: AuditEvent[]): ControlPlaneResponse {
+function normalizeControlPlane(
+  controlPlane: ServerControlPlaneResponse,
+  auditEvents: AuditEvent[],
+): ControlPlaneResponse {
   const selections = controlPlane.selectedProviderMappings ?? [];
   const secretRefs = controlPlane.secretRefs ?? [];
   return {
@@ -191,9 +337,19 @@ function normalizeControlPlane(controlPlane: ServerControlPlaneResponse, auditEv
       manifestUrl: '/api/v1/organization/manifest',
       authIssuerUrl: adminConsoleConfig.oidcIssuerUrl,
     },
-    providerConfigSource: controlPlane.providerConfigSource ?? 'admin-control-plane-selected-provider-mappings',
-    bootstrapDefaultsAreSuggestionsOnly: controlPlane.bootstrapDefaultsAreSuggestionsOnly ?? true,
-    providerCategories: (controlPlane.categories ?? []).map((category) => normalizeCategory(category, selections, secretRefs, controlPlane.generatedAt)),
+    providerConfigSource:
+      controlPlane.providerConfigSource ??
+      'admin-control-plane-selected-provider-mappings',
+    bootstrapDefaultsAreSuggestionsOnly:
+      controlPlane.bootstrapDefaultsAreSuggestionsOnly ?? true,
+    providerCategories: (controlPlane.categories ?? []).map((category) =>
+      normalizeCategory(
+        category,
+        selections,
+        secretRefs,
+        controlPlane.generatedAt,
+      ),
+    ),
     whitelistPolicy: normalizeWhitelist(controlPlane.whitelist),
     auditEvents,
   };
@@ -206,31 +362,118 @@ function normalizeCategory(
   generatedAt?: string,
 ): ProviderCategory {
   const key = category.category ?? 'unknown';
-  const selectedAdapter = category.selectedProviderKey ?? selections.find((selection) => selection.category === key)?.providerKey ?? 'awaiting_admin_selection';
+  const selectedAdapter =
+    category.selectedProviderKey ??
+    selections.find((selection) => selection.category === key)?.providerKey ??
+    'awaiting_admin_selection';
   return {
     key,
     label: category.label ?? key,
     selectedAdapter,
     state: normalizeState(category.readiness),
-    summary: category.memberImpact ?? 'Backend control-plane status is support-safe.',
-    supportSafe: category.diagnostics?.secretsReturned === false && category.diagnostics?.rawProviderErrorsReturned === false,
+    summary:
+      category.memberImpact ?? 'Backend control-plane status is support-safe.',
+    supportSafe:
+      category.diagnostics?.secretsReturned === false &&
+      category.diagnostics?.rawProviderErrorsReturned === false,
     selectedByAdmin: category.selectedByAdmin ?? false,
     bootstrapSuggestionOnly: category.bootstrapSuggestionOnly ?? true,
     choiceModel: category.choiceModel ?? 'not_selected',
     providerCandidates: category.providerCandidates ?? [],
     lastCheckedAt: generatedAt,
-    secretRefs: secretRefs.filter((secretRef) => secretRef.providerKey === selectedAdapter).map((secretRef) => secretRef.ref ?? '').filter(Boolean),
+    secretRefs: secretRefs
+      .filter((secretRef) => secretRef.providerKey === selectedAdapter)
+      .map((secretRef) => secretRef.ref ?? '')
+      .filter(Boolean),
   };
 }
 
-function normalizeWhitelist(whitelist?: ServerWhitelistPolicy): WhitelistPolicy {
+function normalizeWhitelist(
+  whitelist?: ServerWhitelistPolicy,
+): WhitelistPolicy {
   const profileCapabilities = whitelist?.profileCapabilities ?? {};
-  const allowedCapabilities = Array.from(new Set([...(whitelist?.effectiveCapabilities ?? []), ...Object.values(profileCapabilities).flat()])).sort();
+  const allowedCapabilities = Array.from(
+    new Set([
+      ...(whitelist?.effectiveCapabilities ?? []),
+      ...Object.values(profileCapabilities).flat(),
+    ]),
+  ).sort();
   return {
     denyByDefault: whitelist?.denyByDefault ?? true,
     allowedCapabilities,
-    blockedCapabilities: ['provider.direct_call', 'provider.secret_export', 'weaver.exec_without_policy'],
+    blockedCapabilities: [
+      'provider.direct_call',
+      'provider.secret_export',
+      'weaver.exec_without_policy',
+    ],
   };
+}
+
+function normalizeProviderReplacementDryRun(
+  response: ServerProviderReplacementDryRunReport,
+  category: ProviderCategory,
+  targetAdapter: string,
+): ProviderReplacementDryRunReport {
+  const lossyMapping = response.lossyMappingReport ?? {};
+  const lifecycle = response.lifecycleExpectations ?? {};
+  return {
+    dryRunId: response.dryRunId ?? `${category.key}-replacement-dry-run`,
+    status: response.status ?? 'dry_run_ready',
+    category: response.category ?? category.key,
+    currentAdapter: response.currentAdapter ?? category.selectedAdapter,
+    targetAdapter: response.targetAdapter ?? targetAdapter,
+    readinessState: normalizeState(response.readinessState),
+    migrationDryRunRequired: response.migrationDryRunRequired ?? true,
+    memberImpactStates: normalizeMemberImpactStates(
+      response.memberImpactStates,
+    ),
+    supportSafe: response.supportSafe ?? true,
+    providerDiagnosticsRedacted: response.providerDiagnosticsRedacted ?? true,
+    cutoverGates: response.cutoverGates ?? [],
+    lossyMappingReport: {
+      canonicalObjects: lossyMapping.canonicalObjects ?? [],
+      contractRisks: lossyMapping.contractRisks ?? [],
+      adminNotes: lossyMapping.adminNotes ?? [],
+      conflicts: lossyMapping.conflicts ?? [],
+      replacementRequirement:
+        lossyMapping.replacementRequirement ??
+        'Backend migration dry-run required before apply.',
+    },
+    lifecycleExpectations: {
+      sourceOfTruthPolicy:
+        lifecycle.sourceOfTruthPolicy ??
+        'Weave remains source of truth for canonical member state.',
+      exportExpectation:
+        lifecycle.exportExpectation ??
+        'Export expectations are evaluated by backend migration contracts.',
+      deleteExpectation:
+        lifecycle.deleteExpectation ??
+        'Delete expectations are evaluated by backend migration contracts.',
+      deprovisionExpectation:
+        lifecycle.deprovisionExpectation ??
+        'Deprovision expectations are evaluated by backend migration contracts.',
+      rollbackSupportBoundary:
+        lifecycle.rollbackSupportBoundary ??
+        'Rollback is bounded by provider export/delete support.',
+    },
+  };
+}
+
+function normalizeMemberImpactStates(
+  values?: string[],
+): Array<'usable' | 'disabled' | 'degraded' | 'policy-blocked'> {
+  const normalized = (values ?? [])
+    .map((value) => (value === 'ready' ? 'usable' : value))
+    .filter(
+      (value): value is 'usable' | 'disabled' | 'degraded' | 'policy-blocked' =>
+        value === 'usable' ||
+        value === 'disabled' ||
+        value === 'degraded' ||
+        value === 'policy-blocked',
+    );
+  return normalized.length > 0
+    ? Array.from(new Set(normalized))
+    : ['usable', 'disabled', 'degraded', 'policy-blocked'];
 }
 
 function normalizeState(value?: string): CapabilityState {
@@ -253,9 +496,12 @@ function normalizeState(value?: string): CapabilityState {
 
 function supportSafeSummary(event: ServerAuditEvent): string {
   const payload = event.payload ?? {};
-  const providerKey = typeof payload.providerKey === 'string' ? payload.providerKey : undefined;
-  const category = typeof payload.category === 'string' ? payload.category : undefined;
-  const target = providerKey ?? category ?? event.sourceRef ?? 'admin control plane';
+  const providerKey =
+    typeof payload.providerKey === 'string' ? payload.providerKey : undefined;
+  const category =
+    typeof payload.category === 'string' ? payload.category : undefined;
+  const target =
+    providerKey ?? category ?? event.sourceRef ?? 'admin control plane';
   return `${event.action ?? 'audit'} for ${target}; payload is redacted and support-safe.`;
 }
 
@@ -274,12 +520,21 @@ export const sampleControlPlane: ControlPlaneResponse = {
       label: 'Identity / IDM',
       selectedAdapter: 'keycloak-realm',
       state: 'ready',
-      summary: 'Central Keycloak realm is the recommended self-hosted identity broker; admin selection is the source of truth.',
+      summary:
+        'Central Keycloak realm is the recommended self-hosted identity broker; admin selection is the source of truth.',
       supportSafe: true,
       selectedByAdmin: true,
       bootstrapSuggestionOnly: false,
       choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: ['keycloak-realm', 'entra-id', 'authentik', 'auth0', 'generic-oidc', 'generic-saml', 'scim-ldap'],
+      providerCandidates: [
+        'keycloak-realm',
+        'entra-id',
+        'authentik',
+        'auth0',
+        'generic-oidc',
+        'generic-saml',
+        'scim-ldap',
+      ],
       lastCheckedAt: '2026-05-24T18:00:00Z',
       secretRefs: ['secretref://weave/provider/keycloak-realm/client-secret'],
     },
@@ -301,12 +556,18 @@ export const sampleControlPlane: ControlPlaneResponse = {
       label: 'Files',
       selectedAdapter: 'nextcloud-files',
       state: 'degraded',
-      summary: 'Files are exposed through Weave canonical file facades; Nextcloud, SharePoint, S3, and SMB adapters remain backend-owned.',
+      summary:
+        'Files are exposed through Weave canonical file facades; Nextcloud, SharePoint, S3, and SMB adapters remain backend-owned.',
       supportSafe: true,
       selectedByAdmin: true,
       bootstrapSuggestionOnly: false,
       choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: ['nextcloud-files', 'sharepoint', 's3-compatible', 'smb'],
+      providerCandidates: [
+        'nextcloud-files',
+        'sharepoint',
+        's3-compatible',
+        'smb',
+      ],
       secretRefs: ['secretref://weave/provider/nextcloud-files'],
     },
     {
@@ -314,12 +575,17 @@ export const sampleControlPlane: ControlPlaneResponse = {
       label: 'Calendar',
       selectedAdapter: 'nextcloud-caldav',
       state: 'degraded',
-      summary: 'Calendar access is normalized through Weave; CalDAV and Microsoft Graph remain adapter choices only.',
+      summary:
+        'Calendar access is normalized through Weave; CalDAV and Microsoft Graph remain adapter choices only.',
       supportSafe: true,
       selectedByAdmin: true,
       bootstrapSuggestionOnly: false,
       choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: ['nextcloud-caldav', 'microsoft-graph-calendar', 'generic-caldav'],
+      providerCandidates: [
+        'nextcloud-caldav',
+        'microsoft-graph-calendar',
+        'generic-caldav',
+      ],
       secretRefs: ['secretref://weave/provider/nextcloud-caldav'],
     },
     {
@@ -327,12 +593,19 @@ export const sampleControlPlane: ControlPlaneResponse = {
       label: 'Boards / tasks',
       selectedAdapter: 'openproject-primary',
       state: 'policy-blocked',
-      summary: 'Boards/tasks stay provider-neutral across OpenProject, Planner, Jira, Vikunja, and Deck adapters.',
+      summary:
+        'Boards/tasks stay provider-neutral across OpenProject, Planner, Jira, Vikunja, and Deck adapters.',
       supportSafe: true,
       selectedByAdmin: true,
       bootstrapSuggestionOnly: false,
       choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: ['openproject-primary', 'microsoft-planner', 'jira', 'vikunja', 'nextcloud-deck'],
+      providerCandidates: [
+        'openproject-primary',
+        'microsoft-planner',
+        'jira',
+        'vikunja',
+        'nextcloud-deck',
+      ],
       secretRefs: ['secretref://weave/provider/openproject-primary'],
     },
     {
@@ -340,12 +613,17 @@ export const sampleControlPlane: ControlPlaneResponse = {
       label: 'Meetings / calls',
       selectedAdapter: 'livekit',
       state: 'misconfigured',
-      summary: 'Meetings are surfaced through Weave calls; LiveKit and external meeting links are backend-selected providers.',
+      summary:
+        'Meetings are surfaced through Weave calls; LiveKit and external meeting links are backend-selected providers.',
       supportSafe: true,
       selectedByAdmin: true,
       bootstrapSuggestionOnly: false,
       choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: ['livekit', 'microsoft-teams-meetings', 'external-meeting-link'],
+      providerCandidates: [
+        'livekit',
+        'microsoft-teams-meetings',
+        'external-meeting-link',
+      ],
       secretRefs: ['secretref://weave/provider/livekit'],
     },
     {
@@ -353,12 +631,18 @@ export const sampleControlPlane: ControlPlaneResponse = {
       label: 'Documents / collaboration',
       selectedAdapter: 'onlyoffice-community',
       state: 'disabled',
-      summary: 'Documents use Weave/WOPI collaboration contracts; Nextcloud/SharePoint/WOPI providers are not member-facing setup.',
+      summary:
+        'Documents use Weave/WOPI collaboration contracts; Nextcloud/SharePoint/WOPI providers are not member-facing setup.',
       supportSafe: true,
       selectedByAdmin: true,
       bootstrapSuggestionOnly: false,
       choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: ['onlyoffice-community', 'collabora-code', 'wopi-host', 'microsoft-365-office-graph'],
+      providerCandidates: [
+        'onlyoffice-community',
+        'collabora-code',
+        'wopi-host',
+        'microsoft-365-office-graph',
+      ],
       secretRefs: ['secretref://weave/provider/onlyoffice-community'],
     },
     {
@@ -366,7 +650,8 @@ export const sampleControlPlane: ControlPlaneResponse = {
       label: 'Weaver runtime',
       selectedAdapter: 'awaiting_admin_selection',
       state: 'policy-blocked',
-      summary: 'Governed per-user PA runtime remains disabled by default and Weave-owned decisions stay backend-policy controlled.',
+      summary:
+        'Governed per-user PA runtime remains disabled by default and Weave-owned decisions stay backend-policy controlled.',
       supportSafe: true,
       selectedByAdmin: false,
       bootstrapSuggestionOnly: true,
@@ -386,7 +671,8 @@ export const sampleControlPlane: ControlPlaneResponse = {
       action: 'provider.readiness.tested',
       actor: 'operator@weave.local',
       createdAt: '2026-05-24T18:00:00Z',
-      summary: 'Readiness tested for keycloak-realm; result redacted and support-safe.',
+      summary:
+        'Readiness tested for keycloak-realm; result redacted and support-safe.',
     },
   ],
 };

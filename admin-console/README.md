@@ -6,8 +6,10 @@ Separate React + MUI admin surface for organization owners, admins, and operator
 
 - Talks only to Weave backend admin APIs (`/api/admin/...`).
 - Uses OIDC/Keycloak as the default self-hosted identity broker contract through `weave-admin-console`.
-- Shows organization overview, provider category readiness, provider detail/readiness actions, deny-by-default whitelist policy, and redacted audit events.
+- Shows organization overview, effective policy explanation, provider category readiness, replacement dry-run results, provider detail/readiness actions, deny-by-default whitelist policy, and redacted audit events.
+- Renders owner/admin, operator, and member boundaries distinctly: owners/admins configure, operators inspect support-safe readiness, and members see only usable/disabled/degraded/policy-blocked capability states.
 - Never calls raw providers directly and never renders raw provider secrets.
+- New user-visible Admin Console copy is kept in `src/copy.ts` so localization entries stay reviewable even before additional locales are enabled.
 - The Weave member client remains provider-agnostic and is not the admin portal.
 
 ## Local commands
