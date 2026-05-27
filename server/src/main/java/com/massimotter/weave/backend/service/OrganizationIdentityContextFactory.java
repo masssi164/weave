@@ -129,20 +129,17 @@ final class OrganizationIdentityContextFactory {
         if (resourceAccess == null) {
             return List.of();
         }
-        Object weaveClient = Stream.of("weave", "weave-app", claim(jwt, "azp"), claim(jwt, "client_id"))
+        return Stream.of("weave", "weave-app", claim(jwt, "azp"), claim(jwt, "client_id"))
                 .filter(OrganizationIdentityContextFactory::hasText)
                 .map(resourceAccess::get)
                 .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(clientAccess -> clientAccess.get("roles"))
+                .filter(Collection.class::isInstance)
+                .map(Collection.class::cast)
                 .findFirst()
-                .orElse(null);
-        if (!(weaveClient instanceof Map<?, ?> clientAccess)) {
-            return List.of();
-        }
-        Object roles = clientAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
-        }
-        return stringValues(roleValues);
+                .map(OrganizationIdentityContextFactory::stringValues)
+                .orElse(List.of());
     }
 
     private static List<String> providerRoleMappings(List<String> roles, List<String> groups) {

@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import java.util.Optional;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Repository;
 
@@ -24,7 +25,7 @@ public class InMemoryOrganizationBootstrapRepository implements OrganizationBoot
     }
 
     private String normalizeOrganizationId(String organizationId) {
-        return organizationId.trim().toLowerCase();
+        return organizationId.trim().toLowerCase(Locale.ROOT);
     }
 
     public void clear() {
