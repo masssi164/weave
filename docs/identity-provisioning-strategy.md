@@ -207,6 +207,20 @@ Acceptance rules:
 - context roles do not automatically grant organization admin rights;
 - provider roles never directly grant Weave capabilities without a mapping record.
 
+## Keycloak realm desired-state dry-run
+
+The first backend-owned provider-ops slice is a dry-run contract for Keycloak-compatible realm state. Admins/operators submit `currentState` (optional) and `desiredState` to `/api/admin/identity/realm/dry-run`; the backend normalizes and compares realm basics, clients, roles, groups, scopes, redirect origins, claim mappers, and required feature mappings.
+
+The report is deterministic and support-safe:
+
+- every change record has a stable path, action (`create`, `update`, `delete`, `no-op`), classification (`safe`, `risky`, `destructive`), reason code, member-impact summary, and `applyBlocked` flag;
+- risky redirect origins degrade readiness until reviewed;
+- unknown roles, groups, scopes, or feature mappings produce `admin-action-required` and deny by default;
+- destructive removals produce `policy-blocked` and are blocked from apply in this dry-run-only slice;
+- provider bodies, provider-internal IDs, credentials, credential URLs, private keys, tokens, and raw logs are never returned.
+
+This endpoint is backend/control-plane only. Member clients consume provider-neutral readiness and capability policy; they must not call Keycloak/provider APIs directly or expose realm setup diagnostics.
+
 ## Guest and B2B users
 
 Guests are external identities, not incomplete employees.
