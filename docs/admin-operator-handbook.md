@@ -78,6 +78,14 @@ Weave policy is deny-by-default. Capability profiles should use category-level p
 
 Whitelists restrict which providers, adapters, tools, and later Weaver capabilities are visible to an organization or role. A missing whitelist entry does not grant access.
 
+## Effective policy simulation
+
+Use `POST /api/admin/policies/effective/simulations` before applying identity, realm, or provider policy changes. The endpoint is admin/operator only and simulates the member-visible impact of selected roles, groups, and requested capabilities without mutating provider configuration, realm state, whitelists, or member accounts.
+
+The simulation complements Workspace Health/admin readiness work (#212): readiness explains whether backend-owned provider setup is ready or degraded, while effective policy simulation explains whether known identity inputs would grant, disable, degrade, or policy-block product capabilities for members. It also fits before the identity realm dry-run/apply path (#233): run the realm dry-run to inspect desired realm changes, then run effective policy simulation to preview capability impact before any guarded apply.
+
+Unknown roles, groups, or capabilities fail closed and produce `policy-blocked` member states. The response uses only stable member state labels (`ready`, `disabled`, `degraded`, `policy-blocked`) and admin reason codes; it must not expose email as a primary identity key, raw provider IDs, endpoint URLs, tokens, credentials, SecretRef payloads, or provider internals. Weaver remains disabled by default in this slice; `weaver.enabled` reports `disabled` unless later governed policy work explicitly enables a runtime. A support-safe fixture is checked in at `server/src/test/resources/effective-policy-simulation/admin-operator-preview.json`.
+
 ## Readiness and audit
 
 Readiness states must be support-safe and action-oriented. Member contracts encode `ready`, `disabled`, `degraded`, or `policy-blocked`; admin/operator identity readiness uses `ready`, `degraded`, `policy-blocked`, `admin-action-required`, or `disabled`. Other admin/operator provider views may additionally show `misconfigured`, `sync-pending`, `conflict-quarantined`, `migration-dry-run-required`, or `unsupported`. They must not expose raw downstream bodies, provider-internal IDs, credential-bearing URLs, tokens, cookies, or private keys.

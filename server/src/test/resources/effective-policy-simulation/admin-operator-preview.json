@@ -1,0 +1,49 @@
+{
+  "subject": "issuer+subject:example-issuer#member-123",
+  "organizationId": "weave-dogfood",
+  "roles": [
+    "member"
+  ],
+  "groups": [
+    "weave-board-editors"
+  ],
+  "requestedCapabilities": [
+    "boards.update_task",
+    "chat.send",
+    "weaver.enabled"
+  ],
+  "grantedCapabilities": [
+    "boards.update_task",
+    "chat.send"
+  ],
+  "deniedInputs": [],
+  "unknownInputsFailClosed": false,
+  "weaverDefaultDisabled": true,
+  "supportSafe": true,
+  "capabilityStates": [
+    {
+      "capability": "boards.update_task",
+      "state": "ready",
+      "reasonCode": "granted-by-effective-policy",
+      "memberImpact": "Member-visible capability state may be ready if provider readiness also passes."
+    },
+    {
+      "capability": "chat.send",
+      "state": "ready",
+      "reasonCode": "granted-by-effective-policy",
+      "memberImpact": "Member-visible capability state may be ready if provider readiness also passes."
+    },
+    {
+      "capability": "weaver.enabled",
+      "state": "disabled",
+      "reasonCode": "weaver-default-disabled",
+      "memberImpact": "Weaver remains opt-in, governed, audited, and disabled by default."
+    }
+  ],
+  "nextActions": [
+    "Review member-visible states before applying provider or realm changes."
+  ],
+  "auditRefs": [
+    "effective-policy-simulation-sample"
+  ]
+}

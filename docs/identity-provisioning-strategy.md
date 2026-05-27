@@ -221,6 +221,12 @@ The report is deterministic and support-safe:
 
 This endpoint is backend/control-plane only. Member clients consume provider-neutral readiness and capability policy; they must not call Keycloak/provider APIs directly or expose realm setup diagnostics.
 
+## Effective policy simulation before apply
+
+`POST /api/admin/policies/effective/simulations` is the backend/admin companion to the #233 realm dry-run/apply flow and the #212 admin readiness surface. Realm dry-run compares desired provider state; readiness reports support-safe setup posture; effective policy simulation previews how selected known roles, groups, and capabilities would appear to members before provider changes are applied.
+
+The simulation is read-only and deterministic enough for support fixtures: unknown roles, groups, or capabilities fail closed; member states stay within `ready`, `disabled`, `degraded`, and `policy-blocked`; audit payloads record counts/support-safe booleans instead of free-text reasons; and emails, raw provider identifiers, tokens, SecretRefs, and provider internals stay out of the contract.
+
 ## Guest and B2B users
 
 Guests are external identities, not incomplete employees.

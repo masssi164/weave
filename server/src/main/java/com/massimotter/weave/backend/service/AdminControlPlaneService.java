@@ -313,21 +313,17 @@ public class AdminControlPlaneService {
 
     public EffectivePolicySimulationResponse simulateEffectivePolicy(EffectivePolicySimulationRequest request, Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "effective-policy-simulation");
-        List<String> roles = normalizedValues(request == null ? null : request.roles());
-        List<String> groups = normalizedValues(request == null ? null : request.groups());
-        List<String> requestedCapabilities = normalizedValues(request == null ? null : request.requestedCapabilities());
-        List<String> deniedInputs = Stream.concat(
-                        roles.stream()
-                                .filter(role -> !SIMULATION_ROLES.contains(role))
-                                .map(role -> "unknown-role:" + role),
-                        Stream.concat(
-                                groups.stream()
-                                        .filter(group -> !SIMULATION_GROUPS.contains(group))
-                                        .map(group -> "unknown-group:" + group),
-                                requestedCapabilities.stream()
-                                        .filter(capability -> !SIMULATION_KNOWN_CAPABILITIES.contains(capability))
-                                        .map(capability -> "unknown-capability:" + capability)))
+        List<String> deniedInputs = Stream.of(
+                        deniedInputCodes(request == null ? null : request.roles(), "role", SIMULATION_ROLES),
+                        deniedInputCodes(request == null ? null : request.groups(), "group", SIMULATION_GROUPS),
+                        deniedInputCodes(request == null ? null : request.requestedCapabilities(), "capability", SIMULATION_KNOWN_CAPABILITIES))
+                .flatMap(List::stream)
+                .distinct()
+                .sorted()
                 .toList();
+        List<String> roles = normalizedKnownValues(request == null ? null : request.roles(), SIMULATION_ROLES);
+        List<String> groups = normalizedKnownValues(request == null ? null : request.groups(), SIMULATION_GROUPS);
+        List<String> requestedCapabilities = normalizedKnownValues(request == null ? null : request.requestedCapabilities(), SIMULATION_KNOWN_CAPABILITIES);
         boolean failClosed = !deniedInputs.isEmpty();
         LinkedHashSet<String> grants = new LinkedHashSet<>();
         if (!failClosed) {
@@ -358,21 +354,22 @@ public class AdminControlPlaneService {
                 "admin-control-plane",
                 actorRef(jwt),
                 "effective-policy-simulation",
-                AuditAction.ADMIN_POLICY_UPDATED,
+                AuditAction.EFFECTIVE_POLICY_SIMULATED,
                 Instant.now(clock),
                 auditRef,
                 AuditRedactionLevel.SECRET_REDACTED,
                 Map.of(
-                        "subject", safeText(request == null ? null : request.subject()),
-                        "organizationId", safeText(request == null ? null : request.organizationId()),
+                        "subjectProvided", request != null && request.subject() != null && !request.subject().isBlank(),
+                        "organizationProvided", request != null && request.organizationId() != null && !request.organizationId().isBlank(),
                         "roleCount", roles.size(),
                         "groupCount", groups.size(),
                         "requestedCapabilityCount", requestedCapabilities.size(),
+                        "unknownInputCount", deniedInputs.size(),
                         "unknownInputsFailClosed", failClosed,
                         "supportSafe", true,
-                        "reason", safeText(request == null ? null : request.reason()))));
+                        "reasonProvided", request != null && request.reason() != null && !request.reason().isBlank())));
         return new EffectivePolicySimulationResponse(
-                safeText(request == null ? null : request.subject()),
+                safeSimulationIdentityRef(request == null ? null : request.subject()),
                 request == null || request.organizationId() == null || request.organizationId().isBlank()
                         ? organizationId(jwt)
                         : safeText(request.organizationId()),
@@ -1134,17 +1131,46 @@ public class AdminControlPlaneService {
                 .toList();
     }
 
-    private List<String> normalizedValues(List<String> values) {
+    private List<String> normalizedKnownValues(List<String> values, Set<String> knownValues) {
         if (values == null) {
             return List.of();
         }
         return values.stream()
                 .filter(value -> value != null && !value.isBlank())
                 .map(value -> value.trim().toLowerCase(Locale.ROOT))
-                .filter(value -> value.matches("[a-z][a-z0-9_.:-]*"))
+                .filter(this::safeSimulationInputToken)
+                .filter(knownValues::contains)
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    private List<String> deniedInputCodes(List<String> values, String kind, Set<String> knownValues) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .map(value -> {
+                    if (value == null || value.isBlank()) {
+                        return "invalid-" + kind;
+                    }
+                    String normalized = value.trim().toLowerCase(Locale.ROOT);
+                    if (!safeSimulationInputToken(normalized)) {
+                        return "invalid-" + kind;
+                    }
+                    if (!knownValues.contains(normalized)) {
+                        return "unknown-" + kind;
+                    }
+                    return null;
+                })
+                .filter(value -> value != null)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private boolean safeSimulationInputToken(String value) {
+        return value != null && value.matches("[a-z][a-z0-9_.:-]*");
     }
 
     private EffectivePolicySimulationResponse.CapabilityState simulationState(
@@ -1177,6 +1203,17 @@ public class AdminControlPlaneService {
                 "policy-blocked",
                 "deny-by-default-capability-policy",
                 "This capability remains blocked unless a known org role or group grants it.");
+    }
+
+    private String safeSimulationIdentityRef(String value) {
+        if (value == null || value.isBlank()) {
+            return "not-provided";
+        }
+        String trimmed = value.trim();
+        if (trimmed.contains("@") || trimmed.matches("(?i).*(bearer\\s+|xox[baprs]-|secret(ref)?://|https?://|token|secret).*")) {
+            return "identity-ref-redacted";
+        }
+        return safeText(trimmed);
     }
 
     private boolean safePrimaryIdentityKey(String value) {
