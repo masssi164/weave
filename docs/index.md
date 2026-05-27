@@ -11,9 +11,9 @@ Start with:
 1. [v0.1 Golden Path readiness](v0.1-golden-path.md) — what is ready, guarded, disabled, degraded, or future.
 2. Root README — public product entry point and architecture-at-a-glance.
 3. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
-4. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
-5. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
-6. [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md) — active RC/provider-ops entry slice.
+4. [Sprint 6 closure report](sprint-6-closure-report.md) — final RC/provider-ops foundation evidence and first-release entry criteria.
+5. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
+6. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
 7. [Sprint 6 epic closure report](sprint-6-epic-closure-report.md) — #212/#233 acceptance evidence after the merged identity/admin slices.
 
 ### Member / user
@@ -90,6 +90,7 @@ Release and evidence docs:
 - [Sprint 5 closure report](sprint-5-closure-report.md)
 - [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md)
 - [Sprint 6 epic closure report](sprint-6-epic-closure-report.md)
+- [Sprint 6 closure report](sprint-6-closure-report.md)
 
 Historical/context docs:
 
