@@ -76,6 +76,9 @@ describe('Admin Console MVP', () => {
       screen.getByRole('heading', { name: /provider categories/i }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole('heading', { name: /identity provider readiness/i }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole('heading', {
         name: /provider selection and readiness/i,
       }),
@@ -104,9 +107,40 @@ describe('Admin Console MVP', () => {
       screen.getByLabelText(/identity \/ idm status is ready/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/provider source of truth/i)).toBeInTheDocument();
+    expect(screen.getByText(/backend-owned facade/i)).toBeInTheDocument();
+    expect(screen.getByText(/Stable states:/i)).toHaveTextContent(
+      /admin action required/i,
+    );
     expect(
       screen.getAllByText(/policy is deny-by-default/i).length,
     ).toBeGreaterThan(0);
+  });
+
+  it('renders identity readiness as backend-owned support-safe Workspace Health cards', async () => {
+    render(<App api={mockApi()} />);
+
+    expect(
+      await screen.findByRole('heading', { name: /identity provider readiness/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/realm import readiness state is ready/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/oidc client readiness state is ready/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/roles and groups mapping state is ready/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/login readiness state is ready/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/policy readiness state is ready/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/member provider setup:/i),
+    ).toHaveTextContent(/blocked/i);
+    expect(document.body).not.toHaveTextContent(/client_secret|access_token/i);
   });
 
   it('keeps admin/provider setup separate from the member client and direct providers', async () => {
@@ -256,6 +290,11 @@ describe('Admin Console MVP', () => {
     expect(document.body).not.toHaveTextContent(
       /keycloak|nextcloud|matrix|microsoft graph|slack|teams|livekit/i,
     );
+    expect(
+      screen.queryByRole('heading', {
+        name: /identity provider readiness/i,
+      }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('heading', {
         name: /provider selection and readiness/i,

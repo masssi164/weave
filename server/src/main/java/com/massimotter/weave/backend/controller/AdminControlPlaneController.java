@@ -12,6 +12,7 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateReques
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
+import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessResponse;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
@@ -92,6 +93,15 @@ public class AdminControlPlaneController {
             @Valid @RequestBody EffectivePolicySimulationRequest request,
             @AuthenticationPrincipal Jwt jwt) {
         return adminControlPlaneService.simulateEffectivePolicy(request, jwt);
+    }
+
+    @GetMapping({"/api/admin/identity/readiness", "/api/v1/admin/identity/readiness"})
+    @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
+    @Operation(summary = "Read support-safe identity provider readiness for Workspace Health")
+    @ApiResponse(responseCode = "200", description = "Backend-owned identity provider readiness facade.",
+            content = @Content(schema = @Schema(implementation = IdentityProviderReadinessResponse.class)))
+    public IdentityProviderReadinessResponse identityProviderReadiness(@AuthenticationPrincipal Jwt jwt) {
+        return adminControlPlaneService.identityProviderReadiness(jwt);
     }
 
     @PostMapping({"/api/admin/identity/realm/dry-run", "/api/v1/admin/identity/realm/dry-run"})

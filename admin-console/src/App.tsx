@@ -46,6 +46,7 @@ const stateColor: Record<
   disabled: 'default',
   degraded: 'warning',
   'policy-blocked': 'info',
+  'admin-action-required': 'warning',
   misconfigured: 'error',
   unsupported: 'error',
   not_configured: 'default',
@@ -63,6 +64,8 @@ function memberStableState(state: CapabilityState): MemberStableState {
       return 'usable';
     case 'policy-blocked':
       return 'policy-blocked';
+    case 'admin-action-required':
+      return 'degraded';
     case 'disabled':
     case 'unsupported':
     case 'not_configured':
@@ -444,6 +447,93 @@ export default function App({
                   </Stack>
                 </CardContent>
               </Card>
+
+              {canInspectReadiness ? (
+                <Card component="section" aria-labelledby="identity-readiness-heading">
+                  <CardContent>
+                    <Typography
+                      id="identity-readiness-heading"
+                      variant="h2"
+                      sx={{ fontSize: '1.35rem', mb: 2 }}
+                    >
+                      Identity provider readiness
+                    </Typography>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      Workspace Health reads identity readiness only from the
+                      Weave backend facade. Member clients do not receive OIDC
+                      URLs, client ids, realm internals, raw provider errors, or
+                      credentials.
+                    </Alert>
+                    <Stack spacing={1}>
+                      <Typography>
+                        Contract:{' '}
+                        <code>
+                          {controlPlane.identityProviderReadiness.contractVersion}
+                        </code>
+                        ; overall state:{' '}
+                        <strong>
+                          {readableState(
+                            controlPlane.identityProviderReadiness.overallState,
+                          )}
+                        </strong>
+                        ; backend-owned facade:{' '}
+                        <strong>
+                          {controlPlane.identityProviderReadiness.backendOwnedFacade
+                            ? 'yes'
+                            : 'no'}
+                        </strong>
+                        ; member provider setup:{' '}
+                        <strong>
+                          {controlPlane.identityProviderReadiness
+                            .memberClientMayConfigureIdentityProvider
+                            ? 'allowed'
+                            : 'blocked'}
+                        </strong>
+                        .
+                      </Typography>
+                      <Typography>
+                        Stable states:{' '}
+                        {controlPlane.identityProviderReadiness.stableStates
+                          .map(readableState)
+                          .join(', ')}
+                      </Typography>
+                    </Stack>
+                    <Stack spacing={2} sx={{ mt: 2 }}>
+                      {controlPlane.identityProviderReadiness.cards.map((card) => (
+                        <Card key={card.key} variant="outlined">
+                          <CardContent>
+                            <Stack spacing={1}>
+                              <Typography variant="h3" sx={{ fontSize: '1.05rem' }}>
+                                {card.label}
+                              </Typography>
+                              <Chip
+                                color={stateColor[card.state]}
+                                label={`State: ${readableState(card.state)}`}
+                                aria-label={`${card.label} state is ${readableState(card.state)}`}
+                              />
+                              <Typography>{card.summary}</Typography>
+                              <Typography>
+                                Member impact: {card.memberImpact}.
+                              </Typography>
+                              <Typography>Remediation: {card.remediation}</Typography>
+                              <Typography>
+                                Next actions:{' '}
+                                {card.nextActions.join('; ') ||
+                                  'No action reported by backend.'}
+                              </Typography>
+                              <Typography>
+                                Evidence refs:{' '}
+                                {card.evidenceRefs.join(', ') ||
+                                  'support-safe backend evidence'}
+                              </Typography>
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card
                 component="section"
