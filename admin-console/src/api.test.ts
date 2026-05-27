@@ -112,4 +112,45 @@ describe('AdminControlPlaneApi provider boundary', () => {
       /slack\.com|graph\.microsoft\.com|nextcloud|matrix|livekit/i,
     );
   });
+
+  it('fails closed when older backends omit the optional identity readiness contract', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path.includes('/audit/events')
+        ? []
+        : {
+            organizationId: 'weave-dogfood',
+            categories: [],
+            whitelist: { denyByDefault: true },
+          };
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: 'https://api.example.invalid/api',
+        oidcIssuerUrl: 'https://auth.example.invalid',
+        oidcClientId: 'weave-admin-console',
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const controlPlane = await api.getControlPlane();
+
+    expect(controlPlane.identityProviderReadiness.overallState).toBe(
+      'admin-action-required',
+    );
+    expect(controlPlane.identityProviderReadiness.cards[0]).toEqual(
+      expect.objectContaining({
+        key: 'identity-readiness-contract-missing',
+        state: 'admin-action-required',
+        memberImpact: 'degraded',
+      }),
+    );
+    expect(controlPlane.identityProviderReadiness.nextActions).toContain(
+      'Treat missing identity readiness as admin-action-required and fail closed.',
+    );
+  });
 });
