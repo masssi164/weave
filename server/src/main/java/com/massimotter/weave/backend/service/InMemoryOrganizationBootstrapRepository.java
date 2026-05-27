@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.service;
 import java.util.Optional;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
+
 public class InMemoryOrganizationBootstrapRepository implements OrganizationBootstrapRepository {
 
     private final ConcurrentHashMap<String, OrganizationBootstrapRecord> records = new ConcurrentHashMap<>();
@@ -17,6 +18,9 @@ public class InMemoryOrganizationBootstrapRepository implements OrganizationBoot
 
     @Override
     public OrganizationBootstrapRecord save(OrganizationBootstrapRecord record) {
+        if (record == null || record.organizationId() == null || record.organizationId().isBlank()) {
+            throw new IllegalArgumentException("Organization bootstrap record requires a non-blank organization id.");
+        }
         records.put(normalizeOrganizationId(record.organizationId()), record);
         return record;
     }
