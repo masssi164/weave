@@ -52,6 +52,20 @@ The desired-state contract covers realm basics, OIDC clients, roles, groups, sco
 
 Evidence must stay support-safe: no raw provider bodies, provider-internal IDs, credential-bearing URLs, private keys, tokens, or SecretRef payloads. A sanitized sample is checked in at `docs/evidence/identity-realm-dry-run-sample.json`; contract fixtures live under `server/src/test/resources/identity-realm-dry-run/`.
 
+## Identity realm guarded apply
+
+Use `POST /api/admin/identity/realm/apply` only after the #233 dry-run report and #369 effective policy simulation have both been reviewed. The apply endpoint is a guarded decision scaffold in this sprint: it can accept a support-safe plan, publish audit evidence, and return remediation, but it does not perform live Keycloak, OpenTofu/Terraform, credential, or provider mutation.
+
+Apply is unavailable or blocked when any guard fails:
+
+- missing `confirmationPhrase=APPLY WEAVE IDENTITY REALM`;
+- no retained immutable owner/admin primary identity key such as `issuer+subject`; email addresses are not accepted as recovery keys;
+- risky changes without `approveRisky=true` and a support-safe rollback evidence reference;
+- destructive changes without `approveDestructive=true`, rollback/restore evidence, and provider support for destructive apply; the current Keycloak realm provider reports `destructiveApplyAvailable=false`;
+- dry-run blockers remain, including unknown identity inputs, lockout risk, or destructive removals blocked by the dry-run slice.
+
+The audit trail records only support-safe fields and counts: authenticated actor class, realm candidate, dry-run plan ref, decision/result, change counts, retained-admin count, rollback evidence presence, and mutation-performed=false. It must not include raw reason text, rollback payloads, email primary keys, provider internals, tokens, credentials, SecretRef payloads, or provider response bodies. A support-safe accepted-decision fixture is checked in at `server/src/test/resources/identity-realm-apply/guarded-safe-accepted.json`.
+
 ## Identity provider readiness in Workspace Health
 
 Workspace Health reads identity/provider readiness from backend-owned facades only. Use `GET /api/admin/identity/readiness` or the embedded `identityProviderReadiness` block on `GET /api/admin/control-plane`; normal members must not call these admin endpoints.

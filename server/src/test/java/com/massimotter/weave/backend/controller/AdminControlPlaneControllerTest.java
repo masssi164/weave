@@ -404,6 +404,93 @@ class AdminControlPlaneControllerTest {
                 .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))));
     }
 
+
+    @Test
+    void adminRealmApplyIsGuardedDecisionOnlySupportSafeAndAudited() throws Exception {
+        String request = """
+                {
+                  "currentState": {
+                    "realmId": "weave-dogfood",
+                    "displayName": "Weave Dogfood",
+                    "enabled": true,
+                    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.local/callback"],"roles":["owner","admin","member"],"scopes":["openid","profile","email"]}],
+                    "roles": ["owner", "admin", "member"],
+                    "groups": ["weave-board-editors"],
+                    "scopes": ["openid", "profile", "email", "weave:workspace"],
+                    "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
+                    "redirectOrigins": ["https://weave.local/callback"],
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+                  },
+                  "desiredState": {
+                    "realmId": "weave-dogfood",
+                    "displayName": "Weave Dogfood",
+                    "enabled": true,
+                    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.local/callback"],"roles":["owner","admin","member"],"scopes":["openid","profile","email"]}],
+                    "roles": ["owner", "admin", "member"],
+                    "groups": ["weave-board-editors"],
+                    "scopes": ["openid", "profile", "email", "weave:workspace"],
+                    "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
+                    "redirectOrigins": ["https://weave.local/callback"],
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+                  },
+                  "confirmationPhrase": "APPLY WEAVE IDENTITY REALM",
+                  "approveRisky": false,
+                  "approveDestructive": false,
+                  "retainedAdminPrimaryIdentityKeys": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"],
+                  "reason": "controller apply with Bearer raw-token and secretref://raw/ref"
+                }
+                """;
+
+        mockMvc.perform(post("/api/admin/identity/realm/apply")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerKey").value("keycloak-realm"))
+                .andExpect(jsonPath("$.decision").value("accepted"))
+                .andExpect(jsonPath("$.executionMode").value("guarded-provider-apply-decision-only"))
+                .andExpect(jsonPath("$.applied").value(false))
+                .andExpect(jsonPath("$.providerMutationPerformed").value(false))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.lastAdminGuardPassed").value(true))
+                .andExpect(jsonPath("$.blockedReasons").isEmpty())
+                .andExpect(jsonPath("$.auditRefs[0]").exists())
+                .andExpect(content().string(not(containsString("raw-token"))))
+                .andExpect(content().string(not(containsString("secretref://raw/ref"))));
+
+        mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].action", hasItems("identity.realm.apply.guarded")))
+                .andExpect(jsonPath("$[*].payload.actorRef", hasItems("user:admin-123")))
+                .andExpect(jsonPath("$[*].payload.decision", hasItems("accepted")))
+                .andExpect(jsonPath("$[*].payload.result", hasItems("accepted-without-provider-mutation")))
+                .andExpect(jsonPath("$[*].payload.providerMutationPerformed", hasItems(false)))
+                .andExpect(content().string(not(containsString("raw-token"))))
+                .andExpect(content().string(not(containsString("secretref://raw/ref"))))
+                .andExpect(content().string(not(containsString("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"))));
+    }
+
+    @Test
+    void operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration() throws Exception {
+        String request = "{\"desiredState\":{\"realmId\":\"weave-dogfood\"},\"confirmationPhrase\":\"APPLY WEAVE IDENTITY REALM\"}";
+
+        mockMvc.perform(post("/api/admin/identity/realm/apply")
+                        .with(operatorJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin.provider.configure"));
+
+        mockMvc.perform(post("/api/admin/identity/realm/apply")
+                        .with(memberJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin.provider.configure"));
+    }
+
     @Test
     void memberCannotRunRealmDryRunOrSeeProviderSetupInternals() throws Exception {
         mockMvc.perform(post("/api/admin/identity/realm/dry-run")

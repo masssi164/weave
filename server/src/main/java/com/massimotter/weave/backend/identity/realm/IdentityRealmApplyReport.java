@@ -11,6 +11,7 @@ public record IdentityRealmApplyReport(
         String decision,
         String executionMode,
         boolean applied,
+        boolean providerMutationPerformed,
         boolean supportSafe,
         boolean rawSecretExposed,
         boolean lastAdminGuardPassed,

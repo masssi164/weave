@@ -12,6 +12,7 @@ Use this page for release-affecting changes that have merged but are not include
 - Enterprise release foundation with machine-checked release lanes, support-safe Live Stack evidence manifest, RC promotion/waiver contract, and required runtime marker policy.
 - Workspace Health identity provider readiness facade with realm import, OIDC client, roles/groups, login, and policy cards backed only by backend Admin Console APIs.
 - Admin/operator effective policy simulation endpoint with support-safe capability impact output, fail-closed unknown identity inputs, Weaver disabled-by-default evidence, and audited counts before provider or realm changes apply.
+- Guarded identity realm apply decision path with explicit confirmation, retained-admin lockout protection, risky/destructive rollback evidence gates, support-safe audit counts, and decision-only provider mutation semantics.
 
 ## Changed
 

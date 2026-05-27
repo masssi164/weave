@@ -14,6 +14,7 @@ public enum AuditAction {
     CONSENT_GRANTED("consent.granted"),
     CONSENT_REVOKED("consent.revoked"),
     EFFECTIVE_POLICY_SIMULATED("effective_policy.simulated"),
+    IDENTITY_REALM_APPLY_GUARDED("identity.realm.apply.guarded"),
     ADMIN_POLICY_UPDATED("admin.policy.updated"),
     PROVIDER_READINESS_TESTED("provider.readiness.tested"),
     PROVIDER_REPLACEMENT_DRY_RUN("provider.replacement.dry_run"),
