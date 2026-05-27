@@ -4,7 +4,11 @@ public interface IdentityRealmProvider {
 
     String providerKey();
 
-    IdentityRealmDryRunReport dryRun(IdentityRealmDesiredState desiredState);
+    IdentityRealmDryRunReport dryRun(IdentityRealmDryRunRequest request);
+
+    default IdentityRealmDryRunReport dryRun(IdentityRealmDesiredState desiredState) {
+        return dryRun(new IdentityRealmDryRunRequest(null, desiredState, null));
+    }
 
     default boolean destructiveApplyAvailable() {
         return false;

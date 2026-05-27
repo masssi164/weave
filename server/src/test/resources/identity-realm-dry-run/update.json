@@ -1,0 +1,27 @@
+{
+  "currentState": {
+    "realmId": "weave-dogfood",
+    "displayName": "Weave",
+    "enabled": true,
+    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.local/callback"],"roles":["admin"],"scopes":["openid"]}],
+    "roles": ["admin"],
+    "groups": [],
+    "scopes": ["openid"],
+    "claimMappers": [],
+    "redirectOrigins": ["https://weave.local/callback"],
+    "featureMappings": []
+  },
+  "desiredState": {
+    "realmId": "weave-dogfood",
+    "displayName": "Weave Dogfood",
+    "enabled": true,
+    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.local/callback"],"roles":["admin","member"],"scopes":["openid","profile"]}],
+    "roles": ["admin", "member"],
+    "groups": ["weave-board-editors"],
+    "scopes": ["openid", "profile"],
+    "claimMappers": [],
+    "redirectOrigins": ["https://weave.local/callback"],
+    "featureMappings": []
+  },
+  "reason": "fixture-update"
+}

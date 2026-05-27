@@ -250,9 +250,77 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
+    void adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe() throws Exception {
+        String request = """
+                {
+                  "desiredState": {
+                    "realmId": "weave-dogfood",
+                    "displayName": "Weave Dogfood",
+                    "enabled": true,
+                    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.local/callback","http://localhost:8080/*"],"roles":["admin","member"],"scopes":["openid","profile"]}],
+                    "roles": ["admin", "member"],
+                    "groups": ["weave-board-editors"],
+                    "scopes": ["openid", "profile", "weave:workspace"],
+                    "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
+                    "redirectOrigins": ["http://localhost:8080/*"],
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+                  },
+                  "reason": "admin review before apply"
+                }
+                """;
+
+        mockMvc.perform(post("/api/admin/identity/realm/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.providerKey").value("keycloak-realm"))
+                .andExpect(jsonPath("$.operation").value("dry-run"))
+                .andExpect(jsonPath("$.readiness").value("degraded"))
+                .andExpect(jsonPath("$.destructiveApplyAvailable").value(false))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.rawSecretExposed").value(false))
+                .andExpect(jsonPath("$.changes[*].classification", hasItems("safe", "risky")))
+                .andExpect(jsonPath("$.readinessChecks[*].state", hasItems("ready", "degraded")))
+                .andExpect(jsonPath("$.auditRefs[0]").exists())
+                .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))))
+                .andExpect(content().string(not(containsString("Authorization: Bearer"))))
+                .andExpect(content().string(not(containsString("access_token"))));
+
+        mockMvc.perform(get("/api/admin/audit/events").with(adminJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].action", hasItems("provider.replacement.dry_run")))
+                .andExpect(jsonPath("$[*].payload.supportSafe", hasItems(true)))
+                .andExpect(jsonPath("$[*].payload.dryRunReasonPresent", hasItems(true)))
+                .andExpect(content().string(not(containsString("admin review before apply"))))
+                .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))));
+    }
+
+    @Test
+    void memberCannotRunRealmDryRunOrSeeProviderSetupInternals() throws Exception {
+        mockMvc.perform(post("/api/admin/identity/realm/dry-run")
+                        .with(memberJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"desiredState\":{\"realmId\":\"weave\"}}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(content().string(not(containsString("keycloak-realm"))))
+                .andExpect(content().string(not(containsString("client_secret"))))
+                .andExpect(content().string(not(containsString("provider setup"))));
+    }
+
+    @Test
     void operatorCanReadButCannotChangeProviderOrPolicy() throws Exception {
         mockMvc.perform(get("/api/admin/control-plane").with(operatorJwt()))
                 .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/identity/realm/dry-run")
+                        .with(operatorJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"desiredState\":{\"realmId\":\"weave-dogfood\",\"clients\":[],\"roles\":[\"admin\"]}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operation").value("dry-run"));
 
         mockMvc.perform(patch("/api/admin/policies/capability-whitelist")
                         .with(operatorJwt())

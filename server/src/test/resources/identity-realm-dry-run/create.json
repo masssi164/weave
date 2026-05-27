@@ -1,0 +1,15 @@
+{
+  "desiredState": {
+    "realmId": "weave-dogfood",
+    "displayName": "Weave Dogfood",
+    "enabled": true,
+    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.local/callback"],"roles":["owner","admin","member"],"scopes":["openid","profile","email"]}],
+    "roles": ["owner", "admin", "member"],
+    "groups": ["weave-board-editors"],
+    "scopes": ["openid", "profile", "email", "weave:workspace"],
+    "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
+    "redirectOrigins": ["https://weave.local/callback"],
+    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+  },
+  "reason": "fixture-create"
+}
