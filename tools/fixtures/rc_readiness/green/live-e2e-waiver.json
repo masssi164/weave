@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "candidateCommit": "1111111111111111111111111111111111111111",
+  "candidateTag": "v0.1.0-rc.1",
+  "owner": "release-owner",
+  "reason": "Fixture-only waiver for missing credentialed Live Stack evidence.",
+  "expiresUtc": "2099-01-01T00:00:00Z",
+  "waives": ["live-e2e"],
+  "compensatingEvidence": ["offline fixture tests passed"]
+}

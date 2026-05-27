@@ -63,7 +63,8 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
 | `releaseNotesLabelCheck` | Current PR release-notes label validation when `PR_LABELS_JSON` is available; skipped locally when unset. |
-| `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, and generator fixture checks. |
+| `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, generator fixture checks, enterprise release gates, and RC readiness fixtures. |
+| `releaseReadinessCheck` | Validates support-safe RC readiness evidence for an explicit candidate without publishing a release; override with `-PcandidateVersion`, `-PcandidateTag`, `-PcandidateCommit`, and evidence path properties. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
@@ -137,7 +138,7 @@ python3 tools/readme_release_notes.py --update --source build/release-notes/unre
 
 The `Release draft` GitHub Actions workflow is manual (`workflow_dispatch`) and creates or updates a **draft** release only. It generates notes from the same label policy, injects a README review artifact, uploads both artifacts, and never publishes automatically.
 
-Run `./gradlew releaseEvidenceCheck` before requesting review when release notes are relevant; it validates release-note page structure, README release markers, label edge cases, and the generator fixture.
+Run `./gradlew releaseEvidenceCheck` before requesting review when release notes are relevant; it validates release-note page structure, README release markers, label edge cases, the generator fixture, enterprise release gates, and RC readiness fixtures. For an actual candidate, run `./gradlew releaseReadinessCheck` or `python3 tools/release_readiness_check.py` with exact candidate commit and downloaded evidence artifacts.
 
 ## Architecture conventions
 

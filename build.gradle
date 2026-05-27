@@ -36,7 +36,34 @@ registerRootCommandTask('generateReleaseNotes', ['python3', 'tools/release_notes
 registerRootCommandTask('updateReadmeReleaseNotes', ['python3', 'tools/readme_release_notes.py', '--update'], 'Explicitly update the managed README release-notes evidence block.')
 registerRootCommandTask('projectReadinessEvidenceCheck', ['python3', 'tools/project_readiness_evidence_check.py'], 'Validate Sprint 5 project-readiness evidence remains mapped and support-safe.')
 registerRootCommandTask('enterpriseReleaseGateCheck', ['python3', 'tools/release_gate_check.py'], 'Validate the Sprint 6 enterprise release lane/gate contract and support-safe evidence requirements.')
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py'], 'Validate release notes structure, README markers, labels, generator fixture evidence, Sprint 5 project-readiness closure evidence, and Sprint 6 enterprise release gates.')
+registerRootCommandTask('releaseReadinessFixtureTest', ['python3', 'tools/release_readiness_check_test.py'], 'Run fixture tests for the support-safe RC readiness check.')
+tasks.register('releaseReadinessCheck', Exec) {
+    group = 'verification'
+    description = 'Validate local release-candidate readiness evidence without publishing a release. Override with -PcandidateVersion, -PcandidateTag, -PcandidateCommit, -PciSummary, -PliveEvidenceDir, -PliveManifest, -PblockersJson, -Pwaiver, and -Pjson=true.'
+    workingDir projectDir
+    def candidateVersion = (findProperty('candidateVersion') ?: '0.1.0-rc.1').toString()
+    def candidateTag = (findProperty('candidateTag') ?: "v${candidateVersion.startsWith('v') ? candidateVersion.substring(1) : candidateVersion}").toString()
+    def args = ['python3', 'tools/release_readiness_check.py', '--candidate-version', candidateVersion, '--candidate-tag', candidateTag]
+    [
+        candidateCommit: '--candidate-commit',
+        ciSummary: '--ci-summary',
+        liveEvidenceDir: '--live-evidence-dir',
+        liveManifest: '--live-manifest',
+        blockersJson: '--blockers-json',
+        waiver: '--waiver'
+    ].each { propertyName, flag ->
+        if (findProperty(propertyName) != null) {
+            args.add(flag)
+            args.add(findProperty(propertyName).toString())
+        }
+    }
+    if ((findProperty('json') ?: 'false').toString().toBoolean()) {
+        args.add('--json')
+    }
+    commandLine execCommand(args)
+    outputs.upToDateWhen { false }
+}
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes structure, README markers, labels, generator fixture evidence, Sprint 5 project-readiness closure evidence, Sprint 6 enterprise release gates, and RC readiness fixtures.')
 
 tasks.register('docsCheck') {
     group = 'verification'
@@ -164,6 +191,8 @@ List<String> artifactPathsForGate(String gateName) {
             return ['docs/sprint-5-closure-report.md', 'e2e/scenario_mappings.json']
         case 'enterpriseReleaseGateCheck':
             return ['release/enterprise-release-gates.json', 'docs/enterprise-release-foundation.md']
+        case 'releaseReadinessFixtureTest':
+            return ['tools/release_readiness_check.py', 'tools/fixtures/rc_readiness/green']
         default:
             return []
     }
@@ -237,7 +266,7 @@ tasks.register('ci') {
     dependsOn 'doctor', 'acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck'
 }
 
-['acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck'].each { taskName ->
+['acceptanceContract', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
     }

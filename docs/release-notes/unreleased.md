@@ -4,6 +4,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
+- Repeatable RC readiness check with Markdown/JSON output, Gradle fixture tests, Live Stack evidence validation, release-blocker gating, and explicit waiver marker handling.
 - MkDocs documentation site foundation with handbook navigation, diagrams, GitFlow/PR workflow, and release notes process.
 - Root Gradle wrapper and orchestration tasks for delegated server, client, admin, infra, docs, acceptance, CI, and release-notes checks.
 - Local release notes generator for merged PR metadata grouped by release-notes labels.

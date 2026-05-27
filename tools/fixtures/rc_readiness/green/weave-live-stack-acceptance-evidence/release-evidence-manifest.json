@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "source": "fixture",
+  "commit": "1111111111111111111111111111111111111111",
+  "lane": "release-candidate-live-evidence",
+  "rcPromotionRule": "no-v0.1-rc-promotion-without-green-credentialed-live-stack-e2e-or-explicit-release-owner-waiver",
+  "acceptanceContract": {
+    "valid": true,
+    "scenarioCount": 9,
+    "mappingCount": 9,
+    "runtimeEvidenceCollected": true,
+    "observedMarkers": ["AUTH_RESULT", "PROFILE_RESULT", "CHAT_RESULT", "MATRIX_RESULT", "E2EE_RESULT", "FILES_RESULT", "PROVIDER_STACK_RESULT", "CALENDAR_RESULT", "BOARDS_RESULT"],
+    "findings": []
+  },
+  "artifacts": ["acceptance-summary.md", "gherkin-scenarios.json", "scenario-mapping-results.json", "evidence-markers.json", "release-evidence-manifest.json"],
+  "supportSafe": true,
+  "supportSafeExclusions": ["raw credentials", "credential-bearing URLs", "provider internals", "downstream provider error bodies", "private live logs"]
+}
