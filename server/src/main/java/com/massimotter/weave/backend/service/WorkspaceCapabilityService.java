@@ -45,6 +45,8 @@ public class WorkspaceCapabilityService {
             "release_evidence.read",
             "release_evidence.manage",
             "admin_control_plane.readiness_read",
+            "admin.policy.edit",
+            "admin.provider.configure",
             "weaver.exec_disabled");
     private static final List<String> OPERATOR_CAPABILITIES = List.of(
             "admin_control_plane.readiness_read",
@@ -197,6 +199,7 @@ public class WorkspaceCapabilityService {
     }
 
     public WorkspaceCapabilityPolicyResponse policySnapshot(Jwt jwt) {
+        requireCapability(jwt, "admin_control_plane.readiness_read", "workspace-capability-policy", "read");
         EffectivePolicy policy = effectivePolicy(jwt);
         return new WorkspaceCapabilityPolicyResponse(
                 "identity/IDM",
@@ -393,8 +396,6 @@ public class WorkspaceCapabilityService {
 
         if (roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin"))) {
             capabilities.addAll(OWNER_ADMIN_CAPABILITIES);
-            capabilities.add("admin.provider.configure");
-            capabilities.add("admin.policy.edit");
             profileKeys.add("workspace-admin");
         }
         if (roles.contains("operator")) {

@@ -51,14 +51,16 @@ public class BoardsFacadeService {
     private final BoardsRepository boardsRepository;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
 
     public BoardsFacadeService(
             BoardsRuntimeGuard runtimeGuard,
             BoardsRepository boardsRepository,
             ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
-        this(runtimeGuard, boardsRepository, contextAuthorizationPort, contextAuthorizationProperties, new InMemoryAuditEventPublisher());
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService) {
+        this(runtimeGuard, boardsRepository, contextAuthorizationPort, contextAuthorizationProperties, workspaceCapabilityService, new InMemoryAuditEventPublisher());
     }
 
     @Autowired
@@ -67,11 +69,13 @@ public class BoardsFacadeService {
             BoardsRepository boardsRepository,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
             AuditEventPublisher auditEventPublisher) {
         this.runtimeGuard = runtimeGuard;
         this.boardsRepository = boardsRepository;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.workspaceCapabilityService = workspaceCapabilityService;
         this.auditEventPublisher = auditEventPublisher;
     }
 
@@ -193,6 +197,7 @@ public class BoardsFacadeService {
 
     private PrincipalContext requireContextPermission(Jwt jwt, ContextPermission permission) {
         requireEnabled();
+        workspaceCapabilityService.requireCapability(jwt, capabilityFor(permission), "boards", operationFor(permission));
         PrincipalContext principalContext = principalContext(jwt);
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
                 principalContext.tenantId(),
@@ -259,6 +264,14 @@ public class BoardsFacadeService {
                 BoardsErrorCode.UNAUTHORIZED,
                 "Boards access requires an authenticated principal.",
                 Map.of("reason", reason)));
+    }
+
+    private String capabilityFor(ContextPermission permission) {
+        return permission == ContextPermission.VIEW ? "boards.read" : "boards.update_task";
+    }
+
+    private String operationFor(ContextPermission permission) {
+        return permission == ContextPermission.VIEW ? "read-workspace" : "mutate-task";
     }
 
     private record PrincipalContext(String tenantId, String contextId, String principalRef) {

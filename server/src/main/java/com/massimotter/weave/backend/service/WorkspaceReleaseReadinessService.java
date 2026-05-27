@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -30,7 +31,12 @@ public class WorkspaceReleaseReadinessService {
         this.workspaceCapabilityService = workspaceCapabilityService;
     }
 
-    public WorkspaceReleaseReadinessResponse snapshot() {
+    public WorkspaceReleaseReadinessResponse snapshot(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "workspace-release-readiness", "read");
+        return supportSafeSnapshot();
+    }
+
+    WorkspaceReleaseReadinessResponse supportSafeSnapshot() {
         WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot();
 
         List<WorkspaceReleaseReadinessCheckResponse> checks = List.of(

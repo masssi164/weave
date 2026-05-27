@@ -185,9 +185,22 @@ class WorkspaceControllerTest {
     }
 
     @Test
-    void returnsReleaseReadinessSnapshot() throws Exception {
+    void operatorCanReadReleaseReadinessSnapshot() throws Exception {
         assertReleaseReadinessSnapshot("/api/workspace/release-readiness");
         assertReleaseReadinessSnapshot("/api/v1/workspace/release-readiness");
+    }
+
+    @Test
+    void releaseReadinessRejectsMembersWithoutAdminReadinessCapability() throws Exception {
+        mockMvc.perform(get("/api/v1/workspace/release-readiness").with(jwt()
+                        .jwt(jwt -> jwt
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
+                                .claim("realm_access", Map.of("roles", List.of("member"))))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
     }
 
     @Test
@@ -239,7 +252,10 @@ class WorkspaceControllerTest {
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
     }
 
     @Test
@@ -289,8 +305,10 @@ class WorkspaceControllerTest {
         mockMvc.perform(get(path).with(jwt()
                         .jwt(jwt -> jwt
                                 .claim("iss", "https://auth.example.invalid/realms/acme")
-                                .claim("realm_access", Map.of("roles", List.of("member"))))
-                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                                .claim("realm_access", Map.of("roles", List.of("operator"))))
+                        .authorities(
+                                new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                                new SimpleGrantedAuthority("ROLE_OPERATOR"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.readiness").value("ready"))
                 .andExpect(jsonPath("$.checks[0].key").value("auth-contract"))

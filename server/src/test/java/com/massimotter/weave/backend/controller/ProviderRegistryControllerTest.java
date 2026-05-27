@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.ProviderCoreConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
@@ -19,6 +20,7 @@ import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import java.time.Instant;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +28,7 @@ import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.O
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
@@ -34,6 +37,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -83,6 +89,7 @@ class ProviderRegistryControllerTest {
     @BeforeEach
     void setUpWorkspaceCapabilitySnapshot() {
         selectDefaultProviders();
+        enforceEffectiveCapabilityPolicy();
         when(workspaceCapabilityService.snapshot()).thenReturn(new WorkspaceCapabilitiesResponse(
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Weave SSO shell access is available."),
                 capability(WorkspaceCapabilityReadiness.READY, WorkspaceCapabilityPolicyState.ALLOWED, "Chat is available through Weave."),
@@ -90,6 +97,26 @@ class ProviderRegistryControllerTest {
                 capability(WorkspaceCapabilityReadiness.DEGRADED, WorkspaceCapabilityPolicyState.ALLOWED, "Calendar is degraded. Ask an admin to inspect Workspace Health."),
                 capability(WorkspaceCapabilityReadiness.BLOCKED, WorkspaceCapabilityPolicyState.POLICY_BLOCKED, "Boards/tasks are blocked by your role or group policy."),
                 capability(WorkspaceCapabilityReadiness.UNAVAILABLE, WorkspaceCapabilityPolicyState.DISABLED, "Weaver is disabled by workspace policy.")));
+    }
+
+    private void enforceEffectiveCapabilityPolicy() {
+        doAnswer(invocation -> {
+            org.springframework.security.oauth2.jwt.Jwt jwt = invocation.getArgument(0);
+            List<String> roles = jwt == null
+                    ? List.of()
+                    : jwt.getClaimAsMap("realm_access").getOrDefault("roles", List.of()) instanceof List<?> roleValues
+                            ? roleValues.stream().filter(String.class::isInstance).map(String.class::cast).toList()
+                            : List.of();
+            boolean allowed = roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"));
+            if (!allowed) {
+                throw new ApiErrorException(
+                        HttpStatus.FORBIDDEN,
+                        "capability-policy-blocked",
+                        "This action is blocked by workspace role or group policy.",
+                        Map.of("requiredCapability", "admin_control_plane.readiness_read", "policyState", "policy_blocked", "diagnosticsRedacted", true));
+            }
+            return null;
+        }).when(workspaceCapabilityService).requireCapability(any(), anyString(), anyString(), anyString());
     }
 
     private void selectDefaultProviders() {
@@ -126,7 +153,10 @@ class ProviderRegistryControllerTest {
     @Test
     void providerStatusRejectsMembers() throws Exception {
         mockMvc.perform(get("/api/providers/status").with(memberJwt()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
     }
 
     @Test
