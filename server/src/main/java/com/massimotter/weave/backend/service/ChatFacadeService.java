@@ -214,13 +214,13 @@ public class ChatFacadeService {
                 sanitizeTextList(request.openQuestions(), 120),
                 sanitizeReferenceList(request.followUpRefs()),
                 true);
-        decisionsFor(conversation.id()).add(decision);
         publishAudit(principal, AuditAction.DECISION_LEDGER_RECORD_CREATED, decision.id(), timestamp, Map.of(
                 "command", "create_decision",
                 "conversationId", conversation.id(),
                 "status", decision.status(),
                 "referenceCount", references.size(),
                 "supportSafe", true));
+        decisionsFor(conversation.id()).add(decision);
         return decision;
     }
 
@@ -265,12 +265,12 @@ public class ChatFacadeService {
                 false,
                 false,
                 true);
-        meetingCapsulesFor(conversation.id()).add(capsule);
         publishAudit(principal, AuditAction.MEETING_CAPSULE_CREATED, capsule.id(), timestamp, Map.of(
                 "command", "create_meeting_capsule",
                 "conversationId", conversation.id(),
                 "failClosed", true,
                 "supportSafe", true));
+        meetingCapsulesFor(conversation.id()).add(capsule);
         return capsule;
     }
 

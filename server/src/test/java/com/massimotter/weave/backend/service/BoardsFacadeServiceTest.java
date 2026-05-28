@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.boards.domain.Board;
 import com.massimotter.weave.backend.boards.domain.BoardColumn;
@@ -204,6 +205,75 @@ class BoardsFacadeServiceTest {
     }
 
     @Test
+    void preWriteAuditRedactsUnsafeResourceReferencesBeforeRepositoryValidation() {
+        var auditPublisher = new InMemoryAuditEventPublisher();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                new LocalWorkspaceBoardsRepository(),
+                request -> ContextAuthorizationDecision.allow("edit allowed"),
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                auditPublisher);
+
+        assertThatThrownBy(() -> service.moveTask(jwt(), "https://provider.example/tasks/42?token=secret",
+                new com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest(
+                        "https://provider.example/columns/1?token=secret",
+                        0)))
+                .isInstanceOf(ApiErrorException.class);
+
+        assertThat(auditPublisher.events()).hasSize(1);
+        assertThat(auditPublisher.events().get(0).idempotencyKey())
+                .contains("[redacted:unsafe-ref]")
+                .doesNotContain("provider.example")
+                .doesNotContain("secret");
+        assertThat(auditPublisher.events().get(0).payload().toString())
+                .contains("[redacted:unsafe-ref]")
+                .doesNotContain("provider.example")
+                .doesNotContain("secret");
+    }
+
+    @Test
+    void updateStatusFailsClosedBeforeMutationWhenAuditPublisherIsMissing() {
+        LocalWorkspaceBoardsRepository repository = new LocalWorkspaceBoardsRepository();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                repository,
+                request -> ContextAuthorizationDecision.allow("edit allowed"),
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                null);
+
+        assertThat(task(repository, "local-task-contract").status()).isEqualTo(TaskStatus.OPEN);
+
+        assertThatThrownBy(() -> service.updateTaskStatus(jwt(), "local-task-contract",
+                new com.massimotter.weave.backend.model.boards.BoardsUpdateTaskStatusRequest("blocked", null)))
+                .isInstanceOf(AuditRequiredException.class);
+
+        assertThat(task(repository, "local-task-contract").status()).isEqualTo(TaskStatus.OPEN);
+        assertThat(task(repository, "local-task-contract").columnId()).isEqualTo("local-column-todo");
+    }
+
+    @Test
+    void linkDecisionFailsClosedBeforeMutationWhenAuditPublisherIsMissing() {
+        LocalWorkspaceBoardsRepository repository = new LocalWorkspaceBoardsRepository();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                repository,
+                request -> ContextAuthorizationDecision.allow("edit allowed"),
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                null);
+
+        assertThat(task(repository, "local-task-contract").decisionRefs()).isEmpty();
+
+        assertThatThrownBy(() -> service.linkDecision(jwt(), "local-task-contract",
+                new com.massimotter.weave.backend.model.boards.BoardsLinkDecisionRequest("decision:release-v0.1")))
+                .isInstanceOf(AuditRequiredException.class);
+
+        assertThat(task(repository, "local-task-contract").decisionRefs()).isEmpty();
+    }
+
+    @Test
     void workspaceSourceReflectsOpenProjectReadSyncWhenProviderAdapterIsSelected() {
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsRuntimeGuard(true),
@@ -264,6 +334,13 @@ class BoardsFacadeServiceTest {
                             .containsEntry("cursorKey", "projects")
                             .containsEntry("supportSafe", "true");
                 });
+    }
+
+    private TaskItem task(LocalWorkspaceBoardsRepository repository, String taskId) {
+        return repository.listTasks("local-board-1", TaskQuery.all()).items().stream()
+                .filter(task -> task.id().equals(taskId))
+                .findFirst()
+                .orElseThrow();
     }
 
     private ContextAuthorizationProperties contextAuthorizationProperties() {
