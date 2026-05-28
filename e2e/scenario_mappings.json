@@ -635,6 +635,15 @@
       ],
       "additionalEvidence": [
         {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/BoardsFacadeServiceTest.java",
+          "fragments": [
+            "taskWritesPublishSupportSafeWorkspaceAuditEvents",
+            "preWriteAuditRedactsUnsafeResourceReferencesBeforeRepositoryValidation",
+            "updateStatusFailsClosedBeforeMutationWhenAuditPublisherIsMissing",
+            "linkDecisionFailsClosedBeforeMutationWhenAuditPublisherIsMissing"
+          ]
+        },
+        {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
             "Boards with user writes",
@@ -664,6 +673,12 @@
           ]
         },
         {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "fragments": [
+            "createMeetingCapsuleFailsClosedBeforeMutationWhenAuditPublisherIsMissing"
+          ]
+        },
+        {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
             "Meeting Capsule includes agenda, files, decisions, and follow-up tasks",
@@ -688,6 +703,12 @@
             "/api/v1/chat/conversations/channel-general/decisions",
             "source-linked",
             "DECISION_LEDGER_RECORD_CREATED"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "fragments": [
+            "createDecisionFailsClosedBeforeMutationWhenAuditPublisherIsMissing"
           ]
         },
         {
