@@ -75,7 +75,7 @@ Historical issue drafts live under `docs/issues/`; do not treat them as current 
 
 ## Local development
 
-Run tests with Java 17:
+Run tests with Java 21+:
 
 ```bash
 ./gradlew test
@@ -90,7 +90,7 @@ docker run --rm \
   -e GRADLE_USER_HOME=/tmp/.gradle \
   -v "$PWD:/workspace" \
   -w /workspace \
-  eclipse-temurin:17-jdk \
+  eclipse-temurin:21-jdk \
   ./gradlew test
 ```
 

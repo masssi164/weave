@@ -84,6 +84,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("weave_tenant_id", "weave-dogfood")
                                 .claim("weave_organization_name", "Weave Dogfood")
                                 .claim("realm_access", Map.of("roles", List.of()))
@@ -132,6 +133,7 @@ class WorkspaceControllerTest {
             mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                             .jwt(jwt -> jwt
                                     .subject("calendar-editor@example.invalid")
+                                    .claim("iss", "https://auth.example.invalid/realms/acme")
                                     .claim("weave_tenant_id", "weave-dogfood")
                                     .claim("realm_access", Map.of("roles", List.of()))
                                     .claim("groups", List.of("weave-calendar-editors")))
@@ -151,6 +153,7 @@ class WorkspaceControllerTest {
             mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                             .jwt(jwt -> jwt
                                     .subject("calendar-editor@example.invalid")
+                                    .claim("iss", "https://auth.example.invalid/realms/acme")
                                     .claim("weave_tenant_id", "weave-dogfood")
                                     .claim("realm_access", Map.of("roles", List.of()))
                                     .claim("groups", List.of("weave-calendar-editors")))
@@ -167,6 +170,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("calendar-editor@example.invalid")
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("realm_access", Map.of("roles", List.of()))
                                 .claim("groups", List.of("weave-calendar-editors")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
@@ -181,9 +185,22 @@ class WorkspaceControllerTest {
     }
 
     @Test
-    void returnsReleaseReadinessSnapshot() throws Exception {
+    void operatorCanReadReleaseReadinessSnapshot() throws Exception {
         assertReleaseReadinessSnapshot("/api/workspace/release-readiness");
         assertReleaseReadinessSnapshot("/api/v1/workspace/release-readiness");
+    }
+
+    @Test
+    void releaseReadinessRejectsMembersWithoutAdminReadinessCapability() throws Exception {
+        mockMvc.perform(get("/api/v1/workspace/release-readiness").with(jwt()
+                        .jwt(jwt -> jwt
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
+                                .claim("realm_access", Map.of("roles", List.of("member"))))
+                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
     }
 
     @Test
@@ -197,6 +214,7 @@ class WorkspaceControllerTest {
         mockMvc.perform(get("/api/v1/workspace/weaver/runtime-profile").with(jwt()
                         .jwt(jwt -> jwt
                                 .subject("member@example.invalid")
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
@@ -213,13 +231,14 @@ class WorkspaceControllerTest {
     void returnsAdminCapabilityPolicySnapshot() throws Exception {
         mockMvc.perform(get("/api/v1/workspace/capability-policy").with(jwt()
                         .jwt(jwt -> jwt
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
                                 .claim("realm_access", Map.of("roles", List.of("admin")))
                                 .claim("groups", List.of("weave-board-editors")))
                         .authorities(
                                 new SimpleGrantedAuthority("SCOPE_weave:workspace"),
                                 new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.defaultIdmProvider").value("Keycloak"))
+                .andExpect(jsonPath("$.defaultIdmProvider").value("OIDC/SAML selected IDM"))
                 .andExpect(jsonPath("$.denyByDefault").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.grantedCapabilities").isArray())
@@ -229,9 +248,14 @@ class WorkspaceControllerTest {
     @Test
     void rejectsCapabilityPolicyForMembers() throws Exception {
         mockMvc.perform(get("/api/v1/workspace/capability-policy").with(jwt()
-                        .jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("member"))))
+                        .jwt(jwt -> jwt
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
+                                .claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
     }
 
     @Test
@@ -260,7 +284,9 @@ class WorkspaceControllerTest {
 
     private void assertConfiguredWorkspaceCapabilities(String path) throws Exception {
         mockMvc.perform(get(path).with(jwt()
-                        .jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("member"))))
+                        .jwt(jwt -> jwt
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
+                                .claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.shellAccess.enabled").value(true))
@@ -277,8 +303,12 @@ class WorkspaceControllerTest {
 
     private void assertReleaseReadinessSnapshot(String path) throws Exception {
         mockMvc.perform(get(path).with(jwt()
-                        .jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("member"))))
-                        .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                        .jwt(jwt -> jwt
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
+                                .claim("realm_access", Map.of("roles", List.of("operator"))))
+                        .authorities(
+                                new SimpleGrantedAuthority("SCOPE_weave:workspace"),
+                                new SimpleGrantedAuthority("ROLE_OPERATOR"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.readiness").value("ready"))
                 .andExpect(jsonPath("$.checks[0].key").value("auth-contract"))
@@ -289,7 +319,9 @@ class WorkspaceControllerTest {
 
     private void assertWeaveHomeSnapshot(String path) throws Exception {
         mockMvc.perform(get(path).with(jwt()
-                        .jwt(jwt -> jwt.claim("realm_access", Map.of("roles", List.of("member"))))
+                        .jwt(jwt -> jwt
+                                .claim("iss", "https://auth.example.invalid/realms/acme")
+                                .claim("realm_access", Map.of("roles", List.of("member"))))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(1))

@@ -72,6 +72,7 @@ public class ChatDomainFacadeService {
     }
 
     public ChatReadiness adminReadiness(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "chat", "admin-readiness");
         return readiness(jwt, true);
     }
 
@@ -94,6 +95,7 @@ public class ChatDomainFacadeService {
     }
 
     public ChatMigrationPreflightReport preflight(ChatMigrationPreflightRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "chat", "migration-preflight");
         ChatMigrationPreflightRequest safeRequest = request == null
                 ? new ChatMigrationPreflightRequest(null, null, true, Map.of(), List.of(), List.of(), null)
                 : request;

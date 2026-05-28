@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "commit": "1111111111111111111111111111111111111111",
+  "branch": "main",
+  "build": {"result": "passed", "failureType": null},
+  "gates": [
+    {"name": "releaseEvidenceCheck", "outcome": "passed", "artifactPaths": ["README.md"]},
+    {"name": "enterpriseReleaseGateCheck", "outcome": "passed", "artifactPaths": ["release/enterprise-release-gates.json"]}
+  ],
+  "sanitized": true
+}

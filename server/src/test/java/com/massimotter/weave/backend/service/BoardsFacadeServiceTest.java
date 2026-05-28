@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditRequiredException;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.boards.domain.Board;
 import com.massimotter.weave.backend.boards.domain.BoardColumn;
@@ -21,6 +22,8 @@ import com.massimotter.weave.backend.boards.port.CreateTaskCommand;
 import com.massimotter.weave.backend.boards.port.MoveTaskCommand;
 import com.massimotter.weave.backend.boards.port.TaskQuery;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import java.time.Instant;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,7 +45,8 @@ class BoardsFacadeServiceTest {
                 new BoardsRuntimeGuard(false),
                 new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.allow("test allow"),
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                workspaceCapabilityService());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -59,7 +64,8 @@ class BoardsFacadeServiceTest {
                 new BoardsRuntimeGuard(true),
                 new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.deny("no matching context membership"),
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                workspaceCapabilityService());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -84,7 +90,8 @@ class BoardsFacadeServiceTest {
                     captured.set(request);
                     return ContextAuthorizationDecision.allow("context membership matched");
                 },
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                workspaceCapabilityService());
 
         service.workspace(jwtWithContext("tenant-acme", "ctx-product-channel"));
 
@@ -105,7 +112,8 @@ class BoardsFacadeServiceTest {
                     captured.set(request);
                     return ContextAuthorizationDecision.deny("edit denied");
                 },
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                workspaceCapabilityService());
 
         var createRequest = new com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest(
                 "local-column-todo",
@@ -128,6 +136,37 @@ class BoardsFacadeServiceTest {
 
 
     @Test
+    void createTaskRequiresEffectivePolicyGrantBeforeContextAuthorization() {
+        java.util.concurrent.atomic.AtomicBoolean contextChecked = new java.util.concurrent.atomic.AtomicBoolean(false);
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                new LocalWorkspaceBoardsRepository(),
+                request -> {
+                    contextChecked.set(true);
+                    return ContextAuthorizationDecision.allow("context would allow");
+                },
+                contextAuthorizationProperties(),
+                workspaceCapabilityService());
+
+        var createRequest = new com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest(
+                "local-column-todo",
+                "Write acceptance evidence",
+                null,
+                java.util.List.of(),
+                java.util.List.of(),
+                null);
+
+        assertThatThrownBy(() -> service.createTask(jwtWithoutGroups(), "local-board-1", createRequest))
+                .isInstanceOfSatisfying(ApiErrorException.class, error -> {
+                    assertThat(error.status().value()).isEqualTo(403);
+                    assertThat(error.code()).isEqualTo("capability-policy-blocked");
+                    assertThat(error.details()).containsEntry("requiredCapability", "boards.update_task");
+                    assertThat(error.details()).containsEntry("diagnosticsRedacted", true);
+                });
+        assertThat(contextChecked).isFalse();
+    }
+
+    @Test
     void taskWritesPublishSupportSafeWorkspaceAuditEvents() {
         var auditPublisher = new InMemoryAuditEventPublisher();
         BoardsFacadeService service = new BoardsFacadeService(
@@ -135,6 +174,7 @@ class BoardsFacadeServiceTest {
                 new LocalWorkspaceBoardsRepository(),
                 request -> ContextAuthorizationDecision.allow("edit allowed"),
                 contextAuthorizationProperties(),
+                workspaceCapabilityService(),
                 auditPublisher);
 
         var created = service.createTask(jwt(), "local-board-1",
@@ -165,12 +205,82 @@ class BoardsFacadeServiceTest {
     }
 
     @Test
+    void preWriteAuditRedactsUnsafeResourceReferencesBeforeRepositoryValidation() {
+        var auditPublisher = new InMemoryAuditEventPublisher();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                new LocalWorkspaceBoardsRepository(),
+                request -> ContextAuthorizationDecision.allow("edit allowed"),
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                auditPublisher);
+
+        assertThatThrownBy(() -> service.moveTask(jwt(), "https://provider.example/tasks/42?token=secret",
+                new com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest(
+                        "https://provider.example/columns/1?token=secret",
+                        0)))
+                .isInstanceOf(ApiErrorException.class);
+
+        assertThat(auditPublisher.events()).hasSize(1);
+        assertThat(auditPublisher.events().get(0).idempotencyKey())
+                .contains("[redacted:unsafe-ref]")
+                .doesNotContain("provider.example")
+                .doesNotContain("secret");
+        assertThat(auditPublisher.events().get(0).payload().toString())
+                .contains("[redacted:unsafe-ref]")
+                .doesNotContain("provider.example")
+                .doesNotContain("secret");
+    }
+
+    @Test
+    void updateStatusFailsClosedBeforeMutationWhenAuditPublisherIsMissing() {
+        LocalWorkspaceBoardsRepository repository = new LocalWorkspaceBoardsRepository();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                repository,
+                request -> ContextAuthorizationDecision.allow("edit allowed"),
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                null);
+
+        assertThat(task(repository, "local-task-contract").status()).isEqualTo(TaskStatus.OPEN);
+
+        assertThatThrownBy(() -> service.updateTaskStatus(jwt(), "local-task-contract",
+                new com.massimotter.weave.backend.model.boards.BoardsUpdateTaskStatusRequest("blocked", null)))
+                .isInstanceOf(AuditRequiredException.class);
+
+        assertThat(task(repository, "local-task-contract").status()).isEqualTo(TaskStatus.OPEN);
+        assertThat(task(repository, "local-task-contract").columnId()).isEqualTo("local-column-todo");
+    }
+
+    @Test
+    void linkDecisionFailsClosedBeforeMutationWhenAuditPublisherIsMissing() {
+        LocalWorkspaceBoardsRepository repository = new LocalWorkspaceBoardsRepository();
+        BoardsFacadeService service = new BoardsFacadeService(
+                new BoardsRuntimeGuard(true),
+                repository,
+                request -> ContextAuthorizationDecision.allow("edit allowed"),
+                contextAuthorizationProperties(),
+                workspaceCapabilityService(),
+                null);
+
+        assertThat(task(repository, "local-task-contract").decisionRefs()).isEmpty();
+
+        assertThatThrownBy(() -> service.linkDecision(jwt(), "local-task-contract",
+                new com.massimotter.weave.backend.model.boards.BoardsLinkDecisionRequest("decision:release-v0.1")))
+                .isInstanceOf(AuditRequiredException.class);
+
+        assertThat(task(repository, "local-task-contract").decisionRefs()).isEmpty();
+    }
+
+    @Test
     void workspaceSourceReflectsOpenProjectReadSyncWhenProviderAdapterIsSelected() {
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsRuntimeGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT),
                 request -> ContextAuthorizationDecision.allow("test allow"),
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                workspaceCapabilityService());
 
         var response = service.workspace(jwt());
 
@@ -192,7 +302,8 @@ class BoardsFacadeServiceTest {
                 new BoardsRuntimeGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "op:v1:c3VwcG9ydC1zYWZl"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                workspaceCapabilityService());
 
         var response = service.workspace(jwt());
 
@@ -210,7 +321,8 @@ class BoardsFacadeServiceTest {
                 new BoardsRuntimeGuard(true),
                 new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "https://openproject.example.test/page?token=secret"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                workspaceCapabilityService());
 
         assertThatThrownBy(() -> service.workspace(jwt()))
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
@@ -224,8 +336,24 @@ class BoardsFacadeServiceTest {
                 });
     }
 
+    private TaskItem task(LocalWorkspaceBoardsRepository repository, String taskId) {
+        return repository.listTasks("local-board-1", TaskQuery.all()).items().stream()
+                .filter(task -> task.id().equals(taskId))
+                .findFirst()
+                .orElseThrow();
+    }
+
     private ContextAuthorizationProperties contextAuthorizationProperties() {
         return new ContextAuthorizationProperties(null, null, null, null, null, null, null, null);
+    }
+
+    private WorkspaceCapabilityService workspaceCapabilityService() {
+        OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        return new WorkspaceCapabilityService(
+                properties,
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
     }
 
     private Jwt jwt() {
@@ -233,7 +361,24 @@ class BoardsFacadeServiceTest {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                .claim("groups", java.util.List.of("weave-board-editors"))
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(300))
+                .build();
+    }
+
+    private Jwt jwtWithoutGroups() {
+        Instant now = Instant.parse("2026-05-19T05:00:00Z");
+        return Jwt.withTokenValue("token")
+                .header("alg", "none")
+                .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
+                .claim("weave_tenant_id", "tenant-default")
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                .claim("groups", java.util.List.of())
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();
@@ -244,8 +389,11 @@ class BoardsFacadeServiceTest {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", tenantId)
                 .claim("weave_context_id", contextId)
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                .claim("groups", java.util.List.of("weave-board-editors"))
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))
                 .build();

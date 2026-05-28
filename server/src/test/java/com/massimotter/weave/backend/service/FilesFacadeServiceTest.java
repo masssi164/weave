@@ -2,6 +2,8 @@ package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.ContextAuthorizationConfiguration;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -20,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
@@ -113,6 +116,27 @@ class FilesFacadeServiceTest {
     }
 
     @Test
+    void guestFileAccessRequiresEffectivePolicyGrantBeforeContextAuthorization() {
+        java.util.concurrent.atomic.AtomicBoolean contextChecked = new java.util.concurrent.atomic.AtomicBoolean(false);
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwtWithRolesAndGroups(List.of("guest"), List.of()), null));
+
+        assertThatThrownBy(() -> service(
+                        new StubAdapter(true),
+                        request -> {
+                            contextChecked.set(true);
+                            return ContextAuthorizationDecision.allow("context would allow");
+                        })
+                        .upload("/Team", null))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(exception.code()).isEqualTo("capability-policy-blocked");
+                    assertThat(exception.details()).containsEntry("requiredCapability", "files.upload");
+                    assertThat(exception.details()).containsEntry("diagnosticsRedacted", true);
+                });
+        assertThat(contextChecked).isFalse();
+    }
+
+    @Test
     void configurationPropertiesBindSeededMembershipsIntoAuthorizationPort() {
         contextRunner
                 .withPropertyValues(
@@ -145,6 +169,8 @@ class FilesFacadeServiceTest {
                 Jwt.withTokenValue("token")
                         .header("alg", "none")
                         .subject("user-123")
+                        .issuer("https://auth.example.invalid/realms/acme")
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
                         .build(),
                 null));
 
@@ -162,8 +188,10 @@ class FilesFacadeServiceTest {
                 Jwt.withTokenValue("token")
                         .header("alg", "none")
                         .subject("opaque-keycloak-subject")
+                        .issuer("https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
                         .build(),
                 null));
 
@@ -199,18 +227,34 @@ class FilesFacadeServiceTest {
             FilesStorageAdapter adapter,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties) {
-        return new FilesFacadeService(provider(adapter), contextAuthorizationPort, contextAuthorizationProperties);
+        return new FilesFacadeService(provider(adapter), contextAuthorizationPort, contextAuthorizationProperties, workspaceCapabilityService());
     }
 
     private ContextAuthorizationProperties defaultContextAuthorizationProperties() {
         return new ContextAuthorizationProperties(null, null, null, null, null, List.of(), List.of(), List.of());
     }
 
+    private WorkspaceCapabilityService workspaceCapabilityService() {
+        OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
+        properties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        return new WorkspaceCapabilityService(
+                properties,
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+    }
+
     private Jwt jwt() {
+        return jwtWithRolesAndGroups(List.of("member"), List.of("weave-file-uploaders"));
+    }
+
+    private Jwt jwtWithRolesAndGroups(List<String> roles, List<String> groups) {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
+                .issuer("https://auth.example.invalid/realms/acme")
                 .claim("weave_tenant_id", "tenant-default")
+                .claim("realm_access", java.util.Map.of("roles", roles))
+                .claim("groups", groups)
                 .build();
     }
 

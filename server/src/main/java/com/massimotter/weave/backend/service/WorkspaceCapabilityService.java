@@ -8,11 +8,11 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
+import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
+import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.exception.ApiErrorException;
-import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -45,6 +45,15 @@ public class WorkspaceCapabilityService {
             "release_evidence.read",
             "release_evidence.manage",
             "admin_control_plane.readiness_read",
+            "admin.policy.edit",
+            "admin.provider.configure",
+            "weaver.exec_disabled");
+    private static final List<String> OPERATOR_CAPABILITIES = List.of(
+            "admin_control_plane.readiness_read",
+            "operator.support_bundle.create",
+            "release_evidence.read",
+            "manuals.admin",
+            "manuals.read",
             "weaver.exec_disabled");
     private static final List<String> MEMBER_CAPABILITIES = List.of(
             "chat.read",
@@ -190,12 +199,13 @@ public class WorkspaceCapabilityService {
     }
 
     public WorkspaceCapabilityPolicyResponse policySnapshot(Jwt jwt) {
+        requireCapability(jwt, "admin_control_plane.readiness_read", "workspace-capability-policy", "read");
         EffectivePolicy policy = effectivePolicy(jwt);
         return new WorkspaceCapabilityPolicyResponse(
                 "identity/IDM",
-                "Keycloak",
-                "OIDC/SAML adapter contract; Keycloak is the self-hosted default, not a product lock-in",
-                "JWT realm roles plus groups claims from the selected IDM",
+                "OIDC/SAML selected IDM",
+                "OIDC/SAML adapter contract; Keycloak is only the dogfood default, not product truth",
+                "OIDC role claims plus group claims from the selected IDM",
                 policy.roles(),
                 policy.groups(),
                 policy.profileKeys(),
@@ -209,6 +219,43 @@ public class WorkspaceCapabilityService {
 
     public List<String> grantedCapabilities(Jwt jwt) {
         return effectivePolicy(jwt).capabilities().stream().sorted().toList();
+    }
+
+    public EffectivePolicyResponse effectivePolicySnapshot(Jwt jwt, String context) {
+        OrganizationIdentityContext identity = jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt);
+        EffectivePolicy policy = effectivePolicy(identity);
+        String subject = identity == null ? "system" : identity.subject();
+        String organization = identity == null ? "weave-dogfood" : identity.organizationId();
+        String issuer = identity == null ? "unknown-issuer" : identity.issuer();
+        String primaryIdentityKey = identity == null ? "issuer+subject:unknown-issuer#system" : identity.primaryIdentityKey();
+        List<String> denies = List.of(
+                "admin.policy.edit",
+                "admin.provider.configure",
+                "weaver.enabled").stream()
+                .filter(capability -> !policy.capabilities().contains(capability))
+                .toList();
+        return new EffectivePolicyResponse(
+                subject,
+                organization,
+                context,
+                List.of(issuer),
+                policy.groups(),
+                policy.roles(),
+                identity == null ? List.of() : identity.contextRoles(),
+                policy.providerRoleMappings(),
+                policy.capabilities().stream().sorted().toList(),
+                denies.stream()
+                        .map(capability -> new EffectivePolicyDenyResponse(
+                                capability,
+                                denyReason(policy, capability),
+                                "deny-by-default-capability-policy"))
+                        .toList(),
+                readinessImpact(policy),
+                List.of("effective-policy-preview:" + subject),
+                true,
+                true,
+                primaryIdentityKey,
+                false);
     }
 
     public void requireCapability(Jwt jwt, String capability, String module, String operation) {
@@ -328,23 +375,32 @@ public class WorkspaceCapabilityService {
     }
 
     private EffectivePolicy effectivePolicy(Jwt jwt) {
-        if (jwt == null) {
+        return effectivePolicy(jwt == null ? null : OrganizationIdentityContextFactory.fromJwt(jwt));
+    }
+
+    private EffectivePolicy effectivePolicy(OrganizationIdentityContext identity) {
+        if (identity == null) {
             LinkedHashSet<String> systemCapabilities = new LinkedHashSet<>(OWNER_ADMIN_CAPABILITIES);
             systemCapabilities.remove("weaver.enabled");
             return new EffectivePolicy(
                     List.of("system"),
                     List.of(),
                     List.of("system-internal-readiness"),
-                    Set.copyOf(systemCapabilities));
+                    Set.copyOf(systemCapabilities),
+                    List.of("system:internal-readiness"));
         }
-        List<String> roles = extractRealmRoles(jwt);
-        List<String> groups = extractStringList(jwt, "groups");
+        List<String> roles = identity.roles();
+        List<String> groups = identity.groups();
         LinkedHashSet<String> capabilities = new LinkedHashSet<>();
         LinkedHashSet<String> profileKeys = new LinkedHashSet<>();
 
-        if (roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"))) {
+        if (roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin"))) {
             capabilities.addAll(OWNER_ADMIN_CAPABILITIES);
             profileKeys.add("workspace-admin");
+        }
+        if (roles.contains("operator")) {
+            capabilities.addAll(OPERATOR_CAPABILITIES);
+            profileKeys.add("workspace-operator");
         }
         if (roles.contains("member")) {
             capabilities.addAll(MEMBER_CAPABILITIES);
@@ -372,49 +428,44 @@ public class WorkspaceCapabilityService {
         // Weaver runtime enablement is deliberately absent from built-in role profiles.
         // Only explicit admin runtime policy groups may carry weaver.enabled, and only when
         // the runtime generator is enabled in organization configuration.
-        return new EffectivePolicy(roles, groups, List.copyOf(profileKeys), Set.copyOf(capabilities));
+        return new EffectivePolicy(
+                roles,
+                groups,
+                List.copyOf(profileKeys),
+                Set.copyOf(capabilities),
+                identity.providerRoleMappings());
     }
 
-    private List<String> extractRealmRoles(Jwt jwt) {
-        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) {
-            return List.of();
+    private List<String> readinessImpact(EffectivePolicy policy) {
+        if (policy.profileKeys().contains("deny-by-default")) {
+            return List.of("all: policy-blocked until a known org role or mapped group grants capabilities");
         }
-
-        Object roles = realmAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
+        if (policy.roles().contains("guest")) {
+            return List.of("guest: bounded external access; capabilities remain deny-by-default unless mapped");
         }
-
-        return roleValues.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(role -> role.trim().toLowerCase(Locale.ROOT))
-                .filter(role -> !role.isEmpty())
-                .sorted()
-                .toList();
+        return List.of("member-visible states remain ready, disabled, degraded, or policy-blocked");
     }
 
-    private List<String> extractStringList(Jwt jwt, String claimName) {
-        Object claim = jwt.getClaims().get(claimName);
-        if (!(claim instanceof Collection<?> values)) {
-            return List.of();
+    private String denyReason(EffectivePolicy policy, String capability) {
+        if (capability.equals("weaver.enabled")) {
+            return "weaver runtime is disabled unless an organization policy group explicitly grants it";
         }
-
-        return values.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(value -> !value.isEmpty())
-                .sorted()
-                .toList();
+        if (policy.roles().contains("operator")) {
+            return "operator role does not automatically grant user, provider, or policy administration";
+        }
+        return "missing mapped org role, context role, or group capability";
     }
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
     }
 
-    private record EffectivePolicy(List<String> roles, List<String> groups, List<String> profileKeys, Set<String> capabilities) {
+    private record EffectivePolicy(
+            List<String> roles,
+            List<String> groups,
+            List<String> profileKeys,
+            Set<String> capabilities,
+            List<String> providerRoleMappings) {
         String profileKeyFor(String category) {
             return Stream.concat(Stream.of(category), profileKeys.stream()).toList().toString();
         }

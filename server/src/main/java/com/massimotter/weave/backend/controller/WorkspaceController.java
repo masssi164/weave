@@ -89,7 +89,7 @@ public class WorkspaceController {
     }
 
     @GetMapping({"/api/workspace/capability-policy", "/api/v1/workspace/capability-policy"})
-    @PreAuthorize("hasAnyRole('OWNER','ADMIN','OPERATOR')")
+    @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
     @Operation(
             summary = "Get workspace capability policy",
             description = "Returns an admin/operator support-safe snapshot of IDM role/group intake, profile mapping, deny-by-default posture, and Weaver-disabled-by-default policy state.",
@@ -101,7 +101,7 @@ public class WorkspaceController {
                     content = @Content(schema = @Schema(implementation = WorkspaceCapabilityPolicyResponse.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Bearer token is not an owner/admin/operator or is missing the weave:workspace scope.",
+            @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope or effective policy denies capability-policy access.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public WorkspaceCapabilityPolicyResponse capabilityPolicy(@AuthenticationPrincipal Jwt jwt) {
@@ -139,11 +139,11 @@ public class WorkspaceController {
                     content = @Content(schema = @Schema(implementation = WorkspaceReleaseReadinessResponse.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
-            @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
+            @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope or effective policy denies operator readiness access.",
                     content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public WorkspaceReleaseReadinessResponse releaseReadiness() {
-        return workspaceReleaseReadinessService.snapshot();
+    public WorkspaceReleaseReadinessResponse releaseReadiness(@AuthenticationPrincipal Jwt jwt) {
+        return workspaceReleaseReadinessService.snapshot(jwt);
     }
 
     @GetMapping({"/api/workspace/home", "/api/v1/workspace/home"})

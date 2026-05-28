@@ -1,4 +1,4 @@
-.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check release-evidence-check generate-release-notes update-readme-release-notes live-stack-help doctor
+.PHONY: ci client-ci server-ci infra-static admin-ci acceptance-contract spec-contract spec-contract-test docs-build docs-check docs-serve docs-structure-check release-notes-check release-notes-label-check release-evidence-check generate-release-notes update-readme-release-notes live-stack-help doctor
 
 GRADLE ?= ./gradlew
 
@@ -22,6 +22,12 @@ admin-ci:
 
 acceptance-contract:
 	$(GRADLE) acceptanceContract
+
+spec-contract:
+	$(GRADLE) specContract
+
+spec-contract-test:
+	$(GRADLE) specContractTest
 
 # Install docs tooling with: python3 -m pip install -r docs/requirements.txt
 docs-build:

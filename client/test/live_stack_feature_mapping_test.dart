@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -230,6 +231,76 @@ ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted acces
     expect(sanitized, isNot(contains('token')));
     expect(sanitized, isNot(contains('id')));
     expect(sanitized, isNot(contains('displayName')));
+  });
+
+  test('release evidence manifest is support-safe and traceable', () {
+    const mapping = acceptance.ScenarioMapping(
+      tag: '@weave-live-auth-shell',
+      scenario: 'Sign-in restores the Weave workspace and profile',
+      featurePath: 'e2e/features/live_stack_app.feature',
+      executableTest: 'integration_test/live_stack_e2e_test.dart',
+      evidenceMarkers: <String>['AUTH_RESULT'],
+      additionalEvidence: <acceptance.AdditionalEvidenceMapping>[],
+    );
+    final result = acceptance.validateAcceptanceContract(
+      root: Directory.current.parent,
+      scenarios: const <acceptance.FeatureScenario>[
+        acceptance.FeatureScenario(
+          featurePath: 'e2e/features/live_stack_app.feature',
+          line: 1,
+          name: 'Sign-in restores the Weave workspace and profile',
+          tags: <String>['@weave-live-auth-shell'],
+        ),
+      ],
+      mappings: const <acceptance.ScenarioMapping>[mapping],
+      runtimeEvidence: const acceptance.RuntimeEvidence(
+        wasCollected: true,
+        markers: <String, acceptance.SanitizedEvidenceMarker>{
+          'AUTH_RESULT': acceptance.SanitizedEvidenceMarker(
+            marker: 'AUTH_RESULT',
+            count: 1,
+            sanitizedFields: <String, String>{'status': 'ok'},
+          ),
+        },
+      ),
+    );
+
+    final manifest = acceptance.renderReleaseEvidenceManifest(
+      result,
+      const acceptance.RuntimeEvidence(
+        wasCollected: true,
+        markers: <String, acceptance.SanitizedEvidenceMarker>{
+          'AUTH_RESULT': acceptance.SanitizedEvidenceMarker(
+            marker: 'AUTH_RESULT',
+            count: 1,
+            sanitizedFields: <String, String>{'status': 'ok'},
+          ),
+        },
+      ),
+      const acceptance.ReleaseEvidenceMetadata(
+        source: 'live-stack-e2e',
+        lane: 'release-candidate-live-evidence',
+        commit: 'abc123',
+        runId: '26503862442',
+        runAttempt: '1',
+        runUrl: 'https://github.com/masssi164/weave/actions/runs/26503862442',
+      ),
+    );
+    final encoded = jsonEncode(manifest).toLowerCase();
+
+    expect(manifest['schemaVersion'], 1);
+    expect(manifest['source'], 'live-stack-e2e');
+    expect(manifest['commit'], 'abc123');
+    expect(manifest['lane'], 'release-candidate-live-evidence');
+    expect(
+      manifest['rcPromotionRule'],
+      contains('green-credentialed-live-stack-e2e'),
+    );
+    expect(manifest['artifacts'], contains('release-evidence-manifest.json'));
+    expect(encoded, isNot(contains('authorization')));
+    expect(encoded, isNot(contains('bearer ')));
+    expect(encoded, isNot(contains('access_token')));
+    expect(encoded, isNot(contains('client_secret')));
   });
 
   test(

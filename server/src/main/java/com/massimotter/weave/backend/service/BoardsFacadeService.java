@@ -51,14 +51,16 @@ public class BoardsFacadeService {
     private final BoardsRepository boardsRepository;
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
+    private final WorkspaceCapabilityService workspaceCapabilityService;
     private final AuditEventPublisher auditEventPublisher;
 
     public BoardsFacadeService(
             BoardsRuntimeGuard runtimeGuard,
             BoardsRepository boardsRepository,
             ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties) {
-        this(runtimeGuard, boardsRepository, contextAuthorizationPort, contextAuthorizationProperties, new InMemoryAuditEventPublisher());
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService) {
+        this(runtimeGuard, boardsRepository, contextAuthorizationPort, contextAuthorizationProperties, workspaceCapabilityService, new InMemoryAuditEventPublisher());
     }
 
     @Autowired
@@ -67,11 +69,13 @@ public class BoardsFacadeService {
             BoardsRepository boardsRepository,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
             AuditEventPublisher auditEventPublisher) {
         this.runtimeGuard = runtimeGuard;
         this.boardsRepository = boardsRepository;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
+        this.workspaceCapabilityService = workspaceCapabilityService;
         this.auditEventPublisher = auditEventPublisher;
     }
 
@@ -168,11 +172,12 @@ public class BoardsFacadeService {
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
         TaskStatus status = parseStatus(request.status());
         try {
-            TaskItem task = boardsRepository.updateTaskStatus(taskId, status, request.targetColumnId());
-            publishTaskAudit(principal, AuditAction.TASK_STATUS_UPDATED, task, Map.of(
+            publishTaskWriteAudit(principal, AuditAction.TASK_STATUS_UPDATED, "update_task_status:" + taskId, Map.of(
                     "command", "update_task_status",
-                    "status", status.contractName()));
-            return task;
+                    "taskId", taskId,
+                    "status", status.contractName(),
+                    "targetColumnId", request.targetColumnId() == null ? "" : request.targetColumnId()));
+            return boardsRepository.updateTaskStatus(taskId, status, request.targetColumnId());
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
@@ -181,11 +186,11 @@ public class BoardsFacadeService {
     public TaskItem linkDecision(Jwt jwt, String taskId, BoardsLinkDecisionRequest request) {
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
         try {
-            TaskItem task = boardsRepository.linkDecision(taskId, request.decisionRef());
-            publishTaskAudit(principal, AuditAction.TASK_DECISION_LINKED, task, Map.of(
+            publishTaskWriteAudit(principal, AuditAction.TASK_DECISION_LINKED, "link_decision:" + taskId, Map.of(
                     "command", "link_decision",
-                    "decisionRef", request.decisionRef()));
-            return task;
+                    "taskId", taskId,
+                    "decisionRef", request.decisionRef() == null ? "" : request.decisionRef()));
+            return boardsRepository.linkDecision(taskId, request.decisionRef());
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
@@ -193,6 +198,7 @@ public class BoardsFacadeService {
 
     private PrincipalContext requireContextPermission(Jwt jwt, ContextPermission permission) {
         requireEnabled();
+        workspaceCapabilityService.requireCapability(jwt, capabilityFor(permission), "boards", operationFor(permission));
         PrincipalContext principalContext = principalContext(jwt);
         var decision = contextAuthorizationPort.check(new ContextAuthorizationRequest(
                 principalContext.tenantId(),
@@ -261,6 +267,14 @@ public class BoardsFacadeService {
                 Map.of("reason", reason)));
     }
 
+    private String capabilityFor(ContextPermission permission) {
+        return permission == ContextPermission.VIEW ? "boards.read" : "boards.update_task";
+    }
+
+    private String operationFor(ContextPermission permission) {
+        return permission == ContextPermission.VIEW ? "read-workspace" : "mutate-task";
+    }
+
     private record PrincipalContext(String tenantId, String contextId, String principalRef) {
     }
 
@@ -291,28 +305,9 @@ public class BoardsFacadeService {
                 Map.of("field", "status", "supportSafe", "true")));
     }
 
-    private void publishTaskAudit(PrincipalContext principal, AuditAction action, TaskItem task, Map<String, Object> payload) {
-        Map<String, Object> auditPayload = new LinkedHashMap<>(payload);
-        auditPayload.put("boardId", task.boardId());
-        auditPayload.put("taskId", task.id());
-        auditPayload.put("columnId", task.columnId());
-        auditPayload.put("status", task.status().contractName());
-        auditPayload.put("supportSafe", true);
-        AuditWriteGate.publishRequired(auditEventPublisher, new AuditEvent(
-                principal.tenantId(),
-                principal.contextId(),
-                principal.principalRef(),
-                "weave:boards-workspace",
-                action,
-                task.updatedAt(),
-                action.wireName() + ":" + task.id() + ":" + task.updatedAt(),
-                AuditRedactionLevel.SUPPORT_SAFE,
-                auditPayload));
-    }
-
     private void publishTaskWriteAudit(PrincipalContext principal, AuditAction action, String subject, Map<String, Object> payload) {
         Instant timestamp = Instant.now();
-        Map<String, Object> auditPayload = new LinkedHashMap<>(payload);
+        Map<String, Object> auditPayload = supportSafeAuditPayload(payload);
         auditPayload.put("supportSafe", true);
         AuditWriteGate.publishRequired(auditEventPublisher, new AuditEvent(
                 principal.tenantId(),
@@ -321,9 +316,36 @@ public class BoardsFacadeService {
                 "weave:boards-workspace",
                 action,
                 timestamp,
-                action.wireName() + ":" + subject + ":" + timestamp,
+                action.wireName() + ":" + supportSafeAuditString(subject) + ":" + timestamp,
                 AuditRedactionLevel.SUPPORT_SAFE,
                 auditPayload));
+    }
+
+    private Map<String, Object> supportSafeAuditPayload(Map<String, Object> payload) {
+        Map<String, Object> safePayload = new LinkedHashMap<>();
+        payload.forEach((key, value) -> safePayload.put(key,
+                value instanceof String stringValue ? supportSafeAuditString(stringValue) : value));
+        return safePayload;
+    }
+
+    private String supportSafeAuditString(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        String normalized = trimmed.toLowerCase(Locale.ROOT);
+        if (trimmed.length() > 160
+                || normalized.contains("://")
+                || normalized.contains("authorization")
+                || normalized.contains("token")
+                || normalized.contains("secret")
+                || normalized.contains("password")
+                || normalized.contains("apikey")
+                || normalized.contains("api_key")
+                || normalized.contains("cookie")) {
+            return "[redacted:unsafe-ref]";
+        }
+        return trimmed;
     }
 
     private String sourceFor(ProviderKind provider) {

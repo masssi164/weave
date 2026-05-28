@@ -22,9 +22,17 @@ Prerequisites:
 
 - Flutter SDK on the stable channel.
 - Xcode/macOS or another Flutter-supported target for local app runs.
-- `make`, Python 3, Java 21 for backend checks, and the normal Dart/Flutter toolchain.
+- `make`, Python 3, Java 21+ for Gradle/backend checks, and the normal Dart/Flutter toolchain.
 - Node/npm for admin console checks.
 - Docker/OpenTofu only for live-stack validation.
+
+On macOS with Homebrew JDK 21, use the same Java line as CI before running Gradle gates:
+
+```sh
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21
+export PATH="$JAVA_HOME/bin:$PATH"
+java -version
+```
 
 Clone the monorepo and prepare the client:
 
@@ -55,11 +63,12 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
 | `releaseNotesLabelCheck` | Current PR release-notes label validation when `PR_LABELS_JSON` is available; skipped locally when unset. |
-| `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, and generator fixture checks. |
+| `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, generator fixture checks, enterprise release gates, and RC readiness fixtures. |
+| `releaseReadinessCheck` | Validates support-safe RC readiness evidence for an explicit candidate without publishing a release; override with `-PcandidateVersion`, `-PcandidateTag`, `-PcandidateCommit`, and evidence path properties. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |
 | `ci` | Canonical aggregate for the PR-safe monorepo gate set. |
 
-Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts.
+Each task requires the same tools and dependency setup as the underlying ecosystem command; for example docs tasks need pinned dependencies installed in `build/docs-venv` or the active Python environment from `docs/requirements.txt`, server checks need Java 21+, client checks need Flutter/Dart, and admin checks need Node/npm dependencies. `./gradlew ci` writes sanitized evidence to `build/evidence/ci-summary.json`; CI uploads `build/evidence/**` and deterministic docs outputs as artifacts. If local `./gradlew doctor` reports JDK 17, point `JAVA_HOME` at JDK 21+ rather than weakening the gate.
 
 ## Everyday Flutter workflow
 
@@ -99,6 +108,22 @@ Use protected `main` plus short-lived PR branches; do not introduce long-lived `
 
 Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Trunk-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
 
+## Spec-driven sprint contract
+
+A Weave sprint is not one green PR. A sprint starts from an accepted or explicitly proposed specification and ends only after the planned issue/PR train has been integrated or a product-core blocker is recorded.
+
+Required sprint shape:
+
+1. Recover truth from `main`, `specs/`, GitHub issues/PRs, and CI artifacts.
+2. Select or create the governing spec, then keep product-core ambiguity in `draft`/`proposed` with explicit `[NEEDS CLARIFICATION: ...]` markers.
+3. Break the spec plan/tasks into a GitHub issue DAG with `parallel`/`sequential` labels where ordering matters.
+4. For each implementation slice, open a short-lived branch and one reviewable PR with exactly one release-notes label.
+5. Merge PRs in dependency order after green CI, required local gates, and fallback human/agent review evidence. Copilot review is optional while premium review requests are exhausted.
+6. After each merge, update local `main` before cutting the next dependent branch.
+7. Finish with a sprint closure report that lists the spec, issue DAG, merged PRs in order, gates/CI evidence, unresolved decisions, release/RC follow-up, and next safe action.
+
+The `weave-co-leader` is expected to drive this loop autonomously when given a sprint goal. It should ask Massimo only for product-core decisions, destructive/live-infra approval, or merge/release decisions not already authorized by the sprint brief.
+
 ## Documentation site
 
 Weave docs are published as a MkDocs site configured by `mkdocs.yml`. The site uses MkDocs Material; its MIT license was verified from upstream on 2026-05-24 and is safe for project use.
@@ -129,7 +154,7 @@ python3 tools/readme_release_notes.py --update --source build/release-notes/unre
 
 The `Release draft` GitHub Actions workflow is manual (`workflow_dispatch`) and creates or updates a **draft** release only. It generates notes from the same label policy, injects a README review artifact, uploads both artifacts, and never publishes automatically.
 
-Run `./gradlew releaseEvidenceCheck` before requesting review when release notes are relevant; it validates release-note page structure, README release markers, label edge cases, and the generator fixture.
+Run `./gradlew releaseEvidenceCheck` before requesting review when release notes are relevant; it validates release-note page structure, README release markers, label edge cases, the generator fixture, enterprise release gates, and RC readiness fixtures. For an actual candidate, run `./gradlew releaseReadinessCheck` or `python3 tools/release_readiness_check.py` with exact candidate commit and downloaded evidence artifacts.
 
 ## Architecture conventions
 

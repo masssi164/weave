@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.massimotter.weave.backend.model.IdentityKeyFormat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,6 +10,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Repository;
@@ -18,6 +20,7 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
 
     private static final TypeReference<Map<String, ProductProfileOverride>> PROFILE_MAP = new TypeReference<>() {
     };
+    private static final Pattern PRIMARY_IDENTITY_KEY_PATTERN = Pattern.compile(IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN);
 
     private final ObjectMapper objectMapper;
     private final Path storagePath;
@@ -38,14 +41,24 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
     }
 
     @Override
-    public ProductProfileOverride findBySubject(String subject) {
-        return profiles.get(subject);
+    public ProductProfileOverride findByPrimaryIdentityKey(String primaryIdentityKey) {
+        if (primaryIdentityKey == null || primaryIdentityKey.isBlank()) {
+            return null;
+        }
+        ProductProfileOverride profile = profiles.get(primaryIdentityKey);
+        if (profile != null) {
+            return profile;
+        }
+        return migrateLegacySubjectProfile(primaryIdentityKey);
     }
 
     @Override
-    public ProductProfileOverride save(String subject, ProductProfileOverride profile) {
+    public ProductProfileOverride saveForPrimaryIdentityKey(String primaryIdentityKey, ProductProfileOverride profile) {
+        if (primaryIdentityKey == null || primaryIdentityKey.isBlank()) {
+            throw new IllegalArgumentException("Product profile override key must be a non-blank primary identity key.");
+        }
         synchronized (persistenceLock) {
-            profiles.put(subject, profile);
+            profiles.put(primaryIdentityKey, profile);
             persist();
             return profile;
         }
@@ -64,6 +77,30 @@ public class FileProductProfileOverrideRepository implements ProductProfileOverr
         } catch (IOException exception) {
             throw new ProductProfileStoreException(
                     "Failed to load product profile overrides from " + storagePath, exception);
+        }
+    }
+
+    private ProductProfileOverride migrateLegacySubjectProfile(String primaryIdentityKey) {
+        if (primaryIdentityKey == null || !PRIMARY_IDENTITY_KEY_PATTERN.matcher(primaryIdentityKey).matches()) {
+            return null;
+        }
+        String legacySubjectKey = primaryIdentityKey.substring(primaryIdentityKey.lastIndexOf('#') + 1);
+        ProductProfileOverride legacyProfile = profiles.get(legacySubjectKey);
+        if (legacyProfile == null) {
+            return null;
+        }
+        synchronized (persistenceLock) {
+            ProductProfileOverride current = profiles.get(primaryIdentityKey);
+            if (current != null) {
+                return current;
+            }
+            ProductProfileOverride migrated = profiles.remove(legacySubjectKey);
+            if (migrated == null) {
+                return null;
+            }
+            profiles.put(primaryIdentityKey, migrated);
+            persist();
+            return migrated;
         }
     }
 

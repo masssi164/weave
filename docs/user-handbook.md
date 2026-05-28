@@ -67,3 +67,7 @@ Before asking an admin/operator for help, capture the support-safe information s
 - your platform, app target, and app version if available.
 
 Do not paste secrets, bearer tokens, cookies, private keys, raw provider URLs with credentials, or full downstream provider responses into support reports.
+
+## Signing in
+
+Your organization owner/admin configures SSO and workspace providers. As a normal member, use the Weave sign-in link or app entry point your organization provides; you do not configure Keycloak, OIDC, realms, client IDs, redirect URIs, or provider credentials. If a capability is unavailable, degraded, disabled, or policy-blocked, Weave shows the product-level state and your admin handles provider readiness in Workspace Health.

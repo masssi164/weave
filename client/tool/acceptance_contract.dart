@@ -70,6 +70,12 @@ void main(List<String> args) {
   final outputDir = options['out'];
   final testLogPath = options['test-log'];
   final appendSummaryPath = options['append-summary'];
+  final evidenceSource = options['source'] ?? 'acceptance-contract';
+  final evidenceLane = options['lane'];
+  final evidenceCommit = options['commit'];
+  final evidenceRunId = options['run-id'];
+  final evidenceRunAttempt = options['run-attempt'];
+  final evidenceRunUrl = options['run-url'];
 
   final scenarios = parseFeatureDirectory(root, featuresDir);
   final mappings = loadScenarioMappings(root, mappingPath);
@@ -88,6 +94,14 @@ void main(List<String> args) {
       Directory(_join(root.path, outputDir)),
       result,
       runtimeEvidence,
+      metadata: ReleaseEvidenceMetadata(
+        source: evidenceSource,
+        lane: evidenceLane,
+        commit: evidenceCommit,
+        runId: evidenceRunId,
+        runAttempt: evidenceRunAttempt,
+        runUrl: evidenceRunUrl,
+      ),
     );
   }
 
@@ -421,8 +435,9 @@ RuntimeEvidence extractRuntimeEvidence(
 void writeAcceptanceArtifacts(
   Directory outputDir,
   AcceptanceContractResult result,
-  RuntimeEvidence runtimeEvidence,
-) {
+  RuntimeEvidence runtimeEvidence, {
+  required ReleaseEvidenceMetadata metadata,
+}) {
   outputDir.createSync(recursive: true);
   File(_join(outputDir.path, 'gherkin-scenarios.json')).writeAsStringSync(
     const JsonEncoder.withIndent(
@@ -440,7 +455,60 @@ void writeAcceptanceArtifacts(
   File(
     _join(outputDir.path, 'acceptance-summary.md'),
   ).writeAsStringSync(renderMarkdownSummary(result, runtimeEvidence));
+  File(
+    _join(outputDir.path, 'release-evidence-manifest.json'),
+  ).writeAsStringSync(
+    const JsonEncoder.withIndent(
+      '  ',
+    ).convert(renderReleaseEvidenceManifest(result, runtimeEvidence, metadata)),
+  );
 }
+
+Map<String, Object?> renderReleaseEvidenceManifest(
+  AcceptanceContractResult result,
+  RuntimeEvidence runtimeEvidence,
+  ReleaseEvidenceMetadata metadata,
+) => <String, Object?>{
+  'schemaVersion': 1,
+  'generatedAtUtc': DateTime.now().toUtc().toIso8601String(),
+  'source': metadata.source,
+  if (metadata.commit != null) 'commit': metadata.commit,
+  if (metadata.runId != null) 'runId': metadata.runId,
+  if (metadata.runAttempt != null) 'runAttempt': metadata.runAttempt,
+  if (metadata.runUrl != null) 'runUrl': metadata.runUrl,
+  'lane':
+      metadata.lane ??
+      (runtimeEvidence.wasCollected
+          ? 'release-candidate-live-evidence'
+          : 'pr-safe-ci'),
+  'rcPromotionRule':
+      'no-v0.1-rc-promotion-without-green-credentialed-live-stack-e2e-or-explicit-release-owner-waiver',
+  'acceptanceContract': <String, Object?>{
+    'valid': result.isValid,
+    'scenarioCount': result.scenarios.length,
+    'mappingCount': result.mappings.length,
+    'runtimeEvidenceCollected': runtimeEvidence.wasCollected,
+    'observedMarkers': runtimeEvidence.observedMarkers.toList()..sort(),
+    'findings': result.findings
+        .map((finding) => finding.message)
+        .toList(growable: false),
+  },
+  'artifacts': <String>[
+    'acceptance-summary.md',
+    'gherkin-scenarios.json',
+    'scenario-mapping-results.json',
+    'evidence-markers.json',
+    'release-evidence-manifest.json',
+  ],
+  'supportSafe': true,
+  'supportSafeExclusions': <String>[
+    'raw credentials',
+    'credential-bearing URLs',
+    'provider internals',
+    'downstream provider error bodies',
+    'private live logs',
+  ],
+};
 
 String renderMarkdownSummary(
   AcceptanceContractResult result,
@@ -547,6 +615,12 @@ Options:
   --out <dir>             Optional artifact output directory
   --test-log <file>       Optional live E2E log to extract sanitized evidence markers
   --append-summary <file> Optional markdown file to append the acceptance summary to
+  --source <name>         Evidence source name for release-evidence-manifest.json
+  --lane <name>           Evidence lane for release-evidence-manifest.json
+  --commit <sha>          Commit under test for release-evidence-manifest.json
+  --run-id <id>           Workflow/run id for release-evidence-manifest.json
+  --run-attempt <number>  Workflow/run attempt for release-evidence-manifest.json
+  --run-url <url>         Workflow/run URL for release-evidence-manifest.json
 ''');
 }
 
@@ -807,4 +881,22 @@ class AcceptanceFinding {
   final String message;
 
   Map<String, Object?> toJson() => <String, Object?>{'message': message};
+}
+
+class ReleaseEvidenceMetadata {
+  const ReleaseEvidenceMetadata({
+    required this.source,
+    this.lane,
+    this.commit,
+    this.runId,
+    this.runAttempt,
+    this.runUrl,
+  });
+
+  final String source;
+  final String? lane;
+  final String? commit;
+  final String? runId;
+  final String? runAttempt;
+  final String? runUrl;
 }

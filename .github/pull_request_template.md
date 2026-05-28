@@ -6,6 +6,13 @@
 
 -
 
+## Spec / acceptance link
+
+- Issue:
+- Repo spec or spec note:
+- Acceptance scenario / mapping marker when product behavior changed:
+- Product-core questions intentionally left unresolved: none / listed below
+
 ## Branch, target, and release path
 
 - [ ] Branch started from current `origin/main`
@@ -25,6 +32,7 @@
 
 - [ ] No public API/auth/topology/spec contract change
 - [ ] Contract/spec change documented:
+- [ ] `./gradlew specContract` run for spec/product-contract changes
 
 ## Release notes label
 
@@ -36,11 +44,13 @@ Choose exactly one before review/merge; CI fails otherwise.
 
 ## Review readiness
 
-- [ ] Copilot review requested for this review-ready PR
-- [ ] Copilot findings addressed or fallback review evidence documented
+- [ ] Copilot review requested for this review-ready PR, or Copilot exhaustion/unavailability noted
+- [ ] Copilot findings addressed or fallback human/agent review evidence documented
 
 ## Checks run
 
+- [ ] `./gradlew specContract`
+- [ ] `./gradlew acceptanceContract`
 - [ ] `./gradlew ci` (canonical cross-stack gate; attach or cite `build/evidence/ci-summary.json`)
 - [ ] `make docs-check` / `make docs-build` (temporary Gradle-delegating aliases for docs or release notes changes)
 - [ ] `make release-notes-check` (temporary Gradle-delegating alias for release-affecting changes)

@@ -28,6 +28,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -67,6 +68,7 @@ class OnboardingControllerTest {
     void returnsFirstRunStatusForAuthenticatedUser() throws Exception {
         mockMvc.perform(get("/api/onboarding/status").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
@@ -78,7 +80,7 @@ class OnboardingControllerTest {
                         .claim("groups", List.of("workspace-default")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.identity.userId").value("user-123"))
+                .andExpect(jsonPath("$.identity.userId", startsWith("acct_")))
                 .andExpect(jsonPath("$.identity.username").value("alice"))
                 .andExpect(jsonPath("$.identity.groups[0]").value("workspace-default"))
                 .andExpect(jsonPath("$.invite.status").value("active"))
@@ -98,6 +100,7 @@ class OnboardingControllerTest {
             boolean canUseModules) throws Exception {
         mockMvc.perform(get("/api/onboarding/status").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", realmRole + "-user")
                         .claim("name", "Role User")
                         .claim("email", realmRole + "@example.com")
@@ -116,6 +119,7 @@ class OnboardingControllerTest {
     void returnsPendingInviteAndProfileStatusWithoutRawDownstreamErrors() throws Exception {
         mockMvc.perform(get("/api/onboarding/status").with(jwt().jwt(jwt -> jwt
                         .subject("user-123")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "alice")
                         .claim("name", "Alice Example")
                         .claim("email", "alice@example.com")
@@ -143,6 +147,7 @@ class OnboardingControllerTest {
         return Stream.of(
                 Arguments.of("owner", true, true, true),
                 Arguments.of("admin", true, true, true),
+                Arguments.of("operator", false, false, false),
                 Arguments.of("member", false, false, true),
                 Arguments.of("guest", false, false, false));
     }

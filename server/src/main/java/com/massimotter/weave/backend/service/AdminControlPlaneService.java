@@ -6,34 +6,59 @@ import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyReport;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyRequest;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunReport;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunRequest;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmProvider;
+import com.massimotter.weave.backend.identity.realm.KeycloakRealmDryRunProvider;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
+import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
+import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
+import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
+import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessCardResponse;
+import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessResponse;
+import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
+import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestResponse;
+import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRequest;
+import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
 import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
 import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
+import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
+
+import static com.massimotter.weave.backend.model.IdentityKeyFormat.MAX_PRIMARY_IDENTITY_KEY_LENGTH;
+import static com.massimotter.weave.backend.model.IdentityKeyFormat.PRIMARY_IDENTITY_KEY_PATTERN;
 
 @Service
 public class AdminControlPlaneService {
@@ -43,11 +68,37 @@ public class AdminControlPlaneService {
             "disabled",
             "degraded",
             "policy-blocked");
+    private static final Set<String> SIMULATION_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
+    private static final Set<String> SIMULATION_GROUPS = Set.of(
+            "weave-calendar-editors",
+            "weave-board-editors",
+            "weave-meeting-hosts",
+            "weave-document-editors",
+            "weave-decision-recorders",
+            "weave-weaver-pilot");
+    private static final Map<String, List<String>> SIMULATION_GROUP_CAPABILITIES = Map.of(
+            "weave-calendar-editors", List.of("calendar.manage_events"),
+            "weave-board-editors", List.of("boards.update_task"),
+            "weave-meeting-hosts", List.of("meetings.host"),
+            "weave-document-editors", List.of("documents.edit"),
+            "weave-decision-recorders", List.of("decisions.record"),
+            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
+    private static final Set<String> SIMULATION_KNOWN_CAPABILITIES = Set.of(
+            "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
+            "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
+            "decisions.read", "decisions.record", "manuals.read", "manuals.admin", "release_evidence.read", "release_evidence.manage",
+            "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure", "operator.support_bundle.create",
+            "weaver.enabled", "weaver.files_read", "weaver.exec_disabled");
+    private static final int MAX_BOOTSTRAP_ADMIN_KEYS = 25;
+    private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = MAX_PRIMARY_IDENTITY_KEY_LENGTH;
+    private static final Pattern PRIMARY_IDENTITY_KEY_REGEX = Pattern.compile(PRIMARY_IDENTITY_KEY_PATTERN);
 
     private final ProviderRegistry providerRegistry;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ProviderSelectionRepository providerSelectionRepository;
+    private final OrganizationBootstrapRepository organizationBootstrapRepository;
     private final AuditEventPublisher auditEventPublisher;
+    private final List<IdentityRealmProvider> identityRealmProviders;
     private final Clock clock;
 
     @Autowired
@@ -55,30 +106,49 @@ public class AdminControlPlaneService {
             ProviderRegistry providerRegistry,
             WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionRepository providerSelectionRepository,
-            AuditEventPublisher auditEventPublisher) {
-        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, auditEventPublisher, Clock.systemUTC());
+            OrganizationBootstrapRepository organizationBootstrapRepository,
+            AuditEventPublisher auditEventPublisher,
+            List<IdentityRealmProvider> identityRealmProviders) {
+        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher, identityRealmProviders, Clock.systemUTC());
     }
 
     AdminControlPlaneService(
             ProviderRegistry providerRegistry,
             WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
+            Clock clock) {
+        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher, List.of(new KeycloakRealmDryRunProvider()), clock);
+    }
+
+    AdminControlPlaneService(
+            ProviderRegistry providerRegistry,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
+            AuditEventPublisher auditEventPublisher,
+            List<IdentityRealmProvider> identityRealmProviders,
             Clock clock) {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionRepository = providerSelectionRepository;
+        this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
+        this.identityRealmProviders = identityRealmProviders == null || identityRealmProviders.isEmpty()
+                ? List.of(new KeycloakRealmDryRunProvider())
+                : List.copyOf(identityRealmProviders);
         this.clock = clock;
     }
 
     public AdminControlPlaneResponse overview(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "overview");
         ProviderRegistryResponse registry = providerRegistry.status();
         return new AdminControlPlaneResponse(
                 "admin-control-plane-v1",
                 organizationId(jwt),
                 organizationName(jwt),
-                "keycloak",
+                "OIDC/SAML selected IDM",
                 registry.providerConfigSource(),
                 registry.bootstrapDefaultsAreSuggestionsOnly(),
                 registry.backendOwnedFacades(),
@@ -91,16 +161,28 @@ public class AdminControlPlaneService {
                         .map(selection -> toSelectionResponse(selection, false, readinessFor(selection.category(), registry)))
                         .toList(),
                 whitelist(jwt),
+                identityProviderReadiness(registry, jwt),
                 secretRefs(registry),
                 Map.of(
                         "providers", "/api/providers/status",
                         "policy", "/api/admin/policies/capability-whitelist",
                         "audit", "/api/admin/audit/events",
                         "readinessTest", "/api/admin/providers/readiness-tests",
+                        "providerReplacementDryRun", "/api/admin/providers/replacements/dry-run",
+                        "identityReadiness", "/api/admin/identity/readiness",
+                        "identityRealmDryRun", "/api/admin/identity/realm/dry-run",
+                        "identityRealmApply", "/api/admin/identity/realm/apply",
+                        "effectivePolicySimulation", "/api/admin/policies/effective/simulations",
                         "providerSelections", "/api/admin/providers/selections"));
     }
 
+    public IdentityProviderReadinessResponse identityProviderReadiness(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "identity-provider", "readiness");
+        return identityProviderReadiness(providerRegistry.status(), jwt);
+    }
+
     public ProviderSelectionResponse selectProvider(ProviderSelectionRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.provider.configure", "admin-control-plane", "select-provider");
         ProviderSelection selection = validateProviderSelection(request, jwt);
         boolean dryRun = request.dryRun();
         ProviderSelection applied = dryRun ? selection : providerSelectionRepository.save(selection);
@@ -114,26 +196,369 @@ public class AdminControlPlaneService {
                     Instant.now(clock),
                     "provider-selection-" + selection.category() + "-" + Instant.now(clock).toEpochMilli(),
                     AuditRedactionLevel.SECRET_REDACTED,
-                    Map.of(
-                            "category", selection.category(),
-                            "providerKey", selection.providerKey(),
-                            "choiceModel", selection.choiceModel(),
-                            "secretRef", safeSecretRef(selection.secretRef()),
-                            "reason", safeText(request.reason()),
-                            "providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE,
-                            "migrationDryRunRequired", selection.migrationDryRunRequired(),
-                            "lossyMappingNoteCount", selection.lossyMappingNotes().size(),
-                            "token", "not-stored")));
+                    Map.ofEntries(
+                            Map.entry("category", selection.category()),
+                            Map.entry("providerKey", selection.providerKey()),
+                            Map.entry("choiceModel", selection.choiceModel()),
+                            Map.entry("secretRef", safeSecretRef(selection.secretRef())),
+                            Map.entry("reason", safeText(request.reason())),
+                            Map.entry("providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE),
+                            Map.entry("migrationDryRunRequired", selection.migrationDryRunRequired()),
+                            Map.entry("lossyMappingNoteCount", selection.lossyMappingNotes().size()),
+                            Map.entry("replacementApplyAttempt", true),
+                            Map.entry("dryRunEvidenceRequired", selection.migrationDryRunRequired()),
+                            Map.entry("token", "not-stored"))));
         }
         return toSelectionResponse(applied, dryRun, dryRun ? "dry_run_valid" : "admin_selected_pending_readiness");
     }
 
+    public ProviderReplacementDryRunResponse dryRunProviderReplacement(ProviderReplacementDryRunRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.provider.configure", "admin-control-plane", "provider-replacement-dry-run");
+        if (request == null || request.category() == null || request.category().isBlank()
+                || request.currentAdapter() == null || request.currentAdapter().isBlank()
+                || request.targetAdapter() == null || request.targetAdapter().isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-invalid",
+                    "Provider replacement dry-run requires category, current adapter, and target adapter.",
+                    Map.of("reason", "category/currentAdapter/targetAdapter are required"));
+        }
+        String category = request.category().trim();
+        String currentAdapter = request.currentAdapter().trim();
+        String targetAdapter = request.targetAdapter().trim();
+        if (ProviderCategoryCatalog.category(category).isEmpty()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-category-unknown",
+                    "Provider category is not part of the Weave canonical control-plane contract.",
+                    Map.of("category", category));
+        }
+        if (!providerMatchesCategory(currentAdapter, category) || !providerMatchesCategory(targetAdapter, category)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-category-mismatch",
+                    "Provider replacement adapters must both be registered as support-safe candidates for the selected category.",
+                    Map.of("category", category, "adapters", "unsupported-adapter-redacted"));
+        }
+        String choiceModel = selectionChoiceModel(request.choiceModel());
+        requiredSecretRef(request.secretRef());
+        String declaredSourceOfTruth = safeSourceOfTruth(request.sourceOfTruth());
+        List<String> adminNotes = safeLossyMappingNotes(request.lossyMappingNotes());
+        List<String> conflicts = currentAdapter.equalsIgnoreCase(targetAdapter)
+                ? List.of("Current and target adapters are identical; record no-op or choose a distinct target before activation.")
+                : List.of();
+        boolean migrationRequired = true;
+        String status = conflicts.isEmpty() ? "dry-run-ready" : "requires-admin-review";
+        String dryRunId = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
+        String auditRef = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                "admin-control-plane",
+                actorRef(jwt),
+                "provider-replacement-dry-run",
+                AuditAction.PROVIDER_REPLACEMENT_DRY_RUN,
+                Instant.now(clock),
+                auditRef,
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.ofEntries(
+                        Map.entry("category", category),
+                        Map.entry("currentAdapter", currentAdapter),
+                        Map.entry("targetAdapter", targetAdapter),
+                        Map.entry("choiceModel", choiceModel),
+                        Map.entry("sourceOfTruth", declaredSourceOfTruth),
+                        Map.entry("secretRefPresent", true),
+                        Map.entry("secretRef", safeSecretRef(request.secretRef())),
+                        Map.entry("migrationDryRunRequired", migrationRequired),
+                        Map.entry("lossyMappingNoteCount", adminNotes.size()),
+                        Map.entry("rawProviderError", "redacted before audit"),
+                        Map.entry("token", "not-stored"))));
+        return new ProviderReplacementDryRunResponse(
+                dryRunId,
+                status,
+                "dry-run",
+                category,
+                currentAdapter,
+                targetAdapter,
+                choiceModel,
+                declaredSourceOfTruth,
+                true,
+                conflicts.isEmpty() ? "ready-for-admin-review" : "blocked-until-conflicts-resolved",
+                migrationRequired,
+                new ProviderReplacementDryRunResponse.LossyMappingReport(
+                        ProviderCapabilityContracts.canonicalObjects(category),
+                        ProviderCapabilityContracts.lossyMappingRisks(category),
+                        adminNotes,
+                        conflicts,
+                        ProviderCapabilityContracts.replacementRequirement(category)),
+                new ProviderReplacementDryRunResponse.LifecycleExpectations(
+                        ProviderCapabilityContracts.sourceOfTruth(category),
+                        ProviderCapabilityContracts.exportDeleteExpectation(category),
+                        ProviderCapabilityContracts.exportDeleteExpectation(category),
+                        "deprovision source identities, groups, memberships, grants, and service principals through the authoritative provider before capability cutover",
+                        "rollback is an admin decision boundary; dry-run does not mutate provider state and apply must preserve mapping history"),
+                List.of(
+                        "SecretRef exists and remains backend-only; raw credentials are never returned.",
+                        "Admin confirms source-of-truth, export/delete, lossy mapping, and rollback/support notes.",
+                        "Readiness test and migration dry-run evidence are reviewed before activation."),
+                List.of("usable", "disabled", "degraded", "policy-blocked"),
+                true,
+                true,
+                List.of(auditRef));
+    }
+
+    public EffectivePolicyResponse effectivePolicy(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "effective-policy");
+        return workspaceCapabilityService.effectivePolicySnapshot(jwt, "organization");
+    }
+
+    public EffectivePolicySimulationResponse simulateEffectivePolicy(EffectivePolicySimulationRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "effective-policy-simulation");
+        List<String> deniedInputs = Stream.of(
+                        deniedInputCodes(request == null ? null : request.roles(), "role", SIMULATION_ROLES),
+                        deniedInputCodes(request == null ? null : request.groups(), "group", SIMULATION_GROUPS),
+                        deniedInputCodes(request == null ? null : request.requestedCapabilities(), "capability", SIMULATION_KNOWN_CAPABILITIES))
+                .flatMap(List::stream)
+                .distinct()
+                .sorted()
+                .toList();
+        List<String> roles = normalizedKnownValues(request == null ? null : request.roles(), SIMULATION_ROLES);
+        List<String> groups = normalizedKnownValues(request == null ? null : request.groups(), SIMULATION_GROUPS);
+        List<String> requestedCapabilities = normalizedKnownValues(request == null ? null : request.requestedCapabilities(), SIMULATION_KNOWN_CAPABILITIES);
+        boolean failClosed = !deniedInputs.isEmpty();
+        LinkedHashSet<String> grants = new LinkedHashSet<>();
+        if (!failClosed) {
+            if (roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin"))) {
+                grants.addAll(List.of(
+                        "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
+                        "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
+                        "decisions.read", "decisions.record", "manuals.read", "manuals.admin", "release_evidence.read", "release_evidence.manage",
+                        "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"));
+            }
+            if (roles.contains("operator")) {
+                grants.addAll(List.of("admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "manuals.read", "weaver.exec_disabled"));
+            }
+            if (roles.contains("member")) {
+                grants.addAll(List.of("chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "meetings.join", "documents.view", "decisions.read", "manuals.read", "release_evidence.read", "weaver.exec_disabled"));
+            }
+            for (String group : groups) {
+                grants.addAll(SIMULATION_GROUP_CAPABILITIES.getOrDefault(group, List.of()));
+            }
+            grants.remove("weaver.enabled");
+        }
+        List<EffectivePolicySimulationResponse.CapabilityState> capabilityStates = requestedCapabilities.stream()
+                .map(capability -> simulationState(capability, grants, failClosed))
+                .toList();
+        String auditRef = "effective-policy-simulation-" + Instant.now(clock).toEpochMilli();
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                "admin-control-plane",
+                actorRef(jwt),
+                "effective-policy-simulation",
+                AuditAction.EFFECTIVE_POLICY_SIMULATED,
+                Instant.now(clock),
+                auditRef,
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "subjectProvided", request != null && request.subject() != null && !request.subject().isBlank(),
+                        "organizationProvided", request != null && request.organizationId() != null && !request.organizationId().isBlank(),
+                        "roleCount", roles.size(),
+                        "groupCount", groups.size(),
+                        "requestedCapabilityCount", requestedCapabilities.size(),
+                        "unknownInputCount", deniedInputs.size(),
+                        "unknownInputsFailClosed", failClosed,
+                        "supportSafe", true,
+                        "reasonProvided", request != null && request.reason() != null && !request.reason().isBlank())));
+        return new EffectivePolicySimulationResponse(
+                safeSimulationIdentityRef(request == null ? null : request.subject()),
+                request == null || request.organizationId() == null || request.organizationId().isBlank()
+                        ? organizationId(jwt)
+                        : safeText(request.organizationId()),
+                roles,
+                groups,
+                requestedCapabilities,
+                grants.stream().filter(requestedCapabilities::contains).sorted().toList(),
+                deniedInputs,
+                failClosed,
+                true,
+                true,
+                capabilityStates,
+                failClosed
+                        ? List.of("Map unknown roles, groups, or capabilities before provider activation.")
+                        : List.of("Review member-visible states before applying provider or realm changes."),
+                List.of(auditRef));
+    }
+
+    public IdentityRealmDryRunReport dryRunIdentityRealm(IdentityRealmDryRunRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "identity-realm", "dry-run");
+        IdentityRealmProvider provider = identityRealmProvider("keycloak-realm");
+        IdentityRealmDryRunReport report = provider.dryRun(request);
+        String auditRef = "identity-realm-dry-run-" + Instant.now(clock).toEpochMilli();
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                "admin-control-plane",
+                actorRef(jwt),
+                "identity-realm-dry-run",
+                AuditAction.PROVIDER_REPLACEMENT_DRY_RUN,
+                Instant.now(clock),
+                auditRef,
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "providerKey", provider.providerKey(),
+                        "realmId", report.realmId(),
+                        "readiness", report.readiness(),
+                        "changeCount", report.changes().size(),
+                        "blockerCount", report.blockers().size(),
+                        "supportSafe", report.supportSafe(),
+                        "rawSecretExposed", report.rawSecretExposed(),
+                        "destructiveApplyAvailable", report.destructiveApplyAvailable(),
+                        "dryRunReasonPresent", request != null && request.reason() != null && !request.reason().isBlank())));
+        return new IdentityRealmDryRunReport(
+                report.providerKey(),
+                report.realmId(),
+                report.dryRunId(),
+                report.operation(),
+                report.readiness(),
+                report.destructiveApplyAvailable(),
+                report.supportSafe(),
+                report.rawSecretExposed(),
+                report.changes(),
+                report.readinessChecks(),
+                report.diff(),
+                report.warnings(),
+                report.blockers(),
+                report.nextActions(),
+                List.of(auditRef));
+    }
+
+    public IdentityRealmApplyReport applyIdentityRealm(IdentityRealmApplyRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.provider.configure", "identity-realm", "apply");
+        IdentityRealmProvider provider = identityRealmProvider("keycloak-realm");
+        IdentityRealmDryRunReport dryRun = provider.dryRun(request == null ? null : request.dryRunRequest());
+        long safeChangeCount = dryRun.changes().stream().filter(change -> "safe".equals(change.classification())).count();
+        long riskyChangeCount = dryRun.changes().stream().filter(change -> "risky".equals(change.classification())).count();
+        long destructiveChangeCount = dryRun.changes().stream().filter(change -> "destructive".equals(change.classification())).count();
+        boolean hasRisky = riskyChangeCount > 0;
+        boolean hasDestructive = destructiveChangeCount > 0;
+        boolean rollbackRequired = hasRisky || hasDestructive;
+        boolean rollbackAccepted = !rollbackRequired || hasText(request == null ? null : request.rollbackEvidenceRef());
+        boolean lastAdminGuardPassed = request != null && request.retainedAdminPrimaryIdentityKeys().stream()
+                .anyMatch(this::safePrimaryIdentityKey);
+        boolean confirmationProvided = request != null && "APPLY WEAVE IDENTITY REALM".equals(request.confirmationPhrase());
+        List<String> blocked = new ArrayList<>();
+        if (!confirmationProvided) {
+            blocked.add("explicit confirmation phrase is required");
+        }
+        if (!lastAdminGuardPassed) {
+            blocked.add("last-admin guard requires at least one retained immutable admin identity key");
+        }
+        if (hasRisky && (request == null || !request.approveRisky())) {
+            blocked.add("risky changes require approveRisky=true");
+        }
+        if (hasDestructive && (request == null || !request.approveDestructive())) {
+            blocked.add("destructive changes require approveDestructive=true");
+        }
+        if (hasDestructive && !provider.destructiveApplyAvailable()) {
+            blocked.add("provider destructive apply is not available for this contract");
+        }
+        if (!rollbackAccepted) {
+            blocked.add("rollback/restore evidence ref is required for risky or destructive apply");
+        }
+        blocked.addAll(dryRun.blockers());
+        boolean accepted = blocked.isEmpty();
+        boolean providerMutationPerformed = false;
+        String executionMode = "guarded-provider-apply-decision-only";
+        List<String> nextActions = applyNextActions(accepted, blocked, rollbackRequired, hasRisky, hasDestructive);
+        String auditRef = "identity-realm-apply-" + Instant.now(clock).toEpochMilli();
+        String actorRef = actorRef(jwt);
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                "admin-control-plane",
+                actorRef,
+                "identity-realm-apply",
+                AuditAction.IDENTITY_REALM_APPLY_GUARDED,
+                Instant.now(clock),
+                auditRef,
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.ofEntries(
+                        Map.entry("actorRef", actorRef),
+                        Map.entry("candidateRef", "identity-realm:" + dryRun.realmId()),
+                        Map.entry("planRef", dryRun.dryRunId()),
+                        Map.entry("providerKey", provider.providerKey()),
+                        Map.entry("realmId", dryRun.realmId()),
+                        Map.entry("decision", accepted ? "accepted" : "blocked"),
+                        Map.entry("result", accepted ? "accepted-without-provider-mutation" : "blocked-before-provider-mutation"),
+                        Map.entry("executionMode", executionMode),
+                        Map.entry("providerMutationPerformed", providerMutationPerformed),
+                        Map.entry("safeChangeCount", safeChangeCount),
+                        Map.entry("riskyChangeCount", riskyChangeCount),
+                        Map.entry("destructiveChangeCount", destructiveChangeCount),
+                        Map.entry("blockedReasonCount", blocked.size()),
+                        Map.entry("nextActionCount", nextActions.size()),
+                        Map.entry("confirmationProvided", confirmationProvided),
+                        Map.entry("retainedAdminIdentityKeyCount", request == null ? 0 : request.retainedAdminPrimaryIdentityKeys().stream().filter(this::safePrimaryIdentityKey).count()),
+                        Map.entry("rollbackRestoreEvidencePresent", request != null && hasText(request.rollbackEvidenceRef())),
+                        Map.entry("lastAdminGuardPassed", lastAdminGuardPassed),
+                        Map.entry("rollbackEvidenceAccepted", rollbackAccepted),
+                        Map.entry("supportSafe", true))));
+        return new IdentityRealmApplyReport(
+                provider.providerKey(),
+                dryRun.realmId(),
+                dryRun.dryRunId(),
+                accepted ? "accepted" : "blocked",
+                executionMode,
+                false,
+                providerMutationPerformed,
+                true,
+                false,
+                lastAdminGuardPassed,
+                rollbackRequired,
+                rollbackAccepted,
+                blocked.stream().distinct().toList(),
+                dryRun.changes(),
+                nextActions,
+                List.of(auditRef));
+    }
+
+    private List<String> applyNextActions(
+            boolean accepted,
+            List<String> blocked,
+            boolean rollbackRequired,
+            boolean hasRisky,
+            boolean hasDestructive) {
+        if (accepted) {
+            return List.of(
+                    "Guarded apply decision accepted; no live provider mutation was performed in this sprint slice.",
+                    "Archive the dry-run, policy simulation, retained-admin, and rollback evidence with the audit ref before any future provider adapter executor is enabled.");
+        }
+        List<String> nextActions = new ArrayList<>();
+        if (blocked.stream().anyMatch(reason -> reason.contains("confirmation"))) {
+            nextActions.add("Re-submit with confirmationPhrase=APPLY WEAVE IDENTITY REALM after reviewing the dry-run.");
+        }
+        if (blocked.stream().anyMatch(reason -> reason.contains("last-admin"))) {
+            nextActions.add("Retain at least one immutable owner/admin primary identity key such as issuer+subject before retrying.");
+        }
+        if (hasRisky) {
+            nextActions.add("Review risky change classifications, run effective policy simulation, and set approveRisky=true only with operator evidence.");
+        }
+        if (hasDestructive) {
+            nextActions.add("Treat destructive changes as unavailable until provider destructive apply support and restore evidence are explicitly proven.");
+        }
+        if (rollbackRequired && blocked.stream().anyMatch(reason -> reason.contains("rollback/restore evidence"))) {
+            nextActions.add("Attach a support-safe rollback/restore evidence reference before retrying risky or destructive apply.");
+        }
+        nextActions.add("Resolve blockedReasons and re-run /api/admin/identity/realm/dry-run before another apply attempt.");
+        return nextActions.stream().distinct().toList();
+    }
+
     public CapabilityWhitelistResponse whitelist(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "read-capability-whitelist");
         WorkspaceCapabilityPolicyResponse policy = workspaceCapabilityService.policySnapshot(jwt);
         Map<String, List<String>> profileCapabilities = new LinkedHashMap<>();
         profileCapabilities.put("workspace-admin", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
-                "boards.read", "boards.update_task", "weaver.exec_disabled"));
+                "boards.read", "boards.update_task", "admin.provider.configure", "admin.policy.edit", "weaver.exec_disabled"));
+        profileCapabilities.put("workspace-operator", List.of(
+                "admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "weaver.exec_disabled"));
         profileCapabilities.put("member-default", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "weaver.exec_disabled"));
         profileCapabilities.put("guest-deny-default", List.of());
@@ -149,6 +574,7 @@ public class AdminControlPlaneService {
     }
 
     public CapabilityWhitelistResponse updateWhitelist(CapabilityWhitelistUpdateRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.policy.edit", "admin-control-plane", "update-capability-whitelist");
         if (request == null || request.profileKey() == null || request.profileKey().isBlank()) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
@@ -156,6 +582,8 @@ public class AdminControlPlaneService {
                     "Capability whitelist update requires a profile key.",
                     Map.of("reason", "profileKey is required"));
         }
+        String profileKey = request.profileKey().trim().toLowerCase(Locale.ROOT);
+        enforceLastAdminGuard(request);
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
                 "admin-control-plane",
@@ -166,7 +594,7 @@ public class AdminControlPlaneService {
                 "admin-policy-" + Instant.now(clock).toEpochMilli(),
                 AuditRedactionLevel.SECRET_REDACTED,
                 Map.of(
-                        "profileKey", request.profileKey().trim(),
+                        "profileKey", profileKey,
                         "capabilityKeys", safeCapabilities(request.capabilityKeys()),
                         "reason", safeText(request.reason()),
                         "denyByDefault", true,
@@ -175,7 +603,57 @@ public class AdminControlPlaneService {
         return whitelist(jwt);
     }
 
+    public OrganizationBootstrapResponse bootstrapOrganization(OrganizationBootstrapRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin.policy.edit", "admin-control-plane", "bootstrap-organization");
+        OrganizationIdentityContext identity = OrganizationIdentityContextFactory.fromJwt(jwt);
+        if (request == null || request.organizationId() == null || request.organizationId().isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "organization-bootstrap-invalid",
+                    "Organization bootstrap requires an organization id.",
+                    Map.of("reason", "organizationId is required"));
+        }
+        String organizationId = safeOrganizationId(request.organizationId());
+        String bootstrapMode = bootstrapMode(request.bootstrapMode());
+        List<String> retainedAdmins = retainedAdminPrimaryIdentityKeys(request.adminPrimaryIdentityKeys(), identity.primaryIdentityKey());
+        Instant bootstrappedAt = Instant.now(clock);
+        OrganizationBootstrapRecord record = organizationBootstrapRepository.save(new OrganizationBootstrapRecord(
+                organizationId,
+                bootstrapMode,
+                identity.primaryIdentityKey(),
+                retainedAdmins,
+                bootstrappedAt));
+        String auditRef = "organization-bootstrap-" + record.organizationId() + "-" + bootstrappedAt.toEpochMilli();
+        auditEventPublisher.publish(new AuditEvent(
+                record.organizationId(),
+                "admin-control-plane",
+                actorRef(jwt),
+                "organization-bootstrap",
+                AuditAction.ADMIN_POLICY_UPDATED,
+                bootstrappedAt,
+                auditRef,
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "bootstrapMode", record.bootstrapMode(),
+                        "actorPrimaryIdentityKey", record.actorPrimaryIdentityKey(),
+                        "retainedAdminPrimaryIdentityKeyCount", record.retainedAdminPrimaryIdentityKeys().size(),
+                        "lastAdminGuardPassed", true,
+                        "supportSafe", true,
+                        "emailPrimaryKey", false,
+                        "reason", safeText(request.reason()))));
+        return new OrganizationBootstrapResponse(
+                record.organizationId(),
+                record.bootstrapMode(),
+                record.actorPrimaryIdentityKey(),
+                record.retainedAdminPrimaryIdentityKeys(),
+                true,
+                true,
+                record.bootstrappedAt(),
+                List.of(auditRef));
+    }
+
     public ProviderReadinessTestResponse testProviderReadiness(ProviderReadinessTestRequest request, Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "provider-readiness-test");
         if (request == null || request.providerKey() == null || request.providerKey().isBlank()) {
             throw new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
@@ -227,7 +705,8 @@ public class AdminControlPlaneService {
                         "secretRef", safeSecretRef(request.secretRef())));
     }
 
-    public List<AdminAuditEventResponse> auditEvents() {
+    public List<AdminAuditEventResponse> auditEvents(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "read-audit-events");
         if (auditEventPublisher instanceof InMemoryAuditEventPublisher memoryAudit) {
             return memoryAudit.events().stream()
                     .map(event -> new AdminAuditEventResponse(
@@ -242,6 +721,199 @@ public class AdminControlPlaneService {
                     .toList();
         }
         return List.of();
+    }
+
+    private IdentityProviderReadinessResponse identityProviderReadiness(ProviderRegistryResponse registry, Jwt jwt) {
+        var identityCategory = registry.categories().stream()
+                .filter(category -> "identity-idm".equals(category.category()))
+                .findFirst();
+        ProviderStatusResponse identityProvider = registry.providers().stream()
+                .filter(provider -> provider.module() == ProviderModule.IDENTITY_REALM)
+                .findFirst()
+                .orElse(null);
+        boolean selectedByAdmin = identityCategory.map(category -> category.selectedByAdmin()).orElse(false);
+        boolean configured = identityProvider != null && identityProvider.configured();
+        boolean enabled = identityProvider != null && identityProvider.enabled();
+        boolean failClosed = identityProvider == null || identityProvider.failClosed();
+        boolean supportSafe = identityProvider == null || identityProvider.supportSafe();
+        String providerKey = identityCategory.map(category -> category.selectedProviderKey())
+                .filter(value -> value != null && !value.isBlank())
+                .orElse(identityProvider == null ? "awaiting_admin_selection" : identityProvider.providerKey());
+        CapabilityWhitelistResponse whitelist = whitelist(jwt);
+
+        List<IdentityProviderReadinessCardResponse> cards = List.of(
+                readinessCard(
+                        "realm-import",
+                        "Realm import readiness",
+                        !selectedByAdmin ? "admin-action-required" : configured ? "ready" : "admin-action-required",
+                        selectedByAdmin
+                                ? "Identity realm is selected in the backend control plane; import/apply evidence is evaluated by backend dry-run contracts."
+                                : "Identity realm provider mapping has not been selected by an admin.",
+                        selectedByAdmin && configured ? "ready" : "degraded",
+                        selectedByAdmin
+                                ? "Run the realm desired-state dry-run and attach support-safe evidence before apply."
+                                : "Select an identity provider mapping in Admin Console before exposing sign-in readiness.",
+                        List.of("Run /api/admin/identity/realm/dry-run", "Review blockers and audit refs before apply"),
+                        List.of("identity-realm-dry-run", "admin-control-plane-selection"),
+                        Map.of(
+                                "selectedByAdmin", selectedByAdmin,
+                                "configured", configured,
+                                "enabled", enabled,
+                                "secretsReturned", false,
+                                "rawProviderErrorsReturned", false)),
+                readinessCard(
+                        "oidc-client-readiness",
+                        "OIDC client readiness",
+                        selectedByAdmin && configured ? "ready" : "admin-action-required",
+                        "OIDC client posture is summarized by the backend; client identifiers, redirect details, and secrets are not exposed to members.",
+                        selectedByAdmin && configured ? "ready" : "degraded",
+                        "Confirm client scopes and redirect allowlists through backend dry-run output, not frontend provider APIs.",
+                        List.of("Validate client scope mappings", "Keep client secrets as SecretRef handles only"),
+                        List.of("identity-client-contract", "secretref-boundary"),
+                        Map.of(
+                                "clientDetailsRedacted", true,
+                                "clientSecretsReturned", false,
+                                "selectedByAdmin", selectedByAdmin,
+                                "configured", configured)),
+                readinessCard(
+                        "roles-groups-mapping",
+                        "Roles and groups mapping",
+                        whitelist.denyByDefault() ? "ready" : "policy-blocked",
+                        "Known roles and groups map into canonical Weave capability profiles; unknown inputs deny by default.",
+                        whitelist.denyByDefault() ? "ready" : "policy-blocked",
+                        "Map unknown roles/groups before activation and keep email out of primary identity keys.",
+                        List.of("Review effective policy simulation", "Map unknown identity inputs before they affect members"),
+                        List.of("effective-policy-simulation", "deny-by-default-policy"),
+                        Map.of(
+                                "denyByDefault", whitelist.denyByDefault(),
+                                "profileCount", whitelist.profileCapabilities().size(),
+                                "stableMemberImpactStateCount", whitelist.stableMemberImpactStates().size(),
+                                "emailPrimaryKeyAllowed", false)),
+                readinessCard(
+                        "login-readiness",
+                        "Login readiness",
+                        loginReadinessState(selectedByAdmin, configured, enabled, failClosed),
+                        "Member login is exposed only as product-level availability; provider endpoints and raw auth errors stay out of member flows.",
+                        selectedByAdmin && configured && enabled ? "ready" : "degraded",
+                        "Keep member sign-in fail-closed until selected provider configuration and backend readiness evidence are present.",
+                        List.of("Verify backend auth facade readiness", "Confirm member client shows only stable capability states"),
+                        List.of("member-boundary", "backend-auth-facade"),
+                        Map.of(
+                                "memberClientMayConfigureProvider", false,
+                                "providerEndpointsReturned", false,
+                                "rawAuthErrorsReturned", false,
+                                "failClosed", failClosed)),
+                readinessCard(
+                        "policy-readiness",
+                        "Policy readiness",
+                        whitelist.denyByDefault() && failClosed ? "ready" : "policy-blocked",
+                        "Capability policy is the gate between provider claims and Weave product access.",
+                        whitelist.denyByDefault() && failClosed ? "ready" : "policy-blocked",
+                        "Retain deny-by-default policy and last-admin recovery capabilities before provider apply.",
+                        List.of("Retain admin.policy.edit for workspace-admin", "Review policy simulation before realm apply"),
+                        List.of("capability-whitelist", "last-admin-guard"),
+                        Map.of(
+                                "denyByDefault", whitelist.denyByDefault(),
+                                "failClosed", failClosed,
+                                "normalMembersMayAuthorPolicy", whitelist.normalMembersMayAuthorPolicy())));
+        String overallState = aggregateIdentityReadiness(cards);
+        return new IdentityProviderReadinessResponse(
+                "identity-provider-readiness-v1",
+                "identity-idm",
+                providerKey,
+                overallState,
+                supportSafe,
+                true,
+                true,
+                false,
+                true,
+                registry.generatedAt(),
+                List.of("ready", "degraded", "policy-blocked", "admin-action-required", "disabled"),
+                cards,
+                identityNextActions(overallState),
+                Map.of(
+                        "overview", "/api/admin/control-plane",
+                        "readiness", "/api/admin/identity/readiness",
+                        "realmDryRun", "/api/admin/identity/realm/dry-run",
+                        "effectivePolicySimulation", "/api/admin/policies/effective/simulations"),
+                Map.of(
+                        "contractOptional", true,
+                        "versionSkewSafe", true,
+                        "memberClientMayConfigureIdentityProvider", false,
+                        "providerDiagnosticsRedacted", true,
+                        "selectedByAdmin", selectedByAdmin,
+                        "configured", configured,
+                        "enabled", enabled,
+                        "secretsReturned", false,
+                        "rawProviderErrorsReturned", false));
+    }
+
+    private IdentityProviderReadinessCardResponse readinessCard(
+            String key,
+            String label,
+            String state,
+            String summary,
+            String memberImpact,
+            String remediation,
+            List<String> nextActions,
+            List<String> evidenceRefs,
+            Map<String, Object> diagnostics) {
+        return new IdentityProviderReadinessCardResponse(
+                key,
+                label,
+                state,
+                summary,
+                memberImpact,
+                remediation,
+                nextActions,
+                evidenceRefs,
+                diagnostics);
+    }
+
+    private String loginReadinessState(boolean selectedByAdmin, boolean configured, boolean enabled, boolean failClosed) {
+        if (!enabled) {
+            return selectedByAdmin ? "admin-action-required" : "disabled";
+        }
+        if (!selectedByAdmin || !configured) {
+            return "admin-action-required";
+        }
+        return failClosed ? "ready" : "policy-blocked";
+    }
+
+    private List<String> identityNextActions(String overallState) {
+        return switch (overallState) {
+            case "ready" -> List.of("Monitor audit/readiness transitions and keep support bundles redacted.");
+            case "policy-blocked" -> List.of("Resolve policy blockers, unknown mappings, or last-admin guard failures before provider apply.");
+            case "disabled" -> List.of("Select an identity provider mapping or keep member flows disabled by policy.");
+            default -> List.of(
+                    "Run the backend identity realm dry-run.",
+                    "Resolve admin-action-required cards before treating sign-in as ready.",
+                    "Verify member clients expose only product-level states.");
+        };
+    }
+
+    private String aggregateIdentityReadiness(List<IdentityProviderReadinessCardResponse> cards) {
+        List<String> states = cards.stream().map(IdentityProviderReadinessCardResponse::state).toList();
+        if (states.contains("policy-blocked")) {
+            return "policy-blocked";
+        }
+        if (states.contains("admin-action-required")) {
+            return "admin-action-required";
+        }
+        if (states.contains("degraded")) {
+            return "degraded";
+        }
+        if (states.stream().allMatch("disabled"::equals)) {
+            return "disabled";
+        }
+        return "ready";
+    }
+
+    private IdentityRealmProvider identityRealmProvider(String providerKey) {
+        return identityRealmProviders.stream()
+                .filter(provider -> provider.providerKey().equals(providerKey))
+                .findFirst()
+                .orElseGet(KeycloakRealmDryRunProvider::new);
     }
 
     private ProviderSelection validateProviderSelection(ProviderSelectionRequest request, Jwt jwt) {
@@ -282,6 +954,84 @@ public class AdminControlPlaneService {
                 safeLossyMappingNotes(request.lossyMappingNotes()));
     }
 
+    private void enforceLastAdminGuard(CapabilityWhitelistUpdateRequest request) {
+        if (!"workspace-admin".equals(request.profileKey().trim().toLowerCase(Locale.ROOT))) {
+            return;
+        }
+        List<String> capabilities = safeCapabilities(request.capabilityKeys());
+        if (capabilities.contains("admin.policy.edit")) {
+            return;
+        }
+        throw new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "last-admin-guard",
+                "Workspace admin policy updates must retain at least one admin policy editor.",
+                Map.of(
+                        "profileKey", "workspace-admin",
+                        "requiredCapability", "admin.policy.edit",
+                        "supportSafe", true));
+    }
+
+    private String safeOrganizationId(String value) {
+        String trimmed = value.trim().toLowerCase(Locale.ROOT);
+        if (!trimmed.matches("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "organization-id-invalid",
+                    "Organization id must be a support-safe slug.",
+                    Map.of("organizationId", "invalid-organization-id-redacted"));
+        }
+        return trimmed;
+    }
+
+    private String bootstrapMode(String value) {
+        if (value == null || value.isBlank()) {
+            return "existing_org";
+        }
+        String trimmed = value.trim();
+        if (trimmed.equals("existing_org") || trimmed.equals("new_org")) {
+            return trimmed;
+        }
+        throw new ApiErrorException(
+                HttpStatus.BAD_REQUEST,
+                "organization-bootstrap-mode-invalid",
+                "Organization bootstrap mode must be existing_org or new_org.",
+                Map.of("bootstrapMode", "invalid-bootstrap-mode-redacted"));
+    }
+
+    private List<String> retainedAdminPrimaryIdentityKeys(List<String> suppliedKeys, String actorPrimaryIdentityKey) {
+        List<String> supplied = suppliedKeys == null ? List.of() : suppliedKeys;
+        List<String> retained = Stream.concat(supplied.stream(), Stream.of(actorPrimaryIdentityKey))
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .toList();
+        if (supplied.size() > MAX_BOOTSTRAP_ADMIN_KEYS || retained.stream().anyMatch(this::unsafeBootstrapAdminKey)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "organization-bootstrap-admin-key-invalid",
+                    "Organization bootstrap admin keys must be support-safe immutable issuer+subject keys.",
+                    Map.of(
+                            "requiredFormat", "issuer+subject:<issuer>#<subject>",
+                            "maxSuppliedCount", MAX_BOOTSTRAP_ADMIN_KEYS,
+                            "maxLength", MAX_BOOTSTRAP_ADMIN_KEY_LENGTH,
+                            "supportSafe", true));
+        }
+        if (!retained.contains(actorPrimaryIdentityKey)) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "last-admin-guard",
+                    "Organization bootstrap must retain the current owner/admin as a recovery administrator.",
+                    Map.of("supportSafe", true));
+        }
+        return retained;
+    }
+
+    private boolean unsafeBootstrapAdminKey(String value) {
+        return value.length() > MAX_BOOTSTRAP_ADMIN_KEY_LENGTH || !PRIMARY_IDENTITY_KEY_REGEX.matcher(value).matches();
+    }
+
     private boolean providerMatchesCategory(String providerKey, String category) {
         boolean registeredCandidate = providerRegistry.status().providers().stream()
                 .filter(provider -> ProviderCategoryCatalog.providerMatchesCategory(provider, category))
@@ -308,7 +1058,8 @@ public class AdminControlPlaneService {
         String trimmed = value.trim();
         if (trimmed.equals("recommended_self_hosted_default")
                 || trimmed.equals("external_existing_provider")
-                || trimmed.equals("managed_cloud_provider")) {
+                || trimmed.equals("managed_cloud_provider")
+                || trimmed.equals("hybrid_composite")) {
             return trimmed;
         }
         throw new ApiErrorException(
@@ -322,21 +1073,57 @@ public class AdminControlPlaneService {
         if (value == null || value.isBlank()) {
             return null;
         }
+        return validateSecretRef(value, "provider-selection-secretref-invalid", "Provider selections may reference credentials only through SecretRef URIs.");
+    }
+
+    private String requiredSecretRef(String value) {
+        if (value == null || value.isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-secretref-invalid",
+                    "Provider replacement dry-run requires a backend SecretRef before activation can be evaluated.",
+                    Map.of("secretRef", "invalid-secret-ref-redacted"));
+        }
+        return validateSecretRef(value, "provider-replacement-secretref-invalid", "Provider replacement dry-run may reference credentials only through SecretRef URIs.");
+    }
+
+    private String validateSecretRef(String value, String code, String message) {
         String trimmed = value.trim();
         if (trimmed.toLowerCase(Locale.ROOT).startsWith("secretref://")) {
             return trimmed;
         }
         throw new ApiErrorException(
                 HttpStatus.BAD_REQUEST,
-                "provider-selection-secretref-invalid",
-                "Provider selections may reference credentials only through SecretRef URIs.",
+                code,
+                message,
                 Map.of("secretRef", "invalid-secret-ref-redacted"));
+    }
+
+    private String safeSourceOfTruth(String value) {
+        if (value == null || value.isBlank()) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-source-of-truth-invalid",
+                    "Provider replacement dry-run requires a support-safe source-of-truth declaration.",
+                    Map.of("sourceOfTruth", "invalid-source-of-truth-redacted"));
+        }
+        String trimmed = value.trim();
+        String redacted = safeText(trimmed);
+        if (!redacted.equals(trimmed) || trimmed.length() > 160) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-replacement-source-of-truth-invalid",
+                    "Provider replacement source-of-truth declaration must not contain URLs, bearer tokens, or secret material.",
+                    Map.of("sourceOfTruth", "invalid-source-of-truth-redacted"));
+        }
+        return trimmed;
     }
 
     private boolean requiresMigrationDryRun(ProviderSelectionRequest request) {
         return request.lossyMappingNotes() != null && !request.lossyMappingNotes().isEmpty()
                 || "external_existing_provider".equals(request.choiceModel())
-                || "managed_cloud_provider".equals(request.choiceModel());
+                || "managed_cloud_provider".equals(request.choiceModel())
+                || "hybrid_composite".equals(request.choiceModel());
     }
 
     private List<String> safeLossyMappingNotes(List<String> notes) {
@@ -393,6 +1180,101 @@ public class AdminControlPlaneService {
                 .toList();
     }
 
+    private List<String> normalizedKnownValues(List<String> values, Set<String> knownValues) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(value -> value.trim().toLowerCase(Locale.ROOT))
+                .filter(this::safeSimulationInputToken)
+                .filter(knownValues::contains)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private List<String> deniedInputCodes(List<String> values, String kind, Set<String> knownValues) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .map(value -> {
+                    if (value == null || value.isBlank()) {
+                        return "invalid-" + kind;
+                    }
+                    String normalized = value.trim().toLowerCase(Locale.ROOT);
+                    if (!safeSimulationInputToken(normalized)) {
+                        return "invalid-" + kind;
+                    }
+                    if (!knownValues.contains(normalized)) {
+                        return "unknown-" + kind;
+                    }
+                    return null;
+                })
+                .filter(value -> value != null)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private boolean safeSimulationInputToken(String value) {
+        return value != null && value.matches("[a-z][a-z0-9_.:-]*");
+    }
+
+    private EffectivePolicySimulationResponse.CapabilityState simulationState(
+            String capability,
+            Set<String> grants,
+            boolean failClosed) {
+        if (failClosed) {
+            return new EffectivePolicySimulationResponse.CapabilityState(
+                    capability,
+                    "policy-blocked",
+                    "unknown-identity-inputs-fail-closed",
+                    "Admins must map unknown provider inputs before members receive this capability.");
+        }
+        if ("weaver.enabled".equals(capability)) {
+            return new EffectivePolicySimulationResponse.CapabilityState(
+                    capability,
+                    "disabled",
+                    "weaver-default-disabled",
+                    "Weaver remains opt-in, governed, audited, and disabled by default.");
+        }
+        if (grants.contains(capability)) {
+            return new EffectivePolicySimulationResponse.CapabilityState(
+                    capability,
+                    "ready",
+                    "granted-by-effective-policy",
+                    "Member-visible capability state may be ready if provider readiness also passes.");
+        }
+        return new EffectivePolicySimulationResponse.CapabilityState(
+                capability,
+                "policy-blocked",
+                "deny-by-default-capability-policy",
+                "This capability remains blocked unless a known org role or group grants it.");
+    }
+
+    private String safeSimulationIdentityRef(String value) {
+        if (value == null || value.isBlank()) {
+            return "not-provided";
+        }
+        String trimmed = value.trim();
+        if (trimmed.contains("@") || trimmed.matches("(?i).*(bearer\\s+|xox[baprs]-|secret(ref)?://|https?://|token|secret).*")) {
+            return "identity-ref-redacted";
+        }
+        return safeText(trimmed);
+    }
+
+    private boolean safePrimaryIdentityKey(String value) {
+        return value != null
+                && value.length() <= MAX_BOOTSTRAP_ADMIN_KEY_LENGTH
+                && PRIMARY_IDENTITY_KEY_REGEX.matcher(value).matches();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private List<String> safeCapabilities(List<String> capabilities) {
         if (capabilities == null) {
             return List.of();
@@ -421,7 +1303,11 @@ public class AdminControlPlaneService {
         if (value == null || value.isBlank()) {
             return "not-provided";
         }
-        return value.trim().replaceAll("(?i)bearer\\s+[^\\s]+", "Bearer [redacted]");
+        return value.trim()
+                .replaceAll("(?i)bearer\\s+[^\\s]+", "Bearer [redacted]")
+                .replaceAll("(?i)xox[baprs]-[A-Za-z0-9-]+", "slack-token-[redacted]")
+                .replaceAll("(?i)https?://[^\\s]+", "url-[redacted]")
+                .replaceAll("(?i)secret(ref)?://[^\\s]+", "secret-ref-[redacted]");
     }
 
     private String organizationId(Jwt jwt) {

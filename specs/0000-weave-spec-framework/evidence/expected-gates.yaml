@@ -1,0 +1,14 @@
+spec_id: WEAVE-SPEC-0000
+expected_gates:
+  - name: specContract
+    command: ./gradlew specContract
+    required_for: all spec framework changes
+  - name: specContractTest
+    command: ./gradlew specContractTest
+    required_for: guard behavior changes
+  - name: docsStructureCheck
+    command: ./gradlew docsStructureCheck
+    required_for: docs navigation/link changes
+  - name: acceptanceContract
+    command: ./gradlew acceptanceContract
+    required_for: verifies no acceptance regression despite process-only scope

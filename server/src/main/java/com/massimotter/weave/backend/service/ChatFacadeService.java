@@ -38,7 +38,6 @@ import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryRequest;
 import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryResponse;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -215,13 +214,13 @@ public class ChatFacadeService {
                 sanitizeTextList(request.openQuestions(), 120),
                 sanitizeReferenceList(request.followUpRefs()),
                 true);
-        decisionsFor(conversation.id()).add(decision);
         publishAudit(principal, AuditAction.DECISION_LEDGER_RECORD_CREATED, decision.id(), timestamp, Map.of(
                 "command", "create_decision",
                 "conversationId", conversation.id(),
                 "status", decision.status(),
                 "referenceCount", references.size(),
                 "supportSafe", true));
+        decisionsFor(conversation.id()).add(decision);
         return decision;
     }
 
@@ -266,12 +265,12 @@ public class ChatFacadeService {
                 false,
                 false,
                 true);
-        meetingCapsulesFor(conversation.id()).add(capsule);
         publishAudit(principal, AuditAction.MEETING_CAPSULE_CREATED, capsule.id(), timestamp, Map.of(
                 "command", "create_meeting_capsule",
                 "conversationId", conversation.id(),
                 "failClosed", true,
                 "supportSafe", true));
+        meetingCapsulesFor(conversation.id()).add(capsule);
         return capsule;
     }
 
@@ -315,7 +314,7 @@ public class ChatFacadeService {
             ChatProviderReplacementDryRunRequest request) {
         requireChatReady(jwt, "chat.read", "provider_replacement_dry_run");
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.ADMIN);
-        requireAdminRole(jwt);
+        requireAdminReadinessCapability(jwt);
         String sourceAdapter = sanitizeAdapterKey(request.sourceAdapter());
         String targetAdapter = sanitizeAdapterKey(request.targetAdapter());
         Instant timestamp = Instant.now();
@@ -491,40 +490,12 @@ public class ChatFacadeService {
                         "diagnosticsRedacted", true));
     }
 
-    private void requireAdminRole(Jwt jwt) {
-        List<String> roles = extractRealmRoles(jwt);
-        if (roles.stream().noneMatch(role -> role.equals("owner") || role.equals("admin") || role.equals("operator"))) {
-            throw new ApiErrorException(
-                    HttpStatus.FORBIDDEN,
-                    "admin-policy-blocked",
-                    "This Chat provider replacement action requires an owner, admin, or operator role.",
-                    Map.of(
-                            "module", DOMAIN,
-                            "operation", "provider_replacement_dry_run",
-                            "policyState", "policy-blocked",
-                            "diagnosticsRedacted", true));
-        }
-    }
-
-    private List<String> extractRealmRoles(Jwt jwt) {
-        if (jwt == null) {
-            return List.of();
-        }
-        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) {
-            return List.of();
-        }
-        Object roles = realmAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
-        }
-        return roleValues.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(role -> role.trim().toLowerCase(Locale.ROOT))
-                .filter(role -> !role.isEmpty())
-                .sorted()
-                .toList();
+    private void requireAdminReadinessCapability(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(
+                jwt,
+                "admin_control_plane.readiness_read",
+                DOMAIN,
+                "provider_replacement_dry_run");
     }
 
     private List<String> grantedChatCapabilities(Jwt jwt) {

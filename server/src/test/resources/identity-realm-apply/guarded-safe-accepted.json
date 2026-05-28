@@ -1,0 +1,31 @@
+{
+  "providerKey": "keycloak-realm",
+  "realmId": "weave-dogfood",
+  "dryRunId": "realm-dry-run-support-safe-sample",
+  "decision": "accepted",
+  "executionMode": "guarded-provider-apply-decision-only",
+  "applied": false,
+  "providerMutationPerformed": false,
+  "supportSafe": true,
+  "rawSecretExposed": false,
+  "lastAdminGuardPassed": true,
+  "rollbackEvidenceRequired": false,
+  "rollbackEvidenceAccepted": true,
+  "blockedReasons": [],
+  "changes": [
+    {
+      "path": "/clients/weave-app",
+      "action": "no-op",
+      "classification": "safe",
+      "reasonCode": "oidc-client-managed-by-control-plane",
+      "beforeValue": "weave-app",
+      "afterValue": "weave-app",
+      "memberImpact": "members continue to use backend-owned sign-in; provider client details stay admin-only",
+      "applyBlocked": false
+    }
+  ],
+  "nextActions": [
+    "Guarded apply decision accepted; no live provider mutation was performed in this sprint slice."
+  ],
+  "auditRefs": ["identity-realm-apply-support-safe-sample"]
+}

@@ -38,20 +38,31 @@ nav:
   - Developer Handbook:
       - Overview: developer-handbook.md
       - Weave operating model: weave-operating-model.md
+      - Spec-driven development: spec-driven-development.md
+      - Agent-team orchestration: agent-team-orchestration.md
       - Trunk-based PR and release workflow: gitflow-pr-workflow.md
       - Architecture: architecture.md
       - Canonical feature models: canonical-feature-models.md
       - Acceptance contracts: acceptance-contracts.md
       - Quality and evidence: quality-and-evidence.md
       - Build, evidence, and delivery system: build-evidence-delivery-system.md
+      - Enterprise release foundation: enterprise-release-foundation.md
       - Sprint 1 completion report: sprint-1-completion-report.md
       - Sprint 3 closure report: sprint-3-closure-report.md
       - Sprint 4 plan: sprint-4-plan.md
       - Sprint 4 closure report: sprint-4-closure-report.md
+      - Sprint 5 closure report: sprint-5-closure-report.md
+      - Sprint 6 kickoff plan: sprint-6-kickoff-plan.md
+      - Sprint 6 epic closure report: sprint-6-epic-closure-report.md
+      - Sprint 6 closure report: sprint-6-closure-report.md
       - Accessibility release gate: accessibility-release-gate.md
       - ISO 9241-110 dogfood UX gate: iso-9241-110-dogfood-ux-gate.md
   - Product and Release Scope:
       - Product line and Weaver plan: product-line-and-weaver-plan.md
+      - "Strategy sprint: organization embedding": strategy-sprint-org-embedding-plan.md
+      - Organization embedding contract: organization-embedding-contract.md
+      - Identity provisioning strategy: identity-provisioning-strategy.md
+      - Provider replacement and anti-silo contract: provider-replacement-and-anti-silo-contract.md
       - Manuals and release notes integration: manuals-and-release-notes-integration.md
       - v0.1 dogfood plan: release-v0.1-dogfood-plan.md
       - v0.1 Golden Path readiness: v0.1-golden-path.md

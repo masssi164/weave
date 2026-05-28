@@ -4,14 +4,19 @@ import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
 import com.massimotter.weave.backend.config.ApiAuthenticationEntryPoint;
 import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
 import com.massimotter.weave.backend.service.OfficeFacadeService;
+import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -39,9 +44,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         DisabledOfficeProvider.class,
-        OfficeFacadeService.class
+        OfficeFacadeService.class,
+        WorkspaceCapabilityService.class
 })
 @TestPropertySource(properties = "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave")
+@EnableConfigurationProperties({
+        WorkspaceCapabilityProperties.class,
+        WeaveSecurityProperties.class,
+        OAuth2ResourceServerProperties.class
+})
 class OfficeControllerTest {
 
     @Autowired
@@ -92,7 +103,10 @@ class OfficeControllerTest {
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
-                        .claim("aud", java.util.List.of("weave-app")))
+                        .claim("iss", "https://auth.example.invalid/realms/weave")
+                        .claim("aud", java.util.List.of("weave-app"))
+                        .claim("realm_access", java.util.Map.of("roles", java.util.List.of("member")))
+                        .claim("groups", java.util.List.of("weave-document-editors")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
 }

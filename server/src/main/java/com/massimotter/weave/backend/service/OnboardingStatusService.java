@@ -8,11 +8,8 @@ import com.massimotter.weave.backend.model.OnboardingProvisioningState;
 import com.massimotter.weave.backend.model.OnboardingStatusResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
@@ -22,7 +19,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class OnboardingStatusService {
 
-    private static final List<String> ROLE_PRIORITY = List.of("owner", "admin", "member", "guest");
+    private static final List<String> ROLE_PRIORITY = List.of("owner", "admin", "operator", "member", "guest");
     private static final Set<String> INVITE_STATUSES = Set.of("active", "pending", "disabled");
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
@@ -45,18 +42,18 @@ public class OnboardingStatusService {
     }
 
     public OnboardingStatusResponse status(Jwt jwt) {
-        String subject = jwt.getSubject();
-        String username = firstText(jwt.getClaimAsString("preferred_username"), subject);
+        OrganizationIdentityContext organizationIdentity = OrganizationIdentityContextFactory.fromJwt(jwt);
+        String username = firstText(jwt.getClaimAsString("preferred_username"), organizationIdentity.subject());
         String email = jwt.getClaimAsString("email");
         boolean emailVerified = emailVerified(jwt);
         String displayName = firstText(jwt.getClaimAsString("name"), username);
         String locale = firstText(jwt.getClaimAsString("locale"), "en");
         String timezone = firstText(jwt.getClaimAsString("timezone"), "UTC");
-        List<String> roles = productRoles(extractRealmRoles(jwt));
-        List<String> groups = extractStringList(jwt, "groups");
+        List<String> roles = organizationIdentity.roles();
+        List<String> groups = organizationIdentity.groups();
 
         OnboardingStatusResponse.Identity identity = new OnboardingStatusResponse.Identity(
-                subject,
+                organizationIdentity.accountId(),
                 username,
                 email,
                 emailVerified,
@@ -187,7 +184,7 @@ public class OnboardingStatusService {
             OnboardingStatusResponse.ProfileStatus profile) {
         OnboardingStatusResponse.ModuleStatus identity = new OnboardingStatusResponse.ModuleStatus(
                 OnboardingProvisioningState.READY,
-                "Identity is available from the authenticated Keycloak-backed session.",
+                "Identity is available from the authenticated OIDC/SAML session.",
                 null);
         OnboardingProvisioningState profileState = "ready".equals(profile.status())
                 ? OnboardingProvisioningState.READY
@@ -291,51 +288,6 @@ public class OnboardingStatusService {
                         modules.nextcloud().action())
                 .filter(this::hasText)
                 .distinct()
-                .toList();
-    }
-
-    private List<String> extractRealmRoles(Jwt jwt) {
-        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
-        if (realmAccess == null) {
-            return List.of();
-        }
-        Object roles = realmAccess.get("roles");
-        if (!(roles instanceof Collection<?> roleValues)) {
-            return List.of();
-        }
-        return roleValues.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(role -> !role.isEmpty())
-                .sorted()
-                .toList();
-    }
-
-    private List<String> extractStringList(Jwt jwt, String claimName) {
-        Object claim = jwt.getClaims().get(claimName);
-        if (!(claim instanceof Collection<?> values)) {
-            return List.of();
-        }
-        return values.stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .map(String::trim)
-                .filter(value -> !value.isEmpty())
-                .sorted()
-                .toList();
-    }
-
-    private List<String> productRoles(List<String> realmRoles) {
-        LinkedHashSet<String> roles = new LinkedHashSet<>();
-        for (String role : realmRoles) {
-            String normalized = role.toLowerCase(Locale.ROOT);
-            if (ROLE_PRIORITY.contains(normalized)) {
-                roles.add(normalized);
-            }
-        }
-        return ROLE_PRIORITY.stream()
-                .filter(roles::contains)
                 .toList();
     }
 

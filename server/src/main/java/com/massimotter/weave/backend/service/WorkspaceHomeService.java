@@ -26,7 +26,7 @@ public class WorkspaceHomeService {
 
     public WorkspaceHomeResponse snapshot() {
         WorkspaceCapabilitiesResponse capabilities = workspaceCapabilityService.snapshot();
-        WorkspaceReleaseReadinessResponse releaseReadiness = workspaceReleaseReadinessService.snapshot();
+        WorkspaceReleaseReadinessResponse releaseReadiness = workspaceReleaseReadinessService.supportSafeSnapshot();
 
         List<WorkspaceHomeSectionResponse> sections = List.of(
                 section(
