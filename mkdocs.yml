@@ -38,6 +38,8 @@ nav:
   - Developer Handbook:
       - Overview: developer-handbook.md
       - Weave operating model: weave-operating-model.md
+      - Spec-driven development: spec-driven-development.md
+      - Agent-team orchestration: agent-team-orchestration.md
       - Trunk-based PR and release workflow: gitflow-pr-workflow.md
       - Architecture: architecture.md
       - Canonical feature models: canonical-feature-models.md

@@ -7,7 +7,8 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 - Current implementation truth lives in this monorepo, GitHub issues/PRs, protected-branch status, and executable CI/evidence artifacts.
 - Historical chat, agent transcripts, local memories, and old checkouts are orientation only; verify them before acting.
 - Sprint state belongs in GitHub issues, PRs, and closure reports, not in bootstrap prompts.
-- Product and architecture decisions belong in repo docs; PR bodies carry current acceptance/evidence for one slice.
+- Product and architecture decisions belong in repo docs and repo-local `specs/`; PR bodies carry current acceptance/evidence for one slice.
+- `~/code/specs` and external notebooks are orientation only. New durable product/system contracts live under `specs/` and are checked by `./gradlew specContract`.
 
 ## Branch and release model
 
@@ -33,11 +34,11 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 
 A PR is review-ready only when it has:
 
-- a linked issue, spec, or acceptance note;
+- a linked issue plus repo-local spec, spec note, or acceptance note;
 - exactly one release-notes label;
 - a filled PR body with scope, user/operator/developer impact, evidence, and risks;
-- the smallest meaningful local gate recorded;
-- Copilot review requested or an explicit fallback noted;
+- the smallest meaningful local gate recorded, including `./gradlew specContract` when specs or product contracts changed;
+- Copilot review requested or an explicit fallback noted; Copilot exhaustion is not a blocker when fallback review evidence and green CI are present;
 - no unrelated local, generated, secret, or assistant workspace files.
 
 A PR is merge-ready only when protected checks are green, required conversations are resolved, Copilot findings or fallback review are addressed, and the branch is mergeable.
@@ -53,16 +54,22 @@ Use this loop:
 3. Spawn scoped specialists only when useful.
 4. Require evidence-only returns.
 5. Run the integration gate before PR handoff or merge.
-6. End with a compact session handoff.
+6. If the gate finds material optimization opportunities, create the next scoped brief and loop.
+7. End only when no material optimization remains or a product-core clarification blocks safe progress.
+8. Preserve a compact session handoff.
 
 Regular specialist scopes:
 
+- Product/spec steward: intent, product-core scope, lifecycle status, non-goals, and clarification markers.
 - Client: Flutter, accessibility, localization, widget/semantics tests.
 - Server: facades, authorization, audit, provider boundaries, backend contracts.
+- Admin/policy: Admin Console, Workspace Health, IDM/RBAC, readiness, whitelisting, and policy previews.
+- Provider/infra: provider adapters, OpenTofu, live-stack runner posture, backup/restore, support bundles.
 - DevOps/release: Gradle, GitHub Actions, branch protection, release labels, environments.
-- QA/evidence: acceptance contracts, Live Stack E2E, dogfood evidence, sanitized artifacts.
+- QA/evidence: acceptance contracts, `scenario_mappings.json`, Live Stack E2E, dogfood evidence, sanitized artifacts.
 - Docs/release: release notes, sprint reports, developer docs, PR templates.
-- Review: architecture risk, scope creep, merge readiness.
+- Security/privacy: secrets, raw provider data, audit, support-safe diagnostics, external-provider risk.
+- Review: architecture risk, scope creep, merge readiness, and material optimization opportunities.
 
 ## Five reusable agent templates
 
@@ -72,6 +79,7 @@ Keep the template names stable and the actual prompt short.
 - Specialist-Brief: assign one scoped task, allowed files, required gate, and stop conditions.
 - Evidence-Return: return done/evidence/verification/blocked/recommended-next without transcript recap.
 - Integration-Gate: inspect PR, checks, reviews, mergeability, blockers, and recommendation.
+- Optimization-Review: score correctness, traceability, spec protection, runtime policy clarity, maintainability, and evidence; return only material findings.
 - Session-Handoff: preserve durable state, references, blockers, next safe action, and discard notes.
 
 Do not paste old transcripts, full sprint histories, broad architecture essays, stale status, or duplicate policy text into agent prompts.

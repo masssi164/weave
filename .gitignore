@@ -51,6 +51,8 @@ app.*.map.json
 # Local assistant state
 .openclaw/
 memory/
+!.specify/memory/
+!.specify/memory/constitution.md
 HEARTBEAT.md
 IDENTITY.md
 SOUL.md

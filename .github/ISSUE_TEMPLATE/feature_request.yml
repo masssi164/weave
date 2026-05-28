@@ -30,8 +30,19 @@ body:
         - admin/provider readiness
         - manuals/help
         - release/evidence
+        - specs/dev workflow
         - weaver/AI runtime
         - cross-cutting
+    validations:
+      required: true
+  - type: textarea
+    id: spec-link
+    attributes:
+      label: Repo-local spec or acceptance note
+      description: Link `specs/NNNN-slug/spec.md` when available. If not yet available, state whether this should create one or why a lightweight acceptance note is enough.
+      value: |
+        Spec: TBD
+        Spec needed before implementation: yes/no
     validations:
       required: true
   - type: textarea
