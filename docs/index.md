@@ -52,7 +52,7 @@ Start with:
 3. [Spec-driven development for Weave](spec-driven-development.md) — repo-local specs, lifecycle, evidence gates, and agent orchestration.
 4. [Weave agent-team orchestration](agent-team-orchestration.md) — `weave-co-leader`, native subagents, ACP specialists, briefs, and optimization loop.
 5. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
-5. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
+6. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
 
 ### Security / compliance reviewer
 

@@ -96,13 +96,14 @@ def parse_frontmatter(text: str, path: Path) -> dict[str, Any]:
     for raw_line in match.group(1).splitlines():
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
             continue
-        if raw_line.startswith("  - "):
+        stripped = raw_line.lstrip()
+        if stripped.startswith("- "):
             if current_key is None:
                 fail(f"{path.relative_to(ROOT)} has list item without key: {raw_line!r}")
             data.setdefault(current_key, [])
             if not isinstance(data[current_key], list):
                 fail(f"{path.relative_to(ROOT)} key {current_key!r} mixes scalar and list values")
-            data[current_key].append(parse_scalar(raw_line[4:]))
+            data[current_key].append(parse_scalar(stripped[2:]))
             continue
         if ":" not in raw_line:
             fail(f"{path.relative_to(ROOT)} unsupported frontmatter line: {raw_line!r}")
@@ -174,7 +175,13 @@ def check_spec_dir(spec_dir: Path) -> None:
 
 
 def check_framework_artifacts(spec_dirs: list[Path]) -> None:
-    has_framework_spec = any((spec_dir / "spec.md").read_text(encoding="utf-8", errors="ignore").find("WEAVE-SPEC-0000") >= 0 for spec_dir in spec_dirs)
+    has_framework_spec = False
+    for spec_dir in spec_dirs:
+        spec_path = spec_dir / "spec.md"
+        meta = parse_frontmatter(spec_path.read_text(encoding="utf-8"), spec_path)
+        if meta.get("id") == "WEAVE-SPEC-0000":
+            has_framework_spec = True
+            break
     if not has_framework_spec:
         return
     for relative, required_markers in FRAMEWORK_REQUIRED_FILES.items():

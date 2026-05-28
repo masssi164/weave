@@ -83,6 +83,16 @@ class SpecContractCheckTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.run_main(repo)
 
+    def test_frontmatter_accepts_unindented_list_items(self) -> None:
+        unindented = VALID_SPEC.replace("  - ./gradlew specContract", "- ./gradlew specContract")
+        self.run_main(self.with_repo(unindented))
+
+    def test_framework_reference_does_not_require_framework_artifacts(self) -> None:
+        reference_only = VALID_SPEC.replace(
+            "No unresolved questions.", "This future spec references WEAVE-SPEC-0000 for process context."
+        )
+        self.run_main(self.with_repo(reference_only))
+
     def test_framework_spec_requires_agent_team_artifacts(self) -> None:
         repo = self.with_repo(FRAMEWORK_SPEC, dirname="0000-framework", traceability=FRAMEWORK_TRACEABILITY)
         with self.assertRaises(SystemExit):
