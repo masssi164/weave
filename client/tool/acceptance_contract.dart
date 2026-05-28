@@ -154,8 +154,9 @@ List<FeatureScenario> parseFeatureFile(Directory root, File file) {
       );
       continue;
     }
-    if (line.startsWith('Scenario: ')) {
-      final scenarioName = line.substring('Scenario: '.length).trim();
+    final scenarioPrefix = _scenarioKeywordPrefix(line);
+    if (scenarioPrefix != null) {
+      final scenarioName = line.substring(scenarioPrefix.length).trim();
       scenarios.add(
         FeatureScenario(
           featurePath: relativePath,
@@ -641,6 +642,20 @@ String _relativePath(String rootPath, String path) {
       ? path.substring(normalizedRoot.length)
       : path;
   return relativePath.replaceAll(Platform.pathSeparator, '/');
+}
+
+String? _scenarioKeywordPrefix(String line) {
+  const scenarioKeywords = <String>[
+    'Scenario: ',
+    'Scenario Outline: ',
+    'Scenario Template: ',
+  ];
+  for (final keyword in scenarioKeywords) {
+    if (line.startsWith(keyword)) {
+      return keyword;
+    }
+  }
+  return null;
 }
 
 String _escapeMarkdown(String value) => value.replaceAll('|', r'\|');

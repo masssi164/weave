@@ -171,6 +171,34 @@ Scenario: Tagged over several lines
     ]);
   });
 
+  test('feature parser treats scenario outlines as acceptance scenarios', () {
+    final directory = Directory.systemTemp.createTempSync(
+      'weave_feature_outline_',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final featureFile =
+        File('${directory.path}${Platform.pathSeparator}outline.feature')
+          ..writeAsStringSync('''
+Feature: Outlined evidence
+
+@weave-live-outline
+Scenario Outline: Capability state is support-safe
+  Given a <state> capability
+  Then the member sees support-safe copy
+
+Examples:
+  | state          |
+  | ready          |
+  | policy-blocked |
+''');
+
+    final scenarios = acceptance.parseFeatureFile(directory, featureFile);
+
+    expect(scenarios, hasLength(1));
+    expect(scenarios.single.name, 'Capability state is support-safe');
+    expect(scenarios.single.tags, <String>['@weave-live-outline']);
+  });
+
   test('runtime evidence sanitizer keeps accessibility fields', () {
     final directory = Directory.systemTemp.createTempSync('weave_evidence_');
     addTearDown(() => directory.deleteSync(recursive: true));
