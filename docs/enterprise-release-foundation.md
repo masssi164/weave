@@ -96,17 +96,17 @@ This makes evidence portable: a release owner can inspect one artifact directory
 
 ## Repeatable RC readiness check
 
-Use the local/CI-safe readiness check before creating or promoting an RC tag:
+Use the local/CI-safe readiness check before creating or promoting an RC tag. The latest published audit is [`v0.1.0-rc.2`](release-v0.1-rc2-evidence.md); the command below is an example shape and each promotion must pass explicit candidate values:
 
 ```sh
 ./gradlew releaseReadinessCheck \
-  -PcandidateVersion=0.1.0-rc.1 \
-  -PcandidateTag=v0.1.0-rc.1 \
+  -PcandidateVersion=<candidate-version> \
+  -PcandidateTag=<candidate-tag> \
   -PcandidateCommit=<sha>
 # or pass explicit evidence paths when reviewing downloaded artifacts:
 python3 tools/release_readiness_check.py \
-  --candidate-version 0.1.0-rc.1 \
-  --candidate-tag v0.1.0-rc.1 \
+  --candidate-version <candidate-version> \
+  --candidate-tag <candidate-tag> \
   --candidate-commit <sha> \
   --ci-summary build/evidence/ci-summary.json \
   --live-evidence-dir weave-live-stack-acceptance-evidence \

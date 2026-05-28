@@ -10,8 +10,9 @@ The point is not to re-skin a fixed vendor bundle. The point is to let an organi
 
 Current maturity is honest and evidence-scoped:
 
+- **Published as dogfood-production release candidate:** `v0.1.0-rc.2` is a prerelease on protected `main` with green PR-safe CI, credentialed Live Stack E2E, release-owner signoff, and no open `release-blocker` issues at publication.
 - **Ready for dogfood-production foundation:** repository orchestration, documentation site, release-note automation, provider-neutral domain contracts, admin/operator readiness boundaries, policy enforcement, and support-safe evidence checks.
-- **In progress / guarded:** richer daily-work surfaces for calendars, boards/tasks, meetings, provider replacement, and release-candidate live-stack evidence. These stay fail-closed unless configured and evidenced.
+- **In progress / guarded:** richer daily-work surfaces for calendars, boards/tasks, meetings, provider replacement, and the WEAVE-SPEC-0001 implementation DAG. These stay fail-closed unless configured and evidenced.
 - **Not shipped as v0.1 product scope:** broad marketplace administration, autonomous agent/team writes, public connector SDK, and the optional Weaver personal-assistant runtime.
 
 ## v0.1 Golden Path quick read
@@ -21,6 +22,7 @@ Current maturity is honest and evidence-scoped:
 - [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md) for current product ordering.
 - [Sprint 5 closure report](docs/sprint-5-closure-report.md) for project-readiness evidence and release-candidate gaps.
 - [Enterprise release foundation](docs/enterprise-release-foundation.md) for Sprint 6 release lanes, RC evidence, waiver rules, and support-safe artifacts.
+- [v0.1.0-rc.2 release evidence](docs/release-v0.1-rc2-evidence.md) for the published RC2 candidate, exact commit, gates, and signoff.
 
 ## Product architecture
 
@@ -38,7 +40,7 @@ Weaver/AI PA positioning is deliberately later. Weaver is Weave's optional, gove
 
 ## Release notes
 
-The managed block below is the README-facing draft of merged but unreleased changes. It is a review artifact, not proof that a release was published. Maintainers update it with the checked-in release-note tooling; do not edit inside the markers by hand.
+The managed block below is the README-facing draft of merged changes after the latest tagged prerelease. The published `v0.1.0-rc.2` notes live in [v0.1 release notes](docs/release-notes/v0.1.md). Maintainers update this block with the checked-in release-note tooling; do not edit inside the markers by hand.
 
 <!-- WEAVE_RELEASE_NOTES_START -->
 _Generated release notes are review artifacts. A release maintainer may update this block with `python3 tools/readme_release_notes.py --update --source <generated-notes>` before opening the release-draft review._
@@ -47,27 +49,11 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
-- Repeatable RC readiness check with Markdown/JSON output, Gradle fixture tests, Live Stack evidence validation, release-blocker gating, and explicit waiver marker handling.
-- MkDocs documentation site foundation with handbook navigation, diagrams, GitFlow/PR workflow, and release notes process.
-- Root Gradle wrapper and orchestration tasks for delegated server, client, admin, infra, docs, acceptance, CI, and release-notes checks.
-- Local release notes generator for merged PR metadata grouped by release-notes labels.
-- Sprint 6 kickoff plan and initial Keycloak realm dry-run provider contract scaffold for admin-owned identity/provider operations.
-- Enterprise release foundation with machine-checked release lanes, support-safe Live Stack evidence manifest, RC promotion/waiver contract, and required runtime marker policy.
-- Workspace Health identity provider readiness facade with realm import, OIDC client, roles/groups, login, and policy cards backed only by backend Admin Console APIs.
-- Admin/operator effective policy simulation endpoint with support-safe capability impact output, fail-closed unknown identity inputs, Weaver disabled-by-default evidence, and audited counts before provider or realm changes apply.
-- Guarded identity realm apply decision path with explicit confirmation, retained-admin lockout protection, risky/destructive rollback evidence gates, support-safe audit counts, and decision-only provider mutation semantics.
-- Sprint 6 epic closure map for admin-owned OIDC setup (#212) and Keycloak realm dry-run/apply architecture (#233), linking role/setup contracts, realm baseline fixtures, Workspace Health readiness, policy simulation, and guarded apply evidence.
-- Sprint 6 final closure report recording the RC/provider-ops foundation, post-merge main CI, credentialed Live Stack evidence scope, residual risks, and first-release entry criteria without claiming a public release.
+- Nothing yet.
 
 ## Changed
 
-- Repositioned the root README as a Sprint 6 readiness/kickoff enterprise product entry point with audience-directed documentation navigation, explicit maturity status, Java 21 gate guidance, E2E/release-candidate evidence boundaries, and governed Weaver/AI PA boundaries.
-- Added organization-embedding, identity-provisioning, and provider-replacement strategy contracts to make provider neutrality, mixed self-hosted/cloud/external deployments, and adapter replacement explicit before new feature slices.
-- Documentation validation now has a dedicated docs check/build path.
-- PR CI now enforces exactly one release-notes label before review/merge.
-- `make release-notes-check` now verifies release-notes label edge cases and generator fixture output.
-- Live Stack acceptance artifacts now include `release-evidence-manifest.json` with commit/run metadata, artifact list, support-safe exclusions, and the RC promotion rule.
-- Admin Console treats missing identity readiness contracts as `admin-action-required` and keeps member flows provider-neutral/fail-closed during version skew.
+- Nothing yet.
 
 ## Fixed
 
@@ -83,7 +69,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Migration/Operator Notes
 
-- Operators can build the documentation site locally with `python3 -m pip install -r docs/requirements.txt` and `make docs-build`.
+- Nothing yet.
 
 ## Known Issues
 

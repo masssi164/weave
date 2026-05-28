@@ -2,6 +2,8 @@
 
 Status: implementation baseline for the monorepo refoundation.
 
+Latest prerelease audit: `v0.1.0-rc.2` was published on 2026-05-28 from `9409ae44a07f38864a45a203d90a842b22c6a82d` with green PR-safe CI, credentialed Live Stack E2E, release-owner signoff, and no open release blockers. See [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md).
+
 ## Goal
 
 Ship Weave as a daily work tool for a real project, not as a demo stack.
@@ -162,6 +164,7 @@ Deliverables:
 - Secret/certificate handling.
 - Release notes with honest limitations.
 - Support bundle and smoke-test artifacts.
+- Exact-candidate RC evidence with tag, commit, CI, credentialed Live Stack E2E, blocker state, release-owner signoff, and rollback note.
 
 Exit gate:
 
@@ -170,6 +173,7 @@ Exit gate:
 - restore smoke passes
 - support bundle is redacted
 - Live Stack E2E passes against release manifest
+- `./gradlew releaseReadinessCheck` is ready for the exact candidate, with support-safe CI, Live Stack, release notes, and blocker evidence
 
 ### IDM/RBAC and capability whitelisting acceptance
 

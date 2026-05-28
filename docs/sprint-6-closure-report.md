@@ -8,6 +8,8 @@ Sprint 6 closes the release-candidate and provider-operations foundation for Wea
 
 This report does **not** publish, tag, or claim a final v0.1 release. It records the evidence state after PR #377 merged and issues #212 and #233 were closed.
 
+Post-closure update: the first later prerelease with exact-candidate signoff is `v0.1.0-rc.2`, published on 2026-05-28. See [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md) for the release facts; this Sprint 6 report remains historical foundation evidence.
+
 ## Final closure status
 
 - Sprint 6 milestone: `Sprint 6 — Release Candidate & Provider Operations`.
@@ -66,7 +68,7 @@ Sprint 6 freezes these release-candidate/provider-ops rules for the next sprint:
 - The docs-only epic closure for #212/#233 does not add a live Keycloak mutation executor.
 - Sprint 6 does not claim broad provider marketplace support, generic migrations, SCIM/LDAP/Entra reconciliation, or autonomous Weaver writes.
 - Admin Console dashboard composition and richer operator UX remain follow-up work on top of the Sprint 6 backend/control-plane contracts.
-- Release readiness still depends on exact-candidate evidence and release-owner signoff, not on this report alone.
+- Release readiness still depends on exact-candidate evidence and release-owner signoff, not on this report alone. The later `v0.1.0-rc.2` prerelease records that evidence separately in [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md).
 
 ## Next-sprint entry criteria for the first real release
 

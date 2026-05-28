@@ -38,9 +38,9 @@ Implementation tasks are intentionally split into follow-up PRs from the issue D
 
 ## Phase 4: Integration and handoff
 
-- [ ] T040 Run `./gradlew specContract specContractTest acceptanceContract --console=plain`.
-- [ ] T041 Push branch and update PR #382 to non-draft only if gates pass.
-- [ ] T042 Update #381 with decision record and link the integrated PR/DAG.
-- [ ] T043 Inspect GitHub CI for #382.
-- [ ] T044 Merge PR #382 when CI/labels/branch protection permit.
-- [ ] T045 Fast-forward `main`, close/confirm #381, and update sprint closure/release evidence.
+- [x] T040 Run `./gradlew specContract specContractTest acceptanceContract --console=plain`.
+- [x] T041 Push branch and update PR #382 to non-draft only if gates pass.
+- [x] T042 Update #381 with decision record and link the integrated PR/DAG.
+- [x] T043 Inspect GitHub CI for #382.
+- [x] T044 Merge PR #382 when CI/labels/branch protection permit.
+- [x] T045 Fast-forward `main`, close/confirm #381, and update sprint closure/release evidence.

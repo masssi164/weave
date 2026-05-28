@@ -5,7 +5,7 @@ Release notes are the durable, user/admin/operator-facing record of what changed
 ## Files
 
 - [Unreleased](unreleased.md) collects changes that have merged but are not cut into a tagged release yet.
-- [v0.1](v0.1.md) records the dogfood-production release notes.
+- [v0.1](v0.1.md) records the dogfood-production release notes, including the published `v0.1.0-rc.2` prerelease facts and evidence links.
 
 ## Categories
 
@@ -39,6 +39,6 @@ GH_TOKEN=... python3 tools/release_notes_generate.py --repo masssi164/weave --si
 
 Use `--dry-run` to inspect output without writing, and use `--input tools/fixtures/release_notes_prs.json` for deterministic local checks. Issue #293 tracks the remaining automation to publish GitHub release drafts from this source of truth. Checked-in release notes pages remain concise, user/admin/operator-oriented drafts linked to deeper docs when needed.
 
-At release cut, generated notes should move into the versioned release notes file and `unreleased.md` should reset to empty category headings. Run `make release-notes-check` or `make docs-check` before requesting review.
+At release cut, generated notes should move into the versioned release notes file and `unreleased.md` should reset to empty category headings. `v0.1.0-rc.2` follows this pattern: versioned notes hold the release facts, while Unreleased is reset for later changes. Run `make release-notes-check` or `make docs-check` before requesting review.
 
 Release notes must stay honest about shipped, gated, disabled, degraded, or future behavior. Do not describe preview-only or guarded surfaces as generally available.
