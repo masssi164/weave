@@ -1,4 +1,4 @@
-# Implementation plan: Organization embedding and provider-neutral product core
+# Implementation plan: Admin-Suite and provider-neutral product core
 
 **Spec**: `specs/0001-organization-embedding-product-core/spec.md`  
 **Branch**: `spec/weave-0001-org-embedding`  
@@ -6,71 +6,91 @@
 
 ## Summary
 
-Draft the first product-core spec around organization embedding, provider-neutral categories, IDM/RBAC capability policy, readiness states, and support-safe evidence. No product implementation should start until Massimo/team resolves the open product-core questions in the spec and issue #381.
+Integrate Massimo's WEAVE-SPEC-0001 product decisions into an accepted product-core baseline. The sprint establishes Weave as a provider-neutral collaboration platform whose Admin-Suite owns provider/adapter setup, readiness, switching, and recovery while member clients see stable Weave capabilities only.
+
+This PR remains spec/issue-DAG work. Implementation follows in short PRs from the recorded issue DAG.
 
 ## Constitution check
 
-- Repo truth recovered from `main`, docs, GitHub issue/PR state, and CI evidence: yes
+- Repo truth recovered from `main`, docs, GitHub issues/PRs, and CI evidence: yes
 - Product-first/provider-neutral boundary preserved: yes
-- Acceptance/evidence path identified before implementation: partial; blocked by product-scope clarification
-- Accessibility/supportability/auditability/deployability addressed: partial; draft requirements included, concrete gates pending
+- Acceptance/evidence path identified before implementation: yes (#389)
+- Accessibility/supportability/auditability/deployability addressed: yes as release blockers
 - Provider secrets/raw diagnostics remain admin/operator-only: yes
-- Weaver/OpenClaw runtime remains governed and disabled-by-default unless explicitly in scope: yes
+- Weaver/OpenClaw runtime remains out of scope for Spec 0001: yes
 
-Any `no` requires a blocker or a documented exception before implementation.
+Any future `no` requires a blocker or documented exception before implementation.
 
 ## Affected areas
 
-- `client/`: possible future member/admin capability-state UX; no draft implementation.
-- `server/`: possible future policy/readiness/domain contracts; no draft implementation.
-- `admin-console/`: possible future provider-category readiness UX; no draft implementation.
-- `infra/`: possible future provider/bootstrap evidence; no draft implementation.
-- `e2e/`: future product-language acceptance once scope is confirmed.
-- `docs/`: spec and issue traceability only in this draft slice.
-- `release/`: no release behavior while draft.
-- `tools/`: no tool changes while draft.
+- `specs/0001-organization-embedding-product-core/`: accepted product-core baseline.
+- GitHub #381: decision record source.
+- GitHub #386-#389: implementation/acceptance issue DAG.
+- `client/`: future member-safe capability manifest consumption and invite/SSO/passkey flow evidence.
+- `server/`: future provider-neutral facade, capability manifest, switch/evidence contracts.
+- `admin-console/`: future Admin-Suite readiness/setup/switch UX contracts.
+- `infra/`: future provider bootstrap/readiness evidence only when needed.
+- `e2e/`: future acceptance scenario mapping (#389).
+- `docs/`: future closure/release documentation as implementation lands.
+- `release/`: no tag/publish from this spec-only PR.
+
+## Issue DAG / PR train
+
+1. #386 — provider-neutral domain and capability model. Sequential root.
+2. #387 — Admin-Suite readiness and setup UX contract. Depends on #386.
+3. #388 — provider switch and portable export/import contract. Depends on #386 and #387.
+4. #389 — acceptance and evidence mapping. Can run in parallel after #386 contract shape is stable.
+
+Preferred PR train:
+
+1. Spec update and decision record (`release-notes-skip`).
+2. Capability/domain model contracts (`release-notes-feature` once behavior changes).
+3. Admin readiness/setup UX contract.
+4. Provider switch/export-import/rollback contract.
+5. Acceptance/evidence mapping and sprint closure.
 
 ## Contracts and tests first
 
-1. Product acceptance/Gherkin: blocked on first-slice confirmation.
-2. Mapping/evidence marker: blocked on story split.
-3. API/event/schema contracts: blocked on selected surface.
-4. Unit/widget/backend/admin tests: blocked on selected implementation area.
-5. CI/evidence artifacts: `./gradlew specContract` and `./gradlew acceptanceContract` for draft PR.
+1. Product acceptance/Gherkin: tracked by #389.
+2. Mapping/evidence marker: tracked by #389.
+3. API/event/schema contracts: tracked by #386 and #388.
+4. Admin/member UX contracts: tracked by #387.
+5. CI/evidence artifacts: every PR runs the smallest meaningful local gate and inspects GitHub CI.
 
 ## Agent work breakdown
 
-Use specialists only when they reduce risk or parallelize independent files. Each brief must include allowed files, stop conditions, and a required gate.
+Use specialists only for narrow slices with explicit files, stop conditions, and evidence gates.
 
-- Product/spec steward: refine wording after #381 decisions.
-- Client/accessibility: only after member/admin UX scope is selected.
-- Server/domain facade: only after capability/policy contract scope is selected.
-- Admin/policy: likely first implementation specialist if Admin/Provider Control Plane is confirmed.
-- Provider/infra: only if bootstrap/readiness evidence changes enter scope.
-- QA/evidence: create Gherkin/mappings after story split.
-- Docs/release: keep docs aligned with accepted scope.
-- Security/privacy review: validate no raw provider/secret leakage and audit posture.
+- Product/spec steward: keep WEAVE-SPEC-0001 wording aligned with Massimo's decision record.
+- Server/domain facade: own #386 capability/domain contracts and backend-owned provider-neutral manifests.
+- Admin/policy: own #387 setup assistant/readiness/switch UX contracts.
+- Provider/infra: assist #388 only for portable export/import and readiness evidence boundaries.
+- QA/evidence: own #389 Gherkin/mappings/evidence.
+- Security/privacy review: validate no raw provider/secret leakage and safe adapter/switch posture.
+- Docs/release: closure reports and release notes only after integrated evidence.
 
 ## Rollout and migration
 
-- Backward compatibility: draft/spec-only, no runtime changes.
-- Data migration: none until concrete domain model changes are accepted.
-- Feature flag/capability gate: to be defined after product-core decision.
-- Rollback plan: revert draft spec PR.
-- Release evidence: spec/acceptance gates only while draft.
+- Backward compatibility: spec-only baseline; no runtime behavior changes in this PR.
+- Data migration: v0.1 promises portable export/import contracts; full migration automation is later work.
+- Feature flag/capability gate: implementation PRs must define capability state behavior before member exposure.
+- Rollback plan: revert spec-only PR or individual implementation PRs; switch/cutover PRs require explicit rollback evidence.
+- Release evidence: spec/acceptance gates for this PR; implementation PRs add area gates and CI.
 
 ## Risks and mitigations
 
-- Risk: Agents invent product-core decisions to make implementation easier.
-  - Mitigation: keep spec `draft` with explicit `[NEEDS CLARIFICATION: ...]` markers.
-  - Evidence gate: `./gradlew specContract` must allow draft markers but block them once status changes.
-- Risk: Weaver runtime scope leaks into v0.1 before organization policy exists.
-  - Mitigation: keep Weaver disabled/default placeholder unless Massimo/team explicitly accepts runtime scope.
-  - Evidence gate: acceptance scenarios must distinguish placeholder/category from runtime behavior.
+- Risk: Provider-neutrality becomes a thin settings UI with hidden lock-in.
+  - Mitigation: #388 requires portable export/import, cutover, and rollback contract.
+- Risk: Normal members are exposed to provider/admin details.
+  - Mitigation: member-safe capability manifest and Admin-Suite boundary are hard requirements.
+- Risk: Weaver/AI runtime sneaks into first product-core scope.
+  - Mitigation: Weaver/AI runtime is explicit non-goal for WEAVE-SPEC-0001.
+- Risk: Dynamic adapters become unsafe arbitrary plugins.
+  - Mitigation: validated adapter packages and rollback, not uncontrolled runtime plugin model.
 
 ## Final gates
 
 - `./gradlew specContract`
+- `./gradlew specContractTest`
 - `./gradlew acceptanceContract`
-- Smallest area gate(s): none until implementation area selected
-- `./gradlew ci` when cross-stack or release-relevant
+- `./gradlew ci` only once implementation becomes cross-stack/release-relevant.
