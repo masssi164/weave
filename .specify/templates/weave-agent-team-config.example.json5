@@ -1,0 +1,156 @@
+// Example only. Keep runtime truth in ~/.openclaw/openclaw.json (or managed Gateway config),
+// not in this repository. This file documents the Weave team shape that
+// weave-co-leader should expect when OpenClaw/ACP policy enables it.
+{
+  acp: {
+    enabled: true,
+    dispatch: { enabled: true },
+    backend: "acpx",
+    defaultAgent: "codex",
+    allowedAgents: ["codex", "claude", "gemini", "opencode"],
+    maxConcurrentSessions: 4,
+    stream: {
+      coalesceIdleMs: 300,
+      maxChunkChars: 1200,
+    },
+    runtime: {
+      ttlMinutes: 120,
+    },
+  },
+  agents: {
+    defaults: {
+      subagents: {
+        maxSpawnDepth: 2, // main -> weave-co-leader -> scoped worker
+        maxChildrenPerAgent: 5,
+        maxConcurrent: 8,
+        runTimeoutSeconds: 900,
+      },
+    },
+    list: [
+      {
+        id: "weave-co-leader",
+        name: "Weave co-leader / integrator",
+        workspace: "/Users/flotterotter/code/weave",
+        subagents: {
+          requireAgentId: true,
+          allowAgents: [
+            "weave-product-spec",
+            "weave-client-a11y",
+            "weave-server-domain",
+            "weave-admin-policy",
+            "weave-provider-infra",
+            "weave-qa-evidence",
+            "weave-docs-release",
+            "weave-security-privacy",
+            "weave-integration-reviewer",
+            "weave-codex-acp",
+            "weave-claude-acp",
+            "weave-gemini-acp",
+            "weave-opencode-acp",
+          ],
+        },
+      },
+      {
+        id: "weave-product-spec",
+        name: "Weave product/spec steward",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-client-a11y",
+        name: "Weave client/accessibility specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-server-domain",
+        name: "Weave server/domain specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-admin-policy",
+        name: "Weave admin/policy specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-provider-infra",
+        name: "Weave provider/infra specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-qa-evidence",
+        name: "Weave QA/evidence specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-docs-release",
+        name: "Weave docs/release specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-security-privacy",
+        name: "Weave security/privacy specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-integration-reviewer",
+        name: "Weave integration reviewer",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-codex-acp",
+        name: "Codex ACP harness for explicit coding-harness runs",
+        workspace: "/Users/flotterotter/code/weave",
+        runtime: {
+          type: "acp",
+          acp: {
+            agent: "codex",
+            backend: "acpx",
+            mode: "persistent",
+            cwd: "/Users/flotterotter/code/weave",
+          },
+        },
+      },
+      {
+        id: "weave-claude-acp",
+        name: "Claude ACP harness for explicit Claude Code runs",
+        workspace: "/Users/flotterotter/code/weave",
+        runtime: {
+          type: "acp",
+          acp: {
+            agent: "claude",
+            backend: "acpx",
+            mode: "persistent",
+            cwd: "/Users/flotterotter/code/weave",
+          },
+        },
+      },
+      {
+        id: "weave-gemini-acp",
+        name: "Gemini ACP harness for explicit Gemini runs",
+        workspace: "/Users/flotterotter/code/weave",
+        runtime: {
+          type: "acp",
+          acp: {
+            agent: "gemini",
+            backend: "acpx",
+            mode: "persistent",
+            cwd: "/Users/flotterotter/code/weave",
+          },
+        },
+      },
+      {
+        id: "weave-opencode-acp",
+        name: "OpenCode ACP harness for explicit OpenCode runs",
+        workspace: "/Users/flotterotter/code/weave",
+        runtime: {
+          type: "acp",
+          acp: {
+            agent: "opencode",
+            backend: "acpx",
+            mode: "persistent",
+            cwd: "/Users/flotterotter/code/weave",
+          },
+        },
+      },
+    ],
+  },
+}

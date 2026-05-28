@@ -1,0 +1,29 @@
+spec_id: WEAVE-SPEC-0000
+version: 0.1.0
+status: implemented
+issue: null
+pull_request: null
+release_notes_label: release-notes-skip
+acceptance:
+  gherkin: []
+  scenario_mapping_markers: []
+evidence:
+  gates:
+    - ./gradlew specContract
+    - ./gradlew specContractTest
+    - ./gradlew docsStructureCheck
+    - ./gradlew acceptanceContract
+  artifacts:
+    - build/evidence/ci-summary.json
+agent_roles:
+  orchestrator: weave-co-leader
+  specialists:
+    - product-spec-steward
+    - client-accessibility
+    - server-domain-facade
+    - admin-policy
+    - provider-infra
+    - qa-evidence
+    - docs-release
+    - security-privacy
+    - integration-review

@@ -10,6 +10,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | Accessibility gate | Automated checks and the manual assistive-technology evidence required before release sign-off. | [Accessibility Release Gate](accessibility-release-gate.md). |
 | ISO 9241-110 dogfood UX gate | Product dialogue quality, release-scope capability states, banned preview/scaffold wording, and role separation for member vs admin/operator surfaces. | [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md), `test/release_1/ux_release_copy_contract_test.dart`. |
 | Deterministic screenshots | README and roadmap SVG assets match the checked-in generator and do not drift silently. | `make marketing-screenshots`, `docs/assets/marketing/`, `docs/assets/roadmap/`, CI screenshot drift step. |
+| Spec contract guard | Repo-local specs keep required metadata, lifecycle status, evidence gates, and implementation-ready clarification discipline. | [Spec-driven development for Weave](spec-driven-development.md), `.specify/memory/constitution.md`, `specs/`, `./gradlew specContract`, `./gradlew specContractTest`. |
 | Acceptance contract guard | Gherkin acceptance scenarios stay mapped to executable frontend/live-stack tests. | [Acceptance contracts](acceptance-contracts.md), [Product acceptance flows](product-acceptance-flows.md), `test/live_stack_feature_mapping_test.dart`. |
 | Admin-provisioned first-use guard | Normal members stay out of OIDC/provider/infra setup and Workspace Health remains the admin/operator control plane. | [Admin-provisioned first use boundary](admin-provisioned-first-use.md), `client/test/architecture/admin_provisioned_first_use_contract_test.dart`, `client/test/features/settings/settings_screen_test.dart`, `client/test/features/onboarding/first_run_screen_test.dart`. |
 | Docs build | User/admin handbook content builds without broken links, secret-pattern docs drift, or image-only instructions. | `build/docs/user` and `build/docs/admin` from `./gradlew docsBuild`. |
@@ -29,6 +30,13 @@ dart format --output=none --set-exit-if-changed .
 flutter analyze --fatal-infos
 flutter test
 make offline-contract-test
+```
+
+For spec or product-contract changes, also run:
+
+```sh
+./gradlew specContract
+./gradlew specContractTest
 ```
 
 For README or screenshot changes, also run:
@@ -58,6 +66,7 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 
 - **Offline Flutter failure**: inspect the failing command first. Re-run locally after regenerating l10n/build output.
 - **Screenshot drift**: run `make marketing-screenshots`, review the SVG diff as product copy, and commit the regenerated assets if intentional.
+- **Spec contract failure**: fix missing frontmatter/lifecycle metadata, resolve implementation-ready `[NEEDS CLARIFICATION: ...]` markers, or move the spec back to `draft`/`proposed` until the product-core question is answered.
 - **Acceptance mapping failure**: update the scenario-to-test mapping or remove stale scenario claims. Do not leave product acceptance text unmapped.
 - **Live-stack contract failure**: start with `failure-diagnostics/failure-summary.md`, `container-status.tsv`, `health-checks/operator-check.txt`, and `failed-markers.json` in the uploaded evidence artifact. Treat credential, runner, or environment problems as named infrastructure blockers, not product proof. Missing required markers such as `BOARDS_RESULT` block RC promotion until a green rerun or explicit release-owner waiver exists. Operators who need deeper private debugging may rerun diagnostics on the self-hosted runner with private raw-log collection enabled, but those files stay outside uploaded/support evidence.
 - **Accessibility evidence gap**: do not promote the flow as release-ready until the automated and manual evidence in the accessibility gate is complete.
@@ -76,6 +85,7 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 
 - [Developer handbook](developer-handbook.md)
 - [Admin-provisioned first use boundary](admin-provisioned-first-use.md)
+- [Spec-driven development for Weave](spec-driven-development.md)
 - [Acceptance contracts](acceptance-contracts.md)
 - [Product acceptance flows](product-acceptance-flows.md)
 - [Accessibility Release Gate](accessibility-release-gate.md)
