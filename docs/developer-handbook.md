@@ -108,6 +108,22 @@ Use protected `main` plus short-lived PR branches; do not introduce long-lived `
 
 Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Trunk-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
 
+## Spec-driven sprint contract
+
+A Weave sprint is not one green PR. A sprint starts from an accepted or explicitly proposed specification and ends only after the planned issue/PR train has been integrated or a product-core blocker is recorded.
+
+Required sprint shape:
+
+1. Recover truth from `main`, `specs/`, GitHub issues/PRs, and CI artifacts.
+2. Select or create the governing spec, then keep product-core ambiguity in `draft`/`proposed` with explicit `[NEEDS CLARIFICATION: ...]` markers.
+3. Break the spec plan/tasks into a GitHub issue DAG with `parallel`/`sequential` labels where ordering matters.
+4. For each implementation slice, open a short-lived branch and one reviewable PR with exactly one release-notes label.
+5. Merge PRs in dependency order after green CI, required local gates, and fallback human/agent review evidence. Copilot review is optional while premium review requests are exhausted.
+6. After each merge, update local `main` before cutting the next dependent branch.
+7. Finish with a sprint closure report that lists the spec, issue DAG, merged PRs in order, gates/CI evidence, unresolved decisions, release/RC follow-up, and next safe action.
+
+The `weave-co-leader` is expected to drive this loop autonomously when given a sprint goal. It should ask Massimo only for product-core decisions, destructive/live-infra approval, or merge/release decisions not already authorized by the sprint brief.
+
 ## Documentation site
 
 Weave docs are published as a MkDocs site configured by `mkdocs.yml`. The site uses MkDocs Material; its MIT license was verified from upstream on 2026-05-24 and is safe for project use.

@@ -77,6 +77,20 @@ Product-core questions that require Massimo/team confirmation include:
 - when Weaver moves from placeholder category to governed runtime implementation;
 - which agentic developer-assistance capability, if any, is allowed inside Weave policy.
 
+## Sprint orchestration
+
+A sprint is the execution of a spec-backed issue DAG, not a single implementation PR. The expected autonomous flow is:
+
+1. `weave-co-leader` recovers current truth from repo/GitHub/CI.
+2. `weave-product-spec` and `weave-architecture-contract` confirm whether the governing spec is implementable or needs clarification.
+3. The co-leader creates or updates GitHub issues for the spec tasks, labels them `parallel` or `sequential`, and records dependencies in issue bodies.
+4. Specialists implement narrow issues on short-lived branches.
+5. The co-leader opens PRs, assigns exactly one release-notes label, waits for green CI/gates, runs Integration-Gate, and merges in dependency order when authorized.
+6. After each merge, the co-leader updates `main`, revises remaining tasks if necessary, and continues.
+7. Sprint closure records the spec, issue DAG, merged PR train, gates, evidence artifacts, unresolved product decisions, and next release/RC action.
+
+Durable sprint state belongs in specs, issues, PRs, and checked-in reports. Agent chat/session state is disposable.
+
 ## DevOps traceability
 
 Every implementation PR should connect:

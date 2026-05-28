@@ -31,17 +31,24 @@
         id: "weave-co-leader",
         name: "Weave co-leader / integrator",
         workspace: "/Users/flotterotter/code/weave",
+        systemPromptOverride: "You are weave-co-leader for the Weave monorepo. A sprint means spec -> issue DAG -> ordered PR train -> merges -> closure report; never treat one green PR as a completed sprint. Recover truth from repo/GitHub/CI first. Create/update issues when missing. Spawn scoped specialists from the allowlist for narrow slices. Enforce exactly one release-notes label per PR, green gates/CI, Integration-Gate review, and merge in dependency order when authorized. Keep durable state in specs/issues/PRs/reports, not chat transcripts. Stop for product-core ambiguity, live-infra/destructive actions, secrets, or missing merge authorization.",
         subagents: {
           requireAgentId: true,
           allowAgents: [
             "weave-product-spec",
+            "weave-architecture-contract",
+            "weave-client-ui",
             "weave-client-a11y",
+            "weave-admin-console",
             "weave-server-domain",
-            "weave-admin-policy",
+            "weave-server-auth-audit",
+            "weave-provider-adapters",
             "weave-provider-infra",
+            "weave-e2e-acceptance",
             "weave-qa-evidence",
             "weave-docs-release",
             "weave-security-privacy",
+            "weave-devex-ci",
             "weave-integration-reviewer",
             "weave-codex-acp",
             "weave-claude-acp",
@@ -56,8 +63,23 @@
         workspace: "/Users/flotterotter/code/weave",
       },
       {
+        id: "weave-architecture-contract",
+        name: "Weave architecture/contract specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-client-ui",
+        name: "Weave client/UI specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
         id: "weave-client-a11y",
         name: "Weave client/accessibility specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-admin-console",
+        name: "Weave admin console/policy specialist",
         workspace: "/Users/flotterotter/code/weave",
       },
       {
@@ -66,13 +88,23 @@
         workspace: "/Users/flotterotter/code/weave",
       },
       {
-        id: "weave-admin-policy",
-        name: "Weave admin/policy specialist",
+        id: "weave-server-auth-audit",
+        name: "Weave server auth/audit specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-provider-adapters",
+        name: "Weave provider adapter specialist",
         workspace: "/Users/flotterotter/code/weave",
       },
       {
         id: "weave-provider-infra",
         name: "Weave provider/infra specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-e2e-acceptance",
+        name: "Weave E2E/acceptance specialist",
         workspace: "/Users/flotterotter/code/weave",
       },
       {
@@ -88,6 +120,11 @@
       {
         id: "weave-security-privacy",
         name: "Weave security/privacy specialist",
+        workspace: "/Users/flotterotter/code/weave",
+      },
+      {
+        id: "weave-devex-ci",
+        name: "Weave DevEx/CI specialist",
         workspace: "/Users/flotterotter/code/weave",
       },
       {

@@ -6,33 +6,53 @@ This page defines the professional multi-agent delivery model for Weave. It tran
 
 ## Operating principle
 
-`weave-co-leader` owns decomposition, integration, and evidence. It does **not** become a mega-coder.
+`weave-co-leader` owns sprint decomposition, issue/PR orchestration, merge sequencing, integration, and evidence. It does **not** become a mega-coder and it must not declare a sprint complete just because one PR is green.
 
-Use this loop until no material optimization remains:
+Use this sprint loop until the issue DAG is integrated or a product-core blocker stops safe progress:
 
-1. Recover truth from this repo, GitHub issues/PRs, and CI/evidence.
-2. Identify the governing issue/spec/acceptance contract.
-3. Build a small task DAG; parallelize only independent file/contract areas.
-4. Spawn a scoped specialist with exact files, inputs, stop conditions, and a required gate.
-5. Integrate only from returned evidence and inspected diffs.
-6. Run an adversarial Integration-Gate review.
-7. Repeat implementation/review for material findings.
-8. Stop only when the reviewer reports no material optimization opportunity or a product-core clarification blocks safe progress.
+1. Recover truth from `main`, repo specs/docs/tasks, GitHub issues/PRs, and CI/evidence.
+2. Identify the governing spec and decide whether it is ready for implementation. Keep unresolved product-core questions in `draft`/`proposed`.
+3. Convert the spec plan/tasks into a GitHub issue DAG. Label independent work `parallel`; label ordered work `sequential`; link issues/PRs back to the spec.
+4. Cut short-lived branches from updated `main` and open reviewable PRs in dependency order.
+5. Spawn scoped specialists only for narrow issue slices, each with exact files, inputs, stop conditions, and a required gate.
+6. Integrate only from returned evidence and inspected diffs, then run an adversarial Integration-Gate review.
+7. Merge dependency-free PRs once CI/gates/review evidence pass and the sprint brief authorizes merge; otherwise surface the exact missing approval.
+8. After every merge, update `main`, re-evaluate the remaining DAG, and continue the next slice.
+9. Stop only when all sprint issues/PRs are merged or when a product-core clarification, live-infra/destructive approval, or failed gate blocks safe progress.
+10. Produce the sprint closure report from repo/GitHub/CI evidence.
 
 Material optimization means improved correctness, traceability, security/privacy, accessibility, supportability, deployability, CI/evidence quality, or reviewability without hidden scope expansion.
+
+## Sprint management responsibilities
+
+The co-leader keeps durable sprint state in GitHub and repo files, not chat transcripts:
+
+- Specification stewarding lives in `specs/<id>/spec.md`, `plan.md`, `tasks.md`, and traceability files.
+- Work tracking lives in GitHub issues with dependency notes and `parallel`/`sequential` labels.
+- Implementation state lives in PRs and CI artifacts.
+- Release impact lives in exactly one release-notes label per PR.
+- Sprint closure lives in a checked-in report or PR comment that cites merged PRs, gates, and remaining decisions.
+
+If the sprint brief authorizes autonomous merge, `weave-co-leader` may merge green, reviewed PRs in DAG order. If not, it reports merge-ready PRs and asks for the one missing merge decision.
 
 ## Recommended roles
 
 Use native OpenClaw subagents for these repo-aware specialists by default:
 
-- `weave-product-spec`: product-core wording, lifecycle status, frontmatter, non-goals, clarification markers.
-- `weave-client-a11y`: Flutter member/admin UX, accessibility semantics, keyboard/screen-reader behavior, l10n, widget tests.
+- `weave-product-spec`: product-core wording, lifecycle status, frontmatter, non-goals, clarification markers, issue slicing.
+- `weave-architecture-contract`: provider-neutral domain boundaries, contract drift, spec/plan architecture consistency.
+- `weave-client-ui`: Flutter member/admin UX implementation, navigation, state handling, widget tests.
+- `weave-client-a11y`: accessibility semantics, keyboard/screen-reader behavior, l10n, deterministic screenshots.
+- `weave-admin-console`: Admin Console, workspace health, IDM/RBAC, policy previews, readiness, whitelisting.
 - `weave-server-domain`: domain facades, authorization, audit, provider boundaries, backend contract tests.
-- `weave-admin-policy`: Admin Console, workspace health, IDM/RBAC, policy previews, readiness, whitelisting.
+- `weave-server-auth-audit`: identity, authz, audit ordering, support-safe audit payloads.
+- `weave-provider-adapters`: provider-neutral adapter facades and canonical model mapping.
 - `weave-provider-infra`: OpenTofu, adapters, runner/environment posture, backup/restore, support bundles.
-- `weave-qa-evidence`: Gherkin, `scenario_mappings.json`, Live Stack evidence, sanitized artifacts.
+- `weave-e2e-acceptance`: Gherkin, live-stack acceptance flow coverage, scenario intent.
+- `weave-qa-evidence`: `scenario_mappings.json`, sanitized artifacts, CI/evidence completeness.
 - `weave-docs-release`: docs navigation, handbooks, release notes, PR templates, closure reports.
 - `weave-security-privacy`: secrets, raw provider payloads, audit, support-safe diagnostics, external-provider risk.
+- `weave-devex-ci`: Gradle tasks, CI workflows, dependency/tooling checks, evidence upload.
 - `weave-integration-reviewer`: final diff/spec/PR readiness, evidence strength, scope creep, release-label and CI posture.
 
 Use ACP harnesses only when explicitly requested or intentionally selected for a coding-harness run:

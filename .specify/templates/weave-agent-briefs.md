@@ -96,6 +96,52 @@ Return:
 - If no findings: final evidence needed before commit/PR
 ```
 
+## Sprint-Planning
+
+```text
+You are weave-co-leader. Plan a real Weave sprint from the governing spec.
+Inputs: <spec.md/plan.md/tasks.md/docs/issues>.
+Do first: recover truth from main, specs, GitHub issues/PRs, CI/evidence.
+Output: sprint goal, issue DAG, PR train order, specialist roles, required gates, merge authorization status, product-core blockers.
+If issues are missing and GitHub access is available, create/update them with dependency notes and parallel/sequential labels.
+Do not implement yet.
+```
+
+## Issue-DAG
+
+```text
+Create or update GitHub issues for the sprint.
+Each issue must include: spec id, user/admin/operator value, allowed scope, dependencies, acceptance/gate, release-notes expectation, and whether it is parallel or sequential.
+Do not create vague umbrella tasks unless they link concrete implementation/review issues.
+Return: issue numbers, dependency order, blockers.
+```
+
+## PR-Train
+
+```text
+For the next unblocked issue in the DAG, cut/update a short-lived branch from current main, implement the smallest reviewable slice, open a PR, set exactly one release-notes label, and run the required local gate.
+After CI and Integration-Gate pass, merge only if the sprint brief authorizes autonomous merge; otherwise report merge-ready with the one missing decision.
+After merge, fetch/fast-forward main before continuing dependent PRs.
+Return: issue, branch, PR, gates, CI, merge status, next unblocked issue.
+```
+
+## Sprint-Closure
+
+```text
+Close the sprint only after all planned issues/PRs are merged or an explicit blocker is recorded.
+Report exactly:
+- Verdict
+- Governing spec(s)
+- Issue DAG with final state
+- Merged PRs in order
+- Gates and CI evidence
+- Release notes / RC impact
+- Product decisions made or still blocked
+- Docs/spec updates
+- Next safe action
+A green unmerged PR is not a completed sprint.
+```
+
 ## Session-Handoff
 
 ```text
