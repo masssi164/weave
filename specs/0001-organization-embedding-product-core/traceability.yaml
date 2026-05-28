@@ -1,0 +1,56 @@
+spec_id: WEAVE-SPEC-0001
+version: 0.1.0
+status: accepted
+github_issue: 381
+release_notes_label: release-notes-skip
+decision_source:
+  nextcloud_form_id: 9
+  submitted_at: 2026-05-28T21:30:35+02:00
+issue_dag:
+  sequential:
+    - issue: 386
+      title: WEAVE-SPEC-0001: define provider-neutral domain and capability model
+    - issue: 387
+      title: WEAVE-SPEC-0001: specify Admin-Suite readiness and setup UX contract
+      depends_on: [386]
+    - issue: 388
+      title: WEAVE-SPEC-0001: specify provider switch and portable export/import contract
+      depends_on: [386, 387]
+  parallel:
+    - issue: 389
+      title: WEAVE-SPEC-0001: add acceptance and evidence mapping for admin/provider-neutral flow
+      depends_on: [386]
+accepted_product_decisions:
+  product_core: first-class Admin-Suite plus provider neutrality
+  member_boundary: members see stable Weave capabilities only, not provider/status/admin internals
+  admin_boundary: admins bind/unbind/validate/switch/detach providers and adapters per domain
+  provider_switch_minimum: guided plan, preflight, portable export/import, cutover, rollback/recovery
+  data_portability_v0_1: portable export/import contract before full migration automation
+  join_flow: invite/SSO/passkey and done after admin setup
+  capability_vocabulary:
+    - available
+    - disabled_by_policy
+    - not_configured
+    - degraded
+    - unavailable
+    - coming_later
+  v0_1_domains:
+    - IDM/RBAC
+    - Chat/Channels
+    - Files/Docs
+    - Boards/Tasks
+    - Calendar/Events
+    - Meetings
+    - Forms/Contacts
+  cross_cutting_admin_capability: Health/Readiness
+  explicit_non_goals:
+    - Weaver/AI runtime
+    - provider vendor lock-in
+    - user-facing admin/provider burden
+    - uncontrolled runtime plugin model
+acceptance_features: []
+evidence_gates:
+  - ./gradlew specContract
+  - ./gradlew specContractTest
+  - ./gradlew acceptanceContract
+open_product_core_decisions: []
