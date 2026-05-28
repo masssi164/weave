@@ -2,6 +2,9 @@ spec_id: WEAVE-SPEC-0001
 version: 0.1.0
 status: accepted
 github_issue: 381
+github_pr: 382
+merge_commit: 9409ae44a07f38864a45a203d90a842b22c6a82d
+release_candidate: v0.1.0-rc.2
 release_notes_label: release-notes-skip
 decision_source:
   nextcloud_form_id: 9

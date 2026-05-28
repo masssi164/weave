@@ -11,10 +11,11 @@ Start with:
 1. [v0.1 Golden Path readiness](v0.1-golden-path.md) — what is ready, guarded, disabled, degraded, or future.
 2. Root README — public product entry point and architecture-at-a-glance.
 3. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
-4. [Sprint 6 closure report](sprint-6-closure-report.md) — final RC/provider-ops foundation evidence and first-release entry criteria.
-5. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
-6. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
-7. [Sprint 6 epic closure report](sprint-6-epic-closure-report.md) — #212/#233 acceptance evidence after the merged identity/admin slices.
+4. [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md) — exact candidate commit, gates, signoff, and post-release documentation corrections.
+5. [Sprint 6 closure report](sprint-6-closure-report.md) — final RC/provider-ops foundation evidence and first-release entry criteria, with a post-closure pointer to RC2.
+6. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
+7. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
+8. [Sprint 6 epic closure report](sprint-6-epic-closure-report.md) — #212/#233 acceptance evidence after the merged identity/admin slices.
 
 ### Member / user
 
@@ -94,6 +95,7 @@ Release and evidence docs:
 - [Sprint 5 closure report](sprint-5-closure-report.md)
 - [Sprint 6 kickoff plan](sprint-6-kickoff-plan.md)
 - [Sprint 6 epic closure report](sprint-6-epic-closure-report.md)
+- [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md)
 - [Sprint 6 closure report](sprint-6-closure-report.md)
 
 Historical/context docs:
@@ -108,7 +110,7 @@ The active product direction is [Weave product line and Weaver integration plan]
 
 Weaver remains optional, governed, auditable, support-safe, and disabled by default. Any future per-user PA runtime must be generated from Weave organization policy as an isolated OpenClaw-derived profile and follow the rule: user-rights, organization-whitelisted capabilities.
 
-v0.1 is dogfood-production, not a preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md).
+v0.1 is dogfood-production, not a preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md). The latest published prerelease audit is [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md).
 
 ## Documentation stack
 

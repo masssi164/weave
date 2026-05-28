@@ -8,7 +8,7 @@
 
 Integrate Massimo's WEAVE-SPEC-0001 product decisions into an accepted product-core baseline. The sprint establishes Weave as a provider-neutral collaboration platform whose Admin-Suite owns provider/adapter setup, readiness, switching, and recovery while member clients see stable Weave capabilities only.
 
-This PR remains spec/issue-DAG work. Implementation follows in short PRs from the recorded issue DAG.
+This PR remained spec/issue-DAG work and merged as PR #382 into `main` at `9409ae44a07f38864a45a203d90a842b22c6a82d`. Implementation follows in short PRs from the recorded issue DAG (#386-#389).
 
 ## Constitution check
 
@@ -32,7 +32,7 @@ Any future `no` requires a blocker or documented exception before implementation
 - `infra/`: future provider bootstrap/readiness evidence only when needed.
 - `e2e/`: future acceptance scenario mapping (#389).
 - `docs/`: future closure/release documentation as implementation lands.
-- `release/`: no tag/publish from this spec-only PR.
+- `release/`: no tag/publish from this spec-only PR itself; the later `v0.1.0-rc.2` release candidate uses the merged spec commit as its exact candidate.
 
 ## Issue DAG / PR train
 
