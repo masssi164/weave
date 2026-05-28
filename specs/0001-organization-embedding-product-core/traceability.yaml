@@ -1,0 +1,15 @@
+spec_id: WEAVE-SPEC-0001
+version: 0.1.0
+status: draft
+github_issue: 381
+release_notes_label: release-notes-skip
+acceptance_features: []
+evidence_gates:
+  - ./gradlew specContract
+  - ./gradlew acceptanceContract
+open_product_core_decisions:
+  - first product-core slice
+  - first-spec product surface
+  - Weaver placeholder vs runtime scope
+  - mandatory provider categories
+  - minimal capability vocabulary
