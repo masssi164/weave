@@ -42,31 +42,30 @@ VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 CLARIFICATION_RE = re.compile(r"\[NEEDS CLARIFICATION:[^\]]+\]")
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 
+FRAMEWORK_FORBIDDEN_FILES = {
+    ".specify/templates/weave-agent-team-config.example.json5": "operator-runtime configuration example",
+}
+
 FRAMEWORK_REQUIRED_FILES = {
-    ".specify/memory/constitution.md": ["Repo truth over chat memory", "Agent governance"],
+    ".specify/memory/constitution.md": ["Repo truth over chat memory", "Assistant governance"],
     ".specify/templates/weave-spec-template.md": ["[NEEDS CLARIFICATION:"],
     ".specify/templates/weave-plan-template.md": ["Constitution check"],
     ".specify/templates/weave-tasks-template.md": ["Agent handoff"],
-    ".specify/templates/weave-agent-briefs.md": ["Optimization-Review", "ACP-Harness-Brief"],
-    ".specify/templates/weave-agent-team-config.example.json5": [
-        "weave-co-leader",
-        "maxSpawnDepth",
-        "maxChildrenPerAgent",
-        "requireAgentId",
-        "allowAgents",
-        "weave-codex-acp",
-        "weave-claude-acp",
-        "weave-gemini-acp",
-        "weave-opencode-acp",
-        "type: \"acp\"",
-        "allowedAgents",
+    ".specify/templates/weave-agent-briefs.md": [
+        "Optimization-Review",
+        "Coding-Harness-Brief",
+        "Live runtime configuration",
     ],
-    "docs/spec-driven-development.md": ["Git-versioned specs are truth", "agent-team-orchestration.md"],
+    "docs/spec-driven-development.md": [
+        "Git-versioned specs are truth",
+        "agent-team-orchestration.md",
+        "Do not add live agent allowlists",
+    ],
     "docs/agent-team-orchestration.md": [
         "Material optimization",
-        "OpenClaw configuration shape",
-        "maxSpawnDepth",
-        "weave-codex-acp",
+        "Runtime boundary",
+        "Forbidden repo-local content",
+        "operator-runtime JSON examples",
     ],
 }
 
@@ -184,6 +183,10 @@ def check_framework_artifacts(spec_dirs: list[Path]) -> None:
             break
     if not has_framework_spec:
         return
+    for relative, reason in FRAMEWORK_FORBIDDEN_FILES.items():
+        path = ROOT / relative
+        if path.exists():
+            fail(f"framework spec forbids {relative}: {reason}")
     for relative, required_markers in FRAMEWORK_REQUIRED_FILES.items():
         path = ROOT / relative
         if not path.exists():

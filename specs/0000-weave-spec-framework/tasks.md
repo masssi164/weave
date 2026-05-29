@@ -13,11 +13,11 @@
 
 - [x] T010 [Spec] Add `.specify/memory/constitution.md`.
 - [x] T011 [Spec] Add Weave spec/plan/task templates.
-- [x] T012 [Agents] Add Weave agent briefing templates with native/ACP runtime rules.
+- [x] T012 [Agents] Add Weave assistant briefing templates with repo-safe runtime-boundary rules.
 - [x] T013 [Docs] Add `specs/README.md` and framework spec files.
 - [x] T014 [Research] Run NotebookLM deep research without preselected sources for orchestrator/subagent/ACP team patterns.
-- [x] T015 [Agents] Add `weave-agent-team-config.example.json5` with native subagent and ACP profile shape.
-- [x] T016 [Docs] Add `docs/agent-team-orchestration.md` with roles, loop, rubric, guardrails, and configuration excerpts.
+- [x] T015 [Agents] Remove deployable-looking agent team config examples from repo-local templates.
+- [x] T016 [Docs] Add `docs/agent-team-orchestration.md` with logical roles, loop, rubric, guardrails, and runtime-boundary language.
 
 ## Phase 2: Guard and wiring
 
@@ -33,5 +33,5 @@
 - [x] T031 [Gate] Run `./gradlew specContractTest`.
 - [x] T032 [Gate] Run `./gradlew docsStructureCheck`.
 - [x] T033 [Gate] Run `./gradlew acceptanceContract`.
-- [x] T034 [Review] Run `weave-co-leader` Optimization-Review and address material findings until none remain.
+- [x] T034 [Review] Run Optimization-Review and address material findings until none remain.
 - [x] T035 [Gate] Re-run spec/docs gates after optimization loop.

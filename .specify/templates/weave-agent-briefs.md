@@ -1,13 +1,13 @@
-# Weave agent briefing templates
+# Weave assistant briefing templates
 
-Use these compact templates for `weave-co-leader` orchestration. Do not paste transcripts. Do not ask specialists to infer product scope from memory.
+Use these compact templates for repo-safe AI-assisted delivery. Do not paste transcripts. Do not ask reviewers or implementers to infer product scope from memory. Live runtime configuration, allowlists, model routing, and personal operator paths are intentionally outside this repository.
 
 ## Invocation matrix
 
-- Orchestrator: `weave-co-leader` native OpenClaw subagent/session.
-- Repo specialists: native subagents with scoped prompts; logical role may be Product/Spec, Client/A11y, Server/Domain, Admin/Policy, Provider/Infra, QA/Evidence, Docs/Release, Security/Privacy, Integration Review.
-- ACP harnesses: only when explicitly requested or a coding harness is the chosen runtime. Use allowed ACP harness IDs such as `codex`, `claude`, `gemini`, or `opencode`; report policy errors instead of falling back silently. Repo-local example: `weave-agent-team-config.example.json5`.
-- Copilot review: currently fallback-only; do not block PR readiness on Copilot premium review exhaustion.
+- Delivery lead: recovers repo/GitHub/CI truth, plans the issue DAG, integrates evidence, and enforces gates.
+- Repo roles: scoped prompts with logical responsibilities such as Product/Spec, Architecture/Contract, Client/A11y, Server/Domain, Admin/Policy, Provider/Infra, QA/Evidence, Docs/Release, Security/Privacy, and Integration Review.
+- Coding harnesses: use only when explicitly selected by the operator environment. The product repo must not name deployable live harness profiles or allowlists.
+- Copilot review: fallback-only; do not block PR readiness on Copilot premium review exhaustion.
 - Stop conditions: secrets, live infra mutation, data loss, history rewrite, hidden scope expansion, or unresolved product-core ambiguity.
 
 ## Professional optimization loop
@@ -16,20 +16,18 @@ Use the smallest pattern that solves the slice:
 
 1. Recover truth from repo/GitHub/CI and identify the contract/spec.
 2. Build a task DAG; parallelize only independent file/contract areas.
-3. Prefer native subagents for repo specialists; use ACP only for explicit harness work.
-4. Verify nested spawning is enabled (`agents.defaults.subagents.maxSpawnDepth >= 2`) before expecting a subagent co-leader to spawn workers.
-5. Give each worker exact inputs, allowed files, required gates, and stop conditions.
-6. Integrate from evidence, not transcript claims.
-7. Run adversarial Integration-Gate review.
-8. If review finds material improvement, create the next scoped brief and repeat.
-9. Stop only when Integration-Gate returns no material optimization opportunity or a product-core clarification blocks safe progress.
+3. Give each worker exact inputs, allowed files, required gates, and stop conditions.
+4. Integrate from evidence, not transcript claims.
+5. Run adversarial Integration-Gate review.
+6. If review finds material improvement, create the next scoped brief and repeat.
+7. Stop only when Integration-Gate returns no material optimization opportunity or a product-core clarification blocks safe progress.
 
 Material optimization means a change that improves correctness, traceability, security/privacy, accessibility, supportability, deployability, CI/evidence quality, or reviewability without hidden scope expansion.
 
 ## Truth-Recovery
 
 ```text
-You are weave-co-leader. Recover current truth from the Weave repo, GitHub issues/PRs, and CI/evidence.
+Recover current truth from the Weave repo, GitHub issues/PRs, and CI/evidence.
 Do not rely on chat memory except as orientation.
 Return: branch, relevant docs/specs, open PRs/issues, latest CI/evidence, blockers, smallest safe next slice.
 Do not modify files.
@@ -38,7 +36,7 @@ Do not modify files.
 ## Specialist-Brief
 
 ```text
-Role: <Product/Spec | Client/A11y | Server/Domain | Admin/Policy | Provider/Infra | QA/Evidence | Docs/Release | Security/Privacy | Integration Review>
+Role: <Product/Spec | Architecture/Contract | Client/A11y | Server/Domain | Admin/Policy | Provider/Infra | QA/Evidence | Docs/Release | Security/Privacy | Integration Review>
 Goal: <one independently testable outcome>
 Allowed files: <exact paths/globs>
 Inputs: <spec/plan/docs/issues>
@@ -47,16 +45,16 @@ Stop before: secrets, live infra mutation, data loss, hidden scope expansion, un
 Return only: done/blocked, files changed, evidence command+result, risks, recommended next.
 ```
 
-## ACP-Harness-Brief
+## Coding-Harness-Brief
 
 ```text
-Runtime: named ACP profile <weave-codex-acp|weave-claude-acp|weave-gemini-acp|weave-opencode-acp> via OpenClaw sessions_spawn(runtime="acp", agentId="<profile-id>").
+Runtime: operator-selected coding harness.
 Goal: <one coding-harness-suitable outcome>
-CWD: /Users/flotterotter/code/weave
+CWD: <repo root supplied by operator environment>
 Allowed scope: <exact files/globs>; do not touch live infra/secrets/generated artifacts.
 Inputs: <spec/plan/tasks/docs paths>
 Required gate: <command or explain why not runnable>
-Policy: if the operator config intentionally uses direct ACP harness ids, use the configured id such as <codex|claude|gemini|opencode>; otherwise use the named Weave ACP profile. If the id is denied/unavailable, report the policy error. Do not silently switch to native subagent.
+Policy: if the configured harness is denied/unavailable, report the policy error. Do not silently switch runtime.
 Return only: status, files changed, evidence, risks, follow-up patch suggestion.
 ```
 
@@ -85,9 +83,9 @@ Return: merge-ready? yes/no, material optimization opportunities? yes/no, blocke
 ## Optimization-Review
 
 ```text
-Act as adversarial but practical weave-co-leader reviewer.
+Act as adversarial but practical integration reviewer.
 Inputs: <diff/spec/tasks/evidence>
-Score 0-3 each: correctness, traceability, spec protection, agent-team usability, ACP/runtime policy clarity, maintainability, evidence quality.
+Score 0-3 each: correctness, traceability, spec protection, handoff usability, runtime-policy hygiene, maintainability, evidence quality.
 Find only material improvements; ignore taste-only rewrites.
 Return:
 - Verdict: no-material-optimizations | optimize-before-commit | blocked
@@ -99,10 +97,10 @@ Return:
 ## Sprint-Planning
 
 ```text
-You are weave-co-leader. Plan a real Weave sprint from the governing spec.
+Plan a real Weave sprint from the governing spec.
 Inputs: <spec.md/plan.md/tasks.md/docs/issues>.
 Do first: recover truth from main, specs, GitHub issues/PRs, CI/evidence.
-Output: sprint goal, issue DAG, PR train order, specialist roles, required gates, merge authorization status, product-core blockers.
+Output: sprint goal, issue DAG, PR train order, required roles, required gates, merge authorization status, product-core blockers.
 If issues are missing and GitHub access is available, create/update them with dependency notes and parallel/sequential labels.
 Do not implement yet.
 ```
@@ -119,37 +117,15 @@ Return: issue numbers, dependency order, blockers.
 ## PR-Train
 
 ```text
-For the next unblocked issue in the DAG, cut/update a short-lived branch from current main, implement the smallest reviewable slice, open a PR, set exactly one release-notes label, and run the required local gate.
-After CI and Integration-Gate pass, merge only if the sprint brief authorizes autonomous merge; otherwise report merge-ready with the one missing decision.
-After merge, fetch/fast-forward main before continuing dependent PRs.
-Return: issue, branch, PR, gates, CI, merge status, next unblocked issue.
-```
-
-## Sprint-Closure
-
-```text
-Close the sprint only after all planned issues/PRs are merged or an explicit blocker is recorded.
-Report exactly:
-- Verdict
-- Governing spec(s)
-- Issue DAG with final state
-- Merged PRs in order
-- Gates and CI evidence
-- Release notes / RC impact
-- Product decisions made or still blocked
-- Docs/spec updates
-- Next safe action
-A green unmerged PR is not a completed sprint.
+Open or update PRs for the issue DAG.
+Each PR must include: issue/spec link, summary, tests/evidence, release-notes label expectation, CI status, review fallback if needed, and next dependent PR.
+Do not merge until branch protection, local gates, release-label policy, and Integration-Gate pass.
 ```
 
 ## Session-Handoff
 
 ```text
-Preserve durable state only:
-- Spec/issue/PR IDs:
-- Decisions made:
-- Evidence/gates:
-- Blockers/open questions:
-- Next safe action:
-Do not include discarded reasoning or logs.
+Handoff current sprint/PR state.
+Include only: branch/PR/issue URLs, changed files, gates run with result, CI/check status, unresolved blockers, next exact command/action.
+Do not include raw diffs, transcripts, secrets, or broad narrative.
 ```

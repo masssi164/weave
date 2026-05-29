@@ -17,7 +17,7 @@ title: Test spec
 version: 0.1.0
 status: implemented
 domain: delivery
-owner: weave-co-leader
+owner: delivery-owner
 github_issue: null
 supersedes: []
 depends_on: []
@@ -93,22 +93,30 @@ class SpecContractCheckTest(unittest.TestCase):
         )
         self.run_main(self.with_repo(reference_only))
 
-    def test_framework_spec_requires_agent_team_artifacts(self) -> None:
+    def test_framework_spec_requires_assistant_delivery_artifacts(self) -> None:
         repo = self.with_repo(FRAMEWORK_SPEC, dirname="0000-framework", traceability=FRAMEWORK_TRACEABILITY)
         with self.assertRaises(SystemExit):
             self.run_main(repo)
 
-    def test_framework_spec_passes_with_required_agent_team_artifacts(self) -> None:
+
+    def test_framework_spec_fails_with_operator_runtime_config_example(self) -> None:
+        repo = self.with_repo(FRAMEWORK_SPEC, dirname="0000-framework", traceability=FRAMEWORK_TRACEABILITY)
+        forbidden = repo / ".specify" / "templates" / "weave-agent-team-config.example.json5"
+        forbidden.parent.mkdir(parents=True, exist_ok=True)
+        forbidden.write_text("{agents:{allowAgents:['live']}}", encoding="utf-8")
+        with self.assertRaises(SystemExit):
+            self.run_main(repo)
+
+    def test_framework_spec_passes_with_required_assistant_delivery_artifacts(self) -> None:
         repo = self.with_repo(FRAMEWORK_SPEC, dirname="0000-framework", traceability=FRAMEWORK_TRACEABILITY)
         files = {
-            ".specify/memory/constitution.md": "Repo truth over chat memory\nAgent governance\n",
+            ".specify/memory/constitution.md": "Repo truth over chat memory\nAssistant governance\n",
             ".specify/templates/weave-spec-template.md": "[NEEDS CLARIFICATION:\n",
             ".specify/templates/weave-plan-template.md": "Constitution check\n",
             ".specify/templates/weave-tasks-template.md": "Agent handoff\n",
-            ".specify/templates/weave-agent-briefs.md": "Optimization-Review\nACP-Harness-Brief\n",
-            ".specify/templates/weave-agent-team-config.example.json5": "weave-co-leader\nmaxSpawnDepth\nmaxChildrenPerAgent\nrequireAgentId\nallowAgents\nweave-codex-acp\nweave-claude-acp\nweave-gemini-acp\nweave-opencode-acp\ntype: \"acp\"\nallowedAgents\n",
-            "docs/spec-driven-development.md": "Git-versioned specs are truth\nagent-team-orchestration.md\n",
-            "docs/agent-team-orchestration.md": "Material optimization\nOpenClaw configuration shape\nmaxSpawnDepth\nweave-codex-acp\n",
+            ".specify/templates/weave-agent-briefs.md": "Optimization-Review\nCoding-Harness-Brief\nLive runtime configuration\n",
+            "docs/spec-driven-development.md": "Git-versioned specs are truth\nagent-team-orchestration.md\nDo not add live agent allowlists\n",
+            "docs/agent-team-orchestration.md": "Material optimization\nRuntime boundary\nForbidden repo-local content\noperator-runtime JSON examples\n",
         }
         for relative, content in files.items():
             path = repo / relative

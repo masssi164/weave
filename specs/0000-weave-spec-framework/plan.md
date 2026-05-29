@@ -6,7 +6,7 @@
 
 ## Summary
 
-Add a lightweight Weave-specific Spec Kit layer without importing a heavy workflow wholesale. The framework stores versioned specs in the repo, validates lifecycle metadata with a local guard, and documents `weave-co-leader` specialist orchestration.
+Add a lightweight Weave-specific Spec Kit layer without importing a heavy workflow wholesale. The framework stores versioned specs in the repo, validates lifecycle metadata with a local guard, and documents repo-safe AI-assisted delivery orchestration.
 
 ## Constitution check
 
@@ -61,9 +61,9 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 - Risk: Agent hallucination of product core.
   - Mitigation: clarification markers allowed only in draft/proposed specs; accepted/implementing specs fail guard if markers remain.
   - Evidence gate: `./gradlew specContract`.
-- Risk: ACP/runtime confusion.
-  - Mitigation: agent brief template documents native vs ACP invocation rules and policy-failure reporting.
-  - Evidence gate: docs review.
+- Risk: assistant runtime-policy confusion.
+  - Mitigation: assistant brief templates document repo-safe handoff rules, operator-owned runtime boundaries, and policy-failure reporting without deployable config examples.
+  - Evidence gate: docs review and `./gradlew specContract`.
 
 ## Final gates
 
