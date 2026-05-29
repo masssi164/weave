@@ -19,7 +19,7 @@ function mockApi(
     dryRunProviderReplacement: vi.fn().mockResolvedValue({
       dryRunId: 'chat-slack-dry-run',
       status: 'dry_run_ready',
-      category: 'identity-idm',
+      category: 'idm-rbac',
       currentAdapter: 'keycloak-realm',
       targetAdapter: 'keycloak-realm',
       readinessState: 'ready',
@@ -110,7 +110,7 @@ describe('Admin Console MVP', () => {
       screen.getByRole('heading', { name: /audit trail/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText(/identity \/ idm status is ready/i),
+      screen.getByLabelText(/idm \/ rbac status is ready/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/provider source of truth/i)).toBeInTheDocument();
     expect(screen.getByText(/backend-owned facade/i)).toBeInTheDocument();
@@ -157,10 +157,10 @@ describe('Admin Console MVP', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText(/admin setup assistant steps/i),
-    ).toHaveTextContent(/identity \/ idm: ready for member go-live/i);
+    ).toHaveTextContent(/idm \/ rbac: ready for member go-live/i);
     expect(
       screen.getByLabelText(/admin setup assistant steps/i),
-    ).toHaveTextContent(/meetings \/ calls: repair before inviting affected members/i);
+    ).toHaveTextContent(/meetings: repair before inviting affected members/i);
     expect(
       screen.getByText(/requires dry-run\/preflight, member impact preview/i),
     ).toBeInTheDocument();
@@ -224,7 +224,7 @@ describe('Admin Console MVP', () => {
 
     await waitFor(() =>
       expect(api.selectProvider).toHaveBeenCalledWith(
-        'identity-idm',
+        'idm-rbac',
         'keycloak-realm',
         'recommended_self_hosted_default',
         false,
@@ -248,7 +248,7 @@ describe('Admin Console MVP', () => {
 
     await waitFor(() =>
       expect(api.selectProvider).toHaveBeenCalledWith(
-        'identity-idm',
+        'idm-rbac',
         'keycloak-realm',
         'recommended_self_hosted_default',
         true,
@@ -272,7 +272,7 @@ describe('Admin Console MVP', () => {
 
     await waitFor(() =>
       expect(api.dryRunProviderReplacement).toHaveBeenCalledWith(
-        expect.objectContaining({ key: 'identity-idm' }),
+        expect.objectContaining({ key: 'idm-rbac' }),
         'keycloak-realm',
         'recommended_self_hosted_default',
       ),

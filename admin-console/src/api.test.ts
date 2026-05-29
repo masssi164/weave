@@ -11,7 +11,7 @@ describe('AdminControlPlaneApi provider boundary', () => {
       const body = path.includes('/identity/readiness')
         ? {
             contractVersion: 'identity-provider-readiness-v1',
-            category: 'identity-idm',
+            category: 'idm-rbac',
             providerKey: 'keycloak-realm',
             overallState: 'admin-action-required',
             supportSafe: true,
@@ -43,7 +43,7 @@ describe('AdminControlPlaneApi provider boundary', () => {
         : path.includes('/replacements/dry-run')
           ? {
             status: 'dry_run_ready',
-            category: 'chat',
+            category: 'chat-channels',
             currentAdapter: 'synapse-homeserver',
             targetAdapter: 'slack',
             readinessState: 'degraded',
@@ -87,7 +87,7 @@ describe('AdminControlPlaneApi provider boundary', () => {
       selectedAdapter: 'synapse-homeserver',
     };
 
-    await api.selectProvider('chat', 'slack');
+    await api.selectProvider('chat-channels', 'slack');
     const identityReadiness = await api.getIdentityProviderReadiness();
     await api.testProviderReadiness('slack');
     const report = await api.dryRunProviderReplacement(category, 'slack');

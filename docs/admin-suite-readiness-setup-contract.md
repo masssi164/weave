@@ -12,7 +12,7 @@ This contract extends the [Admin-provisioned first use boundary](admin-provision
 
 The Admin-Suite setup assistant must lead an owner/admin through these steps before member go-live:
 
-1. Choose or confirm provider categories: identity/IDM, chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver-disabled-by-default.
+1. Choose or confirm WEAVE-SPEC-0001 provider domains: IDM/RBAC, Chat/Channels, Files/Docs, Boards/Tasks, Calendar/Events, Meetings, and Forms/Contacts.
 2. Bind the selected adapter through backend admin APIs only; never call provider admin APIs directly from the browser client.
 3. Keep secrets as `SecretRef` handles and reject raw secrets, bearer tokens, credential-bearing URLs, raw downstream payloads, or provider diagnostics in form fields and evidence.
 4. Run dry-run/preflight validation before apply.
