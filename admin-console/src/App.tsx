@@ -36,7 +36,13 @@ import {
 import { AdminConsoleLocale, adminCopy } from './copy';
 
 type ViewerRole = 'owner' | 'admin' | 'operator' | 'member';
-type MemberStableState = 'usable' | 'disabled' | 'degraded' | 'policy-blocked';
+type MemberStableState =
+  | 'available'
+  | 'disabled_by_policy'
+  | 'not_configured'
+  | 'degraded'
+  | 'unavailable'
+  | 'coming_later';
 
 const stateColor: Record<
   CapabilityState,
@@ -61,19 +67,59 @@ function memberStableState(state: CapabilityState): MemberStableState {
   switch (state) {
     case 'ready':
     case 'configured':
-      return 'usable';
+      return 'available';
     case 'policy-blocked':
-      return 'policy-blocked';
-    case 'admin-action-required':
-      return 'degraded';
     case 'disabled':
-    case 'unsupported':
+      return 'disabled_by_policy';
     case 'not_configured':
-      return 'disabled';
+      return 'not_configured';
+    case 'unsupported':
+      return 'unavailable';
+    case 'admin-action-required':
     case 'degraded':
     case 'misconfigured':
     default:
       return 'degraded';
+  }
+}
+
+function setupStage(state: CapabilityState): string {
+  switch (state) {
+    case 'ready':
+    case 'configured':
+      return 'Ready for member go-live';
+    case 'policy-blocked':
+    case 'disabled':
+      return 'Disabled by policy';
+    case 'not_configured':
+    case 'admin-action-required':
+      return 'Admin setup required';
+    case 'unsupported':
+      return 'Unavailable for this adapter';
+    case 'degraded':
+    case 'misconfigured':
+    default:
+      return 'Repair before inviting affected members';
+  }
+}
+
+function setupNextAction(category: ProviderCategory): string {
+  switch (category.state) {
+    case 'ready':
+    case 'configured':
+      return 'Keep monitoring audit evidence and invite members when policy simulation is green.';
+    case 'policy-blocked':
+    case 'disabled':
+      return 'Review deny-by-default policy before exposing this domain to members.';
+    case 'not_configured':
+    case 'admin-action-required':
+      return 'Select and dry-run a provider adapter, then test readiness through the backend.';
+    case 'unsupported':
+      return 'Choose a supported adapter or keep the member state unavailable.';
+    case 'degraded':
+    case 'misconfigured':
+    default:
+      return 'Run a readiness test, review support-safe diagnostics, and repair before member go-live.';
   }
 }
 
@@ -308,6 +354,37 @@ export default function App({
             </CardContent>
           </Card>
 
+          {viewerRole !== 'member' ? (
+            <Card component="section" aria-labelledby="setup-assistant-heading">
+              <CardContent>
+                <Typography
+                  id="setup-assistant-heading"
+                  variant="h2"
+                  sx={{ fontSize: '1.35rem', mb: 1 }}
+                >
+                  Guided setup assistant
+                </Typography>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  Admins bind, unbind, validate, switch, or detach provider
+                  adapters only through backend admin APIs. Every apply path
+                  requires dry-run/preflight, member impact preview, clear
+                  consequences, and recovery guidance before an irreversible
+                  change.
+                </Alert>
+                <List aria-label="Admin setup assistant steps">
+                  {controlPlane.providerCategories.map((category) => (
+                    <ListItem key={`setup-${category.key}`} alignItems="flex-start">
+                      <ListItemText
+                        primary={`${category.label}: ${setupStage(category.state)}`}
+                        secondary={setupNextAction(category)}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card component="section" aria-labelledby="member-preview-heading">
             <CardContent>
               <Typography
@@ -445,6 +522,36 @@ export default function App({
                       </Card>
                     ))}
                   </Stack>
+                </CardContent>
+              </Card>
+
+              <Card component="section" aria-labelledby="readiness-dashboard-heading">
+                <CardContent>
+                  <Typography
+                    id="readiness-dashboard-heading"
+                    variant="h2"
+                    sx={{ fontSize: '1.35rem', mb: 2 }}
+                  >
+                    Readiness dashboard
+                  </Typography>
+                  <Typography sx={{ mb: 2 }}>
+                    Domain readiness is actionable for admins and operators but
+                    support-safe by default: provider diagnostics are redacted,
+                    SecretRef handles stay out of member contracts, and member
+                    preview states remain provider-neutral.
+                  </Typography>
+                  <List aria-label="Domain readiness dashboard">
+                    {controlPlane.providerCategories.map((category) => (
+                      <ListItem key={`readiness-${category.key}`} alignItems="flex-start">
+                        <ListItemText
+                          primary={`${category.label}: ${readableState(category.state)}`}
+                          secondary={`Member preview: ${memberStableState(
+                            category.state,
+                          )}. Next action: ${setupNextAction(category)}`}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
                 </CardContent>
               </Card>
 

@@ -32,7 +32,7 @@ Task format: `- [ ] T001 [P?] [US?/Area] Description with exact path and gate`
 Implementation tasks are intentionally split into follow-up PRs from the issue DAG:
 
 - [x] T030 [#386] Add provider-neutral domain/capability contracts and smallest relevant server/client/admin gate.
-- [ ] T031 [#387] Add Admin-Suite readiness/setup UX contract and gate.
+- [x] T031 [#387] Add Admin-Suite readiness/setup UX contract and gate.
 - [ ] T032 [#388] Add provider switch/export-import/cutover/rollback contract and gate.
 - [ ] T033 [#389] Add product-language acceptance/evidence mapping and gate.
 

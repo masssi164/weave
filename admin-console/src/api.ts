@@ -64,6 +64,14 @@ export interface AuditEvent {
   summary: string;
 }
 
+export type MemberCapabilityState =
+  | 'available'
+  | 'disabled_by_policy'
+  | 'not_configured'
+  | 'degraded'
+  | 'unavailable'
+  | 'coming_later';
+
 export interface ProviderReplacementDryRunReport {
   dryRunId: string;
   status: string;
@@ -72,9 +80,7 @@ export interface ProviderReplacementDryRunReport {
   targetAdapter: string;
   readinessState: CapabilityState;
   migrationDryRunRequired: boolean;
-  memberImpactStates: Array<
-    'usable' | 'disabled' | 'degraded' | 'policy-blocked'
-  >;
+  memberImpactStates: MemberCapabilityState[];
   supportSafe: boolean;
   providerDiagnosticsRedacted: boolean;
   cutoverGates: string[];
@@ -455,7 +461,7 @@ function normalizeIdentityProviderReadiness(
   return {
     contractVersion:
       readiness?.contractVersion ?? 'identity-provider-readiness-v1',
-    category: readiness?.category ?? 'identity-idm',
+    category: readiness?.category ?? 'idm-rbac',
     providerKey: readiness?.providerKey ?? 'awaiting_admin_selection',
     overallState: normalizeState(
       readiness?.overallState ?? 'admin-action-required',
@@ -530,7 +536,7 @@ function normalizeWhitelist(
     blockedCapabilities: [
       'provider.direct_call',
       'provider.secret_export',
-      'weaver.exec_without_policy',
+      'provider.unapproved_runtime_execution',
     ],
   };
 }
@@ -603,21 +609,40 @@ function normalizeIdentityMemberImpact(
   }
 }
 
-function normalizeMemberImpactStates(
-  values?: string[],
-): Array<'usable' | 'disabled' | 'degraded' | 'policy-blocked'> {
+function normalizeMemberImpactStates(values?: string[]): MemberCapabilityState[] {
   const normalized = (values ?? [])
-    .map((value) => (value === 'ready' ? 'usable' : value))
-    .filter(
-      (value): value is 'usable' | 'disabled' | 'degraded' | 'policy-blocked' =>
-        value === 'usable' ||
-        value === 'disabled' ||
-        value === 'degraded' ||
-        value === 'policy-blocked',
-    );
+    .map(normalizeMemberCapabilityState)
+    .filter((value): value is MemberCapabilityState => value !== null);
   return normalized.length > 0
     ? Array.from(new Set(normalized))
-    : ['usable', 'disabled', 'degraded', 'policy-blocked'];
+    : ['available', 'disabled_by_policy', 'not_configured', 'degraded'];
+}
+
+function normalizeMemberCapabilityState(value?: string): MemberCapabilityState | null {
+  switch (value) {
+    case 'available':
+    case 'not_configured':
+    case 'degraded':
+    case 'unavailable':
+    case 'coming_later':
+      return value;
+    case 'disabled_by_policy':
+    case 'policy-blocked':
+    case 'policy_blocked':
+    case 'disabled':
+      return 'disabled_by_policy';
+    case 'ready':
+    case 'usable':
+      return 'available';
+    case 'admin-action-required':
+    case 'admin_action_required':
+    case 'misconfigured':
+      return 'degraded';
+    case 'unsupported':
+      return 'unavailable';
+    default:
+      return null;
+  }
 }
 
 function normalizeState(value?: string): CapabilityState {
@@ -663,8 +688,8 @@ export const sampleControlPlane: ControlPlaneResponse = {
   bootstrapDefaultsAreSuggestionsOnly: true,
   providerCategories: [
     {
-      key: 'identity-idm',
-      label: 'Identity / IDM',
+      key: 'idm-rbac',
+      label: 'IDM / RBAC',
       selectedAdapter: 'keycloak-realm',
       state: 'ready',
       summary:
@@ -686,8 +711,8 @@ export const sampleControlPlane: ControlPlaneResponse = {
       secretRefs: ['secretref://weave/provider/keycloak-realm/client-secret'],
     },
     {
-      key: 'chat',
-      label: 'Chat',
+      key: 'chat-channels',
+      label: 'Chat / channels',
       selectedAdapter: 'synapse-homeserver',
       state: 'ready',
       summary: 'Chat is available through Weave conversations.',
@@ -699,8 +724,8 @@ export const sampleControlPlane: ControlPlaneResponse = {
       secretRefs: ['secretref://weave/provider/synapse-homeserver'],
     },
     {
-      key: 'files',
-      label: 'Files',
+      key: 'files-docs',
+      label: 'Files / docs',
       selectedAdapter: 'nextcloud-files',
       state: 'degraded',
       summary:
@@ -718,8 +743,8 @@ export const sampleControlPlane: ControlPlaneResponse = {
       secretRefs: ['secretref://weave/provider/nextcloud-files'],
     },
     {
-      key: 'calendar',
-      label: 'Calendar',
+      key: 'calendar-events',
+      label: 'Calendar / events',
       selectedAdapter: 'nextcloud-caldav',
       state: 'degraded',
       summary:
@@ -756,8 +781,8 @@ export const sampleControlPlane: ControlPlaneResponse = {
       secretRefs: ['secretref://weave/provider/openproject-primary'],
     },
     {
-      key: 'meetings-calls',
-      label: 'Meetings / calls',
+      key: 'meetings',
+      label: 'Meetings',
       selectedAdapter: 'livekit',
       state: 'misconfigured',
       summary:
@@ -774,42 +799,27 @@ export const sampleControlPlane: ControlPlaneResponse = {
       secretRefs: ['secretref://weave/provider/livekit'],
     },
     {
-      key: 'documents-collaboration',
-      label: 'Documents / collaboration',
-      selectedAdapter: 'onlyoffice-community',
+      key: 'forms-contacts',
+      label: 'Forms / contacts',
+      selectedAdapter: 'weave-managed-forms-contacts',
       state: 'disabled',
       summary:
-        'Documents use Weave/WOPI collaboration contracts; Nextcloud/SharePoint/WOPI providers are not member-facing setup.',
+        'Forms and contacts use Weave canonical contracts; provider-specific address book or form backends stay admin/operator-side.',
       supportSafe: true,
       selectedByAdmin: true,
       bootstrapSuggestionOnly: false,
       choiceModel: 'recommended_self_hosted_default',
       providerCandidates: [
-        'onlyoffice-community',
-        'collabora-code',
-        'wopi-host',
-        'microsoft-365-office-graph',
+        'weave-managed-forms-contacts',
+        'nextcloud-forms-contacts',
+        'google-workspace-contacts',
       ],
-      secretRefs: ['secretref://weave/provider/onlyoffice-community'],
-    },
-    {
-      key: 'weaver',
-      label: 'Weaver runtime',
-      selectedAdapter: 'awaiting_admin_selection',
-      state: 'policy-blocked',
-      summary:
-        'Governed per-user PA runtime remains disabled by default and Weave-owned decisions stay backend-policy controlled.',
-      supportSafe: true,
-      selectedByAdmin: false,
-      bootstrapSuggestionOnly: true,
-      choiceModel: 'not_selected',
-      providerCandidates: ['openclaw-governed-runtime'],
-      secretRefs: [],
+      secretRefs: ['secretref://weave/provider/weave-managed-forms-contacts'],
     },
   ],
   identityProviderReadiness: {
     contractVersion: 'identity-provider-readiness-v1',
-    category: 'identity-idm',
+    category: 'idm-rbac',
     providerKey: 'keycloak-realm',
     overallState: 'ready',
     supportSafe: true,
@@ -886,7 +896,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
   whitelistPolicy: {
     denyByDefault: true,
     allowedCapabilities: ['chat.read', 'files.read'],
-    blockedCapabilities: ['weaver.exec', 'provider.direct_call'],
+    blockedCapabilities: ['provider.direct_call', 'provider.secret_export'],
   },
   auditEvents: [
     {
