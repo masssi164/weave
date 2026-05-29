@@ -73,6 +73,15 @@ void main() {
       isDirectMessage: true,
       lastActivityAt: DateTime(2026, 5, 1, 11),
     );
+    final unreadOlderDm = ChatConversation(
+      id: '@drew:home.internal',
+      title: 'Drew',
+      previewType: ChatConversationPreviewType.text,
+      unreadCount: 5,
+      isInvite: false,
+      isDirectMessage: true,
+      lastActivityAt: DateTime(2026, 4, 30, 10),
+    );
     const quietNoActivityDm = ChatConversation(
       id: '@bea:home.internal',
       title: 'Bea',
@@ -96,11 +105,13 @@ void main() {
       quietNoActivityDm,
       unreadOlderChannel,
       quietOlderDm,
+      unreadOlderDm,
       unreadRecentDm,
     ]);
 
     expect(overview.personalMessages, [
       unreadRecentDm,
+      unreadOlderDm,
       quietOlderDm,
       quietNoActivityDm,
     ]);

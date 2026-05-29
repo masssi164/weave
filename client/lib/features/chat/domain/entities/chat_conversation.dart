@@ -128,11 +128,13 @@ int _compareConversationActivity(
 }
 
 int _compareUnread(int left, int right) {
-  if (left > 0 && right == 0) {
+  final leftHasUnread = left > 0;
+  final rightHasUnread = right > 0;
+  if (leftHasUnread && !rightHasUnread) {
     return -1;
   }
-  if (left == 0 && right > 0) {
+  if (!leftHasUnread && rightHasUnread) {
     return 1;
   }
-  return right.compareTo(left);
+  return 0;
 }
