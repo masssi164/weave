@@ -20,6 +20,10 @@ npm install
 npm run ci
 ```
 
+## Dependency update policy
+
+`package.json` uses exact dependency versions that match the reviewed `package-lock.json`; do not use `latest` ranges. To refresh Admin Console dependencies, intentionally edit the versions or run a targeted npm update, then refresh the lockfile with `npm install --package-lock-only` and validate with `npm ci` plus `npm run ci` before opening a PR.
+
 Configure with Vite env vars when needed:
 
 ```bash
