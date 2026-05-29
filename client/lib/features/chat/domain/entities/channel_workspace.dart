@@ -51,6 +51,26 @@ enum ChannelMeetingContextItemKind {
   followUpEvidence,
 }
 
+enum ChannelMeetingAttachPointKind { channel, calendarEvent, thread }
+
+enum ChannelMeetingEncryptionBoundaryKind {
+  matrixSignaling,
+  mediaStreams,
+  captions,
+  transcripts,
+  recordings,
+  metadata,
+}
+
+enum ChannelMeetingUxRequirementKind {
+  deviceSelection,
+  joinPreview,
+  muteState,
+  cameraState,
+  participantList,
+  errorRecovery,
+}
+
 enum ChannelMeetingControlKind { join, start }
 
 class ChannelMeetingContextItem {
@@ -61,6 +81,48 @@ class ChannelMeetingContextItem {
 
   final ChannelMeetingContextItemKind kind;
   final bool includedInPreview;
+}
+
+class ChannelMeetingAttachPoint {
+  const ChannelMeetingAttachPoint({
+    required this.kind,
+    required this.contextId,
+    required this.label,
+    required this.enabled,
+  });
+
+  final ChannelMeetingAttachPointKind kind;
+  final String contextId;
+  final String label;
+  final bool enabled;
+}
+
+class ChannelMeetingEncryptionBoundary {
+  const ChannelMeetingEncryptionBoundary({
+    required this.kind,
+    required this.claim,
+    required this.evidenceLabel,
+  });
+
+  final ChannelMeetingEncryptionBoundaryKind kind;
+  final String claim;
+  final String evidenceLabel;
+
+  bool get hasEvidence => evidenceLabel.isNotEmpty;
+}
+
+class ChannelMeetingUxRequirement {
+  const ChannelMeetingUxRequirement({
+    required this.kind,
+    required this.required,
+    required this.evidenceLabel,
+  });
+
+  final ChannelMeetingUxRequirementKind kind;
+  final bool required;
+  final String evidenceLabel;
+
+  bool get isDocumented => required && evidenceLabel.isNotEmpty;
 }
 
 class ChannelMeetingControl {
@@ -81,7 +143,10 @@ class ChannelMeetingPreview {
     required this.channelTitle,
     required this.contextId,
     required this.providerContractId,
+    required this.attachPoints,
     required this.contextItems,
+    required this.encryptionBoundaries,
+    required this.uxRequirements,
     required this.controls,
     required this.hasVideoBackendCapability,
     required this.e2eeEvidenceAvailable,
@@ -101,6 +166,26 @@ class ChannelMeetingPreview {
       channelTitle: conversation.title,
       contextId: contextId,
       providerContractId: 'weave-meetings-channel-capability',
+      attachPoints: [
+        ChannelMeetingAttachPoint(
+          kind: ChannelMeetingAttachPointKind.channel,
+          contextId: contextId,
+          label: conversation.title,
+          enabled: true,
+        ),
+        const ChannelMeetingAttachPoint(
+          kind: ChannelMeetingAttachPointKind.calendarEvent,
+          contextId: 'calendar-event:pending',
+          label: 'Calendar event link pending backend capability',
+          enabled: false,
+        ),
+        const ChannelMeetingAttachPoint(
+          kind: ChannelMeetingAttachPointKind.thread,
+          contextId: 'thread:pending',
+          label: 'Thread link pending backend capability',
+          enabled: false,
+        ),
+      ],
       contextItems: const [
         ChannelMeetingContextItem(
           kind: ChannelMeetingContextItemKind.agenda,
@@ -121,6 +206,75 @@ class ChannelMeetingPreview {
         ChannelMeetingContextItem(
           kind: ChannelMeetingContextItemKind.followUpEvidence,
           includedInPreview: true,
+        ),
+      ],
+      encryptionBoundaries: const [
+        ChannelMeetingEncryptionBoundary(
+          kind: ChannelMeetingEncryptionBoundaryKind.matrixSignaling,
+          claim: 'Matrix signaling follows the room encryption posture.',
+          evidenceLabel: 'Matrix E2EE diagnostic and room readiness evidence',
+        ),
+        ChannelMeetingEncryptionBoundary(
+          kind: ChannelMeetingEncryptionBoundaryKind.mediaStreams,
+          claim:
+              'Media requires documented SFU/E2EE capability before enablement.',
+          evidenceLabel: 'Media transport readiness and E2EE trade-off record',
+        ),
+        ChannelMeetingEncryptionBoundary(
+          kind: ChannelMeetingEncryptionBoundaryKind.captions,
+          claim:
+              'Captions are off until consent, retention, and encryption are known.',
+          evidenceLabel: 'Caption consent and storage policy evidence',
+        ),
+        ChannelMeetingEncryptionBoundary(
+          kind: ChannelMeetingEncryptionBoundaryKind.transcripts,
+          claim:
+              'Transcripts are off until consent, retention, and encryption are known.',
+          evidenceLabel: 'Transcript consent and storage policy evidence',
+        ),
+        ChannelMeetingEncryptionBoundary(
+          kind: ChannelMeetingEncryptionBoundaryKind.recordings,
+          claim:
+              'Recordings are off until consent, retention, and encryption are known.',
+          evidenceLabel: 'Recording consent and storage policy evidence',
+        ),
+        ChannelMeetingEncryptionBoundary(
+          kind: ChannelMeetingEncryptionBoundaryKind.metadata,
+          claim:
+              'Metadata is minimized and never described as end-to-end encrypted.',
+          evidenceLabel: 'Support-safe metadata boundary documentation',
+        ),
+      ],
+      uxRequirements: const [
+        ChannelMeetingUxRequirement(
+          kind: ChannelMeetingUxRequirementKind.deviceSelection,
+          required: true,
+          evidenceLabel: 'Device picker contract',
+        ),
+        ChannelMeetingUxRequirement(
+          kind: ChannelMeetingUxRequirementKind.joinPreview,
+          required: true,
+          evidenceLabel: 'Pre-join preview contract',
+        ),
+        ChannelMeetingUxRequirement(
+          kind: ChannelMeetingUxRequirementKind.muteState,
+          required: true,
+          evidenceLabel: 'Audio mute state contract',
+        ),
+        ChannelMeetingUxRequirement(
+          kind: ChannelMeetingUxRequirementKind.cameraState,
+          required: true,
+          evidenceLabel: 'Camera state contract',
+        ),
+        ChannelMeetingUxRequirement(
+          kind: ChannelMeetingUxRequirementKind.participantList,
+          required: true,
+          evidenceLabel: 'Participant list accessibility contract',
+        ),
+        ChannelMeetingUxRequirement(
+          kind: ChannelMeetingUxRequirementKind.errorRecovery,
+          required: true,
+          evidenceLabel: 'Join failure and recovery contract',
         ),
       ],
       controls: const [
@@ -147,7 +301,10 @@ class ChannelMeetingPreview {
   final String channelTitle;
   final String contextId;
   final String providerContractId;
+  final List<ChannelMeetingAttachPoint> attachPoints;
   final List<ChannelMeetingContextItem> contextItems;
+  final List<ChannelMeetingEncryptionBoundary> encryptionBoundaries;
+  final List<ChannelMeetingUxRequirement> uxRequirements;
   final List<ChannelMeetingControl> controls;
   final bool hasVideoBackendCapability;
   final bool e2eeEvidenceAvailable;
@@ -162,6 +319,32 @@ class ChannelMeetingPreview {
 
   bool get requiresExplicitConsent =>
       !recordingEnabled && !transcriptionEnabled;
+
+  bool get canLinkFromChannelOrCalendar =>
+      attachPoints.any(
+        (point) => point.kind == ChannelMeetingAttachPointKind.channel,
+      ) &&
+      attachPoints.any(
+        (point) => point.kind == ChannelMeetingAttachPointKind.calendarEvent,
+      );
+
+  bool get hasDocumentedEncryptionBoundaries {
+    final kinds = encryptionBoundaries.map((boundary) => boundary.kind).toSet();
+    return ChannelMeetingEncryptionBoundaryKind.values.every(kinds.contains) &&
+        encryptionBoundaries.every((boundary) => boundary.hasEvidence);
+  }
+
+  bool get hasAccessibleJoinContract {
+    final kinds = uxRequirements.map((requirement) => requirement.kind).toSet();
+    return ChannelMeetingUxRequirementKind.values.every(kinds.contains) &&
+        uxRequirements.every((requirement) => requirement.isDocumented);
+  }
+
+  bool get preventsVagueSecurityClaims =>
+      hasDocumentedEncryptionBoundaries &&
+      !recordingEnabled &&
+      !transcriptionEnabled &&
+      !backgroundRoomReadingEnabled;
 }
 
 enum ChannelWeaverScoutCapabilityKind {

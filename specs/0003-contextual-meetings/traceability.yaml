@@ -1,0 +1,33 @@
+spec_id: WEAVE-SPEC-0003
+version: 0.1.0
+status: proposed
+github_issue: 216
+release_notes_label: release-notes-feature
+depends_on:
+  - WEAVE-SPEC-0001
+issue_dag:
+  sequential:
+    - issue: 216
+      title: Encrypted contextual meetings
+domain_entities:
+  - ChannelMeetingPreview
+  - ChannelMeetingAttachPoint
+  - ChannelMeetingEncryptionBoundary
+  - ChannelMeetingUxRequirement
+  - ChannelMeetingControl
+provider_neutral_invariants:
+  - meeting join and start controls fail closed until LiveKit-backed backend media capability is evidenced
+  - meeting surfaces attach to Weave context instead of generic provider links
+  - LiveKit remains the active meetings provider contract while MatrixRTC/Element Call is future comparison only unless provider contracts migrate together
+  - encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries
+  - recording and transcription are off by default and require explicit participant-visible consent
+  - member meeting views do not expose provider URLs, tokens, SFU internals, credentials, or raw diagnostics
+acceptance_features: []
+evidence_gates:
+  - ./gradlew specContract
+  - ./gradlew acceptanceContract
+  - flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
+open_product_core_decisions:
+  - backend facade ownership for LiveKit room/session readiness and token issuance
+  - policy keys for recording, transcription, captions, and participant management
+  - first live meeting join/start acceptance feature
