@@ -28,6 +28,7 @@ class FirstRunScreen extends ConsumerWidget {
           ),
           error: (error, _) => ErrorState(
             message: l10n.firstRunLoadFailure,
+            guidance: l10n.firstRunLoadFailureGuidance,
             retryLabel: l10n.retryButton,
             onRetry: () => ref.invalidate(firstRunStatusProvider),
           ),

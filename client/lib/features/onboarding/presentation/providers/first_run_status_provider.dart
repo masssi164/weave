@@ -22,10 +22,12 @@ final firstRunStatusRepositoryProvider = Provider<FirstRunStatusRepository>((
   );
 });
 
+Duration? _doNotRetryFirstRunStatus(int retryCount, Object error) => null;
+
 final firstRunStatusProvider = FutureProvider<FirstRunStatus?>((ref) async {
   ref.watch(weaveAuthenticatedSessionProvider);
   return ref.watch(firstRunStatusRepositoryProvider).loadStatus();
-});
+}, retry: _doNotRetryFirstRunStatus);
 
 final chatProvisioningStatusProvider =
     Provider<AsyncValue<FirstRunModuleStatus?>>((ref) {

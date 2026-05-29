@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/domain/repositories/first_run_status_repository.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
 import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/test_app.dart';
@@ -125,6 +128,53 @@ void main() {
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });
 
+    testWidgets('recovers from load failures with guidance and retry', (
+      tester,
+    ) async {
+      var loadAttempts = 0;
+      await tester.pumpWidget(
+        createTestApp(
+          const FirstRunScreen(),
+          overrides: [
+            weaveAuthenticatedSessionProvider.overrideWithValue(
+              AsyncData(
+                WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://weave.test/api'),
+                  accessToken: 'token',
+                ),
+              ),
+            ),
+            firstRunStatusRepositoryProvider.overrideWithValue(
+              _RetryingFirstRunStatusRepository(() {
+                loadAttempts += 1;
+                if (loadAttempts == 1) {
+                  throw Exception('backend unavailable');
+                }
+                return buildTestFirstRunStatus();
+              }),
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'We could not load your first-run status from the Weave backend.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Check your connection'), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Your Weave workspace is ready'), findsOneWidget);
+      expect(loadAttempts, 2);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    });
+
     testWidgets('routes signed-out users back to sign-in recovery', (
       tester,
     ) async {
@@ -172,4 +222,13 @@ void main() {
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });
   });
+}
+
+class _RetryingFirstRunStatusRepository implements FirstRunStatusRepository {
+  const _RetryingFirstRunStatusRepository(this._load);
+
+  final FirstRunStatus? Function() _load;
+
+  @override
+  Future<FirstRunStatus?> loadStatus() async => _load();
 }

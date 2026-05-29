@@ -303,6 +303,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'We could not load your first-run status from the Weave backend.';
 
   @override
+  String get firstRunLoadFailureGuidance =>
+      'Check your connection and try again. If this keeps happening, ask an admin to confirm the backend is reachable.';
+
+  @override
   String get firstRunSignedOutMessage =>
       'Sign in to view your Weave first-run status.';
 

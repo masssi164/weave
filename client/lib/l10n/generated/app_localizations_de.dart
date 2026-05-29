@@ -308,6 +308,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Der Erststart-Status konnte nicht vom Weave-Backend geladen werden.';
 
   @override
+  String get firstRunLoadFailureGuidance =>
+      'Prüfe deine Verbindung und versuche es erneut. Wenn das Problem bestehen bleibt, bitte einen Admin zu bestätigen, dass das Backend erreichbar ist.';
+
+  @override
   String get firstRunSignedOutMessage =>
       'Melde dich an, um deinen Weave-Erststart-Status zu sehen.';
 
