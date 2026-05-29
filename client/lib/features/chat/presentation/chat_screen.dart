@@ -852,55 +852,78 @@ class _ConversationTrailing extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (timestamp != null)
-          Text(
-            timestamp!,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        if (recencyLabel != null) ...[
-          const SizedBox(height: 6),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Text(
-                recencyLabel!,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSecondaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
+    return SizedBox(
+      width: 156,
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 6,
+        runSpacing: 4,
+        children: [
+          if (timestamp != null)
+            Text(
+              timestamp!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ),
-        ],
-        if (unreadCount > 0) ...[
-          const SizedBox(height: 8),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(999),
+          if (recencyLabel != null)
+            _ConversationMetadataPill(
+              label: recencyLabel!,
+              backgroundColor: theme.colorScheme.secondaryContainer,
+              foregroundColor: theme.colorScheme.onSecondaryContainer,
+              horizontalPadding: 8,
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              child: Text(
-                unreadCount.toString(),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onPrimary,
-                ),
-              ),
+          if (unreadCount > 0)
+            _ConversationMetadataPill(
+              label: unreadCount.toString(),
+              backgroundColor: theme.colorScheme.primary,
+              foregroundColor: theme.colorScheme.onPrimary,
+              horizontalPadding: 10,
             ),
-          ),
         ],
-      ],
+      ),
+    );
+  }
+}
+
+class _ConversationMetadataPill extends StatelessWidget {
+  const _ConversationMetadataPill({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.horizontalPadding,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final double horizontalPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 4,
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: foregroundColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

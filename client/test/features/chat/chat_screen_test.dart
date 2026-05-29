@@ -622,17 +622,18 @@ void main() {
             title: 'Newest room',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Fresh update',
-            lastActivityAt: now.subtract(const Duration(minutes: 10)),
+            lastActivityAt: now.subtract(const Duration(hours: 2)),
             unreadCount: 0,
             isInvite: false,
             isDirectMessage: false,
           ),
-          const ChatConversation(
+          ChatConversation(
             id: '!older-unread:home.internal',
             title: 'Older unread room',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Unread update',
-            unreadCount: 1,
+            lastActivityAt: now.subtract(const Duration(minutes: 20)),
+            unreadCount: 3,
             isInvite: false,
             isDirectMessage: false,
           ),
@@ -665,6 +666,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Active now'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+      expect(find.text('Today'), findsOneWidget);
       expect(find.text('Yesterday'), findsOneWidget);
       expect(
         tester.getTopLeft(find.text('Older unread room')).dy,
