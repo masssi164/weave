@@ -813,13 +813,33 @@
             "What moves:",
             "What will not move:",
             "Rollback boundary:",
-            "Recovery actions:"
+            "Recovery actions:",
+            "Audit refs:"
           ]
         },
         {
           "path": "admin-console/src/api.ts",
           "fragments": [
             "Source of truth is declared per provider-backed category/object by the backend dry-run",
+            "auditRefs",
+            "provider-switch-preflight",
+            "portable-export-import-contract",
+            "rollback-recovery-plan"
+          ]
+        },
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/model/admin/ProviderReplacementDryRunResponse.java",
+          "fragments": [
+            "PortableExportImportContract",
+            "SwitchPlan",
+            "supportSafe",
+            "providerDiagnosticsRedacted"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+          "fragments": [
+            "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
             "provider-switch-preflight",
             "portable-export-import-contract",
             "rollback-recovery-plan"

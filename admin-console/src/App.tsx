@@ -892,6 +892,11 @@ export default function App({
                         )}
                       </Typography>
                       <Typography>
+                        Audit refs:{' '}
+                        {dryRunReport.auditRefs.join(', ') ||
+                          'backend audit ref required before apply'}
+                      </Typography>
+                      <Typography>
                         Switch plan: {dryRunReport.switchPlan.planRef};
                         preflight required:{' '}
                         {dryRunReport.switchPlan.preflightRequired

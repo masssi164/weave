@@ -28,6 +28,7 @@ function mockApi(
       supportSafe: true,
       providerDiagnosticsRedacted: true,
       cutoverGates: ['Run backend migration dry-run before apply'],
+      auditRefs: ['provider-replacement-dry-run-idm-rbac'],
       lossyMappingReport: {
         canonicalObjects: ['IdentitySubject', 'GroupMembership'],
         contractRisks: ['External claims need mapping review'],
@@ -328,6 +329,9 @@ describe('Admin Console MVP', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(/evidence refs: provider-switch-preflight/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/audit refs: provider-replacement-dry-run-idm-rbac/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/switch plan: idm-rbac-switch-plan-v0.1/i),

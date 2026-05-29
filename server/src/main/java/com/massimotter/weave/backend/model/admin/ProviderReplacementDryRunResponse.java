@@ -18,6 +18,8 @@ public record ProviderReplacementDryRunResponse(
         boolean migrationDryRunRequired,
         LossyMappingReport lossyMappingReport,
         LifecycleExpectations lifecycleExpectations,
+        PortableExportImportContract portableExportImportContract,
+        SwitchPlan switchPlan,
         List<String> cutoverGates,
         List<String> memberImpactStates,
         boolean supportSafe,
@@ -49,5 +51,29 @@ public record ProviderReplacementDryRunResponse(
             String deleteExpectation,
             String deprovisionExpectation,
             String rollbackSupportBoundary) {
+    }
+
+    public record PortableExportImportContract(
+            String exportManifestRef,
+            String importManifestRef,
+            String portabilityGuarantee,
+            List<String> excludedAutomation,
+            List<String> evidenceRefs) {
+        public PortableExportImportContract {
+            excludedAutomation = excludedAutomation == null ? List.of() : List.copyOf(excludedAutomation);
+            evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
+        }
+    }
+
+    public record SwitchPlan(
+            String planRef,
+            boolean preflightRequired,
+            boolean cutoverWindowRequired,
+            boolean rollbackRequired,
+            String memberFacingStateDuringSwitch,
+            List<String> recoveryActions) {
+        public SwitchPlan {
+            recoveryActions = recoveryActions == null ? List.of() : List.copyOf(recoveryActions);
+        }
     }
 }

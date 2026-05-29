@@ -84,6 +84,7 @@ export interface ProviderReplacementDryRunReport {
   supportSafe: boolean;
   providerDiagnosticsRedacted: boolean;
   cutoverGates: string[];
+  auditRefs: string[];
   lossyMappingReport: {
     canonicalObjects: string[];
     contractRisks: string[];
@@ -127,6 +128,7 @@ interface ServerProviderReplacementDryRunReport {
   supportSafe?: boolean;
   providerDiagnosticsRedacted?: boolean;
   cutoverGates?: string[];
+  auditRefs?: string[];
   lossyMappingReport?: Partial<
     ProviderReplacementDryRunReport['lossyMappingReport']
   >;
@@ -590,6 +592,7 @@ function normalizeProviderReplacementDryRun(
     supportSafe: response.supportSafe ?? true,
     providerDiagnosticsRedacted: response.providerDiagnosticsRedacted ?? true,
     cutoverGates: response.cutoverGates ?? [],
+    auditRefs: response.auditRefs ?? [`provider-replacement-dry-run-${category.key}`],
     lossyMappingReport: {
       canonicalObjects: lossyMapping.canonicalObjects ?? [],
       contractRisks: lossyMapping.contractRisks ?? [],

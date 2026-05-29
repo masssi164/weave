@@ -269,6 +269,7 @@ public class AdminControlPlaneService {
                         Map.entry("secretRefPresent", true),
                         Map.entry("secretRef", safeSecretRef(request.secretRef())),
                         Map.entry("migrationDryRunRequired", migrationRequired),
+                        Map.entry("portableExportImportRequired", request.portableExportImportRequired()),
                         Map.entry("lossyMappingNoteCount", adminNotes.size()),
                         Map.entry("rawProviderError", "redacted before audit"),
                         Map.entry("token", "not-stored"))));
@@ -296,6 +297,21 @@ public class AdminControlPlaneService {
                         ProviderCapabilityContracts.exportDeleteExpectation(category),
                         "deprovision source identities, groups, memberships, grants, and service principals through the authoritative provider before capability cutover",
                         "rollback is an admin decision boundary; dry-run does not mutate provider state and apply must preserve mapping history"),
+                new ProviderReplacementDryRunResponse.PortableExportImportContract(
+                        category + "-portable-export-manifest-v0.1",
+                        category + "-portable-import-manifest-v0.1",
+                        "v0.1 guarantees a documented portable export/import contract before claiming automated migration.",
+                        List.of("full automated cross-provider migration is not claimed in v0.1"),
+                        List.of("provider-switch-preflight", "portable-export-import-contract", "rollback-recovery-plan", auditRef)),
+                new ProviderReplacementDryRunResponse.SwitchPlan(
+                        category + "-switch-plan-v0.1",
+                        true,
+                        true,
+                        true,
+                        "degraded",
+                        List.of(
+                                "keep current adapter active until export/import evidence is accepted",
+                                "block apply when rollback evidence or support-safe audit refs are missing")),
                 List.of(
                         "SecretRef exists and remains backend-only; raw credentials are never returned.",
                         "Admin confirms source-of-truth, export/delete, lossy mapping, and rollback/support notes.",
