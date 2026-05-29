@@ -6,7 +6,7 @@
 
 ## Summary
 
-Implement a fail-closed meeting contract for issue #216. The slice documents architecture options and extends the channel workspace meeting domain so future join/start work cannot claim security without boundary evidence.
+Implement a fail-closed meeting contract for issue #216. The slice preserves LiveKit as the active meetings provider contract, documents future architecture comparison options, and extends the channel workspace meeting domain so future join/start work cannot claim security without boundary evidence.
 
 ## Steps
 

@@ -27,7 +27,7 @@ Define Weave's meeting architecture and product boundaries before enabling video
 ### In scope
 
 - Provider-neutral meeting capability contract for channels, calendar events, and threads.
-- Architecture decision record comparing MatrixRTC/Element Call and LiveKit-style SFU options.
+- Architecture decision record preserving LiveKit as the active meetings/video-call provider contract and comparing MatrixRTC/Element Call only as a future option.
 - Explicit encryption/evidence boundaries for signaling, media, captions, transcripts, recordings, and metadata.
 - UX/accessibility contract for device selection, join preview, mute/camera state, participant list, errors, and recovery.
 - Recording/transcription defaults and consent requirements.
@@ -90,7 +90,7 @@ Define Weave's meeting architecture and product boundaries before enabling video
 
 - **FR-001**: Weave MUST model meeting attach points for channel, calendar event, and thread contexts.
 - **FR-002**: Weave MUST keep meeting join/start controls disabled until backend media capability, policy, and evidence are ready.
-- **FR-003**: Weave MUST document MatrixRTC/Element Call and LiveKit-style SFU trade-offs before selecting an implementation.
+- **FR-003**: Weave MUST document LiveKit as the current active meetings provider contract and MatrixRTC/Element Call as a future comparison option unless backend registry, runtime docs, acceptance tests, and readiness contracts are migrated together.
 - **FR-004**: Weave MUST define encryption/evidence boundaries for Matrix signaling, media streams, captions, transcripts, recordings, and metadata.
 - **FR-005**: Weave MUST NOT describe metadata as end-to-end encrypted.
 - **FR-006**: Recording and transcription MUST be off by default and require explicit participant-visible consent before enablement.
@@ -102,7 +102,7 @@ Define Weave's meeting architecture and product boundaries before enabling video
 ## Domain model and contracts
 
 - Canonical Weave entities affected: ChannelMeetingPreview, ChannelMeetingAttachPoint, ChannelMeetingEncryptionBoundary, ChannelMeetingUxRequirement, ChannelMeetingControl.
-- Provider/category contracts affected: future meeting backend facade, MatrixRTC/Element Call readiness, optional LiveKit-style SFU readiness.
+- Provider/category contracts affected: LiveKit-backed meeting backend facade readiness, optional future MatrixRTC/Element Call comparison only after coordinated provider-contract migration.
 - API/event contracts affected: future capability endpoint must expose Weave meeting readiness, not provider internals.
 - Policy/RBAC/capability keys affected: meeting join/start, recording, transcription, captions, participant management.
 - Audit/support evidence affected: capability state, encryption boundary evidence, consent state, metadata inventory, support-safe diagnostics.
@@ -126,6 +126,6 @@ Define Weave's meeting architecture and product boundaries before enabling video
 
 ## Open questions
 
-- [ ] Which backend facade owns MatrixRTC/Element Call readiness and token issuance?
+- [ ] Which backend facade owns LiveKit room/session readiness and token issuance?
 - [ ] Which policy keys govern recording, transcription, captions, and participant management?
 - [ ] Which acceptance feature should cover first live join/start flow after backend capability exists?

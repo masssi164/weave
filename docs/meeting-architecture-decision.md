@@ -6,29 +6,30 @@ Weave meetings are contextual collaboration surfaces attached to existing Weave 
 
 ## Decision
 
-Adopt a provider-neutral meeting capability contract in the member client and keep join/start fail-closed until a backend meeting facade proves a concrete media architecture.
+Adopt a provider-neutral meeting capability contract in the member client and keep join/start fail-closed until the existing backend-owned LiveKit meetings provider contract proves its concrete media architecture.
 
-Preferred direction:
+Current direction:
 
-1. Use Matrix room state for contextual signaling when possible, because it matches Weave channel identity and room encryption posture.
-2. Treat Element Call/MatrixRTC as the closest product fit for Matrix-native contextual calls.
-3. Permit LiveKit-style SFU deployment only behind a Weave backend facade with explicit E2EE trade-off evidence, token policy, metadata limits, and support-safe diagnostics.
-4. Do not expose provider URLs, room media tokens, SFU internals, or recording/caption storage providers in member UI.
+1. Keep LiveKit as the active meetings/video-call provider key in the backend provider registry and runtime configuration.
+2. Route all LiveKit rooms, session tokens, readiness, and diagnostics through a Weave backend facade; Flutter/member UI must only see Weave meeting capability state.
+3. Treat Matrix as the chat/E2EE substrate and possible contextual signaling source, but do not promote MatrixRTC/Element Call as the active Weave meetings provider in this slice.
+4. Keep MatrixRTC/Element Call as a future comparison option only if a later migration updates the backend registry, runtime docs, acceptance tests, and provider readiness contract consistently.
+5. Do not expose provider URLs, room media tokens, SFU internals, or recording/caption storage providers in member UI.
 
 ## Architecture options
 
 | Option | Fit | E2EE and confidentiality boundary | Operational trade-off | Decision |
 | --- | --- | --- | --- | --- |
-| MatrixRTC / Element Call | Best fit for Matrix-backed channels and contextual calls. | Signaling can follow Matrix room encryption. Media confidentiality depends on MatrixRTC/Element Call mode, client support, SFU behavior, and documented key handling. | Requires MatrixRTC readiness, compatible clients, media backend evidence, and clear fallback states. | Preferred first implementation candidate. |
-| LiveKit-style SFU behind Weave backend facade | Good for scalable media and operational maturity. | Media may be encrypted in transit and can support E2EE modes, but SFU metadata and feature behavior must be documented. Recording/captions/transcripts need separate encryption and consent evidence. | Requires token minting, SFU operations, capability health, support bundle redaction, and explicit E2EE trade-off docs. | Allowed only behind server facade and policy. |
+| LiveKit-style SFU behind Weave backend facade | Current active provider contract for meetings/video calls and good fit for scalable media operations. | Media may be encrypted in transit and can support E2EE modes, but SFU metadata and feature behavior must be documented. Recording/captions/transcripts need separate encryption and consent evidence. Matrix chat encryption must not be presented as covering LiveKit media. | Requires backend token minting, SFU operations, capability health, support bundle redaction, and explicit E2EE trade-off docs. | Active provider contract; still fail-closed until backend/media/accessibility evidence is configured and validated. |
+| MatrixRTC / Element Call | Future comparison option for Matrix-native contextual calls, not the active Weave meetings provider contract. | Signaling can follow Matrix room encryption. Media confidentiality depends on MatrixRTC/Element Call mode, client support, SFU behavior, and documented key handling. | Requires registry/runtime/acceptance migration, MatrixRTC readiness, compatible clients, media backend evidence, and clear fallback states. | Future option only; do not silently replace the current LiveKit contract. |
 | Generic hosted meeting links | Low product fit. | Encryption, metadata, retention, and recording behavior are provider-defined and often opaque to Weave. | Easy link insertion but weak sovereignty and portability. | Not acceptable as the primary Weave meeting model. |
 
 ## Encryption and evidence boundaries
 
 | Boundary | Product statement | Required evidence before enabling |
 | --- | --- | --- |
-| Matrix signaling | Signaling follows the Matrix room encryption/readiness posture when Matrix-backed rooms are used. | Matrix E2EE diagnostic, room readiness, and failure-state evidence. |
-| Media streams | Media confidentiality is documented per selected architecture; group calls must state SFU/client key handling. | Media transport readiness, E2EE mode evidence, and architecture trade-off record. |
+| Matrix signaling | Matrix remains the chat/E2EE substrate and may provide contextual room state, but it is not the active generic meetings provider. | Matrix E2EE diagnostic, room readiness, and failure-state evidence. |
+| Media streams | Media confidentiality is documented for the active LiveKit-backed architecture before enablement; group calls must state SFU/client key handling and must not inherit Matrix chat E2EE claims. | LiveKit media transport readiness, E2EE mode evidence, and architecture trade-off record. |
 | Captions | Off by default. If enabled, caption generation, storage, retention, and encryption are visible to users. | Consent UX, storage boundary, retention policy, and accessibility evidence. |
 | Transcripts | Off by default. If enabled, transcript generation, storage, retention, and encryption are visible to users. | Consent UX, storage boundary, retention policy, export/delete behavior, and audit evidence. |
 | Recordings | Off by default and unavailable without explicit consent and visible state. | Consent UX, recording indicator, storage encryption, retention policy, export/delete behavior, and audit evidence. |
@@ -70,6 +71,8 @@ Do not claim `secure meetings`, `encrypted meetings`, or `end-to-end encrypted m
 - Domain test: `client/test/features/chat/channel_workspace_test.dart`
 - Architecture guard: `client/test/architecture/meetings_contract_test.dart`
 - Product scope: `docs/product-calendar-e2ee-boards-scope.md`
+- Guarded surfaces: `docs/roadmap-and-guarded-surfaces.md`
+- Runtime provider contract: `server/docs/runtime-configuration.md`
 - Provider boundary: `docs/provider-replacement-and-anti-silo-contract.md`
 
 ## MVP slice

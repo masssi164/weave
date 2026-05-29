@@ -18,8 +18,10 @@ void main() {
     ).readAsString();
 
     for (final required in <String>[
-      'MatrixRTC / Element Call',
+      'LiveKit as the active meetings/video-call provider key',
       'LiveKit-style SFU',
+      'MatrixRTC / Element Call',
+      'future comparison option',
       'Generic hosted meeting links',
       'Matrix signaling',
       'Media streams',
@@ -82,5 +84,17 @@ void main() {
 
     expect(contract, contains('Do not claim `secure meetings`'));
     expect(contract, contains('without naming the boundary and evidence'));
+    expect(
+      contract,
+      isNot(contains('Preferred first implementation candidate')),
+    );
+    expect(
+      spec,
+      contains('LiveKit as the current active meetings provider contract'),
+    );
+    expect(
+      traceability,
+      contains('LiveKit remains the active meetings provider contract'),
+    );
   });
 }

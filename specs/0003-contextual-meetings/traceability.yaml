@@ -16,8 +16,9 @@ domain_entities:
   - ChannelMeetingUxRequirement
   - ChannelMeetingControl
 provider_neutral_invariants:
-  - meeting join and start controls fail closed until backend media capability is evidenced
+  - meeting join and start controls fail closed until LiveKit-backed backend media capability is evidenced
   - meeting surfaces attach to Weave context instead of generic provider links
+  - LiveKit remains the active meetings provider contract while MatrixRTC/Element Call is future comparison only unless provider contracts migrate together
   - encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries
   - recording and transcription are off by default and require explicit participant-visible consent
   - member meeting views do not expose provider URLs, tokens, SFU internals, credentials, or raw diagnostics
@@ -27,6 +28,6 @@ evidence_gates:
   - ./gradlew acceptanceContract
   - flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
 open_product_core_decisions:
-  - backend facade ownership for MatrixRTC/Element Call readiness and token issuance
+  - backend facade ownership for LiveKit room/session readiness and token issuance
   - policy keys for recording, transcription, captions, and participant management
   - first live meeting join/start acceptance feature
