@@ -607,7 +607,7 @@ void main() {
       expect(find.text('Open security settings'), findsOneWidget);
     });
 
-    testWidgets('shows recency badges and keeps unread rooms first', (
+    testWidgets('keeps unread recent room metadata within the tile', (
       tester,
     ) async {
       final semantics = tester.ensureSemantics();
@@ -690,6 +690,7 @@ void main() {
           .getSemanticsData();
       expect(unreadRoomSemanticsData.label, contains('Older unread room'));
       expect(unreadRoomSemanticsData.label, contains('Unread update'));
+      expect(unreadRoomSemanticsData.label, contains('Active now'));
       expect(unreadRoomSemanticsData.label, contains('3 unread messages'));
       expect(unreadRoomSemanticsData.hasAction(SemanticsAction.tap), isTrue);
       semantics.dispose();

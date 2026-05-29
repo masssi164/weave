@@ -855,13 +855,28 @@ class _ConversationTrailing extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final metadataPills = <Widget>[
+      if (recencyLabel != null)
+        _ConversationMetadataPill(
+          label: recencyLabel!,
+          backgroundColor: theme.colorScheme.secondaryContainer,
+          foregroundColor: theme.colorScheme.onSecondaryContainer,
+          horizontalPadding: 8,
+        ),
+      if (unreadCount > 0)
+        _ConversationMetadataPill(
+          label: unreadCount.toString(),
+          backgroundColor: theme.colorScheme.primary,
+          foregroundColor: theme.colorScheme.onPrimary,
+          horizontalPadding: 10,
+        ),
+    ];
+
     return SizedBox(
       width: 156,
-      child: Wrap(
-        alignment: WrapAlignment.end,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 6,
-        runSpacing: 4,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (timestamp != null)
             Text(
@@ -872,19 +887,18 @@ class _ConversationTrailing extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          if (recencyLabel != null)
-            _ConversationMetadataPill(
-              label: recencyLabel!,
-              backgroundColor: theme.colorScheme.secondaryContainer,
-              foregroundColor: theme.colorScheme.onSecondaryContainer,
-              horizontalPadding: 8,
-            ),
-          if (unreadCount > 0)
-            _ConversationMetadataPill(
-              label: unreadCount.toString(),
-              backgroundColor: theme.colorScheme.primary,
-              foregroundColor: theme.colorScheme.onPrimary,
-              horizontalPadding: 10,
+          if (timestamp != null && metadataPills.isNotEmpty)
+            const SizedBox(height: 4),
+          if (metadataPills.isNotEmpty)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final pill in metadataPills) ...[
+                  if (pill != metadataPills.first) const SizedBox(width: 6),
+                  Flexible(child: pill),
+                ],
+              ],
             ),
         ],
       ),
@@ -921,6 +935,8 @@ class _ConversationMetadataPill extends StatelessWidget {
         ),
         child: Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.labelSmall?.copyWith(
             color: foregroundColor,
             fontWeight: FontWeight.w600,
