@@ -64,6 +64,15 @@ void main() {
     expect(preview.meetingPreview.isFailClosed, isTrue);
     expect(preview.meetingPreview.requiresExplicitConsent, isTrue);
     expect(preview.meetingPreview.backgroundRoomReadingEnabled, isFalse);
+    expect(preview.meetingPreview.canLinkFromChannelOrCalendar, isTrue);
+    expect(preview.meetingPreview.hasDocumentedEncryptionBoundaries, isTrue);
+    expect(preview.meetingPreview.hasAccessibleJoinContract, isTrue);
+    expect(preview.meetingPreview.preventsVagueSecurityClaims, isTrue);
+    expect(preview.meetingPreview.attachPoints.map((point) => point.kind), [
+      ChannelMeetingAttachPointKind.channel,
+      ChannelMeetingAttachPointKind.calendarEvent,
+      ChannelMeetingAttachPointKind.thread,
+    ]);
     expect(preview.weaverScoutPreview.isGovernedReadOnlyScout, isTrue);
     expect(preview.weaverScoutPreview.readOnly, isTrue);
     expect(preview.weaverScoutPreview.proposalOnly, isTrue);
@@ -107,6 +116,18 @@ void main() {
       ChannelMeetingContextItemKind.tasks,
       ChannelMeetingContextItemKind.followUpEvidence,
     ]);
+    expect(
+      preview.meetingPreview.encryptionBoundaries.map(
+        (boundary) => boundary.kind,
+      ),
+      ChannelMeetingEncryptionBoundaryKind.values,
+    );
+    expect(
+      preview.meetingPreview.uxRequirements.map(
+        (requirement) => requirement.kind,
+      ),
+      ChannelMeetingUxRequirementKind.values,
+    );
     expect(
       preview.meetingPreview.controls.every((control) => !control.enabled),
       isTrue,

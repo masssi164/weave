@@ -32,8 +32,9 @@ Start with:
 1. [Admin/Operator Handbook](admin-operator-handbook.md) — setup, provider categories, policy, readiness, audit, backup/restore, and support bundles.
 2. [Admin-Suite readiness and setup contract](admin-suite-readiness-setup-contract.md) — guided setup assistant, readiness dashboard, action boundary, and support-safe evidence.
 3. [Admin-provisioned first use](admin-provisioned-first-use.md) — member/admin boundary and setup acceptance.
-4. [Organization embedding contract](organization-embedding-contract.md) — identity, tenant, roles/groups, non-human identities, and future Weaver category boundaries.
-5. [Identity provisioning strategy](identity-provisioning-strategy.md) — LDAP/AD/OIDC/SAML/SCIM-oriented identity planning.
+4. [Meeting architecture decision record](meeting-architecture-decision.md) — contextual meeting attach points, E2EE boundaries, consent defaults, and fail-closed readiness.
+5. [Organization embedding contract](organization-embedding-contract.md) — identity, tenant, roles/groups, non-human identities, and future Weaver category boundaries.
+6. [Identity provisioning strategy](identity-provisioning-strategy.md) — LDAP/AD/OIDC/SAML/SCIM-oriented identity planning.
 
 ### Operator
 
@@ -77,6 +78,7 @@ Canonical product docs:
 - [Weave agent-team orchestration](agent-team-orchestration.md)
 - [Canonical feature models](canonical-feature-models.md)
 - [Accessible workflow context contract](workflow-context-contract.md)
+- [Meeting architecture decision record](meeting-architecture-decision.md)
 - [Architecture](architecture.md)
 - [Organization embedding contract](organization-embedding-contract.md)
 - [Admin-Suite readiness and setup contract](admin-suite-readiness-setup-contract.md)
