@@ -22,7 +22,7 @@ Start with:
 Start with:
 
 1. [User Handbook](user-handbook.md) — joining and using an already-provisioned organization.
-2. [v0.1 Golden Path readiness](v0.1-golden-path.md) — status language for ready, disabled, degraded, and admin-setup-required surfaces.
+2. [v0.1 Golden Path readiness](v0.1-golden-path.md) — status language for available, disabled-by-policy, not-configured, degraded, unavailable, coming-later, and admin-setup-required surfaces.
 3. [Accessibility release gate](accessibility-release-gate.md) — keyboard, screen-reader, and non-color-only expectations.
 
 ### Owner / admin

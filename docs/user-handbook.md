@@ -38,7 +38,7 @@ Files use Weave-owned product routes and backend facades. The client should not 
 
 ## Tasks, boards, meetings, and calendar
 
-Boards/tasks, shared calendar, and meeting capsules are capability-backed workspace surfaces. They may be ready, disabled, degraded, or policy-blocked depending on admin/provider readiness and your role.
+Boards/tasks, shared calendar, and meeting capsules are capability-backed workspace surfaces. They may be available, disabled by policy, not configured, degraded, unavailable, or coming later depending on admin/provider readiness and your role.
 
 - Calendar focuses on shared workspace/team/channel scheduling in the current product path.
 - Boards/tasks use a Weave task model behind provider adapters.

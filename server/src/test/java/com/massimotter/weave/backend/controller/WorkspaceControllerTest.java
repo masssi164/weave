@@ -62,7 +62,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "weave.workspace.chat.dependency-url=https://matrix.weave.local",
         "weave.workspace.files.dependency-url=https://files.weave.local",
         "weave.workspace.calendar.enabled=true",
-        "weave.workspace.calendar.readiness=degraded"
+        "weave.workspace.calendar.readiness=degraded",
+        "weave.workspace.meetings-calls.enabled=true"
 })
 class WorkspaceControllerTest {
 
@@ -88,7 +89,7 @@ class WorkspaceControllerTest {
                                 .claim("weave_tenant_id", "weave-dogfood")
                                 .claim("weave_organization_name", "Weave Dogfood")
                                 .claim("realm_access", Map.of("roles", List.of()))
-                                .claim("groups", List.of("weave-calendar-editors")))
+                                .claim("groups", List.of("weave-calendar-editors", "weave-meeting-hosts")))
                         .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.manifestVersion").value("org-manifest-v1"))
@@ -103,7 +104,7 @@ class WorkspaceControllerTest {
                         "accept organization auth URL, invite link, or deep link",
                         "complete SSO with the selected identity provider",
                         "consume effective organization manifest and capability states",
-                        "render only ready, disabled, degraded, or policy-blocked member states")))
+                        "render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states")))
                 .andExpect(jsonPath("$.adminConsoleResponsibilities", hasItems(
                         "create and bootstrap organizations",
                         "select and configure identity providers and category providers",
@@ -111,12 +112,13 @@ class WorkspaceControllerTest {
                         "manage users, groups, roles, capability profiles, and deny-by-default policy",
                         "own provider, tool, and agent whitelisting plus privacy/compliance risk notes",
                         "audit organization-wide defaults and administrative changes")))
-                .andExpect(jsonPath("$.memberCapabilityStates['identity-idm']").value("ready"))
-                .andExpect(jsonPath("$.memberCapabilityStates.chat").value("policy-blocked"))
-                .andExpect(jsonPath("$.memberCapabilityStates.calendar").value("degraded"))
-                .andExpect(jsonPath("$.memberCapabilityStates.files").value("policy-blocked"))
-                .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled"))
-                .andExpect(jsonPath("$.memberCapabilityStates.weaver").value("disabled"))
+                .andExpect(jsonPath("$.memberCapabilityStates['idm-rbac']").value("available"))
+                .andExpect(jsonPath("$.memberCapabilityStates['chat-channels']").value("disabled_by_policy"))
+                .andExpect(jsonPath("$.memberCapabilityStates['calendar-events']").value("degraded"))
+                .andExpect(jsonPath("$.memberCapabilityStates['files-docs']").value("disabled_by_policy"))
+                .andExpect(jsonPath("$.memberCapabilityStates['boards-tasks']").value("disabled_by_policy"))
+                .andExpect(jsonPath("$.memberCapabilityStates.meetings").value("not_configured"))
+                .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").value("coming_later"))
                 .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
                 .andExpect(jsonPath("$.capabilities.weaver.policyState").value("disabled"))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.local"))))

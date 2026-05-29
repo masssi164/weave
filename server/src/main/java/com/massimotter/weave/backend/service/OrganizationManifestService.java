@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.service;
 
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.model.CapabilityManifestState;
 import com.massimotter.weave.backend.model.OrganizationManifestResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
@@ -63,7 +64,7 @@ public class OrganizationManifestService {
                         "accept organization auth URL, invite link, or deep link",
                         "complete SSO with the selected identity provider",
                         "consume effective organization manifest and capability states",
-                        "render only ready, disabled, degraded, or policy-blocked member states"),
+                        "render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states"),
                 List.of(
                         "create and bootstrap organizations",
                         "select and configure identity providers and category providers",
@@ -172,32 +173,33 @@ public class OrganizationManifestService {
         return title.length() == 0 ? "Organization" : title.toString();
     }
 
-    private Map<String, String> memberStates(WorkspaceCapabilitiesResponse capabilities) {
-        Map<String, String> states = new LinkedHashMap<>();
-        states.put("identity-idm", memberState(capabilities.shellAccess()));
-        states.put("chat", memberState(capabilities.chat()));
-        states.put("files", memberState(capabilities.files()));
-        states.put("calendar", memberState(capabilities.calendar()));
+    private Map<String, CapabilityManifestState> memberStates(WorkspaceCapabilitiesResponse capabilities) {
+        Map<String, CapabilityManifestState> states = new LinkedHashMap<>();
+        states.put("idm-rbac", memberState(capabilities.shellAccess()));
+        states.put("chat-channels", memberState(capabilities.chat()));
+        states.put("files-docs", memberState(capabilities.files()));
         states.put("boards-tasks", memberState(capabilities.boards()));
-        states.put("weaver", memberState(capabilities.weaver()));
+        states.put("calendar-events", memberState(capabilities.calendar()));
+        states.put("meetings", memberState(capabilities.meetingsCalls()));
+        states.put("forms-contacts", CapabilityManifestState.COMING_LATER);
         return states;
     }
 
-    private String memberState(WorkspaceCapabilityStatusResponse status) {
-        if (status.policyState() == WorkspaceCapabilityPolicyState.POLICY_BLOCKED) {
-            return "policy-blocked";
-        }
-        if (!status.enabled()
-                || status.policyState() == WorkspaceCapabilityPolicyState.DISABLED
-                || status.readiness() == WorkspaceCapabilityReadiness.UNAVAILABLE) {
-            return "disabled";
-        }
-        if (status.readiness() == WorkspaceCapabilityReadiness.DEGRADED) {
-            return "degraded";
+    private CapabilityManifestState memberState(WorkspaceCapabilityStatusResponse status) {
+        if (status.policyState() == WorkspaceCapabilityPolicyState.POLICY_BLOCKED
+                || status.policyState() == WorkspaceCapabilityPolicyState.DISABLED) {
+            return CapabilityManifestState.DISABLED_BY_POLICY;
         }
         if (status.readiness() == WorkspaceCapabilityReadiness.READY) {
-            return "ready";
+            return CapabilityManifestState.AVAILABLE;
         }
-        return "disabled";
+        if (status.readiness() == WorkspaceCapabilityReadiness.DEGRADED) {
+            return CapabilityManifestState.DEGRADED;
+        }
+        if (status.readiness() == WorkspaceCapabilityReadiness.UNAVAILABLE
+                || status.policyState() == WorkspaceCapabilityPolicyState.UNAVAILABLE) {
+            return CapabilityManifestState.NOT_CONFIGURED;
+        }
+        return CapabilityManifestState.UNAVAILABLE;
     }
 }

@@ -133,7 +133,7 @@ class AdminControlPlaneControllerTest {
                 List.of("role_claim:admin", "group_claim:weave-board-editors"),
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"),
                 List.of(new EffectivePolicyDenyResponse("weaver.enabled", "weaver runtime is disabled unless an organization policy group explicitly grants it", "deny-by-default-capability-policy")),
-                List.of("member-visible states remain ready, disabled, degraded, or policy-blocked"),
+                List.of("member-visible states remain available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later"),
                 List.of("effective-policy-preview:admin-123"),
                 true,
                 true,

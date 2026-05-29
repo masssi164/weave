@@ -14,7 +14,7 @@ Admins and operators provision identity, domains, provider stack, policy, backup
 
 ## Client/Admin Console split
 
-Members enter or open only an organization auth URL, invite link, or deep link. After SSO, the Weave Client consumes the support-safe organization manifest and effective capability states, then renders member work surfaces. Member-visible states are limited to ready, disabled, degraded, or policy-blocked.
+Members enter or open only an organization auth URL, invite link, or deep link. After SSO, the Weave Client consumes the support-safe organization manifest and effective capability states, then renders member work surfaces. Member-visible manifest states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.
 
 The Admin Console owns organization creation/bootstrap, IDM/provider setup, provider/category selection, endpoint URL management and rotation, readiness and diagnostics, users/groups/roles, RBAC/capability profiles, deny-by-default policy, org-wide defaults, audit logs, and privacy/compliance/risk notes. Whitelisting belongs to the Admin Console: provider, tool, and agent allowlists are configured there, while the client only consumes effective policy/capabilities.
 
@@ -68,7 +68,7 @@ A newly invited `member` must be able to:
 - sign in once through Keycloak-backed Weave SSO;
 - reach a ready workspace shell without configuring OIDC, provider URLs, realms, Matrix, Nextcloud, CalDAV, OpenProject/Vikunja/Deck, LiveKit, backup/restore, or infrastructure details;
 - see ready channels/home state and use complete capabilities through Weave concepts;
-- see only impact/fallback copy for unavailable, disabled, degraded, or policy-blocked capabilities;
+- see only impact/fallback copy for unavailable, disabled-by-policy, not-configured, degraded, or coming-later capabilities;
 - avoid raw provider names and raw provider failures in the core workflow;
 - never see provider setup diagnostics, Workspace Health setup internals, roadmap panels, scaffold cards, preview cards, or coming-soon setup language in normal navigation/settings/first-use.
 
@@ -98,9 +98,9 @@ The fast guard is `client/test/architecture/admin_provisioned_first_use_contract
 
 Admins/operators configure the selected IDM adapter and map roles/groups into Weave capability profiles before inviting members. Keycloak is the self-hosted default, while Entra ID, Authentik, Auth0, and other OIDC/SAML providers remain adapter-compatible choices.
 
-Admins/operators see support-safe effective policy state: IDM category, profile keys, role/group-derived grants, deny-by-default posture, and whether a category is disabled, unavailable, degraded, ready, or policy-blocked. They do not need secret values in normal health views.
+Admins/operators see support-safe effective policy state: IDM category, profile keys, role/group-derived grants, deny-by-default posture, provider readiness, and how policy/readiness maps to member states such as `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They do not need secret values in normal health views.
 
-Members only see ready, disabled, degraded, or policy-blocked impact states. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Weaver appears only as a disabled-by-policy placeholder until a later governed per-user runtime policy exists.
+Members only see provider-neutral manifest states: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Weaver appears only as a disabled-by-policy placeholder until a later governed per-user runtime policy exists.
 
 ## Governed Weaver runtime policy
 
