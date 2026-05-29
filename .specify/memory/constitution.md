@@ -4,7 +4,7 @@ Version: 0.1.0
 Ratified: 2026-05-28  
 Last amended: 2026-05-28
 
-This constitution governs repo-local specifications under `specs/`, Spec Kit-style templates under `.specify/templates/`, and `weave-co-leader` agent orchestration. It turns Weave planning into versioned, reviewable, executable product contracts.
+This constitution governs repo-local specifications under `specs/`, Spec Kit-style templates under `.specify/templates/`, and repo-safe AI-assisted delivery guidance. It turns Weave planning into versioned, reviewable, executable product contracts.
 
 ## Core principles
 
@@ -30,7 +30,7 @@ Provider adapters serve Weave-owned domain contracts. Specs must preserve export
 
 ### VI. Weaver is governed and disabled by default
 
-Weaver/OpenClaw-derived PA runtime is optional, later, per-user, isolated, auditable, generated from organization policy, and governed by `user-rights, organization-whitelisted capabilities`. Agentic developer help may be a governed capability, but it must not become the product architecture or a bypass around disabled exec/elevated defaults.
+Weaver-derived PA runtime is optional, later, per-user, isolated, auditable, generated from organization policy, and governed by `user-rights, organization-whitelisted capabilities`. Agentic developer help may be a governed capability, but live assistant runtime configuration, allowlists, model routing, and operator hierarchy must not live in this product repository or become a bypass around disabled exec/elevated defaults.
 
 ### VII. Small slices, no markdown theater
 
@@ -51,15 +51,16 @@ Allowed status values:
 
 Every non-draft implementation PR must link issue/spec/evidence and select exactly one release-notes label.
 
-## Agent governance
+## Assistant governance
 
-`weave-co-leader` is an orchestrator, not a mega-coder. It recovers truth from repo/GitHub/CI, selects the smallest next slice, briefs specialists with allowed files and gates, integrates results, and returns evidence. Specialists must return concise evidence, blockers, and diffs/gates — not transcript dumps.
+The delivery lead is an orchestrator, not a mega-coder. It recovers truth from repo/GitHub/CI, selects the smallest next slice, briefs scoped reviewers/implementers with allowed files and gates, integrates results, and returns evidence. Reviewers and implementers must return concise evidence, blockers, and diffs/gates — not transcript dumps.
 
-Agent invocation must respect runtime policy:
+Assistant invocation must respect runtime policy:
 
-- Native OpenClaw subagents are used for repo-aware specialists.
-- ACP harnesses are used only when explicitly requested or when a coding harness is the right runtime; use allowed ACP harness IDs and report policy rejections clearly.
-- Do not require Copilot review while premium requests are exhausted; record human/agent fallback review plus green CI instead.
+- Repo-local docs describe logical roles and evidence expectations only.
+- Live assistant runtime configuration, allowlists, personal operator paths, model routing, and hierarchy definitions stay outside this product repository.
+- Coding harnesses are used only when explicitly requested or when the operator environment selects them; policy rejections must be reported clearly.
+- Do not require Copilot review while premium requests are exhausted; record human/assistant fallback review plus green CI instead.
 - Stop before secrets, data loss, live infra mutation, history rewrite, or hidden scope expansion.
 
 ## Governance

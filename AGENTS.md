@@ -26,20 +26,20 @@ Default gates: `./gradlew acceptanceContract`, `./gradlew clientCi`, `./gradlew 
 
 ## Autonomous sprint ownership
 
-`weave-co-leader` is the only autonomous Weave team leader. Main/Flotto delegates Weave sprint or milestone work to `weave-co-leader`; specialists are accessed and managed only by `weave-co-leader`, never directly by the main session.
+An assigned delivery lead owns Weave sprint or milestone work end to end. Scoped reviewers and implementers receive narrow, evidence-based briefs through the operator environment; the product repo must not encode live assistant hierarchy, allowlists, model routing, or personal operator paths.
 
-A user request such as “finish Sprint N”, “take this milestone”, or “close the sprint” is sufficient. The user does not need to repeat acceptance criteria. The co-leader must derive acceptance from GitHub milestone/issues, linked PRs, repo-local specs/tasks, developer docs, CI policy, and existing evidence.
+A user request such as “finish Sprint N”, “take this milestone”, or “close the sprint” is sufficient. The user does not need to repeat acceptance criteria. The delivery lead must derive acceptance from GitHub milestone/issues, linked PRs, repo-local specs/tasks, developer docs, CI policy, and existing evidence.
 
-A sprint-finish request authorizes normal repository delivery actions needed to finish the sprint: creating/updating issues, labels, branches, PRs, checked-in docs/evidence, PR comments, fallback agent reviews, merges into protected `main` when gates pass, issue closure, and milestone closure. It does not authorize secrets disclosure, destructive data loss, live infrastructure mutation, history rewrite, production release publication, or unresolved product-core decisions.
+A sprint-finish request authorizes normal repository delivery actions needed to finish the sprint: creating/updating issues, labels, branches, PRs, checked-in docs/evidence, PR comments, fallback reviews, merges into protected `main` when gates pass, issue closure, and milestone closure. It does not authorize secrets disclosure, destructive data loss, live infrastructure mutation, history rewrite, production release publication, or unresolved product-core decisions.
 
 ## Autonomous sprint loop
 
-When assigned a sprint or milestone, `weave-co-leader` must run this loop without handing decomposition back to main:
+When assigned a sprint or milestone, the delivery lead must run this loop without handing decomposition back to the requester:
 
 1. **Truth recovery**: fetch current `origin/main`, inspect GitHub milestone/issues/PRs/checks, read linked specs/tasks/docs, and identify the governing sprint lifecycle.
 2. **Acceptance derivation**: turn each issue/spec/task into testable acceptance criteria and evidence gates. If an issue lacks acceptance, infer it from linked specs/docs and update the issue or sprint plan instead of asking the user for restatement.
 3. **Issue DAG**: build or repair the dependency graph; mark independent work parallel and ordered work sequential.
-4. **Delegation**: spawn scoped specialists with strict briefs: task id, allowed files/globs, relevant docs, derived acceptance, required gates, output contract, and stop conditions.
+4. **Delegation**: brief scoped reviewers or implementers with strict repo-safe inputs: task id, allowed files/globs, relevant docs, derived acceptance, required gates, output contract, and stop conditions.
 5. **File ownership**: never let parallel specialists edit the same files without explicit sequencing or separate worktrees/branches.
 6. **PR train**: create short-lived branches from current `origin/main`, open issue-scoped PRs, fill the PR template, and apply exactly one `release-notes-*` label.
 7. **Quality gates**: run local gates, inspect GitHub CI, use fallback human/agent review when Copilot review is unavailable, and fix failures before continuing.
@@ -58,7 +58,7 @@ Do not stop after one PR. Do not report success from local git state, a green br
 - `e2e/`: Gherkin contracts and evidence mapping.
 - `docs/`: current product truth, release notes, handbooks, closure reports.
 
-Use compact templates from `.specify/templates/weave-agent-briefs.md`: Truth-Recovery, Specialist-Brief, ACP-Harness-Brief, Evidence-Return, Integration-Gate, Optimization-Review, and Session-Handoff. Use `docs/agent-team-orchestration.md` for the professional optimization loop.
+Use compact templates from `.specify/templates/weave-agent-briefs.md`: Truth-Recovery, Specialist-Brief, Coding-Harness-Brief, Evidence-Return, Integration-Gate, Optimization-Review, and Session-Handoff. Use `docs/agent-team-orchestration.md` for repo-safe AI-assisted delivery guidance.
 
 ## Hard stops
 
@@ -71,4 +71,5 @@ Accessibility, supportability, auditability, and deployability are release block
 - Write agent instructions, PRs, issues, code comments, and documentation in English unless an explicit localization file requires another language.
 - Follow `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs before coding, opening PRs, merging, or declaring work complete.
 - If the user asks to finish a sprint/milestone, derive acceptance from GitHub issues/milestones, repo specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
+- Keep live assistant runtime configuration, allowlists, hierarchy, model routing, and personal operator paths outside this product repo.
 - Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub closure verification before reporting completion.

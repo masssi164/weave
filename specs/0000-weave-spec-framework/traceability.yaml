@@ -15,9 +15,9 @@ evidence:
     - ./gradlew acceptanceContract
   artifacts:
     - build/evidence/ci-summary.json
-agent_roles:
-  orchestrator: weave-co-leader
-  specialists:
+assistant_delivery_roles:
+  delivery_lead: repo-safe orchestration role
+  reviewers:
     - product-spec-steward
     - client-accessibility
     - server-domain-facade

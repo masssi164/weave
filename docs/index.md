@@ -53,7 +53,7 @@ Start with:
 1. [Developer Handbook](developer-handbook.md) — local prerequisites, Java 21+ requirement, Gradle gates, client/server/admin/infra workflows, and evidence expectations.
 2. [Trunk-based PR and release workflow](gitflow-pr-workflow.md) — branch, review, label, release-note, and merge rules.
 3. [Spec-driven development for Weave](spec-driven-development.md) — repo-local specs, lifecycle, evidence gates, and agent orchestration.
-4. [Weave agent-team orchestration](agent-team-orchestration.md) — `weave-co-leader`, native subagents, ACP specialists, briefs, and optimization loop.
+4. [AI-assisted delivery orchestration](agent-team-orchestration.md) — repo-safe roles, handoff briefs, runtime-boundary guardrails, and optimization loop.
 5. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
 6. [Accessible workflow context contract](workflow-context-contract.md) — linear workflow primitives, context references, agent dry-run rules, and the MVP slice before a visual builder.
 7. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
@@ -75,7 +75,7 @@ Canonical product docs:
 - [v0.1 Golden Path readiness](v0.1-golden-path.md)
 - [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md)
 - [Spec-driven development for Weave](spec-driven-development.md)
-- [Weave agent-team orchestration](agent-team-orchestration.md)
+- [AI-assisted delivery orchestration](agent-team-orchestration.md)
 - [Canonical feature models](canonical-feature-models.md)
 - [Accessible workflow context contract](workflow-context-contract.md)
 - [Meeting architecture decision record](meeting-architecture-decision.md)

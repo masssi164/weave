@@ -4,7 +4,7 @@ title: Replace with concise product contract title
 version: 0.1.0
 status: draft
 domain: product-core
-owner: weave-co-leader
+owner: delivery-owner
 github_issue: null
 supersedes: []
 depends_on: []

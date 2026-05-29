@@ -15,7 +15,7 @@ One paragraph: technical approach that satisfies the spec without expanding prod
 - Acceptance/evidence path identified before implementation: yes/no
 - Accessibility/supportability/auditability/deployability addressed: yes/no
 - Provider secrets/raw diagnostics remain admin/operator-only: yes/no
-- Weaver/OpenClaw runtime remains governed and disabled-by-default unless explicitly in scope: yes/no
+- Weaver runtime remains governed and disabled-by-default unless explicitly in scope: yes/no
 
 Any `no` requires a blocker or a documented exception before implementation.
 

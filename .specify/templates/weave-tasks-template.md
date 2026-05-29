@@ -40,4 +40,4 @@ Group implementation by independently testable user story. Mark `[P]` only when 
 - [ ] T042 Run Integration-Gate or Optimization-Review; loop on material findings.
 - [ ] T043 Fill PR body with spec ID, acceptance/evidence, risks, and fallback review evidence.
 - [ ] T044 Update spec status/version or document why it remains draft/proposed.
-- [ ] T045 Agent handoff: preserve durable decisions, evidence, blockers, and next safe action only.
+- [ ] T045 Assistant handoff: preserve durable decisions, evidence, blockers, and next safe action only.
