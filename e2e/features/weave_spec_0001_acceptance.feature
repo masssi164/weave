@@ -27,8 +27,8 @@ Feature: WEAVE-SPEC-0001 acceptance and evidence mapping
   @weave-spec-0001-provider-switch-evidence
   Scenario: Provider switch evidence distinguishes spec acceptance from live migration
     Given an admin plans a provider switch for a configured domain
-    When preflight and portable export import evidence are requested
-    Then Weave records plan, cutover gates, rollback recovery, support-safe audit evidence, and export import contracts
+    When preflight and portable export/import evidence are requested
+    Then Weave records plan, cutover gates, rollback/recovery, support-safe audit evidence, and export/import contracts
     And the evidence does not claim full automated live production migration without separate release signoff
 
   @weave-spec-0001-weaver-ai-runtime-excluded
