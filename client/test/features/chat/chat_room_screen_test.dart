@@ -445,6 +445,7 @@ void main() {
   });
 
   testWidgets('restores a local unsent draft for the room', (tester) async {
+    final semantics = tester.ensureSemantics();
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async => buildTimeline(),
     );
@@ -463,6 +464,18 @@ void main() {
 
     expect(find.text('Draft restored from this device.'), findsOneWidget);
     expect(find.text('Remember the release notes'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.liveRegion == true &&
+            widget.child is Text &&
+            ((widget.child! as Text).data?.contains('Draft restored') ?? false),
+      ),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('Close'), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('shows retryable failures in the room', (tester) async {
