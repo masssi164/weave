@@ -122,10 +122,34 @@ class WorkflowStepPreview {
       state == WorkflowStepState.blocked ||
       state == WorkflowStepState.waitingForApproval;
 
+  bool get hasTraceableEvidence {
+    final contextReferenceIds = contextReferences
+        .where((reference) => reference.isExplicit)
+        .map((reference) => reference.id)
+        .toSet();
+
+    return evidence.isNotEmpty &&
+        evidence.every(
+          (reference) =>
+              contextReferenceIds.contains(reference.contextReferenceId),
+        );
+  }
+
+  bool get hasTraceableBlockers {
+    final evidenceIds = evidence.map((reference) => reference.id).toSet();
+
+    return blockers.every(
+      (blocker) =>
+          blocker.evidenceIds.isNotEmpty &&
+          blocker.evidenceIds.every(evidenceIds.contains),
+    );
+  }
+
   bool get isExplainable =>
       contextReferences.isNotEmpty &&
       contextReferences.every((reference) => reference.isExplicit) &&
-      evidence.isNotEmpty;
+      hasTraceableEvidence &&
+      hasTraceableBlockers;
 }
 
 class WorkflowRunPreview {

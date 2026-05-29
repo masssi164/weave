@@ -70,6 +70,9 @@ void main() {
     expect(steps.any((step) => step.requiresApproval), isTrue);
     expect(steps.any((step) => step.blockers.isNotEmpty), isTrue);
     expect(steps.every((step) => step.agentDryRunOnly), isTrue);
+    expect(steps.every((step) => step.hasTraceableEvidence), isTrue);
+    expect(steps.every((step) => step.hasTraceableBlockers), isTrue);
+    expect(steps.every((step) => step.isExplainable), isTrue);
 
     expect(
       steps.expand((step) => step.contextReferences).map((ref) => ref.kind),
@@ -84,5 +87,108 @@ void main() {
         WorkflowContextReferenceKind.agentRun,
       }),
     );
+  });
+
+  test('workflow steps reject unlinked evidence and blocker references', () {
+    const context = WorkflowContextReference(
+      id: 'task:ready',
+      kind: WorkflowContextReferenceKind.task,
+      label: 'Ready task',
+      sourceLabel: 'Linked task',
+    );
+    const evidence = WorkflowEvidenceReference(
+      id: 'evidence:ready',
+      label: 'Ready evidence',
+      sourceLabel: 'Task state',
+      contextReferenceId: 'task:ready',
+    );
+
+    const linked = WorkflowStepPreview(
+      id: 'step:linked',
+      kind: WorkflowStepKind.step,
+      title: 'Linked step',
+      state: WorkflowStepState.ready,
+      ownerLabel: 'Owner',
+      assignee: WorkflowAssignee(
+        label: 'Owner',
+        kind: WorkflowAssigneeKind.person,
+      ),
+      nextAction: 'Continue.',
+      dueLabel: 'Today',
+      contextReferences: <WorkflowContextReference>[context],
+      evidence: <WorkflowEvidenceReference>[evidence],
+      blockers: <WorkflowBlocker>[
+        WorkflowBlocker(
+          id: 'blocker:ready',
+          description: 'Needs evidence.',
+          ownerLabel: 'Owner',
+          evidenceIds: <String>['evidence:ready'],
+        ),
+      ],
+      requiresApproval: false,
+      agentDryRunOnly: true,
+    );
+
+    const evidenceWithoutContext = WorkflowStepPreview(
+      id: 'step:unlinked-evidence',
+      kind: WorkflowStepKind.step,
+      title: 'Unlinked evidence',
+      state: WorkflowStepState.ready,
+      ownerLabel: 'Owner',
+      assignee: WorkflowAssignee(
+        label: 'Owner',
+        kind: WorkflowAssigneeKind.person,
+      ),
+      nextAction: 'Stop.',
+      dueLabel: 'Today',
+      contextReferences: <WorkflowContextReference>[context],
+      evidence: <WorkflowEvidenceReference>[
+        WorkflowEvidenceReference(
+          id: 'evidence:missing-context',
+          label: 'Missing context evidence',
+          sourceLabel: 'Unknown state',
+          contextReferenceId: 'task:missing',
+        ),
+      ],
+      blockers: <WorkflowBlocker>[],
+      requiresApproval: false,
+      agentDryRunOnly: true,
+    );
+
+    const blockerWithoutEvidence = WorkflowStepPreview(
+      id: 'step:unlinked-blocker',
+      kind: WorkflowStepKind.step,
+      title: 'Unlinked blocker',
+      state: WorkflowStepState.blocked,
+      ownerLabel: 'Owner',
+      assignee: WorkflowAssignee(
+        label: 'Owner',
+        kind: WorkflowAssigneeKind.person,
+      ),
+      nextAction: 'Stop.',
+      dueLabel: 'Today',
+      contextReferences: <WorkflowContextReference>[context],
+      evidence: <WorkflowEvidenceReference>[evidence],
+      blockers: <WorkflowBlocker>[
+        WorkflowBlocker(
+          id: 'blocker:missing-evidence',
+          description: 'Missing evidence link.',
+          ownerLabel: 'Owner',
+          evidenceIds: <String>['evidence:missing'],
+        ),
+      ],
+      requiresApproval: false,
+      agentDryRunOnly: true,
+    );
+
+    expect(linked.hasTraceableEvidence, isTrue);
+    expect(linked.hasTraceableBlockers, isTrue);
+    expect(linked.isExplainable, isTrue);
+
+    expect(evidenceWithoutContext.hasTraceableEvidence, isFalse);
+    expect(evidenceWithoutContext.isExplainable, isFalse);
+
+    expect(blockerWithoutEvidence.hasTraceableBlockers, isFalse);
+    expect(blockerWithoutEvidence.isExplainable, isFalse);
   });
 }
