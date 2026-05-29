@@ -43,3 +43,10 @@ Monorepo alignment:
 - Product acceptance features live in `../e2e/features/`; keep `../e2e/scenario_mappings.json` updated with client evidence.
 - Use `../infra/weave-workspace/.generated/bootstrap.env` for live-stack bootstrap defaults.
 - Do not reintroduce client-side provider secrets or direct provider calls.
+
+## Global Weave agent baseline
+
+- Write agent instructions, PRs, issues, code comments, and documentation in English unless an explicit localization file requires another language.
+- Follow `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs before coding, opening PRs, merging, or declaring work complete.
+- If the user asks to finish a sprint/milestone, derive acceptance from GitHub issues/milestones, repo specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
+- Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub closure verification before reporting completion.
