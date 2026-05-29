@@ -606,7 +606,7 @@ void main() {
       expect(find.text('Open security settings'), findsOneWidget);
     });
 
-    testWidgets('shows recency badges and keeps the newest room first', (
+    testWidgets('shows recency badges and keeps unread rooms first', (
       tester,
     ) async {
       final now = DateTime.now();
@@ -627,12 +627,21 @@ void main() {
             isInvite: false,
             isDirectMessage: false,
           ),
+          const ChatConversation(
+            id: '!older-unread:home.internal',
+            title: 'Older unread room',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Unread update',
+            unreadCount: 1,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
           ChatConversation(
             id: '!older:home.internal',
             title: 'Older room',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Yesterday update',
-            lastActivityAt: yesterdayAtNoon,
+            lastActivityAt: yesterdayAtNoon.subtract(const Duration(hours: 1)),
             unreadCount: 0,
             isInvite: false,
             isDirectMessage: false,
@@ -657,6 +666,10 @@ void main() {
 
       expect(find.text('Active now'), findsOneWidget);
       expect(find.text('Yesterday'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Older unread room')).dy,
+        lessThan(tester.getTopLeft(find.text('Newest room')).dy),
+      );
       expect(
         tester.getTopLeft(find.text('Newest room')).dy,
         lessThan(tester.getTopLeft(find.text('Older room')).dy),

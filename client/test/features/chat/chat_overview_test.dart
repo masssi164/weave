@@ -43,4 +43,79 @@ void main() {
     expect(overview.unreadCount, 2);
     expect(overview.nextConversation, favoriteChannel);
   });
+
+  test('prioritizes unread and recent activity within overview groups', () {
+    final quietRecentChannel = ChatConversation(
+      id: '!recent:home.internal',
+      title: 'Recent channel',
+      previewType: ChatConversationPreviewType.text,
+      unreadCount: 0,
+      isInvite: false,
+      isDirectMessage: false,
+      lastActivityAt: DateTime(2026, 5, 1, 12),
+      isFavorite: true,
+    );
+    final unreadOlderChannel = ChatConversation(
+      id: '!unread-older:home.internal',
+      title: 'Unread older channel',
+      previewType: ChatConversationPreviewType.text,
+      unreadCount: 1,
+      isInvite: false,
+      isDirectMessage: false,
+      lastActivityAt: DateTime(2026, 4, 30, 12),
+    );
+    final unreadRecentDm = ChatConversation(
+      id: '@alex:home.internal',
+      title: 'Alex',
+      previewType: ChatConversationPreviewType.text,
+      unreadCount: 2,
+      isInvite: false,
+      isDirectMessage: true,
+      lastActivityAt: DateTime(2026, 5, 1, 11),
+    );
+    final unreadOlderDm = ChatConversation(
+      id: '@drew:home.internal',
+      title: 'Drew',
+      previewType: ChatConversationPreviewType.text,
+      unreadCount: 5,
+      isInvite: false,
+      isDirectMessage: true,
+      lastActivityAt: DateTime(2026, 4, 30, 10),
+    );
+    const quietNoActivityDm = ChatConversation(
+      id: '@bea:home.internal',
+      title: 'Bea',
+      previewType: ChatConversationPreviewType.text,
+      unreadCount: 0,
+      isInvite: false,
+      isDirectMessage: true,
+    );
+    final quietOlderDm = ChatConversation(
+      id: '@casey:home.internal',
+      title: 'Casey',
+      previewType: ChatConversationPreviewType.text,
+      unreadCount: 0,
+      isInvite: false,
+      isDirectMessage: true,
+      lastActivityAt: DateTime(2026, 4, 29, 9),
+    );
+
+    final overview = ChatOverview.fromConversations([
+      quietRecentChannel,
+      quietNoActivityDm,
+      unreadOlderChannel,
+      quietOlderDm,
+      unreadOlderDm,
+      unreadRecentDm,
+    ]);
+
+    expect(overview.personalMessages, [
+      unreadRecentDm,
+      unreadOlderDm,
+      quietOlderDm,
+      quietNoActivityDm,
+    ]);
+    expect(overview.channels, [unreadOlderChannel, quietRecentChannel]);
+    expect(overview.nextConversation, unreadRecentDm);
+  });
 }

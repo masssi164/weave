@@ -38,22 +38,22 @@ class ChatOverview {
     return ChatOverview(
       favorites: conversations
           .where((conversation) => conversation.isFavorite)
-          .toList(growable: false),
+          .sortedByActivity(),
       personalMessages: conversations
           .where(
             (conversation) =>
                 conversation.isDirectMessage && !conversation.isAiChat,
           )
-          .toList(growable: false),
+          .sortedByActivity(),
       channels: conversations
           .where(
             (conversation) =>
                 !conversation.isDirectMessage && !conversation.isAiChat,
           )
-          .toList(growable: false),
+          .sortedByActivity(),
       aiChats: conversations
           .where((conversation) => conversation.isAiChat)
-          .toList(growable: false),
+          .sortedByActivity(),
     );
   }
 
@@ -81,23 +81,60 @@ class ChatOverview {
   }
 
   ChatConversation? get nextConversation {
-    final unique = <String>{};
-    final candidates = <ChatConversation>[
-      ...favorites.where((conversation) => conversation.unreadCount > 0),
-      ...personalMessages.where((conversation) => conversation.unreadCount > 0),
-      ...channels.where((conversation) => conversation.unreadCount > 0),
+    final unique = <String, ChatConversation>{};
+    for (final conversation in [
       ...favorites,
       ...personalMessages,
       ...channels,
       ...aiChats,
-    ];
-
-    for (final conversation in candidates) {
-      if (unique.add(conversation.id)) {
-        return conversation;
-      }
+    ]) {
+      unique.putIfAbsent(conversation.id, () => conversation);
     }
 
-    return null;
+    final candidates = unique.values.sortedByActivity();
+    return candidates.isEmpty ? null : candidates.first;
   }
+}
+
+extension on Iterable<ChatConversation> {
+  List<ChatConversation> sortedByActivity() {
+    return toList(growable: false)..sort(_compareConversationActivity);
+  }
+}
+
+int _compareConversationActivity(
+  ChatConversation left,
+  ChatConversation right,
+) {
+  final unreadComparison = _compareUnread(left.unreadCount, right.unreadCount);
+  if (unreadComparison != 0) {
+    return unreadComparison;
+  }
+
+  final leftActivity = left.lastActivityAt;
+  final rightActivity = right.lastActivityAt;
+  if (leftActivity != null && rightActivity != null) {
+    final activityComparison = rightActivity.compareTo(leftActivity);
+    if (activityComparison != 0) {
+      return activityComparison;
+    }
+  } else if (leftActivity != null) {
+    return -1;
+  } else if (rightActivity != null) {
+    return 1;
+  }
+
+  return left.title.toLowerCase().compareTo(right.title.toLowerCase());
+}
+
+int _compareUnread(int left, int right) {
+  final leftHasUnread = left > 0;
+  final rightHasUnread = right > 0;
+  if (leftHasUnread && !rightHasUnread) {
+    return -1;
+  }
+  if (!leftHasUnread && rightHasUnread) {
+    return 1;
+  }
+  return 0;
 }
