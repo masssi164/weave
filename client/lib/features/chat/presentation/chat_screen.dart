@@ -104,6 +104,8 @@ class ChatScreen extends ConsumerWidget {
               message: l10n.chatEmptyMessage,
               guidance: l10n.chatEmptyGuidance,
               icon: Icons.chat_bubble_outline,
+              actionLabel: l10n.chatStaleRoomsRetryButton,
+              onAction: () => ref.read(chatProvider.notifier).retry(),
             ),
           ),
           ChatViewPhase.error ||

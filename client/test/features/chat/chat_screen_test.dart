@@ -345,8 +345,27 @@ void main() {
     testWidgets('shows the empty state when there are no conversations', (
       tester,
     ) async {
+      final semantics = tester.ensureSemantics();
+      var loadCount = 0;
       final repository = FakeChatRepository(
-        loadConversationsHandler: () async => const <ChatConversation>[],
+        loadConversationsHandler: () async {
+          loadCount++;
+          if (loadCount == 1) {
+            return const <ChatConversation>[];
+          }
+
+          return const <ChatConversation>[
+            ChatConversation(
+              id: '!project:home.internal',
+              title: 'Project',
+              previewType: ChatConversationPreviewType.text,
+              previewText: 'Recovered room',
+              unreadCount: 0,
+              isInvite: false,
+              isDirectMessage: false,
+            ),
+          ];
+        },
       );
       final securityRepository = buildSecurityRepository();
 
@@ -371,6 +390,17 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(find.text('Refresh rooms'), findsOneWidget);
+      expect(find.bySemanticsLabel('Refresh rooms'), findsOneWidget);
+
+      await tester.tap(find.text('Refresh rooms'));
+      await tester.pumpAndSettle();
+
+      expect(repository.loadConversationsCalls, 2);
+      expect(find.text('Project'), findsOneWidget);
+      expect(find.text('Recovered room'), findsOneWidget);
+      expect(find.text('No conversations yet'), findsNothing);
+      semantics.dispose();
     });
 
     testWidgets(
