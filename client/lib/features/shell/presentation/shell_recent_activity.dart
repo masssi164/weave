@@ -158,23 +158,7 @@ class _ChatActivityContent extends StatelessWidget {
   List<ChatConversation> _recentConversations(
     List<ChatConversation> conversations,
   ) {
-    final sorted = conversations.toList()
-      ..sort((left, right) {
-        final leftActivity = left.lastActivityAt;
-        final rightActivity = right.lastActivityAt;
-        if (leftActivity == null && rightActivity == null) {
-          return left.title.compareTo(right.title);
-        }
-        if (leftActivity == null) {
-          return 1;
-        }
-        if (rightActivity == null) {
-          return -1;
-        }
-        return rightActivity.compareTo(leftActivity);
-      });
-
-    return sorted
+    return ChatOverview.fromConversations(conversations).activeConversations
         .take(ShellRecentActivity._maxItemsPerSection)
         .toList(growable: false);
   }

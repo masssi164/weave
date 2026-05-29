@@ -80,7 +80,7 @@ class ChatOverview {
     return total;
   }
 
-  ChatConversation? get nextConversation {
+  List<ChatConversation> get activeConversations {
     final unique = <String, ChatConversation>{};
     for (final conversation in [
       ...favorites,
@@ -91,7 +91,11 @@ class ChatOverview {
       unique.putIfAbsent(conversation.id, () => conversation);
     }
 
-    final candidates = unique.values.sortedByActivity();
+    return unique.values.sortedByActivity();
+  }
+
+  ChatConversation? get nextConversation {
+    final candidates = activeConversations;
     return candidates.isEmpty ? null : candidates.first;
   }
 }

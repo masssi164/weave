@@ -269,6 +269,46 @@ void main() {
       );
     });
 
+    testWidgets('prioritizes unread rooms in recent activity quick links', (
+      tester,
+    ) async {
+      final now = DateTime(2026, 5, 29, 12);
+      final chatRepository = FakeChatRepository(
+        loadConversationsHandler: () async => [
+          ChatConversation(
+            id: '!quiet-latest:weave.local',
+            title: 'Quiet latest',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Latest quiet update',
+            lastActivityAt: now.subtract(const Duration(minutes: 1)),
+            unreadCount: 0,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+          const ChatConversation(
+            id: '!unread-older:weave.local',
+            title: 'Unread older',
+            previewType: ChatConversationPreviewType.text,
+            previewText: 'Still unread',
+            unreadCount: 1,
+            isInvite: false,
+            isDirectMessage: false,
+          ),
+        ],
+      );
+
+      await pumpReadyShell(tester, chatRepository: chatRepository);
+
+      expect(find.widgetWithText(ActionChip, 'Unread older'), findsOneWidget);
+      expect(find.widgetWithText(ActionChip, 'Quiet latest'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.widgetWithText(ActionChip, 'Unread older')).dx,
+        lessThan(
+          tester.getTopLeft(find.widgetWithText(ActionChip, 'Quiet latest')).dx,
+        ),
+      );
+    });
+
     testWidgets('opens a recent room quick link with the app route', (
       tester,
     ) async {
