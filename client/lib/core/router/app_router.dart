@@ -56,9 +56,11 @@ GoRouter appRouter(Ref ref) {
         case BootstrapPhase.ready:
           try {
             final status = await ref.read(firstRunStatusProvider.future);
-            final needsFirstRunStatus =
-                status == null || !status.firstRunComplete;
-            if (needsFirstRunStatus) {
+            if (status == null) {
+              return (onFirstRun || onSignIn) ? null : AppRoutes.firstRun;
+            }
+
+            if (!status.firstRunComplete) {
               return onFirstRun ? null : AppRoutes.firstRun;
             }
 

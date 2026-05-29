@@ -128,6 +128,7 @@ void main() {
       required ServerConfiguration? configuration,
       InMemorySecureStore? secureStore,
       FirstRunStatus? firstRunStatus,
+      Future<FirstRunStatus?> Function()? firstRunStatusLoader,
     }) {
       final container = ProviderContainer.test(
         overrides: [
@@ -147,7 +148,9 @@ void main() {
             ),
           ),
           firstRunStatusProvider.overrideWith(
-            (ref) async => firstRunStatus ?? buildTestFirstRunStatus(),
+            (ref) =>
+                firstRunStatusLoader?.call() ??
+                Future.value(firstRunStatus ?? buildTestFirstRunStatus()),
           ),
           userProfileProvider.overrideWith((ref) async => null),
           workspaceConnectionStateProvider.overrideWithValue(
@@ -376,6 +379,47 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(SignInScreen), findsOneWidget);
+    });
+
+    testWidgets('lets signed-out first-run recovery reach sign-in', (
+      tester,
+    ) async {
+      final secureStore = InMemorySecureStore();
+      await secureStore.write(
+        authSessionStorageKey,
+        AuthSessionDto.fromSession(buildTestAuthSession()).encode(),
+      );
+      final container = createContainer(
+        configuration: buildTestConfiguration(),
+        secureStore: secureStore,
+        firstRunStatusLoader: () async => null,
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const WeaveApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(FirstRunScreen), findsOneWidget);
+      expect(find.text('Go to sign in'), findsOneWidget);
+
+      await tester.tap(find.text('Go to sign in'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignInScreen), findsOneWidget);
+      expect(
+        container
+            .read(appRouterProvider)
+            .routeInformationProvider
+            .value
+            .uri
+            .path,
+        AppRoutes.signIn,
+      );
     });
   });
 }
