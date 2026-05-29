@@ -4,6 +4,7 @@ import 'package:weave/core/widgets/empty_state.dart';
 import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/core/widgets/state_panel.dart';
+import 'package:weave/core/widgets/success_state.dart';
 
 void main() {
   group('StatePanel', () {
@@ -35,6 +36,91 @@ void main() {
 
       await tester.tap(find.text('Done'));
       expect(acknowledged, isTrue);
+    });
+  });
+
+  group('SuccessState', () {
+    testWidgets('displays shared success chrome with guidance', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SuccessState(
+              message: 'Saved',
+              guidance: 'Your changes are available to the workspace.',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Saved'), findsOneWidget);
+      expect(
+        find.text('Your changes are available to the workspace.'),
+        findsOneWidget,
+      );
+      expect(find.byType(Card), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle_outline), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Saved. Your changes are available to the workspace.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('renders follow-up action when provided', (tester) async {
+      var opened = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SuccessState(
+              message: 'Saved',
+              actionLabel: 'Open',
+              onAction: () => opened = true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Open'), findsOneWidget);
+      expect(find.bySemanticsLabel('Saved. Action: Open'), findsOneWidget);
+      expect(find.bySemanticsLabel('Open'), findsOneWidget);
+      await tester.tap(find.text('Open'));
+      expect(opened, isTrue);
+    });
+
+    testWidgets('accepts an explicit screen-reader label', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SuccessState(
+              message: 'Saved',
+              guidance: 'Your changes are available to the workspace.',
+              semanticLabel: 'Settings saved successfully.',
+            ),
+          ),
+        ),
+      );
+
+      expect(
+        find.bySemanticsLabel('Settings saved successfully.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('meets labeledTapTargetGuideline', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SuccessState(
+              message: 'Saved',
+              actionLabel: 'Open',
+              onAction: () {},
+            ),
+          ),
+        ),
+      );
+
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });
   });
 
