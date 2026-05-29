@@ -398,7 +398,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
               if (_draftRestored && !_loading)
                 MaterialBanner(
                   leading: const Icon(Icons.edit_note_outlined),
-                  content: Text(l10n.chatRoomDraftRestoredMessage),
+                  content: Semantics(
+                    container: true,
+                    liveRegion: true,
+                    child: Text(l10n.chatRoomDraftRestoredMessage),
+                  ),
                   actions: [
                     TextButton(
                       onPressed: () => setState(() {
