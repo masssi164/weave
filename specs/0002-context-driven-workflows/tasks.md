@@ -14,7 +14,7 @@
 - [x] T010 [Spec] Add repo-local proposed workflow contract in `specs/0002-context-driven-workflows/spec.md`.
 - [x] T011 [Acceptance] Record that Gherkin/mapping is deferred until persisted backend workflow/user journey exists.
 - [x] T012 [Contracts] Keep Context Graph/server ownership as a required future contract before execution.
-- [ ] T013 [Evidence] Run `./gradlew specContract`.
+- [x] T013 [Evidence] Run `./gradlew specContract`.
 
 ## Phase 2: Implementation slices
 
@@ -32,8 +32,8 @@
 
 ## Phase 4: Integration and handoff
 
-- [ ] T040 Run required area gates.
-- [ ] T041 Run `./gradlew clientCi` before merge.
+- [x] T040 Run required area gates.
+- [ ] T041 Run `./gradlew clientCi` before merge after branch changes are committed; local uncommitted-diff check fails while this patch is still unstaged.
 - [x] T042 Run architecture-contract review and resolve API/domain drift.
 - [ ] T043 Fill PR body with spec ID, acceptance/evidence, risks, and fallback review evidence.
 - [x] T044 Keep spec status `proposed` until backend execution and policy names are accepted.
