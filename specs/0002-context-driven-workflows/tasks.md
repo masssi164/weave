@@ -1,6 +1,6 @@
 # Tasks: Context-driven workflow primitives
 
-**Spec**: `specs/0002-context-driven-workflows/spec.md`  
+**Spec**: `specs/0002-context-driven-workflows/spec.md`
 **Plan**: `specs/0002-context-driven-workflows/plan.md`
 
 ## Phase 0: Truth recovery

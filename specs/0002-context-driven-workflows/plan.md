@@ -1,7 +1,7 @@
 # Implementation plan: Context-driven workflow primitives
 
-**Spec**: `specs/0002-context-driven-workflows/spec.md`  
-**Branch**: `issue-218-workflow-contract`  
+**Spec**: `specs/0002-context-driven-workflows/spec.md`
+**Branch**: `issue-218-workflow-contract`
 **Date**: 2026-05-29
 
 ## Summary

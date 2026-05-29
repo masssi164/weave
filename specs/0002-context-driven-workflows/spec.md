@@ -55,9 +55,9 @@ Define the provider-neutral workflow primitives that let teams run expert proces
 
 ### US1 - Linear workflow preview (Priority: P1)
 
-**Actor**: Member  
-**Story**: As a member, I can open active workflows for my workspace context as a linear list of steps with owners, state, blockers, evidence, and next actions.  
-**Why now**: Issue #218 requires expert-grade workflows without inaccessible visual spaghetti.  
+**Actor**: Member
+**Story**: As a member, I can open active workflows for my workspace context as a linear list of steps with owners, state, blockers, evidence, and next actions.
+**Why now**: Issue #218 requires expert-grade workflows without inaccessible visual spaghetti.
 **Independent test**: `flutter test test/features/workflows/workflow_preview_provider_test.dart test/features/workflows/workflow_preview_panel_test.dart`
 
 **Acceptance scenarios**:
@@ -67,9 +67,9 @@ Define the provider-neutral workflow primitives that let teams run expert proces
 
 ### US2 - Context Graph references instead of duplicated data (Priority: P1)
 
-**Actor**: Developer  
-**Story**: As a developer, I can model workflow step references as canonical Context Graph node references instead of copying task, decision, file, meeting, or agent-run data into workflows.  
-**Why now**: Workflows must remain portable across provider swaps and domain facades.  
+**Actor**: Developer
+**Story**: As a developer, I can model workflow step references as canonical Context Graph node references instead of copying task, decision, file, meeting, or agent-run data into workflows.
+**Why now**: Workflows must remain portable across provider swaps and domain facades.
 **Independent test**: Domain/unit tests verify reference kind, explicitness, evidence linkage, and fail-closed assumptions before backend execution exists.
 
 **Acceptance scenarios**:
@@ -79,9 +79,9 @@ Define the provider-neutral workflow primitives that let teams run expert proces
 
 ### US3 - Governed agent participation (Priority: P1)
 
-**Actor**: Admin and member  
-**Story**: As an admin/member, I can see when an agent is assigned only to prepare a dry-run/proposal and when owner approval is required before action.  
-**Why now**: Agent participation is useful only if it preserves user rights, organization-whitelisted capabilities, and auditability.  
+**Actor**: Admin and member
+**Story**: As an admin/member, I can see when an agent is assigned only to prepare a dry-run/proposal and when owner approval is required before action.
+**Why now**: Agent participation is useful only if it preserves user rights, organization-whitelisted capabilities, and auditability.
 **Independent test**: Provider tests assert agent actions disabled, dry-run-only steps, approval flags, and audit requirements.
 
 **Acceptance scenarios**:
