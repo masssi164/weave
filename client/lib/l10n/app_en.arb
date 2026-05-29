@@ -2484,6 +2484,14 @@
   "@chatRoomEmptyMessage": {
     "description": "Empty state message for a room without timeline events"
   },
+  "chatRoomEmptyGuidance": "Start the conversation when you are ready, or refresh if messages should already be here.",
+  "@chatRoomEmptyGuidance": {
+    "description": "Guidance shown for an empty active chat room"
+  },
+  "chatRoomRefreshAction": "Refresh room",
+  "@chatRoomRefreshAction": {
+    "description": "Action label for refreshing a chat room timeline from an empty state"
+  },
   "chatRoomDraftRestoredMessage": "Draft restored from this device.",
   "@chatRoomDraftRestoredMessage": {
     "description": "Banner shown when a local unsent chat draft is restored"
@@ -2577,6 +2585,10 @@
   "@chatRoomArchivedReviewEmptyMessage": {
     "description": "Empty state shown when the archived messages review view has no messages"
   },
+  "chatRoomArchivedReviewEmptyGuidance": "Messages you archive in this room will appear here. Return to the active timeline to keep chatting.",
+  "@chatRoomArchivedReviewEmptyGuidance": {
+    "description": "Guidance shown when the archived messages review view has no messages"
+  },
   "chatRoomArchivedMessageLabel": "Archived",
   "@chatRoomArchivedMessageLabel": {
     "description": "Label shown on messages in the archived messages review view"
@@ -2604,6 +2616,10 @@
   "chatRoomArchivedEmptyMessage": "Archived messages are hidden from this timeline.",
   "@chatRoomArchivedEmptyMessage": {
     "description": "Empty state shown when all loaded messages have been archived from the main timeline"
+  },
+  "chatRoomArchivedEmptyGuidance": "Review archived messages to restore one, or wait here for new messages.",
+  "@chatRoomArchivedEmptyGuidance": {
+    "description": "Guidance shown when all loaded messages are archived from the active timeline"
   },
   "chatRoomContextPackTitle": "Context for this room",
   "@chatRoomContextPackTitle": {

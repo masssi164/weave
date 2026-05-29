@@ -2138,6 +2138,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatRoomEmptyMessage => 'No messages yet';
 
   @override
+  String get chatRoomEmptyGuidance =>
+      'Start the conversation when you are ready, or refresh if messages should already be here.';
+
+  @override
+  String get chatRoomRefreshAction => 'Refresh room';
+
+  @override
   String get chatRoomDraftRestoredMessage => 'Draft restored from this device.';
 
   @override
@@ -2219,6 +2226,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatRoomArchivedReviewEmptyMessage => 'No archived messages yet.';
 
   @override
+  String get chatRoomArchivedReviewEmptyGuidance =>
+      'Messages you archive in this room will appear here. Return to the active timeline to keep chatting.';
+
+  @override
   String get chatRoomArchivedMessageLabel => 'Archived';
 
   @override
@@ -2242,6 +2253,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatRoomArchivedEmptyMessage =>
       'Archived messages are hidden from this timeline.';
+
+  @override
+  String get chatRoomArchivedEmptyGuidance =>
+      'Review archived messages to restore one, or wait here for new messages.';
 
   @override
   String get chatRoomContextPackTitle => 'Context for this room';

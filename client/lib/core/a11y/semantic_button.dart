@@ -40,7 +40,9 @@ class AccessibleButton extends StatelessWidget {
 
     return Semantics(
       button: true,
+      enabled: onPressed != null,
       label: semanticLabel,
+      onTap: onPressed,
       excludeSemantics: true,
       child: button,
     );
