@@ -135,21 +135,23 @@ Before inviting members, the Admin Console shows:
 
 Member-visible states are limited to:
 
-- `ready`
-- `disabled`
+- `available`
+- `disabled_by_policy`
+- `not_configured`
 - `degraded`
-- `policy-blocked`
+- `unavailable`
+- `coming_later`
 
 Admin/operator-only states may additionally include:
 
-- `admin-setup-required`
+- `admin-action-required`
 - `misconfigured`
 - `sync-pending`
 - `conflict-quarantined`
 - `migration-dry-run-required`
 - `unsupported`
 
-`usable` may appear as plain-language copy, but contracts should encode `ready`.
+`usable` may appear as plain-language copy, but contracts should encode `available`.
 
 ### 8. Invite/go-live
 

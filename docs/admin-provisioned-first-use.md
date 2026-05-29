@@ -78,7 +78,7 @@ An `owner`, `admin`, or operator must be able to:
 
 - provision identity, OIDC realm/client/roles/groups, domains, providers, policies, backup/restore, and release readiness before member first use;
 - inspect Workspace Health as the admin/operator control plane for auth, Matrix, files, calendar, boards, meetings, E2EE posture, backup/restore, support-bundle safety, and latest smoke/E2E state;
-- see exact next actions for missing, degraded, disabled, or policy-blocked services without leaking secrets, bearer tokens, credential-bearing URLs, room tokens, or raw downstream errors;
+- see exact next actions for not_configured, degraded, disabled_by_policy, unavailable, or coming_later services without leaking secrets, bearer tokens, credential-bearing URLs, room tokens, or raw downstream errors;
 - understand what members can currently do before inviting them;
 - use support bundles and diagnostics that share the same sanitized status categories as Workspace Health.
 
@@ -106,6 +106,6 @@ Members only see provider-neutral manifest states: `available`, `disabled_by_pol
 
 Weaver follows the same admin-provisioned boundary as every other provider category. User-rights, organization-whitelisted capabilities is the rule: a personal assistant may only receive the normal user's rights through capability channels the organization has explicitly enabled.
 
-Admins/operators control the Weaver category, the runtime generator, the groups that may receive `weaver.enabled`, and the capability/tool allowlist. Normal members do not configure Docker, OpenClaw plugins, provider adapters, service endpoints, or secrets. They either receive a ready governed profile or an impact-only disabled/policy-blocked state.
+Admins/operators control the Weaver category, the runtime generator, the groups that may receive `weaver.enabled`, and the capability/tool allowlist. Normal members do not configure Docker, OpenClaw plugins, provider adapters, service endpoints, or secrets. They either receive an available governed profile or an impact-only disabled_by_policy/not_configured state.
 
 The generated runtime profile is support-safe and runtime profile generation is audited. It includes per-user Docker isolation metadata, plugin/tool allowlists, and allowed capability keys, while exec and elevated surfaces remain disabled by default unless a later constrained admin profile explicitly enables them.

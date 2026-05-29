@@ -15,7 +15,7 @@ Feature: Weave v0.1 dogfood production release
   Scenario: A normal member sees a user-ready organization flow
     Given an admin has provisioned the organization and invited a member
     When the member opens Weave and enters a channel workspace
-    Then release-scope surfaces use ready, admin-setup-required, policy-disabled, degraded, or hidden states
+    Then release-scope surfaces use available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later states
     And the member does not see preview, scaffold, roadmap, or raw provider setup copy
     And provider diagnostics stay in admin/operator health surfaces
 
@@ -78,7 +78,7 @@ Feature: Weave v0.1 dogfood production release
     Given provider configs exist for recommended self-hosted defaults and at least one external provider placeholder
     When capability policy, provider readiness, whitelists, and SecretRefs are evaluated
     Then the backend denies unknown roles, unknown groups, missing readiness, and unapproved providers by default
-    And the Admin Console can enable, disable, degrade, or policy-block each capability without changing member client APIs
+    And the Admin Console can mark each capability available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later without changing member client APIs
     And provider access happens only after the backend has authorized the canonical Weave capability operation
 
 
@@ -99,7 +99,7 @@ Feature: Weave v0.1 dogfood production release
     Then Weave generates a per-user Dockerized Weaver/OpenClaw-derived profile from workspace capability policy
     And the profile contains only admin-whitelisted capabilities and provider adapter tools
     And exec and elevated surfaces are disabled unless explicitly constrained by admin policy
-    And runtime profile generation is audited and disabled or policy-blocked by default for everyone else
+    And runtime profile generation is audited and disabled_by_policy by default for everyone else
 
   @weave-v01-channel-workspace
   Scenario: A channel is the primary workspace surface

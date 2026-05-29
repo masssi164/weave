@@ -71,7 +71,7 @@ void main() {
         'provider-neutral organization operating layer',
         'organization URL, invite link, or deep link',
         'personal messages, channels/workspaces, upcoming work, decisions, and health impact',
-        'ready, admin-setup-required, disabled by policy, degraded, or hidden',
+        'available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later',
         'Live E2E is standard release evidence on the dedicated self-hosted live runner',
         'not gated by a solar or power-budget exception',
         'exactly one release-notes label',

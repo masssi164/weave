@@ -84,7 +84,7 @@ Shell destinations:
 - **Channels** contain team/topic rooms and remain the main collaboration spine for future channel workspaces.
 - **AI chats** provide a distinct home for specialized assistant and agent chats instead of mixing them into ordinary DMs.
 
-The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest empty states for favorites and AI chats until backend/product metadata is ready. Channel detail treats a channel as a workspace container, but normal member copy may only show ready product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
+The first implementation slice keeps Matrix as the conversation source, classifies direct messages versus channels from existing room metadata, and renders honest empty states for favorites and AI chats until backend/product metadata is ready. Channel detail treats a channel as a workspace container, but normal member copy may only show available product surfaces or impact-level unavailable states. Files, board/task, calendar, and meeting setup details stay behind admin/operator Workspace Health until the corresponding backend capability is enabled; channel UX must not expose provider setup diagnostics or preview claims.
 
 The server now owns a Chat domain facade seam. Member routes under `/api/chat/*` return Weave-domain readiness/conversation/message contracts and fail closed for missing, unsupported, degraded, blocked, or unconfigured Chat mappings. Admin/operator routes under `/api/admin/chat/*` may show support-safe selected mapping, redacted readiness diagnostics, and migration dry-run/preflight reports; destructive migration apply is intentionally out of scope.
 
@@ -253,7 +253,7 @@ Capability policy responses are support-safe: they expose effective policy postu
 
 Weaver runtime integration consumes the workspace capability policy produced by IDM/RBAC. The runtime endpoint returns a support-safe `workspace-capability-policy` generated profile; it does not expose raw provider setup, secrets, OpenClaw internals, or a second agent-specific policy model.
 
-The generated profile is per-user and Docker-oriented: it names the baseline profile/image, isolated workspace root, isolated agent directory, Docker network mode, plugin allowlist, tool allowlist, and the capability keys visible to the runtime. Disabled and policy-blocked users receive the same contract shape with `enabled=false` and impact-level posture.
+The generated profile is per-user and Docker-oriented: it names the baseline profile/image, isolated workspace root, isolated agent directory, Docker network mode, plugin allowlist, tool allowlist, and the capability keys visible to the runtime. Disabled_by_policy and unavailable users receive the same contract shape with `enabled=false` and impact-level posture.
 
 Runtime provisioning remains fail-closed unless all three gates pass: the Weaver workspace category is enabled, the governed runtime generator is enabled, and the user's Weave capability profile grants `weaver.enabled`. Allowed runtime capabilities are the intersection of Weave policy grants and the admin runtime allowlist. exec and elevated surfaces stay disabled by default and require future constrained admin policy before they can appear.
 

@@ -225,7 +225,7 @@ This endpoint is backend/control-plane only. Member clients consume provider-neu
 
 `POST /api/admin/policies/effective/simulations` is the backend/admin companion to the #233 realm dry-run/apply flow and the #212 admin readiness surface. Realm dry-run compares desired provider state; readiness reports support-safe setup posture; effective policy simulation previews how selected known roles, groups, and capabilities would appear to members before provider changes are applied.
 
-The simulation is read-only and deterministic enough for support fixtures: unknown roles, groups, or capabilities fail closed; member states stay within `ready`, `disabled`, `degraded`, and `policy-blocked`; audit payloads record counts/support-safe booleans instead of free-text reasons; and emails, raw provider identifiers, tokens, SecretRefs, and provider internals stay out of the contract.
+The simulation is read-only and deterministic enough for support fixtures: unknown roles, groups, or capabilities fail closed; member states stay within `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, and `coming_later`; audit payloads record counts/support-safe booleans instead of free-text reasons; and emails, raw provider identifiers, tokens, SecretRefs, and provider internals stay out of the contract.
 
 ## Guest and B2B users
 

@@ -8,7 +8,7 @@ Latest prerelease audit: `v0.1.0-rc.2` was published on 2026-05-28 from `9409ae4
 
 Ship Weave as a daily work tool for a real project, not as a demo stack.
 
-UX release quality is gated by [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md): visible release-scope surfaces use ready/admin-setup-required/disabled/degraded/hidden states, not preview or scaffold wording.
+UX release quality is gated by [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md): visible release-scope surfaces use available/disabled_by_policy/not_configured/degraded/unavailable/coming_later states, not preview or scaffold wording.
 
 v0.1 must support a complete project loop after admins/operators provision the workspace:
 

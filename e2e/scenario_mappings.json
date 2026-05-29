@@ -116,7 +116,7 @@
           "path": "docs/v0.1-golden-path.md",
           "fragments": [
             "Weave Home communicates recent work, personal messages, channels/workspaces, upcoming work, decisions, and health impact.",
-            "Release evidence states whether a capability is ready, admin-setup-required, disabled by policy, degraded, or hidden."
+            "Release evidence states whether a capability is available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later."
           ]
         },
         {

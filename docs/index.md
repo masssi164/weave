@@ -8,7 +8,7 @@ Weave is a provider-neutral organization operating layer for chat, files, shared
 
 Start with:
 
-1. [v0.1 Golden Path readiness](v0.1-golden-path.md) — what is ready, guarded, disabled, degraded, or future.
+1. [v0.1 Golden Path readiness](v0.1-golden-path.md) — what is available, guarded, disabled by policy, degraded, unavailable, or future.
 2. Root README — public product entry point and architecture-at-a-glance.
 3. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
 4. [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md) — exact candidate commit, gates, signoff, and post-release documentation corrections.
