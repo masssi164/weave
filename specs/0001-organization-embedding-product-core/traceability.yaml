@@ -51,7 +51,8 @@ accepted_product_decisions:
     - provider vendor lock-in
     - user-facing admin/provider burden
     - uncontrolled runtime plugin model
-acceptance_features: []
+acceptance_features:
+  - e2e/features/weave_spec_0001_acceptance.feature
 evidence_gates:
   - ./gradlew specContract
   - ./gradlew specContractTest

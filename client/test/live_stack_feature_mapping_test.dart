@@ -51,6 +51,11 @@ void main() {
         'Organization admins manage provider policy in a separate console',
         'Admin plans a provider switch with portable export/import evidence',
         'Operators can deploy, verify, back up, restore, and diagnose safely',
+        'Member joins a configured organization through invite SSO or passkey',
+        'Member sees stable capabilities only after joining',
+        'Admin configures domains through setup and reviews readiness evidence',
+        'Provider switch evidence distinguishes spec acceptance from live migration',
+        'Weaver AI runtime stays excluded from Spec 0001 acceptance',
       ]),
     );
   });

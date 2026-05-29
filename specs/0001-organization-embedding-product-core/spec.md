@@ -9,7 +9,8 @@ github_issue: 381
 supersedes: []
 depends_on:
   - WEAVE-SPEC-0000
-acceptance_features: []
+acceptance_features:
+  - e2e/features/weave_spec_0001_acceptance.feature
 evidence_gates:
   - ./gradlew specContract
   - ./gradlew specContractTest
