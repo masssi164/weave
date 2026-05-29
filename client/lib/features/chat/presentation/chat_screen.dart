@@ -791,6 +791,9 @@ class _ConversationTile extends StatelessWidget {
 
     return Semantics(
       container: true,
+      button: true,
+      enabled: true,
+      onTap: onTap,
       label: semanticsLabel,
       child: ExcludeSemantics(
         child: Card(
@@ -852,55 +855,94 @@ class _ConversationTrailing extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (timestamp != null)
-          Text(
-            timestamp!,
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        if (recencyLabel != null) ...[
-          const SizedBox(height: 6),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Text(
-                recencyLabel!,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSecondaryContainer,
-                  fontWeight: FontWeight.w600,
-                ),
+    final metadataPills = <Widget>[
+      if (recencyLabel != null)
+        _ConversationMetadataPill(
+          label: recencyLabel!,
+          backgroundColor: theme.colorScheme.secondaryContainer,
+          foregroundColor: theme.colorScheme.onSecondaryContainer,
+          horizontalPadding: 8,
+        ),
+      if (unreadCount > 0)
+        _ConversationMetadataPill(
+          label: unreadCount.toString(),
+          backgroundColor: theme.colorScheme.primary,
+          foregroundColor: theme.colorScheme.onPrimary,
+          horizontalPadding: 10,
+        ),
+    ];
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 156),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (timestamp != null)
+            Text(
+              timestamp!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          ),
-        ],
-        if (unreadCount > 0) ...[
-          const SizedBox(height: 8),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(999),
+          if (timestamp != null && metadataPills.isNotEmpty)
+            const SizedBox(height: 4),
+          if (metadataPills.isNotEmpty)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final pill in metadataPills) ...[
+                  if (pill != metadataPills.first) const SizedBox(width: 6),
+                  Flexible(child: pill),
+                ],
+              ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              child: Text(
-                unreadCount.toString(),
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onPrimary,
-                ),
-              ),
-            ),
-          ),
         ],
-      ],
+      ),
+    );
+  }
+}
+
+class _ConversationMetadataPill extends StatelessWidget {
+  const _ConversationMetadataPill({
+    required this.label,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    required this.horizontalPadding,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color foregroundColor;
+  final double horizontalPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: horizontalPadding,
+          vertical: 4,
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: foregroundColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 }

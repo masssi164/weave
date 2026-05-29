@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/theme/app_theme.dart';
@@ -606,9 +607,10 @@ void main() {
       expect(find.text('Open security settings'), findsOneWidget);
     });
 
-    testWidgets('shows recency badges and keeps unread rooms first', (
+    testWidgets('keeps unread recent room metadata within the tile', (
       tester,
     ) async {
+      final semantics = tester.ensureSemantics();
       final now = DateTime.now();
       final yesterdayAtNoon = DateTime(
         now.year,
@@ -627,12 +629,13 @@ void main() {
             isInvite: false,
             isDirectMessage: false,
           ),
-          const ChatConversation(
+          ChatConversation(
             id: '!older-unread:home.internal',
             title: 'Older unread room',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Unread update',
-            unreadCount: 1,
+            lastActivityAt: now.subtract(const Duration(minutes: 20)),
+            unreadCount: 3,
             isInvite: false,
             isDirectMessage: false,
           ),
@@ -664,7 +667,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Active now'), findsOneWidget);
+      expect(find.text('Active now'), findsWidgets);
+      expect(find.text('3'), findsOneWidget);
       expect(find.text('Yesterday'), findsOneWidget);
       expect(
         tester.getTopLeft(find.text('Older unread room')).dy,
@@ -674,6 +678,22 @@ void main() {
         tester.getTopLeft(find.text('Newest room')).dy,
         lessThan(tester.getTopLeft(find.text('Older room')).dy),
       );
+
+      final unreadRoomSemantics = find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.button == true &&
+            (widget.properties.label ?? '').contains('Older unread room'),
+      );
+      final unreadRoomSemanticsData = tester
+          .getSemantics(unreadRoomSemantics)
+          .getSemanticsData();
+      expect(unreadRoomSemanticsData.label, contains('Older unread room'));
+      expect(unreadRoomSemanticsData.label, contains('Unread update'));
+      expect(unreadRoomSemanticsData.label, contains('Active now'));
+      expect(unreadRoomSemanticsData.label, contains('3 unread messages'));
+      expect(unreadRoomSemanticsData.hasAction(SemanticsAction.tap), isTrue);
+      semantics.dispose();
     });
 
     testWidgets('keeps the last room list visible when a manual refresh fails', (
