@@ -1,4 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
@@ -118,6 +121,53 @@ void main() {
         findsWidgets,
       );
       expect(find.text('Continue to chat'), findsNothing);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    });
+
+    testWidgets('routes signed-out users back to sign-in recovery', (
+      tester,
+    ) async {
+      final router = GoRouter(
+        routes: [
+          GoRoute(
+            path: AppRoutes.firstRun,
+            builder: (context, state) => const FirstRunScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.signIn,
+            builder: (context, state) => const Scaffold(
+              body: Center(child: Text('Sign-in route ready')),
+            ),
+          ),
+        ],
+        initialLocation: AppRoutes.firstRun,
+      );
+
+      await tester.pumpWidget(
+        createTestRouterApp(
+          router,
+          overrides: [firstRunStatusProvider.overrideWith((ref) async => null)],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Sign in to view your Weave first-run status.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('active Weave SSO session'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Sign in to view your Weave first-run status. We need an active Weave SSO session before we can check your profile, role, and module readiness. Action: Go to sign in',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Go to sign in'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sign-in route ready'), findsOneWidget);
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });

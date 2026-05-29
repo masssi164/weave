@@ -312,6 +312,17 @@ class AppLocalizationsDe extends AppLocalizations {
       'Melde dich an, um deinen Weave-Erststart-Status zu sehen.';
 
   @override
+  String get firstRunSignedOutGuidance =>
+      'Wir brauchen eine aktive Weave-SSO-Sitzung, bevor Profil, Rolle und Modulbereitschaft geprüft werden können.';
+
+  @override
+  String get firstRunSignInAction => 'Zur Anmeldung';
+
+  @override
+  String get firstRunSignedOutSemanticLabel =>
+      'Melde dich an, um deinen Weave-Erststart-Status zu sehen. Wir brauchen eine aktive Weave-SSO-Sitzung, bevor Profil, Rolle und Modulbereitschaft geprüft werden können. Aktion: Zur Anmeldung';
+
+  @override
   String get firstRunReadyTitle => 'Dein Weave-Arbeitsbereich ist bereit';
 
   @override

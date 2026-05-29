@@ -623,6 +623,24 @@ abstract class AppLocalizations {
   /// **'Sign in to view your Weave first-run status.'**
   String get firstRunSignedOutMessage;
 
+  /// No description provided for @firstRunSignedOutGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'We need an active Weave SSO session before we can check your profile, role, and module readiness.'**
+  String get firstRunSignedOutGuidance;
+
+  /// No description provided for @firstRunSignInAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to sign in'**
+  String get firstRunSignInAction;
+
+  /// No description provided for @firstRunSignedOutSemanticLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to view your Weave first-run status. We need an active Weave SSO session before we can check your profile, role, and module readiness. Action: Go to sign in'**
+  String get firstRunSignedOutSemanticLabel;
+
   /// No description provided for @firstRunReadyTitle.
   ///
   /// In en, this message translates to:
