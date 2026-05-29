@@ -307,6 +307,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sign in to view your Weave first-run status.';
 
   @override
+  String get firstRunSignedOutGuidance =>
+      'We need an active Weave SSO session before we can check your profile, role, and module readiness.';
+
+  @override
+  String get firstRunSignInAction => 'Go to sign in';
+
+  @override
   String get firstRunReadyTitle => 'Your Weave workspace is ready';
 
   @override

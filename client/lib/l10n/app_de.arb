@@ -152,6 +152,8 @@
   "firstRunLoadingHint": "Profil, Rolle und Modulbereitschaft werden vom Weave-Backend geladen.",
   "firstRunLoadFailure": "Der Erststart-Status konnte nicht vom Weave-Backend geladen werden.",
   "firstRunSignedOutMessage": "Melde dich an, um deinen Weave-Erststart-Status zu sehen.",
+  "firstRunSignedOutGuidance": "Wir brauchen eine aktive Weave-SSO-Sitzung, bevor Profil, Rolle und Modulbereitschaft geprüft werden können.",
+  "firstRunSignInAction": "Zur Anmeldung",
   "firstRunReadyTitle": "Dein Weave-Arbeitsbereich ist bereit",
   "firstRunNeedsAttentionTitle": "Dein Weave-Arbeitsbereich wird vorbereitet",
   "firstRunDescription": "Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Matrix- oder Nextcloud-Zugangsdaten sind nicht nötig.",

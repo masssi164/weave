@@ -367,6 +367,8 @@
   "firstRunLoadingHint": "Loading your profile, role, and module readiness from the Weave backend.",
   "firstRunLoadFailure": "We could not load your first-run status from the Weave backend.",
   "firstRunSignedOutMessage": "Sign in to view your Weave first-run status.",
+  "firstRunSignedOutGuidance": "We need an active Weave SSO session before we can check your profile, role, and module readiness.",
+  "firstRunSignInAction": "Go to sign in",
   "firstRunReadyTitle": "Your Weave workspace is ready",
   "firstRunNeedsAttentionTitle": "Your Weave workspace is being prepared",
   "firstRunDescription": "You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Matrix or Nextcloud credentials are needed.",
