@@ -51,7 +51,7 @@ Map<String, Object?> _organizationManifestJson({
       'accept organization auth URL, invite link, or deep link',
       'complete SSO with the selected identity provider',
       'consume effective organization manifest and capability states',
-      'render only ready, disabled, degraded, or policy-blocked member states',
+      'render only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later member states',
     ],
     'adminConsoleResponsibilities': [
       'create and bootstrap organizations',
@@ -62,12 +62,13 @@ Map<String, Object?> _organizationManifestJson({
       'audit organization-wide defaults and administrative changes',
     ],
     'memberCapabilityStates': {
-      'identity-idm': 'ready',
-      'chat': 'ready',
-      'files': 'ready',
-      'calendar': 'degraded',
-      'boards-tasks': 'policy-blocked',
-      'weaver': 'disabled',
+      'idm-rbac': 'available',
+      'chat-channels': 'available',
+      'files-docs': 'available',
+      'calendar-events': 'degraded',
+      'boards-tasks': 'disabled_by_policy',
+      'meetings': 'not_configured',
+      'forms-contacts': 'coming_later',
     },
     'capabilities': {
       'shellAccess': {
@@ -181,12 +182,20 @@ void main() {
           ),
         );
         expect(
-          snapshot.memberCapabilityStates['calendar'],
+          snapshot.memberCapabilityStates['calendar-events'],
           MemberCapabilityState.degraded,
         );
         expect(
           snapshot.memberCapabilityStates['boards-tasks'],
-          MemberCapabilityState.policyBlocked,
+          MemberCapabilityState.disabledByPolicy,
+        );
+        expect(
+          snapshot.memberCapabilityStates['meetings'],
+          MemberCapabilityState.notConfigured,
+        );
+        expect(
+          snapshot.memberCapabilityStates['forms-contacts'],
+          MemberCapabilityState.comingLater,
         );
         expect(snapshot.capabilities.chat.grants('chat.send'), isTrue);
       },

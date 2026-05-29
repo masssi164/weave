@@ -8,7 +8,7 @@ Latest prerelease audit: `v0.1.0-rc.2` was published on 2026-05-28 from `9409ae4
 
 Ship Weave as a daily work tool for a real project, not as a demo stack.
 
-UX release quality is gated by [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md): visible release-scope surfaces use ready/admin-setup-required/disabled/degraded/hidden states, not preview or scaffold wording.
+UX release quality is gated by [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md): visible release-scope surfaces use available/disabled_by_policy/not_configured/degraded/unavailable/coming_later states, not preview or scaffold wording.
 
 v0.1 must support a complete project loop after admins/operators provision the workspace:
 
@@ -177,7 +177,7 @@ Exit gate:
 
 ### IDM/RBAC and capability whitelisting acceptance
 
-Before Weaver runtime work, Weave must prove IDM/RBAC capability profiles and category whitelisting in the backend/admin contract. Keycloak is the self-hosted default IDM, while OIDC/SAML adapters remain provider-neutral. Unknown roles and groups are denied by default. Admin/operator views expose support-safe effective policy state; member views expose only ready, disabled, degraded, or policy-blocked impact states. Weaver remains disabled by policy until a later governed runtime profile is implemented.
+Before Weaver runtime work, Weave must prove IDM/RBAC capability profiles and category whitelisting in the backend/admin contract. Keycloak is the self-hosted default IDM, while OIDC/SAML adapters remain provider-neutral. Unknown roles and groups are denied by default. Admin/operator views expose support-safe effective policy state; member views expose only provider-neutral capability states: available, disabled by policy, not configured, degraded, unavailable, or coming later. Weaver remains disabled by policy until a later governed runtime profile is implemented.
 
 ## Governed Weaver runtime policy evidence
 

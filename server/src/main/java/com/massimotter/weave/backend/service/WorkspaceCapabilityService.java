@@ -443,7 +443,7 @@ public class WorkspaceCapabilityService {
         if (policy.roles().contains("guest")) {
             return List.of("guest: bounded external access; capabilities remain deny-by-default unless mapped");
         }
-        return List.of("member-visible states remain ready, disabled, degraded, or policy-blocked");
+        return List.of("member-visible states remain available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later");
     }
 
     private String denyReason(EffectivePolicy policy, String capability) {

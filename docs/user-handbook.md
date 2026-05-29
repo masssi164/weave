@@ -8,7 +8,7 @@ This handbook is for people using a Weave organization after an owner/admin has 
 2. Complete SSO in the configured identity provider.
 3. Weave fetches the authenticated organization manifest and shows only the work surfaces and capability states available to you.
 
-If your organization is not usable yet, Weave should explain the impact in plain language: `usable`/`ready`, `disabled`, `degraded`, or `policy-blocked`. `usable` is the member-facing concept; backend manifests may encode the same state as `ready`. Provider setup details stay with admins/operators.
+If your organization is not usable yet, Weave should explain the impact in plain language from the provider-neutral manifest vocabulary: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. Provider setup details stay with admins/operators.
 
 ## Workspaces and channels
 
@@ -38,7 +38,7 @@ Files use Weave-owned product routes and backend facades. The client should not 
 
 ## Tasks, boards, meetings, and calendar
 
-Boards/tasks, shared calendar, and meeting capsules are capability-backed workspace surfaces. They may be ready, disabled, degraded, or policy-blocked depending on admin/provider readiness and your role.
+Boards/tasks, shared calendar, and meeting capsules are capability-backed workspace surfaces. They may be available, disabled by policy, not configured, degraded, unavailable, or coming later depending on admin/provider readiness and your role.
 
 - Calendar focuses on shared workspace/team/channel scheduling in the current product path.
 - Boards/tasks use a Weave task model behind provider adapters.
@@ -51,7 +51,7 @@ Boards/tasks, shared calendar, and meeting capsules are capability-backed worksp
 | `usable` / `ready` | The capability is available for your role and organization. |
 | `disabled` | The organization has not enabled this capability. |
 | `degraded` | The capability exists but has a temporary health or provider problem. |
-| `policy-blocked` | Your role/group does not currently have access. |
+| `disabled_by_policy` | Your role/group does not currently have access. |
 
 ## Accessibility
 
@@ -70,4 +70,4 @@ Do not paste secrets, bearer tokens, cookies, private keys, raw provider URLs wi
 
 ## Signing in
 
-Your organization owner/admin configures SSO and workspace providers. As a normal member, use the Weave sign-in link or app entry point your organization provides; you do not configure Keycloak, OIDC, realms, client IDs, redirect URIs, or provider credentials. If a capability is unavailable, degraded, disabled, or policy-blocked, Weave shows the product-level state and your admin handles provider readiness in Workspace Health.
+Your organization owner/admin configures SSO and workspace providers. As a normal member, use the Weave sign-in link or app entry point your organization provides; you do not configure Keycloak, OIDC, realms, client IDs, redirect URIs, or provider credentials. If a capability is unavailable, degraded, disabled_by_policy, not_configured, or coming_later, Weave shows the product-level state and your admin handles provider readiness in Workspace Health.

@@ -82,7 +82,7 @@ void main() {
       expect(
         roadmapText,
         contains(
-          'ready product workflows or simple impact/fallback states only',
+          'available product workflows or simple impact/fallback states only',
         ),
       );
 

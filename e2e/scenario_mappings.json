@@ -116,7 +116,7 @@
           "path": "docs/v0.1-golden-path.md",
           "fragments": [
             "Weave Home communicates recent work, personal messages, channels/workspaces, upcoming work, decisions, and health impact.",
-            "Release evidence states whether a capability is ready, admin-setup-required, disabled by policy, degraded, or hidden."
+            "Release evidence states whether a capability is available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later."
           ]
         },
         {
@@ -234,7 +234,7 @@
             "fetchOrganizationManifest",
             "safeForMemberClient",
             "whitelistingOwnedByAdminConsole",
-            "MemberCapabilityState.policyBlocked"
+            "MemberCapabilityState.disabledByPolicy"
           ]
         },
         {
@@ -250,7 +250,7 @@
           "fragments": [
             "Organization discovery and manifest contract",
             "provider setup, endpoint rotation, diagnostics, and whitelisting are never member-client responsibilities",
-            "ready, disabled, degraded, or policy-blocked"
+            "Member manifests expose only provider-neutral capability states"
           ]
         },
         {
@@ -453,7 +453,7 @@
           "path": "docs/canonical-feature-models.md",
           "fragments": [
             "The member client and Admin Console consume stable Weave contracts",
-            "Admin/provider policy decides whether a capability is `ready`, `disabled`, `degraded`, or `policy-blocked` for a member.",
+            "Admin/provider policy and readiness decide whether a member manifest capability state is `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.",
             "Raw secrets, bearer tokens, provider URLs with credentials, downstream bodies, and provider-internal IDs do not appear in member responses"
           ]
         },
@@ -513,7 +513,7 @@
           "path": "docs/admin-provisioned-first-use.md",
           "fragments": [
             "IDM/RBAC capability profiles",
-            "Members only see ready, disabled, degraded, or policy-blocked impact states",
+            "Members only see provider-neutral manifest states",
             "Admins/operators see support-safe effective policy state"
           ]
         },

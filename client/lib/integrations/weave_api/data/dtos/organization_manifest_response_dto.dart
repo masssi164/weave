@@ -117,10 +117,12 @@ Map<String, MemberCapabilityState> _memberCapabilityStates(Object? value) {
 
 MemberCapabilityState _memberCapabilityState(String rawValue) {
   return switch (rawValue.trim()) {
-    'ready' => MemberCapabilityState.ready,
-    'disabled' => MemberCapabilityState.disabled,
+    'available' => MemberCapabilityState.available,
+    'disabled_by_policy' => MemberCapabilityState.disabledByPolicy,
+    'not_configured' => MemberCapabilityState.notConfigured,
     'degraded' => MemberCapabilityState.degraded,
-    'policy-blocked' => MemberCapabilityState.policyBlocked,
+    'unavailable' => MemberCapabilityState.unavailable,
+    'coming_later' => MemberCapabilityState.comingLater,
     _ => throw AppFailure.unknown(
       'The backend returned an unknown member capability state.',
       cause: rawValue,

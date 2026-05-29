@@ -1,6 +1,13 @@
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 
-enum MemberCapabilityState { ready, disabled, degraded, policyBlocked }
+enum MemberCapabilityState {
+  available,
+  disabledByPolicy,
+  notConfigured,
+  degraded,
+  unavailable,
+  comingLater,
+}
 
 class OrganizationManifestSnapshot {
   const OrganizationManifestSnapshot({

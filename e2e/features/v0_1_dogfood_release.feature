@@ -15,7 +15,7 @@ Feature: Weave v0.1 dogfood production release
   Scenario: A normal member sees a user-ready organization flow
     Given an admin has provisioned the organization and invited a member
     When the member opens Weave and enters a channel workspace
-    Then release-scope surfaces use ready, admin-setup-required, policy-disabled, degraded, or hidden states
+    Then release-scope surfaces use available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later states
     And the member does not see preview, scaffold, roadmap, or raw provider setup copy
     And provider diagnostics stay in admin/operator health surfaces
 
@@ -33,16 +33,16 @@ Feature: Weave v0.1 dogfood production release
     Given an organization has chosen identity, provider categories, capability profiles, and whitelists in the Admin Console
     When a member opens Weave with an organization auth URL, invite link, or deep link and completes SSO
     Then the Weave Client receives a support-safe organization manifest and effective capability states
-    And member-visible states are only ready, disabled, degraded, or policy-blocked
+    And member-visible states are only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later
     And provider setup, endpoint rotation, readiness diagnostics, secrets, and provider/tool/agent whitelisting stay in the Admin Console
 
   @weave-v01-admin-health-policy-enforcement
   Scenario: Admin health enforces provider readiness and member policy boundaries
     Given an owner or admin opens Workspace Health after selecting provider categories
     When backend provider readiness and capability policy are evaluated
-    Then Workspace Health returns overall posture, support-safe category readiness, next actions, and evidence for ready, disabled, degraded, policy-blocked, and misconfigured states
+    Then Workspace Health returns overall posture, support-safe category readiness, next actions, and evidence for available, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and misconfigured states
     And feature capabilities are separated from default and external provider adapters
-    And members receive only usable, disabled, degraded, or policy-blocked impact states without raw provider setup
+    And members receive only provider-neutral capability states without raw provider setup
     And member API writes are denied when IDM capability policy does not grant the required category capability
     And Weaver remains disabled by default unless governed organization policy explicitly enables it
 
@@ -69,7 +69,7 @@ Feature: Weave v0.1 dogfood production release
   Scenario: Member client sees stable feature states without raw provider details
     Given an admin has selected providers and the backend has evaluated readiness and capability policy
     When a normal member opens Weave and fetches their organization manifest and feature surfaces
-    Then the member sees only ready, disabled, degraded, or policy-blocked feature states
+    Then the member sees only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later feature states
     And provider names may appear only as product-safe context when necessary
     And provider URLs, raw provider identifiers, downstream payloads, secrets, readiness internals, and adapter diagnostics are not exposed to the member client
 
@@ -78,7 +78,7 @@ Feature: Weave v0.1 dogfood production release
     Given provider configs exist for recommended self-hosted defaults and at least one external provider placeholder
     When capability policy, provider readiness, whitelists, and SecretRefs are evaluated
     Then the backend denies unknown roles, unknown groups, missing readiness, and unapproved providers by default
-    And the Admin Console can enable, disable, degrade, or policy-block each capability without changing member client APIs
+    And the Admin Console can mark each capability available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later without changing member client APIs
     And provider access happens only after the backend has authorized the canonical Weave capability operation
 
 
@@ -89,7 +89,7 @@ Feature: Weave v0.1 dogfood production release
     Then Keycloak is the self-hosted default while OIDC and SAML adapters stay provider-neutral
     And capability profiles grant category-level capabilities deny-by-default
     And admins/operators can inspect support-safe policy state
-    And members only see ready, disabled, degraded, or policy-blocked impact states
+    And members only see available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later impact states
     And Weaver capability placeholders stay disabled by default until a governed runtime policy exists
 
   @weave-v01-governed-weaver-runtime-policy
@@ -99,7 +99,7 @@ Feature: Weave v0.1 dogfood production release
     Then Weave generates a per-user Dockerized Weaver/OpenClaw-derived profile from workspace capability policy
     And the profile contains only admin-whitelisted capabilities and provider adapter tools
     And exec and elevated surfaces are disabled unless explicitly constrained by admin policy
-    And runtime profile generation is audited and disabled or policy-blocked by default for everyone else
+    And runtime profile generation is audited and disabled_by_policy by default for everyone else
 
   @weave-v01-channel-workspace
   Scenario: A channel is the primary workspace surface

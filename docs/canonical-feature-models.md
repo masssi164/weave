@@ -10,7 +10,7 @@ Provider selection is category-first. The self-hosted dogfood stack is the recom
 
 - Canonical models are the product surface. Provider schemas are adapter input/output only.
 - Every domain object has a stable Weave ID. Provider IDs live only in backend-owned mapping tables and audit-safe adapter traces.
-- Admin/provider policy decides whether a capability is `ready`, `disabled`, `degraded`, or `policy-blocked` for a member. `usable` is only plain-language copy for `ready`, not a separate contract state.
+- Admin/provider policy and readiness decide whether a member manifest capability state is `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. Plain-language copy may say a capability is usable, disabled by policy, not configured, degraded, unavailable, or coming later, but the API contract uses the stable enum values.
 - Policy is deny-by-default. Unknown role/group/provider states do not grant capability access.
 - Secrets are stored and displayed only as `SecretRef` handles. Raw secrets, bearer tokens, provider URLs with credentials, downstream bodies, and provider-internal IDs do not appear in member responses, diagnostics, support bundles, or acceptance evidence.
 - Lossy mappings are explicit adapter behavior, not accidental UI leaks.

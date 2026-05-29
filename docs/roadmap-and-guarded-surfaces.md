@@ -48,7 +48,7 @@ Matrix E2EE is active chat architecture scope, not a completed product claim. We
 
 ## Provider stack readiness
 
-Provider stack readiness belongs in Workspace Health as the admin/operator control plane. Owners/admins/operators can inspect whether files, calendar, office, DevOps, boards, identity, meetings, and other modules are ready, disabled, degraded, or intentionally unsupported before inviting normal members. Normal members must not see provider setup diagnostics; they see ready product workflows or simple impact/fallback states only.
+Provider stack readiness belongs in Workspace Health as the admin/operator control plane. Owners/admins/operators can inspect whether files, calendar, office, DevOps, boards, identity, meetings, and other modules are available, disabled by policy, not configured, degraded, unavailable, or intentionally unsupported before inviting normal members. Normal members must not see provider setup diagnostics; they see available product workflows or simple impact/fallback states only.
 
 The app must keep this support-safe:
 

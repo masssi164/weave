@@ -29,8 +29,8 @@ public record OrganizationManifestResponse(
         List<String> clientResponsibilities,
         @Schema(description = "Responsibilities owned by the Organization/Admin Console.")
         List<String> adminConsoleResponsibilities,
-        @Schema(description = "Stable member-visible capability states keyed by Weave product category.")
-        Map<String, String> memberCapabilityStates,
+        @Schema(description = "Stable member-visible capability states keyed by provider-neutral Weave domain. Values are available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later.")
+        Map<String, CapabilityManifestState> memberCapabilityStates,
         @Schema(description = "Effective member capability snapshot; provider setup and diagnostics stay out of this contract.")
         WorkspaceCapabilitiesResponse capabilities) {
 

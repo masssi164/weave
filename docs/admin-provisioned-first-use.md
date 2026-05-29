@@ -14,7 +14,7 @@ Admins and operators provision identity, domains, provider stack, policy, backup
 
 ## Client/Admin Console split
 
-Members enter or open only an organization auth URL, invite link, or deep link. After SSO, the Weave Client consumes the support-safe organization manifest and effective capability states, then renders member work surfaces. Member-visible states are limited to ready, disabled, degraded, or policy-blocked.
+Members enter or open only an organization auth URL, invite link, or deep link. After SSO, the Weave Client consumes the support-safe organization manifest and effective capability states, then renders member work surfaces. Member-visible manifest states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.
 
 The Admin Console owns organization creation/bootstrap, IDM/provider setup, provider/category selection, endpoint URL management and rotation, readiness and diagnostics, users/groups/roles, RBAC/capability profiles, deny-by-default policy, org-wide defaults, audit logs, and privacy/compliance/risk notes. Whitelisting belongs to the Admin Console: provider, tool, and agent allowlists are configured there, while the client only consumes effective policy/capabilities.
 
@@ -68,7 +68,7 @@ A newly invited `member` must be able to:
 - sign in once through Keycloak-backed Weave SSO;
 - reach a ready workspace shell without configuring OIDC, provider URLs, realms, Matrix, Nextcloud, CalDAV, OpenProject/Vikunja/Deck, LiveKit, backup/restore, or infrastructure details;
 - see ready channels/home state and use complete capabilities through Weave concepts;
-- see only impact/fallback copy for unavailable, disabled, degraded, or policy-blocked capabilities;
+- see only impact/fallback copy for unavailable, disabled-by-policy, not-configured, degraded, or coming-later capabilities;
 - avoid raw provider names and raw provider failures in the core workflow;
 - never see provider setup diagnostics, Workspace Health setup internals, roadmap panels, scaffold cards, preview cards, or coming-soon setup language in normal navigation/settings/first-use.
 
@@ -78,7 +78,7 @@ An `owner`, `admin`, or operator must be able to:
 
 - provision identity, OIDC realm/client/roles/groups, domains, providers, policies, backup/restore, and release readiness before member first use;
 - inspect Workspace Health as the admin/operator control plane for auth, Matrix, files, calendar, boards, meetings, E2EE posture, backup/restore, support-bundle safety, and latest smoke/E2E state;
-- see exact next actions for missing, degraded, disabled, or policy-blocked services without leaking secrets, bearer tokens, credential-bearing URLs, room tokens, or raw downstream errors;
+- see exact next actions for not_configured, degraded, disabled_by_policy, unavailable, or coming_later services without leaking secrets, bearer tokens, credential-bearing URLs, room tokens, or raw downstream errors;
 - understand what members can currently do before inviting them;
 - use support bundles and diagnostics that share the same sanitized status categories as Workspace Health.
 
@@ -98,14 +98,14 @@ The fast guard is `client/test/architecture/admin_provisioned_first_use_contract
 
 Admins/operators configure the selected IDM adapter and map roles/groups into Weave capability profiles before inviting members. Keycloak is the self-hosted default, while Entra ID, Authentik, Auth0, and other OIDC/SAML providers remain adapter-compatible choices.
 
-Admins/operators see support-safe effective policy state: IDM category, profile keys, role/group-derived grants, deny-by-default posture, and whether a category is disabled, unavailable, degraded, ready, or policy-blocked. They do not need secret values in normal health views.
+Admins/operators see support-safe effective policy state: IDM category, profile keys, role/group-derived grants, deny-by-default posture, provider readiness, and how policy/readiness maps to member states such as `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They do not need secret values in normal health views.
 
-Members only see ready, disabled, degraded, or policy-blocked impact states. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Weaver appears only as a disabled-by-policy placeholder until a later governed per-user runtime policy exists.
+Members only see provider-neutral manifest states: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`. They never see raw provider setup, OIDC/SAML wiring, service endpoints, provider secrets, or diagnostics. Weaver appears only as a disabled-by-policy placeholder until a later governed per-user runtime policy exists.
 
 ## Governed Weaver runtime policy
 
 Weaver follows the same admin-provisioned boundary as every other provider category. User-rights, organization-whitelisted capabilities is the rule: a personal assistant may only receive the normal user's rights through capability channels the organization has explicitly enabled.
 
-Admins/operators control the Weaver category, the runtime generator, the groups that may receive `weaver.enabled`, and the capability/tool allowlist. Normal members do not configure Docker, OpenClaw plugins, provider adapters, service endpoints, or secrets. They either receive a ready governed profile or an impact-only disabled/policy-blocked state.
+Admins/operators control the Weaver category, the runtime generator, the groups that may receive `weaver.enabled`, and the capability/tool allowlist. Normal members do not configure Docker, OpenClaw plugins, provider adapters, service endpoints, or secrets. They either receive an available governed profile or an impact-only disabled_by_policy/not_configured state.
 
 The generated runtime profile is support-safe and runtime profile generation is audited. It includes per-user Docker isolation metadata, plugin/tool allowlists, and allowed capability keys, while exec and elevated surfaces remain disabled by default unless a later constrained admin profile explicitly enables them.

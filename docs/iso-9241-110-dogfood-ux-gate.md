@@ -112,7 +112,7 @@ A newly invited member in an admin-provisioned workspace must be able to:
 2. Open a channel workspace without learning provider names.
 3. Use chat as the reliable center of the channel.
 4. Use files through Weave or see a clear degraded impact state.
-5. See calendar, boards, meetings, decisions, and AI only when ready, admin-required, policy-disabled, or hidden according to the state table.
+5. See calendar, boards, meetings, decisions, and AI only when available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later according to the state table.
 6. Understand degraded state through plain-language impact and a safe next action.
 7. Avoid raw provider setup, raw provider failures, roadmap panels, or preview cards.
 
