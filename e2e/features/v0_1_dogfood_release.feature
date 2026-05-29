@@ -155,6 +155,14 @@ Feature: Weave v0.1 dogfood production release
     And no raw provider calls, provider secrets, or admin diagnostics are exposed to member clients
     And the console remains keyboard reachable with semantic headings, forms, and status text
 
+  @weave-v01-provider-switch-portability
+  Scenario: Admin plans a provider switch with portable export/import evidence
+    Given an admin has an active provider adapter and a candidate replacement for a domain
+    When the admin runs the provider switch dry-run before applying the replacement
+    Then the Admin Console shows backend-declared source-of-truth policy, what will move, what will not move, risks, conflicts, and required permissions
+    And preflight, export/import manifests, cutover gates, rollback boundary, recovery actions, and support-safe audit evidence are required before irreversible action
+    And member-facing surfaces keep provider-neutral available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later states during the switch
+
   @weave-v01-operator-release-path
   Scenario: Operators can deploy, verify, back up, restore, and diagnose safely
     Given an operator installs or updates a Weave stack

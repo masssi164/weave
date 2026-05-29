@@ -789,6 +789,43 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@weave-v01-provider-switch-portability",
+      "scenario": "Admin plans a provider switch with portable export/import evidence",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "admin-console/src/App.test.tsx",
+      "evidenceMarkers": [
+        "V01_PROVIDER_SWITCH_PORTABILITY"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "Provider switch contract: plan, preflight, portable export/import, cutover, rollback/recovery, and support-safe audit evidence.",
+            "v0.1 guaranteeing portable export/import contracts before full automation"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.tsx",
+          "fragments": [
+            "Source of truth:",
+            "What moves:",
+            "What will not move:",
+            "Rollback boundary:",
+            "Recovery actions:"
+          ]
+        },
+        {
+          "path": "admin-console/src/api.ts",
+          "fragments": [
+            "Source of truth is declared per provider-backed category/object by the backend dry-run",
+            "provider-switch-preflight",
+            "portable-export-import-contract",
+            "rollback-recovery-plan"
+          ]
+        }
+      ]
     }
   ]
 }

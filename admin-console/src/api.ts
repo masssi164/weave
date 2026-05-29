@@ -98,6 +98,21 @@ export interface ProviderReplacementDryRunReport {
     deprovisionExpectation: string;
     rollbackSupportBoundary: string;
   };
+  portableExportImportContract: {
+    exportManifestRef: string;
+    importManifestRef: string;
+    portabilityGuarantee: string;
+    excludedAutomation: string[];
+    evidenceRefs: string[];
+  };
+  switchPlan: {
+    planRef: string;
+    preflightRequired: boolean;
+    cutoverWindowRequired: boolean;
+    rollbackRequired: boolean;
+    memberFacingStateDuringSwitch: MemberCapabilityState;
+    recoveryActions: string[];
+  };
 }
 
 interface ServerProviderReplacementDryRunReport {
@@ -118,6 +133,10 @@ interface ServerProviderReplacementDryRunReport {
   lifecycleExpectations?: Partial<
     ProviderReplacementDryRunReport['lifecycleExpectations']
   >;
+  portableExportImportContract?: Partial<
+    ProviderReplacementDryRunReport['portableExportImportContract']
+  >;
+  switchPlan?: Partial<ProviderReplacementDryRunReport['switchPlan']>;
 }
 
 export interface ControlPlaneResponse {
@@ -316,6 +335,13 @@ export class AdminControlPlaneApi {
           lossyMappingNotes: [
             'Admin Console requested support-safe preflight; backend redaction owns provider diagnostics.',
           ],
+          portableExportImportRequired: true,
+          requestedSwitchPlan: {
+            plan: 'guided-plan-preflight-export-import-cutover-rollback',
+            memberFacingStateDuringSwitch: 'degraded',
+            automationBoundary:
+              'v0.1 requires portable export/import evidence; full automated migration remains future work.',
+          },
           reason:
             'Evaluate provider replacement before activation through Organization/Admin Console',
         }),
@@ -548,6 +574,8 @@ function normalizeProviderReplacementDryRun(
 ): ProviderReplacementDryRunReport {
   const lossyMapping = response.lossyMappingReport ?? {};
   const lifecycle = response.lifecycleExpectations ?? {};
+  const portability = response.portableExportImportContract ?? {};
+  const switchPlan = response.switchPlan ?? {};
   return {
     dryRunId: response.dryRunId ?? `${category.key}-replacement-dry-run`,
     status: response.status ?? 'dry_run_ready',
@@ -574,7 +602,7 @@ function normalizeProviderReplacementDryRun(
     lifecycleExpectations: {
       sourceOfTruthPolicy:
         lifecycle.sourceOfTruthPolicy ??
-        'Weave remains source of truth for canonical member state.',
+        'Source of truth is declared per provider-backed category/object by the backend dry-run; Weave preserves provider-neutral member capability state only.',
       exportExpectation:
         lifecycle.exportExpectation ??
         'Export expectations are evaluated by backend migration contracts.',
@@ -587,6 +615,39 @@ function normalizeProviderReplacementDryRun(
       rollbackSupportBoundary:
         lifecycle.rollbackSupportBoundary ??
         'Rollback is bounded by provider export/delete support.',
+    },
+    portableExportImportContract: {
+      exportManifestRef:
+        portability.exportManifestRef ??
+        `${category.key}-portable-export-manifest-v0.1`,
+      importManifestRef:
+        portability.importManifestRef ??
+        `${category.key}-portable-import-manifest-v0.1`,
+      portabilityGuarantee:
+        portability.portabilityGuarantee ??
+        'v0.1 guarantees a documented portable export/import contract before claiming automated migration.',
+      excludedAutomation: portability.excludedAutomation ?? [
+        'no full cross-provider automated migration promise in v0.1',
+      ],
+      evidenceRefs: portability.evidenceRefs ?? [
+        'provider-switch-preflight',
+        'portable-export-import-contract',
+        'rollback-recovery-plan',
+      ],
+    },
+    switchPlan: {
+      planRef: switchPlan.planRef ?? `${category.key}-switch-plan-v0.1`,
+      preflightRequired: switchPlan.preflightRequired ?? true,
+      cutoverWindowRequired: switchPlan.cutoverWindowRequired ?? true,
+      rollbackRequired: switchPlan.rollbackRequired ?? true,
+      memberFacingStateDuringSwitch:
+        normalizeMemberCapabilityState(
+          switchPlan.memberFacingStateDuringSwitch,
+        ) ?? 'degraded',
+      recoveryActions: switchPlan.recoveryActions ?? [
+        'keep current adapter active until export/import evidence is accepted',
+        'block apply when rollback evidence or support-safe audit refs are missing',
+      ],
     },
   };
 }
