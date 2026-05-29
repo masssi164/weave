@@ -4,7 +4,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
-- Nothing yet.
+- Context-driven workflow primitives now have a provider-neutral, linear-first preview contract with explicit context references, blocker/evidence metadata, sample workflows, and dry-run-only governed agent participation.
 
 ## Changed
 
