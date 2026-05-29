@@ -37,6 +37,7 @@ class FirstRunScreen extends ConsumerWidget {
                   guidance: l10n.firstRunSignedOutGuidance,
                   retryLabel: l10n.firstRunSignInAction,
                   onRetry: () => context.go(AppRoutes.signIn),
+                  semanticLabel: l10n.firstRunSignedOutSemanticLabel,
                 )
               : _FirstRunStatusView(status: status),
         ),

@@ -157,6 +157,12 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('active Weave SSO session'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel(
+          'Sign in to view your Weave first-run status. We need an active Weave SSO session before we can check your profile, role, and module readiness. Action: Go to sign in',
+        ),
+        findsOneWidget,
+      );
 
       await tester.tap(find.text('Go to sign in'));
       await tester.pumpAndSettle();
