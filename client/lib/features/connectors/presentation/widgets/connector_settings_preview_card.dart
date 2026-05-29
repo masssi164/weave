@@ -1,26 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:weave/features/connectors/domain/entities/connector_preview.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 
 class ConnectorSettingsPreviewCard extends StatelessWidget {
   const ConnectorSettingsPreviewCard({
     super.key,
     required this.connectors,
-    this.title = 'Governed connectors preview',
-    this.description =
-        'Connector status is safe metadata from backend contracts or fixtures. OAuth, webhook, access-token, and refresh-token secrets never belong in this client.',
+    this.title,
+    this.description,
   });
 
   final List<ConnectorPreviewCapability> connectors;
-  final String title;
-  final String description;
+  final String? title;
+  final String? description;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final title = this.title ?? l10n.connectorSettingsPreviewTitle;
+    final description =
+        this.description ?? l10n.connectorSettingsPreviewDescription;
     return Semantics(
       container: true,
-      label:
-          '$title. Feature-gated by default. Provider secrets are never entered, shown, stored, or logged by the Flutter client.',
+      label: l10n.connectorSettingsPreviewCardSemanticLabel(title),
       child: Card(
         elevation: 0,
         color: theme.colorScheme.surfaceContainerLow,
@@ -39,7 +42,7 @@ class ConnectorSettingsPreviewCard extends StatelessWidget {
                   Icon(
                     Icons.sync_alt_outlined,
                     color: theme.colorScheme.primary,
-                    semanticLabel: 'Connectors preview icon',
+                    semanticLabel: l10n.connectorPreviewIconSemantic,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -80,13 +83,26 @@ class _ConnectorPreviewTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final statusLabel = _statusLabel(connector.status);
+    final l10n = AppLocalizations.of(context);
+    final statusLabel = _statusLabel(l10n, connector.status);
     final actionAllowed = connector.providerActionsEnabled;
+    final summaryText = l10n.connectorPreviewDemoSummary(connector.summary);
+    final auditSummaryText = l10n.connectorPreviewDemoAuditSummary(
+      connector.auditSummary,
+    );
+    final actionState = actionAllowed
+        ? l10n.connectorProviderActionsPreviewOnlySemantic
+        : l10n.connectorProviderActionsUnavailableSemantic;
 
     return Semantics(
       container: true,
-      label:
-          '${connector.name}. Status $statusLabel. ${connector.summary} ${connector.auditSummary} Provider actions ${actionAllowed ? 'are preview-only until backend runtime enables them' : 'are unavailable'}; no provider secret is handled by the app.',
+      label: l10n.connectorPreviewTileSemanticLabel(
+        connector.name,
+        statusLabel,
+        summaryText,
+        auditSummaryText,
+        actionState,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -109,10 +125,10 @@ class _ConnectorPreviewTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(connector.summary),
+          Text(summaryText),
           const SizedBox(height: 8),
           Text(
-            connector.auditSummary,
+            auditSummaryText,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -123,8 +139,8 @@ class _ConnectorPreviewTile extends StatelessWidget {
             icon: const Icon(Icons.lock),
             label: Text(
               actionAllowed
-                  ? 'Backend-configured action preview only'
-                  : 'Provider action unavailable',
+                  ? l10n.connectorProviderActionsPreviewOnly
+                  : l10n.connectorProviderActionUnavailable,
             ),
           ),
         ],
@@ -132,13 +148,19 @@ class _ConnectorPreviewTile extends StatelessWidget {
     );
   }
 
-  static String _statusLabel(ConnectorPreviewStatus status) {
+  static String _statusLabel(
+    AppLocalizations l10n,
+    ConnectorPreviewStatus status,
+  ) {
     return switch (status) {
-      ConnectorPreviewStatus.disabled => 'Disabled',
-      ConnectorPreviewStatus.unavailable => 'Unavailable',
-      ConnectorPreviewStatus.degraded => 'Degraded',
-      ConnectorPreviewStatus.actionRequired => 'Action required',
-      ConnectorPreviewStatus.configured => 'Configured reference',
+      ConnectorPreviewStatus.disabled => l10n.connectorPreviewStatusDisabled,
+      ConnectorPreviewStatus.unavailable =>
+        l10n.connectorPreviewStatusUnavailable,
+      ConnectorPreviewStatus.degraded => l10n.connectorPreviewStatusDegraded,
+      ConnectorPreviewStatus.actionRequired =>
+        l10n.connectorPreviewStatusActionRequired,
+      ConnectorPreviewStatus.configured =>
+        l10n.connectorPreviewStatusConfigured,
     };
   }
 

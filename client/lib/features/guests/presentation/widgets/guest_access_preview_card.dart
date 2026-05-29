@@ -1,26 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:weave/features/guests/domain/entities/guest_preview.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 
 class GuestAccessPreviewCard extends StatelessWidget {
   const GuestAccessPreviewCard({
     super.key,
     required this.guests,
-    this.title = 'Guest access preview',
-    this.description =
-        'Invite and restricted-access states are preview-only. Guest identities stay visibly separate from full members, and missing access is explained without exposing internal policy details.',
+    this.title,
+    this.description,
   });
 
   final List<GuestPreviewProfile> guests;
-  final String title;
-  final String description;
+  final String? title;
+  final String? description;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final title = this.title ?? l10n.guestAccessPreviewTitle;
+    final description = this.description ?? l10n.guestAccessPreviewDescription;
     return Semantics(
       container: true,
-      label:
-          '$title. Feature-gated by default. Guests are distinct from members and only see explicitly granted capabilities.',
+      label: l10n.guestAccessPreviewCardSemanticLabel(title),
       child: Card(
         elevation: 0,
         color: theme.colorScheme.surfaceContainerLow,
@@ -39,7 +41,7 @@ class GuestAccessPreviewCard extends StatelessWidget {
                   Icon(
                     Icons.badge_outlined,
                     color: theme.colorScheme.primary,
-                    semanticLabel: 'Guest preview icon',
+                    semanticLabel: l10n.guestPreviewIconSemantic,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -80,13 +82,21 @@ class _GuestPreviewTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final statusLabel = _statusLabel(guest.status);
-    final capabilityText = _capabilityText(guest.allowedCapabilities);
+    final l10n = AppLocalizations.of(context);
+    final statusLabel = _statusLabel(l10n, guest.status);
+    final capabilityText = _capabilityText(l10n, guest.allowedCapabilities);
+    final missingAccessText = guest.missingAccessMessages
+        .map(l10n.guestPreviewDemoAccessNote)
+        .join(' ');
 
     return Semantics(
       container: true,
-      label:
-          'Guest identity ${guest.displayName}, $statusLabel. $capabilityText. ${guest.missingAccessMessages.join(' ')}',
+      label: l10n.guestPreviewTileSemanticLabel(
+        guest.displayName,
+        statusLabel,
+        capabilityText,
+        missingAccessText,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -110,7 +120,7 @@ class _GuestPreviewTile extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Guest identity · ${guest.email}',
+            l10n.guestIdentityEmail(guest.email),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -128,15 +138,17 @@ class _GuestPreviewTile extends StatelessWidget {
                     child: Icon(Icons.lock_outline, size: 18),
                   ),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(message)),
+                  Expanded(
+                    child: Text(l10n.guestPreviewDemoAccessNote(message)),
+                  ),
                 ],
               ),
             ),
           if (guest.canSeeMemberOnlyAffordances)
-            const Text('Member/admin affordances allowed by policy.')
+            Text(l10n.guestMemberAffordancesAllowed)
           else
             Text(
-              'Owner, admin, and member-only affordances are hidden for this guest.',
+              l10n.guestMemberAffordancesHidden,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -146,12 +158,12 @@ class _GuestPreviewTile extends StatelessWidget {
     );
   }
 
-  static String _statusLabel(GuestPreviewStatus status) {
+  static String _statusLabel(AppLocalizations l10n, GuestPreviewStatus status) {
     return switch (status) {
-      GuestPreviewStatus.pending => 'Pending invitation',
-      GuestPreviewStatus.active => 'Active guest',
-      GuestPreviewStatus.disabled => 'Disabled guest',
-      GuestPreviewStatus.expired => 'Expired invitation',
+      GuestPreviewStatus.pending => l10n.guestPreviewStatusPending,
+      GuestPreviewStatus.active => l10n.guestPreviewStatusActive,
+      GuestPreviewStatus.disabled => l10n.guestPreviewStatusDisabled,
+      GuestPreviewStatus.expired => l10n.guestPreviewStatusExpired,
     };
   }
 
@@ -164,22 +176,26 @@ class _GuestPreviewTile extends StatelessWidget {
     };
   }
 
-  static String _capabilityText(Set<GuestAccessCapability> capabilities) {
+  static String _capabilityText(
+    AppLocalizations l10n,
+    Set<GuestAccessCapability> capabilities,
+  ) {
     if (capabilities.isEmpty) {
-      return 'Allowed access: none yet.';
+      return l10n.guestAllowedAccessNone;
     }
 
     final labels = capabilities
         .map(
           (capability) => switch (capability) {
-            GuestAccessCapability.chat => 'chat',
-            GuestAccessCapability.files => 'files',
-            GuestAccessCapability.calendar => 'calendar',
-            GuestAccessCapability.memberDirectory => 'member directory',
-            GuestAccessCapability.admin => 'admin controls',
+            GuestAccessCapability.chat => l10n.guestCapabilityChat,
+            GuestAccessCapability.files => l10n.guestCapabilityFiles,
+            GuestAccessCapability.calendar => l10n.guestCapabilityCalendar,
+            GuestAccessCapability.memberDirectory =>
+              l10n.guestCapabilityMemberDirectory,
+            GuestAccessCapability.admin => l10n.guestCapabilityAdminControls,
           },
         )
         .join(', ');
-    return 'Allowed access: $labels.';
+    return l10n.guestAllowedAccessList(labels);
   }
 }

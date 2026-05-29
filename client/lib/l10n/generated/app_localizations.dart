@@ -5730,6 +5730,233 @@ abstract class AppLocalizations {
   /// **'Review evidence'**
   String get workflowPreviewReviewEvidenceButton;
 
+  /// Guest access preview card title
+  ///
+  /// In en, this message translates to:
+  /// **'Guest access preview'**
+  String get guestAccessPreviewTitle;
+
+  /// Guest access preview card description
+  ///
+  /// In en, this message translates to:
+  /// **'Invite and restricted-access states are preview-only. Guest identities stay visibly separate from full members, and missing access is explained without exposing internal policy details.'**
+  String get guestAccessPreviewDescription;
+
+  /// Guest access preview card accessibility label
+  ///
+  /// In en, this message translates to:
+  /// **'{title}. Feature-gated by default. Guests are distinct from members and only see explicitly granted capabilities.'**
+  String guestAccessPreviewCardSemanticLabel(String title);
+
+  /// Semantic label for the guest preview icon
+  ///
+  /// In en, this message translates to:
+  /// **'Guest preview icon'**
+  String get guestPreviewIconSemantic;
+
+  /// Guest preview status label for pending invitation
+  ///
+  /// In en, this message translates to:
+  /// **'Pending invitation'**
+  String get guestPreviewStatusPending;
+
+  /// Guest preview status label for active guest
+  ///
+  /// In en, this message translates to:
+  /// **'Active guest'**
+  String get guestPreviewStatusActive;
+
+  /// Guest preview status label for disabled guest
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled guest'**
+  String get guestPreviewStatusDisabled;
+
+  /// Guest preview status label for expired invitation
+  ///
+  /// In en, this message translates to:
+  /// **'Expired invitation'**
+  String get guestPreviewStatusExpired;
+
+  /// Guest identity email label
+  ///
+  /// In en, this message translates to:
+  /// **'Guest identity · {email}'**
+  String guestIdentityEmail(String email);
+
+  /// Guest preview tile accessibility label
+  ///
+  /// In en, this message translates to:
+  /// **'Guest identity {displayName}, {statusLabel}. {capabilityText}. {missingAccess}'**
+  String guestPreviewTileSemanticLabel(
+    String displayName,
+    String statusLabel,
+    String capabilityText,
+    String missingAccess,
+  );
+
+  /// Guest capability summary when no access is granted
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed access: none yet.'**
+  String get guestAllowedAccessNone;
+
+  /// Guest capability summary when access is granted
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed access: {capabilities}.'**
+  String guestAllowedAccessList(String capabilities);
+
+  /// Guest access capability label for chat
+  ///
+  /// In en, this message translates to:
+  /// **'chat'**
+  String get guestCapabilityChat;
+
+  /// Guest access capability label for files
+  ///
+  /// In en, this message translates to:
+  /// **'files'**
+  String get guestCapabilityFiles;
+
+  /// Guest access capability label for calendar
+  ///
+  /// In en, this message translates to:
+  /// **'calendar'**
+  String get guestCapabilityCalendar;
+
+  /// Guest access capability label for member directory
+  ///
+  /// In en, this message translates to:
+  /// **'member directory'**
+  String get guestCapabilityMemberDirectory;
+
+  /// Guest access capability label for admin controls
+  ///
+  /// In en, this message translates to:
+  /// **'admin controls'**
+  String get guestCapabilityAdminControls;
+
+  /// Localized wrapper for backend/demo guest missing-access fixture text
+  ///
+  /// In en, this message translates to:
+  /// **'Demo access note: {message}'**
+  String guestPreviewDemoAccessNote(String message);
+
+  /// Guest preview note when member/admin affordances are allowed
+  ///
+  /// In en, this message translates to:
+  /// **'Member/admin affordances allowed by policy.'**
+  String get guestMemberAffordancesAllowed;
+
+  /// Guest preview note when member/admin affordances are hidden
+  ///
+  /// In en, this message translates to:
+  /// **'Owner, admin, and member-only affordances are hidden for this guest.'**
+  String get guestMemberAffordancesHidden;
+
+  /// Connector settings preview card title
+  ///
+  /// In en, this message translates to:
+  /// **'Governed connectors preview'**
+  String get connectorSettingsPreviewTitle;
+
+  /// Connector settings preview card description
+  ///
+  /// In en, this message translates to:
+  /// **'Connector status is safe metadata from backend contracts or fixtures. OAuth, webhook, access-token, and refresh-token secrets never belong in this client.'**
+  String get connectorSettingsPreviewDescription;
+
+  /// Connector settings preview card accessibility label
+  ///
+  /// In en, this message translates to:
+  /// **'{title}. Feature-gated by default. Provider secrets are never entered, shown, stored, or logged by the Flutter client.'**
+  String connectorSettingsPreviewCardSemanticLabel(String title);
+
+  /// Semantic label for the connectors preview icon
+  ///
+  /// In en, this message translates to:
+  /// **'Connectors preview icon'**
+  String get connectorPreviewIconSemantic;
+
+  /// Connector preview status label for disabled
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get connectorPreviewStatusDisabled;
+
+  /// Connector preview status label for unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get connectorPreviewStatusUnavailable;
+
+  /// Connector preview status label for degraded
+  ///
+  /// In en, this message translates to:
+  /// **'Degraded'**
+  String get connectorPreviewStatusDegraded;
+
+  /// Connector preview status label for action required
+  ///
+  /// In en, this message translates to:
+  /// **'Action required'**
+  String get connectorPreviewStatusActionRequired;
+
+  /// Connector preview status label for configured reference
+  ///
+  /// In en, this message translates to:
+  /// **'Configured reference'**
+  String get connectorPreviewStatusConfigured;
+
+  /// Localized wrapper for backend/demo connector summary fixture text
+  ///
+  /// In en, this message translates to:
+  /// **'Demo metadata: {summary}'**
+  String connectorPreviewDemoSummary(String summary);
+
+  /// Localized wrapper for backend/demo connector audit summary fixture text
+  ///
+  /// In en, this message translates to:
+  /// **'Demo audit note: {auditSummary}'**
+  String connectorPreviewDemoAuditSummary(String auditSummary);
+
+  /// Disabled connector action label when backend metadata would allow actions
+  ///
+  /// In en, this message translates to:
+  /// **'Backend-configured action preview only'**
+  String get connectorProviderActionsPreviewOnly;
+
+  /// Disabled connector action label when provider action is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Provider action unavailable'**
+  String get connectorProviderActionUnavailable;
+
+  /// Connector provider-actions semantic state when preview-only
+  ///
+  /// In en, this message translates to:
+  /// **'Provider actions are preview-only until backend runtime enables them'**
+  String get connectorProviderActionsPreviewOnlySemantic;
+
+  /// Connector provider-actions semantic state when unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Provider actions are unavailable'**
+  String get connectorProviderActionsUnavailableSemantic;
+
+  /// Connector preview tile accessibility label
+  ///
+  /// In en, this message translates to:
+  /// **'{name}. Status {statusLabel}. {summary} {auditSummary} {actionsState}; no provider secret is handled by the app.'**
+  String connectorPreviewTileSemanticLabel(
+    String name,
+    String statusLabel,
+    String summary,
+    String auditSummary,
+    String actionsState,
+  );
+
   /// Status chip for a channel workspace surface that requires admin setup
   ///
   /// In en, this message translates to:

@@ -3568,6 +3568,152 @@ class AppLocalizationsDe extends AppLocalizations {
   String get workflowPreviewReviewEvidenceButton => 'Evidenz prüfen';
 
   @override
+  String get guestAccessPreviewTitle => 'Gastzugriff-Vorschau';
+
+  @override
+  String get guestAccessPreviewDescription =>
+      'Einladungen und eingeschränkte Zugriffsstände sind nur Vorschau. Gastidentitäten bleiben klar von Vollmitgliedern getrennt, und fehlender Zugriff wird erklärt, ohne interne Policy-Details offenzulegen.';
+
+  @override
+  String guestAccessPreviewCardSemanticLabel(String title) {
+    return '$title. Standardmäßig per Feature-Flag geschützt. Gäste sind von Mitgliedern getrennt und sehen nur ausdrücklich gewährte Funktionen.';
+  }
+
+  @override
+  String get guestPreviewIconSemantic => 'Gastvorschau-Symbol';
+
+  @override
+  String get guestPreviewStatusPending => 'Einladung ausstehend';
+
+  @override
+  String get guestPreviewStatusActive => 'Aktiver Gast';
+
+  @override
+  String get guestPreviewStatusDisabled => 'Deaktivierter Gast';
+
+  @override
+  String get guestPreviewStatusExpired => 'Einladung abgelaufen';
+
+  @override
+  String guestIdentityEmail(String email) {
+    return 'Gastidentität · $email';
+  }
+
+  @override
+  String guestPreviewTileSemanticLabel(
+    String displayName,
+    String statusLabel,
+    String capabilityText,
+    String missingAccess,
+  ) {
+    return 'Gastidentität $displayName, $statusLabel. $capabilityText. $missingAccess';
+  }
+
+  @override
+  String get guestAllowedAccessNone => 'Erlaubter Zugriff: noch keiner.';
+
+  @override
+  String guestAllowedAccessList(String capabilities) {
+    return 'Erlaubter Zugriff: $capabilities.';
+  }
+
+  @override
+  String get guestCapabilityChat => 'Chat';
+
+  @override
+  String get guestCapabilityFiles => 'Dateien';
+
+  @override
+  String get guestCapabilityCalendar => 'Kalender';
+
+  @override
+  String get guestCapabilityMemberDirectory => 'Mitgliederverzeichnis';
+
+  @override
+  String get guestCapabilityAdminControls => 'Admin-Steuerung';
+
+  @override
+  String guestPreviewDemoAccessNote(String message) {
+    return 'Demo-Zugriffshinweis: $message';
+  }
+
+  @override
+  String get guestMemberAffordancesAllowed =>
+      'Mitglieder-/Admin-Funktionen sind laut Policy erlaubt.';
+
+  @override
+  String get guestMemberAffordancesHidden =>
+      'Owner-, Admin- und reine Mitgliederfunktionen sind für diesen Gast verborgen.';
+
+  @override
+  String get connectorSettingsPreviewTitle =>
+      'Vorschau gesteuerter Connectoren';
+
+  @override
+  String get connectorSettingsPreviewDescription =>
+      'Der Connector-Status ist sichere Metadaten aus Backend-Verträgen oder Fixtures. OAuth-, Webhook-, Access-Token- und Refresh-Token-Geheimnisse gehören nie in diesen Client.';
+
+  @override
+  String connectorSettingsPreviewCardSemanticLabel(String title) {
+    return '$title. Standardmäßig per Feature-Flag geschützt. Provider-Geheimnisse werden im Flutter-Client nie eingegeben, angezeigt, gespeichert oder protokolliert.';
+  }
+
+  @override
+  String get connectorPreviewIconSemantic => 'Connector-Vorschau-Symbol';
+
+  @override
+  String get connectorPreviewStatusDisabled => 'Deaktiviert';
+
+  @override
+  String get connectorPreviewStatusUnavailable => 'Nicht verfügbar';
+
+  @override
+  String get connectorPreviewStatusDegraded => 'Eingeschränkt';
+
+  @override
+  String get connectorPreviewStatusActionRequired => 'Aktion erforderlich';
+
+  @override
+  String get connectorPreviewStatusConfigured => 'Konfigurierte Referenz';
+
+  @override
+  String connectorPreviewDemoSummary(String summary) {
+    return 'Demo-Metadaten: $summary';
+  }
+
+  @override
+  String connectorPreviewDemoAuditSummary(String auditSummary) {
+    return 'Demo-Audit-Hinweis: $auditSummary';
+  }
+
+  @override
+  String get connectorProviderActionsPreviewOnly =>
+      'Nur Vorschau für backend-konfigurierte Aktion';
+
+  @override
+  String get connectorProviderActionUnavailable =>
+      'Provider-Aktion nicht verfügbar';
+
+  @override
+  String get connectorProviderActionsPreviewOnlySemantic =>
+      'Provider-Aktionen sind nur Vorschau, bis die Backend-Laufzeit sie aktiviert';
+
+  @override
+  String get connectorProviderActionsUnavailableSemantic =>
+      'Provider-Aktionen sind nicht verfügbar';
+
+  @override
+  String connectorPreviewTileSemanticLabel(
+    String name,
+    String statusLabel,
+    String summary,
+    String auditSummary,
+    String actionsState,
+  ) {
+    return '$name. Status $statusLabel. $summary $auditSummary $actionsState; die App verarbeitet kein Provider-Geheimnis.';
+  }
+
+  @override
   String get channelWorkspaceStatusAdminSetupRequired =>
       'Admin-Einrichtung nötig';
 
