@@ -49,6 +49,7 @@ void main() {
         'Server control plane owns provider policy and audit',
         'Infra bootstrap feeds the backend control plane safely',
         'Organization admins manage provider policy in a separate console',
+        'Admin plans a provider switch with portable export/import evidence',
         'Operators can deploy, verify, back up, restore, and diagnose safely',
       ]),
     );

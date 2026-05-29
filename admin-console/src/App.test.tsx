@@ -28,20 +28,45 @@ function mockApi(
       supportSafe: true,
       providerDiagnosticsRedacted: true,
       cutoverGates: ['Run backend migration dry-run before apply'],
+      auditRefs: ['provider-replacement-dry-run-idm-rbac'],
       lossyMappingReport: {
         canonicalObjects: ['IdentitySubject', 'GroupMembership'],
         contractRisks: ['External claims need mapping review'],
         adminNotes: ['Support-safe dry-run'],
-        conflicts: [],
+        conflicts: ['Group owner claim needs operator approval'],
         replacementRequirement: 'Review before apply',
       },
       lifecycleExpectations: {
-        sourceOfTruthPolicy: 'Weave effective policy remains source of truth',
+        sourceOfTruthPolicy:
+          'Backend declares source of truth per IDM subject and group object',
         exportExpectation: 'Export evidence is required before cutover.',
         deleteExpectation:
           'Delete/deprovision evidence is required after cutover.',
         deprovisionExpectation: 'Deactivate old adapter after verification.',
         rollbackSupportBoundary: 'Rollback bounded by provider export support.',
+      },
+      portableExportImportContract: {
+        exportManifestRef: 'idm-rbac-portable-export-manifest-v0.1',
+        importManifestRef: 'idm-rbac-portable-import-manifest-v0.1',
+        portabilityGuarantee:
+          'v0.1 guarantees portable export/import before automated migration.',
+        excludedAutomation: ['full automated migration'],
+        evidenceRefs: [
+          'provider-switch-preflight',
+          'portable-export-import-contract',
+          'rollback-recovery-plan',
+        ],
+      },
+      switchPlan: {
+        planRef: 'idm-rbac-switch-plan-v0.1',
+        preflightRequired: true,
+        cutoverWindowRequired: true,
+        rollbackRequired: true,
+        memberFacingStateDuringSwitch: 'degraded',
+        recoveryActions: [
+          'keep current adapter active until evidence passes',
+          'block apply until rollback evidence passes',
+        ],
       },
     }),
     testProviderReadiness: vi.fn().mockResolvedValue({
@@ -259,6 +284,7 @@ describe('Admin Console MVP', () => {
     );
   });
 
+  // V01_PROVIDER_SWITCH_PORTABILITY: admin provider switch requires preflight, portable export/import, cutover, rollback, recovery, and support-safe evidence.
   it('renders support-safe provider replacement dry-run evidence', async () => {
     const api = mockApi();
     const user = userEvent.setup();
@@ -286,6 +312,33 @@ describe('Admin Console MVP', () => {
       screen.getByText(
         /member impact states: available, degraded, disabled_by_policy/i,
       ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/source of truth: backend declares source of truth/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/what moves: identitysubject, groupmembership/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/what will not move: full automated migration/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/risks: external claims/i)).toBeInTheDocument();
+    expect(screen.getByText(/conflicts: group owner claim/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/portable export\/import: idm-rbac-portable-export/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/evidence refs: provider-switch-preflight/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/audit refs: provider-replacement-dry-run-idm-rbac/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/switch plan: idm-rbac-switch-plan-v0.1/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/cutover window required: yes/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/recovery actions: keep current adapter active/i),
     ).toBeInTheDocument();
   });
 

@@ -821,10 +821,34 @@ export default function App({
                         {dryRunReport.memberImpactStates.join(', ')}
                       </Typography>
                       <Typography>
-                        Canonical objects:{' '}
+                        Source of truth:{' '}
+                        {
+                          dryRunReport.lifecycleExpectations
+                            .sourceOfTruthPolicy
+                        }
+                      </Typography>
+                      <Typography>
+                        What moves:{' '}
                         {dryRunReport.lossyMappingReport.canonicalObjects.join(
                           ', ',
                         ) || 'reported by backend contract'}
+                      </Typography>
+                      <Typography>
+                        What will not move:{' '}
+                        {dryRunReport.portableExportImportContract.excludedAutomation.join(
+                          '; ',
+                        ) || 'none reported by backend dry-run'}
+                      </Typography>
+                      <Typography>
+                        Risks:{' '}
+                        {dryRunReport.lossyMappingReport.contractRisks.join(
+                          '; ',
+                        ) || 'none reported by backend dry-run'}
+                      </Typography>
+                      <Typography>
+                        Conflicts:{' '}
+                        {dryRunReport.lossyMappingReport.conflicts.join('; ') ||
+                          'none reported by backend dry-run'}
                       </Typography>
                       <Typography>
                         Cutover gates:{' '}
@@ -836,6 +860,63 @@ export default function App({
                       </Typography>
                       <Typography>
                         {dryRunReport.lifecycleExpectations.deleteExpectation}
+                      </Typography>
+                      <Typography>
+                        Rollback boundary:{' '}
+                        {
+                          dryRunReport.lifecycleExpectations
+                            .rollbackSupportBoundary
+                        }
+                      </Typography>
+                      <Typography>
+                        Portable export/import:{' '}
+                        {
+                          dryRunReport.portableExportImportContract
+                            .exportManifestRef
+                        }{' '}
+                        →{' '}
+                        {
+                          dryRunReport.portableExportImportContract
+                            .importManifestRef
+                        }
+                        ; guarantee:{' '}
+                        {
+                          dryRunReport.portableExportImportContract
+                            .portabilityGuarantee
+                        }
+                      </Typography>
+                      <Typography>
+                        Evidence refs:{' '}
+                        {dryRunReport.portableExportImportContract.evidenceRefs.join(
+                          ', ',
+                        )}
+                      </Typography>
+                      <Typography>
+                        Audit refs:{' '}
+                        {dryRunReport.auditRefs.join(', ') ||
+                          'backend audit ref required before apply'}
+                      </Typography>
+                      <Typography>
+                        Switch plan: {dryRunReport.switchPlan.planRef};
+                        preflight required:{' '}
+                        {dryRunReport.switchPlan.preflightRequired
+                          ? 'yes'
+                          : 'no'}
+                        ; cutover window required:{' '}
+                        {dryRunReport.switchPlan.cutoverWindowRequired
+                          ? 'yes'
+                          : 'no'}
+                        ; rollback required:{' '}
+                        {dryRunReport.switchPlan.rollbackRequired
+                          ? 'yes'
+                          : 'no'}
+                        ; member state during switch:{' '}
+                        {dryRunReport.switchPlan.memberFacingStateDuringSwitch}
+                        .
+                      </Typography>
+                      <Typography>
+                        Recovery actions:{' '}
+                        {dryRunReport.switchPlan.recoveryActions.join('; ')}
                       </Typography>
                     </Stack>
                   ) : (

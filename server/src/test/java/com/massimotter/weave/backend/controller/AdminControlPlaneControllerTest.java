@@ -244,6 +244,55 @@ class AdminControlPlaneControllerTest {
     }
 
     @Test
+    void providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract() throws Exception {
+        String request = """
+                {
+                  "category": "identity-idm",
+                  "currentAdapter": "keycloak-realm",
+                  "targetAdapter": "authentik",
+                  "choiceModel": "external_existing_provider",
+                  "secretRef": "secretref://weave/provider/authentik",
+                  "sourceOfTruth": "Admin Console-selected provider category remains Weave source of truth until apply.",
+                  "lossyMappingNotes": ["support-safe preflight only"],
+                  "portableExportImportRequired": true,
+                  "requestedSwitchPlan": {
+                    "plan": "guided-plan-preflight-export-import-cutover-rollback",
+                    "memberFacingStateDuringSwitch": "degraded"
+                  },
+                  "reason": "dry-run with Bearer token-that-must-not-leak and client_secret"
+                }
+                """;
+
+        mockMvc.perform(post("/api/admin/providers/replacements/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category").value("identity-idm"))
+                .andExpect(jsonPath("$.currentAdapter").value("keycloak-realm"))
+                .andExpect(jsonPath("$.targetAdapter").value("authentik"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
+                .andExpect(jsonPath("$.lossyMappingReport.canonicalObjects[*]", hasItems("UserAccount", "Group", "CapabilityPolicy")))
+                .andExpect(jsonPath("$.lifecycleExpectations.sourceOfTruthPolicy", containsString("authoritative IdP")))
+                .andExpect(jsonPath("$.portableExportImportContract.exportManifestRef").value("identity-idm-portable-export-manifest-v0.1"))
+                .andExpect(jsonPath("$.portableExportImportContract.importManifestRef").value("identity-idm-portable-import-manifest-v0.1"))
+                .andExpect(jsonPath("$.portableExportImportContract.portabilityGuarantee", containsString("documented portable export/import contract")))
+                .andExpect(jsonPath("$.portableExportImportContract.excludedAutomation[*]", hasItems(containsString("full automated cross-provider migration"))))
+                .andExpect(jsonPath("$.portableExportImportContract.evidenceRefs[*]", hasItems("provider-switch-preflight", "portable-export-import-contract", "rollback-recovery-plan")))
+                .andExpect(jsonPath("$.switchPlan.planRef").value("identity-idm-switch-plan-v0.1"))
+                .andExpect(jsonPath("$.switchPlan.preflightRequired").value(true))
+                .andExpect(jsonPath("$.switchPlan.cutoverWindowRequired").value(true))
+                .andExpect(jsonPath("$.switchPlan.rollbackRequired").value(true))
+                .andExpect(jsonPath("$.switchPlan.memberFacingStateDuringSwitch").value("degraded"))
+                .andExpect(jsonPath("$.switchPlan.recoveryActions[*]", hasItems(containsString("keep current adapter active"), containsString("block apply"))))
+                .andExpect(jsonPath("$.memberImpactStates[*]", hasItems("usable", "disabled", "degraded", "policy-blocked")))
+                .andExpect(content().string(not(containsString("token-that-must-not-leak"))))
+                .andExpect(content().string(not(containsString("client_secret"))))
+                .andExpect(content().string(not(containsString("secretref://"))));
+    }
+
+    @Test
     void identityProviderReadinessIsBackendOwnedAndMembersCannotReadIt() throws Exception {
         mockMvc.perform(get("/api/admin/identity/readiness").with(adminJwt()))
                 .andExpect(status().isOk())
