@@ -116,6 +116,14 @@ void main() {
       quietNoActivityDm,
     ]);
     expect(overview.channels, [unreadOlderChannel, quietRecentChannel]);
+    expect(overview.activeConversations, [
+      unreadRecentDm,
+      unreadOlderChannel,
+      unreadOlderDm,
+      quietRecentChannel,
+      quietOlderDm,
+      quietNoActivityDm,
+    ]);
     expect(overview.nextConversation, unreadRecentDm);
   });
 }
