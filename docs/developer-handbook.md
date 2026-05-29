@@ -47,6 +47,8 @@ flutter run
 
 The app accepts local development service URLs such as `https://api.weave.local/api`, `https://auth.weave.local`, `https://matrix.weave.local`, and `https://files.weave.local` when a live stack is available.
 
+Android debug/profile runs use the production package identity `com.massimotter.weave` and the same OIDC redirect scheme. Keep identity-provider clients configured for `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`. Release artifact tasks require a local untracked `client/android/key.properties` file and keystore; they fail closed instead of using debug signing keys.
+
 
 ## Root Gradle orchestration
 
@@ -63,6 +65,7 @@ The root `./gradlew` is the monorepo build/delivery source of truth. GitHub Acti
 | `docsBuild` | Strict MkDocs build with deterministic outputs under `build/docs/user` and `build/docs/admin`. |
 | `docsCheck` | Docs structure check plus strict MkDocs build. |
 | `releaseNotesLabelCheck` | Current PR release-notes label validation when `PR_LABELS_JSON` is available; skipped locally when unset. |
+| `androidReleaseIdentityCheck` | Android package identity, OIDC redirect alignment, and release-signing fail-closed guard. |
 | `releaseEvidenceCheck` | Release notes structure, README markers, label behavior, generator fixture checks, enterprise release gates, and RC readiness fixtures. |
 | `releaseReadinessCheck` | Validates support-safe RC readiness evidence for an explicit candidate without publishing a release; override with `-PcandidateVersion`, `-PcandidateTag`, `-PcandidateCommit`, and evidence path properties. |
 | `releaseNotesCheck` | Compatibility alias for `releaseEvidenceCheck`. |

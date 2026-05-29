@@ -45,6 +45,11 @@ app.*.map.json
 **/android/app/profile
 **/android/app/release
 
+# Android release signing material must stay local/secret.
+**/android/key.properties
+**/android/*.jks
+**/android/*.keystore
+
 # AI Agent Skills
 .dart_skills/
 
