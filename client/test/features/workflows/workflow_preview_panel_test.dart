@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/workflows/presentation/providers/workflow_preview_provider.dart';
 import 'package:weave/features/workflows/presentation/widgets/workflow_preview_panel.dart';
@@ -62,6 +63,20 @@ void main() {
       );
       expect(actions.length, 16);
       expect(actions.every((button) => button.onPressed != null), isTrue);
+      expect(
+        tester
+            .getSemantics(find.text('Open step').first)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      expect(
+        tester
+            .getSemantics(find.text('Review evidence').first)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
 
       await tester.ensureVisible(find.text('Open step').first);
       await tester.tap(find.text('Open step').first);

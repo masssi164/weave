@@ -210,115 +210,123 @@ class _WorkflowStepTile extends StatelessWidget {
         : step.blockers.map((blocker) => blocker.description).join('; ');
     final evidenceText = step.evidence.map((item) => item.label).join(', ');
 
-    return Semantics(
-      container: true,
-      label: l10n.workflowPreviewStepSemantic(
-        step.title,
-        kind,
-        status,
-        step.ownerLabel,
-        step.dueLabel,
-        step.nextAction,
-        blockerText,
-        evidenceText,
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: step.isBlocked
+            ? theme.colorScheme.errorContainer.withValues(alpha: 0.45)
+            : theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: step.isBlocked
+              ? theme.colorScheme.error.withValues(alpha: 0.5)
+              : theme.colorScheme.outlineVariant,
+        ),
       ),
-      child: ExcludeSemantics(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: step.isBlocked
-                ? theme.colorScheme.errorContainer.withValues(alpha: 0.45)
-                : theme.colorScheme.surfaceContainerLow,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: step.isBlocked
-                  ? theme.colorScheme.error.withValues(alpha: 0.5)
-                  : theme.colorScheme.outlineVariant,
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Semantics(
+              container: true,
+              label: l10n.workflowPreviewStepSemantic(
+                step.title,
+                kind,
+                status,
+                step.ownerLabel,
+                step.dueLabel,
+                step.nextAction,
+                blockerText,
+                evidenceText,
+              ),
+              child: ExcludeSemantics(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      _statusIcon(step.state),
-                      color: _statusColor(context, step.state),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(step.title, style: theme.textTheme.titleSmall),
-                          const SizedBox(height: 4),
-                          Text(
-                            '$kind · $status',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          _statusIcon(step.state),
+                          color: _statusColor(context, step.state),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                step.title,
+                                style: theme.textTheme.titleSmall,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '$kind · $status',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 10),
+                    _WorkflowStepFact(
+                      icon: Icons.person_outline,
+                      text: l10n.workflowPreviewOwner(step.ownerLabel),
+                    ),
+                    _WorkflowStepFact(
+                      icon: Icons.event_outlined,
+                      text: l10n.workflowPreviewDue(step.dueLabel),
+                    ),
+                    _WorkflowStepFact(
+                      icon: Icons.playlist_add_check_outlined,
+                      text: l10n.workflowPreviewStepNextAction(step.nextAction),
+                    ),
+                    _WorkflowStepFact(
+                      icon: step.blockers.isEmpty
+                          ? Icons.check_circle_outline
+                          : Icons.report_problem_outlined,
+                      text: l10n.workflowPreviewBlockers(blockerText),
+                    ),
+                    _WorkflowStepFact(
+                      icon: Icons.fact_check_outlined,
+                      text: l10n.workflowPreviewEvidence(evidenceText),
+                    ),
+                    if (step.requiresApproval ||
+                        step.assignee.kind == WorkflowAssigneeKind.agent)
+                      _WorkflowStepFact(
+                        icon: Icons.verified_user_outlined,
+                        text: step.requiresApproval
+                            ? l10n.workflowPreviewApprovalRequired
+                            : l10n.workflowPreviewAgentDryRunOnly,
+                      ),
                   ],
                 ),
-                const SizedBox(height: 10),
-                _WorkflowStepFact(
-                  icon: Icons.person_outline,
-                  text: l10n.workflowPreviewOwner(step.ownerLabel),
-                ),
-                _WorkflowStepFact(
-                  icon: Icons.event_outlined,
-                  text: l10n.workflowPreviewDue(step.dueLabel),
-                ),
-                _WorkflowStepFact(
-                  icon: Icons.playlist_add_check_outlined,
-                  text: l10n.workflowPreviewStepNextAction(step.nextAction),
-                ),
-                _WorkflowStepFact(
-                  icon: step.blockers.isEmpty
-                      ? Icons.check_circle_outline
-                      : Icons.report_problem_outlined,
-                  text: l10n.workflowPreviewBlockers(blockerText),
-                ),
-                _WorkflowStepFact(
-                  icon: Icons.fact_check_outlined,
-                  text: l10n.workflowPreviewEvidence(evidenceText),
-                ),
-                if (step.requiresApproval ||
-                    step.assignee.kind == WorkflowAssigneeKind.agent)
-                  _WorkflowStepFact(
-                    icon: Icons.verified_user_outlined,
-                    text: step.requiresApproval
-                        ? l10n.workflowPreviewApprovalRequired
-                        : l10n.workflowPreviewAgentDryRunOnly,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showStepSnackBar(
+                    context,
+                    '${step.title}: ${step.nextAction}',
                   ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _showStepSnackBar(
-                        context,
-                        '${step.title}: ${step.nextAction}',
-                      ),
-                      icon: const Icon(Icons.open_in_new_outlined),
-                      label: Text(l10n.workflowPreviewOpenStepButton),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _showStepSnackBar(context, evidenceText),
-                      icon: const Icon(Icons.fact_check_outlined),
-                      label: Text(l10n.workflowPreviewReviewEvidenceButton),
-                    ),
-                  ],
+                  icon: const Icon(Icons.open_in_new_outlined),
+                  label: Text(l10n.workflowPreviewOpenStepButton),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _showStepSnackBar(context, evidenceText),
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: Text(l10n.workflowPreviewReviewEvidenceButton),
                 ),
               ],
             ),
-          ),
+          ],
         ),
       ),
     );
