@@ -64,6 +64,14 @@ export interface AuditEvent {
   summary: string;
 }
 
+export type MemberCapabilityState =
+  | 'available'
+  | 'disabled_by_policy'
+  | 'not_configured'
+  | 'degraded'
+  | 'unavailable'
+  | 'coming_later';
+
 export interface ProviderReplacementDryRunReport {
   dryRunId: string;
   status: string;
@@ -72,9 +80,7 @@ export interface ProviderReplacementDryRunReport {
   targetAdapter: string;
   readinessState: CapabilityState;
   migrationDryRunRequired: boolean;
-  memberImpactStates: Array<
-    'usable' | 'disabled' | 'degraded' | 'policy-blocked'
-  >;
+  memberImpactStates: MemberCapabilityState[];
   supportSafe: boolean;
   providerDiagnosticsRedacted: boolean;
   cutoverGates: string[];
@@ -603,21 +609,40 @@ function normalizeIdentityMemberImpact(
   }
 }
 
-function normalizeMemberImpactStates(
-  values?: string[],
-): Array<'usable' | 'disabled' | 'degraded' | 'policy-blocked'> {
+function normalizeMemberImpactStates(values?: string[]): MemberCapabilityState[] {
   const normalized = (values ?? [])
-    .map((value) => (value === 'ready' ? 'usable' : value))
-    .filter(
-      (value): value is 'usable' | 'disabled' | 'degraded' | 'policy-blocked' =>
-        value === 'usable' ||
-        value === 'disabled' ||
-        value === 'degraded' ||
-        value === 'policy-blocked',
-    );
+    .map(normalizeMemberCapabilityState)
+    .filter((value): value is MemberCapabilityState => value !== null);
   return normalized.length > 0
     ? Array.from(new Set(normalized))
-    : ['usable', 'disabled', 'degraded', 'policy-blocked'];
+    : ['available', 'disabled_by_policy', 'not_configured', 'degraded'];
+}
+
+function normalizeMemberCapabilityState(value?: string): MemberCapabilityState | null {
+  switch (value) {
+    case 'available':
+    case 'not_configured':
+    case 'degraded':
+    case 'unavailable':
+    case 'coming_later':
+      return value;
+    case 'disabled_by_policy':
+    case 'policy-blocked':
+    case 'policy_blocked':
+    case 'disabled':
+      return 'disabled_by_policy';
+    case 'ready':
+    case 'usable':
+      return 'available';
+    case 'admin-action-required':
+    case 'admin_action_required':
+    case 'misconfigured':
+      return 'degraded';
+    case 'unsupported':
+      return 'unavailable';
+    default:
+      return null;
+  }
 }
 
 function normalizeState(value?: string): CapabilityState {

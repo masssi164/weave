@@ -63,6 +63,7 @@ nav:
       - "Strategy sprint: organization embedding": strategy-sprint-org-embedding-plan.md
       - Organization embedding contract: organization-embedding-contract.md
       - Identity provisioning strategy: identity-provisioning-strategy.md
+      - Admin-Suite readiness and setup contract: admin-suite-readiness-setup-contract.md
       - Provider replacement and anti-silo contract: provider-replacement-and-anti-silo-contract.md
       - Manuals and release notes integration: manuals-and-release-notes-integration.md
       - v0.1 dogfood plan: release-v0.1-dogfood-plan.md

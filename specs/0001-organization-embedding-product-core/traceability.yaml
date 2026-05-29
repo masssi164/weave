@@ -56,4 +56,18 @@ evidence_gates:
   - ./gradlew specContract
   - ./gradlew specContractTest
   - ./gradlew acceptanceContract
+implementation_slices:
+  - issue: 386
+    task: T030
+    evidence:
+      - server member capability manifest state enum
+      - Flutter organization manifest DTO/domain parsing
+      - member capability vocabulary docs and acceptance wording
+  - issue: 387
+    task: T031
+    evidence:
+      - docs/admin-suite-readiness-setup-contract.md
+      - admin-console guided setup assistant
+      - admin-console per-domain readiness dashboard
+      - support-safe member/admin boundary tests
 open_product_core_decisions: []

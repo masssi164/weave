@@ -4,7 +4,7 @@ Status: v0.1 release contract for issues #259, #250, and #212.
 
 ## Product rule
 
-The detailed strategic contracts are [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), and [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md). This page remains the v0.1 first-use boundary for member/admin separation.
+The detailed strategic contracts are [Organization embedding contract](organization-embedding-contract.md), [Identity provisioning strategy](identity-provisioning-strategy.md), [Admin-Suite readiness and setup contract](admin-suite-readiness-setup-contract.md), and [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md). This page remains the v0.1 first-use boundary for member/admin separation.
 
 Normal organization members land in an admin-provisioned workspace. They sign in with Weave SSO, use Weave-owned chat, files, calendar, boards, meetings, and decisions surfaces, and see either complete capabilities or simple impact/fallback states.
 
@@ -16,7 +16,7 @@ Admins and operators provision identity, domains, provider stack, policy, backup
 
 Members enter or open only an organization auth URL, invite link, or deep link. After SSO, the Weave Client consumes the support-safe organization manifest and effective capability states, then renders member work surfaces. Member-visible manifest states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.
 
-The Admin Console owns organization creation/bootstrap, IDM/provider setup, provider/category selection, endpoint URL management and rotation, readiness and diagnostics, users/groups/roles, RBAC/capability profiles, deny-by-default policy, org-wide defaults, audit logs, and privacy/compliance/risk notes. Whitelisting belongs to the Admin Console: provider, tool, and agent allowlists are configured there, while the client only consumes effective policy/capabilities.
+The Admin Console owns organization creation/bootstrap, IDM/provider setup, guided setup assistant, per-domain readiness dashboard, provider/category selection, endpoint URL management and rotation, readiness and diagnostics, users/groups/roles, RBAC/capability profiles, deny-by-default policy, org-wide defaults, audit logs, and privacy/compliance/risk notes. Whitelisting belongs to the Admin Console: provider, tool, and agent allowlists are configured there, while the client only consumes effective policy/capabilities.
 
 ## Provider-category admin boundary
 

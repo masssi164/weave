@@ -215,7 +215,7 @@ Initial acceptance work is tracked in #389. Implementation PRs must map product-
 Required scenario families:
 
 - Member joins configured organization through invite/SSO/passkey and sees stable capabilities.
-- Admin configures domains and reviews readiness in support-safe language.
+- Admin configures domains through the guided setup assistant and reviews per-domain readiness in support-safe language.
 - Admin plans provider switch with preflight/export-import/cutover/rollback evidence.
 - Backend/member capability manifest proves provider-agnostic capability states.
 - Weaver/AI runtime remains out of scope and cannot be accidentally implied as shipped.

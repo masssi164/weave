@@ -12,7 +12,7 @@ export const adminConsoleMessages = {
       'Inspect readiness, audit evidence, and support-safe diagnostics without seeing raw provider secrets or downstream bodies.',
     memberRole: 'Member',
     memberDescription:
-      'Use Weave product capabilities with only usable, disabled, degraded, or policy-blocked states.',
+      'Use Weave product capabilities with only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later states.',
     memberPreviewHeading: 'Member capability preview',
     memberPreviewDescription:
       'This preview intentionally hides provider adapters, SecretRefs, tenant URLs, raw diagnostics, and admin-only controls.',

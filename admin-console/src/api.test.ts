@@ -97,10 +97,9 @@ describe('AdminControlPlaneApi provider boundary', () => {
     expect(identityReadiness.cards[0]?.memberImpact).toBe('degraded');
     expect(report.supportSafe).toBe(true);
     expect(report.memberImpactStates).toEqual([
-      'usable',
-      'disabled',
+      'available',
+      'disabled_by_policy',
       'degraded',
-      'policy-blocked',
     ]);
     expect(calls).toEqual([
       'https://api.example.invalid/api/admin/providers/selections',

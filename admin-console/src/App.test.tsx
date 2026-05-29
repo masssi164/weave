@@ -24,7 +24,7 @@ function mockApi(
       targetAdapter: 'keycloak-realm',
       readinessState: 'ready',
       migrationDryRunRequired: true,
-      memberImpactStates: ['usable', 'degraded', 'policy-blocked'],
+      memberImpactStates: ['available', 'degraded', 'disabled_by_policy'],
       supportSafe: true,
       providerDiagnosticsRedacted: true,
       cutoverGates: ['Run backend migration dry-run before apply'],
@@ -74,6 +74,12 @@ describe('Admin Console MVP', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: /provider categories/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /guided setup assistant/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /readiness dashboard/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: /identity provider readiness/i }),
@@ -141,6 +147,29 @@ describe('Admin Console MVP', () => {
       screen.getByText(/member provider setup:/i),
     ).toHaveTextContent(/blocked/i);
     expect(document.body).not.toHaveTextContent(/client_secret|access_token/i);
+  });
+
+  it('specifies guided setup and per-domain readiness before member go-live', async () => {
+    render(<App api={mockApi()} />);
+
+    expect(
+      await screen.findByRole('heading', { name: /guided setup assistant/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/admin setup assistant steps/i),
+    ).toHaveTextContent(/identity \/ idm: ready for member go-live/i);
+    expect(
+      screen.getByLabelText(/admin setup assistant steps/i),
+    ).toHaveTextContent(/meetings \/ calls: repair before inviting affected members/i);
+    expect(
+      screen.getByText(/requires dry-run\/preflight, member impact preview/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/domain readiness dashboard/i),
+    ).toHaveTextContent(/next action: run a readiness test/i);
+    expect(
+      screen.getByLabelText(/domain readiness dashboard/i),
+    ).toHaveTextContent(/member preview: degraded/i);
   });
 
   it('keeps admin/provider setup separate from the member client and direct providers', async () => {
@@ -255,7 +284,7 @@ describe('Admin Console MVP', () => {
     expect(screen.getByText(/diagnostics redacted: yes/i)).toBeInTheDocument();
     expect(
       screen.getByText(
-        /member impact states: usable, degraded, policy-blocked/i,
+        /member impact states: available, degraded, disabled_by_policy/i,
       ),
     ).toBeInTheDocument();
   });
@@ -275,7 +304,7 @@ describe('Admin Console MVP', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /use weave product capabilities with only usable, disabled, degraded, or policy-blocked states/i,
+        /use weave product capabilities with only available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later states/i,
       ),
     ).toBeInTheDocument();
     unmount();
@@ -284,7 +313,7 @@ describe('Admin Console MVP', () => {
     const memberPreview = await screen.findByLabelText(
       /member-visible capability states/i,
     );
-    expect(memberPreview).toHaveTextContent(/Member state: usable/i);
+    expect(memberPreview).toHaveTextContent(/Member state: available/i);
     expect(memberPreview).not.toHaveTextContent(/secretref:\/\//i);
     expect(document.body).not.toHaveTextContent(/secretref:\/\//i);
     expect(document.body).not.toHaveTextContent(
