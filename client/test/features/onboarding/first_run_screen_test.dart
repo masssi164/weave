@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/router/app_routes.dart';
 import 'package:weave/features/onboarding/domain/entities/first_run_status.dart';
+import 'package:weave/features/onboarding/domain/repositories/first_run_status_repository.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
+import 'package:weave/integrations/weave_api/presentation/providers/weave_authenticated_session_provider.dart';
 
 import '../../helpers/first_run_status_fixture.dart';
 import '../../helpers/test_app.dart';
@@ -133,21 +136,27 @@ void main() {
         createTestApp(
           const FirstRunScreen(),
           overrides: [
-            firstRunStatusProvider.overrideWith((ref) {
-              loadAttempts += 1;
-              if (loadAttempts == 1) {
-                return Future<FirstRunStatus?>.error(
-                  Exception('backend unavailable'),
-                  StackTrace.current,
-                );
-              }
-              return Future.value(buildTestFirstRunStatus());
-            }),
+            weaveAuthenticatedSessionProvider.overrideWithValue(
+              AsyncData(
+                WeaveAuthenticatedSession(
+                  apiBaseUrl: Uri.parse('https://weave.test/api'),
+                  accessToken: 'token',
+                ),
+              ),
+            ),
+            firstRunStatusRepositoryProvider.overrideWithValue(
+              _RetryingFirstRunStatusRepository(() {
+                loadAttempts += 1;
+                if (loadAttempts == 1) {
+                  throw Exception('backend unavailable');
+                }
+                return buildTestFirstRunStatus();
+              }),
+            ),
           ],
         ),
       );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pumpAndSettle();
 
       expect(
         find.text(
@@ -213,4 +222,13 @@ void main() {
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });
   });
+}
+
+class _RetryingFirstRunStatusRepository implements FirstRunStatusRepository {
+  const _RetryingFirstRunStatusRepository(this._load);
+
+  final FirstRunStatus? Function() _load;
+
+  @override
+  Future<FirstRunStatus?> loadStatus() async => _load();
 }
