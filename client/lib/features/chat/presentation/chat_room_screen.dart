@@ -475,17 +475,37 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
                           SizedBox(
-                            height: MediaQuery.sizeOf(context).height * 0.5,
+                            height: MediaQuery.sizeOf(context).height < 720
+                                ? 420
+                                : MediaQuery.sizeOf(context).height * 0.5,
                             child: Center(
                               child: EmptyState(
-                                message: _showingArchivedMessages
-                                    ? l10n.chatRoomArchivedReviewEmptyMessage
-                                    : timeline.messages.isEmpty
-                                    ? l10n.chatRoomEmptyMessage
-                                    : l10n.chatRoomArchivedEmptyMessage,
+                                message: _emptyTimelineMessage(
+                                  l10n,
+                                  timeline,
+                                  showingArchivedMessages:
+                                      _showingArchivedMessages,
+                                ),
+                                guidance: _emptyTimelineGuidance(
+                                  l10n,
+                                  timeline,
+                                  showingArchivedMessages:
+                                      _showingArchivedMessages,
+                                ),
                                 icon: _showingArchivedMessages
                                     ? Icons.archive_outlined
                                     : Icons.chat_bubble_outline,
+                                actionLabel: _emptyTimelineActionLabel(
+                                  l10n,
+                                  timeline,
+                                  showingArchivedMessages:
+                                      _showingArchivedMessages,
+                                ),
+                                onAction: _emptyTimelineAction(
+                                  timeline,
+                                  showingArchivedMessages:
+                                      _showingArchivedMessages,
+                                ),
                               ),
                             ),
                           ),
@@ -652,6 +672,63 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       length: workspace.surfaces.length,
       child: scaffold,
     );
+  }
+
+  String _emptyTimelineMessage(
+    AppLocalizations l10n,
+    ChatRoomTimeline timeline, {
+    required bool showingArchivedMessages,
+  }) {
+    if (showingArchivedMessages) {
+      return l10n.chatRoomArchivedReviewEmptyMessage;
+    }
+    if (timeline.messages.isEmpty) {
+      return l10n.chatRoomEmptyMessage;
+    }
+    return l10n.chatRoomArchivedEmptyMessage;
+  }
+
+  String _emptyTimelineGuidance(
+    AppLocalizations l10n,
+    ChatRoomTimeline timeline, {
+    required bool showingArchivedMessages,
+  }) {
+    if (showingArchivedMessages) {
+      return l10n.chatRoomArchivedReviewEmptyGuidance;
+    }
+    if (timeline.messages.isEmpty) {
+      return l10n.chatRoomEmptyGuidance;
+    }
+    return l10n.chatRoomArchivedEmptyGuidance;
+  }
+
+  String _emptyTimelineActionLabel(
+    AppLocalizations l10n,
+    ChatRoomTimeline timeline, {
+    required bool showingArchivedMessages,
+  }) {
+    if (showingArchivedMessages) {
+      return l10n.chatRoomRefreshAction;
+    }
+    if (timeline.messages.isEmpty) {
+      return l10n.chatRoomRefreshAction;
+    }
+    return l10n.chatRoomArchivedMessagesAction;
+  }
+
+  VoidCallback _emptyTimelineAction(
+    ChatRoomTimeline timeline, {
+    required bool showingArchivedMessages,
+  }) {
+    if (showingArchivedMessages) {
+      return _loadTimeline;
+    }
+    if (timeline.messages.isEmpty) {
+      return _loadTimeline;
+    }
+    return () => setState(() {
+      _showingArchivedMessages = true;
+    });
   }
 }
 

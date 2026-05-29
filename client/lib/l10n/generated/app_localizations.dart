@@ -3621,6 +3621,18 @@ abstract class AppLocalizations {
   /// **'No messages yet'**
   String get chatRoomEmptyMessage;
 
+  /// Guidance shown for an empty active chat room
+  ///
+  /// In en, this message translates to:
+  /// **'Start the conversation when you are ready, or refresh if messages should already be here.'**
+  String get chatRoomEmptyGuidance;
+
+  /// Action label for refreshing a chat room timeline from an empty state
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh room'**
+  String get chatRoomRefreshAction;
+
   /// Banner shown when a local unsent chat draft is restored
   ///
   /// In en, this message translates to:
@@ -3753,6 +3765,12 @@ abstract class AppLocalizations {
   /// **'No archived messages yet.'**
   String get chatRoomArchivedReviewEmptyMessage;
 
+  /// Guidance shown when the archived messages review view has no messages
+  ///
+  /// In en, this message translates to:
+  /// **'Messages you archive in this room will appear here. Return to the active timeline to keep chatting.'**
+  String get chatRoomArchivedReviewEmptyGuidance;
+
   /// Label shown on messages in the archived messages review view
   ///
   /// In en, this message translates to:
@@ -3794,6 +3812,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Archived messages are hidden from this timeline.'**
   String get chatRoomArchivedEmptyMessage;
+
+  /// Guidance shown when all loaded messages are archived from the active timeline
+  ///
+  /// In en, this message translates to:
+  /// **'Review archived messages to restore one, or wait here for new messages.'**
+  String get chatRoomArchivedEmptyGuidance;
 
   /// Heading for the explicit context preview shown in a chat room
   ///

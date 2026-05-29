@@ -24,24 +24,29 @@ void main() {
     isDirectMessage: false,
   );
 
-  ChatRoomTimeline buildTimeline({bool canSendMessages = true}) {
+  ChatRoomTimeline buildTimeline({
+    bool canSendMessages = true,
+    List<ChatMessage>? messages,
+  }) {
     return ChatRoomTimeline(
       roomId: conversation.id,
       roomTitle: conversation.title,
       isInvite: !canSendMessages,
       canSendMessages: canSendMessages,
-      messages: [
-        ChatMessage(
-          id: r'$one',
-          senderId: '@alex:home.internal',
-          senderDisplayName: 'Alex',
-          sentAt: DateTime(2026, 4, 20, 12),
-          isMine: false,
-          deliveryState: ChatMessageDeliveryState.sent,
-          contentType: ChatMessageContentType.text,
-          text: 'Hey there',
-        ),
-      ],
+      messages:
+          messages ??
+          [
+            ChatMessage(
+              id: r'$one',
+              senderId: '@alex:home.internal',
+              senderDisplayName: 'Alex',
+              sentAt: DateTime(2026, 4, 20, 12),
+              isMine: false,
+              deliveryState: ChatMessageDeliveryState.sent,
+              contentType: ChatMessageContentType.text,
+              text: 'Hey there',
+            ),
+          ],
     );
   }
 
@@ -230,6 +235,159 @@ void main() {
       find.text('Captured as decision record. Source linked to this message.'),
       findsOneWidget,
     );
+    semantics.dispose();
+  });
+
+  testWidgets('shows actionable empty room recovery and refreshes', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    var loadCount = 0;
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async {
+        loadCount++;
+        return ChatRoomTimeline(
+          roomId: conversation.id,
+          roomTitle: conversation.title,
+          isInvite: false,
+          canSendMessages: true,
+          messages: loadCount > 1
+              ? [
+                  ChatMessage(
+                    id: r'$after-refresh',
+                    senderId: '@alex:home.internal',
+                    senderDisplayName: 'Alex',
+                    sentAt: DateTime(2026, 4, 20, 12),
+                    isMine: false,
+                    deliveryState: ChatMessageDeliveryState.sent,
+                    contentType: ChatMessageContentType.text,
+                    text: 'Recovered message',
+                  ),
+                ]
+              : const [],
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No messages yet'), findsOneWidget);
+    expect(
+      find.text(
+        'Start the conversation when you are ready, or refresh if messages should already be here.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(OutlinedButton, 'Refresh room'), findsOneWidget);
+    _expectSemanticTapAction(
+      tester,
+      find.bySemanticsLabel('Refresh room'),
+      label: 'Refresh room',
+    );
+
+    final refreshRoomButton = find.widgetWithText(
+      OutlinedButton,
+      'Refresh room',
+    );
+    tester.widget<OutlinedButton>(refreshRoomButton).onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(repository.loadRoomTimelineCalls, 2);
+    expect(find.text('Recovered message'), findsOneWidget);
+    expect(find.text('No messages yet'), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('keeps archived empty states distinct and actionable', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final store = InMemoryPreferencesStore();
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(),
+    );
+    final storageKey =
+        '${ArchivedMessageStore.storageKeyPrefix}${conversation.id}';
+    await store.setString(storageKey, r'["$one"]');
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository, store: store),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Archived messages are hidden from this timeline.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Review archived messages to restore one, or wait here for new messages.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(OutlinedButton, 'Review archived messages'),
+      findsOneWidget,
+    );
+    _expectSemanticTapAction(
+      tester,
+      find.bySemanticsLabel('Review archived messages').last,
+      label: 'Review archived messages',
+    );
+
+    final reviewArchivedButton = find.widgetWithText(
+      OutlinedButton,
+      'Review archived messages',
+    );
+    tester.widget<OutlinedButton>(reviewArchivedButton).onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Archived messages'), findsAtLeastNWidgets(1));
+    expect(find.text('Hey there'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.more_vert));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Restore to timeline'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Archived messages'), findsNothing);
+    await tester.tap(find.byTooltip('Review archived messages'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No archived messages yet.'), findsOneWidget);
+    expect(
+      find.text(
+        'Messages you archive in this room will appear here. Return to the active timeline to keep chatting.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(OutlinedButton, 'Back to active timeline'),
+      findsAtLeastNWidgets(1),
+    );
+    _expectSemanticTapAction(
+      tester,
+      find.bySemanticsLabel('Back to active timeline').last,
+      label: 'Back to active timeline',
+    );
+
+    final backToActiveTimelineButton = find
+        .widgetWithText(OutlinedButton, 'Back to active timeline')
+        .last;
+    tester.widget<OutlinedButton>(backToActiveTimelineButton).onPressed!();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Archived messages'), findsNothing);
+    expect(find.text('Hey there'), findsOneWidget);
     semantics.dispose();
   });
 
@@ -463,6 +621,13 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.text(
+        'Review archived messages to restore one, or wait here for new messages.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Review archived messages'), findsAtLeastNWidgets(1));
+    expect(
       store.rawString(
         '${ArchivedMessageStore.storageKeyPrefix}${conversation.id}',
       ),
@@ -494,6 +659,12 @@ void main() {
       find.text('Archived messages are hidden from this timeline.'),
       findsOneWidget,
     );
+    expect(
+      find.text(
+        'Review archived messages to restore one, or wait here for new messages.',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byTooltip('Review archived messages'));
     await tester.pumpAndSettle();
@@ -520,7 +691,35 @@ void _expectSemanticTapAction(
   Finder finder, {
   required String label,
 }) {
+  if (_hasSemanticTapAction(tester, finder, label)) {
+    return;
+  }
+
+  final semanticAncestor = find.ancestor(
+    of: finder,
+    matching: find.byWidgetPredicate(
+      (widget) => widget is Semantics && widget.properties.button == true,
+    ),
+  );
+  expect(
+    _hasSemanticTapAction(tester, semanticAncestor, label),
+    isTrue,
+    reason: 'Expected a semantic tap action labelled $label.',
+  );
+}
+
+bool _hasSemanticTapAction(WidgetTester tester, Finder finder, String label) {
+  final candidates = finder.evaluate().length;
+  if (candidates != 1) {
+    return false;
+  }
+
   final data = tester.getSemantics(finder).getSemanticsData();
-  expect(data.label == label || data.tooltip == label, isTrue);
-  expect(data.hasAction(SemanticsAction.tap), isTrue);
+  final hasExpectedLabel = data.label == label || data.tooltip == label;
+  final hasButtonText = find
+      .descendant(of: finder, matching: find.text(label))
+      .evaluate()
+      .isNotEmpty;
+  return (hasExpectedLabel || hasButtonText) &&
+      data.hasAction(SemanticsAction.tap);
 }

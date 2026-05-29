@@ -2163,6 +2163,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatRoomEmptyMessage => 'Noch keine Nachrichten';
 
   @override
+  String get chatRoomEmptyGuidance =>
+      'Starte die Unterhaltung, wenn du bereit bist, oder aktualisiere, falls hier schon Nachrichten sein sollten.';
+
+  @override
+  String get chatRoomRefreshAction => 'Raum aktualisieren';
+
+  @override
   String get chatRoomDraftRestoredMessage =>
       'Entwurf von diesem Gerät wiederhergestellt.';
 
@@ -2247,6 +2254,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Noch keine archivierten Nachrichten.';
 
   @override
+  String get chatRoomArchivedReviewEmptyGuidance =>
+      'Nachrichten, die du in diesem Raum archivierst, erscheinen hier. Kehre zur aktiven Zeitleiste zurück, um weiter zu schreiben.';
+
+  @override
   String get chatRoomArchivedMessageLabel => 'Archiviert';
 
   @override
@@ -2270,6 +2281,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get chatRoomArchivedEmptyMessage =>
       'Archivierte Nachrichten sind in dieser Zeitleiste ausgeblendet.';
+
+  @override
+  String get chatRoomArchivedEmptyGuidance =>
+      'Prüfe die archivierten Nachrichten, um eine wiederherzustellen, oder warte hier auf neue Nachrichten.';
 
   @override
   String get chatRoomContextPackTitle => 'Kontext für diesen Raum';
