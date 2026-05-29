@@ -846,6 +846,136 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@weave-spec-0001-member-join-invite-sso-passkey",
+      "scenario": "Member joins a configured organization through invite SSO or passkey",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/release_1/spec_0001_acceptance_mapping_test.dart",
+      "evidenceMarkers": [
+        "SPEC_0001_MEMBER_JOIN_INVITE_SSO_PASSKEY"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "Members join an already configured organization through invite/SSO/passkey",
+            "FR-005",
+            "Normal members must not be confronted with admin/provider burden"
+          ]
+        },
+        {
+          "path": "specs/0001-organization-embedding-product-core/traceability.yaml",
+          "fragments": [
+            "join_flow: invite/SSO/passkey and done after admin setup"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-stable-member-capabilities",
+      "scenario": "Member sees stable capabilities only after joining",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/release_1/spec_0001_acceptance_mapping_test.dart",
+      "evidenceMarkers": [
+        "SPEC_0001_STABLE_MEMBER_CAPABILITIES"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "member-safe capability manifests",
+            "FR-004",
+            "No raw provider secrets, endpoints, diagnostic payloads, or provider-specific repair instructions leak to normal members"
+          ]
+        },
+        {
+          "path": "docs/admin-provisioned-first-use.md",
+          "fragments": [
+            "Member-visible manifest states are limited to `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.",
+            "Normal members never configure raw providers"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-admin-readiness-setup",
+      "scenario": "Admin configures domains through setup and reviews readiness evidence",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/release_1/spec_0001_acceptance_mapping_test.dart",
+      "evidenceMarkers": [
+        "SPEC_0001_ADMIN_READINESS_SETUP"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "Guided admin setup assistant and readiness dashboard",
+            "Accessibility, supportability, auditability, and deployability as release blockers"
+          ]
+        },
+        {
+          "path": "docs/admin-suite-readiness-setup-contract.md",
+          "fragments": [
+            "Guided setup assistant",
+            "Readiness dashboard",
+            "support-safe audit evidence"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-provider-switch-evidence",
+      "scenario": "Provider switch evidence distinguishes spec acceptance from live migration",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/release_1/spec_0001_acceptance_mapping_test.dart",
+      "evidenceMarkers": [
+        "SPEC_0001_PROVIDER_SWITCH_PORTABILITY_EVIDENCE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "Provider switch contract: plan, preflight, portable export/import, cutover, rollback/recovery",
+            "Full automated cross-provider migration for every domain in v0.1",
+            "Live production provider migration or release/tag/publish action without explicit release evidence and signoff"
+          ]
+        },
+        {
+          "path": "docs/provider-replacement-and-anti-silo-contract.md",
+          "fragments": [
+            "No data is mutated during preflight.",
+            "export/delete/deprovision expectations",
+            "rollback/restore notes"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-weaver-ai-runtime-excluded",
+      "scenario": "Weaver AI runtime stays excluded from Spec 0001 acceptance",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/release_1/spec_0001_acceptance_mapping_test.dart",
+      "evidenceMarkers": [
+        "SPEC_0001_WEAVER_AI_RUNTIME_EXCLUDED"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "Weaver/AI runtime is explicitly out of scope for this spec",
+            "FR-008",
+            "Weaver/AI runtime remains out of scope and cannot be accidentally implied as shipped."
+          ]
+        },
+        {
+          "path": "specs/0001-organization-embedding-product-core/traceability.yaml",
+          "fragments": [
+            "explicit_non_goals:",
+            "Weaver/AI runtime"
+          ]
+        }
+      ]
     }
   ]
 }

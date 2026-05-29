@@ -65,8 +65,26 @@ jobs:
           (cd client && flutter pub get)
       - name: Run root Gradle CI
         env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || '' }}
+          PR_ACTION: ${{ github.event_name == 'pull_request' && github.event.action || '' }}
           PR_LABELS_JSON: ${{ github.event_name == 'pull_request' && toJson(github.event.pull_request.labels.*.name) || '' }}
-        run: ./gradlew ci
+        run: |
+          labels_json="$PR_LABELS_JSON"
+          if [ -n "$PR_NUMBER" ]; then
+            labels_json="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name]')"
+            if [ "$PR_ACTION" = "opened" ] && [ "$labels_json" = "[]" ]; then
+              # `gh pr create --label ...` can emit the opened event before the label
+              # is visible to the workflow. Give GitHub a short propagation window,
+              # then validate the live PR labels instead of the stale event payload.
+              for _ in 1 2 3; do
+                sleep 10
+                labels_json="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name]')"
+                [ "$labels_json" != "[]" ] && break
+              done
+            fi
+          fi
+          PR_LABELS_JSON="$labels_json" ./gradlew ci
       - name: Upload sanitized CI evidence
         if: always()
         uses: actions/upload-artifact@v4
