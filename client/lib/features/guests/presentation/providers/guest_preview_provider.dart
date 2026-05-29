@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/guests/domain/entities/guest_preview.dart';
 
+// Demo/backend-style fixture data. Widgets wrap missing-access messages with
+// localized context before rendering them.
 final guestPreviewProvider = Provider<List<GuestPreviewProfile>>((ref) {
   return const <GuestPreviewProfile>[
     GuestPreviewProfile(

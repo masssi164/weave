@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:weave/features/connectors/domain/entities/connector_preview.dart';
 
+// Demo/backend-style fixture data. Widgets wrap summary and audit metadata with
+// localized context before rendering it.
 final connectorPreviewProvider = Provider<List<ConnectorPreviewCapability>>((
   ref,
 ) {

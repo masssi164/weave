@@ -2047,9 +2047,15 @@
   "@settingsAdminReadinessCategoryHealthValue": {
     "description": "Category readiness count summary",
     "placeholders": {
-      "ready": {"type": "int"},
-      "total": {"type": "int"},
-      "attention": {"type": "int"}
+      "ready": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "attention": {
+        "type": "int"
+      }
     }
   },
   "settingsAdminReadinessEvidenceLabel": "Evidence",
@@ -4187,6 +4193,216 @@
   "workflowPreviewReviewEvidenceButton": "Review evidence",
   "@workflowPreviewReviewEvidenceButton": {
     "description": "Disabled placeholder action for reviewing workflow evidence"
+  },
+  "guestAccessPreviewTitle": "Guest access preview",
+  "@guestAccessPreviewTitle": {
+    "description": "Guest access preview card title"
+  },
+  "guestAccessPreviewDescription": "Invite and restricted-access states are preview-only. Guest identities stay visibly separate from full members, and missing access is explained without exposing internal policy details.",
+  "@guestAccessPreviewDescription": {
+    "description": "Guest access preview card description"
+  },
+  "guestAccessPreviewCardSemanticLabel": "{title}. Feature-gated by default. Guests are distinct from members and only see explicitly granted capabilities.",
+  "@guestAccessPreviewCardSemanticLabel": {
+    "description": "Guest access preview card accessibility label",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "guestPreviewIconSemantic": "Guest preview icon",
+  "@guestPreviewIconSemantic": {
+    "description": "Semantic label for the guest preview icon"
+  },
+  "guestPreviewStatusPending": "Pending invitation",
+  "@guestPreviewStatusPending": {
+    "description": "Guest preview status label for pending invitation"
+  },
+  "guestPreviewStatusActive": "Active guest",
+  "@guestPreviewStatusActive": {
+    "description": "Guest preview status label for active guest"
+  },
+  "guestPreviewStatusDisabled": "Disabled guest",
+  "@guestPreviewStatusDisabled": {
+    "description": "Guest preview status label for disabled guest"
+  },
+  "guestPreviewStatusExpired": "Expired invitation",
+  "@guestPreviewStatusExpired": {
+    "description": "Guest preview status label for expired invitation"
+  },
+  "guestIdentityEmail": "Guest identity · {email}",
+  "@guestIdentityEmail": {
+    "description": "Guest identity email label",
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "guestPreviewTileSemanticLabel": "Guest identity {displayName}, {statusLabel}. {capabilityText}. {missingAccess}",
+  "@guestPreviewTileSemanticLabel": {
+    "description": "Guest preview tile accessibility label",
+    "placeholders": {
+      "displayName": {
+        "type": "String"
+      },
+      "statusLabel": {
+        "type": "String"
+      },
+      "capabilityText": {
+        "type": "String"
+      },
+      "missingAccess": {
+        "type": "String"
+      }
+    }
+  },
+  "guestAllowedAccessNone": "Allowed access: none yet.",
+  "@guestAllowedAccessNone": {
+    "description": "Guest capability summary when no access is granted"
+  },
+  "guestAllowedAccessList": "Allowed access: {capabilities}.",
+  "@guestAllowedAccessList": {
+    "description": "Guest capability summary when access is granted",
+    "placeholders": {
+      "capabilities": {
+        "type": "String"
+      }
+    }
+  },
+  "guestCapabilityChat": "chat",
+  "@guestCapabilityChat": {
+    "description": "Guest access capability label for chat"
+  },
+  "guestCapabilityFiles": "files",
+  "@guestCapabilityFiles": {
+    "description": "Guest access capability label for files"
+  },
+  "guestCapabilityCalendar": "calendar",
+  "@guestCapabilityCalendar": {
+    "description": "Guest access capability label for calendar"
+  },
+  "guestCapabilityMemberDirectory": "member directory",
+  "@guestCapabilityMemberDirectory": {
+    "description": "Guest access capability label for member directory"
+  },
+  "guestCapabilityAdminControls": "admin controls",
+  "@guestCapabilityAdminControls": {
+    "description": "Guest access capability label for admin controls"
+  },
+  "guestPreviewDemoAccessNote": "Demo access note: {message}",
+  "@guestPreviewDemoAccessNote": {
+    "description": "Localized wrapper for backend/demo guest missing-access fixture text",
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "guestMemberAffordancesAllowed": "Member/admin affordances allowed by policy.",
+  "@guestMemberAffordancesAllowed": {
+    "description": "Guest preview note when member/admin affordances are allowed"
+  },
+  "guestMemberAffordancesHidden": "Owner, admin, and member-only affordances are hidden for this guest.",
+  "@guestMemberAffordancesHidden": {
+    "description": "Guest preview note when member/admin affordances are hidden"
+  },
+  "connectorSettingsPreviewTitle": "Governed connectors preview",
+  "@connectorSettingsPreviewTitle": {
+    "description": "Connector settings preview card title"
+  },
+  "connectorSettingsPreviewDescription": "Connector status is safe metadata from backend contracts or fixtures. OAuth, webhook, access-token, and refresh-token secrets never belong in this client.",
+  "@connectorSettingsPreviewDescription": {
+    "description": "Connector settings preview card description"
+  },
+  "connectorSettingsPreviewCardSemanticLabel": "{title}. Feature-gated by default. Provider secrets are never entered, shown, stored, or logged by the Flutter client.",
+  "@connectorSettingsPreviewCardSemanticLabel": {
+    "description": "Connector settings preview card accessibility label",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "connectorPreviewIconSemantic": "Connectors preview icon",
+  "@connectorPreviewIconSemantic": {
+    "description": "Semantic label for the connectors preview icon"
+  },
+  "connectorPreviewStatusDisabled": "Disabled",
+  "@connectorPreviewStatusDisabled": {
+    "description": "Connector preview status label for disabled"
+  },
+  "connectorPreviewStatusUnavailable": "Unavailable",
+  "@connectorPreviewStatusUnavailable": {
+    "description": "Connector preview status label for unavailable"
+  },
+  "connectorPreviewStatusDegraded": "Degraded",
+  "@connectorPreviewStatusDegraded": {
+    "description": "Connector preview status label for degraded"
+  },
+  "connectorPreviewStatusActionRequired": "Action required",
+  "@connectorPreviewStatusActionRequired": {
+    "description": "Connector preview status label for action required"
+  },
+  "connectorPreviewStatusConfigured": "Configured reference",
+  "@connectorPreviewStatusConfigured": {
+    "description": "Connector preview status label for configured reference"
+  },
+  "connectorPreviewDemoSummary": "Demo metadata: {summary}",
+  "@connectorPreviewDemoSummary": {
+    "description": "Localized wrapper for backend/demo connector summary fixture text",
+    "placeholders": {
+      "summary": {
+        "type": "String"
+      }
+    }
+  },
+  "connectorPreviewDemoAuditSummary": "Demo audit note: {auditSummary}",
+  "@connectorPreviewDemoAuditSummary": {
+    "description": "Localized wrapper for backend/demo connector audit summary fixture text",
+    "placeholders": {
+      "auditSummary": {
+        "type": "String"
+      }
+    }
+  },
+  "connectorProviderActionsPreviewOnly": "Backend-configured action preview only",
+  "@connectorProviderActionsPreviewOnly": {
+    "description": "Disabled connector action label when backend metadata would allow actions"
+  },
+  "connectorProviderActionUnavailable": "Provider action unavailable",
+  "@connectorProviderActionUnavailable": {
+    "description": "Disabled connector action label when provider action is unavailable"
+  },
+  "connectorProviderActionsPreviewOnlySemantic": "Provider actions are preview-only until backend runtime enables them",
+  "@connectorProviderActionsPreviewOnlySemantic": {
+    "description": "Connector provider-actions semantic state when preview-only"
+  },
+  "connectorProviderActionsUnavailableSemantic": "Provider actions are unavailable",
+  "@connectorProviderActionsUnavailableSemantic": {
+    "description": "Connector provider-actions semantic state when unavailable"
+  },
+  "connectorPreviewTileSemanticLabel": "{name}. Status {statusLabel}. {summary} {auditSummary} {actionsState}; no provider secret is handled by the app.",
+  "@connectorPreviewTileSemanticLabel": {
+    "description": "Connector preview tile accessibility label",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "statusLabel": {
+        "type": "String"
+      },
+      "summary": {
+        "type": "String"
+      },
+      "auditSummary": {
+        "type": "String"
+      },
+      "actionsState": {
+        "type": "String"
+      }
+    }
   },
   "channelWorkspaceStatusAdminSetupRequired": "Admin setup required",
   "@channelWorkspaceStatusAdminSetupRequired": {
