@@ -107,6 +107,27 @@ flutter pub get
 flutter run
 ```
 
+### Android identity and release signing
+
+Android debug builds use the Weave package id `com.massimotter.weave`; the OIDC redirect scheme stays `com.massimotter.weave`, so app-auth provider configuration must still allow `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout` after package-id changes.
+
+Release artifacts are intentionally fail-safe. The Android release build does not fall back to debug keys. To build a signed release artifact, create a local, untracked `client/android/key.properties` file:
+
+```properties
+storeFile=/secure/path/weave-release.jks
+storePassword=...
+keyAlias=weave-release
+keyPassword=...
+```
+
+Then run:
+
+```sh
+flutter build appbundle --release
+```
+
+Without that complete file and keystore, release artifact tasks fail with an explicit signing-credentials error; use `flutter run` or debug/profile builds for local development.
+
 Full lightweight validation:
 
 ```sh

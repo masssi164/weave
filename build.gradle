@@ -34,6 +34,7 @@ registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build
 registerRootCommandTask('releaseNotesLabelCheck', ['bash', '-lc', 'if [ -n "${PR_LABELS_JSON:-}" ]; then python3 tools/release_notes_label_check.py; else echo "release-notes-label-check: skipped (PR_LABELS_JSON is not set)"; fi'], 'Validate the current PR release-notes label set from PR_LABELS_JSON when available.')
 registerRootCommandTask('specContract', ['python3', 'tools/spec_contract_check.py'], 'Validate repo-local Weave specs, lifecycle metadata, and implementation-ready clarification state.')
 registerRootCommandTask('specContractTest', ['python3', 'tools/spec_contract_check_test.py'], 'Run fixture tests for the repo-local Weave spec contract guard.')
+registerRootCommandTask('androidReleaseIdentityCheck', ['python3', 'tools/android_release_identity_check.py'], 'Validate Android package identity and release-signing fail-safe posture.')
 registerRootCommandTask('generateReleaseNotes', ['python3', 'tools/release_notes_generate.py', '--input', 'tools/fixtures/release_notes_prs.json'], 'Generate reviewable release notes under build/release-notes by default.')
 registerRootCommandTask('updateReadmeReleaseNotes', ['python3', 'tools/readme_release_notes.py', '--update'], 'Explicitly update the managed README release-notes evidence block.')
 registerRootCommandTask('projectReadinessEvidenceCheck', ['python3', 'tools/project_readiness_evidence_check.py'], 'Validate Sprint 5 project-readiness evidence remains mapped and support-safe.')
@@ -99,6 +100,7 @@ ext.ciEvidenceGates = [
     'releaseNotesLabelCheck',
     'specContract',
     'specContractTest',
+    'androidReleaseIdentityCheck',
     'releaseEvidenceCheck',
     'projectReadinessEvidenceCheck',
     'enterpriseReleaseGateCheck'
@@ -271,10 +273,10 @@ tasks.register('doctor') {
 tasks.register('ci') {
     group = 'verification'
     description = 'Run the canonical monorepo CI orchestration checks.'
-    dependsOn 'doctor', 'acceptanceContract', 'specContract', 'specContractTest', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck'
+    dependsOn 'doctor', 'acceptanceContract', 'specContract', 'specContractTest', 'androidReleaseIdentityCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck'
 }
 
-['acceptanceContract', 'specContract', 'specContractTest', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
+['acceptanceContract', 'specContract', 'specContractTest', 'androidReleaseIdentityCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
     }

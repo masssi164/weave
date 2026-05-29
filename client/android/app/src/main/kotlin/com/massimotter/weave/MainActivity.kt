@@ -1,4 +1,4 @@
-package com.example.weave
+package com.massimotter.weave
 
 import io.flutter.embedding.android.FlutterActivity
 
