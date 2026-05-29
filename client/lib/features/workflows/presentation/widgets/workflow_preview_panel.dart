@@ -302,12 +302,15 @@ class _WorkflowStepTile extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     OutlinedButton.icon(
-                      onPressed: null,
+                      onPressed: () => _showStepSnackBar(
+                        context,
+                        '${step.title}: ${step.nextAction}',
+                      ),
                       icon: const Icon(Icons.open_in_new_outlined),
                       label: Text(l10n.workflowPreviewOpenStepButton),
                     ),
                     OutlinedButton.icon(
-                      onPressed: null,
+                      onPressed: () => _showStepSnackBar(context, evidenceText),
                       icon: const Icon(Icons.fact_check_outlined),
                       label: Text(l10n.workflowPreviewReviewEvidenceButton),
                     ),
@@ -344,6 +347,12 @@ class _WorkflowStepFact extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showStepSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(message)));
 }
 
 String _kindLabel(AppLocalizations l10n, WorkflowStepKind kind) {

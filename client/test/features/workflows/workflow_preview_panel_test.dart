@@ -57,6 +57,25 @@ void main() {
       );
       expect(find.text('Open step'), findsNWidgets(8));
       expect(find.text('Review evidence'), findsNWidgets(8));
+      final actions = tester.widgetList<OutlinedButton>(
+        find.byType(OutlinedButton),
+      );
+      expect(actions.length, 16);
+      expect(actions.every((button) => button.onPressed != null), isTrue);
+
+      await tester.ensureVisible(find.text('Open step').first);
+      await tester.tap(find.text('Open step').first);
+      await tester.pump();
+      expect(find.textContaining('Assign onboarding owners'), findsWidgets);
+
+      await tester.ensureVisible(find.text('Review evidence').first);
+      await tester.tap(find.text('Review evidence').first);
+      await tester.pump();
+      expect(
+        find.textContaining('Checklist has owners for first-day tasks'),
+        findsWidgets,
+      );
+
       expect(
         find.textContaining('does not continuously read rooms'),
         findsOneWidget,
