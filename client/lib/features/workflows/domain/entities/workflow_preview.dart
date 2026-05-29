@@ -1,5 +1,7 @@
 enum WorkflowContextReferenceKind {
   channel,
+  project,
+  event,
   task,
   decision,
   file,
@@ -12,6 +14,23 @@ enum WorkflowStepKind { step, gate, approval }
 enum WorkflowStepState { ready, inProgress, blocked, waitingForApproval, done }
 
 enum WorkflowAssigneeKind { person, agent }
+
+class WorkflowTemplatePreview {
+  const WorkflowTemplatePreview({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.attachableContextKinds,
+  });
+
+  final String id;
+  final String title;
+  final String description;
+  final List<WorkflowContextReferenceKind> attachableContextKinds;
+
+  bool canAttachTo(WorkflowContextReferenceKind kind) =>
+      attachableContextKinds.contains(kind);
+}
 
 class WorkflowContextReference {
   const WorkflowContextReference({
@@ -103,15 +122,39 @@ class WorkflowStepPreview {
       state == WorkflowStepState.blocked ||
       state == WorkflowStepState.waitingForApproval;
 
+  bool get hasTraceableEvidence {
+    final contextReferenceIds = contextReferences
+        .where((reference) => reference.isExplicit)
+        .map((reference) => reference.id)
+        .toSet();
+
+    return evidence.isNotEmpty &&
+        evidence.every(
+          (reference) =>
+              contextReferenceIds.contains(reference.contextReferenceId),
+        );
+  }
+
+  bool get hasTraceableBlockers {
+    final evidenceIds = evidence.map((reference) => reference.id).toSet();
+
+    return blockers.every(
+      (blocker) =>
+          blocker.evidenceIds.isNotEmpty &&
+          blocker.evidenceIds.every(evidenceIds.contains),
+    );
+  }
+
   bool get isExplainable =>
       contextReferences.isNotEmpty &&
       contextReferences.every((reference) => reference.isExplicit) &&
-      evidence.isNotEmpty;
+      hasTraceableEvidence &&
+      hasTraceableBlockers;
 }
 
 class WorkflowRunPreview {
   const WorkflowRunPreview({
-    required this.templateId,
+    required this.template,
     required this.runId,
     required this.title,
     required this.contextLabel,
@@ -121,7 +164,7 @@ class WorkflowRunPreview {
     required this.auditTrailRequired,
   });
 
-  final String templateId;
+  final WorkflowTemplatePreview template;
   final String runId;
   final String title;
   final String contextLabel;

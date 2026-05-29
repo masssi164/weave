@@ -54,7 +54,8 @@ Start with:
 3. [Spec-driven development for Weave](spec-driven-development.md) — repo-local specs, lifecycle, evidence gates, and agent orchestration.
 4. [Weave agent-team orchestration](agent-team-orchestration.md) — `weave-co-leader`, native subagents, ACP specialists, briefs, and optimization loop.
 5. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
-6. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
+6. [Accessible workflow context contract](workflow-context-contract.md) — linear workflow primitives, context references, agent dry-run rules, and the MVP slice before a visual builder.
+7. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
 
 ### Security / compliance reviewer
 
@@ -75,6 +76,7 @@ Canonical product docs:
 - [Spec-driven development for Weave](spec-driven-development.md)
 - [Weave agent-team orchestration](agent-team-orchestration.md)
 - [Canonical feature models](canonical-feature-models.md)
+- [Accessible workflow context contract](workflow-context-contract.md)
 - [Architecture](architecture.md)
 - [Organization embedding contract](organization-embedding-contract.md)
 - [Admin-Suite readiness and setup contract](admin-suite-readiness-setup-contract.md)

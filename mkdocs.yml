@@ -43,6 +43,7 @@ nav:
       - Trunk-based PR and release workflow: gitflow-pr-workflow.md
       - Architecture: architecture.md
       - Canonical feature models: canonical-feature-models.md
+      - Accessible workflow context contract: workflow-context-contract.md
       - Acceptance contracts: acceptance-contracts.md
       - Quality and evidence: quality-and-evidence.md
       - Build, evidence, and delivery system: build-evidence-delivery-system.md

@@ -7,9 +7,19 @@ void main() {
     final snapshot = const WorkflowPreviewFacade().previewForWorkspace(
       contexts: const <WorkflowContextSeed>[
         WorkflowContextSeed(
-          id: '!release:home.internal',
+          id: 'channel:release',
           kind: WorkflowContextSeedKind.channel,
           label: 'Release channel',
+        ),
+        WorkflowContextSeed(
+          id: 'project:workspace-launch',
+          kind: WorkflowContextSeedKind.project,
+          label: 'Workspace launch',
+        ),
+        WorkflowContextSeed(
+          id: 'event:support-incident',
+          kind: WorkflowContextSeedKind.event,
+          label: 'Support incident',
         ),
       ],
     );
@@ -18,29 +28,167 @@ void main() {
     expect(snapshot.isLinearAccessiblePreview, isTrue);
     expect(snapshot.usesOnlyExplicitContext, isTrue);
     expect(snapshot.keepsAgentsGoverned, isTrue);
+    expect(snapshot.runs.map((run) => run.title), <String>[
+      'Onboard a workspace',
+      'Prepare a release',
+      'Resolve a support incident',
+    ]);
 
-    final run = snapshot.runs.single;
-    expect(run.title, 'Prepare a release');
-    expect(run.contextLabel, 'Release channel');
-    expect(run.backgroundRoomReadingEnabled, isFalse);
-    expect(run.agentActionsEnabled, isFalse);
-    expect(run.auditTrailRequired, isTrue);
-    expect(run.steps.map((step) => step.kind), <WorkflowStepKind>[
+    final onboarding = snapshot.runs.first;
+    expect(onboarding.template.id, 'template:workspace-onboarding');
+    expect(
+      onboarding.template.canAttachTo(WorkflowContextReferenceKind.project),
+      isTrue,
+    );
+    expect(onboarding.contextLabel, 'Workspace launch');
+
+    final release = snapshot.runs[1];
+    expect(release.template.id, 'template:release-prep');
+    expect(
+      release.template.canAttachTo(WorkflowContextReferenceKind.channel),
+      isTrue,
+    );
+    expect(release.contextLabel, 'Release channel');
+    expect(release.backgroundRoomReadingEnabled, isFalse);
+    expect(release.agentActionsEnabled, isFalse);
+    expect(release.auditTrailRequired, isTrue);
+    expect(release.steps.map((step) => step.kind), <WorkflowStepKind>[
       WorkflowStepKind.gate,
       WorkflowStepKind.step,
       WorkflowStepKind.approval,
     ]);
-    expect(run.steps.any((step) => step.requiresApproval), isTrue);
-    expect(run.steps.any((step) => step.blockers.isNotEmpty), isTrue);
+
+    final support = snapshot.runs.last;
+    expect(support.template.id, 'template:support-incident');
     expect(
-      run.steps.expand((step) => step.contextReferences).map((ref) => ref.kind),
+      support.template.canAttachTo(WorkflowContextReferenceKind.event),
+      isTrue,
+    );
+    expect(support.contextLabel, 'Support incident');
+
+    final steps = snapshot.runs.expand((run) => run.steps).toList();
+    expect(steps.any((step) => step.requiresApproval), isTrue);
+    expect(steps.any((step) => step.blockers.isNotEmpty), isTrue);
+    expect(steps.every((step) => step.agentDryRunOnly), isTrue);
+    expect(steps.every((step) => step.hasTraceableEvidence), isTrue);
+    expect(steps.every((step) => step.hasTraceableBlockers), isTrue);
+    expect(steps.every((step) => step.isExplainable), isTrue);
+
+    expect(
+      steps.expand((step) => step.contextReferences).map((ref) => ref.kind),
       containsAll(<WorkflowContextReferenceKind>{
         WorkflowContextReferenceKind.channel,
+        WorkflowContextReferenceKind.project,
+        WorkflowContextReferenceKind.event,
         WorkflowContextReferenceKind.task,
         WorkflowContextReferenceKind.decision,
         WorkflowContextReferenceKind.file,
+        WorkflowContextReferenceKind.meeting,
         WorkflowContextReferenceKind.agentRun,
       }),
     );
+  });
+
+  test('workflow steps reject unlinked evidence and blocker references', () {
+    const context = WorkflowContextReference(
+      id: 'task:ready',
+      kind: WorkflowContextReferenceKind.task,
+      label: 'Ready task',
+      sourceLabel: 'Linked task',
+    );
+    const evidence = WorkflowEvidenceReference(
+      id: 'evidence:ready',
+      label: 'Ready evidence',
+      sourceLabel: 'Task state',
+      contextReferenceId: 'task:ready',
+    );
+
+    const linked = WorkflowStepPreview(
+      id: 'step:linked',
+      kind: WorkflowStepKind.step,
+      title: 'Linked step',
+      state: WorkflowStepState.ready,
+      ownerLabel: 'Owner',
+      assignee: WorkflowAssignee(
+        label: 'Owner',
+        kind: WorkflowAssigneeKind.person,
+      ),
+      nextAction: 'Continue.',
+      dueLabel: 'Today',
+      contextReferences: <WorkflowContextReference>[context],
+      evidence: <WorkflowEvidenceReference>[evidence],
+      blockers: <WorkflowBlocker>[
+        WorkflowBlocker(
+          id: 'blocker:ready',
+          description: 'Needs evidence.',
+          ownerLabel: 'Owner',
+          evidenceIds: <String>['evidence:ready'],
+        ),
+      ],
+      requiresApproval: false,
+      agentDryRunOnly: true,
+    );
+
+    const evidenceWithoutContext = WorkflowStepPreview(
+      id: 'step:unlinked-evidence',
+      kind: WorkflowStepKind.step,
+      title: 'Unlinked evidence',
+      state: WorkflowStepState.ready,
+      ownerLabel: 'Owner',
+      assignee: WorkflowAssignee(
+        label: 'Owner',
+        kind: WorkflowAssigneeKind.person,
+      ),
+      nextAction: 'Stop.',
+      dueLabel: 'Today',
+      contextReferences: <WorkflowContextReference>[context],
+      evidence: <WorkflowEvidenceReference>[
+        WorkflowEvidenceReference(
+          id: 'evidence:missing-context',
+          label: 'Missing context evidence',
+          sourceLabel: 'Unknown state',
+          contextReferenceId: 'task:missing',
+        ),
+      ],
+      blockers: <WorkflowBlocker>[],
+      requiresApproval: false,
+      agentDryRunOnly: true,
+    );
+
+    const blockerWithoutEvidence = WorkflowStepPreview(
+      id: 'step:unlinked-blocker',
+      kind: WorkflowStepKind.step,
+      title: 'Unlinked blocker',
+      state: WorkflowStepState.blocked,
+      ownerLabel: 'Owner',
+      assignee: WorkflowAssignee(
+        label: 'Owner',
+        kind: WorkflowAssigneeKind.person,
+      ),
+      nextAction: 'Stop.',
+      dueLabel: 'Today',
+      contextReferences: <WorkflowContextReference>[context],
+      evidence: <WorkflowEvidenceReference>[evidence],
+      blockers: <WorkflowBlocker>[
+        WorkflowBlocker(
+          id: 'blocker:missing-evidence',
+          description: 'Missing evidence link.',
+          ownerLabel: 'Owner',
+          evidenceIds: <String>['evidence:missing'],
+        ),
+      ],
+      requiresApproval: false,
+      agentDryRunOnly: true,
+    );
+
+    expect(linked.hasTraceableEvidence, isTrue);
+    expect(linked.hasTraceableBlockers, isTrue);
+    expect(linked.isExplainable, isTrue);
+
+    expect(evidenceWithoutContext.hasTraceableEvidence, isFalse);
+    expect(evidenceWithoutContext.isExplainable, isFalse);
+
+    expect(blockerWithoutEvidence.hasTraceableBlockers, isFalse);
+    expect(blockerWithoutEvidence.isExplainable, isFalse);
   });
 }
