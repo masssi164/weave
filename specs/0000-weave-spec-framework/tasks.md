@@ -15,7 +15,7 @@
 - [x] T011 [Spec] Add Weave spec/plan/task templates.
 - [x] T012 [Agents] Add Weave assistant briefing templates with repo-safe runtime-boundary rules.
 - [x] T013 [Docs] Add `specs/README.md` and framework spec files.
-- [x] T014 [Research] Run NotebookLM deep research without preselected sources for orchestrator/subagent/ACP team patterns.
+- [x] T014 [Research] Record repo-safe assistant-delivery patterns without importing live operator configuration.
 - [x] T015 [Agents] Remove deployable-looking agent team config examples from repo-local templates.
 - [x] T016 [Docs] Add `docs/agent-team-orchestration.md` with logical roles, loop, rubric, guardrails, and runtime-boundary language.
 

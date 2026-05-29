@@ -116,6 +116,6 @@ Stop before:
 - history rewrite;
 - hidden scope expansion;
 - accepted/implementing/implemented specs that still contain `[NEEDS CLARIFICATION: ...]`;
-- product-core choices that Massimo/team have not decided.
+- product-core choices that the product owner/team have not decided.
 
 When blocked by product-core ambiguity, keep the spec `draft` or `proposed`, write the clarification marker, and ask for the one decision needed to proceed.

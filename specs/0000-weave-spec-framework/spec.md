@@ -108,4 +108,4 @@ This framework does not define new member-facing product behavior. It defines th
 
 ## Open questions
 
-None for this framework slice. Future product-core specs must keep unresolved product questions in `draft` or `proposed` state until Massimo/team review resolves them.
+None for this framework slice. Future product-core specs must keep unresolved product questions in `draft` or `proposed` state until product owner/team review resolves them.

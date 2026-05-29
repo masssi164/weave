@@ -107,13 +107,31 @@ class SpecContractCheckTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.run_main(repo)
 
+    def test_framework_spec_fails_with_live_allowlist_marker(self) -> None:
+        repo = self.with_repo(FRAMEWORK_SPEC, dirname="0000-framework", traceability=FRAMEWORK_TRACEABILITY)
+        files = {
+            ".specify/memory/constitution.md": "Repo truth over chat memory\nAssistant governance\n",
+            ".specify/templates/weave-spec-template.md": "[NEEDS CLARIFICATION:\n",
+            ".specify/templates/weave-plan-template.md": "Constitution check\n",
+            ".specify/templates/weave-tasks-template.md": "Assistant handoff\n",
+            ".specify/templates/weave-agent-briefs.md": "Optimization-Review\nCoding-Harness-Brief\nLive runtime configuration\nallowAgents\n",
+            "docs/spec-driven-development.md": "Git-versioned specs are truth\nagent-team-orchestration.md\nDo not add live agent allowlists\n",
+            "docs/agent-team-orchestration.md": "Material optimization\nRuntime boundary\nForbidden repo-local content\noperator-runtime JSON examples\n",
+        }
+        for relative, content in files.items():
+            path = repo / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        with self.assertRaises(SystemExit):
+            self.run_main(repo)
+
     def test_framework_spec_passes_with_required_assistant_delivery_artifacts(self) -> None:
         repo = self.with_repo(FRAMEWORK_SPEC, dirname="0000-framework", traceability=FRAMEWORK_TRACEABILITY)
         files = {
             ".specify/memory/constitution.md": "Repo truth over chat memory\nAssistant governance\n",
             ".specify/templates/weave-spec-template.md": "[NEEDS CLARIFICATION:\n",
             ".specify/templates/weave-plan-template.md": "Constitution check\n",
-            ".specify/templates/weave-tasks-template.md": "Agent handoff\n",
+            ".specify/templates/weave-tasks-template.md": "Assistant handoff\n",
             ".specify/templates/weave-agent-briefs.md": "Optimization-Review\nCoding-Harness-Brief\nLive runtime configuration\n",
             "docs/spec-driven-development.md": "Git-versioned specs are truth\nagent-team-orchestration.md\nDo not add live agent allowlists\n",
             "docs/agent-team-orchestration.md": "Material optimization\nRuntime boundary\nForbidden repo-local content\noperator-runtime JSON examples\n",

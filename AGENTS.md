@@ -28,9 +28,9 @@ Default gates: `./gradlew acceptanceContract`, `./gradlew clientCi`, `./gradlew 
 
 An assigned delivery lead owns Weave sprint or milestone work end to end. Scoped reviewers and implementers receive narrow, evidence-based briefs through the operator environment; the product repo must not encode live assistant hierarchy, allowlists, model routing, or personal operator paths.
 
-A user request such as “finish Sprint N”, “take this milestone”, or “close the sprint” is sufficient. The user does not need to repeat acceptance criteria. The co-leader must derive acceptance from GitHub milestone/issues, linked PRs, repo-local specs/tasks, developer docs, CI policy, and existing evidence.
+A user request such as “finish Sprint N”, “take this milestone”, or “close the sprint” is sufficient. The user does not need to repeat acceptance criteria. The delivery lead must derive acceptance from GitHub milestone/issues, linked PRs, repo-local specs/tasks, developer docs, CI policy, and existing evidence.
 
-A sprint-finish request authorizes normal repository delivery actions needed to finish the sprint: creating/updating issues, labels, branches, PRs, checked-in docs/evidence, PR comments, fallback agent reviews, merges into protected `main` when gates pass, issue closure, and milestone closure. It does not authorize secrets disclosure, destructive data loss, live infrastructure mutation, history rewrite, production release publication, or unresolved product-core decisions.
+A sprint-finish request authorizes normal repository delivery actions needed to finish the sprint: creating/updating issues, labels, branches, PRs, checked-in docs/evidence, PR comments, fallback reviews, merges into protected `main` when gates pass, issue closure, and milestone closure. It does not authorize secrets disclosure, destructive data loss, live infrastructure mutation, history rewrite, production release publication, or unresolved product-core decisions.
 
 ## Autonomous sprint loop
 

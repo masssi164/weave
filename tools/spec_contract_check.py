@@ -46,11 +46,18 @@ FRAMEWORK_FORBIDDEN_FILES = {
     ".specify/templates/weave-agent-team-config.example.json5": "operator-runtime configuration example",
 }
 
+FRAMEWORK_FORBIDDEN_MARKERS = {
+    "allowAgents": "live agent allowlist",
+    "requireAgentId": "live runtime policy",
+    "agents.list": "live agent registry",
+    ".openclaw": "personal operator path",
+}
+
 FRAMEWORK_REQUIRED_FILES = {
     ".specify/memory/constitution.md": ["Repo truth over chat memory", "Assistant governance"],
     ".specify/templates/weave-spec-template.md": ["[NEEDS CLARIFICATION:"],
     ".specify/templates/weave-plan-template.md": ["Constitution check"],
-    ".specify/templates/weave-tasks-template.md": ["Agent handoff"],
+    ".specify/templates/weave-tasks-template.md": ["Assistant handoff"],
     ".specify/templates/weave-agent-briefs.md": [
         "Optimization-Review",
         "Coding-Harness-Brief",
@@ -192,6 +199,9 @@ def check_framework_artifacts(spec_dirs: list[Path]) -> None:
         if not path.exists():
             fail(f"framework spec requires {relative}")
         text = path.read_text(encoding="utf-8")
+        for forbidden_marker, reason in FRAMEWORK_FORBIDDEN_MARKERS.items():
+            if forbidden_marker in text:
+                fail(f"{relative} must not contain {reason} marker {forbidden_marker!r}")
         for marker in required_markers:
             if marker not in text:
                 fail(f"{relative} must contain framework marker {marker!r}")

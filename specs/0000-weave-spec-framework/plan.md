@@ -15,7 +15,7 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 - Acceptance/evidence path identified before implementation: yes
 - Accessibility/supportability/auditability/deployability addressed: yes
 - Provider secrets/raw diagnostics remain admin/operator-only: yes
-- Weaver/OpenClaw runtime remains governed and disabled-by-default unless explicitly in scope: yes
+- Weaver and related product runtime surfaces remain governed and disabled-by-default unless explicitly in scope: yes
 
 ## Affected areas
 
@@ -25,7 +25,7 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 - `tools/`: deterministic spec contract guard.
 - `build.gradle`/`Makefile`: local gate wiring.
 - `.github/pull_request_template.md`: spec/evidence traceability prompt.
-- `AGENTS.md`: point agents at repo-local specs and fallback review reality.
+- `AGENTS.md`: point contributors at repo-local specs and fallback review reality.
 
 ## Contracts and tests first
 
@@ -35,7 +35,7 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 4. Tooling tests: `python3 tools/spec_contract_check.py` and `python3 tools/spec_contract_check_test.py`.
 5. CI/evidence artifacts: Gradle `specContract` and CI summary wiring.
 
-## Agent work breakdown
+## AI-assisted work breakdown
 
 - Product/spec steward: owns spec lifecycle and frontmatter discipline.
 - Client/accessibility: used when member/admin UI behavior changes.
@@ -50,7 +50,7 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 ## Rollout and migration
 
 - Start with framework-only spec `WEAVE-SPEC-0000`.
-- Use the next product-core slice as the first real `WEAVE-SPEC-0001` only after Massimo resolves required product-core questions.
+- Use the next product-core slice as the first real `WEAVE-SPEC-0001` only after the product owner/team resolves required product-core questions.
 - Keep generated wiki/docs as projections, not canonical source.
 
 ## Risks and mitigations
@@ -58,7 +58,7 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 - Risk: Markdown overload for small bugs.
   - Mitigation: full workflow only for product/architecture/provider/auth/release-relevant changes; small bugs may use issue/spec notes.
   - Evidence gate: PR template asks for spec/note and smallest local gate.
-- Risk: Agent hallucination of product core.
+- Risk: Assistant hallucination of product core.
   - Mitigation: clarification markers allowed only in draft/proposed specs; accepted/implementing specs fail guard if markers remain.
   - Evidence gate: `./gradlew specContract`.
 - Risk: assistant runtime-policy confusion.

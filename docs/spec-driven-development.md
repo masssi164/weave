@@ -68,7 +68,7 @@ For tiny bug fixes, a linked issue/spec note plus tests/evidence is enough unles
 
 Do not let assistants invent unresolved product decisions. If the answer changes the product core, keep the spec `draft` or `proposed` and write the uncertainty explicitly.
 
-Product-core questions that require Massimo/team confirmation include:
+Product-core questions that require product owner/team confirmation include:
 
 - first `WEAVE-SPEC-0001` product slice: organization embedding, Chat facade, identity policy, or another foundation;
 - exact minimal domain vocabulary for the first user-visible release;
