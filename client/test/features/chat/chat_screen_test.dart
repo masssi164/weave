@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/core/theme/app_theme.dart';
@@ -609,6 +610,7 @@ void main() {
     testWidgets('shows recency badges and keeps unread rooms first', (
       tester,
     ) async {
+      final semantics = tester.ensureSemantics();
       final now = DateTime.now();
       final yesterdayAtNoon = DateTime(
         now.year,
@@ -676,6 +678,21 @@ void main() {
         tester.getTopLeft(find.text('Newest room')).dy,
         lessThan(tester.getTopLeft(find.text('Older room')).dy),
       );
+
+      final unreadRoomSemantics = find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.button == true &&
+            (widget.properties.label ?? '').contains('Older unread room'),
+      );
+      final unreadRoomSemanticsData = tester
+          .getSemantics(unreadRoomSemantics)
+          .getSemanticsData();
+      expect(unreadRoomSemanticsData.label, contains('Older unread room'));
+      expect(unreadRoomSemanticsData.label, contains('Unread update'));
+      expect(unreadRoomSemanticsData.label, contains('3 unread messages'));
+      expect(unreadRoomSemanticsData.hasAction(SemanticsAction.tap), isTrue);
+      semantics.dispose();
     });
 
     testWidgets('keeps the last room list visible when a manual refresh fails', (

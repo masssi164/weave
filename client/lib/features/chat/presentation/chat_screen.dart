@@ -791,6 +791,9 @@ class _ConversationTile extends StatelessWidget {
 
     return Semantics(
       container: true,
+      button: true,
+      enabled: true,
+      onTap: onTap,
       label: semanticsLabel,
       child: ExcludeSemantics(
         child: Card(
