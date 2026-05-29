@@ -21,3 +21,10 @@ This stage owns Docker networking, generated runtime config files, local contain
 - `modules/backend`: Weave backend container, OIDC environment, healthcheck, and Caddy routing.
 - `modules/matrix`: MAS and Synapse containers plus local CA trust for MAS.
 - `modules/nextcloud`: Nextcloud container and storage.
+
+## Global Weave agent baseline
+
+- Write agent instructions, PRs, issues, code comments, and documentation in English unless an explicit localization file requires another language.
+- Follow `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs before coding, opening PRs, merging, or declaring work complete.
+- If the user asks to finish a sprint/milestone, derive acceptance from GitHub issues/milestones, repo specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
+- Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub closure verification before reporting completion.
