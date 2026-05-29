@@ -617,6 +617,12 @@ abstract class AppLocalizations {
   /// **'We could not load your first-run status from the Weave backend.'**
   String get firstRunLoadFailure;
 
+  /// No description provided for @firstRunLoadFailureGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Check your connection and try again. If this keeps happening, ask an admin to confirm the backend is reachable.'**
+  String get firstRunLoadFailureGuidance;
+
   /// No description provided for @firstRunSignedOutMessage.
   ///
   /// In en, this message translates to:

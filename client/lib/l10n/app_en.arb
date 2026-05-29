@@ -366,6 +366,7 @@
   "firstRunLoadingLabel": "Checking your Weave workspace…",
   "firstRunLoadingHint": "Loading your profile, role, and module readiness from the Weave backend.",
   "firstRunLoadFailure": "We could not load your first-run status from the Weave backend.",
+  "firstRunLoadFailureGuidance": "Check your connection and try again. If this keeps happening, ask an admin to confirm the backend is reachable.",
   "firstRunSignedOutMessage": "Sign in to view your Weave first-run status.",
   "firstRunSignedOutGuidance": "We need an active Weave SSO session before we can check your profile, role, and module readiness.",
   "firstRunSignInAction": "Go to sign in",

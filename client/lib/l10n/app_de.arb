@@ -151,6 +151,7 @@
   "firstRunLoadingLabel": "Weave-Arbeitsbereich wird geprüft…",
   "firstRunLoadingHint": "Profil, Rolle und Modulbereitschaft werden vom Weave-Backend geladen.",
   "firstRunLoadFailure": "Der Erststart-Status konnte nicht vom Weave-Backend geladen werden.",
+  "firstRunLoadFailureGuidance": "Prüfe deine Verbindung und versuche es erneut. Wenn das Problem bestehen bleibt, bitte einen Admin zu bestätigen, dass das Backend erreichbar ist.",
   "firstRunSignedOutMessage": "Melde dich an, um deinen Weave-Erststart-Status zu sehen.",
   "firstRunSignedOutGuidance": "Wir brauchen eine aktive Weave-SSO-Sitzung, bevor Profil, Rolle und Modulbereitschaft geprüft werden können.",
   "firstRunSignInAction": "Zur Anmeldung",

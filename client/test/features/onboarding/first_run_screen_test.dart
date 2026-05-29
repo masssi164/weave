@@ -125,6 +125,47 @@ void main() {
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
     });
 
+    testWidgets('recovers from load failures with guidance and retry', (
+      tester,
+    ) async {
+      var loadAttempts = 0;
+      await tester.pumpWidget(
+        createTestApp(
+          const FirstRunScreen(),
+          overrides: [
+            firstRunStatusProvider.overrideWith((ref) {
+              loadAttempts += 1;
+              if (loadAttempts == 1) {
+                return Future<FirstRunStatus?>.error(
+                  Exception('backend unavailable'),
+                  StackTrace.current,
+                );
+              }
+              return Future.value(buildTestFirstRunStatus());
+            }),
+          ],
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      expect(
+        find.text(
+          'We could not load your first-run status from the Weave backend.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Check your connection'), findsOneWidget);
+
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Your Weave workspace is ready'), findsOneWidget);
+      expect(loadAttempts, 2);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    });
+
     testWidgets('routes signed-out users back to sign-in recovery', (
       tester,
     ) async {
