@@ -872,8 +872,8 @@ class _ConversationTrailing extends StatelessWidget {
         ),
     ];
 
-    return SizedBox(
-      width: 156,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 156),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
