@@ -115,6 +115,7 @@ Release and evidence docs:
 - [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md)
 - [Sprint 6 closure report](sprint-6-closure-report.md)
 - [Sprint 8 delivery board policy](project/sprint-8-delivery-board.md)
+- [Sprint 9 product-readiness waterfall evidence](sprint-9-product-readiness-waterfall.md)
 
 Historical/context docs:
 

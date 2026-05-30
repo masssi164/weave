@@ -1003,6 +1003,122 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@weave-sprint8-domain-control-plane-evidence",
+      "scenario": "Admin validates domains, dry-runs identity, checks portability, and members see provider-neutral states",
+      "feature": "e2e/features/sprint_8_domain_control_plane.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "SPRINT8_DOMAIN_CONTROL_PLANE_EVIDENCE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/project/sprint-8-delivery-board.md",
+          "fragments": [
+            "#434",
+            "Sprint 8 acceptance scenario",
+            "./gradlew acceptanceContract",
+            "scenario mapping evidence"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/domainfacade/CanonicalDomainFacadeServicesTest.java",
+          "fragments": [
+            "contractsCoverRemainingNonChatDomainsWithoutThinProviderProxyVocabulary",
+            "memberReadinessFailsClosedWithoutAdminSelectedMappingsAndHidesProviderDiagnostics",
+            "canonical-domain-facade-v1"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+          "fragments": [
+            "adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe",
+            "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
+            "operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java",
+          "fragments": [
+            "coreProductDomainsCarryExecutableAdapterFitContracts",
+            "providerRegistryAdapterFitSupportsMixedProviderPostureWithoutMemberProviderIds",
+            "openproject-primary"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "keepsWeaverDisabledByDefaultEvenForRuntimeGroup",
+            "blocksRuntimeWhenUserPolicyDoesNotGrantWeaverEnabled"
+          ]
+        },
+        {
+          "path": "docs/sprint-9-product-readiness-waterfall.md",
+          "fragments": [
+            "Live-stack execution is required for release-candidate promotion unless a release-owner waiver"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-product-readiness-waterfall",
+      "scenario": "Admin bootstraps organization, validates domains, configures providers, enables Weaver, and member works provider-neutrally",
+      "feature": "e2e/features/product_readiness_waterfall.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMarkers": [
+        "PRODUCT_READINESS_WATERFALL"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/sprint-9-product-readiness-waterfall.md",
+          "fragments": [
+            "Product-ready definition",
+            "Domain registry version",
+            "Migration contract version",
+            "Keycloak dry-run sample",
+            "Calls/LiveKit readiness artifact",
+            "Weaver tool approval proof",
+            "OpenClaw fork image digest/SBOM/scan refs",
+            "Security report",
+            "Privacy report",
+            "Accessibility report",
+            "Support-safe release evidence bundle",
+            "Live-stack execution is required for release-candidate promotion"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/domainfacade/CanonicalDomainFacadeServicesTest.java",
+          "fragments": [
+            "contractsCoverRemainingNonChatDomainsWithoutThinProviderProxyVocabulary",
+            "canonical-domain-facade-v1",
+            "memberReadinessFailsClosedWithoutAdminSelectedMappingsAndHidesProviderDiagnostics"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java",
+          "fragments": [
+            "adminRealmDryRunIsBackendOwnedDeterministicAndSupportSafe",
+            "providerReplacementDryRunReturnsBackendOwnedPortableSwitchContract",
+            "operatorAndMemberCannotApplyIdentityRealmWhenPolicyForbidsProviderConfiguration"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "generatesAuditedPerUserDockerProfileFromCapabilityPolicy",
+            "blocksRuntimeWhenUserPolicyDoesNotGrantWeaverEnabled",
+            "files.read"
+          ]
+        },
+        {
+          "path": "docs/accessibility-release-gate.md",
+          "fragments": [
+            "release evidence index",
+            "Sprint 9 product-readiness accessibility scope"
+          ]
+        }
+      ]
     }
   ]
 }

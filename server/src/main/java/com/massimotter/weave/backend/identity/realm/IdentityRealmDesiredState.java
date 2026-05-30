@@ -21,6 +21,10 @@ public record IdentityRealmDesiredState(
         List<ClaimMapper> claimMappers,
         List<String> redirectOrigins,
         List<FeatureMapping> featureMappings,
+        List<ServiceAccount> serviceAccounts,
+        List<RecoveryIdentity> breakGlassIdentities,
+        List<String> lastAdminSubjectRefs,
+        String primarySubjectClaim,
         List<String> providerWarnings,
         List<String> blockers) {
 
@@ -32,6 +36,10 @@ public record IdentityRealmDesiredState(
         claimMappers = claimMappers == null ? List.of() : List.copyOf(claimMappers);
         redirectOrigins = redirectOrigins == null ? List.of() : List.copyOf(redirectOrigins);
         featureMappings = featureMappings == null ? List.of() : List.copyOf(featureMappings);
+        serviceAccounts = serviceAccounts == null ? List.of() : List.copyOf(serviceAccounts);
+        breakGlassIdentities = breakGlassIdentities == null ? List.of() : List.copyOf(breakGlassIdentities);
+        lastAdminSubjectRefs = lastAdminSubjectRefs == null ? List.of() : List.copyOf(lastAdminSubjectRefs);
+        primarySubjectClaim = primarySubjectClaim == null || primarySubjectClaim.isBlank() ? "sub" : primarySubjectClaim;
         providerWarnings = providerWarnings == null ? List.of() : List.copyOf(providerWarnings);
         blockers = blockers == null ? List.of() : List.copyOf(blockers);
     }
@@ -54,6 +62,26 @@ public record IdentityRealmDesiredState(
             String sourceClaim,
             String targetClaim,
             boolean required) {
+    }
+
+    public record ServiceAccount(
+            String subjectRef,
+            List<String> roles,
+            List<String> scopes) {
+        public ServiceAccount {
+            roles = roles == null ? List.of() : List.copyOf(roles);
+            scopes = scopes == null ? List.of() : List.copyOf(scopes);
+        }
+    }
+
+    public record RecoveryIdentity(
+            String subjectRef,
+            String purpose,
+            boolean breakGlass,
+            List<String> roles) {
+        public RecoveryIdentity {
+            roles = roles == null ? List.of() : List.copyOf(roles);
+        }
     }
 
     public record FeatureMapping(

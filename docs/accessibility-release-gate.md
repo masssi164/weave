@@ -45,6 +45,18 @@ Sprint 4 adds work-room surfaces that must be usable with a screen reader, Brail
 | Meeting Capsule | fail-closed join/start controls, consent/evidence copy, and clear Matrix-chat vs media-protection boundaries | `test/features/chat/channel_workspace_test.dart`, `test/release_1/v0_1_release_spine_contract_test.dart` |
 | Weaver Scout | read-only/proposal-only status, citable source list, support-safe failure copy, and explicit approval-receipt requirement | `test/features/chat/channel_workspace_test.dart`, `test/release_1/ux_release_copy_contract_test.dart` |
 
+## Sprint 9 product-readiness accessibility scope
+
+Sprint 9 treats setup, provider switching/report review, Calls/LiveKit readiness, Weaver approvals, and member capability states as release-blocking accessibility flows. Automated evidence must prove keyboard-reachable controls, visible labels, support-safe status text, and no color-only readiness states; manual evidence must cover screen-reader traversal before an RC can be promoted.
+
+| Sprint 9 flow | Required evidence shape | Current automated anchor |
+| --- | --- | --- |
+| Admin setup and domain registry review | keyboard-accessible setup progression, stable domain labels, and no raw provider setup in member paths | `test/features/onboarding/setup_flow_test.dart`, `test/release_1/v0_1_release_spine_contract_test.dart` |
+| Provider switching and report review | dry-run, lossy, conflict, rollback, member-impact, and blocked-apply states are reachable and text-first | `admin-console/src/App.test.tsx`, `server/src/test/java/com/massimotter/weave/backend/controller/AdminControlPlaneControllerTest.java` |
+| Calls/LiveKit readiness | join/start states fail closed with labeled controls and honest media/E2EE readiness copy | `test/features/chat/channel_workspace_test.dart`, `docs/meeting-architecture-decision.md` |
+| Weaver approvals | group enablement, tool approval, member opt-in, and unauthorized-tool blocks are announced and audit refs are not color-only | `server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java` |
+| Member capability states | provider-neutral states are exposed as semantic text and never require provider diagnostics | `test/features/settings/settings_screen_test.dart`, `test/features/app/weave_app_backend_capability_flow_test.dart` |
+
 ## Manual assistive-technology evidence required before release sign-off
 
 Record the tester, date, platform, assistive technology, result, and evidence link in the release issue or runbook. Manual-only checks are a gate; they may not be inferred from green widget tests.
