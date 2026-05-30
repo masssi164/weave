@@ -100,8 +100,15 @@ void main() {
         expect(markdown, contains(required));
       }
 
-      expect(readme, contains('v0.1 Golden Path quick read'));
-      expect(readme, contains('docs/v0.1-golden-path.md'));
+      for (final required in <String>[
+        'Weave lets organizations own their collaboration layer',
+        '## v0.1 product truth',
+        '## Ready / Guarded / Future claim matrix',
+        'v0.1 is dogfood-production, not preview',
+        'docs/v0.1-golden-path.md',
+      ]) {
+        expect(readme, contains(required));
+      }
     });
 
     test('documents provider-category admin foundation before Weaver runtime', () {

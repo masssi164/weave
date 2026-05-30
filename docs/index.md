@@ -8,14 +8,15 @@ Weave is a provider-neutral organization operating layer for chat, files, shared
 
 Start with:
 
-1. [v0.1 Golden Path readiness](v0.1-golden-path.md) — what is available, guarded, disabled by policy, degraded, unavailable, or future.
-2. Root README — public product entry point and architecture-at-a-glance.
-3. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
-4. [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md) — exact candidate commit, gates, signoff, and post-release documentation corrections.
-5. [Sprint 6 closure report](sprint-6-closure-report.md) — final RC/provider-ops foundation evidence and first-release entry criteria, with a post-closure pointer to RC2.
-6. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
-7. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
-8. [Sprint 6 epic closure report](sprint-6-epic-closure-report.md) — #212/#233 acceptance evidence after the merged identity/admin slices.
+1. [Root README](https://github.com/masssi164/weave/blob/main/README.md) — public product entry point, Ready/Guarded/Future claim matrix, and evidence-scoped maturity.
+2. [v0.1 Golden Path readiness](v0.1-golden-path.md) — what is available, guarded, disabled by policy, degraded, unavailable, or future.
+3. [Canonical domains](architecture/canonical-domains.md) and [Provider portability contract](architecture/provider-portability.md) — foundation vocabulary and no-unaccounted-data-loss boundaries.
+4. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
+5. [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md) — exact candidate commit, gates, signoff, and post-release documentation corrections.
+6. [Sprint 6 closure report](sprint-6-closure-report.md) — final RC/provider-ops foundation evidence and first-release entry criteria, with a post-closure pointer to RC2.
+7. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
+8. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
+9. [Sprint 6 epic closure report](sprint-6-epic-closure-report.md) — #212/#233 acceptance evidence after the merged identity/admin slices.
 
 ### Member / user
 
@@ -54,38 +55,42 @@ Start with:
 2. [Trunk-based PR and release workflow](gitflow-pr-workflow.md) — branch, review, label, release-note, and merge rules.
 3. [Spec-driven development for Weave](spec-driven-development.md) — repo-local specs, lifecycle, evidence gates, and agent orchestration.
 4. [AI-assisted delivery orchestration](agent-team-orchestration.md) — repo-safe roles, handoff briefs, runtime-boundary guardrails, and optimization loop.
-5. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
-6. [Accessible workflow context contract](workflow-context-contract.md) — linear workflow primitives, context references, agent dry-run rules, and the MVP slice before a visual builder.
-7. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
+5. [Canonical domains](architecture/canonical-domains.md) — product-owned domain registry for identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver.
+6. [Provider portability contract](architecture/provider-portability.md) — adapter manifests, mapping tables, reports, and no-unaccounted-data-loss rules.
+7. [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md) — future optional PA runtime foundation and blockers.
+8. [Canonical feature models](canonical-feature-models.md) — provider-neutral domain vocabulary.
+9. [Accessible workflow context contract](workflow-context-contract.md) — linear workflow primitives, context references, agent dry-run rules, and the MVP slice before a visual builder.
+10. [Architecture](architecture.md) and [Diagrams](diagrams/index.md) — facades, data flow, and domain diagrams.
 
 ### Security / compliance reviewer
 
 Start with:
 
 1. [Organization embedding contract](organization-embedding-contract.md) — roles, groups, non-human identities, audit, break-glass, and provider category boundaries.
-2. [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md) — migration, export/delete, lossy mapping, and rollback expectations.
-3. [Quality and acceptance evidence](quality-and-evidence.md) — support-safe evidence and leak-prevention rules.
-4. [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md) — what is intentionally not yet claimed.
+2. [Canonical domains](architecture/canonical-domains.md) — people/identity separation, Spaces as cross-domain anchor, and support-safe member/admin boundaries.
+3. [Provider portability contract](architecture/provider-portability.md) and [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md) — no-unaccounted-data-loss reporting, migration, export/delete, lossy mapping, and rollback expectations.
+4. [Quality and acceptance evidence](quality-and-evidence.md) — support-safe evidence and leak-prevention rules.
+5. [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md) — what is intentionally not yet claimed.
 
 ## Documentation maturity map
 
 Canonical product docs:
 
-- Root README
+- [Root README](https://github.com/masssi164/weave/blob/main/README.md)
 - [v0.1 Golden Path readiness](v0.1-golden-path.md)
 - [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md)
 - [Spec-driven development for Weave](spec-driven-development.md)
 - [AI-assisted delivery orchestration](agent-team-orchestration.md)
+- [Canonical domains](architecture/canonical-domains.md)
+- [Provider portability contract](architecture/provider-portability.md)
+- [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md)
 - [Canonical feature models](canonical-feature-models.md)
 - [Accessible workflow context contract](workflow-context-contract.md)
 - [Meeting architecture decision record](meeting-architecture-decision.md)
 - [Architecture](architecture.md)
-- [Canonical domains](architecture/canonical-domains.md)
 - [Canonical domain registry v1](domain-registry-v1.md)
-- [Provider portability contract](architecture/provider-portability.md)
 - [Space anchor contract](space-anchor-contract.md)
 - [No-unaccounted-data-loss portability contract](architecture/no-unaccounted-data-loss.md)
-- [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md)
 - [Organization embedding contract](organization-embedding-contract.md)
 - [Admin-Suite readiness and setup contract](admin-suite-readiness-setup-contract.md)
 - [Provider replacement and anti-silo contract](provider-replacement-and-anti-silo-contract.md)

@@ -4,43 +4,95 @@
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
 </p>
 
-Weave is an accessibility-first, provider-neutral, self-hostable organization operating layer. It gives members coherent work surfaces for messages, channels, files, calendars, boards/tasks, meetings, decisions, and workspace health while keeping provider selection, policy, readiness, audit, and operations under admin/operator control.
+**Weave lets organizations own their collaboration layer.** Members work in stable Weave domains such as chat, files, documents, calendar, boards, calls, decisions, notifications, and health. Admins and operators control provider adapters, readiness, policy, migration, audit, backup/restore, and support evidence.
 
-The point is not to re-skin a fixed vendor bundle. The point is to let an organization run Weave-owned product workflows over chosen adapters without exposing raw provider setup, secrets, or migration detail to normal members.
+Weave is not a re-skinned provider bundle. It is a sovereign, accessibility-first organization suite where provider adapters sit behind Weave-owned domain contracts. Normal members see capability states and work surfaces; they do not configure raw provider endpoints, secrets, OIDC clients, migration tools, or diagnostics.
 
-Current maturity is honest and evidence-scoped:
+## Why Weave exists
 
-- **Published as dogfood-production release candidate:** `v0.1.0-rc.2` is a prerelease on protected `main` with green PR-safe CI, credentialed Live Stack E2E, release-owner signoff, and no open `release-blocker` issues at publication.
-- **Ready for dogfood-production foundation:** repository orchestration, documentation site, release-note automation, provider-neutral domain contracts, admin/operator readiness boundaries, policy enforcement, and support-safe evidence checks.
-- **In progress / guarded:** richer daily-work surfaces for calendars, boards/tasks, meetings, provider replacement, and the WEAVE-SPEC-0001 implementation DAG. These stay fail-closed unless configured and evidenced.
-- **Not shipped as v0.1 product scope:** broad marketplace administration, autonomous agent/team writes, public connector SDK, and the optional Weaver personal-assistant runtime.
+Most collaboration stacks force organizations to choose between vendor lock-in, fragmented self-hosted tools, or member-facing setup complexity. Weave's position is different:
 
-## v0.1 Golden Path quick read
-
-- [v0.1 Golden Path readiness](docs/v0.1-golden-path.md) for what reviewers can evaluate today.
-- [Documentation landing page](docs/index.md) for audience-specific manuals and evidence maps.
-- [Weave product line and Weaver integration plan](docs/product-line-and-weaver-plan.md) for current product ordering.
-- [Sprint 5 closure report](docs/sprint-5-closure-report.md) for project-readiness evidence and release-candidate gaps.
-- [Enterprise release foundation](docs/enterprise-release-foundation.md) for Sprint 6 release lanes, RC evidence, waiver rules, and support-safe artifacts.
-- [v0.1.0-rc.2 release evidence](docs/release-v0.1-rc2-evidence.md) for the published RC2 candidate, exact commit, gates, and signoff.
+- **Domains before providers.** Chat, files, documents, calendar, boards, calls, decisions, notifications, people, spaces, and health are product contracts. Matrix, Nextcloud, Keycloak, OpenProject, LiveKit, Microsoft 365, Slack, Teams, SharePoint, Jira, and other systems are adapters behind those contracts.
+- **Provider portability without overclaiming.** Weave uses a **no unaccounted data loss** principle: exports, imports, lossy fields, conflicts, unsupported provider features, and rollback limits must be reported and approved. It does not claim magical perfect migration.
+- **Admin/operator control plane.** Provider choice, readiness, policy, audit, support-safe diagnostics, backups, restore drills, and release evidence belong in the admin/operator layer.
+- **Evidence-scoped maturity.** A claim is ready only when the repo, docs, CI, support-safe evidence, or guarded/future status backs it.
+- **Weaver later, governed by Weave.** Weaver is the optional personal-assistant line: OpenClaw-derived, per-user, isolated, policy-generated, auditable, disabled by default, and blocked until admin enablement, member opt-in, approval, sandbox, and audit gates exist.
 
 ## Product architecture
 
-Weave ships as one product unit: `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `release/` move together.
+Weave ships as one product unit: `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `release/` move together. Members consume Weave domains through client and backend facades. Admins/operators govern providers, policy, readiness, diagnostics, backup/restore, and release evidence. Concrete providers are adapters behind server-owned contracts, not Flutter-to-provider product dependencies.
 
-Architecture at a glance:
+For the full architecture path, see [Architecture](docs/architecture.md), [Canonical domains](docs/architecture/canonical-domains.md), [Canonical feature models](docs/canonical-feature-models.md), and [Diagrams](docs/diagrams/index.md).
 
-1. **Member UX speaks Weave domains.** Chat, files, calendar, boards/tasks, meetings, decisions, manuals, and health are product concepts, not provider screens.
-2. **Server facades own provider boundaries.** Authorization, capability states, provider mapping, migration evidence, support-safe errors, audit, and token handling stay behind backend/admin/operator APIs.
-3. **Admins govern readiness and policy.** Workspace/Admin Health explains ready, disabled, degraded, policy-blocked, and admin-setup-required states without leaking secrets or downstream bodies.
-4. **Operators get reversible infrastructure paths.** OpenTofu, backup/restore, smoke tests, support bundles, and release evidence are treated as product requirements.
-5. **Accessibility is release-blocking.** Headings, keyboard paths, non-color-only status, text alternatives, and support-safe help are part of acceptance, not polish.
+## Canonical domains
 
-Weaver/AI PA positioning is deliberately later. Weaver is Weave's optional, governed per-user PA layer: opt-in, policy-governed, auditable, support-safe, and disabled by default. When promoted, its runtime is generated from Weave organization policy as an isolated per-user OpenClaw-derived profile. The governing rule is **user-rights, organization-whitelisted capabilities**; exec/elevated capabilities remain disabled unless an admin defines constrained policy. For approved developer contexts, the same governed model can reduce context switching across issues, docs, code review, and ACP/Codex-style coding assistance, but only through explicit organization-whitelisted capabilities. Details live in [product-line planning](docs/product-line-and-weaver-plan.md), [organization embedding](docs/organization-embedding-contract.md), and [roadmap/guarded surfaces](docs/roadmap-and-guarded-surfaces.md).
+The current foundation defines these Weave-owned domains:
+
+| Domain | What it owns |
+| --- | --- |
+| `identity` | Authentication subjects, groups, roles, sessions, and capability profiles. |
+| `people` | People, memberships, profiles, guests, service accounts, and contact visibility. |
+| `spaces` | The cross-domain anchor for teams, projects, rooms, channels, boards, calendars, file roots, calls, and decisions. |
+| `chat` | Conversations, messages, threads, reactions, presence, memberships, and attachments. |
+| `files` | Drives, folders, files, versions, permissions, shares, locks, and quotas. |
+| `documents` | Collaborative document metadata, edit sessions, comments, suggestions, coauthoring, and exports. |
+| `calendar` | Team/channel calendars, events, availability, resources, recurrence, and meeting bindings. |
+| `boards` | Boards, lists, tasks, statuses, assignments, comments, dependencies, and custom fields. |
+| `calls` | Meeting sessions, join grants, participants, recording/caption policy, and consent. |
+| `decisions` | Durable proposals, approvals, rationale, evidence references, and supersession. |
+| `notifications` | Preferences, subscriptions, delivery channels, digests, and delivery evidence. |
+| `health` | Readiness, diagnostics, support bundles, backup/restore, release evidence, and operator actions. |
+| `weaver` | Optional per-user assistant runtime profiles, tool grants, approvals, audit, and opt-in state. |
+
+See [Canonical domains](docs/architecture/canonical-domains.md), [Provider portability contract](docs/architecture/provider-portability.md), and [Weaver OpenClaw-derived runtime profile](docs/architecture/weaver-openclaw-profile.md).
+
+## Provider adapters and data sovereignty
+
+Weave can run with a self-hosted dogfood stack, an existing enterprise stack, or a hybrid stack. Provider names are implementation choices, not the member-facing product model.
+
+Examples:
+
+- **Dogfood/default posture:** Keycloak for identity, Matrix/Synapse for chat, Nextcloud for files/calendar backing, OpenProject for boards validation, and LiveKit for calls readiness.
+- **Existing-provider posture:** Entra ID, Teams, SharePoint/OneDrive, Microsoft 365, Jira/Planner, Slack, or other adapters can be modeled behind the same domains once adapter manifests, readiness, risk notes, and migration evidence exist.
+- **Hybrid posture:** An organization can combine self-hosted identity with external chat/files/tasks providers while preserving Weave capability states and admin/operator risk visibility.
+
+Every adapter must publish a support-safe manifest, mapping table, readiness checks, unsupported-field notes, migration limits, audit events, and a secret boundary. Provider switches remain admin/operator actions until dry-run, apply, rollback/retention, authorization, audit, and member-impact evidence are implemented for that domain.
+
+## Admin/operator control plane
+
+The Weave Client is the member surface. The Organization/Admin Console and operator documentation own organization bootstrap and governance:
+
+- identity/IDM setup, group and role mapping, guests, service principals, deprovisioning, and break-glass posture;
+- provider category selection, endpoint rotation, readiness, and support-safe diagnostics;
+- deny-by-default capability policy, RBAC profiles, whitelisting, and audit;
+- backup, restore, support bundles, release-candidate evidence, and waiver rules;
+- future Weaver tool/capability allowlists and runtime readiness blockers.
+
+Start with the [Admin/Operator Handbook](docs/admin-operator-handbook.md), [Organization embedding contract](docs/organization-embedding-contract.md), [Identity provisioning strategy](docs/identity-provisioning-strategy.md), [Admin-Suite readiness and setup contract](docs/admin-suite-readiness-setup-contract.md), and [Control-plane infra bootstrap](docs/control-plane-infra-bootstrap.md).
+
+## v0.1 product truth
+
+v0.1 is dogfood-production, not preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration, service secrets, provider diagnostics, or scaffold copy. Guarded surfaces remain fail-closed until their evidence exists. Future surfaces, including Weaver runtime execution, stay explicitly future/disabled rather than half-shipped.
+
+## Ready / Guarded / Future claim matrix
+
+| Claim | Status | Evidence or boundary |
+| --- | --- | --- |
+| Weave is a monorepo product stack with client, server, infra, e2e, docs, and release gates. | **Ready** | [Developer Handbook](docs/developer-handbook.md), [Build/evidence delivery system](docs/build-evidence-delivery-system.md), `./gradlew ci`. |
+| v0.1 is dogfood-production, not preview/scaffold UX for normal members. | **Ready** | [v0.1 Golden Path readiness](docs/v0.1-golden-path.md), [ISO 9241-110 dogfood UX gate](docs/iso-9241-110-dogfood-ux-gate.md). |
+| Members work in provider-neutral Weave domains. | **Ready foundation** | [Canonical domains](docs/architecture/canonical-domains.md), [Canonical feature models](docs/canonical-feature-models.md), [Architecture](docs/architecture.md). |
+| Normal members do not configure raw providers, secrets, OIDC clients, or diagnostics. | **Ready boundary** | [Admin-provisioned first use](docs/admin-provisioned-first-use.md), [Admin/Operator Handbook](docs/admin-operator-handbook.md). |
+| Provider adapters are replaceable behind Weave-owned contracts. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md), [Provider replacement and anti-silo contract](docs/provider-replacement-and-anti-silo-contract.md). Replacement apply is limited to domains with explicit dry-run/apply/rollback evidence. |
+| No unaccounted data loss is the portability promise. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md). Unsupported fields, conflicts, archive-only data, and provider-unexportable data must be reported; perfect lossless migration is not claimed. |
+| Calls/meetings use LiveKit readiness today. | **Guarded** | [Meeting architecture decision record](docs/meeting-architecture-decision.md). Join/media claims remain limited to implemented readiness and token facade evidence. |
+| Workspace/Admin Health is the support-safe readiness and diagnostics control plane. | **Ready foundation / expanding** | [Admin-Suite readiness and setup contract](docs/admin-suite-readiness-setup-contract.md), [Quality and acceptance evidence](docs/quality-and-evidence.md). |
+| Weaver is OpenClaw-derived, optional, per-user, governed, and disabled by default. | **Future foundation** | [Weaver OpenClaw-derived runtime profile](docs/architecture/weaver-openclaw-profile.md), [Product line and Weaver plan](docs/product-line-and-weaver-plan.md). Runtime execution is not shipped. |
+| Autonomous agent/team writes are available in v0.1. | **Not shipped** | [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md). Future writes require admin-approved tools, member opt-in where required, approval policy, audit, sandbox, and support-safe evidence. |
 
 ## Release notes
 
-The managed block below is the README-facing draft of merged changes after the latest tagged prerelease. The published `v0.1.0-rc.2` notes live in [v0.1 release notes](docs/release-notes/v0.1.md). Maintainers update this block with the checked-in release-note tooling; do not edit inside the markers by hand.
+The managed block below is the README-facing draft of merged changes after the latest tagged prerelease. The published `v0.1.0-rc.2` notes live in [v0.1 release notes](docs/release-notes/v0.1.md). Maintainers update this block with checked-in release-note tooling; do not edit inside the markers by hand.
+
 
 <!-- WEAVE_RELEASE_NOTES_START -->
 _Generated release notes are review artifacts. A release maintainer may update this block with `python3 tools/readme_release_notes.py --update --source <generated-notes>` before opening the release-draft review._
@@ -80,7 +132,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Product screenshots
 
-Screenshots are deterministic, checked-in assets for current dogfood-ready product paths. They show Weave-owned surfaces and must not be used to imply that guarded or roadmap capabilities are shipped.
+Screenshots are deterministic, checked-in assets for current dogfood-ready product paths. They show Weave-owned surfaces and must not imply that guarded or roadmap capabilities are shipped.
 
 ### Admin-provisioned setup
 
@@ -106,74 +158,48 @@ Files use Weave-owned routes and backend facades instead of exposing storage-pro
 
 Settings and readiness surfaces explain configured, disabled, degraded, or unsupported states without exposing secrets or raw provider errors.
 
-## Repository layout
-
-- `client/` — Flutter app, product UI, accessibility checks, and client-side contract tests.
-- `server/` — Spring Boot product API/BFF, provider facades, authorization, audit, support-safe errors, and backend acceptance tests.
-- `infra/` — Docker/OpenTofu operator stack, deployment scripts, provider profiles, backup/restore, smoke checks, and support bundles.
-- `e2e/` — product-language Gherkin scenarios, scenario mappings, and sanitized evidence contracts.
-- `docs/` — MkDocs-backed product, user/admin/operator/developer documentation, architecture, release scope, evidence, roadmap boundaries, and research notes.
-- `release/` — release manifests and stack compatibility metadata.
-
-## v0.1 product truth
-
-v0.1 is dogfood-production, not a preview. A surface belongs only when it is useful for daily project work and backed by executable or documented release evidence.
-
-Ready/required product foundation:
-
-- admin-provisioned organization setup;
-- Weave Home, personal messages, channels/workspaces, files, calendar, boards/tasks, meetings, decisions, manuals/help, and support-safe health states as Weave-owned domains;
-- Workspace/Admin Health for readiness, degraded states, backups, smoke evidence, policy, and support bundles;
-- deploy, update, backup, restore, rollback, smoke-test, and support-bundle paths for operators.
-
-Guarded or future:
-
-- provider replacement applies only where dry-run, authorization, lossy mapping, audit, rollback/restore, export/delete, and member-impact evidence exist;
-- live-stack E2E remains release-candidate evidence and must be green or explicitly waived before promotion;
-- Weaver remains optional, governed, per-user, disabled by default, and later than the current readiness foundation.
-
 ## Boards and provider boundary
 
-Boards/Tasks is a Weave product surface. The client talks to the Weave backend facade and must not call task providers directly.
-
-Current boundary:
-
-- provider reads stay behind runtime gates, context authorization, support-safe metadata, and backend-held tokens;
-- provider writes stay disabled/fail-closed unless future promotion proves authorization, user consent, audit publication, support-bundle redaction, and rollback behavior;
-- local workspace user writes are v0.1 scope only when explicit, authenticated, authorized, audited, accessible, and covered by tests.
+Boards/Tasks is a Weave product surface. The client talks to the Weave backend facade and must not call task providers directly. Provider reads stay behind runtime gates, context authorization, support-safe metadata, and backend-held tokens. Provider writes remain disabled/fail-closed unless future promotion proves authorization, consent, audit, support-bundle redaction, and rollback behavior.
 
 ## Infrastructure and OpenTofu
 
-OpenTofu is the operator tool for Weave infrastructure. Terraform-compatible names may still appear where they are ecosystem syntax, but user-facing workflows should say OpenTofu and use `tofu` commands unless documenting compatibility.
-
-Operator rules:
-
-- CI runs OpenTofu format/validation-oriented checks.
-- State-destructive operations require operator confirmation plus backup, restore, or rollback evidence.
-- Support bundles must redact secrets, tokens, raw provider errors, provider URLs, cookies, private keys, generated credentials, and personal data.
-- Operator-specific setup belongs in [Admin/Operator Handbook](docs/admin-operator-handbook.md), not in member-facing product copy.
+OpenTofu is the operator tool for Weave infrastructure. CI runs format/validation-oriented checks; state-destructive operations require operator confirmation plus backup, restore, or rollback evidence. Support bundles must redact secrets, tokens, raw provider errors, provider URLs, cookies, private keys, generated credentials, and personal data. Operator-specific setup belongs in the [Admin/Operator Handbook](docs/admin-operator-handbook.md).
 
 ## Evidence contract
 
-Gherkin scenarios are product contracts. For behavior changes:
+Gherkin scenarios are product contracts. For behavior changes, update product-language scenarios under `e2e/features/`, map them in `e2e/scenario_mappings.json`, add executable evidence, and keep live-stack artifacts sparse, sanitized, and release-candidate focused. Permanent docs should link to evidence procedures rather than transient artifact URLs. See [Quality and acceptance evidence](docs/quality-and-evidence.md) and [Acceptance contracts](docs/acceptance-contracts.md).
 
-1. Write or update the product scenario in `e2e/features/`.
-2. Map it in `e2e/scenario_mappings.json`.
-3. Add executable unit, contract, widget, integration, server, admin, infra, or documentation evidence.
-4. Keep live-stack E2E sparse, sanitized, and focused on release-candidate-critical end-to-end contracts.
-5. Store no secrets, tokens, cookies, private keys, raw provider errors, or personal data in evidence artifacts.
+## Quick evaluation path
 
-See [Quality and acceptance evidence](docs/quality-and-evidence.md) and [Developer Handbook](docs/developer-handbook.md).
+1. Read [v0.1 Golden Path readiness](docs/v0.1-golden-path.md) for what can be evaluated today.
+2. Read [Canonical domains](docs/architecture/canonical-domains.md) and [Provider portability contract](docs/architecture/provider-portability.md) for the foundation vocabulary.
+3. Read [Quality and acceptance evidence](docs/quality-and-evidence.md) and [v0.1.0-rc.2 release evidence](docs/release-v0.1-rc2-evidence.md) for evidence handling and the latest published prerelease audit.
+4. Build docs locally:
+
+   ```bash
+   make docs-check
+   ```
+
+5. Run the relevant gate before contributing:
+
+   ```bash
+   ./gradlew docsCheck
+   ./gradlew acceptanceContract
+   ./gradlew releaseEvidenceCheck
+   ./gradlew ci
+   ```
 
 ## Release evidence
 
-Release evidence is the review and verification trail for release-note automation and release-candidate promotion. The public release-note draft above is not enough; maintainers inspect checked-in artifacts, CI, and sanitized live-stack evidence or an explicit release-owner waiver.
+Release evidence is the review and verification trail for release-note automation and release-candidate promotion. Maintainers inspect checked-in artifacts, CI, and sanitized live-stack evidence or an explicit release-owner waiver.
 
 <!-- WEAVE_RELEASE_NOTES:START -->
 - Current checked-in draft: [Unreleased](docs/release-notes/unreleased.md)
 - Offline fixture review artifact: `build/release-notes/unreleased.md` from `./gradlew generateReleaseNotes`
 - Release evidence gate: `./gradlew releaseEvidenceCheck`
 <!-- WEAVE_RELEASE_NOTES:END -->
+
 
 ## Common local gates
 
@@ -184,7 +210,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
-Run the smallest meaningful gate for your change:
+Run the smallest meaningful gate for the change:
 
 ```bash
 make docs-check
@@ -194,26 +220,43 @@ make server-ci
 make infra-static
 make ci
 
-./gradlew doctor
 ./gradlew docsCheck
 ./gradlew acceptanceContract
 ./gradlew releaseEvidenceCheck
 ./gradlew ci
 ```
 
-Defaults:
+Defaults: docs/site/release-marker changes use `make docs-check` plus `./gradlew releaseEvidenceCheck`; scenario mapping changes use `./gradlew acceptanceContract`; client/backend/admin/infra changes use the matching `clientCi`, `serverCi`, `adminCi`, or `infraStatic`; cross-stack changes use `./gradlew ci`.
 
-- documentation/site/release-marker changes: `make docs-check` and `./gradlew releaseEvidenceCheck`;
-- scenario mapping changes: `./gradlew acceptanceContract`;
-- client/backend/admin/infra changes: the matching `clientCi`, `serverCi`, `adminCi`, or `infraStatic` gate;
-- cross-stack changes: `./gradlew ci`;
-- release-candidate promotion: protected CI plus sanitized live-stack E2E or an explicit release-owner waiver.
+## Documentation map
+
+- [Documentation landing page](docs/index.md) — audience-based entry points.
+- [User Handbook](docs/user-handbook.md) — joining and using an already-provisioned organization.
+- [Admin/Operator Handbook](docs/admin-operator-handbook.md) — setup, providers, readiness, policy, audit, backup/restore, and support bundles.
+- [Developer Handbook](docs/developer-handbook.md) — local prerequisites, Gradle gates, generated code, and evidence expectations.
+- [Architecture](docs/architecture.md) — product-first, provider-neutral architecture and integration layering.
+- [Canonical domains](docs/architecture/canonical-domains.md) — domain registry and product-owned contracts.
+- [Provider portability contract](docs/architecture/provider-portability.md) — adapter manifests, mapping tables, reports, and no-unaccounted-data-loss rules.
+- [Weaver OpenClaw-derived runtime profile](docs/architecture/weaver-openclaw-profile.md) — future optional PA runtime foundation and blockers.
+- [Product line and Weaver integration plan](docs/product-line-and-weaver-plan.md) — active product ordering.
+- [Roadmap and guarded surfaces](docs/roadmap-and-guarded-surfaces.md) — what is guarded, future, or intentionally not shipped.
+- [Release notes](docs/release-notes/index.md) — release-note process and checked-in notes.
+
+## Repository layout
+
+- `client/` — Flutter app, product UI, accessibility checks, and client-side contract tests.
+- `server/` — Spring Boot product API/BFF, provider facades, authorization, audit, support-safe errors, and backend acceptance tests.
+- `infra/` — Docker/OpenTofu operator stack, deployment scripts, provider profiles, backup/restore, smoke checks, and support bundles.
+- `e2e/` — product-language Gherkin scenarios, scenario mappings, and sanitized evidence contracts.
+- `docs/` — MkDocs-backed product, user/admin/operator/developer documentation, architecture, release scope, evidence, roadmap boundaries, and research notes.
+- `release/` — release manifests and stack compatibility metadata.
+
 
 ## Working agreements
 
 - Keep documentation honest about shipped, guarded, disabled, degraded, and future surfaces.
 - Keep normal-member UX provider-neutral; provider specifics belong in admin/operator readiness and support-safe diagnostics.
 - Keep Weaver product-first and later: organization setup, provider categories, admin policy, readiness, and whitelisting come before PA runtime work.
-- Prefer accessible headings, concise bullets, descriptive links, and alt text over dense tables.
+- Prefer accessible headings, concise bullets, descriptive links, and alt text over dense copy.
 - Do not expose provider secrets or service tokens to Flutter, support bundles, app config, logs, screenshots, or docs.
-- See [Developer Handbook](docs/developer-handbook.md) and [Trunk-based PR and release workflow](docs/gitflow-pr-workflow.md) for contribution and merge rules.
+- Follow [Developer Handbook](docs/developer-handbook.md) and [Trunk-based PR and release workflow](docs/gitflow-pr-workflow.md) before opening, reviewing, or merging PRs.
