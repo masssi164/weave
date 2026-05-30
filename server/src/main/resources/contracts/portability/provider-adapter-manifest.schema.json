@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/portability/provider-adapter-manifest.schema.json",
+  "title": "ProviderAdapterManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "adapterKey",
+    "domainKeys",
+    "apiProfile",
+    "canonicalObjects",
+    "capabilityKeys",
+    "readinessChecks",
+    "unsupportedFields",
+    "migrationLimits",
+    "auditEvents",
+    "secretBoundary",
+    "supportSafeEvidenceRedaction"
+  ],
+  "properties": {
+    "adapterKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "domainKeys": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "apiProfile": {
+      "type": "string"
+    },
+    "canonicalObjects": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "capabilityKeys": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "readinessChecks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "unsupportedFields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "migrationLimits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "auditEvents": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "secretBoundary": {
+      "type": "string",
+      "enum": [
+        "no_secrets",
+        "server_only",
+        "operator_vault_only"
+      ]
+    },
+    "supportSafeEvidenceRedaction": {
+      "type": "string",
+      "enum": [
+        "support_safe"
+      ]
+    }
+  }
+}

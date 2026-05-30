@@ -1,0 +1,18 @@
+spec_id: WEAVE-SPEC-0006
+github_issues:
+  - 429
+artifacts:
+  schemas:
+    - server/src/main/resources/contracts/portability
+  fixtures:
+    - specs/0006-portability-contract/migration-run-dry-run-success.json
+    - specs/0006-portability-contract/migration-run-apply-blocked.json
+  validation:
+    - tools/portability_contract_check.py
+  docs:
+    - docs/architecture/no-unaccounted-data-loss.md
+gates:
+  - ./gradlew specContract
+  - ./gradlew portabilityContractCheck
+  - ./gradlew docsCheck
+acceptance_features: []
