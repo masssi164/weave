@@ -83,6 +83,7 @@ Canonical product docs:
 - [Canonical domains](architecture/canonical-domains.md)
 - [Canonical domain registry v1](domain-registry-v1.md)
 - [Provider portability contract](architecture/provider-portability.md)
+- [Space anchor contract](space-anchor-contract.md)
 - [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md)
 - [Organization embedding contract](organization-embedding-contract.md)
 - [Admin-Suite readiness and setup contract](admin-suite-readiness-setup-contract.md)

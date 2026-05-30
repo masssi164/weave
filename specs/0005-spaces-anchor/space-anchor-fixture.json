@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "space": {
+    "spaceId": "space_marketing",
+    "key": "marketing",
+    "name": "Marketing",
+    "type": "team",
+    "defaultSurface": "chat",
+    "membership": [
+      {
+        "personId": "person_alex",
+        "spaceRole": "owner",
+        "capabilityProfile": "space-admin"
+      },
+      {
+        "personId": "person_sam",
+        "spaceRole": "member",
+        "capabilityProfile": "member"
+      }
+    ],
+    "contextPolicy": {
+      "memberProviderDetailsVisible": false,
+      "weaverMayReferenceSpace": true,
+      "weaverDirectProviderAccess": false,
+      "unknownBindingsFailClosed": true
+    },
+    "bindings": {
+      "chat": {
+        "domain": "chat",
+        "providerCategoryAlias": "matrix",
+        "providerObjectRef": "redacted-provider-ref:chat-room",
+        "memberRef": "conversation:marketing",
+        "readiness": "ready",
+        "sourceOfTruth": "provider_owned",
+        "lossyNotes": [],
+        "migrationStatus": "not_required"
+      },
+      "files": {
+        "domain": "files",
+        "providerCategoryAlias": "nextcloud-files",
+        "providerObjectRef": "redacted-provider-ref:file-root",
+        "memberRef": "file-root:marketing",
+        "readiness": "ready",
+        "sourceOfTruth": "provider_owned",
+        "lossyNotes": [],
+        "migrationStatus": "not_required"
+      },
+      "boards": {
+        "domain": "boards",
+        "providerCategoryAlias": "openproject-primary",
+        "providerObjectRef": "redacted-provider-ref:project",
+        "memberRef": "board:marketing-campaigns",
+        "readiness": "dry_run_required",
+        "sourceOfTruth": "shared_with_precedence",
+        "lossyNotes": ["custom workflow transitions require migration review before apply"],
+        "migrationStatus": "preflight_required"
+      },
+      "calendar": {
+        "domain": "calendar",
+        "providerCategoryAlias": "nextcloud-caldav",
+        "providerObjectRef": "redacted-provider-ref:calendar",
+        "memberRef": "calendar:marketing",
+        "readiness": "ready",
+        "sourceOfTruth": "provider_owned",
+        "lossyNotes": [],
+        "migrationStatus": "not_required"
+      }
+    }
+  }
+}
