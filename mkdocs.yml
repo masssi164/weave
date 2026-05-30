@@ -45,6 +45,9 @@ nav:
       - Canonical feature models: canonical-feature-models.md
       - Accessible workflow context contract: workflow-context-contract.md
       - Meeting architecture decision record: meeting-architecture-decision.md
+      - Canonical domains: architecture/canonical-domains.md
+      - Provider portability contract: architecture/provider-portability.md
+      - Weaver OpenClaw-derived runtime profile: architecture/weaver-openclaw-profile.md
       - Acceptance contracts: acceptance-contracts.md
       - Quality and evidence: quality-and-evidence.md
       - Build, evidence, and delivery system: build-evidence-delivery-system.md
