@@ -81,6 +81,7 @@ Canonical product docs:
 - [Meeting architecture decision record](meeting-architecture-decision.md)
 - [Architecture](architecture.md)
 - [Canonical domains](architecture/canonical-domains.md)
+- [Canonical domain registry v1](domain-registry-v1.md)
 - [Provider portability contract](architecture/provider-portability.md)
 - [Weaver OpenClaw-derived runtime profile](architecture/weaver-openclaw-profile.md)
 - [Organization embedding contract](organization-embedding-contract.md)
