@@ -92,6 +92,23 @@ class CanonicalDomainRegistryContractTest {
     }
 
     @Test
+    void sprintNineFoundationalDomainsExposeProductReadyCanonicalObjects() {
+        CanonicalDomainRegistryResponse registry = CanonicalDomainRegistry.snapshot();
+
+        assertThat(objects(registry, "spaces")).contains("Space", "DomainBinding", "SpaceMembership", "SpaceRole", "ProviderBindingMap");
+        assertThat(objects(registry, "people")).contains("Person", "ContactMethod", "AvatarRef", "OrganizationUnit", "ExternalContact", "IdentityAccountLink");
+        assertThat(objects(registry, "notifications")).contains("Notification", "ActionRequest", "ApprovalRequest", "Digest", "ReadState");
+        assertThat(objects(registry, "decisions")).contains("Decision", "SourceRef", "EvidenceRef");
+        assertThat(objects(registry, "health")).contains("ProviderReadiness", "RiskNote", "SupportBundleRef", "MigrationRunRef", "SecretRef");
+        assertThat(objects(registry, "chat")).contains("Conversation", "Message", "Thread", "Reaction", "Mention", "ReadReceipt", "EditEvent", "DeleteEvent", "RetentionPolicy", "EncryptionState");
+        assertThat(objects(registry, "files")).contains("Drive", "Folder", "File", "FileVersion", "BlobRef", "Permission", "ShareLink", "Lock", "TrashEntry", "Checksum");
+        assertThat(objects(registry, "documents")).contains("Document", "EditorSession", "EditorProvider", "CoAuthoringState", "VersionRef", "WopiLaunchContract");
+        assertThat(objects(registry, "calendar")).contains("Calendar", "Event", "Occurrence", "RecurrenceRule", "RecurrenceException", "Attendee", "Resource", "Reminder", "TimeZone", "ConferenceLink");
+        assertThat(objects(registry, "boards")).contains("Board", "List", "Task", "Status", "Assignee", "Watcher", "Comment", "AttachmentRef", "Dependency", "Label", "CustomField", "Estimate", "Priority", "Milestone", "Sprint", "WorkflowRule");
+        assertThat(objects(registry, "calls")).contains("Meeting", "MeetingRoom", "Participant", "JoinGrant", "MediaSession", "Recording", "Transcript", "Caption", "MeetingChatRef", "ConsentRecord", "RetentionPolicy");
+    }
+
+    @Test
     void machineReadableRegistryResourceMatchesRuntimeRegistry() throws Exception {
         JsonNode registry = readContract("canonical-domain-registry.v1.json");
 
@@ -138,6 +155,14 @@ class CanonicalDomainRegistryContractTest {
                 "lossy_with_report",
                 "blocked_nonportable",
                 "provider_unexportable");
+    }
+
+    private List<String> objects(CanonicalDomainRegistryResponse registry, String domainKey) {
+        return registry.domains().stream()
+                .filter(domain -> domain.key().equals(domainKey))
+                .findFirst()
+                .orElseThrow()
+                .canonicalObjects();
     }
 
     private JsonNode readContract(String name) throws Exception {

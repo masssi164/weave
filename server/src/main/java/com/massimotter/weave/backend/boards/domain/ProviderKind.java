@@ -10,6 +10,7 @@ public enum ProviderKind {
     VIKUNJA("vikunja"),
     OPEN_PROJECT("openproject"),
     NEXTCLOUD_DECK("nextcloud-deck"),
+    PLACEHOLDER("placeholder-boards"),
     IN_MEMORY("in-memory"),
     UNKNOWN("unknown");
 
