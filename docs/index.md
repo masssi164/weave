@@ -8,7 +8,7 @@ Weave is a provider-neutral organization operating layer for chat, files, shared
 
 Start with:
 
-1. [Root README](../README.md) — public product entry point, Ready/Guarded/Future claim matrix, and evidence-scoped maturity.
+1. [Root README](https://github.com/masssi164/weave/blob/main/README.md) — public product entry point, Ready/Guarded/Future claim matrix, and evidence-scoped maturity.
 2. [v0.1 Golden Path readiness](v0.1-golden-path.md) — what is available, guarded, disabled by policy, degraded, unavailable, or future.
 3. [Canonical domains](architecture/canonical-domains.md) and [Provider portability contract](architecture/provider-portability.md) — foundation vocabulary and no-unaccounted-data-loss boundaries.
 4. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
@@ -76,7 +76,7 @@ Start with:
 
 Canonical product docs:
 
-- [Root README](../README.md)
+- [Root README](https://github.com/masssi164/weave/blob/main/README.md)
 - [v0.1 Golden Path readiness](v0.1-golden-path.md)
 - [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md)
 - [Spec-driven development for Weave](spec-driven-development.md)
