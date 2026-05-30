@@ -49,6 +49,10 @@ class KeycloakRealmDryRunProviderTest {
                 List.of(new IdentityRealmDesiredState.ClaimMapper("tenant", "weave_tenant", "organizationId", true)),
                 List.of("https://old.example/callback"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
+                List.of("subject:owner:current"),
+                "sub",
                 List.of(),
                 List.of());
         IdentityRealmDryRunReport report = provider.dryRun(new IdentityRealmDryRunRequest(current, desiredState(), "compare"));
@@ -75,6 +79,10 @@ class KeycloakRealmDryRunProviderTest {
                 List.of(),
                 List.of(),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("unknown-feature", List.of("super-admin"), List.of("unknown-group"), List.of("unknown-scope"))),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
+                List.of("subject:owner:current"),
+                "sub",
                 List.of(),
                 List.of());
 
@@ -109,6 +117,10 @@ class KeycloakRealmDryRunProviderTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
+                List.of("subject:owner:current"),
+                "sub",
                 List.of("bearer abc123 appeared in provider output"),
                 List.of());
 
@@ -118,6 +130,37 @@ class KeycloakRealmDryRunProviderTest {
         assertThat(String.join("\n", report.diff())).doesNotContain("please-do-not-print", "abc123", "x-access-token");
         assertThat(report.realmId()).isEqualTo("redacted-secret-like-value");
         assertThat(report.warnings()).contains("redacted-secret-like-value");
+        assertThat(report.destructiveApplyAvailable()).isFalse();
+    }
+
+    @Test
+    void blocksEmailPrimaryKeyAndRepresentsRecoveryProtections() {
+        IdentityRealmDesiredState unsafe = new IdentityRealmDesiredState(
+                "weave-dogfood",
+                "Weave Dogfood",
+                true,
+                List.of(new IdentityRealmDesiredState.RealmClient("weave-app", true, List.of("https://weave.local/callback"), List.of("owner"), List.of("openid"))),
+                List.of("owner"),
+                List.of(),
+                List.of("openid"),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("owner@example.invalid", "break-glass", true, List.of("owner"))),
+                List.of("owner@example.invalid"),
+                "email",
+                List.of(),
+                List.of());
+
+        IdentityRealmDryRunReport report = provider.dryRun(new IdentityRealmDryRunRequest(null, unsafe, "identity safety"));
+
+        assertThat(report.readiness()).isEqualTo("admin-action-required");
+        assertThat(report.blockers()).contains(
+                "primary identity key must be immutable subject claim, not email or username",
+                "last-admin protection must not use email as primary subject: owner@example.invalid",
+                "break-glass identity must use immutable subject reference, not email: owner@example.invalid");
+        assertThat(report.diff()).contains("plan serviceAccounts=1", "plan breakGlassIdentities=1", "plan lastAdminSubjectRefs=1", "plan primarySubjectClaim=email");
         assertThat(report.destructiveApplyAvailable()).isFalse();
     }
 
@@ -134,6 +177,10 @@ class KeycloakRealmDryRunProviderTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                "sub",
                 List.of(),
                 List.of()), "invalid"));
 
@@ -162,6 +209,10 @@ class KeycloakRealmDryRunProviderTest {
                 List.of(
                         new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid")),
                         new IdentityRealmDesiredState.FeatureMapping("weaver", List.of("admin"), List.of(), List.of("weave:workspace"))),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
+                List.of("subject:owner:current"),
+                "sub",
                 List.of(),
                 List.of());
     }

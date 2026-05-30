@@ -370,6 +370,10 @@ class AdminControlPlaneServiceTest {
                 List.of(new IdentityRealmDesiredState.ClaimMapper("tenant", "weave_tenant", "organizationId", true)),
                 List.of("https://weave.local/callback"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
+                List.of("subject:owner:current"),
+                "sub",
                 List.of(),
                 List.of());
     }
@@ -391,6 +395,10 @@ class AdminControlPlaneServiceTest {
                 List.of(new IdentityRealmDesiredState.ClaimMapper("tenant", "weave_tenant", "organizationId", true)),
                 List.of("https://weave.local/callback", "http://localhost:8080/*"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
+                List.of("subject:owner:current"),
+                "sub",
                 List.of(),
                 List.of());
     }
