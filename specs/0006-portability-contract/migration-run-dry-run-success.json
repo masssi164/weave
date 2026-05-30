@@ -1,0 +1,12 @@
+{
+  "runId": "migration_boards_openproject_to_placeholder_001",
+  "domainKey": "boards",
+  "state": "dry_run_success",
+  "dryRunReportRef": "dry-run:boards:001",
+  "providerMappingRef": "mapping:boards:openproject-placeholder:001",
+  "objectCounts": {"Board": 1, "Task": 12, "Comment": 5},
+  "contentHashes": ["sha256:1111111111111111111111111111111111111111111111111111111111111111"],
+  "auditRefs": ["audit:migration.dry_run:001"],
+  "applyAllowed": true,
+  "redaction": "support_safe"
+}
