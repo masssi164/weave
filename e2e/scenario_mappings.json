@@ -563,6 +563,33 @@
       ]
     },
     {
+      "tag": "@weave-v01-governed-weaver-tool-registry",
+      "scenario": "Weaver discovers and invokes only approved domain tools",
+      "feature": "e2e/features/v0_1_dogfood_release.feature",
+      "executableTest": "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java",
+      "evidenceMarkers": [
+        "V01_GOVERNED_WEAVER_TOOL_REGISTRY"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/governed-weaver-runtime-security-contract.md",
+          "fragments": [
+            "Tool registry v1",
+            "Discovery filters by the generated runtime profile's grants",
+            "Write-like actions require approval receipts before invocation"
+          ]
+        },
+        {
+          "path": "docs/evidence/weaver-security-privacy-accessibility-report.md",
+          "fragments": [
+            "grant-filtered discovery",
+            "approval-required writes",
+            "Weaver tool approval proof"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-v01-channel-workspace",
       "scenario": "A channel is the primary workspace surface",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

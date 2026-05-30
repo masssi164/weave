@@ -1,0 +1,30 @@
+spec_id: WEAVE-SPEC-0004
+version: 0.1.0
+status: implementing
+github_issues:
+  - 433
+  - 446
+  - 447
+  - 448
+  - 449
+release_notes_label: release-notes-feature
+acceptance_features:
+  - e2e/features/v0_1_dogfood_release.feature
+acceptance_scenarios:
+  - tag: '@weave-v01-governed-weaver-runtime-policy'
+    evidence:
+      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
+  - tag: '@weave-v01-governed-weaver-tool-registry'
+    evidence:
+      - server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java
+  - tag: '@weave-v01-provider-switch-portability'
+    evidence:
+      - admin-console/src/App.test.tsx
+evidence_gates:
+  - ./gradlew specContract
+  - ./gradlew acceptanceContract
+  - ./gradlew serverCi
+  - ./gradlew docsCheck
+security_contract:
+  - docs/governed-weaver-runtime-security-contract.md
+  - docs/evidence/weaver-security-privacy-accessibility-report.md

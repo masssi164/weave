@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.provider;
 
+import com.massimotter.weave.backend.domainregistry.CanonicalDomainRegistry;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.Comparator;
@@ -52,6 +53,7 @@ public class ProviderRegistry {
                 false,
                 statuses.stream().allMatch(ProviderStatusResponse::supportSafe),
                 generatedAt,
+                CanonicalDomainRegistry.snapshot(),
                 DomainAdapterRegistryMapper.fromCategories(categories, generatedAt),
                 selections,
                 categories,

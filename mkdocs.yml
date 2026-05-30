@@ -48,6 +48,8 @@ nav:
       - Canonical domains: architecture/canonical-domains.md
       - Canonical domain registry v1: domain-registry-v1.md
       - Provider portability contract: architecture/provider-portability.md
+      - Space anchor contract: space-anchor-contract.md
+      - No-unaccounted-data-loss portability contract: architecture/no-unaccounted-data-loss.md
       - Weaver OpenClaw-derived runtime profile: architecture/weaver-openclaw-profile.md
       - Acceptance contracts: acceptance-contracts.md
       - Quality and evidence: quality-and-evidence.md
@@ -71,6 +73,8 @@ nav:
       - Organization embedding contract: organization-embedding-contract.md
       - Identity provisioning strategy: identity-provisioning-strategy.md
       - Admin-Suite readiness and setup contract: admin-suite-readiness-setup-contract.md
+      - Governed Weaver runtime security contract: governed-weaver-runtime-security-contract.md
+      - Weaver security/privacy/accessibility evidence: evidence/weaver-security-privacy-accessibility-report.md
       - Provider replacement and anti-silo contract: provider-replacement-and-anti-silo-contract.md
       - Manuals and release notes integration: manuals-and-release-notes-integration.md
       - v0.1 dogfood plan: release-v0.1-dogfood-plan.md

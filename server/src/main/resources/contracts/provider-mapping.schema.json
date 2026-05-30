@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/provider-mapping.schema.json",
+  "title": "Weave Provider Mapping",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mapping_id",
+    "domain",
+    "canonical_ref",
+    "provider_ref",
+    "loss_class",
+    "audit_ref"
+  ],
+  "properties": {
+    "mapping_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "people",
+        "spaces",
+        "chat",
+        "files",
+        "documents",
+        "calendar",
+        "boards",
+        "calls",
+        "decisions",
+        "notifications",
+        "health",
+        "weaver"
+      ]
+    },
+    "canonical_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provider_ref": {
+      "type": "string",
+      "pattern": "^provider-ref://.+"
+    },
+    "loss_class": {
+      "$ref": "#/$defs/loss_class"
+    },
+    "extension_fields": {
+      "type": "object"
+    },
+    "audit_ref": {
+      "type": "string",
+      "pattern": "^audit://.+"
+    },
+    "support_safe_diagnostics": {
+      "$ref": "#/$defs/redaction"
+    }
+  },
+  "$defs": {
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "support_safe",
+        "secrets_returned",
+        "raw_provider_payloads_returned",
+        "raw_provider_errors_returned"
+      ],
+      "properties": {
+        "support_safe": {
+          "type": "boolean",
+          "const": true
+        },
+        "secrets_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_payloads_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_errors_returned": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "loss_class": {
+      "type": "string",
+      "enum": [
+        "lossless_canonical",
+        "lossless_extension",
+        "archive_only",
+        "lossy_with_report",
+        "blocked_nonportable",
+        "provider_unexportable"
+      ]
+    }
+  }
+}

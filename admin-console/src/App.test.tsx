@@ -135,8 +135,31 @@ describe('Admin Console MVP', () => {
       screen.getByRole('heading', { name: /audit trail/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText(/idm \/ rbac status is ready/i),
+      screen.getByLabelText(/identity status is ready/i),
     ).toBeInTheDocument();
+    for (const domain of [
+      'People',
+      'Spaces',
+      'Chat',
+      'Files',
+      'Documents',
+      'Calendar',
+      'Boards',
+      'Calls',
+      'Decisions',
+      'Notifications',
+      'Health',
+      'Weaver',
+    ]) {
+      expect(screen.getByRole('heading', { name: domain })).toBeInTheDocument();
+    }
+    expect(screen.getAllByText(/Selected adapter/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Required next action/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/SecretRef status/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Migration \/ dry-run state/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Evidence refs/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/provider apply is enabled/i)).toBeInTheDocument();
+    expect(screen.getByText(/all required evidence gates passed/i)).toBeInTheDocument();
     expect(screen.getByText(/provider source of truth/i)).toBeInTheDocument();
     expect(screen.getByText(/backend-owned facade/i)).toBeInTheDocument();
     expect(screen.getByText(/Stable states:/i)).toHaveTextContent(
@@ -182,10 +205,10 @@ describe('Admin Console MVP', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText(/admin setup assistant steps/i),
-    ).toHaveTextContent(/idm \/ rbac: ready for member go-live/i);
+    ).toHaveTextContent(/identity: ready for member go-live/i);
     expect(
       screen.getByLabelText(/admin setup assistant steps/i),
-    ).toHaveTextContent(/meetings: repair before inviting affected members/i);
+    ).toHaveTextContent(/calls: repair before inviting affected members/i);
     expect(
       screen.getByText(/requires dry-run\/preflight, member impact preview/i),
     ).toBeInTheDocument();
@@ -249,7 +272,7 @@ describe('Admin Console MVP', () => {
 
     await waitFor(() =>
       expect(api.selectProvider).toHaveBeenCalledWith(
-        'idm-rbac',
+        'identity',
         'keycloak-realm',
         'recommended_self_hosted_default',
         false,
@@ -273,7 +296,7 @@ describe('Admin Console MVP', () => {
 
     await waitFor(() =>
       expect(api.selectProvider).toHaveBeenCalledWith(
-        'idm-rbac',
+        'identity',
         'keycloak-realm',
         'recommended_self_hosted_default',
         true,
@@ -298,7 +321,7 @@ describe('Admin Console MVP', () => {
 
     await waitFor(() =>
       expect(api.dryRunProviderReplacement).toHaveBeenCalledWith(
-        expect.objectContaining({ key: 'idm-rbac' }),
+        expect.objectContaining({ key: 'identity' }),
         'keycloak-realm',
         'recommended_self_hosted_default',
       ),
@@ -384,6 +407,48 @@ describe('Admin Console MVP', () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /apply selected provider/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('blocks provider apply when backend evidence gates are not complete', async () => {
+    const blockedControlPlane = {
+      ...sampleControlPlane,
+      providerCategories: [
+        {
+          ...sampleControlPlane.providerCategories[0],
+          applyGates: {
+            ...sampleControlPlane.providerCategories[0].applyGates,
+            preflightPassed: false,
+            dryRunSuccessful: false,
+            exportSnapshotExists: false,
+          },
+        },
+        ...sampleControlPlane.providerCategories.slice(1),
+      ],
+    };
+    render(<App api={mockApi({ getControlPlane: vi.fn().mockResolvedValue(blockedControlPlane) })} />);
+
+    expect(await screen.findByText(/provider apply is blocked/i)).toBeInTheDocument();
+    expect(screen.getByText(/missing gates: preflight passed/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /apply selected provider/i }),
+    ).toBeDisabled();
+  });
+
+  it('lets operators inspect diagnostics without mutating provider selection', async () => {
+    render(<App api={mockApi()} viewerRole="operator" />);
+
+    expect(
+      await screen.findByRole('heading', { name: /identity provider readiness/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /test readiness through backend/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /apply selected provider/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /save whitelist policy/i }),
     ).not.toBeInTheDocument();
   });
 

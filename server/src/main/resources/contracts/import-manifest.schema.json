@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/import-manifest.schema.json",
+  "title": "Weave Import Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_id",
+    "domain",
+    "run_id",
+    "generated_at_utc",
+    "object_counts",
+    "content_hashes",
+    "provider_mapping_refs",
+    "audit_ref",
+    "dry_run_report_ref",
+    "support_safe_diagnostics"
+  ],
+  "properties": {
+    "manifest_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "people",
+        "spaces",
+        "chat",
+        "files",
+        "documents",
+        "calendar",
+        "boards",
+        "calls",
+        "decisions",
+        "notifications",
+        "health",
+        "weaver"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "object_counts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "content_hashes": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 8
+      }
+    },
+    "provider_mapping_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "audit_ref": {
+      "type": "string",
+      "pattern": "^audit://.+"
+    },
+    "support_safe_diagnostics": {
+      "$ref": "#/$defs/redaction"
+    },
+    "dry_run_report_ref": {
+      "type": "string",
+      "pattern": "^dry-run://.+"
+    }
+  },
+  "$defs": {
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "support_safe",
+        "secrets_returned",
+        "raw_provider_payloads_returned",
+        "raw_provider_errors_returned"
+      ],
+      "properties": {
+        "support_safe": {
+          "type": "boolean",
+          "const": true
+        },
+        "secrets_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_payloads_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_errors_returned": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "loss_class": {
+      "type": "string",
+      "enum": [
+        "lossless_canonical",
+        "lossless_extension",
+        "archive_only",
+        "lossy_with_report",
+        "blocked_nonportable",
+        "provider_unexportable"
+      ]
+    }
+  }
+}

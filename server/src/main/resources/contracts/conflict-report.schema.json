@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/conflict-report.schema.json",
+  "title": "Weave Conflict Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "domain",
+    "run_id",
+    "conflicts",
+    "support_safe_diagnostics"
+  ],
+  "properties": {
+    "report_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "people",
+        "spaces",
+        "chat",
+        "files",
+        "documents",
+        "calendar",
+        "boards",
+        "calls",
+        "decisions",
+        "notifications",
+        "health",
+        "weaver"
+      ]
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "conflict_id",
+          "canonical_object",
+          "severity",
+          "resolution_state"
+        ],
+        "properties": {
+          "conflict_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "canonical_object": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "blocking"
+            ]
+          },
+          "resolution_state": {
+            "type": "string",
+            "enum": [
+              "unresolved",
+              "admin_selected",
+              "auto_resolved",
+              "blocked"
+            ]
+          },
+          "support_safe_summary": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "support_safe_diagnostics": {
+      "$ref": "#/$defs/redaction"
+    }
+  },
+  "$defs": {
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "support_safe",
+        "secrets_returned",
+        "raw_provider_payloads_returned",
+        "raw_provider_errors_returned"
+      ],
+      "properties": {
+        "support_safe": {
+          "type": "boolean",
+          "const": true
+        },
+        "secrets_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_payloads_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_errors_returned": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "loss_class": {
+      "type": "string",
+      "enum": [
+        "lossless_canonical",
+        "lossless_extension",
+        "archive_only",
+        "lossy_with_report",
+        "blocked_nonportable",
+        "provider_unexportable"
+      ]
+    }
+  }
+}
