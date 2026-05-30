@@ -20,6 +20,7 @@ public enum AuditAction {
     PROVIDER_REPLACEMENT_DRY_RUN("provider.replacement.dry_run"),
     CHAT_MIGRATION_PREFLIGHTED("chat.migration.preflighted"),
     WEAVER_RUNTIME_PROFILE_GENERATED("weaver.runtime_profile.generated"),
+    WEAVER_TOOL_INVOCATION_RECORDED("weaver.tool.invocation_recorded"),
     TASK_CREATED("task.created"),
     TASK_MOVED("task.moved"),
     TASK_COMPLETED("task.completed"),

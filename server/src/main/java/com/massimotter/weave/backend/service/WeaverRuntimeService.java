@@ -67,6 +67,9 @@ public class WeaverRuntimeService {
                 true,
                 "ready-to-provision",
                 "per-user-docker",
+                "openclaw-derived-container",
+                "organization-default-model-profile",
+                "weave-domain-tool-registry",
                 "workspace-capability-policy",
                 userRef,
                 weaverRuntimeProperties.baselineProfile(),
@@ -81,6 +84,9 @@ public class WeaverRuntimeService {
                 elevatedEnabled,
                 weaverRuntimeProperties.auditRequired(),
                 weaverRuntimeProperties.forkRequired(),
+                "writes-delete-external-send-provider-switch require approval receipts",
+                "secretrefs-only-no-raw-provider-tokens",
+                "one-user-one-isolated-workspace-memory-session-store",
                 "Weaver is available through the governed organization profile; unavailable tools are hidden from the runtime.");
         auditGeneratedProfile(response);
         return response;
@@ -91,6 +97,9 @@ public class WeaverRuntimeService {
                 false,
                 posture,
                 "per-user-docker",
+                "openclaw-derived-container",
+                "organization-default-model-profile",
+                "weave-domain-tool-registry",
                 "workspace-capability-policy",
                 userRef,
                 weaverRuntimeProperties.baselineProfile(),
@@ -105,6 +114,9 @@ public class WeaverRuntimeService {
                 false,
                 true,
                 false,
+                "writes-delete-external-send-provider-switch require approval receipts",
+                "secretrefs-only-no-raw-provider-tokens",
+                "disabled-runtime-has-no-workspace-memory-session-store",
                 impact);
     }
 

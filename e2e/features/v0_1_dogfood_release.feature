@@ -101,6 +101,15 @@ Feature: Weave v0.1 dogfood production release
     And exec and elevated surfaces are disabled unless explicitly constrained by admin policy
     And runtime profile generation is audited and disabled_by_policy by default for everyone else
 
+  @weave-v01-governed-weaver-tool-registry
+  Scenario: Weaver discovers and invokes only approved domain tools
+    Given an admin has approved Weaver tools by domain capability
+    When a member runtime discovers tools and requests a write-like tool invocation
+    Then the runtime sees only domain-scoped tools granted by its profile
+    And blocked tools are hidden or denied with support-safe audit evidence
+    And write, delete, external-send, and provider-switch actions require approval receipts before invocation
+    And tool results are redacted before returning to the runtime
+
   @weave-v01-channel-workspace
   Scenario: A channel is the primary workspace surface
     Given a workspace member enters a project channel
