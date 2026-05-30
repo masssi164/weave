@@ -1,0 +1,15 @@
+spec_id: WEAVE-SPEC-0005
+github_issues:
+  - 428
+artifacts:
+  fixture:
+    - specs/0005-spaces-anchor/space-anchor-fixture.json
+  validation:
+    - tools/space_anchor_check.py
+  docs:
+    - docs/space-anchor-contract.md
+gates:
+  - ./gradlew specContract
+  - ./gradlew spaceAnchorCheck
+  - ./gradlew docsCheck
+acceptance_features: []
