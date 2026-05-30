@@ -41,7 +41,10 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
         IdentityRealmDesiredState current = request == null ? null : request.currentState();
         if (desired == null) {
             desired = new IdentityRealmDesiredState(
-                    null, null, null, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of("realm desired state is required"));
+                    null, null, null,
+                    List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                    List.of(), List.of(), List.of(), "sub",
+                    List.of(), List.of("realm desired state is required"));
         }
 
         NormalizedRealm desiredRealm = normalize(desired);
@@ -51,6 +54,7 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
         List<IdentityRealmDryRunReport.ChangeRecord> changes = new ArrayList<>();
 
         validateRequiredContract(desiredRealm, blockers, warnings);
+        validateIdentitySafeguards(desired, blockers, warnings);
         Set<String> unsafeFeatureMappingKeys = unsafeFeatureMappingKeys(desired, desiredRealm, blockers);
         compareRealmBasics(currentRealm, desiredRealm, current != null, changes);
         compareCollection("roles", currentRealm.roles, desiredRealm.roles, KNOWN_ROLES, blockers, changes);
@@ -108,6 +112,66 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
         }
         if (desired.roles.stream().noneMatch(role -> "owner".equals(role) || "admin".equals(role))) {
             warnings.add("owner/admin role baseline is not present in desired realm state");
+        }
+    }
+
+    private void validateIdentitySafeguards(
+            IdentityRealmDesiredState desired,
+            List<String> blockers,
+            List<String> warnings) {
+        String primarySubjectClaim = safe(desired.primarySubjectClaim()).toLowerCase(Locale.ROOT);
+        if ("email".equals(primarySubjectClaim) || "preferred_username".equals(primarySubjectClaim)) {
+            blockers.add("primary identity key must be immutable subject claim, not email or username");
+        }
+        if (desired.lastAdminSubjectRefs().isEmpty()) {
+            warnings.add("last-admin protection requires at least one immutable subject reference before guarded apply");
+        }
+        for (String subjectRef : normalizeValues(desired.lastAdminSubjectRefs())) {
+            if (subjectRef.contains("@")) {
+                blockers.add("last-admin protection must not use email as primary subject: " + subjectRef);
+            }
+        }
+        boolean hasBreakGlass = false;
+        for (IdentityRealmDesiredState.RecoveryIdentity identity : desired.breakGlassIdentities()) {
+            if (identity == null) {
+                continue;
+            }
+            String subjectRef = safe(identity.subjectRef());
+            if (identity.breakGlass()) {
+                hasBreakGlass = true;
+            }
+            if (subjectRef.contains("@")) {
+                blockers.add("break-glass identity must use immutable subject reference, not email: " + subjectRef);
+            }
+            List<String> roles = normalizeValues(identity.roles());
+            if (identity.breakGlass() && roles.stream().noneMatch(role -> role.equals("owner") || role.equals("admin"))) {
+                blockers.add("break-glass identity must carry owner or admin recovery role: " + subjectRef);
+            }
+        }
+        if (!hasBreakGlass) {
+            warnings.add("break-glass identity is required before Keycloak apply can be enabled");
+        }
+        for (IdentityRealmDesiredState.ServiceAccount account : desired.serviceAccounts()) {
+            if (account == null) {
+                continue;
+            }
+            String subjectRef = safe(account.subjectRef());
+            if (blank(subjectRef) || "missing".equals(subjectRef)) {
+                blockers.add("service account subject reference is required");
+            }
+            for (String role : normalizeValues(account.roles())) {
+                if (!KNOWN_ROLES.contains(role)) {
+                    blockers.add("unknown service account role deny by default until mapped: " + subjectRef + "/" + role);
+                }
+            }
+            for (String scope : normalizeValues(account.scopes())) {
+                if (!KNOWN_SCOPES.contains(scope)) {
+                    blockers.add("unknown service account scope deny by default until mapped: " + subjectRef + "/" + scope);
+                }
+            }
+        }
+        if (desired.serviceAccounts().isEmpty()) {
+            warnings.add("no service accounts declared for backend/admin automation planning");
         }
     }
 
@@ -474,6 +538,10 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
         diff.add("plan scopes=" + desired.scopes.size());
         diff.add("plan claimMappers=" + desired.claimMappers.size());
         diff.add("plan featureMappings=" + desired.featureMappings.size());
+        diff.add("plan serviceAccounts=" + desired.serviceAccounts.size());
+        diff.add("plan breakGlassIdentities=" + desired.breakGlassIdentities.size());
+        diff.add("plan lastAdminSubjectRefs=" + desired.lastAdminSubjectRefs.size());
+        diff.add("plan primarySubjectClaim=" + desired.primarySubjectClaim);
         changes.stream()
                 .map(change -> change.action() + " " + change.path() + " classification=" + change.classification() + " blocked=" + change.applyBlocked())
                 .forEach(diff::add);
@@ -492,6 +560,10 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
                 normalizeClaimMappers(state.claimMappers()),
                 normalizeValues(state.redirectOrigins()),
                 normalizeFeatureMappings(state.featureMappings()),
+                normalizeServiceAccounts(state.serviceAccounts()),
+                normalizeRecoveryIdentities(state.breakGlassIdentities()),
+                normalizeValues(state.lastAdminSubjectRefs()),
+                safe(state.primarySubjectClaim()),
                 safeList(state.providerWarnings()),
                 safeList(state.blockers()));
     }
@@ -531,6 +603,28 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
                         "roles=" + normalizeValues(mapping.requiredRoles())
                                 + ";groups=" + normalizeValues(mapping.requiredGroups())
                                 + ";scopes=" + normalizeValues(mapping.requiredScopes())));
+        return normalized;
+    }
+
+    private Map<String, String> normalizeServiceAccounts(List<IdentityRealmDesiredState.ServiceAccount> accounts) {
+        Map<String, String> normalized = new LinkedHashMap<>();
+        accounts.stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(account -> safe(account.subjectRef())))
+                .forEach(account -> normalized.put(
+                        safe(account.subjectRef()),
+                        "roles=" + normalizeValues(account.roles()) + ";scopes=" + normalizeValues(account.scopes())));
+        return normalized;
+    }
+
+    private Map<String, String> normalizeRecoveryIdentities(List<IdentityRealmDesiredState.RecoveryIdentity> identities) {
+        Map<String, String> normalized = new LinkedHashMap<>();
+        identities.stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(identity -> safe(identity.subjectRef())))
+                .forEach(identity -> normalized.put(
+                        safe(identity.subjectRef()),
+                        "purpose=" + safe(identity.purpose()) + ";breakGlass=" + identity.breakGlass() + ";roles=" + normalizeValues(identity.roles())));
         return normalized;
     }
 
@@ -603,10 +697,14 @@ public class KeycloakRealmDryRunProvider implements IdentityRealmProvider {
             Map<String, String> claimMappers,
             List<String> redirectOrigins,
             Map<String, String> featureMappings,
+            Map<String, String> serviceAccounts,
+            Map<String, String> breakGlassIdentities,
+            List<String> lastAdminSubjectRefs,
+            String primarySubjectClaim,
             List<String> warnings,
             List<String> blockers) {
         static NormalizedRealm empty() {
-            return new NormalizedRealm("missing", "missing", true, Map.of(), List.of(), List.of(), List.of(), Map.of(), List.of(), Map.of(), List.of(), List.of());
+            return new NormalizedRealm("missing", "missing", true, Map.of(), List.of(), List.of(), List.of(), Map.of(), List.of(), Map.of(), Map.of(), Map.of(), List.of(), "sub", List.of(), List.of());
         }
     }
 
