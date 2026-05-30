@@ -52,9 +52,12 @@ def main():
   for field in ['objectCounts','contentHashes','providerMappingRef','auditRefs','redaction']:
    if not fixture.get(field): fail(f'{fixture.get("runId")} missing {field}')
   if fixture.get('redaction')!='support_safe': fail(f'{fixture.get("runId")} must be support_safe')
- if success.get('applyAllowed') is not True or success.get('state') not in {'dry_run_success','apply_ready'} or not success.get('dryRunReportRef'):
-  fail('successful fixture must require successful dry-run before apply')
- if blocked.get('applyAllowed') is not False or blocked.get('dryRunReportRef'):
+ lifecycle=schemas['migration-run.schema.json'].get('properties',{}).get('state',{}).get('enum',[])
+ expected_lifecycle=['discovered','preflight_failed','preflight_passed','exported','dry_run_completed','blocked','approved','applying','applied','verified','rolled_back','archived']
+ if lifecycle!=expected_lifecycle: fail('MigrationRun lifecycle states must match the canonical migration engine order')
+ if success.get('applyAllowed') is not True or success.get('state') not in {'approved','applying','applied','verified'} or not success.get('dryRunReportRef'):
+  fail('successful fixture must require approved post-dry-run evidence before apply')
+ if blocked.get('applyAllowed') is not False or blocked.get('state')!='blocked' or blocked.get('dryRunReportRef'):
   fail('blocked fixture must prove apply impossible without dry-run report')
  print('portability-contract-check: ok')
 if __name__=='__main__': main()

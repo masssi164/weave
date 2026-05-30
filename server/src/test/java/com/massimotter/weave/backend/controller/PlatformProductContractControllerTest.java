@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -156,6 +157,48 @@ class PlatformProductContractControllerTest {
         String firstJob = com.jayway.jsonpath.JsonPath.read(first.getResponse().getContentAsString(), "$.jobId");
         String secondJob = com.jayway.jsonpath.JsonPath.read(second.getResponse().getContentAsString(), "$.jobId");
         org.assertj.core.api.Assertions.assertThat(secondJob).isEqualTo(firstJob);
+    }
+
+    @Test
+    void migrationApplyGateBlocksMissingArtifactsAndRedactsEvidence() throws Exception {
+        mockMvc.perform(post("/api/migration/apply-gates")
+                        .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "runId": "migration-chat-apply-001",
+                                  "domainKey": "chat",
+                                  "requestedLifecycle": "approved",
+                                  "dryRunReportRef": "dry-run:chat:001",
+                                  "exportSnapshotRef": "export:chat:001",
+                                  "importPlanRef": "import:chat:001",
+                                  "providerMappingRef": "mapping:chat:001",
+                                  "memberImpactPreviewRef": "impact:chat:001",
+                                  "rollbackArchiveRef": "rollback:chat:001",
+                                  "postApplyVerificationRef": "verify:chat:001",
+                                  "objectCounts": {"Conversation": 2, "Message": 10},
+                                  "contentHashes": ["sha256:3333333333333333333333333333333333333333333333333333333333333333"],
+                                  "auditRefs": ["audit:migration.dry_run:001"],
+                                  "identityMappingComplete": false,
+                                  "auditSinkAvailable": false,
+                                  "adminApproved": false,
+                                  "providerDiagnostics": ["Authorization: Bearer raw-token", "https://provider.example.invalid/private"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.applyAllowed").value(false))
+                .andExpect(jsonPath("$.lifecycle").value("blocked"))
+                .andExpect(jsonPath("$.missingArtifacts[*]", hasItems("lossyMappingReportRef", "conflictReportRef", "adminApprovalRef")))
+                .andExpect(jsonPath("$.blockers[*]", hasItems(
+                        "apply blocked until identity mapping is complete",
+                        "apply blocked until the audit sink is available",
+                        "apply blocked until an admin approval record is present")))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
+                .andExpect(jsonPath("$.evidenceBundle.redaction").value("support_safe"))
+                .andExpect(content().string(not(containsString("raw-token"))))
+                .andExpect(content().string(not(containsString("provider.example.invalid"))))
+                .andExpect(content().string(not(containsString("Authorization: Bearer"))));
     }
 
     @Test

@@ -30,7 +30,7 @@ Machine-readable schemas live under `server/src/main/resources/contracts/portabi
 
 ## Dry-run gate
 
-Provider migration apply is impossible until a successful dry-run report exists. A `MigrationRun` with `applyAllowed: true` must be in `dry_run_success` or `apply_ready` state and must include a non-empty dry-run report reference, provider mapping reference, object counts, content hashes, and audit references. Missing reports, conflicts, unclassified losses, or unsafe redaction force `applyAllowed: false`.
+Provider migration apply is impossible until a successful dry-run report exists. A `MigrationRun` follows the canonical lifecycle `discovered`, `preflight_failed`, `preflight_passed`, `exported`, `dry_run_completed`, `blocked`, `approved`, `applying`, `applied`, `verified`, `rolled_back`, and `archived`. A run with `applyAllowed: true` must be in `approved`, `applying`, `applied`, or `verified` state and must include a non-empty dry-run report reference, provider mapping reference, object counts, content hashes, audit references, admin approval, rollback/archive boundary, and post-apply verification reference. Missing reports, conflicts, unclassified losses, incomplete identity mapping, unavailable audit sink, or unsafe redaction force `applyAllowed: false`.
 
 ## Support-safe redaction
 

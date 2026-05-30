@@ -1,7 +1,7 @@
 {
   "runId": "migration_boards_openproject_to_placeholder_002",
   "domainKey": "boards",
-  "state": "dry_run_required",
+  "state": "blocked",
   "dryRunReportRef": "",
   "providerMappingRef": "mapping:boards:openproject-placeholder:002",
   "objectCounts": {"Board": 1},
