@@ -31,6 +31,10 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.posture()).isEqualTo("disabled-by-default");
         assertThat(profile.runtimeKind()).isEqualTo("per-user-docker");
         assertThat(profile.generatedFrom()).isEqualTo("workspace-capability-policy");
+        assertThat(profile.runtimeProvider()).isEqualTo("openclaw-derived-container");
+        assertThat(profile.modelProvider()).isEqualTo("organization-default-model-profile");
+        assertThat(profile.toolProvider()).isEqualTo("weave-domain-tool-registry");
+        assertThat(profile.secretPosture()).isEqualTo("secretrefs-only-no-raw-provider-tokens");
         assertThat(profile.execEnabled()).isFalse();
         assertThat(profile.elevatedEnabled()).isFalse();
         assertThat(profile.auditRequired()).isTrue();
@@ -61,6 +65,9 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.posture()).isEqualTo("ready-to-provision");
         assertThat(profile.runtimeKind()).isEqualTo("per-user-docker");
         assertThat(profile.generatedFrom()).isEqualTo("workspace-capability-policy");
+        assertThat(profile.runtimeProvider()).isEqualTo("openclaw-derived-container");
+        assertThat(profile.modelProvider()).isEqualTo("organization-default-model-profile");
+        assertThat(profile.toolProvider()).isEqualTo("weave-domain-tool-registry");
         assertThat(profile.userRef()).startsWith("user:");
         assertThat(profile.userRef()).doesNotContain("member@example.invalid");
         assertThat(profile.workspacePath()).startsWith("/var/lib/weave/weaver/");
@@ -73,6 +80,9 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.elevatedEnabled()).isFalse();
         assertThat(profile.auditRequired()).isTrue();
         assertThat(profile.forkRequired()).isFalse();
+        assertThat(profile.approvalPolicy()).contains("approval receipts");
+        assertThat(profile.secretPosture()).isEqualTo("secretrefs-only-no-raw-provider-tokens");
+        assertThat(profile.isolationBoundary()).isEqualTo("one-user-one-isolated-workspace-memory-session-store");
 
         assertThat(audit.events()).hasSize(1);
         assertThat(audit.events().get(0).action()).isEqualTo(AuditAction.WEAVER_RUNTIME_PROFILE_GENERATED);

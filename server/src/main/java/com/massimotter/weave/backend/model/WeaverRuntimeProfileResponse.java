@@ -7,6 +7,9 @@ public record WeaverRuntimeProfileResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean enabled,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String posture,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String runtimeKind,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String runtimeProvider,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String modelProvider,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String toolProvider,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String generatedFrom,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String userRef,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String baselineProfile,
@@ -21,6 +24,9 @@ public record WeaverRuntimeProfileResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean elevatedEnabled,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean auditRequired,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean forkRequired,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String approvalPolicy,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String secretPosture,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String isolationBoundary,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String memberImpact) {
 
     public WeaverRuntimeProfileResponse {

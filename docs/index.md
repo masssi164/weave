@@ -120,7 +120,7 @@ Historical/context docs:
 
 The active product direction is [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md): Weave is product-first and provider-neutral. Admin/provider setup, IDM/RBAC, readiness, whitelisting, and support-safe diagnostics come before optional Weaver personal-assistant runtime work.
 
-Weaver remains optional, governed, auditable, support-safe, and disabled by default. Any future per-user PA runtime must be generated from Weave organization policy as an isolated OpenClaw-derived profile and follow the rule: user-rights, organization-whitelisted capabilities.
+Weaver remains optional, governed, auditable, support-safe, and disabled by default. Any future per-user PA runtime must be generated from Weave organization policy as an isolated OpenClaw-derived profile and follow the rule: user-rights, organization-whitelisted capabilities. See [Governed Weaver runtime security contract](governed-weaver-runtime-security-contract.md) for the runtime/model/tool-provider split, approval receipts, and support-safe evidence boundary.
 
 v0.1 is dogfood-production, not a preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md). The latest published prerelease audit is [v0.1.0-rc.2 release evidence](release-v0.1-rc2-evidence.md).
 
