@@ -10,8 +10,18 @@ void main() {
     final firstUse = File('../docs/admin-provisioned-first-use.md');
     final canonicalModels = File('../docs/canonical-feature-models.md');
     final architecture = File('../docs/architecture.md');
+    final sprint8Board = File('../docs/project/sprint-8-delivery-board.md');
+    final sprint9Waterfall = File(
+      '../docs/sprint-9-product-readiness-waterfall.md',
+    );
     final mapping = File('../e2e/scenario_mappings.json');
     final feature = File('../e2e/features/v0_1_dogfood_release.feature');
+    final sprint8DomainControlPlaneFeature = File(
+      '../e2e/features/sprint_8_domain_control_plane.feature',
+    );
+    final productReadinessFeature = File(
+      '../e2e/features/product_readiness_waterfall.feature',
+    );
 
     test('documents dogfood-production scope without preview claims', () {
       // V01_HOME_DAILY_LOOP
@@ -224,6 +234,83 @@ void main() {
         // ignore: avoid_print
         print(marker);
       }
+    });
+
+    test('documents the Sprint 8 domain control-plane evidence scenario', () {
+      // SPRINT8_DOMAIN_CONTROL_PLANE_EVIDENCE
+      expect(sprint8Board.existsSync(), isTrue);
+      expect(sprint8DomainControlPlaneFeature.existsSync(), isTrue);
+      final boardText = sprint8Board.readAsStringSync();
+      final featureText = sprint8DomainControlPlaneFeature.readAsStringSync();
+
+      for (final required in <String>[
+        'Sprint 8 dependency DAG',
+        '#434',
+        'Sprint 8 acceptance scenario',
+        './gradlew acceptanceContract',
+        'scenario mapping evidence',
+      ]) {
+        expect(boardText, contains(required));
+      }
+
+      for (final required in <String>[
+        '@weave-sprint8-domain-control-plane-evidence',
+        'reviews canonical domain setup',
+        'runs a Keycloak desired-state dry-run',
+        'reviews domain-first readiness states',
+        'provider switch is blocked',
+        'Boards portability dry-run report',
+        'provider-neutral domain states only',
+        'Weaver remains disabled by default',
+        'live-stack evidence is green, waived, or explicitly not required',
+      ]) {
+        expect(featureText, contains(required));
+      }
+
+      // ignore: avoid_print
+      print('SPRINT8_DOMAIN_CONTROL_PLANE_EVIDENCE');
+    });
+
+    test('documents the Sprint 9 product-readiness waterfall evidence', () {
+      // PRODUCT_READINESS_WATERFALL
+      expect(sprint9Waterfall.existsSync(), isTrue);
+      expect(productReadinessFeature.existsSync(), isTrue);
+      final markdown = sprint9Waterfall.readAsStringSync();
+      final featureText = productReadinessFeature.readAsStringSync();
+
+      for (final required in <String>[
+        'Sprint 9 product-readiness waterfall evidence',
+        'Product-ready definition',
+        'Domain registry version',
+        'Migration contract version',
+        'Keycloak dry-run sample',
+        'Calls/LiveKit readiness artifact',
+        'Weaver tool approval proof',
+        'OpenClaw fork image digest/SBOM/scan refs',
+        'Security report',
+        'Privacy report',
+        'Accessibility report',
+        'Support-safe release evidence bundle',
+        'Live-stack execution is required for release-candidate promotion',
+      ]) {
+        expect(markdown, contains(required));
+      }
+
+      for (final required in <String>[
+        '@weave-product-readiness-waterfall',
+        'reviews the domain registry',
+        'runs Keycloak desired-state dry-run',
+        'provider apply is blocked',
+        'reviews migration dry-run, lossy report, conflict report, rollback boundary, and member impact preview',
+        'approves selected tools for that group',
+        'member sees only approved Weave domain tools',
+        'no raw provider tokens or secrets are exposed',
+      ]) {
+        expect(featureText, contains(required));
+      }
+
+      // ignore: avoid_print
+      print('PRODUCT_READINESS_WATERFALL');
     });
 
     test('keeps the Gherkin release spine mapped to executable evidence', () {
