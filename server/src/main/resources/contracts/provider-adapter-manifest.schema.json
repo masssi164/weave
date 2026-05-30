@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/provider-adapter-manifest.schema.json",
+  "title": "Weave Provider Adapter Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "adapter_key",
+    "supported_domains",
+    "supported_capabilities",
+    "canonical_object_coverage",
+    "source_of_truth_modes",
+    "secret_refs",
+    "support_safe_diagnostics"
+  ],
+  "properties": {
+    "adapter_key": {
+      "type": "string",
+      "minLength": 1
+    },
+    "supported_domains": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "identity",
+          "people",
+          "spaces",
+          "chat",
+          "files",
+          "documents",
+          "calendar",
+          "boards",
+          "calls",
+          "decisions",
+          "notifications",
+          "health",
+          "weaver"
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "supported_capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(\\.[A-Za-z0-9]+)+$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "canonical_object_coverage": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source_of_truth_modes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "weave_owned",
+          "selected_provider_owned",
+          "hybrid_composite",
+          "external_existing_provider",
+          "archive_only"
+        ]
+      },
+      "minItems": 1
+    },
+    "export_manifest_supported": {
+      "type": "boolean"
+    },
+    "import_manifest_supported": {
+      "type": "boolean"
+    },
+    "lossy_mapping_report_supported": {
+      "type": "boolean"
+    },
+    "conflict_report_supported": {
+      "type": "boolean"
+    },
+    "secret_refs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^secret://.+"
+      }
+    },
+    "support_safe_diagnostics": {
+      "$ref": "#/$defs/redaction"
+    }
+  },
+  "$defs": {
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "support_safe",
+        "secrets_returned",
+        "raw_provider_payloads_returned",
+        "raw_provider_errors_returned"
+      ],
+      "properties": {
+        "support_safe": {
+          "type": "boolean",
+          "const": true
+        },
+        "secrets_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_payloads_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_errors_returned": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "loss_class": {
+      "type": "string",
+      "enum": [
+        "lossless_canonical",
+        "lossless_extension",
+        "archive_only",
+        "lossy_with_report",
+        "blocked_nonportable",
+        "provider_unexportable"
+      ]
+    }
+  }
+}

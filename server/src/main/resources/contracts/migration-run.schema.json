@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/migration-run.schema.json",
+  "title": "Weave Migration Run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "domain",
+    "lifecycle",
+    "dry_run_required_before_apply",
+    "artifact_refs",
+    "object_counts",
+    "content_hashes",
+    "provider_mapping_refs",
+    "audit_refs",
+    "support_safe_diagnostics"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "people",
+        "spaces",
+        "chat",
+        "files",
+        "documents",
+        "calendar",
+        "boards",
+        "calls",
+        "decisions",
+        "notifications",
+        "health",
+        "weaver"
+      ]
+    },
+    "lifecycle": {
+      "type": "string",
+      "enum": [
+        "discovered",
+        "preflight_failed",
+        "preflight_passed",
+        "exported",
+        "dry_run_completed",
+        "blocked",
+        "approved",
+        "applying",
+        "applied",
+        "verified",
+        "rolled_back",
+        "archived"
+      ]
+    },
+    "dry_run_required_before_apply": {
+      "type": "boolean",
+      "const": true
+    },
+    "artifact_refs": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(export|import|lossy-report|conflict-report|audit|dry-run)://.+"
+      }
+    },
+    "object_counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "content_hashes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 8
+      }
+    },
+    "provider_mapping_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 1
+    },
+    "audit_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^audit://.+"
+      },
+      "minItems": 1
+    },
+    "apply_blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "missing_dry_run",
+          "missing_export_manifest",
+          "missing_import_manifest",
+          "missing_lossy_mapping_report",
+          "missing_conflict_report",
+          "incomplete_identity_mapping",
+          "audit_sink_unavailable",
+          "unresolved_blocking_conflict"
+        ]
+      }
+    },
+    "support_safe_diagnostics": {
+      "$ref": "#/$defs/redaction"
+    }
+  },
+  "$defs": {
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "support_safe",
+        "secrets_returned",
+        "raw_provider_payloads_returned",
+        "raw_provider_errors_returned"
+      ],
+      "properties": {
+        "support_safe": {
+          "type": "boolean",
+          "const": true
+        },
+        "secrets_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_payloads_returned": {
+          "type": "boolean",
+          "const": false
+        },
+        "raw_provider_errors_returned": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "loss_class": {
+      "type": "string",
+      "enum": [
+        "lossless_canonical",
+        "lossless_extension",
+        "archive_only",
+        "lossy_with_report",
+        "blocked_nonportable",
+        "provider_unexportable"
+      ]
+    }
+  }
+}
