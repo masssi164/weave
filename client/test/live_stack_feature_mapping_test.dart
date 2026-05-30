@@ -56,6 +56,8 @@ void main() {
         'Member sees stable capabilities only after joining',
         'Admin configures domains through setup and reviews readiness evidence',
         'Provider switch evidence distinguishes spec acceptance from live migration',
+        'Admin validates domains, dry-runs identity, checks portability, and members see provider-neutral states',
+        'Admin bootstraps organization, validates domains, configures providers, enables Weaver, and member works provider-neutrally',
         'Weaver AI runtime stays excluded from Spec 0001 acceptance',
       ]),
     );
