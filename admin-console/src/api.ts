@@ -9,12 +9,35 @@ export type CapabilityState =
   | 'not_configured'
   | 'configured';
 
+export interface ProviderSwitchApplyGates {
+  applySupported: boolean;
+  preflightPassed: boolean;
+  sourceReadinessValid: boolean;
+  targetReadinessValid: boolean;
+  identityMappingComplete: boolean;
+  exportSnapshotExists: boolean;
+  dryRunSuccessful: boolean;
+  lossyMappingReportAccepted: boolean;
+  conflictsResolvedOrWaived: boolean;
+  rollbackBoundaryExists: boolean;
+  rbacAllowsMutation: boolean;
+  auditSinkAvailable: boolean;
+  memberImpactPreviewConfirmed: boolean;
+}
+
 export interface ProviderCategory {
   key: string;
   label: string;
   selectedAdapter: string;
   state: CapabilityState;
   summary: string;
+  memberImpact: MemberCapabilityState;
+  requiredNextAction: string;
+  secretRefStatus: 'present' | 'missing' | 'not_required' | 'sample_only';
+  policyState: 'allowed' | 'blocked' | 'disabled' | 'review_required';
+  migrationState: 'not_required' | 'dry_run_required' | 'dry_run_passed' | 'blocked' | 'sample_only';
+  evidenceRefs: string[];
+  applyGates: ProviderSwitchApplyGates;
   supportSafe: boolean;
   selectedByAdmin: boolean;
   bootstrapSuggestionOnly: boolean;
@@ -240,6 +263,12 @@ interface ServerProviderCategory {
   label?: string;
   readiness?: string;
   memberImpact?: string;
+  requiredNextAction?: string;
+  secretRefStatus?: ProviderCategory['secretRefStatus'];
+  policyState?: ProviderCategory['policyState'];
+  migrationState?: ProviderCategory['migrationState'];
+  evidenceRefs?: string[];
+  applyGates?: Partial<ProviderSwitchApplyGates>;
   providerCandidates?: string[];
   selectedProviderKey?: string;
   choiceModel?: string;
@@ -526,13 +555,20 @@ function normalizeCategory(
     category.selectedProviderKey ??
     selections.find((selection) => selection.category === key)?.providerKey ??
     'awaiting_admin_selection';
+  const state = normalizeState(category.readiness);
   return {
     key,
     label: category.label ?? key,
     selectedAdapter,
-    state: normalizeState(category.readiness),
-    summary:
-      category.memberImpact ?? 'Backend control-plane status is support-safe.',
+    state,
+    summary: category.memberImpact ?? 'Backend control-plane status is support-safe.',
+    memberImpact: normalizeMemberCapabilityState(category.memberImpact) ?? memberStableStateFromCapability(state),
+    requiredNextAction: category.requiredNextAction ?? 'Review backend readiness evidence before exposing this domain.',
+    secretRefStatus: category.secretRefStatus ?? 'sample_only',
+    policyState: category.policyState ?? 'review_required',
+    migrationState: category.migrationState ?? 'dry_run_required',
+    evidenceRefs: category.evidenceRefs ?? [],
+    applyGates: normalizeApplyGates(category.applyGates),
     supportSafe:
       category.diagnostics?.secretsReturned === false &&
       category.diagnostics?.rawProviderErrorsReturned === false,
@@ -545,6 +581,92 @@ function normalizeCategory(
       .filter((secretRef) => secretRef.providerKey === selectedAdapter)
       .map((secretRef) => secretRef.ref ?? '')
       .filter(Boolean),
+  };
+}
+
+
+function normalizeApplyGates(gates?: Partial<ProviderSwitchApplyGates>): ProviderSwitchApplyGates {
+  return {
+    applySupported: gates?.applySupported ?? false,
+    preflightPassed: gates?.preflightPassed ?? false,
+    sourceReadinessValid: gates?.sourceReadinessValid ?? false,
+    targetReadinessValid: gates?.targetReadinessValid ?? false,
+    identityMappingComplete: gates?.identityMappingComplete ?? false,
+    exportSnapshotExists: gates?.exportSnapshotExists ?? false,
+    dryRunSuccessful: gates?.dryRunSuccessful ?? false,
+    lossyMappingReportAccepted: gates?.lossyMappingReportAccepted ?? false,
+    conflictsResolvedOrWaived: gates?.conflictsResolvedOrWaived ?? false,
+    rollbackBoundaryExists: gates?.rollbackBoundaryExists ?? false,
+    rbacAllowsMutation: gates?.rbacAllowsMutation ?? false,
+    auditSinkAvailable: gates?.auditSinkAvailable ?? false,
+    memberImpactPreviewConfirmed: gates?.memberImpactPreviewConfirmed ?? false,
+  };
+}
+
+function memberStableStateFromCapability(state: CapabilityState): MemberCapabilityState {
+  switch (state) {
+    case 'ready':
+    case 'configured':
+      return 'available';
+    case 'policy-blocked':
+    case 'disabled':
+      return 'disabled_by_policy';
+    case 'not_configured':
+      return 'not_configured';
+    case 'unsupported':
+      return 'unavailable';
+    default:
+      return 'degraded';
+  }
+}
+
+const allApplyGatesPassed: ProviderSwitchApplyGates = {
+  applySupported: true,
+  preflightPassed: true,
+  sourceReadinessValid: true,
+  targetReadinessValid: true,
+  identityMappingComplete: true,
+  exportSnapshotExists: true,
+  dryRunSuccessful: true,
+  lossyMappingReportAccepted: true,
+  conflictsResolvedOrWaived: true,
+  rollbackBoundaryExists: true,
+  rbacAllowsMutation: true,
+  auditSinkAvailable: true,
+  memberImpactPreviewConfirmed: true,
+};
+
+const blockedApplyGates: ProviderSwitchApplyGates = normalizeApplyGates();
+
+function sampleDomain(
+  key: string,
+  label: string,
+  selectedAdapter: string,
+  state: CapabilityState,
+  summary: string,
+  candidates: string[],
+  overrides: Partial<ProviderCategory> = {},
+): ProviderCategory {
+  return {
+    key,
+    label,
+    selectedAdapter,
+    state,
+    summary,
+    memberImpact: memberStableStateFromCapability(state),
+    requiredNextAction: 'Review backend readiness evidence before member rollout.',
+    secretRefStatus: selectedAdapter === 'weave-owned' ? 'not_required' : 'present',
+    policyState: state === 'policy-blocked' ? 'blocked' : state === 'disabled' ? 'disabled' : 'allowed',
+    migrationState: state === 'ready' ? 'dry_run_passed' : 'dry_run_required',
+    evidenceRefs: [`${key}-readiness-evidence`],
+    applyGates: blockedApplyGates,
+    supportSafe: true,
+    selectedByAdmin: true,
+    bootstrapSuggestionOnly: false,
+    choiceModel: 'recommended_self_hosted_default',
+    providerCandidates: candidates,
+    secretRefs: selectedAdapter === 'weave-owned' ? [] : [`secretref://weave/provider/${selectedAdapter}`],
+    ...overrides,
   };
 }
 
@@ -751,135 +873,33 @@ export const sampleControlPlane: ControlPlaneResponse = {
   providerConfigSource: 'admin-control-plane-selected-provider-mappings',
   bootstrapDefaultsAreSuggestionsOnly: true,
   providerCategories: [
-    {
-      key: 'idm-rbac',
-      label: 'IDM / RBAC',
-      selectedAdapter: 'keycloak-realm',
-      state: 'ready',
-      summary:
-        'Central Keycloak realm is the recommended self-hosted identity broker; admin selection is the source of truth.',
-      supportSafe: true,
-      selectedByAdmin: true,
-      bootstrapSuggestionOnly: false,
-      choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: [
-        'keycloak-realm',
-        'entra-id',
-        'authentik',
-        'auth0',
-        'generic-oidc',
-        'generic-saml',
-        'scim-ldap',
-      ],
-      lastCheckedAt: '2026-05-24T18:00:00Z',
-      secretRefs: ['secretref://weave/provider/keycloak-realm/client-secret'],
-    },
-    {
-      key: 'chat-channels',
-      label: 'Chat / channels',
-      selectedAdapter: 'synapse-homeserver',
-      state: 'ready',
-      summary: 'Chat is available through Weave conversations.',
-      supportSafe: true,
-      selectedByAdmin: true,
-      bootstrapSuggestionOnly: false,
-      choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: ['synapse-homeserver', 'slack', 'microsoft-teams'],
-      secretRefs: ['secretref://weave/provider/synapse-homeserver'],
-    },
-    {
-      key: 'files-docs',
-      label: 'Files / docs',
-      selectedAdapter: 'nextcloud-files',
-      state: 'degraded',
-      summary:
-        'Files are exposed through Weave canonical file facades; Nextcloud, SharePoint, S3, and SMB adapters remain backend-owned.',
-      supportSafe: true,
-      selectedByAdmin: true,
-      bootstrapSuggestionOnly: false,
-      choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: [
-        'nextcloud-files',
-        'sharepoint',
-        's3-compatible',
-        'smb',
-      ],
-      secretRefs: ['secretref://weave/provider/nextcloud-files'],
-    },
-    {
-      key: 'calendar-events',
-      label: 'Calendar / events',
-      selectedAdapter: 'nextcloud-caldav',
-      state: 'degraded',
-      summary:
-        'Calendar access is normalized through Weave; CalDAV and Microsoft Graph remain adapter choices only.',
-      supportSafe: true,
-      selectedByAdmin: true,
-      bootstrapSuggestionOnly: false,
-      choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: [
-        'nextcloud-caldav',
-        'microsoft-graph-calendar',
-        'generic-caldav',
-      ],
-      secretRefs: ['secretref://weave/provider/nextcloud-caldav'],
-    },
-    {
-      key: 'boards-tasks',
-      label: 'Boards / tasks',
-      selectedAdapter: 'openproject-primary',
-      state: 'policy-blocked',
-      summary:
-        'Boards/tasks stay provider-neutral across OpenProject, Planner, Jira, Vikunja, and Deck adapters.',
-      supportSafe: true,
-      selectedByAdmin: true,
-      bootstrapSuggestionOnly: false,
-      choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: [
-        'openproject-primary',
-        'microsoft-planner',
-        'jira',
-        'vikunja',
-        'nextcloud-deck',
-      ],
-      secretRefs: ['secretref://weave/provider/openproject-primary'],
-    },
-    {
-      key: 'meetings',
-      label: 'Meetings',
-      selectedAdapter: 'livekit',
-      state: 'misconfigured',
-      summary:
-        'Meetings are surfaced through Weave calls; LiveKit and external meeting links are backend-selected providers.',
-      supportSafe: true,
-      selectedByAdmin: true,
-      bootstrapSuggestionOnly: false,
-      choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: [
-        'livekit',
-        'microsoft-teams-meetings',
-        'external-meeting-link',
-      ],
-      secretRefs: ['secretref://weave/provider/livekit'],
-    },
-    {
-      key: 'forms-contacts',
-      label: 'Forms / contacts',
-      selectedAdapter: 'weave-managed-forms-contacts',
-      state: 'disabled',
-      summary:
-        'Forms and contacts use Weave canonical contracts; provider-specific address book or form backends stay admin/operator-side.',
-      supportSafe: true,
-      selectedByAdmin: true,
-      bootstrapSuggestionOnly: false,
-      choiceModel: 'recommended_self_hosted_default',
-      providerCandidates: [
-        'weave-managed-forms-contacts',
-        'nextcloud-forms-contacts',
-        'google-workspace-contacts',
-      ],
-      secretRefs: ['secretref://weave/provider/weave-managed-forms-contacts'],
-    },
+    sampleDomain(
+      'identity',
+      'Identity',
+      'keycloak-realm',
+      'ready',
+      'Identity and auth are backend-owned; members see only sign-in availability.',
+      ['keycloak-realm', 'entra-id', 'authentik', 'auth0', 'generic-oidc', 'generic-saml', 'scim-ldap'],
+      {
+        requiredNextAction: 'Keep identity mapping evidence current before any provider switch.',
+        evidenceRefs: ['identity-realm-dry-run', 'effective-policy-simulation'],
+        applyGates: allApplyGatesPassed,
+        lastCheckedAt: '2026-05-24T18:00:00Z',
+        secretRefs: ['secretref://weave/provider/keycloak-realm/client-secret'],
+      },
+    ),
+    sampleDomain('people', 'People', 'weave-owned', 'ready', 'Profiles, contact methods, avatars, org units, and external contacts are Weave-owned and not keyed by email.', ['weave-owned', 'scim-directory', 'google-directory']),
+    sampleDomain('spaces', 'Spaces', 'weave-owned', 'ready', 'Spaces are the cross-domain work context with bindings to chat, files, calendar, boards, calls, and decisions.', ['weave-owned']),
+    sampleDomain('chat', 'Chat', 'synapse-homeserver', 'ready', 'Conversations, messages, threads, reactions, mentions, and read state are shown through Weave facades.', ['synapse-homeserver', 'slack', 'microsoft-teams']),
+    sampleDomain('files', 'Files', 'nextcloud-files', 'degraded', 'Drives, folders, files, versions, permissions, checksums, shares, locks, and trash are provider-neutral.', ['nextcloud-files', 'sharepoint', 's3-compatible', 'smb'], { requiredNextAction: 'Confirm checksum and permission-loss evidence before exposing file writes.' }),
+    sampleDomain('documents', 'Documents', 'collabora-wopi', 'degraded', 'Document editing is separate from storage; launch contracts avoid raw storage credentials.', ['collabora-wopi', 'onlyoffice-wopi', 'guarded-unavailable'], { requiredNextAction: 'Validate WOPI launch and co-authoring state before enabling editors.' }),
+    sampleDomain('calendar', 'Calendar', 'nextcloud-caldav', 'degraded', 'Calendars, events, recurrence, private handling, reminders, resources, and conference links are normalized.', ['nextcloud-caldav', 'microsoft-graph-calendar', 'generic-caldav']),
+    sampleDomain('boards', 'Boards', 'openproject-primary', 'policy-blocked', 'Boards, lists, tasks, workflow metadata, dependencies, comments, labels, milestones, and sprints stay canonical.', ['openproject-primary', 'placeholder-boards', 'microsoft-planner', 'jira', 'vikunja', 'nextcloud-deck'], { migrationState: 'blocked', requiredNextAction: 'Accept lossy mapping and conflict reports before unblocking provider writes.' }),
+    sampleDomain('calls', 'Calls', 'livekit', 'misconfigured', 'Meetings, rooms, participants, grants, recordings, transcripts, captions, consent, and retention are backend-governed.', ['livekit', 'microsoft-teams-meetings', 'external-meeting-link'], { requiredNextAction: 'Repair LiveKit grant readiness and consent evidence before enabling join/start controls.' }),
+    sampleDomain('decisions', 'Decisions', 'weave-owned', 'ready', 'Decision records and evidence/source references are Weave-owned rather than provider-primary.', ['weave-owned']),
+    sampleDomain('notifications', 'Notifications', 'weave-owned', 'ready', 'Notifications, action requests, approval requests, digests, and read state are Weave-owned.', ['weave-owned', 'email-adapter', 'push-adapter']),
+    sampleDomain('health', 'Health', 'weave-owned', 'ready', 'Readiness, risk notes, support bundles, migration runs, and SecretRef posture are support-safe and actionable.', ['weave-owned']),
+    sampleDomain('weaver', 'Weaver', 'weaver-governed-runtime', 'disabled', 'Weaver stays disabled until admin grants, member opt-in, approval policy, audit, and redaction gates pass.', ['weaver-governed-runtime'], { policyState: 'disabled', migrationState: 'not_required', requiredNextAction: 'Approve tool/capability grants and member opt-in before enabling Weaver.' }),
   ],
   identityProviderReadiness: {
     contractVersion: 'identity-provider-readiness-v1',
