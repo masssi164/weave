@@ -1,0 +1,984 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/canonical-domain-registry.v1.json",
+  "title": "Weave Canonical Domain Registry v1",
+  "registry_version": "canonical-domain-registry-v1",
+  "description": "Provider-neutral Weave product domain vocabulary. Provider IDs belong in admin/operator mapping evidence, not member-facing contracts.",
+  "member_states": [
+    "available",
+    "disabled_by_policy",
+    "not_configured",
+    "degraded",
+    "unavailable",
+    "coming_later"
+  ],
+  "admin_states": [
+    "provider_not_configured",
+    "secret_missing",
+    "ready",
+    "degraded",
+    "dry_run_required",
+    "lossy_mapping_pending",
+    "apply_blocked",
+    "migration_ready"
+  ],
+  "loss_classes": [
+    "lossless_canonical",
+    "lossless_extension",
+    "archive_only",
+    "lossy_with_report",
+    "blocked_nonportable",
+    "provider_unexportable"
+  ],
+  "compatibility_aliases": {
+    "identity-idm": "identity",
+    "boards-tasks": "boards",
+    "meetings-calls": "calls",
+    "documents-collaboration": "documents",
+    "decisions-evidence": "decisions",
+    "admin-control-plane": "health",
+    "release-evidence": "health",
+    "manuals-help": "health"
+  },
+  "domains": [
+    {
+      "key": "identity",
+      "version": 1,
+      "display_name": "Identity",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "IdentitySource",
+        "IdentityAccount",
+        "Group",
+        "Role",
+        "ServicePrincipal",
+        "GuestIdentity",
+        "DeprovisioningEvent"
+      ],
+      "capability_keys": [
+        "identity.read",
+        "identity.search",
+        "identity.export",
+        "identity.import",
+        "identity.dryRun",
+        "identity.apply",
+        "identity.write",
+        "identity.delete",
+        "identity.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "people",
+      "version": 1,
+      "display_name": "People",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Person",
+        "Profile",
+        "ContactMethod",
+        "AvatarRef",
+        "OrganizationUnit",
+        "ExternalContact"
+      ],
+      "capability_keys": [
+        "people.read",
+        "people.search",
+        "people.export",
+        "people.import",
+        "people.dryRun",
+        "people.apply",
+        "people.write",
+        "people.delete",
+        "people.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "spaces",
+      "version": 1,
+      "display_name": "Spaces",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Space",
+        "SpaceType",
+        "SpaceMembership",
+        "SpaceRole",
+        "DomainBinding",
+        "ContextPolicy",
+        "DefaultSurface",
+        "ContextArchive"
+      ],
+      "capability_keys": [
+        "spaces.read",
+        "spaces.search",
+        "spaces.export",
+        "spaces.import",
+        "spaces.dryRun",
+        "spaces.apply",
+        "spaces.write",
+        "spaces.delete",
+        "spaces.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "chat",
+      "version": 1,
+      "display_name": "Chat",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Conversation",
+        "Message",
+        "Thread",
+        "Reaction",
+        "AttachmentRef",
+        "Membership",
+        "Presence",
+        "HistoryPolicy"
+      ],
+      "capability_keys": [
+        "chat.read",
+        "chat.search",
+        "chat.export",
+        "chat.import",
+        "chat.dryRun",
+        "chat.apply",
+        "chat.write",
+        "chat.delete",
+        "chat.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "files",
+      "version": 1,
+      "display_name": "Files",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Drive",
+        "Node",
+        "Folder",
+        "File",
+        "Version",
+        "Share",
+        "Permission",
+        "Lock"
+      ],
+      "capability_keys": [
+        "files.read",
+        "files.search",
+        "files.export",
+        "files.import",
+        "files.dryRun",
+        "files.apply",
+        "files.write",
+        "files.delete",
+        "files.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "documents",
+      "version": 1,
+      "display_name": "Documents",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Document",
+        "EditSession",
+        "Comment",
+        "Suggestion",
+        "Version",
+        "Permission",
+        "Lock"
+      ],
+      "capability_keys": [
+        "documents.read",
+        "documents.search",
+        "documents.export",
+        "documents.import",
+        "documents.dryRun",
+        "documents.apply",
+        "documents.write",
+        "documents.delete",
+        "documents.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "calendar",
+      "version": 1,
+      "display_name": "Calendar",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Calendar",
+        "Event",
+        "Attendee",
+        "Recurrence",
+        "Availability",
+        "Resource"
+      ],
+      "capability_keys": [
+        "calendar.read",
+        "calendar.search",
+        "calendar.export",
+        "calendar.import",
+        "calendar.dryRun",
+        "calendar.apply",
+        "calendar.write",
+        "calendar.delete",
+        "calendar.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "boards",
+      "version": 1,
+      "display_name": "Boards",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Board",
+        "List",
+        "Task",
+        "Status",
+        "Assignee",
+        "Watcher",
+        "Comment",
+        "AttachmentRef",
+        "Dependency",
+        "Label",
+        "CustomField",
+        "Estimate",
+        "Priority",
+        "Milestone",
+        "Sprint",
+        "WorkflowRule"
+      ],
+      "capability_keys": [
+        "boards.read",
+        "boards.search",
+        "boards.export",
+        "boards.import",
+        "boards.dryRun",
+        "boards.apply",
+        "boards.write",
+        "boards.delete",
+        "boards.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "calls",
+      "version": 1,
+      "display_name": "Calls",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Call",
+        "Meeting",
+        "Participant",
+        "Recording",
+        "Captions",
+        "MediaSession",
+        "ConsentState"
+      ],
+      "capability_keys": [
+        "calls.read",
+        "calls.search",
+        "calls.export",
+        "calls.import",
+        "calls.dryRun",
+        "calls.apply",
+        "calls.write",
+        "calls.delete",
+        "calls.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "decisions",
+      "version": 1,
+      "display_name": "Decisions",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Decision",
+        "SourceRef",
+        "EvidenceRef",
+        "Status",
+        "AuditRef"
+      ],
+      "capability_keys": [
+        "decisions.read",
+        "decisions.search",
+        "decisions.export",
+        "decisions.import",
+        "decisions.dryRun",
+        "decisions.apply",
+        "decisions.write",
+        "decisions.delete",
+        "decisions.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "notifications",
+      "version": 1,
+      "display_name": "Notifications",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Notification",
+        "ActionRequest",
+        "ApprovalRequest",
+        "Digest",
+        "ReadState"
+      ],
+      "capability_keys": [
+        "notifications.read",
+        "notifications.search",
+        "notifications.export",
+        "notifications.import",
+        "notifications.dryRun",
+        "notifications.apply",
+        "notifications.write",
+        "notifications.delete",
+        "notifications.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "health",
+      "version": 1,
+      "display_name": "Health",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "Readiness",
+        "RiskNote",
+        "SupportBundleRef",
+        "MigrationRunRef",
+        "SecretRef",
+        "PolicyImpact"
+      ],
+      "capability_keys": [
+        "health.read",
+        "health.search",
+        "health.export",
+        "health.import",
+        "health.dryRun",
+        "health.apply",
+        "health.write",
+        "health.delete",
+        "health.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    },
+    {
+      "key": "weaver",
+      "version": 1,
+      "display_name": "Weaver",
+      "purpose": "Provider-neutral Weave-owned domain contract.",
+      "canonical_objects": [
+        "RuntimeProfile",
+        "ToolCapability",
+        "ApprovalReceipt",
+        "AuditEvent",
+        "SandboxProfile"
+      ],
+      "capability_keys": [
+        "weaver.read",
+        "weaver.search",
+        "weaver.export",
+        "weaver.import",
+        "weaver.dryRun",
+        "weaver.apply",
+        "weaver.write",
+        "weaver.delete",
+        "weaver.adminConfigure"
+      ],
+      "member_states": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "admin_states": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "source_of_truth_modes": [
+        "weave_owned",
+        "selected_provider_owned",
+        "hybrid_composite",
+        "external_existing_provider",
+        "archive_only"
+      ],
+      "portability_requirements": [
+        "source_of_truth_declared",
+        "export_delete_boundary_declared",
+        "provider_mapping_refs_required",
+        "loss_classification_required",
+        "dry_run_required_before_apply",
+        "support_safe_migration_evidence_required",
+        "audit_ref_required"
+      ],
+      "adapter_manifest_requirements": [
+        "supported_domain_key",
+        "supported_capabilities",
+        "canonical_object_coverage",
+        "source_of_truth_mode",
+        "export_manifest_support",
+        "import_manifest_support",
+        "lossy_mapping_report_support",
+        "conflict_report_support",
+        "secret_ref_only",
+        "support_safe_diagnostics"
+      ]
+    }
+  ]
+}
