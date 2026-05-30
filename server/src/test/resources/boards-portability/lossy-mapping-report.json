@@ -1,0 +1,41 @@
+{
+  "domain": "boards",
+  "source_adapter": "openproject-primary",
+  "target_contract": "weave-boards-v1",
+  "support_safe": true,
+  "raw_provider_payloads_returned": false,
+  "field_classifications": [
+    {
+      "object": "Task",
+      "field": "subject",
+      "classification": "lossless_canonical",
+      "canonical_target": "Task.title"
+    },
+    {
+      "object": "Task",
+      "field": "customField.storyPoints",
+      "classification": "lossless_extension",
+      "canonical_target": "CustomField.estimate"
+    },
+    {
+      "object": "WorkflowRule",
+      "field": "statusTransitionGuards",
+      "classification": "lossy_with_report",
+      "canonical_target": "WorkflowRule.notes",
+      "member_impact": "List movement remains available, provider-specific transition guard details require admin review."
+    },
+    {
+      "object": "Task",
+      "field": "providerAutomationWebhook",
+      "classification": "blocked_nonportable",
+      "canonical_target": null,
+      "member_impact": "Automation is not migrated until an audited replacement rule exists."
+    }
+  ],
+  "status_vs_list_semantics": "OpenProject status is mapped to Weave Status and projected into board Lists; list order is a Weave view, not the provider workflow source of truth.",
+  "comments_attachments_dependencies": {
+    "comments": "canonical when exported through journals; otherwise lossy_with_report",
+    "attachments": "AttachmentRef only; bytes stay behind Files facade and checksum evidence",
+    "dependencies": "relations map to Dependency when relation type is supported, otherwise lossy_with_report"
+  }
+}

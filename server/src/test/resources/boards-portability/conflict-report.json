@@ -1,0 +1,30 @@
+{
+  "domain": "boards",
+  "support_safe": true,
+  "raw_provider_payloads_returned": false,
+  "conflicts": [
+    {
+      "object_ref": "task:launch-readiness",
+      "conflict_type": "workflow_status_vs_list",
+      "summary": "Provider status transition cannot be replayed as a simple list move without admin-reviewed workflow mapping.",
+      "resolution": "dry_run_required"
+    },
+    {
+      "object_ref": "task:multi-owner",
+      "conflict_type": "multi_assignee_policy",
+      "summary": "Provider allows multiple assignees; selected target adapter may require watcher fallback.",
+      "resolution": "lossy_mapping_report_required"
+    }
+  ],
+  "write_guard": {
+    "apply_enabled": false,
+    "required_gates": [
+      { "gate": "rbac", "state": "required" },
+      { "gate": "audit", "state": "required" },
+      { "gate": "dry_run_preview", "state": "required" },
+      { "gate": "redaction", "state": "required" },
+      { "gate": "rollback_notes", "state": "required" }
+    ],
+    "reason": "Production provider writes remain blocked until future apply gates are implemented."
+  }
+}

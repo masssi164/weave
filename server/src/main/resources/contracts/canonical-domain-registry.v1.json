@@ -124,7 +124,8 @@
         "ContactMethod",
         "AvatarRef",
         "OrganizationUnit",
-        "ExternalContact"
+        "ExternalContact",
+        "IdentityAccountLink"
       ],
       "capability_keys": [
         "people.read",
@@ -197,7 +198,8 @@
         "DomainBinding",
         "ContextPolicy",
         "DefaultSurface",
-        "ContextArchive"
+        "ContextArchive",
+        "ProviderBindingMap"
       ],
       "capability_keys": [
         "spaces.read",
@@ -267,8 +269,14 @@
         "Message",
         "Thread",
         "Reaction",
+        "Mention",
         "AttachmentRef",
         "Membership",
+        "ReadReceipt",
+        "EditEvent",
+        "DeleteEvent",
+        "RetentionPolicy",
+        "EncryptionState",
         "Presence",
         "HistoryPolicy"
       ],
@@ -340,10 +348,13 @@
         "Node",
         "Folder",
         "File",
-        "Version",
-        "Share",
+        "FileVersion",
+        "BlobRef",
         "Permission",
-        "Lock"
+        "ShareLink",
+        "Lock",
+        "TrashEntry",
+        "Checksum"
       ],
       "capability_keys": [
         "files.read",
@@ -410,12 +421,13 @@
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
         "Document",
-        "EditSession",
-        "Comment",
-        "Suggestion",
-        "Version",
-        "Permission",
-        "Lock"
+        "EditorSession",
+        "EditorProvider",
+        "Lock",
+        "CoAuthoringState",
+        "VersionRef",
+        "WopiLaunchContract",
+        "GuardedUnavailableState"
       ],
       "capability_keys": [
         "documents.read",
@@ -483,10 +495,15 @@
       "canonical_objects": [
         "Calendar",
         "Event",
+        "Occurrence",
+        "RecurrenceRule",
+        "RecurrenceException",
         "Attendee",
-        "Recurrence",
-        "Availability",
-        "Resource"
+        "Resource",
+        "Reminder",
+        "TimeZone",
+        "ConferenceLink",
+        "Availability"
       ],
       "capability_keys": [
         "calendar.read",
@@ -633,13 +650,17 @@
       "display_name": "Calls",
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
-        "Call",
         "Meeting",
+        "MeetingRoom",
         "Participant",
-        "Recording",
-        "Captions",
+        "JoinGrant",
         "MediaSession",
-        "ConsentState"
+        "Recording",
+        "Transcript",
+        "Caption",
+        "MeetingChatRef",
+        "ConsentRecord",
+        "RetentionPolicy"
       ],
       "capability_keys": [
         "calls.read",
@@ -709,7 +730,9 @@
         "SourceRef",
         "EvidenceRef",
         "Status",
-        "AuditRef"
+        "AuditRef",
+        "DecisionOwner",
+        "Supersession"
       ],
       "capability_keys": [
         "decisions.read",
@@ -845,12 +868,14 @@
       "display_name": "Health",
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
-        "Readiness",
+        "ProviderReadiness",
         "RiskNote",
         "SupportBundleRef",
         "MigrationRunRef",
         "SecretRef",
-        "PolicyImpact"
+        "PolicyImpact",
+        "ReadinessDiagnostic",
+        "NextAction"
       ],
       "capability_keys": [
         "health.read",

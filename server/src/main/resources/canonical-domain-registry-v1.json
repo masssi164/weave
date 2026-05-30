@@ -131,12 +131,12 @@
       "purpose": "Weave person directory and organization membership independent of provider identity internals.",
       "canonicalObjects": [
         "Person",
-        "Membership",
         "Profile",
         "ContactMethod",
-        "Team",
-        "Guest",
-        "ServiceAccountRef"
+        "AvatarRef",
+        "OrganizationUnit",
+        "ExternalContact",
+        "IdentityAccountLink"
       ],
       "capabilityKeys": [
         "people.read",
@@ -211,13 +211,14 @@
       "purpose": "Cross-domain context anchor for teams, rooms, projects, and governed work surfaces.",
       "canonicalObjects": [
         "Space",
+        "SpaceType",
         "SpaceMembership",
-        "RoleBinding",
-        "LinkedChannel",
-        "LinkedBoard",
-        "LinkedCalendar",
-        "LinkedFileRoot",
-        "DecisionLedgerRef"
+        "SpaceRole",
+        "DomainBinding",
+        "ContextPolicy",
+        "DefaultSurface",
+        "ContextArchive",
+        "ProviderBindingMap"
       ],
       "capabilityKeys": [
         "spaces.read",
@@ -299,9 +300,16 @@
         "Message",
         "Thread",
         "Reaction",
-        "Attachment",
+        "Mention",
+        "AttachmentRef",
+        "Membership",
+        "ReadReceipt",
+        "EditEvent",
+        "DeleteEvent",
+        "RetentionPolicy",
+        "EncryptionState",
         "Presence",
-        "Membership"
+        "HistoryPolicy"
       ],
       "capabilityKeys": [
         "chat.read",
@@ -377,13 +385,16 @@
       "purpose": "File storage, folders, binary transfer, permissions, versions, and share state.",
       "canonicalObjects": [
         "Drive",
+        "Node",
         "Folder",
         "File",
-        "Version",
+        "FileVersion",
+        "BlobRef",
         "Permission",
-        "Share",
+        "ShareLink",
         "Lock",
-        "StorageQuota"
+        "TrashEntry",
+        "Checksum"
       ],
       "capabilityKeys": [
         "files.read",
@@ -463,12 +474,13 @@
       "purpose": "Collaborative document sessions and document metadata separate from raw file storage.",
       "canonicalObjects": [
         "Document",
-        "EditSession",
-        "Comment",
-        "Suggestion",
-        "CoauthorPresence",
-        "Version",
-        "Export"
+        "EditorSession",
+        "EditorProvider",
+        "Lock",
+        "CoAuthoringState",
+        "VersionRef",
+        "WopiLaunchContract",
+        "GuardedUnavailableState"
       ],
       "capabilityKeys": [
         "documents.view",
@@ -545,11 +557,15 @@
       "canonicalObjects": [
         "Calendar",
         "Event",
+        "Occurrence",
+        "RecurrenceRule",
+        "RecurrenceException",
         "Attendee",
-        "Recurrence",
-        "Availability",
         "Resource",
-        "MeetingRef"
+        "Reminder",
+        "TimeZone",
+        "ConferenceLink",
+        "Availability"
       ],
       "capabilityKeys": [
         "calendar.read",
@@ -629,10 +645,17 @@
         "Task",
         "Status",
         "Assignee",
+        "Watcher",
         "Comment",
         "AttachmentRef",
         "Dependency",
-        "CustomField"
+        "Label",
+        "CustomField",
+        "Estimate",
+        "Priority",
+        "Milestone",
+        "Sprint",
+        "WorkflowRule"
       ],
       "capabilityKeys": [
         "boards.read",
@@ -711,12 +734,16 @@
       "purpose": "Meeting join/host capability, media sessions, participant state, recording/captions policy, and consent.",
       "canonicalObjects": [
         "Meeting",
-        "MediaSession",
+        "MeetingRoom",
         "Participant",
-        "TokenGrant",
+        "JoinGrant",
+        "MediaSession",
         "Recording",
+        "Transcript",
         "Caption",
-        "ConsentRecord"
+        "MeetingChatRef",
+        "ConsentRecord",
+        "RetentionPolicy"
       ],
       "capabilityKeys": [
         "meetings.join",
@@ -795,11 +822,11 @@
       "purpose": "Durable decisions, approvals, references, and audit-friendly reasoning connected to Spaces.",
       "canonicalObjects": [
         "Decision",
-        "Proposal",
-        "Approval",
-        "Rationale",
-        "DecisionLink",
+        "SourceRef",
         "EvidenceRef",
+        "Status",
+        "AuditRef",
+        "DecisionOwner",
         "Supersession"
       ],
       "capabilityKeys": [
@@ -876,11 +903,10 @@
       "purpose": "Product-level notification preferences, routing, digesting, and delivery evidence.",
       "canonicalObjects": [
         "Notification",
-        "Preference",
-        "Channel",
+        "ActionRequest",
+        "ApprovalRequest",
         "Digest",
-        "DeliveryAttempt",
-        "Subscription"
+        "ReadState"
       ],
       "capabilityKeys": [
         "notifications.read",
@@ -956,13 +982,14 @@
       "displayName": "Health",
       "purpose": "Admin/operator readiness, provider diagnostics, support bundles, backup/restore, and release evidence.",
       "canonicalObjects": [
-        "ReadinessCard",
-        "Diagnostic",
-        "SupportBundle",
-        "BackupJob",
-        "RestoreDrill",
-        "EvidenceItem",
-        "AuditRef"
+        "ProviderReadiness",
+        "RiskNote",
+        "SupportBundleRef",
+        "MigrationRunRef",
+        "SecretRef",
+        "PolicyImpact",
+        "ReadinessDiagnostic",
+        "NextAction"
       ],
       "capabilityKeys": [
         "health.read",
