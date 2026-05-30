@@ -31,6 +31,7 @@ import {
   ControlPlaneResponse,
   ProviderCategory,
   ProviderReplacementDryRunReport,
+  ProviderSwitchApplyGates,
   sampleControlPlane,
 } from './api';
 import { AdminConsoleLocale, adminCopy } from './copy';
@@ -123,6 +124,33 @@ function setupNextAction(category: ProviderCategory): string {
   }
 }
 
+
+const applyGateLabels: Array<[keyof ProviderSwitchApplyGates, string]> = [
+  ['applySupported', 'Backend apply support'],
+  ['preflightPassed', 'Preflight passed'],
+  ['sourceReadinessValid', 'Source readiness valid'],
+  ['targetReadinessValid', 'Target readiness valid'],
+  ['identityMappingComplete', 'Identity mapping complete'],
+  ['exportSnapshotExists', 'Export snapshot exists'],
+  ['dryRunSuccessful', 'Dry-run successful'],
+  ['lossyMappingReportAccepted', 'Lossy report accepted'],
+  ['conflictsResolvedOrWaived', 'Conflicts resolved or waived'],
+  ['rollbackBoundaryExists', 'Rollback boundary exists'],
+  ['rbacAllowsMutation', 'RBAC allows mutation'],
+  ['auditSinkAvailable', 'Audit sink available'],
+  ['memberImpactPreviewConfirmed', 'Member impact preview confirmed'],
+];
+
+function applyGatesPass(gates: ProviderSwitchApplyGates): boolean {
+  return applyGateLabels.every(([key]) => gates[key]);
+}
+
+function blockedApplyGateLabels(gates: ProviderSwitchApplyGates): string[] {
+  return applyGateLabels
+    .filter(([key]) => !gates[key])
+    .map(([, label]) => label);
+}
+
 function defaultProviderKey(category?: ProviderCategory): string {
   if (!category) return '';
   return category.selectedAdapter === 'awaiting_admin_selection'
@@ -211,6 +239,14 @@ export default function App({
       ) ?? controlPlane.providerCategories[0],
     [controlPlane.providerCategories, selectedCategory],
   );
+
+  const selectedApplyBlockedReasons = selectedCategoryDetails
+    ? blockedApplyGateLabels(selectedCategoryDetails.applyGates)
+    : applyGateLabels.map(([, label]) => label);
+  const selectedApplyAllowed =
+    canConfigure &&
+    selectedCategoryDetails !== undefined &&
+    applyGatesPass(selectedCategoryDetails.applyGates);
 
   function changeCategory(categoryKey: string) {
     const category = controlPlane.providerCategories.find(
@@ -310,6 +346,12 @@ export default function App({
             {statusMessage}
           </Alert>
           {error ? <Alert severity="warning">{error}</Alert> : null}
+          {loadState === 'offline-sample' ? (
+            <Alert severity="warning">
+              Offline/demo sample state — not live organization status. Do not use
+              sample readiness as approval evidence.
+            </Alert>
+          ) : null}
 
           <Card component="section" aria-labelledby="effective-policy-heading">
             <CardContent>
@@ -512,10 +554,35 @@ export default function App({
                           <Typography sx={{ mt: 1 }}>
                             {category.summary}
                           </Typography>
+                          <List dense aria-label={`${category.label} control-plane fields`}>
+                            <ListItem disableGutters>
+                              <ListItemText primary="Selected adapter" secondary={category.selectedAdapter} />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText primary="Member impact" secondary={category.memberImpact} />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText primary="Required next action" secondary={category.requiredNextAction} />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText primary="SecretRef status" secondary={category.secretRefStatus} />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText primary="Policy state" secondary={category.policyState} />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText primary="Migration / dry-run state" secondary={category.migrationState} />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="Evidence refs"
+                                secondary={category.evidenceRefs.join(', ') || 'backend evidence required'}
+                              />
+                            </ListItem>
+                          </List>
                           {canConfigure ? (
                             <Typography variant="body2" sx={{ mt: 1 }}>
-                              Selected: {category.selectedAdapter}; candidates:{' '}
-                              {category.providerCandidates.join(', ')}
+                              Candidates: {category.providerCandidates.join(', ')}
                             </Typography>
                           ) : null}
                         </CardContent>
@@ -742,6 +809,12 @@ export default function App({
                           Never paste raw secrets, bearer tokens, provider URLs
                           with credentials, or downstream diagnostics.
                         </Typography>
+                        <Alert severity={selectedApplyAllowed ? 'success' : 'warning'}>
+                          Provider apply is {selectedApplyAllowed ? 'enabled' : 'blocked'} by backend gates.
+                          {selectedApplyAllowed
+                            ? ' All required evidence gates passed.'
+                            : ` Missing gates: ${selectedApplyBlockedReasons.join(', ')}.`}
+                        </Alert>
                         <Stack
                           direction={{ xs: 'column', sm: 'row' }}
                           spacing={2}
@@ -763,6 +836,12 @@ export default function App({
                               </Button>
                               <Button
                                 variant="contained"
+                                disabled={!selectedApplyAllowed}
+                                title={
+                                  selectedApplyAllowed
+                                    ? 'Backend apply gates passed.'
+                                    : `Apply blocked: ${selectedApplyBlockedReasons.join(', ')}`
+                                }
                                 onClick={() => void selectProvider(false)}
                               >
                                 Apply selected provider
