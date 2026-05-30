@@ -1,0 +1,1115 @@
+{
+  "schemaVersion": 1,
+  "registryVersion": "canonical-domain-registry-v1",
+  "memberStates": [
+    "available",
+    "disabled_by_policy",
+    "not_configured",
+    "degraded",
+    "unavailable",
+    "coming_later"
+  ],
+  "adminStates": [
+    "provider_not_configured",
+    "secret_missing",
+    "ready",
+    "degraded",
+    "dry_run_required",
+    "lossy_mapping_pending",
+    "apply_blocked",
+    "migration_ready"
+  ],
+  "sourceOfTruthModes": [
+    "weave_owned",
+    "provider_owned",
+    "shared_with_precedence",
+    "external_reference"
+  ],
+  "adapterManifestRequirements": [
+    "adapterKey",
+    "domainKeys",
+    "apiProfile",
+    "canonicalObjects",
+    "capabilityKeys",
+    "readinessChecks",
+    "unsupportedFields",
+    "migrationLimits",
+    "auditEvents",
+    "secretBoundary"
+  ],
+  "domains": [
+    {
+      "key": "identity",
+      "version": 1,
+      "displayName": "Identity",
+      "purpose": "Authentication, immutable subject resolution, groups, roles, and admin lifecycle inputs.",
+      "canonicalObjects": [
+        "Subject",
+        "IdentitySource",
+        "Group",
+        "Role",
+        "CapabilityProfile",
+        "LoginSession"
+      ],
+      "capabilityKeys": [
+        "identity.sign_in",
+        "identity.groups",
+        "identity.roles",
+        "policy.read",
+        "policy.manage"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "keycloak-realm",
+        "generic-oidc",
+        "generic-saml",
+        "scim-ldap",
+        "entra-id",
+        "authentik",
+        "auth0"
+      ],
+      "compatibilityAliases": [
+        "shellAccess",
+        "identity-idm",
+        "identity-admin-policy"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "email_rename",
+        "subject_collision",
+        "nested_groups",
+        "guest_identity",
+        "last_admin_lockout"
+      ]
+    },
+    {
+      "key": "people",
+      "version": 1,
+      "displayName": "People",
+      "purpose": "Weave person directory and organization membership independent of provider identity internals.",
+      "canonicalObjects": [
+        "Person",
+        "Membership",
+        "Profile",
+        "ContactMethod",
+        "Team",
+        "Guest",
+        "ServiceAccountRef"
+      ],
+      "capabilityKeys": [
+        "people.read",
+        "people.manage_membership",
+        "people.invite_guest"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "scim-directory",
+        "oidc-profile",
+        "ldap-directory",
+        "weave-directory"
+      ],
+      "compatibilityAliases": [
+        "directory",
+        "members"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "identity_person_merge",
+        "duplicate_profile",
+        "guest_lifecycle",
+        "visibility_rules"
+      ]
+    },
+    {
+      "key": "spaces",
+      "version": 1,
+      "displayName": "Spaces",
+      "purpose": "Cross-domain context anchor for teams, rooms, projects, and governed work surfaces.",
+      "canonicalObjects": [
+        "Space",
+        "SpaceMembership",
+        "RoleBinding",
+        "LinkedChannel",
+        "LinkedBoard",
+        "LinkedCalendar",
+        "LinkedFileRoot",
+        "DecisionLedgerRef"
+      ],
+      "capabilityKeys": [
+        "spaces.read",
+        "spaces.create",
+        "spaces.manage_members",
+        "spaces.link_domain_object"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "weave-space-manifest",
+        "matrix-space",
+        "teams-team",
+        "slack-workspace",
+        "openproject-project",
+        "nextcloud-folder"
+      ],
+      "compatibilityAliases": [
+        "workspace",
+        "room",
+        "project"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "split_provider_ownership",
+        "partial_provisioning",
+        "renamed_upstream_container",
+        "membership_drift"
+      ]
+    },
+    {
+      "key": "chat",
+      "version": 1,
+      "displayName": "Chat",
+      "purpose": "Conversations, threads, messages, reactions, presence, and attachments as contextual communication.",
+      "canonicalObjects": [
+        "Conversation",
+        "Message",
+        "Thread",
+        "Reaction",
+        "Attachment",
+        "Presence",
+        "Membership"
+      ],
+      "capabilityKeys": [
+        "chat.read",
+        "chat.send",
+        "chat.channels",
+        "chat.moderate"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "synapse-homeserver",
+        "microsoft-teams",
+        "slack",
+        "nextcloud-talk"
+      ],
+      "compatibilityAliases": [
+        "messages",
+        "matrix"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "thread_semantics",
+        "e2ee_recovery",
+        "attachment_retention",
+        "mentions_and_cards"
+      ]
+    },
+    {
+      "key": "files",
+      "version": 1,
+      "displayName": "Files",
+      "purpose": "File storage, folders, binary transfer, permissions, versions, and share state.",
+      "canonicalObjects": [
+        "Drive",
+        "Folder",
+        "File",
+        "Version",
+        "Permission",
+        "Share",
+        "Lock",
+        "StorageQuota"
+      ],
+      "capabilityKeys": [
+        "files.read",
+        "files.upload",
+        "files.download",
+        "files.delete",
+        "files.share"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "nextcloud-files",
+        "sharepoint",
+        "onedrive",
+        "s3-compatible",
+        "smb"
+      ],
+      "compatibilityAliases": [
+        "files-docs",
+        "drive"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "permissions",
+        "public_links",
+        "version_history",
+        "locks",
+        "quota",
+        "binary_transfer"
+      ]
+    },
+    {
+      "key": "documents",
+      "version": 1,
+      "displayName": "Documents",
+      "purpose": "Collaborative document sessions and document metadata separate from raw file storage.",
+      "canonicalObjects": [
+        "Document",
+        "EditSession",
+        "Comment",
+        "Suggestion",
+        "CoauthorPresence",
+        "Version",
+        "Export"
+      ],
+      "capabilityKeys": [
+        "documents.view",
+        "documents.edit",
+        "documents.comment",
+        "documents.collaborate"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "collabora",
+        "onlyoffice",
+        "microsoft-365-office",
+        "google-workspace-docs"
+      ],
+      "compatibilityAliases": [
+        "documents-collaboration",
+        "office"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "native_format_conversion",
+        "coauthoring_fidelity",
+        "comments_suggestions",
+        "external_share_links"
+      ]
+    },
+    {
+      "key": "calendar",
+      "version": 1,
+      "displayName": "Calendar",
+      "purpose": "Team/channel calendars, events, availability, resources, and meeting bindings.",
+      "canonicalObjects": [
+        "Calendar",
+        "Event",
+        "Attendee",
+        "Recurrence",
+        "Availability",
+        "Resource",
+        "MeetingRef"
+      ],
+      "capabilityKeys": [
+        "calendar.read",
+        "calendar.manage_events",
+        "calendar.thread_refs"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "nextcloud-caldav",
+        "microsoft-graph-calendar",
+        "google-workspace-calendar",
+        "generic-caldav",
+        "weave-calendar"
+      ],
+      "compatibilityAliases": [
+        "caldav"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "rrule_fidelity",
+        "time_zones",
+        "attendee_responses",
+        "resource_booking",
+        "meeting_links"
+      ]
+    },
+    {
+      "key": "boards",
+      "version": 1,
+      "displayName": "Boards",
+      "purpose": "Work items, status, board/list workflow, dependencies, comments, and decision links.",
+      "canonicalObjects": [
+        "Board",
+        "List",
+        "Task",
+        "Status",
+        "Assignee",
+        "Comment",
+        "AttachmentRef",
+        "Dependency",
+        "CustomField"
+      ],
+      "capabilityKeys": [
+        "boards.read",
+        "boards.update_task",
+        "boards.sync_workspace",
+        "boards.link_decision"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "openproject-primary",
+        "placeholder-boards",
+        "jira",
+        "microsoft-planner",
+        "nextcloud-deck",
+        "vikunja"
+      ],
+      "compatibilityAliases": [
+        "boards-tasks",
+        "tasks"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "custom_fields",
+        "workflow_transitions",
+        "multi_assignee",
+        "comments_attachments",
+        "optimistic_locking"
+      ]
+    },
+    {
+      "key": "calls",
+      "version": 1,
+      "displayName": "Calls",
+      "purpose": "Meeting join/host capability, media sessions, participant state, recording/captions policy, and consent.",
+      "canonicalObjects": [
+        "Meeting",
+        "MediaSession",
+        "Participant",
+        "TokenGrant",
+        "Recording",
+        "Caption",
+        "ConsentRecord"
+      ],
+      "capabilityKeys": [
+        "meetings.join",
+        "meetings.host",
+        "meetings.recording_policy",
+        "calls.manage_session"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "livekit",
+        "jitsi",
+        "zoom",
+        "microsoft-teams-meetings",
+        "google-meet",
+        "external-meeting-link"
+      ],
+      "compatibilityAliases": [
+        "meetings-calls",
+        "meetings"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "e2ee_boundary",
+        "recording_consent",
+        "token_grants",
+        "accessibility",
+        "external_link_ownership"
+      ]
+    },
+    {
+      "key": "decisions",
+      "version": 1,
+      "displayName": "Decisions",
+      "purpose": "Durable decisions, approvals, references, and audit-friendly reasoning connected to Spaces.",
+      "canonicalObjects": [
+        "Decision",
+        "Proposal",
+        "Approval",
+        "Rationale",
+        "DecisionLink",
+        "EvidenceRef",
+        "Supersession"
+      ],
+      "capabilityKeys": [
+        "decisions.read",
+        "decisions.create",
+        "decisions.approve",
+        "decisions.link"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "weave-decision-ledger",
+        "openproject-wiki",
+        "nextcloud-docs",
+        "github-issues"
+      ],
+      "compatibilityAliases": [
+        "decisions-evidence",
+        "decision-ledger"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "legal_retention",
+        "stale_links",
+        "conflicting_sources",
+        "permissioned_rationale"
+      ]
+    },
+    {
+      "key": "notifications",
+      "version": 1,
+      "displayName": "Notifications",
+      "purpose": "Product-level notification preferences, routing, digesting, and delivery evidence.",
+      "canonicalObjects": [
+        "Notification",
+        "Preference",
+        "Channel",
+        "Digest",
+        "DeliveryAttempt",
+        "Subscription"
+      ],
+      "capabilityKeys": [
+        "notifications.read",
+        "notifications.manage_preferences",
+        "notifications.send_system"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "weave-notifications",
+        "email-smtp",
+        "push",
+        "matrix-notifications",
+        "slack-notifications",
+        "teams-notifications",
+        "webhook"
+      ],
+      "compatibilityAliases": [
+        "alerts"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "duplicate_delivery",
+        "unsubscribe_semantics",
+        "cross_provider_identity",
+        "rate_limits"
+      ]
+    },
+    {
+      "key": "health",
+      "version": 1,
+      "displayName": "Health",
+      "purpose": "Admin/operator readiness, provider diagnostics, support bundles, backup/restore, and release evidence.",
+      "canonicalObjects": [
+        "ReadinessCard",
+        "Diagnostic",
+        "SupportBundle",
+        "BackupJob",
+        "RestoreDrill",
+        "EvidenceItem",
+        "AuditRef"
+      ],
+      "capabilityKeys": [
+        "health.read",
+        "health.run_diagnostic",
+        "health.export_support_bundle",
+        "backup.restore.verify"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "weave-health-facade",
+        "provider-stack-health",
+        "release-evidence"
+      ],
+      "compatibilityAliases": [
+        "admin-control-plane",
+        "workspace-health",
+        "manuals-help",
+        "release-evidence"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "raw_provider_leakage",
+        "secret_redaction",
+        "false_green_state",
+        "missing_restore_evidence"
+      ]
+    },
+    {
+      "key": "weaver",
+      "version": 1,
+      "displayName": "Weaver",
+      "purpose": "Optional per-user OpenClaw-derived assistant runtime governed by organization policy, member opt-in, tool grants, sandboxing, and audit.",
+      "canonicalObjects": [
+        "RuntimeProfile",
+        "ToolGrant",
+        "SkillPackage",
+        "Sandbox",
+        "ApprovalPolicy",
+        "AuditEvent",
+        "OptInState"
+      ],
+      "capabilityKeys": [
+        "weaver.profile.read",
+        "weaver.runtime.opt_in",
+        "weaver.tool.invoke",
+        "weaver.admin.manage_grants"
+      ],
+      "memberStates": [
+        "available",
+        "disabled_by_policy",
+        "not_configured",
+        "degraded",
+        "unavailable",
+        "coming_later"
+      ],
+      "adminStates": [
+        "provider_not_configured",
+        "secret_missing",
+        "ready",
+        "degraded",
+        "dry_run_required",
+        "lossy_mapping_pending",
+        "apply_blocked",
+        "migration_ready"
+      ],
+      "sourceOfTruthModes": [
+        "weave_owned",
+        "provider_owned",
+        "shared_with_precedence",
+        "external_reference"
+      ],
+      "providerCandidates": [
+        "openclaw-derived-profile"
+      ],
+      "compatibilityAliases": [
+        "assistant",
+        "personal-assistant"
+      ],
+      "portabilityRequirements": [
+        "export_report",
+        "import_report",
+        "lossy_report",
+        "conflict_report",
+        "rollback_retention_report",
+        "support_safe_audit"
+      ],
+      "adapterManifestRequirements": [
+        "adapterKey",
+        "domainKeys",
+        "apiProfile",
+        "canonicalObjects",
+        "capabilityKeys",
+        "readinessChecks",
+        "unsupportedFields",
+        "migrationLimits",
+        "auditEvents",
+        "secretBoundary"
+      ],
+      "portabilityRisks": [
+        "overbroad_tools",
+        "secret_exposure",
+        "cross_user_data_bleed",
+        "group_chat_consent",
+        "unaudited_actions"
+      ]
+    }
+  ]
+}

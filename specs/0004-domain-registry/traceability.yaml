@@ -1,0 +1,19 @@
+spec_id: WEAVE-SPEC-0004
+github_issues:
+  - 427
+  - 428
+  - 429
+  - 438
+  - 439
+  - 442
+artifacts:
+  registry:
+    - server/src/main/resources/canonical-domain-registry-v1.json
+    - specs/0004-domain-registry/canonical-domain-registry-v1.json
+  validation:
+    - tools/domain_registry_check.py
+  docs:
+    - docs/domain-registry-v1.md
+gates:
+  - ./gradlew specContract
+acceptance_features: []
