@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Pin the canonical Weave specification corpus consumed by this implementation repository.",
+  "truthBoundary": {
+    "specificationTruth": "../weave-specs",
+    "implementationEvidenceTruth": "."
+  },
+  "specCorpus": {
+    "localPath": "../weave-specs",
+    "gitCommit": "88c4c416b74422a9c62137a0b5dd89370b1ce743",
+    "manifest": "generated/manifest.json",
+    "lintCommand": "python3 tools/spec_lint.py"
+  },
+  "generatedProjectionPolicy": "Implementation-repo specs/docs may project or prove conformance to this corpus, but must not redefine fachliche product/domain truth."
+}

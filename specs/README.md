@@ -1,29 +1,33 @@
-# Weave specs
+# Weave specs in the implementation repository
 
-Repo-local specs are the versioned product/system contracts for Weave. They are the source for implementation, review, evidence, and generated documentation. A wiki or NotebookLM notebook may summarize these files, but must not replace them as truth.
+This directory is **not** the canonical fachliche specification truth anymore.
 
-## Workflow
+Canonical specification truth lives in the pinned Weave Specification Corpus referenced by:
 
-1. Copy `.specify/templates/weave-spec-template.md` into `specs/NNNN-slug/spec.md`.
-2. Keep status `draft` or `proposed` while product-core questions remain.
-3. Add `plan.md`, `tasks.md`, `traceability.yaml`, and contract/evidence folders only when the slice is ready for implementation planning.
-4. Add or update Gherkin and `e2e/scenario_mappings.json` before product implementation.
-5. Run `./gradlew specContract` and `./gradlew acceptanceContract` before review.
-6. Use `weave-co-leader` to brief specialists with small scopes and required gates.
+- `specs/weave-specs.lock.json`
+- default local corpus path: `../weave-specs`
 
-## Status rule
+This implementation repository is the **conformance and evidence truth**. It contains code, tests, CI gates, release evidence, generated projections, and historical repo-local specs that must conform to the pinned spec corpus.
 
-`draft` and `proposed` specs may contain `[NEEDS CLARIFICATION: ...]`. `accepted`, `implementing`, and `implemented` specs may not.
+## Truth boundary
 
-## Directory convention
+- Specification truth: the corpus at the lockfile `specCorpus.localPath` (default `../weave-specs`), pinned by `specs/weave-specs.lock.json`.
+- Implementation/evidence truth: this repo, GitHub issues/PRs/checks, CI artifacts, and checked-in release evidence.
+- Generated docs/indexes/projections are not canonical.
+- Legacy `specs/0000-*` through `specs/0007-*` remain transitional implementation-conformance artifacts until migrated into the spec corpus. They must not override the corpus.
 
-```text
-specs/0001-short-slug/
-├── spec.md
-├── plan.md
-├── tasks.md
-├── traceability.yaml
-├── contracts/
-├── acceptance/
-└── evidence/
+## Required workflow
+
+1. Identify governing spec corpus files first.
+2. Inspect this repo only after the fachliche spec boundary is known.
+3. If spec corpus and repo reality disagree, create an explicit spec-change or conformance-fix task.
+4. Run `./gradlew specCorpusConformance` before any spec-driven implementation claim.
+5. Run the smallest relevant implementation gates after conformance is established.
+
+## Current local conformance gate
+
+```bash
+./gradlew specCorpusConformance
 ```
+
+This validates that the pinned spec corpus exists, is on the expected commit, has the required domain/steering files, and lint-passes.
