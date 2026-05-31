@@ -10,7 +10,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
-- Nothing yet.
+- Provider registry and release evidence now distinguish `contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, and `release_ready` providers so contract-only seams cannot appear generally available to members.
 
 ## Fixed
 

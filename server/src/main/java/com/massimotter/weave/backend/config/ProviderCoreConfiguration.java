@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderPort;
+import com.massimotter.weave.backend.provider.ProviderRealityLevel;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.provider.StaticProviderPort;
@@ -70,7 +71,7 @@ public class ProviderCoreConfiguration {
                 "Calendar facade is backend-owned and maps workspace/team/channel scopes to CalDAV when configured.",
                 Set.of("list-events", "read-event", "create-event", "update-event", "delete-event", "client-setup-metadata"),
                 Set.of("private-user-calendar-ingestion", "credential-export", "direct-flutter-caldav"),
-                List.of("nextcloud-caldav", "generic-caldav", "microsoft-graph-calendar", "workspace-calendar", "team-channel-calendar"),
+                List.of("nextcloud-caldav", "microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
                 Map.of("facade", "/api/calendar", "scopeModel", "workspace/team/channel"));
     }
 
@@ -146,7 +147,8 @@ public class ProviderCoreConfiguration {
                         "raw-provider-errors"),
                 List.of("meetings-provider-not-configured", "meetings-provider-disabled", "meetings-provider-unavailable", "meetings-token-unavailable"),
                 "support-safe: no LiveKit API keys, API secrets, bearer tokens, room tokens, credential-bearing URLs, or raw provider errors",
-                List.of("livekit", "microsoft-teams-meetings", "managed-meetings-provider", "external-meeting-link"),
+                List.of("livekit", "jitsi", "zoom", "microsoft-teams-meetings", "google-meet", "external-meeting-link"),
+                ProviderRealityLevel.CONFIGURED_READINESS,
                 Map.of(
                         "activeProvider", "livekit",
                         "livekitUrlConfigured", liveKit.urlConfigured(),

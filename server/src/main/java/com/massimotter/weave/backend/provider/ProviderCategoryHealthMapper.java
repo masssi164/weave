@@ -136,11 +136,16 @@ final class ProviderCategoryHealthMapper {
         ProviderCategoryReadiness readiness = selection.selectedByAdmin() || modules.isEmpty()
                 ? fromCapability(capability)
                 : ProviderCategoryReadiness.MISCONFIGURED;
+        ProviderRealityLevel realityLevel = categoryRealityLevel(category, providers, modules, selection);
+        String memberState = memberCapabilityState(capability.policyState(), readiness, realityLevel, selection.selectedByAdmin() || modules.isEmpty());
         return new ProviderCategoryStatusResponse(
                 category,
                 label,
                 ProviderCapabilityContracts.contract(category, modules),
                 readiness,
+                realityLevel,
+                memberState,
+                realityLevelRemediation(realityLevel),
                 capability.policyState(),
                 selection.selectedByAdmin() || modules.isEmpty()
                         ? capability.memberImpact()
@@ -181,11 +186,16 @@ final class ProviderCategoryHealthMapper {
                 : readiness == ProviderCategoryReadiness.MISCONFIGURED
                         ? WorkspaceCapabilityPolicyState.UNAVAILABLE
                         : WorkspaceCapabilityPolicyState.ALLOWED;
+        ProviderRealityLevel realityLevel = categoryRealityLevel(category, providers, modules, selection);
+        String memberState = memberCapabilityState(policyState, readiness, realityLevel, selection.selectedByAdmin());
         return new ProviderCategoryStatusResponse(
                 category,
                 label,
                 ProviderCapabilityContracts.contract(category, modules),
                 readiness,
+                realityLevel,
+                memberState,
+                realityLevelRemediation(realityLevel),
                 policyState,
                 selection.selectedByAdmin() ? memberImpact : "Admin provider mapping is required before this category becomes product-ready.",
                 moduleNames(modules),
@@ -201,6 +211,62 @@ final class ProviderCategoryHealthMapper {
                         "providerConfigSource", ProviderRegistry.PROVIDER_CONFIG_SOURCE,
                         "selectionRequiredBeforeProviderUse", !selection.selectedByAdmin(),
                         "diagnosticsRedacted", true)));
+    }
+
+    private static ProviderRealityLevel categoryRealityLevel(
+            String category,
+            List<ProviderStatusResponse> providers,
+            Set<ProviderModule> modules,
+            SelectionView selection) {
+        List<ProviderStatusResponse> matching = matching(providers, modules);
+        if (matching.isEmpty()) {
+            return ProviderCapabilityContracts.defaultRealityLevel(category);
+        }
+        return matching.stream()
+                .filter(provider -> !selection.selectedByAdmin()
+                        || provider.providerKey().equals(selection.providerKey())
+                        || provider.candidates().contains(selection.providerKey()))
+                .map(ProviderStatusResponse::providerRealityLevel)
+                .max(ProviderRealityLevel.priorityComparator())
+                .orElse(ProviderRealityLevel.CONTRACT_ONLY);
+    }
+
+    private static String memberCapabilityState(
+            WorkspaceCapabilityPolicyState policyState,
+            ProviderCategoryReadiness readiness,
+            ProviderRealityLevel realityLevel,
+            boolean selectedOrBuiltin) {
+        if (policyState == WorkspaceCapabilityPolicyState.POLICY_BLOCKED
+                || policyState == WorkspaceCapabilityPolicyState.DISABLED) {
+            return "disabled_by_policy";
+        }
+        if (!selectedOrBuiltin) {
+            return "not_configured";
+        }
+        if (readiness == ProviderCategoryReadiness.DEGRADED) {
+            return "degraded";
+        }
+        if (readiness == ProviderCategoryReadiness.READY && realityLevel.canBeMemberAvailable()) {
+            return "available";
+        }
+        if (realityLevel == ProviderRealityLevel.CONTRACT_ONLY) {
+            return "coming_later";
+        }
+        if (readiness == ProviderCategoryReadiness.MISCONFIGURED) {
+            return "not_configured";
+        }
+        return "unavailable";
+    }
+
+    private static String realityLevelRemediation(ProviderRealityLevel realityLevel) {
+        return switch (realityLevel) {
+            case CONTRACT_ONLY -> "Contract-only candidate: keep member state unavailable/coming_later until adapter code, readiness evidence, and policy gates exist.";
+            case CONFIGURED_READINESS -> "Configuration/readiness candidate: finish backend adapter proof before claiming live member availability.";
+            case LIVE_ADAPTER_READ -> "Read adapter exists: prove write/delete boundaries, audit, and support-bundle redaction before broad availability.";
+            case LIVE_ADAPTER_WRITE -> "Read/write adapter exists: complete migration dry-run/apply evidence and rollback/retention notes before replacement claims.";
+            case MIGRATION_APPLY_READY -> "Migration apply is ready: complete release gate evidence before general availability claims.";
+            case RELEASE_READY -> "Release-ready provider: keep policy, readiness, support-safe diagnostics, and release evidence current.";
+        };
     }
 
     private static ProviderCategoryReadiness fromCapability(WorkspaceCapabilityStatusResponse capability) {
@@ -253,6 +319,7 @@ final class ProviderCategoryHealthMapper {
                         provider.configured(),
                         reachable(provider),
                         selection.selectedByAdmin() ? provider.readiness() : readiness.value(),
+                        provider.providerRealityLevel(),
                         provider.failClosed(),
                         providerEvidenceDiagnostics(provider, selection),
                         evidenceTimestamp))
@@ -278,6 +345,7 @@ final class ProviderCategoryHealthMapper {
         diagnostics.put("bootstrapSuggestionOnly", !selection.selectedByAdmin());
         diagnostics.put("supportSafe", provider.supportSafe());
         diagnostics.put("failClosed", provider.failClosed());
+        diagnostics.put("providerRealityLevel", provider.providerRealityLevel().value());
         diagnostics.put("supportedCapabilityCount", provider.supportedCapabilities().size());
         diagnostics.put("unsupportedOperationCount", provider.unsupportedOperations().size());
         diagnostics.put("supportSafeErrorCodes", provider.supportSafeErrorCodes());
@@ -298,6 +366,7 @@ final class ProviderCategoryHealthMapper {
         diagnostics.put("configuredProviderCount", matching.stream().filter(ProviderStatusResponse::configured).count());
         diagnostics.put("allSupportSafe", matching.stream().allMatch(ProviderStatusResponse::supportSafe));
         diagnostics.put("allFailClosed", matching.stream().allMatch(ProviderStatusResponse::failClosed));
+        diagnostics.put("providerRealityLevels", matching.stream().map(provider -> provider.providerRealityLevel().value()).distinct().sorted().toList());
         diagnostics.put("secretsReturned", false);
         diagnostics.put("rawProviderErrorsReturned", false);
         diagnostics.putAll(extra);

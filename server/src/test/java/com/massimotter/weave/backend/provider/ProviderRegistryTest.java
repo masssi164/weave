@@ -60,7 +60,7 @@ class ProviderRegistryTest {
                 .filter(category -> category.category().equals("weaver"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(weaver.providerCandidates()).containsExactly("openclaw-governed-runtime", "weaver-runtime-disabled");
+        assertThat(weaver.providerCandidates()).containsExactly("openclaw-derived-profile");
         assertThat(response.providers().get(0).enabled()).isFalse();
         assertThat(response.providers().get(0).diagnostics()).containsEntry("selectedByAdmin", false);
     }
@@ -99,12 +99,16 @@ class ProviderRegistryTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(chat.readiness()).isEqualTo(ProviderCategoryReadiness.READY);
+        assertThat(chat.providerRealityLevel()).isEqualTo(ProviderRealityLevel.CONTRACT_ONLY);
+        assertThat(chat.memberCapabilityState()).isEqualTo("coming_later");
+        assertThat(chat.realityLevelRemediation()).contains("Contract-only");
         assertThat(chat.selectedByAdmin()).isTrue();
         assertThat(chat.selectedProviderKey()).isEqualTo("slack");
         assertThat(chat.choiceModel()).isEqualTo("external_existing_provider");
         assertThat(chat.lossyMappingNotes()).contains("Thread and channel semantics require migration dry-run.");
         assertThat(response.providers().get(0).enabled()).isTrue();
         assertThat(response.providers().get(0).configured()).isFalse();
+        assertThat(response.providers().get(0).providerRealityLevel()).isEqualTo(ProviderRealityLevel.CONTRACT_ONLY);
         assertThat(response.providers().get(0).diagnostics())
                 .containsEntry("selectedByAdmin", true)
                 .containsEntry("secretsReturned", false)
