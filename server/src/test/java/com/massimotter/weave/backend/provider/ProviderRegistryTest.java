@@ -60,7 +60,7 @@ class ProviderRegistryTest {
                 .filter(category -> category.category().equals("weaver"))
                 .findFirst()
                 .orElseThrow();
-        assertThat(weaver.providerCandidates()).containsExactly("openclaw-governed-runtime", "weaver-runtime-disabled");
+        assertThat(weaver.providerCandidates()).containsExactly("openclaw-derived-profile");
         assertThat(response.providers().get(0).enabled()).isFalse();
         assertThat(response.providers().get(0).diagnostics()).containsEntry("selectedByAdmin", false);
     }

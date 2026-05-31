@@ -43,7 +43,7 @@ public final class ProviderCapabilityContracts {
             Map.entry("calendar", new Definition(
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
                     List.of("nextcloud-caldav"),
-                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "workspace-calendar", "team-channel-calendar"),
+                    List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
                     List.of("Calendar", "Event", "Attendee", "Recurrence", "Availability", "Resource"),
                     "workspace/team/channel calendar source is selected by admin; private personal calendars are not the default product source",
                     List.of("RRULE fidelity", "time zones", "resource booking", "attendee response semantics", "online meeting links"),
@@ -52,7 +52,7 @@ public final class ProviderCapabilityContracts {
             Map.entry("boards-tasks", new Definition(
                     List.of("boards.read", "boards.update_task", "boards.sync_workspace"),
                     List.of("openproject-primary"),
-                    List.of("microsoft-planner", "jira", "nextcloud-deck", "vikunja"),
+                    List.of("placeholder-boards", "jira", "microsoft-planner", "nextcloud-deck", "vikunja"),
                     List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "Attachment", "Dependency", "CustomField"),
                     "selected work-management provider owns workflow/status semantics unless Weave-owned task service is explicitly selected",
                     List.of("custom fields", "multi-assignee", "workflow transitions", "dependencies", "comments", "attachments", "optimistic locking"),
@@ -61,7 +61,7 @@ public final class ProviderCapabilityContracts {
             Map.entry("meetings-calls", new Definition(
                     List.of("meetings.join", "meetings.host", "meetings.recording_policy"),
                     List.of("livekit"),
-                    List.of("microsoft-teams-meetings", "zoom", "google-meet", "jitsi", "managed-meetings-provider", "external-meeting-link"),
+                    List.of("jitsi", "zoom", "microsoft-teams-meetings", "google-meet", "external-meeting-link"),
                     List.of("Meeting", "Participant", "Recording", "Captions", "MediaSession"),
                     "meeting provider owns media session; Weave owns token facade, calendar/context binding, and consent/readiness state",
                     List.of("recording retention", "captions", "external join links", "lobby/guest semantics", "provider consent"),
@@ -69,8 +69,8 @@ public final class ProviderCapabilityContracts {
                     "meeting replacement requires token/recording/consent dry-run and clear E2EE/media-boundary note")),
             Map.entry("documents-collaboration", new Definition(
                     List.of("documents.view", "documents.edit", "documents.comment", "documents.collaborate"),
-                    List.of("onlyoffice-community"),
-                    List.of("microsoft-365-office-graph", "collabora-code", "google-workspace-docs", "wopi-host"),
+                    List.of("onlyoffice"),
+                    List.of("collabora", "microsoft-365-office", "google-workspace-docs"),
                     List.of("EditSession", "File", "Version", "Permission", "Lock", "Comment"),
                     "document editor owns edit session; storage provider owns file bytes and versions",
                     List.of("co-edit locks", "comments", "track changes", "format fidelity", "license/edition constraints"),
@@ -78,8 +78,8 @@ public final class ProviderCapabilityContracts {
                     "docs replacement requires WOPI/session/format fidelity dry-run and license/commercial-use risk note")),
             Map.entry("decisions-evidence", new Definition(
                     List.of("decisions.read", "decisions.record", "evidence.attach", "evidence.audit_read"),
-                    List.of("weave-decisions-evidence"),
-                    List.of("confluence-decisions", "notion-databases", "sharepoint-lists"),
+                    List.of("weave-decision-ledger"),
+                    List.of("openproject-wiki", "nextcloud-docs", "github-issues"),
                     List.of("Decision", "SourceRef", "Status", "AuditRef"),
                     "Weave owns canonical decision records unless imported source is explicitly declared authoritative",
                     List.of("external page permissions", "source citation drift", "status mapping"),
@@ -96,8 +96,8 @@ public final class ProviderCapabilityContracts {
                     "manuals replacement requires accessibility/search/permission dry-run")),
             Map.entry("release-evidence", new Definition(
                     List.of("release_evidence.read", "release_evidence.manage", "release_notes.draft"),
-                    List.of("weave-release-notes"),
-                    List.of("github-releases", "gitlab-releases", "jira-releases"),
+                    List.of("release-evidence"),
+                    List.of("weave-health-facade", "provider-stack-health"),
                     List.of("Release", "Evidence", "CheckRun", "ReleaseNote", "SupportBundleRef"),
                     "Weave release evidence owns canonical release posture; external systems provide source evidence",
                     List.of("CI provider retention", "artifact redaction", "release-note category mapping"),
@@ -105,8 +105,8 @@ public final class ProviderCapabilityContracts {
                     "release evidence replacement requires artifact/redaction/category dry-run")),
             Map.entry("admin-control-plane", new Definition(
                     List.of("admin_control_plane.readiness_read", "admin_control_plane.adapter_select", "admin_control_plane.support_bundle"),
-                    List.of("weave-admin-console"),
-                    List.of("service-now", "grafana", "backstage"),
+                    List.of("weave-health-facade"),
+                    List.of("provider-stack-health", "release-evidence"),
                     List.of("ProviderConfig", "Readiness", "RiskNote", "SupportBundle", "AuditEvent"),
                     "Weave admin control plane owns readiness and policy explanations; external tools may mirror or ticket events",
                     List.of("redaction vs usefulness", "ticket synchronization", "delegated operator scope"),
@@ -114,8 +114,8 @@ public final class ProviderCapabilityContracts {
                     "admin tooling replacement requires policy/readiness/audit dry-run and delegated-scope review")),
             Map.entry("weaver", new Definition(
                     List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
-                    List.of("weaver-runtime-disabled"),
-                    List.of("openclaw-governed-runtime"),
+                    List.of("openclaw-derived-profile"),
+                    List.of(),
                     List.of("RuntimeProfile", "ToolCapability", "ApprovalReceipt", "AuditEvent"),
                     "organization policy owns runtime/tool allowlist; user rights constrain every Weaver action",
                     List.of("tool scope", "secret handling", "sandboxing", "group-chat consent", "step-up approvals"),

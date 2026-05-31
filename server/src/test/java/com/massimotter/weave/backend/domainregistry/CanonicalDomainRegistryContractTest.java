@@ -71,6 +71,13 @@ class CanonicalDomainRegistryContractTest {
                 .containsEntry("meetings-calls", "calls")
                 .containsEntry("documents-collaboration", "documents");
         assertThat(registry.providerNamesInMemberContractsAllowed()).isFalse();
+        assertThat(providerRealityLevels(registry, "calendar"))
+                .containsEntry("weave-calendar", "contract_only")
+                .doesNotContainKeys("workspace-calendar", "team-channel-calendar");
+        assertThat(providerRealityLevels(registry, "documents"))
+                .containsEntry("onlyoffice", "contract_only")
+                .containsEntry("collabora", "contract_only")
+                .doesNotContainKeys("onlyoffice-community", "collabora-code");
 
         registry.domains().forEach(domain -> {
             assertThat(domain.version()).isEqualTo(1);
@@ -165,6 +172,14 @@ class CanonicalDomainRegistryContractTest {
                 "lossy_with_report",
                 "blocked_nonportable",
                 "provider_unexportable");
+    }
+
+    private java.util.Map<String, String> providerRealityLevels(CanonicalDomainRegistryResponse registry, String domainKey) {
+        return registry.domains().stream()
+                .filter(domain -> domain.key().equals(domainKey))
+                .findFirst()
+                .orElseThrow()
+                .providerRealityLevelByCandidate();
     }
 
     private List<String> objects(CanonicalDomainRegistryResponse registry, String domainKey) {

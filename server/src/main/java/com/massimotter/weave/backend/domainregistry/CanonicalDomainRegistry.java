@@ -181,31 +181,44 @@ public final class CanonicalDomainRegistry {
                     "microsoft-graph-calendar", "contract_only",
                     "google-workspace-calendar", "contract_only",
                     "generic-caldav", "live_adapter_read",
-                    "workspace-calendar", "configured_readiness",
-                    "team-channel-calendar", "contract_only");
+                    "weave-calendar", "contract_only");
             case "boards" -> Map.of(
                     "openproject-primary", "release_ready",
-                    "microsoft-planner", "contract_only",
+                    "placeholder-boards", "contract_only",
                     "jira", "contract_only",
+                    "microsoft-planner", "contract_only",
                     "nextcloud-deck", "live_adapter_read",
                     "vikunja", "contract_only");
             case "calls" -> Map.of(
                     "livekit", "configured_readiness",
-                    "microsoft-teams-meetings", "contract_only",
-                    "zoom", "contract_only",
-                    "google-meet", "contract_only",
                     "jitsi", "contract_only",
-                    "managed-meetings-provider", "contract_only",
+                    "zoom", "contract_only",
+                    "microsoft-teams-meetings", "contract_only",
+                    "google-meet", "contract_only",
                     "external-meeting-link", "contract_only");
             case "documents" -> Map.of(
-                    "onlyoffice-community", "contract_only",
-                    "microsoft-365-office-graph", "contract_only",
-                    "collabora-code", "contract_only",
-                    "google-workspace-docs", "contract_only",
-                    "wopi-host", "contract_only");
-            case "decisions" -> Map.of("weave-decisions-evidence", "release_ready");
-            case "health" -> Map.of("weave-admin-console", "release_ready", "weave-release-notes", "release_ready");
-            case "weaver" -> Map.of("weaver-runtime-disabled", "contract_only", "openclaw-governed-runtime", "contract_only");
+                    "collabora", "contract_only",
+                    "onlyoffice", "contract_only",
+                    "microsoft-365-office", "contract_only",
+                    "google-workspace-docs", "contract_only");
+            case "decisions" -> Map.of(
+                    "weave-decision-ledger", "contract_only",
+                    "openproject-wiki", "contract_only",
+                    "nextcloud-docs", "contract_only",
+                    "github-issues", "contract_only");
+            case "notifications" -> Map.of(
+                    "weave-notifications", "contract_only",
+                    "email-smtp", "contract_only",
+                    "push", "contract_only",
+                    "matrix-notifications", "contract_only",
+                    "slack-notifications", "contract_only",
+                    "teams-notifications", "contract_only",
+                    "webhook", "contract_only");
+            case "health" -> Map.of(
+                    "weave-health-facade", "contract_only",
+                    "provider-stack-health", "contract_only",
+                    "release-evidence", "contract_only");
+            case "weaver" -> Map.of("openclaw-derived-profile", "contract_only");
             default -> Map.of(key + "-weave-owned", "release_ready");
         };
     }

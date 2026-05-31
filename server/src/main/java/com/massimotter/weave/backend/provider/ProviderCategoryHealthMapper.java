@@ -227,7 +227,7 @@ final class ProviderCategoryHealthMapper {
                         || provider.providerKey().equals(selection.providerKey())
                         || provider.candidates().contains(selection.providerKey()))
                 .map(ProviderStatusResponse::providerRealityLevel)
-                .max(Comparator.comparingInt(Enum::ordinal))
+                .max(ProviderRealityLevel.priorityComparator())
                 .orElse(ProviderRealityLevel.CONTRACT_ONLY);
     }
 
