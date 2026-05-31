@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "sprint": {
+    "number": 12,
+    "goal": "Provider portability and lifecycle readiness under the pinned Weave Specification Corpus."
+  },
+  "specCorpus": {
+    "lockFile": "specs/weave-specs.lock.json",
+    "requiredGate": "./gradlew specCorpusConformance"
+  },
+  "milestone": {
+    "title": "Sprint 12 — Provider Portability & Lifecycle Readiness",
+    "description": "Provider portability, lifecycle, accessibility, Office/WOPI, identity, support, and release-ops readiness driven by the pinned Weave Specification Corpus."
+  },
+  "project": {
+    "owner": "masssi164",
+    "number": 2,
+    "title": "Weave Delivery Board",
+    "defaultStatus": "Todo"
+  },
+  "issueDefaults": {
+    "releaseNotes": "exactly-one-release-notes-label-per-PR",
+    "dependencyNotation": "Dependencies/Blocks section in issue body",
+    "truthOrder": [
+      "spec-corpus",
+      "implementation-repo",
+      "GitHub",
+      "CI/evidence"
+    ]
+  },
+  "issues": [
+    {
+      "number": 499,
+      "title": "chore(program): run Sprint 12 as provider-portability and lifecycle readiness",
+      "labels": [
+        "release-blocker",
+        "priority:p0",
+        "type:epic",
+        "phase:0-governance",
+        "evidence:required",
+        "track:sprint-12"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 500,
+      "title": "architecture(portability): define provider portability schema v2 and adapter mapping reports",
+      "labels": [
+        "release-blocker",
+        "priority:p0",
+        "type:story",
+        "domain:portability",
+        "phase:1-architecture",
+        "area:server",
+        "area:docs",
+        "evidence:required",
+        "track:sprint-12"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 501,
+      "title": "platform(portability): implement dry-run evidence contract for Files, Calendar, Boards, and Chat",
+      "labels": [
+        "release-blocker",
+        "priority:p0",
+        "type:story",
+        "domain:boards",
+        "domain:portability",
+        "phase:2-control-plane",
+        "area:server",
+        "area:admin-console",
+        "domain:chat",
+        "domain:files",
+        "domain:calendar",
+        "evidence:required",
+        "track:sprint-12"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 502,
+      "title": "adr(documents): choose first Office/WOPI provider path and security model",
+      "labels": [
+        "priority:p0",
+        "type:docs",
+        "phase:1-architecture",
+        "area:server",
+        "area:docs",
+        "domain:documents",
+        "evidence:required",
+        "guarded",
+        "track:sprint-12"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 503,
+      "title": "identity(lifecycle): add SCIM, reconcile, offboarding, and recertification contract after Keycloak baseline",
+      "labels": [
+        "release-blocker",
+        "priority:p0",
+        "type:story",
+        "domain:identity",
+        "phase:2-control-plane",
+        "area:server",
+        "area:admin-console",
+        "domain:control-plane",
+        "evidence:required",
+        "track:sprint-12"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 504,
+      "title": "chat(matrix): lock E2EE, export, retention, and support diagnostics product boundaries",
+      "labels": [
+        "priority:p1",
+        "type:story",
+        "area:server",
+        "area:client",
+        "area:docs",
+        "domain:chat",
+        "evidence:required",
+        "track:sprint-12",
+        "phase:3-domain-readiness"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 505,
+      "title": "weaver(preflight): write sandbox and per-user runtime isolation ADR",
+      "labels": [
+        "priority:p1",
+        "type:docs",
+        "domain:weaver",
+        "area:infra",
+        "area:docs",
+        "evidence:required",
+        "guarded",
+        "track:sprint-12",
+        "phase:4-weaver-preflight"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 506,
+      "title": "weaver(preflight): define signed skills/tools registry and SecretRef/OAuth contract",
+      "labels": [
+        "priority:p1",
+        "type:story",
+        "domain:weaver",
+        "area:server",
+        "area:docs",
+        "evidence:required",
+        "guarded",
+        "track:sprint-12",
+        "phase:4-weaver-preflight"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 507,
+      "title": "quality(accessibility): replace waivers with permanent release-promotion gate",
+      "labels": [
+        "release-blocker",
+        "priority:p0",
+        "type:task",
+        "domain:health",
+        "area:client",
+        "area:admin-console",
+        "area:e2e",
+        "area:docs",
+        "evidence:required",
+        "track:sprint-12",
+        "phase:5-release-ops"
+      ],
+      "projectStatus": "Todo"
+    },
+    {
+      "number": 508,
+      "title": "ops(self-hosted): define provider-aware backup, restore, upgrade, and schema migration contract",
+      "labels": [
+        "priority:p1",
+        "type:story",
+        "domain:health",
+        "domain:portability",
+        "area:infra",
+        "area:docs",
+        "evidence:required",
+        "track:sprint-12",
+        "phase:5-release-ops"
+      ],
+      "projectStatus": "Todo"
+    }
+  ]
+}
