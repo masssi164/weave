@@ -636,14 +636,6 @@
           ]
         },
         {
-          "path": "admin-console/src/App.test.tsx",
-          "fragments": [
-            "renders support-safe Weaver projection labels for chat, models, tools, skills, and MCPs",
-            "receipt://weaver/runtime/profile-regeneration",
-            "client_secret|access_token|refresh token|bearer|openclaw\\.json|credential="
-          ]
-        },
-        {
           "path": "infra/docs/weaver-runtime-lifecycle.md",
           "fragments": [
             "One active user/trust boundary maps to one active Weaver runtime context",
