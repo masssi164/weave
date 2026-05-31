@@ -82,7 +82,7 @@ v0.1 is dogfood-production, not preview. A normal member should see Weave-owned 
 | v0.1 is dogfood-production, not preview/scaffold UX for normal members. | **Ready** | [v0.1 Golden Path readiness](docs/v0.1-golden-path.md), [ISO 9241-110 dogfood UX gate](docs/iso-9241-110-dogfood-ux-gate.md). |
 | Members work in provider-neutral Weave domains. | **Ready foundation** | [Canonical domains](docs/architecture/canonical-domains.md), [Canonical feature models](docs/canonical-feature-models.md), [Architecture](docs/architecture.md). |
 | Normal members do not configure raw providers, secrets, OIDC clients, or diagnostics. | **Ready boundary** | [Admin-provisioned first use](docs/admin-provisioned-first-use.md), [Admin/Operator Handbook](docs/admin-operator-handbook.md). |
-| Provider adapters are replaceable behind Weave-owned contracts. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md), [Provider replacement and anti-silo contract](docs/provider-replacement-and-anti-silo-contract.md). Replacement apply is limited to domains with explicit dry-run/apply/rollback evidence. |
+| Provider adapters are replaceable behind Weave-owned contracts. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md), [Provider replacement and anti-silo contract](docs/provider-replacement-and-anti-silo-contract.md). Provider reality levels (`contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, `release_ready`) prevent contract-only candidates from being marketed as generally available; replacement apply is limited to domains with explicit dry-run/apply/rollback evidence. |
 | No unaccounted data loss is the portability promise. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md). Unsupported fields, conflicts, archive-only data, and provider-unexportable data must be reported; perfect lossless migration is not claimed. |
 | Calls/meetings use LiveKit readiness today. | **Guarded** | [Meeting architecture decision record](docs/meeting-architecture-decision.md). Join/media claims remain limited to implemented readiness and token facade evidence. |
 | Workspace/Admin Health is the support-safe readiness and diagnostics control plane. | **Ready foundation / expanding** | [Admin-Suite readiness and setup contract](docs/admin-suite-readiness-setup-contract.md), [Quality and acceptance evidence](docs/quality-and-evidence.md). |
@@ -108,11 +108,11 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
-- Nothing yet.
+- Provider registry and release evidence now distinguish `contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, and `release_ready` providers so contract-only seams cannot appear generally available to members.
 
 ## Fixed
 
-- Nothing yet.
+- Nextcloud Files and Calendar adapters now have stronger release-quality coverage for WebDAV/CalDAV error redaction, invalid path rejection, quota/permission/conflict handling, all-day event preservation, and explicit recurrence blocking until a recurrence contract exists.
 
 ## Security
 

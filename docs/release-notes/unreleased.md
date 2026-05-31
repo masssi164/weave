@@ -11,11 +11,11 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
-- Nothing yet.
+- Provider registry and release evidence now distinguish `contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, and `release_ready` providers so contract-only seams cannot appear generally available to members.
 
 ## Fixed
 
-- Nothing yet.
+- Nextcloud Files and Calendar adapters now have stronger release-quality coverage for WebDAV/CalDAV error redaction, invalid path rejection, quota/permission/conflict handling, all-day event preservation, and explicit recurrence blocking until a recurrence contract exists.
 
 ## Security
 

@@ -162,6 +162,16 @@ weave:
     # Mount this path on durable storage for containerized runs.
     storage:
       path: ${WEAVE_PROFILE_STORAGE_PATH:./data/profile-overrides.json}
+  provider:
+    selections:
+      # Persistent Admin Console provider selections. Mount this path on durable storage for server restarts.
+      storage:
+        path: ${WEAVE_PROVIDER_SELECTIONS_STORAGE_PATH:./data/provider-selections.json}
+  audit:
+    events:
+      # Append-only support-safe audit sink for provider/control-plane apply decisions.
+      storage:
+        path: ${WEAVE_AUDIT_EVENTS_STORAGE_PATH:./data/audit-events.jsonl}
   interop:
     enabled: ${WEAVE_INTEROP_ENABLED:false}
     support-bundle-redaction-mode: ${WEAVE_INTEROP_SUPPORT_BUNDLE_REDACTION_MODE:support-safe-redacted}
@@ -180,5 +190,9 @@ weave:
     enabled: ${WEAVE_GUEST_ENABLED:false}
   migration:
     enabled: ${WEAVE_MIGRATION_ENABLED:false}
+    evidence:
+      # Persistent support-safe dry-run/apply evidence. Mount this path on durable storage for server restarts.
+      storage:
+        path: ${WEAVE_MIGRATION_EVIDENCE_STORAGE_PATH:./data/migration-run-evidence.json}
   connectors:
     public-sdk-enabled: ${WEAVE_CONNECTORS_PUBLIC_SDK_ENABLED:false}

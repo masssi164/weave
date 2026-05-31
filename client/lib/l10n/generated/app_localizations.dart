@@ -5358,6 +5358,18 @@ abstract class AppLocalizations {
   /// **'The backend facade could not save that Boards workspace action.'**
   String get boardsWorkspaceActionFailed;
 
+  /// Snackbar after a backend Boards action fails because the provider lock version is stale
+  ///
+  /// In en, this message translates to:
+  /// **'Task changed somewhere else. Refresh the board and try the action again.'**
+  String get boardsWorkspaceActionConflict;
+
+  /// Snackbar after a backend Boards action fails because the provider capability is unsupported
+  ///
+  /// In en, this message translates to:
+  /// **'This board provider cannot apply that action yet. Use a supported move or ask an admin to check provider readiness.'**
+  String get boardsWorkspaceActionUnsupported;
+
   /// Snackbar when moving to the next workspace column is not possible
   ///
   /// In en, this message translates to:

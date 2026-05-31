@@ -10,6 +10,7 @@ REQUIRED_KEYS=['identity','people','spaces','chat','files','documents','calendar
 MEMBER=['available','disabled_by_policy','not_configured','degraded','unavailable','coming_later']
 ADMIN=['provider_not_configured','secret_missing','ready','degraded','dry_run_required','lossy_mapping_pending','apply_blocked','migration_ready']
 MANIFEST=['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary']
+REALITY=['contract_only','configured_readiness','live_adapter_read','live_adapter_write','migration_apply_ready','release_ready']
 def fail(m):
  print(f'domain-registry-check: {m}', file=sys.stderr); raise SystemExit(1)
 def load(p):
@@ -23,6 +24,7 @@ def main():
  if data.get('memberStates')!=MEMBER: fail('top-level member states are not canonical')
  if data.get('adminStates')!=ADMIN: fail('top-level admin states are not canonical')
  if data.get('adapterManifestRequirements')!=MANIFEST: fail('top-level adapter manifest requirements are incomplete')
+ if data.get('providerRealityLevels')!=REALITY: fail('top-level provider reality levels are not canonical')
  domains=data.get('domains')
  if not isinstance(domains,list): fail('domains must be a list')
  by_key={d.get('key'):d for d in domains if isinstance(d,dict)}
@@ -44,6 +46,11 @@ def main():
    if not isinstance(obj,str) or not obj[:1].isupper() or '/' in obj: fail(f'{key} canonical object {obj!r} must be a PascalCase Weave object name')
   for capability in d['capabilityKeys']:
    if not isinstance(capability,str) or capability.lower()!=capability or '/' in capability: fail(f'{key} capability {capability!r} must be a lowercase provider-neutral key without slash-style category syntax')
+  reality=d.get('providerRealityLevelByCandidate')
+  if not isinstance(reality,dict): fail(f'{key} providerRealityLevelByCandidate must be an object')
+  if set(reality.keys())!=set(d['providerCandidates']): fail(f'{key} provider reality candidates must match providerCandidates')
+  for candidate,level in reality.items():
+   if level not in REALITY: fail(f'{key} provider candidate {candidate!r} has invalid reality level {level!r}')
   for alias in d['compatibilityAliases']:
    if '/' in alias: fail(f'{key} alias {alias!r} must use canonical hyphen/camel compatibility syntax, not slash-style display text')
    if alias in by_key: fail(f'{key} alias duplicates canonical key {alias}')

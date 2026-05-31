@@ -3847,6 +3847,14 @@
   "@boardsWorkspaceActionFailed": {
     "description": "Snackbar after a backend Boards action fails"
   },
+  "boardsWorkspaceActionConflict": "Task changed somewhere else. Refresh the board and try the action again.",
+  "@boardsWorkspaceActionConflict": {
+    "description": "Snackbar after a backend Boards action fails because the provider lock version is stale"
+  },
+  "boardsWorkspaceActionUnsupported": "This board provider cannot apply that action yet. Use a supported move or ask an admin to check provider readiness.",
+  "@boardsWorkspaceActionUnsupported": {
+    "description": "Snackbar after a backend Boards action fails because the provider capability is unsupported"
+  },
   "boardsWorkspaceActionNoNextColumn": "This task is already in the last workspace column.",
   "@boardsWorkspaceActionNoNextColumn": {
     "description": "Snackbar when moving to the next workspace column is not possible"

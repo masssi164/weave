@@ -29,6 +29,10 @@ public record OpenProjectBoardsRuntimeGate(
         return missingReadGates().isEmpty();
     }
 
+    public boolean writeConfigured() {
+        return providerWritesEnabled && missingWriteGates().isEmpty();
+    }
+
     public void requireReadSyncAllowed(String operation) {
         var missing = missingReadGates();
         if (!missing.isEmpty()) {
@@ -73,15 +77,9 @@ public record OpenProjectBoardsRuntimeGate(
     }
 
     private java.util.List<String> missingWriteGates() {
-        var missing = new ArrayList<String>();
-        if (!contextAuthorizationEnabled) {
-            missing.add("context_authorization");
-        }
+        var missing = new ArrayList<String>(missingReadGates());
         if (!auditConsentEnabled) {
             missing.add("audit_consent");
-        }
-        if (!serviceTokenAuthConfigured()) {
-            missing.add("provider_auth_mode_service_token");
         }
         return missing;
     }

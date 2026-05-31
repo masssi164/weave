@@ -5,4 +5,8 @@ public class AuditRequiredException extends RuntimeException {
     public AuditRequiredException(String message) {
         super(message);
     }
+
+    public AuditRequiredException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

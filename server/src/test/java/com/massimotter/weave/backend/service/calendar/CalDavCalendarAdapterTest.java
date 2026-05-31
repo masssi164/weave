@@ -11,6 +11,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -238,6 +239,82 @@ END:VCALENDAR&#13;
         assertThat(created.etag()).isEqualTo("\"etag-new\"");
     }
 
+    @Test
+    void mapsCalendarConflictsWithoutLeakingProviderPathsOrBodies() throws Exception {
+        server = server(exchange -> {
+            if ("GET".equals(exchange.getRequestMethod())) {
+                respond(exchange, 200, """
+                        BEGIN:VCALENDAR
+                        BEGIN:VEVENT
+                        UID:event-1
+                        DTSTART;TZID=Europe/Berlin:20260426T100000
+                        DTEND;TZID=Europe/Berlin:20260426T110000
+                        SUMMARY:Planning
+                        END:VEVENT
+                        END:VCALENDAR
+                        """, "\"etag-existing\"");
+            } else {
+                respond(
+                        exchange,
+                        412,
+                        "conflict at /remote.php/dav/calendars/weave-backend/personal/planning.ics for backend:secret",
+                        null);
+            }
+        });
+
+        assertThatThrownBy(() -> adapter().update(
+                principal(),
+                eventId("/remote.php/dav/calendars/weave-backend/personal/planning.ics"),
+                new UpdateCalendarEventRequest("Updated", null, null, null, null, null, null, "\"stale\"")))
+                .isInstanceOfSatisfying(CalendarAdapterException.class, exception -> {
+                    assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.CONFLICT);
+                    assertThat(exception.details()).containsEntry("downstreamStatus", 412);
+                    assertThat(exception.details()).containsEntry("providerPathRedacted", true);
+                    assertSupportSafe(exception);
+                });
+    }
+
+    @Test
+    void blocksRecurringCalDavEventsWithSupportSafeReason() throws Exception {
+        server = server(exchange -> respond(exchange, 207, """
+                <?xml version="1.0" encoding="utf-8"?>
+                <d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
+                  <d:response>
+                    <d:href>/remote.php/dav/calendars/weave-backend/personal/recurring.ics</d:href>
+                    <d:propstat><d:prop>
+                      <d:getetag>\"etag-recurring\"</d:getetag>
+                      <c:calendar-data>BEGIN:VCALENDAR&#13;
+BEGIN:VEVENT&#13;
+UID:event-recurring&#13;
+DTSTART;TZID=Europe/Berlin:20260426T100000&#13;
+DTEND;TZID=Europe/Berlin:20260426T110000&#13;
+RRULE:FREQ=WEEKLY;COUNT=3&#13;
+SUMMARY:Planning&#13;
+END:VEVENT&#13;
+END:VCALENDAR&#13;
+</c:calendar-data>
+                    </d:prop></d:propstat>
+                  </d:response>
+                </d:multistatus>
+                """, null));
+
+        assertThatThrownBy(() -> adapter().list(principal(), null, null))
+                .isInstanceOfSatisfying(CalendarAdapterException.class, exception -> {
+                    assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.INVALID_RESPONSE);
+                    assertThat(exception.details()).containsEntry("supportSafeReason", "recurrence-not-yet-supported");
+                    assertSupportSafe(exception);
+                });
+    }
+
+    private void assertSupportSafe(CalendarAdapterException exception) {
+        String rendered = exception.getMessage() + " " + exception.details();
+        assertThat(rendered)
+                .doesNotContain("backend:secret")
+                .doesNotContain("/remote.php/dav")
+                .doesNotContain("localhost:")
+                .doesNotContain("conflict at");
+    }
+
     private CalDavCalendarAdapter adapter() {
         return new CalDavCalendarAdapter(new CalendarCalDavProperties(
                 "http://localhost:" + server.getAddress().getPort(),
@@ -250,6 +327,10 @@ END:VCALENDAR&#13;
 
     private CalendarPrincipal principal() {
         return new CalendarPrincipal("user-123", "massimo");
+    }
+
+    private String eventId(String href) {
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(href.getBytes(StandardCharsets.UTF_8));
     }
 
     private HttpServer server(ExchangeHandler handler) throws IOException {
