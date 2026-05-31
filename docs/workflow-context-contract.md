@@ -1,8 +1,8 @@
 # Accessible workflow context contract
 
-Status: companion contract projection for `specs/0002-context-driven-workflows/spec.md` and issue #218. The repo-local spec remains the canonical source; this page explains the workflow model before any visual builder.
+Status: companion contract projection for `specs/0002-context-driven-workflows/spec.md` and issue #218. The pinned Weave Specification Corpus remains canonical product/domain truth; this repo-local spec and page are implementation conformance evidence for the workflow model before any visual builder.
 
-Weave workflows are linear, context-driven work records. They help people and governed agents coordinate work without turning the primary experience into a visual-only diagram canvas. A diagram can be added later, but the accessible linear view is the source of truth.
+Weave workflows are linear, context-driven work records. They help people and governed agents coordinate work without turning the primary experience into a visual-only diagram canvas. A diagram can be added later, but the accessible linear view is the primary member-facing representation.
 
 ## Primitives
 

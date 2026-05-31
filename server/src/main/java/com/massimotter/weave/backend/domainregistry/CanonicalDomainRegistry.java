@@ -34,6 +34,14 @@ public final class CanonicalDomainRegistry {
             "blocked_nonportable",
             "provider_unexportable");
 
+    public static final List<String> PROVIDER_REALITY_LEVELS = List.of(
+            "contract_only",
+            "configured_readiness",
+            "live_adapter_read",
+            "live_adapter_write",
+            "migration_apply_ready",
+            "release_ready");
+
     private static final List<String> STANDARD_CAPABILITIES = List.of(
             "read", "search", "export", "import", "dryRun", "apply", "write", "delete", "adminConfigure");
 
@@ -75,6 +83,7 @@ public final class CanonicalDomainRegistry {
                 MEMBER_STATES,
                 ADMIN_STATES,
                 LOSS_CLASSES,
+                PROVIDER_REALITY_LEVELS,
                 domains,
                 aliases(domains),
                 true,
@@ -142,7 +151,76 @@ public final class CanonicalDomainRegistry {
                 SOURCE_OF_TRUTH_MODES,
                 PORTABILITY_REQUIREMENTS,
                 ADAPTER_MANIFEST_REQUIREMENTS,
-                aliases);
+                aliases,
+                providerRealityLevels(key));
+    }
+
+    private static Map<String, String> providerRealityLevels(String key) {
+        return switch (key) {
+            case "identity" -> Map.of(
+                    "keycloak-realm", "release_ready",
+                    "generic-oidc", "release_ready",
+                    "generic-saml", "contract_only",
+                    "scim-ldap", "contract_only",
+                    "entra-id", "contract_only",
+                    "authentik", "contract_only",
+                    "auth0", "contract_only");
+            case "chat" -> Map.of(
+                    "synapse-homeserver", "release_ready",
+                    "microsoft-teams", "contract_only",
+                    "slack", "contract_only",
+                    "nextcloud-talk", "contract_only");
+            case "files" -> Map.of(
+                    "nextcloud-files", "release_ready",
+                    "sharepoint", "contract_only",
+                    "onedrive", "contract_only",
+                    "s3-compatible", "live_adapter_write",
+                    "smb", "live_adapter_write");
+            case "calendar" -> Map.of(
+                    "nextcloud-caldav", "release_ready",
+                    "microsoft-graph-calendar", "contract_only",
+                    "google-workspace-calendar", "contract_only",
+                    "generic-caldav", "live_adapter_read",
+                    "weave-calendar", "contract_only");
+            case "boards" -> Map.of(
+                    "openproject-primary", "release_ready",
+                    "placeholder-boards", "contract_only",
+                    "jira", "contract_only",
+                    "microsoft-planner", "contract_only",
+                    "nextcloud-deck", "live_adapter_read",
+                    "vikunja", "contract_only");
+            case "calls" -> Map.of(
+                    "livekit", "configured_readiness",
+                    "jitsi", "contract_only",
+                    "zoom", "contract_only",
+                    "microsoft-teams-meetings", "contract_only",
+                    "google-meet", "contract_only",
+                    "external-meeting-link", "contract_only");
+            case "documents" -> Map.of(
+                    "collabora", "contract_only",
+                    "onlyoffice", "contract_only",
+                    "microsoft-365-office", "contract_only",
+                    "google-workspace-docs", "contract_only");
+            case "decisions" -> Map.of(
+                    "weave-decision-ledger", "contract_only",
+                    "openproject-wiki", "contract_only",
+                    "nextcloud-docs", "contract_only",
+                    "github-issues", "contract_only");
+            case "notifications" -> Map.of(
+                    "weave-notifications", "contract_only",
+                    "email-smtp", "contract_only",
+                    "push", "contract_only",
+                    "matrix-notifications", "contract_only",
+                    "slack-notifications", "contract_only",
+                    "teams-notifications", "contract_only",
+                    "webhook", "contract_only");
+            case "health" -> Map.of(
+                    "weave-health-facade", "contract_only",
+                    "provider-stack-health", "contract_only",
+                    "release-evidence", "contract_only");
+            case "weaver" -> Map.of("openclaw-derived-profile", "contract_only");
+            default -> Map.of(key + "-weave-owned", "release_ready");
+        };
     }
 
     private static Map<String, String> aliases(List<CanonicalDomainRegistryEntryResponse> domains) {

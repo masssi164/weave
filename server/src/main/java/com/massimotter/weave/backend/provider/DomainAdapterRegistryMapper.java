@@ -74,12 +74,15 @@ final class DomainAdapterRegistryMapper {
                 active && (category.readiness() == ProviderCategoryReadiness.READY
                         || category.readiness() == ProviderCategoryReadiness.DEGRADED),
                 active ? category.readiness() : ProviderCategoryReadiness.DISABLED,
+                active ? category.providerRealityLevel() : ProviderRealityLevel.CONTRACT_ONLY,
+                active ? category.realityLevelRemediation() : "Candidate is inactive until admin selection and evidence promotion.",
                 List.of("dry-run", "support-safe-evidence", "admin-review-required"),
                 choiceModel.equals("recommended_self_hosted_default")
                         ? List.of("self-hosted default; admin still validates backup, update, jurisdiction, and support posture")
                         : List.of("candidate adapter; admin must validate scopes, export/import fidelity, residency, rate limits, and rollback evidence"),
                 true,
                 Map.of(
+                        "providerRealityLevel", (active ? category.providerRealityLevel() : ProviderRealityLevel.CONTRACT_ONLY).value(),
                         "diagnosticsRedacted", true,
                         "secretsReturned", false,
                         "rawProviderErrorsReturned", false));

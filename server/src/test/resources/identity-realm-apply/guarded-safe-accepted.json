@@ -3,7 +3,7 @@
   "realmId": "weave-dogfood",
   "dryRunId": "realm-dry-run-support-safe-sample",
   "decision": "accepted",
-  "executionMode": "guarded-provider-apply-decision-only",
+  "executionMode": "guarded-provider-live-apply-disabled",
   "applied": false,
   "providerMutationPerformed": false,
   "supportSafe": true,
@@ -25,7 +25,8 @@
     }
   ],
   "nextActions": [
-    "Guarded apply decision accepted; no live provider mutation was performed in this sprint slice."
+    "Guarded apply decision accepted after persisted dry-run, policy simulation, retained-admin, rollback, audit, and confirmation checks.",
+    "Live Keycloak realm apply is disabled by release/operator configuration; keep the accepted dry-run, policy simulation, rollback, and audit evidence for a later operator-approved run."
   ],
   "auditRefs": ["identity-realm-apply-support-safe-sample"]
 }

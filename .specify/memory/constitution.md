@@ -4,21 +4,21 @@ Version: 0.1.0
 Ratified: 2026-05-28  
 Last amended: 2026-05-28
 
-This constitution governs repo-local specifications under `specs/`, Spec Kit-style templates under `.specify/templates/`, and repo-safe AI-assisted delivery guidance. It turns Weave planning into versioned, reviewable, executable product contracts.
+This constitution governs implementation-repo conformance to the pinned Weave Specification Corpus referenced by `specs/weave-specs.lock.json`, plus transitional repo-local specifications under `specs/`, Spec Kit-style templates under `.specify/templates/`, and repo-safe AI-assisted delivery guidance. It keeps fachliche specification truth separate from implementation/evidence truth.
 
 ## Core principles
 
 ### I. Repo truth over chat memory
 
-The current source of truth is this monorepo, GitHub issues/PRs, protected-branch status, and sanitized CI/evidence artifacts. Agent memory, old chat, older checkouts, and external notebooks are orientation only. A generated wiki or documentation site may explain specs, but it must not become the canonical source.
+Repo truth over chat memory means this monorepo, GitHub issues/PRs, protected-branch status, and sanitized CI/evidence artifacts are the current implementation/evidence truth. Fachliche product/domain specification truth lives in the pinned Weave Specification Corpus. Agent memory, old chat, older checkouts, and external notebooks are orientation only. Generated wiki/docs/projections may explain specs, but must not become canonical truth.
 
 ### II. Product-core before implementation
 
-Specs must describe Weave product outcomes before implementation tactics. Product vocabulary is category-first and provider-neutral: identity/IDM, chat, files, calendar, boards/tasks, meetings, documents/collaboration, decisions, health, and the optional Weaver runtime. Raw provider setup, secrets, endpoint rotation, support diagnostics, and policy authoring stay admin/operator side.
+The pinned specification corpus must describe Weave product outcomes before implementation tactics. Product vocabulary is category-first and provider-neutral: identity/IDM, spaces, chat, files, calendar, boards/tasks, meetings, documents/collaboration, decisions/evidence, admin health/ops, and the optional Weaver runtime. Raw provider setup, secrets, endpoint rotation, support diagnostics, and policy authoring stay admin/operator side.
 
 ### III. Acceptance and evidence first
 
-For new product behavior, write or update product-language acceptance before implementation. A reviewable scenario needs a stable mapping to executable evidence in `e2e/scenario_mappings.json` or a named draft/proposed blocker. `./gradlew acceptanceContract` and `./gradlew specContract` are the minimum spec gates.
+For new product behavior, write or update product-language acceptance in the spec corpus before implementation. A reviewable scenario needs a stable mapping to executable evidence in `e2e/scenario_mappings.json` or a named draft/proposed blocker. `./gradlew specCorpusConformance`, `./gradlew acceptanceContract`, and the transitional `./gradlew specContract` are the minimum spec/evidence gates.
 
 ### IV. Accessibility, supportability, auditability, deployability
 
@@ -65,4 +65,4 @@ Assistant invocation must respect runtime policy:
 
 ## Governance
 
-This constitution supersedes ad-hoc sprint habits for spec-driven work. Amendments require a PR that updates this file, `docs/spec-driven-development.md`, and any affected templates or guards. The guard task is `./gradlew specContract`.
+This constitution supersedes ad-hoc sprint habits for spec-driven work. Amendments require a PR that updates this file, `docs/spec-driven-development.md`, `specs/weave-specs.lock.json` when the canonical corpus changes, and any affected templates or guards. The primary conformance guard is `./gradlew specCorpusConformance`; the transitional repo-local guard remains `./gradlew specContract`.

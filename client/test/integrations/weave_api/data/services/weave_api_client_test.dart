@@ -542,6 +542,10 @@ void main() {
                     'normalMembersConfigureProviders': false,
                   },
                   'readiness': 'ready',
+                  'providerRealityLevel': 'release_ready',
+                  'memberCapabilityState': 'available',
+                  'realityLevelRemediation':
+                      'Release-ready provider: keep evidence current.',
                   'policyState': 'allowed',
                   'memberImpact': 'Sign-in is available.',
                   'modules': ['identity-realm', 'matrix-auth'],
@@ -558,6 +562,7 @@ void main() {
                       'configured': true,
                       'reachable': true,
                       'health': 'ready',
+                      'providerRealityLevel': 'release_ready',
                       'failClosed': true,
                       'supportSafeDiagnostics': {
                         'providerState': 'ready',
@@ -604,6 +609,10 @@ void main() {
                     'normalMembersConfigureProviders': false,
                   },
                   'readiness': 'policy_blocked',
+                  'providerRealityLevel': 'contract_only',
+                  'memberCapabilityState': 'disabled_by_policy',
+                  'realityLevelRemediation':
+                      'Contract-only candidate remains unavailable.',
                   'policyState': 'policy_blocked',
                   'memberImpact': 'Weaver is disabled by workspace policy.',
                   'modules': [],
@@ -639,6 +648,7 @@ void main() {
                   'supportSafeErrorCodes': ['PROVIDER_DISABLED'],
                   'redactionPolicy': 'no raw provider errors',
                   'candidates': ['ONLYOFFICE Docs Community'],
+                  'providerRealityLevel': 'contract_only',
                 },
                 {
                   'module': 'meetings',
@@ -657,6 +667,7 @@ void main() {
                   'supportSafeErrorCodes': ['meetings-token-unavailable'],
                   'redactionPolicy': 'booleans only',
                   'candidates': ['livekit'],
+                  'providerRealityLevel': 'configured_readiness',
                   'diagnostics': {
                     'activeProvider': 'livekit',
                     'livekitUrlConfigured': true,
@@ -730,6 +741,12 @@ void main() {
           snapshot.categories.first.readiness,
           ProviderCategoryReadiness.ready,
         );
+        expect(
+          snapshot.categories.first.providerRealityLevel,
+          ProviderRealityLevel.releaseReady,
+        );
+        expect(snapshot.categories.first.memberCapabilityState, 'available');
+        expect(snapshot.categories.first.memberAvailable, isTrue);
         expect(snapshot.categories.first.selectedProviderKey, 'keycloak-realm');
         expect(snapshot.categories.first.selectedByAdmin, isTrue);
         expect(snapshot.categories.first.bootstrapSuggestionOnly, isFalse);
@@ -747,6 +764,10 @@ void main() {
           isTrue,
         );
         expect(
+          snapshot.categories.first.adapterEvidence.single.providerRealityLevel,
+          ProviderRealityLevel.releaseReady,
+        );
+        expect(
           snapshot
               .categories
               .first
@@ -760,12 +781,27 @@ void main() {
           snapshot.categories.last.readiness,
           ProviderCategoryReadiness.policyBlocked,
         );
+        expect(
+          snapshot.categories.last.providerRealityLevel,
+          ProviderRealityLevel.contractOnly,
+        );
+        expect(snapshot.categories.last.memberAvailable, isFalse);
         expect(snapshot.providers.first.module, 'office');
         expect(snapshot.providers.first.failClosed, isTrue);
+        expect(
+          snapshot.providers.first.providerRealityLevel,
+          ProviderRealityLevel.contractOnly,
+        );
+        expect(snapshot.providers.first.available, isFalse);
         final meetings = snapshot.providers.singleWhere(
           (provider) => provider.module == 'meetings',
         );
         expect(meetings.providerKey, 'livekit');
+        expect(
+          meetings.providerRealityLevel,
+          ProviderRealityLevel.configuredReadiness,
+        );
+        expect(meetings.available, isFalse);
         expect(meetings.diagnostics['livekitUrlConfigured'], isTrue);
         expect(meetings.diagnostics['apiSecretConfigured'], isTrue);
         expect(meetings.diagnostics['tokenEndpointConfigured'], isTrue);

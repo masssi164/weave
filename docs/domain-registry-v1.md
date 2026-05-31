@@ -1,8 +1,8 @@
 # Canonical domain registry v1
 
-The machine-readable source of truth for Sprint 8 domain vocabulary is `specs/0004-domain-registry/canonical-domain-registry-v1.json`. The backend carries an identical runtime resource at `server/src/main/resources/canonical-domain-registry-v1.json`; `./gradlew domainRegistryCheck` fails if the two copies drift.
+The machine-readable implementation conformance fixture for Sprint 8 domain vocabulary is `specs/0004-domain-registry/canonical-domain-registry-v1.json`. The pinned Weave Specification Corpus remains canonical product/domain truth. The backend carries an identical runtime resource at `server/src/main/resources/canonical-domain-registry-v1.json`; `./gradlew domainRegistryCheck` fails if the implementation copies drift.
 
-The registry defines the provider-neutral Weave domain keys, stable member states, admin/operator readiness states, source-of-truth modes, compatibility aliases for older provider-category names, and the required Provider Adapter Manifest fields.
+The registry defines the provider-neutral Weave domain keys, stable member states, admin/operator readiness states, provider reality levels, source-of-truth modes, compatibility aliases for older provider-category names, and the required Provider Adapter Manifest fields.
 
 ## Stable member states
 
@@ -31,6 +31,19 @@ Admin-facing code must use only these readiness states:
 - `migration_ready`
 
 Unknown provider states fail closed into a support-safe admin state and a stable member impact state.
+
+## Provider reality levels
+
+Every provider candidate has a stable `providerRealityLevel` in the canonical registry:
+
+- `contract_only`
+- `configured_readiness`
+- `live_adapter_read`
+- `live_adapter_write`
+- `migration_apply_ready`
+- `release_ready`
+
+Member capability states are derived from policy, readiness, admin selection, and reality level. A `contract_only` provider must never produce member state `available`; Admin Console and support bundles must instead show the remediation needed to promote the candidate without exposing URLs, tenant IDs, credentials, provider-internal IDs, or raw downstream bodies.
 
 ## Adapter declarations
 

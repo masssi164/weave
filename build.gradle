@@ -32,7 +32,9 @@ registerRootCommandTask('docsBuild', ['bash', '-lc', 'PYTHON=python3; [ -x build
 registerRootCommandTask('docsStructureCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py'], 'Run lightweight documentation structure checks.')
 registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
 registerRootCommandTask('releaseNotesLabelCheck', ['bash', '-lc', 'if [ -n "${PR_LABELS_JSON:-}" ]; then python3 tools/release_notes_label_check.py; else echo "release-notes-label-check: skipped (PR_LABELS_JSON is not set)"; fi'], 'Validate the current PR release-notes label set from PR_LABELS_JSON when available.')
-registerRootCommandTask('specContract', ['python3', 'tools/spec_contract_check.py'], 'Validate repo-local Weave specs, lifecycle metadata, and implementation-ready clarification state.')
+registerRootCommandTask('specCorpusConformance', ['python3', 'tools/spec_corpus_conformance_check.py'], 'Validate the pinned Weave Specification Corpus and the spec-truth vs implementation-evidence boundary.')
+registerRootCommandTask('sprintBootstrapAudit', ['python3', 'tools/sprint_bootstrap.py', '--plan', 'tools/fixtures/sprint_bootstrap_sprint12.json', '--audit-only'], 'Audit sprint milestone, issue DAG, and Weave Delivery Board wiring from a file-backed sprint plan.')
+registerRootCommandTask('specContract', ['python3', 'tools/spec_contract_check.py'], 'Validate transitional repo-local Weave specs, lifecycle metadata, and implementation-ready clarification state.')
 registerRootCommandTask('domainRegistryCheck', ['python3', 'tools/domain_registry_check.py'], 'Validate the canonical domain registry v1 machine-readable contract.')
 registerRootCommandTask('spaceAnchorCheck', ['python3', 'tools/space_anchor_check.py'], 'Validate the Space anchor contract fixture.')
 registerRootCommandTask('portabilityContractCheck', ['python3', 'tools/portability_contract_check.py'], 'Validate provider portability and no-unaccounted-data-loss migration schemas.')
@@ -70,7 +72,7 @@ tasks.register('releaseReadinessCheck', Exec) {
     commandLine execCommand(args)
     outputs.upToDateWhen { false }
 }
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes structure, README markers, labels, generator fixture evidence, Sprint 5 project-readiness closure evidence, Sprint 6 enterprise release gates, and RC readiness fixtures.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes structure, README markers, provider reality claim matrix, labels, generator fixture evidence, Sprint 5 project-readiness closure evidence, Sprint 6 enterprise release gates, and RC readiness fixtures.')
 
 tasks.register('docsCheck') {
     group = 'verification'
@@ -102,6 +104,8 @@ ext.ciEvidenceGates = [
     'infraStatic',
     'docsCheck',
     'releaseNotesLabelCheck',
+    'specCorpusConformance',
+    'sprintBootstrapAudit',
     'specContract',
     'specContractTest',
     'domainRegistryCheck',
@@ -199,6 +203,10 @@ List<String> artifactPathsForGate(String gateName) {
     switch (gateName) {
         case 'docsCheck':
             return ['build/docs/user', 'build/docs/admin']
+        case 'specCorpusConformance':
+            return ['specs/weave-specs.lock.json', 'tools/spec_corpus_conformance_check.py']
+        case 'sprintBootstrapAudit':
+            return ['tools/sprint_bootstrap.py', 'tools/fixtures/sprint_bootstrap_sprint12.json', 'docs/sprint-bootstrap-and-board-flow.md']
         case 'specContract':
             return ['specs', '.specify/memory/constitution.md', '.specify/templates']
         case 'specContractTest':

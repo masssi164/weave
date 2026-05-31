@@ -20,7 +20,7 @@ evidence_gates:
 
 ## Intent
 
-Weave needs a stable, provider-neutral registry of product domains so server, admin, client, and release evidence can refer to the same domain keys, member states, admin states, capabilities, aliases, and portability artifacts without exposing raw provider plumbing to members.
+Weave needs a stable, provider-neutral registry of product domains so server, admin, client, and release evidence can refer to the same domain keys, member states, admin states, provider reality levels, capabilities, aliases, and portability artifacts without exposing raw provider plumbing to members.
 
 ## Product boundaries
 
@@ -29,6 +29,7 @@ Weave needs a stable, provider-neutral registry of product domains so server, ad
 - Canonical domains: identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and weaver.
 - Compatibility aliases for historical provider/category names.
 - Member-safe and admin/operator states.
+- Provider reality levels for every provider candidate so contract-only seams cannot be marketed as generally available.
 - Portability schema names for adapter manifests, provider mappings, export/import manifests, lossy mapping reports, conflict reports, and migration runs.
 - Deterministic validation that every domain declares portability metadata.
 
@@ -47,6 +48,7 @@ Weave needs a stable, provider-neutral registry of product domains so server, ad
 - **FR-004**: Member-facing states MUST remain provider-neutral and MUST NOT require raw provider names, URLs, tokens, or downstream error payloads.
 - **FR-005**: Portability artifacts MUST include no-unaccounted-data-loss loss classes and migration run lifecycle states.
 - **FR-006**: The validation gate MUST fail when required domains, states, aliases, or portability schemas are missing.
+- **FR-007**: Every provider candidate MUST declare one of `contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, or `release_ready`; `contract_only` candidates MUST NOT produce member state `available`.
 
 ## Acceptance and evidence mapping
 
@@ -59,7 +61,7 @@ Weave needs a stable, provider-neutral registry of product domains so server, ad
 
 - Member impact: member-facing capability states can rely on stable domain vocabulary.
 - Admin/operator impact: admin readiness and migration tooling can rely on shared states and schema names.
-- Developer/API impact: adapter work must declare supported canonical domains and portability metadata.
+- Developer/API impact: adapter work must declare supported canonical domains, provider reality level, and portability metadata.
 - Data migration/backfill: none in this slice.
 - Rollback/reversibility: remove registry files and Gradle validation wiring.
 - Release-notes label expected: `release-notes-feature`.

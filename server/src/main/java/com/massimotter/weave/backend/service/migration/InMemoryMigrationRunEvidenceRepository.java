@@ -4,9 +4,6 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import org.springframework.stereotype.Repository;
-
-@Repository
 class InMemoryMigrationRunEvidenceRepository implements MigrationRunEvidenceRepository {
 
     private final Map<String, MigrationRunEvidence> evidenceByRunAndDomain = new ConcurrentHashMap<>();

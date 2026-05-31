@@ -3248,6 +3248,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'The backend facade could not save that Boards workspace action.';
 
   @override
+  String get boardsWorkspaceActionConflict =>
+      'Task changed somewhere else. Refresh the board and try the action again.';
+
+  @override
+  String get boardsWorkspaceActionUnsupported =>
+      'This board provider cannot apply that action yet. Use a supported move or ask an admin to check provider readiness.';
+
+  @override
   String get boardsWorkspaceActionNoNextColumn =>
       'This task is already in the last workspace column.';
 

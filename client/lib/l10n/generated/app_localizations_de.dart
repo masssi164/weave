@@ -3290,6 +3290,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Backend-Fassade konnte diese Boards-Workspace-Aktion nicht speichern.';
 
   @override
+  String get boardsWorkspaceActionConflict =>
+      'Die Aufgabe wurde an anderer Stelle geändert. Aktualisiere das Board und versuche die Aktion erneut.';
+
+  @override
+  String get boardsWorkspaceActionUnsupported =>
+      'Dieser Board-Anbieter kann diese Aktion noch nicht anwenden. Nutze einen unterstützten Schritt oder bitte einen Admin, die Anbieterbereitschaft zu prüfen.';
+
+  @override
   String get boardsWorkspaceActionNoNextColumn =>
       'Diese Aufgabe ist bereits in der letzten Workspace-Spalte.';
 

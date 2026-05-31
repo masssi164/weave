@@ -126,7 +126,7 @@ class ProviderRegistryControllerTest {
         providerSelectionRepository.save(selection("calendar", "nextcloud-caldav", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("boards-tasks", "openproject-primary", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("meetings-calls", "livekit", "recommended_self_hosted_default"));
-        providerSelectionRepository.save(selection("documents-collaboration", "onlyoffice-community", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("documents-collaboration", "onlyoffice", "recommended_self_hosted_default"));
     }
 
     private ProviderSelection selection(String category, String providerKey, String choiceModel) {
@@ -201,11 +201,11 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.categories[?(@.category == 'meetings-calls')].readiness", hasItems("misconfigured")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].readiness", hasItems("misconfigured")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].contract.featureCapabilities[*]", hasItems("documents.collaborate")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].contract.externalAdapters[*]", hasItems("microsoft-365-office-graph")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'decisions-evidence')].contract.defaultAdapters[*]", hasItems("weave-decisions-evidence")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'documents-collaboration')].contract.externalAdapters[*]", hasItems("microsoft-365-office", "collabora")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'decisions-evidence')].contract.defaultAdapters[*]", hasItems("weave-decision-ledger")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'manuals-help')].contract.defaultAdapters[*]", hasItems("mkdocs-material-embedded")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'release-evidence')].contract.defaultAdapters[*]", hasItems("weave-release-notes")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'admin-control-plane')].contract.defaultAdapters[*]", hasItems("weave-admin-console")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'release-evidence')].contract.defaultAdapters[*]", hasItems("release-evidence")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'admin-control-plane')].contract.defaultAdapters[*]", hasItems("weave-health-facade")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].readiness", hasItems("disabled")))
                 .andExpect(jsonPath("$.categories[*].contract.stableMemberImpactStates[*]", hasItems("usable", "disabled", "degraded", "policy-blocked")))
                 .andExpect(jsonPath("$.categories[*].contract.normalMembersConfigureProviders", hasItems(false)))
@@ -225,7 +225,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].providerKey", hasItems("matrix-authentication-service")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].failClosed", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].supportSafe", hasItems(true)))
-                .andExpect(jsonPath("$.providers[?(@.module == 'office')].providerKey", hasItems("onlyoffice-community")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'office')].providerKey", hasItems("onlyoffice")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].supportedCapabilities[0]").isEmpty())
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.providerRealityLevel", hasItems("contract_only")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.memberImpact", hasItems("coming_later")))
