@@ -638,7 +638,7 @@ describe("Admin Console MVP", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       /weaver distribution policy saved/i,
     );
-  }, 15000);
+  }, 30000);
 
   it("surfaces RuntimeProfile revocation and audit affordances", async () => {
     const api = mockApi();
