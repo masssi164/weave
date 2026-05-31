@@ -7,8 +7,13 @@ import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyRequest;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmDesiredState;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunRequest;
+import com.massimotter.weave.backend.identity.realm.InMemoryIdentityRealmEvidenceRepository;
+import com.massimotter.weave.backend.identity.realm.KeycloakRealmDryRunProvider;
+import com.massimotter.weave.backend.identity.realm.KeycloakRealmLiveApplyAdapter;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
@@ -172,7 +177,7 @@ class AdminControlPlaneServiceTest {
         AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
         IdentityRealmDesiredState safeState = safeRealmState();
 
-        var missingConfirmation = service.applyIdentityRealm(new IdentityRealmApplyRequest(
+        var missingConfirmation = service.applyIdentityRealm(applyRequest(service,
                 safeState,
                 safeState,
                 "reviewed only",
@@ -180,14 +185,15 @@ class AdminControlPlaneServiceTest {
                 false,
                 List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 null,
-                "safe apply review"), jwt("admin"));
+                "safe apply review",
+                jwt("admin")), jwt("admin"));
 
         assertThat(missingConfirmation.decision()).isEqualTo("blocked");
         assertThat(missingConfirmation.applied()).isFalse();
         assertThat(missingConfirmation.providerMutationPerformed()).isFalse();
         assertThat(missingConfirmation.blockedReasons()).contains("explicit confirmation phrase is required");
 
-        var unsafeAdminKey = service.applyIdentityRealm(new IdentityRealmApplyRequest(
+        var unsafeAdminKey = service.applyIdentityRealm(applyRequest(service,
                 safeState,
                 safeState,
                 "APPLY WEAVE IDENTITY REALM",
@@ -195,14 +201,31 @@ class AdminControlPlaneServiceTest {
                 false,
                 List.of("alice@example.com"),
                 null,
-                "safe apply review"), jwt("admin"));
+                "safe apply review",
+                jwt("admin")), jwt("admin"));
 
         assertThat(unsafeAdminKey.decision()).isEqualTo("blocked");
         assertThat(unsafeAdminKey.lastAdminGuardPassed()).isFalse();
         assertThat(unsafeAdminKey.blockedReasons())
                 .contains("last-admin guard requires at least one retained immutable admin identity key");
 
-        var accepted = service.applyIdentityRealm(new IdentityRealmApplyRequest(
+        var missingRetainedAdminProof = service.applyIdentityRealm(applyRequest(service,
+                safeState,
+                safeState,
+                "APPLY WEAVE IDENTITY REALM",
+                false,
+                false,
+                List.of("issuer+subject:https://auth.example.invalid/realms/weave#other-admin"),
+                null,
+                "safe apply review",
+                jwt("admin")), jwt("admin"));
+
+        assertThat(missingRetainedAdminProof.decision()).isEqualTo("blocked");
+        assertThat(missingRetainedAdminProof.lastAdminGuardPassed()).isFalse();
+        assertThat(missingRetainedAdminProof.blockedReasons())
+                .contains("last-admin guard requires at least one retained immutable admin identity key");
+
+        var accepted = service.applyIdentityRealm(applyRequest(service,
                 safeState,
                 safeState,
                 "APPLY WEAVE IDENTITY REALM",
@@ -210,17 +233,18 @@ class AdminControlPlaneServiceTest {
                 false,
                 List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 null,
-                "safe apply review with Bearer token-that-must-not-leak"), jwt("admin"));
+                "safe apply review with Bearer token-that-must-not-leak",
+                jwt("admin")), jwt("admin"));
 
         assertThat(accepted.decision()).isEqualTo("accepted");
-        assertThat(accepted.executionMode()).isEqualTo("guarded-provider-apply-decision-only");
+        assertThat(accepted.executionMode()).isEqualTo("guarded-provider-live-apply-disabled");
         assertThat(accepted.applied()).isFalse();
         assertThat(accepted.providerMutationPerformed()).isFalse();
         assertThat(accepted.lastAdminGuardPassed()).isTrue();
         assertThat(accepted.rollbackEvidenceRequired()).isFalse();
         assertThat(accepted.blockedReasons()).isEmpty();
         assertThat(accepted.changes()).allSatisfy(change -> assertThat(change.classification()).isEqualTo("safe"));
-        assertThat(accepted.nextActions()).anySatisfy(action -> assertThat(action).contains("no live provider mutation"));
+        assertThat(accepted.nextActions()).anySatisfy(action -> assertThat(action).contains("Live Keycloak realm apply is disabled"));
 
         assertThat(auditPublisher.events()).extracting(event -> event.action())
                 .contains(AuditAction.IDENTITY_REALM_APPLY_GUARDED);
@@ -236,7 +260,7 @@ class AdminControlPlaneServiceTest {
         AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
         IdentityRealmDesiredState riskyState = riskyRealmState();
 
-        var missingApproval = service.applyIdentityRealm(new IdentityRealmApplyRequest(
+        var missingApproval = service.applyIdentityRealm(applyRequest(service,
                 safeRealmState(),
                 riskyState,
                 "APPLY WEAVE IDENTITY REALM",
@@ -244,7 +268,8 @@ class AdminControlPlaneServiceTest {
                 false,
                 List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 null,
-                "risky apply with secretref://raw/ref"), jwt("admin"));
+                "risky apply with secretref://raw/ref",
+                jwt("admin")), jwt("admin"));
 
         assertThat(missingApproval.decision()).isEqualTo("blocked");
         assertThat(missingApproval.applied()).isFalse();
@@ -255,7 +280,7 @@ class AdminControlPlaneServiceTest {
                 "rollback/restore evidence ref is required for risky or destructive apply");
         assertThat(missingApproval.nextActions()).anySatisfy(action -> assertThat(action).contains("effective policy simulation"));
 
-        var accepted = service.applyIdentityRealm(new IdentityRealmApplyRequest(
+        var accepted = service.applyIdentityRealm(applyRequest(service,
                 safeRealmState(),
                 riskyState,
                 "APPLY WEAVE IDENTITY REALM",
@@ -263,7 +288,8 @@ class AdminControlPlaneServiceTest {
                 false,
                 List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 "rollback-evidence:ticket-370-support-safe",
-                "risky apply with Bearer raw-token"), jwt("admin"));
+                "risky apply with Bearer raw-token",
+                jwt("admin")), jwt("admin"));
 
         assertThat(accepted.decision()).isEqualTo("accepted");
         assertThat(accepted.applied()).isFalse();
@@ -279,7 +305,7 @@ class AdminControlPlaneServiceTest {
         IdentityRealmDesiredState current = riskyRealmState();
         IdentityRealmDesiredState desired = safeRealmState();
 
-        var missingGuards = service.applyIdentityRealm(new IdentityRealmApplyRequest(
+        var missingGuards = service.applyIdentityRealm(applyRequest(service,
                 current,
                 desired,
                 "APPLY WEAVE IDENTITY REALM",
@@ -287,7 +313,8 @@ class AdminControlPlaneServiceTest {
                 false,
                 List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 null,
-                "destructive review"), jwt("admin"));
+                "destructive review",
+                jwt("admin")), jwt("admin"));
 
         assertThat(missingGuards.decision()).isEqualTo("blocked");
         assertThat(missingGuards.applied()).isFalse();
@@ -299,7 +326,7 @@ class AdminControlPlaneServiceTest {
         assertThat(missingGuards.changes()).extracting(change -> change.classification()).contains("destructive");
         assertThat(missingGuards.nextActions()).anySatisfy(action -> assertThat(action).contains("destructive changes as unavailable"));
 
-        var stillUnavailable = service.applyIdentityRealm(new IdentityRealmApplyRequest(
+        var stillUnavailable = service.applyIdentityRealm(applyRequest(service,
                 current,
                 desired,
                 "APPLY WEAVE IDENTITY REALM",
@@ -307,13 +334,67 @@ class AdminControlPlaneServiceTest {
                 true,
                 List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 "restore-evidence:backup-370-support-safe",
-                "destructive review"), jwt("admin"));
+                "destructive review",
+                jwt("admin")), jwt("admin"));
 
         assertThat(stillUnavailable.decision()).isEqualTo("blocked");
         assertThat(stillUnavailable.blockedReasons()).contains("provider destructive apply is not available for this contract");
         assertThat(stillUnavailable.blockedReasons()).contains("destructive realm changes are blocked in this dry-run-only slice");
         assertThat(stillUnavailable.applied()).isFalse();
         assertThat(stillUnavailable.providerMutationPerformed()).isFalse();
+    }
+
+    @Test
+    void guardedIdentityRealmApplyRequiresPersistedDryRunAndPolicySimulationEvidence() {
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        AdminControlPlaneService service = adminControlPlaneService(auditPublisher);
+        IdentityRealmDesiredState safeState = safeRealmState();
+
+        var missingEvidence = service.applyIdentityRealm(new IdentityRealmApplyRequest(
+                safeState,
+                safeState,
+                "realm-dry-run-never-persisted",
+                null,
+                "APPLY WEAVE IDENTITY REALM",
+                false,
+                false,
+                List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
+                null,
+                "attempt without stored evidence"), jwt("admin"));
+
+        assertThat(missingEvidence.decision()).isEqualTo("blocked");
+        assertThat(missingEvidence.blockedReasons()).contains(
+                "fresh persisted dry-run evidence is required before identity realm apply",
+                "effective policy simulation evidence ref is required before identity realm apply");
+        assertThat(missingEvidence.applied()).isFalse();
+        assertThat(missingEvidence.providerMutationPerformed()).isFalse();
+    }
+
+    @Test
+    void guardedIdentityRealmApplyBlocksLiveProviderWhenReleaseEnabledButProviderUnavailable() {
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        IdentityRealmApplyProperties properties = new IdentityRealmApplyProperties();
+        properties.setLiveApplyEnabled(true);
+        properties.setProviderConfigured(false);
+        AdminControlPlaneService service = adminControlPlaneService(auditPublisher, properties);
+        IdentityRealmDesiredState safeState = safeRealmState();
+
+        var unavailable = service.applyIdentityRealm(applyRequest(service,
+                safeState,
+                safeState,
+                "APPLY WEAVE IDENTITY REALM",
+                false,
+                false,
+                List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
+                null,
+                "live provider unavailable",
+                jwt("admin")), jwt("admin"));
+
+        assertThat(unavailable.decision()).isEqualTo("blocked");
+        assertThat(unavailable.executionMode()).isEqualTo("guarded-provider-apply-blocked-before-mutation");
+        assertThat(unavailable.blockedReasons()).contains("Keycloak live apply adapter is enabled but provider runtime is not configured");
+        assertThat(unavailable.applied()).isFalse();
+        assertThat(unavailable.providerMutationPerformed()).isFalse();
     }
 
 
@@ -357,7 +438,7 @@ class AdminControlPlaneServiceTest {
 
             assertThat(fixture.path("supportSafe").asBoolean()).isTrue();
             assertThat(fixture.path("decision").asText()).isEqualTo("accepted");
-            assertThat(fixture.path("executionMode").asText()).isEqualTo("guarded-provider-apply-decision-only");
+            assertThat(fixture.path("executionMode").asText()).isEqualTo("guarded-provider-live-apply-disabled");
             assertThat(fixture.path("applied").asBoolean()).isFalse();
             assertThat(fixture.path("providerMutationPerformed").asBoolean()).isFalse();
             assertThat(objectMapper.writeValueAsString(fixture))
@@ -366,12 +447,22 @@ class AdminControlPlaneServiceTest {
     }
 
     private AdminControlPlaneService adminControlPlaneService(InMemoryAuditEventPublisher auditPublisher) {
+        return adminControlPlaneService(auditPublisher, new IdentityRealmApplyProperties());
+    }
+
+    private AdminControlPlaneService adminControlPlaneService(
+            InMemoryAuditEventPublisher auditPublisher,
+            IdentityRealmApplyProperties properties) {
         return new AdminControlPlaneService(
                 mock(ProviderRegistry.class),
                 workspaceCapabilityService(),
                 new InMemoryProviderSelectionRepository(),
                 new InMemoryOrganizationBootstrapRepository(),
                 auditPublisher,
+                List.of(new KeycloakRealmDryRunProvider()),
+                new InMemoryIdentityRealmEvidenceRepository(),
+                List.of(new KeycloakRealmLiveApplyAdapter(properties)),
+                properties,
                 Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
     }
 
@@ -382,6 +473,38 @@ class AdminControlPlaneServiceTest {
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(null, null, null, null, null, null));
+    }
+
+    private IdentityRealmApplyRequest applyRequest(
+            AdminControlPlaneService service,
+            IdentityRealmDesiredState currentState,
+            IdentityRealmDesiredState desiredState,
+            String confirmationPhrase,
+            boolean approveRisky,
+            boolean approveDestructive,
+            List<String> retainedAdminPrimaryIdentityKeys,
+            String rollbackEvidenceRef,
+            String reason,
+            Jwt jwt) {
+        var dryRun = service.dryRunIdentityRealm(new IdentityRealmDryRunRequest(currentState, desiredState, reason), jwt);
+        var simulation = service.simulateEffectivePolicy(new EffectivePolicySimulationRequest(
+                "issuer+subject:https://auth.example.invalid/realms/weave#member-123",
+                "weave-dogfood",
+                List.of("member"),
+                List.of("weave-board-editors"),
+                List.of("chat.read", "boards.update_task"),
+                "support-safe policy simulation before realm apply"), jwt);
+        return new IdentityRealmApplyRequest(
+                currentState,
+                desiredState,
+                dryRun.dryRunId(),
+                simulation.auditRefs().get(0),
+                confirmationPhrase,
+                approveRisky,
+                approveDestructive,
+                retainedAdminPrimaryIdentityKeys,
+                rollbackEvidenceRef,
+                reason);
     }
 
 
@@ -403,8 +526,8 @@ class AdminControlPlaneServiceTest {
                 List.of("https://weave.local/callback"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
-                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
-                List.of("subject:owner:current"),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),
+                List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 "sub",
                 List.of(),
                 List.of());
@@ -428,8 +551,8 @@ class AdminControlPlaneServiceTest {
                 List.of("https://weave.local/callback", "http://localhost:8080/*"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
-                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
-                List.of("subject:owner:current"),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),
+                List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 "sub",
                 List.of(),
                 List.of());

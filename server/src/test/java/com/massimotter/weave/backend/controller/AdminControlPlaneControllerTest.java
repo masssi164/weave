@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.ApiAccessDeniedHandler;
@@ -44,6 +46,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
@@ -88,6 +91,9 @@ class AdminControlPlaneControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @MockBean
     private JwtDecoder jwtDecoder;
@@ -468,7 +474,9 @@ class AdminControlPlaneControllerTest {
                     "scopes": ["openid", "profile", "email", "weave:workspace"],
                     "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
                     "redirectOrigins": ["https://weave.local/callback"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}],
+                    "breakGlassIdentities": [{"subjectRef":"issuer+subject:https://auth.example.invalid/realms/weave#admin-123","purpose":"last-admin recovery","breakGlass":true,"roles":["owner"]}],
+                    "lastAdminSubjectRefs": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"]
                   },
                   "desiredState": {
                     "realmId": "weave-dogfood",
@@ -480,7 +488,9 @@ class AdminControlPlaneControllerTest {
                     "scopes": ["openid", "profile", "email", "weave:workspace"],
                     "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
                     "redirectOrigins": ["https://weave.local/callback"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}],
+                    "breakGlassIdentities": [{"subjectRef":"issuer+subject:https://auth.example.invalid/realms/weave#admin-123","purpose":"last-admin recovery","breakGlass":true,"roles":["owner"]}],
+                    "lastAdminSubjectRefs": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"]
                   },
                   "confirmationPhrase": "APPLY WEAVE IDENTITY REALM",
                   "approveRisky": false,
@@ -490,6 +500,29 @@ class AdminControlPlaneControllerTest {
                 }
                 """;
 
+        String dryRunId = jsonField(mockMvc.perform(post("/api/admin/identity/realm/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andReturn(), "dryRunId");
+        String policySimulationRef = jsonArrayField(mockMvc.perform(post("/api/admin/policies/effective/simulations")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "subject": "issuer+subject:https://auth.example.invalid/realms/weave#member-123",
+                                  "organizationId": "weave-dogfood",
+                                  "roles": ["member"],
+                                  "groups": ["weave-board-editors"],
+                                  "requestedCapabilities": ["chat.read", "boards.update_task"],
+                                  "reason": "support-safe policy simulation before realm apply"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn(), "auditRefs", 0);
+        request = request.replace("\"confirmationPhrase\":", "\"dryRunId\": \"" + dryRunId + "\",\n                  \"policySimulationRef\": \"" + policySimulationRef + "\",\n                  \"confirmationPhrase\":");
+
         mockMvc.perform(post("/api/admin/identity/realm/apply")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -497,7 +530,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.providerKey").value("keycloak-realm"))
                 .andExpect(jsonPath("$.decision").value("accepted"))
-                .andExpect(jsonPath("$.executionMode").value("guarded-provider-apply-decision-only"))
+                .andExpect(jsonPath("$.executionMode").value("guarded-provider-live-apply-disabled"))
                 .andExpect(jsonPath("$.applied").value(false))
                 .andExpect(jsonPath("$.providerMutationPerformed").value(false))
                 .andExpect(jsonPath("$.supportSafe").value(true))
@@ -739,6 +772,16 @@ class AdminControlPlaneControllerTest {
                 "test-profile",
                 impact,
                 List.of("test.capability"));
+    }
+
+    private String jsonField(MvcResult result, String fieldName) throws Exception {
+        JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
+        return root.path(fieldName).asText();
+    }
+
+    private String jsonArrayField(MvcResult result, String fieldName, int index) throws Exception {
+        JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
+        return root.path(fieldName).path(index).asText();
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor adminJwt() {
