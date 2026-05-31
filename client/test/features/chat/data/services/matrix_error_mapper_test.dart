@@ -1,5 +1,5 @@
 import 'package:matrix/matrix.dart' as sdk;
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/data/services/matrix_error_mapper.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
 
