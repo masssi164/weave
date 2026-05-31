@@ -57,6 +57,19 @@ Sprint 9 treats setup, provider switching/report review, Calls/LiveKit readiness
 | Weaver approvals | group enablement, tool approval, member opt-in, and unauthorized-tool blocks are announced and audit refs are not color-only | `server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java` |
 | Member capability states | provider-neutral states are exposed as semantic text and never require provider diagnostics | `test/features/settings/settings_screen_test.dart`, `test/features/app/weave_app_backend_capability_flow_test.dart` |
 
+## Sprint 10 manual accessibility closure scope
+
+Sprint 10 release closure requires an explicit manual assistive-technology result or a named temporary waiver. Green widget/Admin Console tests are not sufficient to claim manual screen-reader, keyboard-only, or text-scaling completion.
+
+Current Sprint 10 artifact: [manual accessibility evidence waiver](evidence/sprint-10-manual-accessibility-waiver.md). The waiver is temporary, owner-bound, scoped, and expires before v0.1 RC promotion unless replaced by real manual evidence.
+
+| Sprint 10 flow | Required manual evidence shape | Current artifact |
+| --- | --- | --- |
+| Admin Console provider apply and recovery | Keyboard-only traversal reaches category, adapter, dry-run, consequence confirmation, readiness test, replacement dry-run evidence, and blocked/enabled apply state without pointer-only steps. | Waived pending live AT execution: `docs/evidence/sprint-10-manual-accessibility-waiver.md` |
+| Fresh/stale apply evidence messaging | Screen reader announces fresh vs stale dry-run evidence, missing gates, consequence confirmation requirement, member impact, rollback/support boundary, and apply status as text. | Waived pending live AT execution: `docs/evidence/sprint-10-manual-accessibility-waiver.md` |
+| Admin Console 200% text scaling | Provider apply gates, consequence confirmation, evidence refs, and recovery copy remain readable and operable at 200% zoom/text scaling. | Waived pending live AT execution: `docs/evidence/sprint-10-manual-accessibility-waiver.md` |
+| Baseline member/admin critical traversal | Existing release-gate rows remain passed or have linked release-blocking issues; no pass may be inferred from automated tests alone. | Waived pending live AT execution: `docs/evidence/sprint-10-manual-accessibility-waiver.md` |
+
 ## Manual assistive-technology evidence required before release sign-off
 
 Record the tester, date, platform, assistive technology, result, and evidence link in the release issue or runbook. Manual-only checks are a gate; they may not be inferred from green widget tests.

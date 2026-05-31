@@ -351,7 +351,9 @@ ScenarioMappingResult _validateScenarioMapping(
         ),
       );
     }
-    if (runtimeEvidence.wasCollected && !runtimeObserved) {
+    if (runtimeEvidence.wasCollected &&
+        mapping.evidenceMode.requiresRuntimeObservation &&
+        !runtimeObserved) {
       findings.add(
         AcceptanceFinding(
           'Mapping ${mapping.tag} runtime evidence did not observe marker $marker.',
@@ -389,7 +391,9 @@ ScenarioMappingResult _validateScenarioMapping(
     }
   }
 
-  final runtimeStatus = runtimeEvidence.wasCollected
+  final runtimeStatus = !mapping.evidenceMode.requiresRuntimeObservation
+      ? RuntimeScenarioStatus.notRequired
+      : runtimeEvidence.wasCollected
       ? markerResults.every((marker) => marker.runtimeObserved)
             ? RuntimeScenarioStatus.passed
             : RuntimeScenarioStatus.failedOrIncomplete
@@ -411,6 +415,7 @@ RuntimeEvidence extractRuntimeEvidence(
     return RuntimeEvidence.notCollected();
   }
   final expectedMarkers = mappings
+      .where((mapping) => mapping.evidenceMode.requiresRuntimeObservation)
       .expand((mapping) => mapping.evidenceMarkers)
       .toSet();
   final markers = <String, SanitizedEvidenceMarker>{};
@@ -487,6 +492,12 @@ Map<String, Object?> renderReleaseEvidenceManifest(
     'valid': result.isValid,
     'scenarioCount': result.scenarios.length,
     'mappingCount': result.mappings.length,
+    'liveRuntimeMappingCount': result.mappings
+        .where((mapping) => mapping.evidenceMode == EvidenceMode.liveRuntime)
+        .length,
+    'offlineSpecMappingCount': result.mappings
+        .where((mapping) => mapping.evidenceMode == EvidenceMode.offlineSpec)
+        .length,
     'runtimeEvidenceCollected': runtimeEvidence.wasCollected,
     'observedMarkers': runtimeEvidence.observedMarkers.toList()..sort(),
     'findings': result.findings
@@ -526,17 +537,20 @@ String renderMarkdownSummary(
     ..writeln('| Scenario | Mapping | Runtime evidence | Markers |')
     ..writeln('| --- | --- | --- | --- |');
   for (final scenarioResult in result.scenarioResults) {
+    final evidenceMode = scenarioResult.mapping?.evidenceMode;
     final markers = scenarioResult.markerResults.isEmpty
         ? 'none'
         : scenarioResult.markerResults
               .map(
-                (marker) => runtimeEvidence.wasCollected
+                (marker) => evidenceMode == EvidenceMode.offlineSpec
+                    ? '${marker.marker}:offline-spec'
+                    : runtimeEvidence.wasCollected
                     ? '${marker.marker}:${marker.runtimeObserved ? 'seen' : 'missing'}'
                     : '${marker.marker}:mapped',
               )
               .join('<br>');
     buffer.writeln(
-      '| ${_escapeMarkdown(scenarioResult.scenario.name)} | ${scenarioResult.mapping == null ? 'missing' : 'mapped'} | ${scenarioResult.runtimeStatus.label} | $markers |',
+      '| ${_escapeMarkdown(scenarioResult.scenario.name)} | ${scenarioResult.mapping == null ? 'missing' : scenarioResult.mapping!.evidenceMode.label} | ${scenarioResult.runtimeStatus.label} | $markers |',
     );
   }
   if (result.findings.isNotEmpty) {
@@ -687,6 +701,7 @@ class ScenarioMapping {
     required this.scenario,
     required this.featurePath,
     required this.executableTest,
+    required this.evidenceMode,
     required this.evidenceMarkers,
     required this.additionalEvidence,
   });
@@ -697,6 +712,10 @@ class ScenarioMapping {
       scenario: json['scenario']! as String,
       featurePath: json['feature']! as String,
       executableTest: json['executableTest']! as String,
+      evidenceMode: EvidenceMode.fromJson(
+        json['evidenceMode'] as String?,
+        executableTest: json['executableTest']! as String,
+      ),
       evidenceMarkers: (json['evidenceMarkers']! as List).cast<String>(),
       additionalEvidence:
           ((json['additionalEvidence'] as List?) ?? const <Object>[])
@@ -713,6 +732,7 @@ class ScenarioMapping {
   final String scenario;
   final String featurePath;
   final String executableTest;
+  final EvidenceMode evidenceMode;
   final List<String> evidenceMarkers;
   final List<AdditionalEvidenceMapping> additionalEvidence;
 
@@ -721,12 +741,45 @@ class ScenarioMapping {
     'scenario': scenario,
     'feature': featurePath,
     'executableTest': executableTest,
+    'evidenceMode': evidenceMode.jsonValue,
     'evidenceMarkers': evidenceMarkers,
     if (additionalEvidence.isNotEmpty)
       'additionalEvidence': additionalEvidence
           .map((evidence) => evidence.toJson())
           .toList(growable: false),
   };
+}
+
+enum EvidenceMode {
+  liveRuntime('live-runtime', 'live runtime evidence', true),
+  offlineSpec('offline-spec', 'offline/spec executable evidence', false);
+
+  const EvidenceMode(
+    this.jsonValue,
+    this.label,
+    this.requiresRuntimeObservation,
+  );
+
+  factory EvidenceMode.fromJson(
+    String? value, {
+    required String executableTest,
+  }) {
+    if (value == null || value.isEmpty) {
+      return executableTest.startsWith('client/integration_test/')
+          ? EvidenceMode.liveRuntime
+          : EvidenceMode.offlineSpec;
+    }
+    for (final mode in EvidenceMode.values) {
+      if (mode.jsonValue == value) {
+        return mode;
+      }
+    }
+    throw FormatException('Unknown evidenceMode "$value".');
+  }
+
+  final String jsonValue;
+  final String label;
+  final bool requiresRuntimeObservation;
 }
 
 class AdditionalEvidenceMapping {
@@ -830,6 +883,7 @@ class EvidenceMarkerResult {
 
 enum RuntimeScenarioStatus {
   notCollected('not collected'),
+  notRequired('not required for this evidence mode'),
   passed('passed'),
   failedOrIncomplete('failed or incomplete');
 

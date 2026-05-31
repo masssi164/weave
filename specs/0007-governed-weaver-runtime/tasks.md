@@ -1,6 +1,6 @@
 # Tasks: Governed Weaver runtime and tool approval contract
 
-**Spec**: `specs/0004-governed-weaver-runtime/spec.md`
+**Spec**: `specs/0007-governed-weaver-runtime/spec.md`
 
 - [x] T001 [#433] Document Weaver runtime profile schema and runtime/model/tool provider separation.
 - [x] T002 [#433] Keep profile generated from workspace capability policy and disabled by default.

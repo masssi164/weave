@@ -107,6 +107,7 @@ void main() {
             scenario: mapping.scenario,
             featurePath: mapping.featurePath,
             executableTest: mapping.executableTest,
+            evidenceMode: mapping.evidenceMode,
             evidenceMarkers: <String>['MISSING_NEGATIVE_FIXTURE_MARKER'],
             additionalEvidence: mapping.additionalEvidence,
           );
@@ -151,6 +152,69 @@ void main() {
         result.findings.map((finding) => finding.message).join('\n'),
         contains('runtime evidence did not observe marker AUTH_RESULT'),
       );
+    },
+  );
+
+  test(
+    'mapping guard does not treat offline spec markers as live runtime evidence',
+    () {
+      final root = Directory.current.parent;
+      const scenario = acceptance.FeatureScenario(
+        featurePath: 'e2e/features/product_readiness_waterfall.feature',
+        line: 6,
+        name:
+            'Admin bootstraps organization, validates domains, configures providers, enables Weaver, and member works provider-neutrally',
+        tags: <String>['@weave-product-readiness-waterfall'],
+      );
+      const mapping = acceptance.ScenarioMapping(
+        tag: '@weave-product-readiness-waterfall',
+        scenario:
+            'Admin bootstraps organization, validates domains, configures providers, enables Weaver, and member works provider-neutrally',
+        featurePath: 'e2e/features/product_readiness_waterfall.feature',
+        executableTest:
+            'client/test/release_1/v0_1_release_spine_contract_test.dart',
+        evidenceMode: acceptance.EvidenceMode.offlineSpec,
+        evidenceMarkers: <String>['PRODUCT_READINESS_WATERFALL'],
+        additionalEvidence: <acceptance.AdditionalEvidenceMapping>[],
+      );
+
+      final result = acceptance.validateAcceptanceContract(
+        root: root,
+        scenarios: const <acceptance.FeatureScenario>[scenario],
+        mappings: const <acceptance.ScenarioMapping>[mapping],
+        runtimeEvidence: const acceptance.RuntimeEvidence(
+          wasCollected: true,
+          markers: <String, acceptance.SanitizedEvidenceMarker>{},
+        ),
+      );
+      final summary = acceptance.renderMarkdownSummary(
+        result,
+        const acceptance.RuntimeEvidence(
+          wasCollected: true,
+          markers: <String, acceptance.SanitizedEvidenceMarker>{},
+        ),
+      );
+
+      expect(
+        result.findings.map((finding) => finding.message).toList(),
+        isEmpty,
+      );
+      expect(summary, contains('offline/spec executable evidence'));
+      expect(summary, contains('PRODUCT_READINESS_WATERFALL:offline-spec'));
+      expect(summary, isNot(contains('PRODUCT_READINESS_WATERFALL:seen')));
+
+      final directory = Directory.systemTemp.createTempSync(
+        'weave_offline_marker_',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final logFile = File('${directory.path}${Platform.pathSeparator}e2e.log')
+        ..writeAsStringSync('PRODUCT_READINESS_WATERFALL\n');
+      final evidence = acceptance.extractRuntimeEvidence(
+        logFile,
+        const <acceptance.ScenarioMapping>[mapping],
+      );
+
+      expect(evidence.observedMarkers, isEmpty);
     },
   );
 
@@ -220,6 +284,7 @@ ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted acces
       scenario: 'Accessibility evidence is useful',
       featurePath: 'e2e/features/live_stack_app.feature',
       executableTest: 'integration_test/live_stack_e2e_test.dart',
+      evidenceMode: acceptance.EvidenceMode.liveRuntime,
       evidenceMarkers: <String>['ACCESSIBILITY_RESULT'],
       additionalEvidence: <acceptance.AdditionalEvidenceMapping>[],
     );
@@ -248,6 +313,7 @@ ACCESSIBILITY_RESULT accessible=true accessibility=ok accessToken=redacted acces
       scenario: 'Sign-in restores the Weave workspace and profile',
       featurePath: 'e2e/features/live_stack_app.feature',
       executableTest: 'integration_test/live_stack_e2e_test.dart',
+      evidenceMode: acceptance.EvidenceMode.liveRuntime,
       evidenceMarkers: <String>['AUTH_RESULT'],
       additionalEvidence: <acceptance.AdditionalEvidenceMapping>[],
     );
@@ -327,6 +393,7 @@ PROVIDER_STACK_RESULT status=degraded providerHost=matrix.internal endpoint=/adm
             'Provider stack readiness stays backend-owned and support-safe',
         featurePath: 'e2e/features/live_stack_app.feature',
         executableTest: 'integration_test/live_stack_e2e_test.dart',
+        evidenceMode: acceptance.EvidenceMode.liveRuntime,
         evidenceMarkers: <String>['PROVIDER_STACK_RESULT'],
         additionalEvidence: <acceptance.AdditionalEvidenceMapping>[],
       );

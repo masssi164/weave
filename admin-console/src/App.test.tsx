@@ -158,8 +158,8 @@ describe('Admin Console MVP', () => {
     expect(screen.getAllByText(/SecretRef status/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Migration \/ dry-run state/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Evidence refs/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/provider apply is enabled/i)).toBeInTheDocument();
-    expect(screen.getByText(/all required evidence gates passed/i)).toBeInTheDocument();
+    expect(screen.getByText(/provider apply is blocked/i)).toBeInTheDocument();
+    expect(screen.getByText(/fresh current-session dry-run evidence/i)).toBeInTheDocument();
     expect(screen.getByText(/provider source of truth/i)).toBeInTheDocument();
     expect(screen.getByText(/backend-owned facade/i)).toBeInTheDocument();
     expect(screen.getByText(/Stable states:/i)).toHaveTextContent(
@@ -261,13 +261,40 @@ describe('Admin Console MVP', () => {
     );
   });
 
-  it('applies selected providers as Admin Console source of truth through the backend API', async () => {
+  it('applies selected providers only after fresh dry-run evidence and consequence confirmation', async () => {
     const api = mockApi();
     const user = userEvent.setup();
     render(<App api={api} />);
 
-    await user.click(
+    expect(
       await screen.findByRole('button', { name: /apply selected provider/i }),
+    ).toBeDisabled();
+
+    await user.click(
+      screen.getByRole('button', { name: /dry-run provider selection/i }),
+    );
+    await waitFor(() =>
+      expect(api.selectProvider).toHaveBeenCalledWith(
+        'identity',
+        'keycloak-realm',
+        'recommended_self_hosted_default',
+        true,
+      ),
+    );
+
+    expect(screen.getByText(/current-session dry-run evidence is fresh/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /apply selected provider/i }),
+    ).toBeDisabled();
+
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: /i confirm i reviewed member impact, rollback evidence, and provider-switch consequences/i,
+      }),
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: /apply selected provider/i }),
     );
 
     await waitFor(() =>
@@ -281,6 +308,30 @@ describe('Admin Console MVP', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       /provider selection applied/i,
     );
+  });
+
+  it('blocks provider apply when dry-run evidence becomes stale after selection changes', async () => {
+    const api = mockApi();
+    const user = userEvent.setup();
+    render(<App api={api} />);
+
+    await user.click(
+      await screen.findByRole('button', { name: /dry-run provider selection/i }),
+    );
+    await waitFor(() => expect(screen.getByText(/current-session dry-run evidence is fresh/i)).toBeInTheDocument());
+
+    await user.click(screen.getByLabelText(/choice model/i));
+    await user.click(screen.getByRole('option', { name: /managed cloud provider/i }));
+
+    expect(screen.getByText(/current-session dry-run evidence is missing or stale/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', {
+        name: /i confirm i reviewed member impact, rollback evidence, and provider-switch consequences/i,
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /apply selected provider/i }),
+    ).toBeDisabled();
   });
 
   it('dry-runs selected providers through the backend API before applying', async () => {

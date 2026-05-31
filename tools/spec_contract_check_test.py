@@ -83,6 +83,15 @@ class SpecContractCheckTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.run_main(repo)
 
+    def test_duplicate_global_spec_id_fails(self) -> None:
+        repo = self.with_repo(VALID_SPEC)
+        duplicate_dir = repo / "specs" / "0001-duplicate-spec"
+        duplicate_dir.mkdir()
+        (duplicate_dir / "spec.md").write_text(VALID_SPEC, encoding="utf-8")
+        (duplicate_dir / "traceability.yaml").write_text(TRACEABILITY, encoding="utf-8")
+        with self.assertRaises(SystemExit):
+            self.run_main(repo)
+
     def test_frontmatter_accepts_unindented_list_items(self) -> None:
         unindented = VALID_SPEC.replace("  - ./gradlew specContract", "- ./gradlew specContract")
         self.run_main(self.with_repo(unindented))

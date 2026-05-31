@@ -1,7 +1,7 @@
 # Implementation plan: Governed Weaver runtime and tool approval contract
 
-**Spec**: `specs/0004-governed-weaver-runtime/spec.md`  
-**Branch**: `feat/s8s9-weaver-governed-runtime`  
+**Spec**: `specs/0007-governed-weaver-runtime/spec.md`
+**Branch**: `feat/s8s9-weaver-governed-runtime`
 **Issues**: #433, #446, #447, #448, #449
 
 ## Summary

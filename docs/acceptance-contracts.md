@@ -7,7 +7,10 @@ machine-readable mapping to executable evidence.
 ## Current frontend live-stack contract
 
 - Product scenarios live in `e2e/features/live_stack_app.feature`.
-- Stable scenario mappings live in `e2e/scenario_mappings.json`.
+- Stable scenario mappings live in `e2e/scenario_mappings.json`. Each mapping
+  declares an `evidenceMode`: `live-runtime` markers must be observed in the
+  credentialed Live Stack E2E log, while `offline-spec` markers prove checked-in
+  executable/spec evidence and are not counted as live runtime observations.
 - The mapping guard is `test/live_stack_feature_mapping_test.dart` and can also
   be run directly with `dart run tool/acceptance_contract.dart guard`.
 - Live CI writes audit artifacts to `weave-live-stack-acceptance-evidence`:
@@ -22,6 +25,11 @@ that names the source lane, commit, workflow run metadata, required artifact
 files, and RC promotion rule. It must not include raw secrets, tokens, cookies,
 private keys, credential-bearing URLs, provider internals, downstream provider
 bodies, or full live E2E logs.
+
+Runtime summaries must keep the modes distinct: `live-runtime` markers may be
+reported as seen/missing from a live log, and `offline-spec` markers must remain
+offline/spec executable evidence even when their test output is present in the
+same workflow log.
 
 ## ATDD/TDD rule
 

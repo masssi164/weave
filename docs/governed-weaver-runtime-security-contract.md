@@ -84,5 +84,5 @@ Admins can see policy posture, audit metadata, readiness, grants, and approval s
 
 - `./gradlew serverCi` for runtime profile and tool registry contracts.
 - `./gradlew acceptanceContract` for mapped product-language scenarios.
-- `./gradlew specContract` for the governed Weaver runtime spec.
+- `./gradlew specContract` for the governed Weaver runtime spec (`WEAVE-SPEC-0007`).
 - Release hardening evidence in `docs/evidence/weaver-security-privacy-accessibility-report.md` before any release claim.

@@ -1,47 +1,58 @@
 package com.massimotter.weave.backend.service.migration;
 
 import com.massimotter.weave.backend.model.migration.MigrationApplyGateRequest;
+import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class MigrationApplyGateServiceTest {
 
-    private final MigrationApplyGateService service = new MigrationApplyGateService();
+    private InMemoryMigrationRunEvidenceRepository repository;
+    private MigrationApplyGateService service;
+
+    @BeforeEach
+    void setUp() {
+        repository = new InMemoryMigrationRunEvidenceRepository();
+        service = new MigrationApplyGateService(repository);
+    }
 
     @Test
-    void blocksApplyWhenRequiredArtifactsIdentityMappingOrAuditSinkAreMissing() {
-        var response = service.evaluate(new MigrationApplyGateRequest(
-                "migration-chat-001",
-                "chat",
-                "approved",
-                "dry-run:chat:001",
-                "export:chat:001",
-                "import:chat:001",
-                "mapping:chat:001",
-                null,
-                null,
-                "impact:chat:001",
-                null,
-                "rollback:chat:001",
-                "verify:chat:001",
-                Map.of("Conversation", 2),
-                List.of("sha256:1111111111111111111111111111111111111111111111111111111111111111"),
-                List.of("audit:migration.dry_run:001"),
-                false,
-                false,
-                false,
-                List.of("Authorization: Bearer raw-token", "https://provider.example.invalid/private")));
+    void rejectsForgedCompleteLookingRequestWhenServerEvidenceIsMissing() {
+        var response = service.evaluate(completeRequest("approved"));
+
+        assertThat(response.applyAllowed()).isFalse();
+        assertThat(response.lifecycle()).isEqualTo("blocked");
+        assertThat(response.blockers())
+                .contains("apply blocked until current server-side dry-run evidence exists for this run and domain");
+        assertThat(response.missingArtifacts()).contains("dryRunReportRef", "adminApprovalRef");
+        assertThat(response.evidenceBundle().artifactRefs()).isEmpty();
+    }
+
+    @Test
+    void blocksApplyWhenServerEvidenceLacksArtifactsIdentityMappingAuditSinkOrApproval() {
+        repository.save(evidence("approved", Map.of(
+                "dryRunReportRef", "dry-run:boards:001",
+                "exportSnapshotRef", "export:boards:001",
+                "importPlanRef", "import:boards:001",
+                "providerMappingRef", "mapping:boards:001",
+                "memberImpactPreviewRef", "impact:boards:001",
+                "rollbackArchiveRef", "rollback:boards:001",
+                "postApplyVerificationRef", "verify:boards:001"), false, false, false));
+
+        var response = service.evaluate(completeRequest("approved"));
 
         assertThat(response.applyAllowed()).isFalse();
         assertThat(response.lifecycle()).isEqualTo("blocked");
         assertThat(response.missingArtifacts()).contains("lossyMappingReportRef", "conflictReportRef", "adminApprovalRef");
         assertThat(response.blockers()).contains(
-                "apply blocked until identity mapping is complete",
-                "apply blocked until the audit sink is available",
-                "apply blocked until an admin approval record is present");
+                "apply blocked until server-side identity mapping is complete",
+                "apply blocked until the server-side audit sink is available",
+                "apply blocked until a server-side admin approval record is present");
         assertThat(response.supportSafe()).isTrue();
         assertThat(response.providerDiagnosticsRedacted()).isTrue();
         assertThat(response.evidenceBundle().redaction()).isEqualTo("support_safe");
@@ -52,8 +63,10 @@ class MigrationApplyGateServiceTest {
     }
 
     @Test
-    void allowsApprovedApplyOnlyWhenLifecycleAndEvidenceAreComplete() {
-        var response = service.evaluate(completeRequest("approved"));
+    void allowsApprovedApplyOnlyWhenPersistedLifecycleAndEvidenceAreComplete() {
+        repository.save(evidence("approved", completeArtifactRefs(), true, true, true));
+
+        var response = service.evaluate(completeRequest("discovered"));
 
         assertThat(response.applyAllowed()).isTrue();
         assertThat(response.lifecycle()).isEqualTo("approved");
@@ -67,8 +80,33 @@ class MigrationApplyGateServiceTest {
     }
 
     @Test
+    void staleServerEvidenceFailsClosed() {
+        Instant now = Instant.now();
+        repository.save(new MigrationRunEvidence(
+                "migration-boards-001",
+                "boards",
+                "approved",
+                Map.of("Board", 1),
+                List.of("sha256:2222222222222222222222222222222222222222222222222222222222222222"),
+                List.of("audit:migration.dry_run:001"),
+                completeArtifactRefs(),
+                List.of(),
+                true,
+                true,
+                true,
+                now.minusSeconds(172800),
+                now.minusSeconds(86400)));
+
+        var response = service.evaluate(completeRequest("approved"));
+
+        assertThat(response.applyAllowed()).isFalse();
+        assertThat(response.blockers())
+                .contains("apply blocked until current server-side dry-run evidence exists for this run and domain");
+    }
+
+    @Test
     void recordsExactMigrationLifecycleStatesAndBlocksPrematureApply() {
-        assertThat(List.of(
+        for (String state : List.of(
                 "discovered",
                 "preflight_failed",
                 "preflight_passed",
@@ -80,12 +118,51 @@ class MigrationApplyGateServiceTest {
                 "applied",
                 "verified",
                 "rolled_back",
-                "archived"))
-                .allSatisfy(state -> assertThat(service.evaluate(completeRequest(state)).lifecycle())
-                        .isEqualTo(SetLike.applyCapable(state) ? state : "blocked"));
+                "archived")) {
+            repository.clear();
+            repository.save(evidence(state, completeArtifactRefs(), true, true, true));
+            assertThat(service.evaluate(completeRequest("approved")).lifecycle())
+                    .isEqualTo(SetLike.applyCapable(state) ? state : "blocked");
+        }
 
-        assertThat(service.evaluate(completeRequest("preflight_passed")).blockers())
-                .contains("apply blocked until lifecycle reaches approved after dry-run and preflight evidence");
+        repository.clear();
+        repository.save(evidence("preflight_passed", completeArtifactRefs(), true, true, true));
+        assertThat(service.evaluate(completeRequest("approved")).blockers())
+                .contains("apply blocked until server-side lifecycle reaches approved after dry-run and preflight evidence");
+    }
+
+    private MigrationRunEvidence evidence(String lifecycle, Map<String, String> artifactRefs,
+            boolean identityMappingComplete, boolean auditSinkAvailable, boolean adminApproved) {
+        Instant now = Instant.now();
+        return new MigrationRunEvidence(
+                "migration-boards-001",
+                "boards",
+                lifecycle,
+                Map.of("Board", 1, "Task", 12),
+                List.of("sha256:2222222222222222222222222222222222222222222222222222222222222222"),
+                List.of("audit:migration.dry_run:001", "audit:migration.apply_requested:001"),
+                artifactRefs,
+                List.of("Authorization: Bearer raw-token", "https://provider.example.invalid/private"),
+                identityMappingComplete,
+                auditSinkAvailable,
+                adminApproved,
+                now,
+                now.plusSeconds(3600));
+    }
+
+    private Map<String, String> completeArtifactRefs() {
+        Map<String, String> refs = new LinkedHashMap<>();
+        refs.put("dryRunReportRef", "dry-run:boards:001");
+        refs.put("exportSnapshotRef", "export:boards:001");
+        refs.put("importPlanRef", "import:boards:001");
+        refs.put("providerMappingRef", "mapping:boards:001");
+        refs.put("lossyMappingReportRef", "lossy:boards:001");
+        refs.put("conflictReportRef", "conflict:boards:001");
+        refs.put("memberImpactPreviewRef", "impact:boards:001");
+        refs.put("adminApprovalRef", "approval:boards:001");
+        refs.put("rollbackArchiveRef", "rollback:boards:001");
+        refs.put("postApplyVerificationRef", "verify:boards:001");
+        return refs;
     }
 
     private MigrationApplyGateRequest completeRequest(String lifecycle) {
