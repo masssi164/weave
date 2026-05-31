@@ -107,7 +107,7 @@ Use this page for release-affecting changes that have merged but are not include
 - Sprint 8/Sprint 9 acceptance now includes mapped product-readiness waterfall evidence for domain registry review, Keycloak dry-run, provider apply blocking, portability reports, Calls/LiveKit readiness, Weaver approvals, member opt-in, and support-safe release blockers.
 - Sprint 11 Live Stack acceptance now maps a provider-reality vertical for Files, Calendar, Boards, Calls, and Documents with live-runtime evidence separated from manual accessibility accounting.
 - Sprint 12 adds provider portability schema v2 fixtures and reports for Files, Calendar, Boards, and Chat, plus Office/WOPI, Weaver isolation, Weaver registry, identity lifecycle, accessibility, and operator lifecycle contracts.
-- Weaver/OpenClaw release documentation now clarifies the signed RuntimeProfile boundary: Weave projects admin-governed Chat domain providers, model aliases, MCP/tool/skill grants, credentials, sandbox policy, and audit requirements into the OpenClaw-derived runtime while keeping raw OpenClaw configuration out of member UX.
+- Weaver/OpenClaw release documentation now clarifies the signed RuntimeProfile boundary: Weave projects admin-governed Chat domain providers, model aliases, MCP/tool/skill grants, CredentialRefs and short-lived runtime token references, sandbox policy, and audit requirements into the OpenClaw-derived runtime while keeping raw OpenClaw configuration out of member UX.
 
 ## Changed
 
