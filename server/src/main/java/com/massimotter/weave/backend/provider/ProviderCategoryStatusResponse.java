@@ -13,6 +13,9 @@ public record ProviderCategoryStatusResponse(
         @Schema(description = "Human-readable provider-neutral category label.") String label,
         @Schema(description = "Provider-neutral capability contract and adapter seam for this category.") ProviderCategoryContractResponse contract,
         @Schema(description = "Admin readiness state for this category.") ProviderCategoryReadiness readiness,
+        @Schema(description = "Evidence-backed provider implementation maturity for this category.") ProviderRealityLevel providerRealityLevel,
+        @Schema(description = "Stable member capability state derived from policy, readiness, and provider reality level.") String memberCapabilityState,
+        @Schema(description = "Actionable admin remediation for the current provider reality level.") String realityLevelRemediation,
         @Schema(description = "Effective capability policy state used for this category.") WorkspaceCapabilityPolicyState policyState,
         @Schema(description = "Member-safe impact label. Does not expose raw provider setup.") String memberImpact,
         @Schema(description = "Provider registry modules contributing to this category.") List<String> modules,
@@ -32,6 +35,9 @@ public record ProviderCategoryStatusResponse(
                 ? ProviderCapabilityContracts.contract(category, Set.of())
                 : contract;
         readiness = readiness == null ? ProviderCategoryReadiness.DISABLED : readiness;
+        providerRealityLevel = providerRealityLevel == null ? ProviderRealityLevel.CONTRACT_ONLY : providerRealityLevel;
+        memberCapabilityState = requireText(memberCapabilityState == null ? "unavailable" : memberCapabilityState, "memberCapabilityState");
+        realityLevelRemediation = requireText(realityLevelRemediation == null ? "Admin review is required before member availability." : realityLevelRemediation, "realityLevelRemediation");
         policyState = policyState == null ? WorkspaceCapabilityPolicyState.UNAVAILABLE : policyState;
         memberImpact = requireText(memberImpact, "memberImpact");
         modules = modules == null ? List.of() : List.copyOf(modules);

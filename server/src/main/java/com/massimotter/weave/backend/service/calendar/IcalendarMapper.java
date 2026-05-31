@@ -98,6 +98,17 @@ public class IcalendarMapper {
             properties.putIfAbsent(property.name(), property);
         }
 
+        if (properties.containsKey("RRULE") || properties.containsKey("RDATE") || properties.containsKey("EXDATE")) {
+            throw new CalendarAdapterException(
+                    CalendarAdapterException.Type.INVALID_RESPONSE,
+                    "Recurring CalDAV events are not yet represented by the Weave calendar facade.",
+                    Map.of(
+                            "module", "calendar",
+                            "operation", "map-event",
+                            "unsupportedFields", List.of("RRULE", "RDATE", "EXDATE"),
+                            "supportSafeReason", "recurrence-not-yet-supported"));
+        }
+
         Property uid = properties.get("UID");
         Property start = properties.get("DTSTART");
         Property end = properties.get("DTEND");

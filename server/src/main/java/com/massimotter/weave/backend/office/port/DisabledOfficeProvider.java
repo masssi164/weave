@@ -23,7 +23,7 @@ public class DisabledOfficeProvider implements OfficeProvider {
 
     private final ProviderStatusResponse status = new ProviderStatusResponse(
             ProviderModule.OFFICE,
-            "onlyoffice-community",
+            "onlyoffice",
             ProviderState.NOT_CONFIGURED,
             "not_configured",
             false,
@@ -32,15 +32,15 @@ public class DisabledOfficeProvider implements OfficeProvider {
             true,
             true,
             false,
-            "ONLYOFFICE Docs Community is the default candidate, but no office provider runtime/session bridge is configured.",
+            "ONLYOFFICE is the default candidate, but no office provider runtime/session bridge is configured.",
             Set.of("view", "edit", "comment", "review", "form-fill", "docx", "xlsx", "pptx", "odt", "ods", "odp", "pdf-view"),
             Set.of("launch-session", "credential-bearing-url", "document-server-token-exposure", "raw-provider-errors"),
             List.of("office-provider-not-configured", "office-provider-unavailable", "office-unsupported-mode"),
             "support-safe: no document-server JWTs, signed URLs, app passwords, bearer tokens, callbacks secrets, or raw provider errors",
-            List.of("onlyoffice-community", "collabora-code", "microsoft-365-office-graph", "wopi-host"),
+            List.of("onlyoffice", "collabora", "microsoft-365-office", "google-workspace-docs"),
             Map.of(
-                    "defaultProvider", "onlyoffice-community",
-                    "nonDefaultProvider", "collabora-code",
+                    "defaultProvider", "onlyoffice",
+                    "nonDefaultProvider", "collabora",
                     "collaboraPosture", "non-default/licensing-risk",
                     "likelyFirstPath", "nextcloud-onlyoffice-app-behind-backend-facade"));
 
@@ -57,19 +57,19 @@ public class DisabledOfficeProvider implements OfficeProvider {
                 false,
                 true,
                 "unavailable",
-                "onlyoffice-community",
+                "onlyoffice",
                 List.of(status),
                 List.of(
                         new OfficeProviderCandidateResponse(
-                                "onlyoffice-community",
-                                "ONLYOFFICE Docs Community",
+                                "onlyoffice",
+                                "ONLYOFFICE",
                                 true,
                                 "default-candidate",
                                 "free community runtime candidate",
                                 "likely through Nextcloud ONLYOFFICE app behind backend facade",
                                 List.of("No editing is promised until runtime, callback verification, session token, and permission gates are configured.")),
                         new OfficeProviderCandidateResponse(
-                                "collabora-code",
+                                "collabora",
                                 "Collabora/CODE",
                                 false,
                                 "non-default",
@@ -89,6 +89,6 @@ public class DisabledOfficeProvider implements OfficeProvider {
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "office-provider-not-configured",
                 "Office document launch is unavailable until a backend-owned provider adapter is configured.",
-                ProviderRedactor.supportSafeDetails("office", "launch", "requestedMode=" + requestedMode + "; provider=onlyoffice-community"));
+                ProviderRedactor.supportSafeDetails("office", "launch", "requestedMode=" + requestedMode + "; provider=onlyoffice"));
     }
 }

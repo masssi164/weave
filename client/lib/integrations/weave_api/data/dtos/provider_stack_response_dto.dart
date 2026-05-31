@@ -75,6 +75,9 @@ class ProviderCategoryStatusResponseDto {
     required this.label,
     required this.contract,
     required this.readiness,
+    required this.providerRealityLevel,
+    required this.memberCapabilityState,
+    required this.realityLevelRemediation,
     required this.policyState,
     required this.memberImpact,
     required this.modules,
@@ -103,6 +106,13 @@ class ProviderCategoryStatusResponseDto {
       readiness: _providerCategoryReadiness(
         _string(json['readiness'], fallback: 'unknown'),
       ),
+      providerRealityLevel: _providerRealityLevel(
+        _string(json['providerRealityLevel'], fallback: 'unknown'),
+      ),
+      memberCapabilityState: _memberCapabilityState(
+        json['memberCapabilityState'],
+      ),
+      realityLevelRemediation: _safeText(json['realityLevelRemediation']),
       policyState: _string(json['policyState'], fallback: 'unknown'),
       memberImpact: _safeText(json['memberImpact']),
       modules: _safeStringList(json['modules']),
@@ -128,6 +138,9 @@ class ProviderCategoryStatusResponseDto {
   final String label;
   final ProviderCategoryContractResponseDto contract;
   final ProviderCategoryReadiness readiness;
+  final ProviderRealityLevel providerRealityLevel;
+  final String memberCapabilityState;
+  final String realityLevelRemediation;
   final String policyState;
   final String memberImpact;
   final List<String> modules;
@@ -145,6 +158,9 @@ class ProviderCategoryStatusResponseDto {
     label: label,
     contract: contract.toSnapshot(),
     readiness: readiness,
+    providerRealityLevel: providerRealityLevel,
+    memberCapabilityState: memberCapabilityState,
+    realityLevelRemediation: realityLevelRemediation,
     policyState: policyState,
     memberImpact: memberImpact,
     modules: modules,
@@ -168,6 +184,7 @@ class ProviderAdapterReadinessEvidenceResponseDto {
     required this.configured,
     required this.reachable,
     required this.health,
+    required this.providerRealityLevel,
     required this.failClosed,
     required this.supportSafeDiagnostics,
     required this.evidenceTimestamp,
@@ -182,6 +199,9 @@ class ProviderAdapterReadinessEvidenceResponseDto {
       configured: _bool(json['configured']),
       reachable: _bool(json['reachable']),
       health: _safeText(json['health']),
+      providerRealityLevel: _providerRealityLevel(
+        _string(json['providerRealityLevel'], fallback: 'unknown'),
+      ),
       failClosed: _bool(json['failClosed']),
       supportSafeDiagnostics: _safeDiagnostics(json['supportSafeDiagnostics']),
       evidenceTimestamp: _dateTime(json['evidenceTimestamp']),
@@ -193,6 +213,7 @@ class ProviderAdapterReadinessEvidenceResponseDto {
   final bool configured;
   final bool reachable;
   final String health;
+  final ProviderRealityLevel providerRealityLevel;
   final bool failClosed;
   final Map<String, Object?> supportSafeDiagnostics;
   final DateTime? evidenceTimestamp;
@@ -204,6 +225,7 @@ class ProviderAdapterReadinessEvidenceResponseDto {
         configured: configured,
         reachable: reachable,
         health: health,
+        providerRealityLevel: providerRealityLevel,
         failClosed: failClosed,
         supportSafeDiagnostics: supportSafeDiagnostics,
         evidenceTimestamp: evidenceTimestamp,
@@ -321,6 +343,7 @@ class ProviderStatusResponseDto {
     required this.supportSafeErrorCodes,
     required this.redactionPolicy,
     required this.candidates,
+    required this.providerRealityLevel,
     required this.diagnostics,
   });
 
@@ -342,6 +365,9 @@ class ProviderStatusResponseDto {
       supportSafeErrorCodes: _safeStringList(json['supportSafeErrorCodes']),
       redactionPolicy: _safeText(json['redactionPolicy']),
       candidates: _safeStringList(json['candidates']),
+      providerRealityLevel: _providerRealityLevel(
+        _string(json['providerRealityLevel'], fallback: 'unknown'),
+      ),
       diagnostics: _safeDiagnostics(json['diagnostics']),
     );
   }
@@ -362,6 +388,7 @@ class ProviderStatusResponseDto {
   final List<String> supportSafeErrorCodes;
   final String redactionPolicy;
   final List<String> candidates;
+  final ProviderRealityLevel providerRealityLevel;
   final Map<String, Object?> diagnostics;
 
   ProviderStatusSnapshot toSnapshot() => ProviderStatusSnapshot(
@@ -381,6 +408,7 @@ class ProviderStatusResponseDto {
     supportSafeErrorCodes: supportSafeErrorCodes,
     redactionPolicy: redactionPolicy,
     candidates: candidates,
+    providerRealityLevel: providerRealityLevel,
     diagnostics: diagnostics,
   );
 }
@@ -1056,6 +1084,38 @@ ProviderCategoryReadiness _providerCategoryReadiness(String value) {
     'misconfigured' => ProviderCategoryReadiness.misconfigured,
     _ => ProviderCategoryReadiness.unknown,
   };
+}
+
+ProviderRealityLevel _providerRealityLevel(String value) {
+  switch (value) {
+    case 'contract_only':
+      return ProviderRealityLevel.contractOnly;
+    case 'configured_readiness':
+      return ProviderRealityLevel.configuredReadiness;
+    case 'live_adapter_read':
+      return ProviderRealityLevel.liveAdapterRead;
+    case 'live_adapter_write':
+      return ProviderRealityLevel.liveAdapterWrite;
+    case 'migration_apply_ready':
+      return ProviderRealityLevel.migrationApplyReady;
+    case 'release_ready':
+      return ProviderRealityLevel.releaseReady;
+    default:
+      return ProviderRealityLevel.unknown;
+  }
+}
+
+String _memberCapabilityState(Object? value) {
+  final state = _string(value, fallback: 'unavailable');
+  const allowed = <String>{
+    'available',
+    'disabled_by_policy',
+    'not_configured',
+    'degraded',
+    'unavailable',
+    'coming_later',
+  };
+  return allowed.contains(state) ? state : 'unavailable';
 }
 
 ProviderState _providerState(String value) {

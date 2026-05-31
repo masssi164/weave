@@ -160,6 +160,84 @@ class NextcloudFilesAdapterTest {
         server.verify();
     }
 
+    @Test
+    void rejectsTraversalBeforeWebdavRequestLeavesBackend() {
+        assertThatThrownBy(() -> adapter.list("/Team/../Secrets"))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.BAD_REQUEST);
+                    assertThat(exception.code()).isEqualTo("invalid-file-path");
+                    assertSupportSafe(exception);
+                });
+        server.verify();
+    }
+
+    @Test
+    void mapsAuthAndQuotaFailuresWithoutLeakingProviderSecrets() {
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team"))
+                .andExpect(method(HttpMethod.PUT))
+                .andRespond(withStatus(HttpStatus.UNAUTHORIZED)
+                        .body("app-password rejected for weave-service at https://files.example.test"));
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team/large.bin"))
+                .andExpect(method(HttpMethod.PUT))
+                .andRespond(withStatus(HttpStatus.INSUFFICIENT_STORAGE)
+                        .body("quota exceeded on /remote.php/dav/files/weave-service"));
+
+        assertThatThrownBy(() -> adapter.upload("/", new MockMultipartFile(
+                "file", "Team", "application/octet-stream", new byte[] {1})))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(exception.code()).isEqualTo("nextcloud-auth-failed");
+                    assertThat(exception.details()).containsEntry("downstreamStatus", 401);
+                    assertSupportSafe(exception);
+                });
+
+        assertThatThrownBy(() -> adapter.upload("/Team", new MockMultipartFile(
+                "file", "large.bin", "application/octet-stream", new byte[1024 * 1024])))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.INSUFFICIENT_STORAGE);
+                    assertThat(exception.code()).isEqualTo("files-quota-exceeded");
+                    assertThat(exception.details()).containsEntry("downstreamStatus", 507);
+                    assertSupportSafe(exception);
+                });
+        server.verify();
+    }
+
+    @Test
+    void mapsPermissionAndDeletionConflictsToStableProductErrors() {
+        String lockedFileId = FilePathCodec.toId("/Team/locked.md");
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team/private.md"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN).body("raw provider permission body"));
+        server.expect(requestTo("https://files.example.test/remote.php/dav/files/weave-service/Team/locked.md"))
+                .andExpect(method(HttpMethod.DELETE))
+                .andRespond(withStatus(HttpStatus.LOCKED).body("locked by downstream provider"));
+
+        assertThatThrownBy(() -> adapter.download(FilePathCodec.toId("/Team/private.md")))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(exception.code()).isEqualTo("files-permission-denied");
+                    assertSupportSafe(exception);
+                });
+        assertThatThrownBy(() -> adapter.delete(lockedFileId))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(exception.code()).isEqualTo("file-conflict");
+                    assertThat(exception.details()).containsEntry("downstreamStatus", 423);
+                    assertSupportSafe(exception);
+                });
+        server.verify();
+    }
+
+    private void assertSupportSafe(ApiErrorException exception) {
+        String rendered = exception.getMessage() + " " + exception.details();
+        assertThat(rendered)
+                .doesNotContain("app-password")
+                .doesNotContain("files.example.test")
+                .doesNotContain("/remote.php/dav")
+                .doesNotContain("raw provider")
+                .doesNotContain("weave-service:");
+    }
+
     private NextcloudFilesProperties configuredProperties() {
         return new NextcloudFilesProperties(
                 "https://files.example.test",
