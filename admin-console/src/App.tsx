@@ -180,9 +180,21 @@ function isEvidenceFresh(
   evidence: ProviderSelectionDryRunEvidence | null,
 ): boolean {
   if (!evidence?.trustedBackendEvidence || !evidence.evidenceRef) return false;
-  if (!evidence.expiresAt) return true;
+  if (!evidence.expiresAt) return false;
   const expires = Date.parse(evidence.expiresAt);
   return !Number.isNaN(expires) && expires > Date.now();
+}
+
+function dryRunEvidenceFailureLabel(
+  evidence: ProviderSelectionDryRunEvidence | null,
+): string {
+  if (!evidence?.evidenceRef) return "Missing trusted backend dry-run evidence";
+  if (!evidence.trustedBackendEvidence) return "Untrusted dry-run evidence";
+  if (!evidence.expiresAt) return "Missing dry-run evidence expiration";
+  const expires = Date.parse(evidence.expiresAt);
+  if (Number.isNaN(expires)) return "Unparseable dry-run evidence expiration";
+  if (expires <= Date.now()) return "Stale dry-run evidence";
+  return "Fresh current-session dry-run evidence";
 }
 
 export default function App({
@@ -270,13 +282,9 @@ export default function App({
     providerSelectionDryRun.providerKey === providerDraft &&
     providerSelectionDryRun.choiceModel === choiceModelDraft &&
     isEvidenceFresh(providerSelectionDryRun);
-  const evidenceFailureLabel =
-    providerSelectionDryRun?.trustedBackendEvidence === false
-      ? "Forged or client-only dry-run evidence"
-      : providerSelectionDryRun?.expiresAt &&
-          !isEvidenceFresh(providerSelectionDryRun)
-        ? "Stale dry-run evidence"
-        : "Fresh current-session dry-run evidence";
+  const evidenceFailureLabel = dryRunEvidenceFailureLabel(
+    providerSelectionDryRun,
+  );
   const selectedApplyBackendAllowed =
     canConfigure &&
     selectedCategoryDetails !== undefined &&

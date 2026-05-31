@@ -594,8 +594,8 @@ function normalizeIdentityProviderReadiness(
     overallState: normalizeState(
       readiness?.overallState ?? "admin-action-required",
     ),
-    supportSafe: readiness?.supportSafe ?? true,
-    providerDiagnosticsRedacted: readiness?.providerDiagnosticsRedacted ?? true,
+    supportSafe: readiness?.supportSafe ?? false,
+    providerDiagnosticsRedacted: readiness?.providerDiagnosticsRedacted ?? false,
     backendOwnedFacade: readiness?.backendOwnedFacade ?? true,
     memberClientMayConfigureIdentityProvider:
       readiness?.memberClientMayConfigureIdentityProvider ?? false,
@@ -657,7 +657,7 @@ function normalizeCategory(
     realityLevel: normalizeRealityLevel(category.realityLevel),
     evidenceFreshness: normalizeEvidenceFreshness(
       category.evidenceFreshness,
-      category.dryRunEvidenceExpiresAt ?? generatedAt,
+      category.dryRunEvidenceExpiresAt,
     ),
     safeNextAction:
       category.safeNextAction ??
@@ -691,7 +691,7 @@ function normalizeProviderSelectionResult(
     issuedAt: response.issuedAt ?? response.dryRunEvidenceIssuedAt,
     expiresAt: response.expiresAt ?? response.dryRunEvidenceExpiresAt,
     restartSurvivalEvidenceRef: response.restartSurvivalEvidenceRef,
-    supportSafe: response.supportSafe ?? true,
+    supportSafe: response.supportSafe ?? false,
   };
 }
 
@@ -876,8 +876,8 @@ function normalizeProviderReplacementDryRun(
     memberImpactStates: normalizeMemberImpactStates(
       response.memberImpactStates,
     ),
-    supportSafe: response.supportSafe ?? true,
-    providerDiagnosticsRedacted: response.providerDiagnosticsRedacted ?? true,
+    supportSafe: response.supportSafe ?? false,
+    providerDiagnosticsRedacted: response.providerDiagnosticsRedacted ?? false,
     cutoverGates: response.cutoverGates ?? [],
     auditRefs: response.auditRefs ?? [
       `provider-replacement-dry-run-${category.key}`,

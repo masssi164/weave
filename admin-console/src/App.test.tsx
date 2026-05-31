@@ -185,7 +185,7 @@ describe("Admin Console MVP", () => {
     ).toBeGreaterThan(0);
     expect(screen.getByText(/provider apply is blocked/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/fresh current-session dry-run evidence/i),
+      screen.getByText(/missing trusted backend dry-run evidence/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/provider source of truth/i)).toBeInTheDocument();
     expect(screen.getAllByText(/configured readiness/i).length).toBeGreaterThan(
@@ -386,7 +386,7 @@ describe("Admin Console MVP", () => {
     ).toBeDisabled();
   });
 
-  it("blocks forged or client-only dry-run evidence before apply endpoint calls", async () => {
+  it("blocks missing dry-run evidence before apply endpoint calls", async () => {
     const api = mockApi({
       selectProvider: vi.fn(
         async (category, providerKey, choiceModel, dryRun) => ({
@@ -411,8 +411,40 @@ describe("Admin Console MVP", () => {
       /did not include trusted backend evidence/i,
     );
     expect(
-      screen.getByText(/forged or client-only dry-run evidence/i),
+      screen.getByText(/missing trusted backend dry-run evidence/i),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /apply selected provider/i }),
+    ).toBeDisabled();
+    expect(api.selectProvider).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("blocks untrusted dry-run evidence when supportSafe is omitted", async () => {
+    const api = mockApi({
+      selectProvider: vi.fn(
+        async (category, providerKey, choiceModel, dryRun) => ({
+          category,
+          providerKey,
+          choiceModel,
+          dryRun,
+          evidenceRef: `${category}-${providerKey}-backend-dry-run`,
+          issuedAt: "2099-01-01T00:00:00Z",
+          expiresAt: "2099-01-02T00:00:00Z",
+          supportSafe: undefined as unknown as boolean,
+        }),
+      ),
+    });
+    const user = userEvent.setup();
+    render(<App api={api} />);
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: /dry-run provider selection/i,
+      }),
+    );
+
+    expect(screen.getByText(/untrusted dry-run evidence/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /apply selected provider/i }),
     ).toBeDisabled();
@@ -450,6 +482,57 @@ describe("Admin Console MVP", () => {
       screen.getByRole("button", { name: /apply selected provider/i }),
     ).toBeDisabled();
     expect(api.selectProvider).toHaveBeenCalledTimes(1);
+  });
+
+
+  it("blocks dry-run evidence when expiration is missing or unparseable", async () => {
+    const api = mockApi({
+      selectProvider: vi
+        .fn()
+        .mockResolvedValueOnce({
+          category: "identity",
+          providerKey: "keycloak-realm",
+          choiceModel: "recommended_self_hosted_default",
+          dryRun: true,
+          evidenceRef: "identity-keycloak-realm-no-expiry",
+          issuedAt: "2099-01-01T00:00:00Z",
+          supportSafe: true,
+        })
+        .mockResolvedValueOnce({
+          category: "identity",
+          providerKey: "keycloak-realm",
+          choiceModel: "recommended_self_hosted_default",
+          dryRun: true,
+          evidenceRef: "identity-keycloak-realm-invalid-expiry",
+          issuedAt: "2099-01-01T00:00:00Z",
+          expiresAt: "not-a-date",
+          supportSafe: true,
+        }),
+    });
+    const user = userEvent.setup();
+    render(<App api={api} />);
+
+    const dryRunButton = await screen.findByRole("button", {
+      name: /dry-run provider selection/i,
+    });
+    await user.click(dryRunButton);
+
+    expect(
+      await screen.findByText(/missing dry-run evidence expiration/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /apply selected provider/i }),
+    ).toBeDisabled();
+
+    await user.click(dryRunButton);
+
+    expect(
+      await screen.findByText(/unparseable dry-run evidence expiration/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /apply selected provider/i }),
+    ).toBeDisabled();
+    expect(api.selectProvider).toHaveBeenCalledTimes(2);
   });
 
   it("dry-runs selected providers through the backend API before applying", async () => {
