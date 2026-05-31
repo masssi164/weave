@@ -474,7 +474,9 @@ class AdminControlPlaneControllerTest {
                     "scopes": ["openid", "profile", "email", "weave:workspace"],
                     "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
                     "redirectOrigins": ["https://weave.local/callback"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}],
+                    "breakGlassIdentities": [{"subjectRef":"issuer+subject:https://auth.example.invalid/realms/weave#admin-123","purpose":"last-admin recovery","breakGlass":true,"roles":["owner"]}],
+                    "lastAdminSubjectRefs": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"]
                   },
                   "desiredState": {
                     "realmId": "weave-dogfood",
@@ -486,7 +488,9 @@ class AdminControlPlaneControllerTest {
                     "scopes": ["openid", "profile", "email", "weave:workspace"],
                     "claimMappers": [{"name":"tenant","sourceClaim":"weave_tenant","targetClaim":"organizationId","required":true}],
                     "redirectOrigins": ["https://weave.local/callback"],
-                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}]
+                    "featureMappings": [{"featureKey":"boards","requiredRoles":["member"],"requiredGroups":["weave-board-editors"],"requiredScopes":["openid"]}],
+                    "breakGlassIdentities": [{"subjectRef":"issuer+subject:https://auth.example.invalid/realms/weave#admin-123","purpose":"last-admin recovery","breakGlass":true,"roles":["owner"]}],
+                    "lastAdminSubjectRefs": ["issuer+subject:https://auth.example.invalid/realms/weave#admin-123"]
                   },
                   "confirmationPhrase": "APPLY WEAVE IDENTITY REALM",
                   "approveRisky": false,

@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.identity.realm;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -10,9 +11,16 @@ public class KeycloakRealmLiveApplyAdapter implements IdentityRealmLiveApplyAdap
     private static final String PROVIDER_KEY = "keycloak-realm";
 
     private final IdentityRealmApplyProperties properties;
+    private final KeycloakRealmAdminClient keycloakRealmAdminClient;
 
+    @Autowired
     public KeycloakRealmLiveApplyAdapter(IdentityRealmApplyProperties properties) {
+        this(properties, null);
+    }
+
+    KeycloakRealmLiveApplyAdapter(IdentityRealmApplyProperties properties, KeycloakRealmAdminClient keycloakRealmAdminClient) {
         this.properties = properties == null ? new IdentityRealmApplyProperties() : properties;
+        this.keycloakRealmAdminClient = keycloakRealmAdminClient;
     }
 
     @Override
@@ -38,8 +46,8 @@ public class KeycloakRealmLiveApplyAdapter implements IdentityRealmLiveApplyAdap
                     List.of("Keycloak live apply adapter is enabled but provider runtime is not configured"),
                     List.of("Configure the Keycloak apply runtime through operator-owned SecretRefs and rerun the dry-run before retrying."));
         }
-        IdentityRealmDryRunReport report = dryRunEvidence.report();
-        boolean destructive = report.changes().stream().anyMatch(change -> "destructive".equals(change.classification()));
+        IdentityRealmDryRunReport report = dryRunEvidence == null ? null : dryRunEvidence.report();
+        boolean destructive = report != null && report.changes().stream().anyMatch(change -> "destructive".equals(change.classification()));
         if (destructive && !properties.destructiveApplyEnabled()) {
             return new IdentityRealmLiveApplyResult(
                     false,
@@ -48,14 +56,30 @@ public class KeycloakRealmLiveApplyAdapter implements IdentityRealmLiveApplyAdap
                     List.of("destructive Keycloak live apply is disabled by release/operator configuration"),
                     List.of("Enable destructive apply only with restore evidence, release approval, and an operator-owned rollback plan."));
         }
-        List<String> actions = new ArrayList<>();
-        actions.add("Apply realm settings, clients/scopes, roles/groups, and required admin/member mappings from the persisted dry-run evidence.");
-        actions.add("Publish support-safe audit evidence and retain rollback/export references; no provider IDs, endpoint URLs, tokens, or raw Keycloak responses are returned.");
-        return new IdentityRealmLiveApplyResult(
-                true,
-                true,
-                "guarded-keycloak-live-apply",
-                List.of(),
-                actions);
+        KeycloakRealmAdminClient client = keycloakRealmAdminClient == null
+                ? new HttpKeycloakRealmAdminClient(properties.keycloakAdminBaseUri(), properties.keycloakAdminToken())
+                : keycloakRealmAdminClient;
+        try {
+            KeycloakRealmAdminClient.ApplySummary summary = client.applyDesiredState(request.dryRunRequest().desiredState());
+            List<String> actions = new ArrayList<>();
+            actions.add("Verified a minimal Keycloak desired-state slice through Admin REST: realm settings plus configured clients, roles, and groups.");
+            actions.add(summary.providerMutationPerformed()
+                    ? "Keycloak Admin REST returned success for at least one create/update operation; support-safe audit evidence records only counts and mode."
+                    : "Keycloak Admin REST proved the requested minimal slice was already present; no provider mutation was performed.");
+            actions.add("No provider IDs, endpoint URLs, bearer credentials, auth headers, or raw Keycloak responses are returned.");
+            return new IdentityRealmLiveApplyResult(
+                    true,
+                    summary.providerMutationPerformed(),
+                    summary.providerMutationPerformed() ? "guarded-keycloak-live-apply" : "guarded-keycloak-live-apply-noop",
+                    List.of(),
+                    actions);
+        } catch (KeycloakRealmAdminClientException exception) {
+            return new IdentityRealmLiveApplyResult(
+                    false,
+                    false,
+                    "guarded-provider-live-apply-unavailable",
+                    List.of("Keycloak Admin REST apply failed before a support-safe mutation receipt could be proven"),
+                    List.of("Verify operator-owned Keycloak Admin REST SecretRefs, network reachability, and a fresh dry-run before retrying."));
+        }
     }
 }

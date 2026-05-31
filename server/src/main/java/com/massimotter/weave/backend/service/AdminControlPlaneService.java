@@ -9,6 +9,7 @@ import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyReport;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyRequest;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmDesiredState;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunEvidence;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunReport;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunRequest;
@@ -508,8 +509,7 @@ public class AdminControlPlaneService {
         boolean hasDestructive = destructiveChangeCount > 0;
         boolean rollbackRequired = hasRisky || hasDestructive;
         boolean rollbackAccepted = !rollbackRequired || hasText(request == null ? null : request.rollbackEvidenceRef());
-        boolean lastAdminGuardPassed = request != null && request.retainedAdminPrimaryIdentityKeys().stream()
-                .anyMatch(this::safePrimaryIdentityKey);
+        boolean lastAdminGuardPassed = retainedAdminProofPresent(request);
         boolean confirmationProvided = request != null && "APPLY WEAVE IDENTITY REALM".equals(request.confirmationPhrase());
         boolean policySimulationPresent = request != null
                 && hasText(request.policySimulationRef())
@@ -611,6 +611,29 @@ public class AdminControlPlaneService {
                 dryRun.changes(),
                 nextActions,
                 List.of(auditRef));
+    }
+
+    private boolean retainedAdminProofPresent(IdentityRealmApplyRequest request) {
+        if (request == null || request.retainedAdminPrimaryIdentityKeys().isEmpty()) {
+            return false;
+        }
+        IdentityRealmDesiredState desiredState = request.dryRunRequest().desiredState();
+        Set<String> retainedSafeKeys = request.retainedAdminPrimaryIdentityKeys().stream()
+                .filter(this::safePrimaryIdentityKey)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        if (retainedSafeKeys.isEmpty()) {
+            return false;
+        }
+        Set<String> desiredLastAdminRefs = desiredState.lastAdminSubjectRefs().stream()
+                .filter(this::safePrimaryIdentityKey)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        Set<String> recoveryAdminRefs = desiredState.breakGlassIdentities().stream()
+                .filter(identity -> identity != null && identity.breakGlass())
+                .filter(identity -> identity.roles().stream().map(role -> role.toLowerCase(Locale.ROOT)).anyMatch(role -> role.equals("owner") || role.equals("admin")))
+                .map(IdentityRealmDesiredState.RecoveryIdentity::subjectRef)
+                .filter(this::safePrimaryIdentityKey)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        return retainedSafeKeys.stream().anyMatch(key -> desiredLastAdminRefs.contains(key) || recoveryAdminRefs.contains(key));
     }
 
     private List<String> applyNextActions(

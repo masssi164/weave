@@ -208,6 +208,22 @@ class AdminControlPlaneServiceTest {
         assertThat(unsafeAdminKey.blockedReasons())
                 .contains("last-admin guard requires at least one retained immutable admin identity key");
 
+        var missingRetainedAdminProof = service.applyIdentityRealm(applyRequest(service,
+                safeState,
+                safeState,
+                "APPLY WEAVE IDENTITY REALM",
+                false,
+                false,
+                List.of("issuer+subject:https://auth.example.invalid/realms/weave#other-admin"),
+                null,
+                "safe apply review",
+                jwt("admin")), jwt("admin"));
+
+        assertThat(missingRetainedAdminProof.decision()).isEqualTo("blocked");
+        assertThat(missingRetainedAdminProof.lastAdminGuardPassed()).isFalse();
+        assertThat(missingRetainedAdminProof.blockedReasons())
+                .contains("last-admin guard requires at least one retained immutable admin identity key");
+
         var accepted = service.applyIdentityRealm(applyRequest(service,
                 safeState,
                 safeState,
@@ -478,8 +494,8 @@ class AdminControlPlaneServiceTest {
                 List.of("https://weave.local/callback"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
-                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
-                List.of("subject:owner:current"),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),
+                List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 "sub",
                 List.of(),
                 List.of());
@@ -503,8 +519,8 @@ class AdminControlPlaneServiceTest {
                 List.of("https://weave.local/callback", "http://localhost:8080/*"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
-                List.of(new IdentityRealmDesiredState.RecoveryIdentity("subject:owner:current", "last-admin recovery", true, List.of("owner"))),
-                List.of("subject:owner:current"),
+                List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),
+                List.of("issuer+subject:https://auth.example.invalid/realms/weave#admin-123"),
                 "sub",
                 List.of(),
                 List.of());
