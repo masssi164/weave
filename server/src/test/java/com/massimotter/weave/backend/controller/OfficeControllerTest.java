@@ -82,7 +82,15 @@ class OfficeControllerTest {
                 .andExpect(jsonPath("$.capabilities.review").value(false))
                 .andExpect(jsonPath("$.capabilities.formFill").value(false))
                 .andExpect(jsonPath("$.candidates[*].providerKey", hasItems("onlyoffice", "collabora")))
-                .andExpect(jsonPath("$.providerReadiness[0].unsupportedOperations", hasItems("launch-session")));
+                .andExpect(jsonPath("$.supportedFileTypes").isEmpty())
+                .andExpect(jsonPath("$.providerReadiness[0].supportedCapabilities").isEmpty())
+                .andExpect(jsonPath("$.providerReadiness[0].unsupportedOperations", hasItems("launch-session")))
+                .andExpect(jsonPath("$.providerReadiness[0].diagnostics").isEmpty())
+                .andExpect(jsonPath("$.providerReadiness[0].diagnostics.providerRealityLevel").doesNotExist())
+                .andExpect(jsonPath("$.providerReadiness[0].diagnostics.memberImpact").doesNotExist())
+                .andExpect(jsonPath("$.providerReadiness[0].diagnostics.missingReadinessPrerequisites").doesNotExist())
+                .andExpect(content().string(not(containsString("document-runtime"))))
+                .andExpect(content().string(not(containsString("jwt-or-session-secret"))));
     }
 
     @Test
