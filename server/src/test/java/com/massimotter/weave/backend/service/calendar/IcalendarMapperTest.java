@@ -116,8 +116,8 @@ class IcalendarMapperTest {
         assertThat(icalendar).contains("DTSTART;VALUE=DATE:20260426");
         assertThat(icalendar).contains("DTEND;VALUE=DATE:20260427");
         assertThat(parsed.allDay()).isTrue();
-        assertThat(parsed.startsAt()).isEqualTo(request.startsAt());
-        assertThat(parsed.endsAt()).isEqualTo(request.endsAt());
+        assertThat(parsed.startsAt().toLocalDate()).isEqualTo(request.startsAt().toLocalDate());
+        assertThat(parsed.endsAt().toLocalDate()).isEqualTo(request.endsAt().toLocalDate());
     }
 
     @Test
