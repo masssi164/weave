@@ -33,6 +33,7 @@ registerRootCommandTask('docsStructureCheck', ['bash', '-lc', 'PYTHON=python3; [
 registerRootCommandTask('docsServe', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" -m mkdocs serve'], 'Serve the MkDocs site locally.')
 registerRootCommandTask('releaseNotesLabelCheck', ['bash', '-lc', 'if [ -n "${PR_LABELS_JSON:-}" ]; then python3 tools/release_notes_label_check.py; else echo "release-notes-label-check: skipped (PR_LABELS_JSON is not set)"; fi'], 'Validate the current PR release-notes label set from PR_LABELS_JSON when available.')
 registerRootCommandTask('specCorpusConformance', ['python3', 'tools/spec_corpus_conformance_check.py'], 'Validate the pinned Weave Specification Corpus and the spec-truth vs implementation-evidence boundary.')
+registerRootCommandTask('sprintBootstrapAudit', ['python3', 'tools/sprint_bootstrap.py', '--plan', 'tools/fixtures/sprint_bootstrap_sprint12.json', '--audit-only'], 'Audit sprint milestone, issue DAG, and Weave Delivery Board wiring from a file-backed sprint plan.')
 registerRootCommandTask('specContract', ['python3', 'tools/spec_contract_check.py'], 'Validate transitional repo-local Weave specs, lifecycle metadata, and implementation-ready clarification state.')
 registerRootCommandTask('domainRegistryCheck', ['python3', 'tools/domain_registry_check.py'], 'Validate the canonical domain registry v1 machine-readable contract.')
 registerRootCommandTask('spaceAnchorCheck', ['python3', 'tools/space_anchor_check.py'], 'Validate the Space anchor contract fixture.')
@@ -104,6 +105,7 @@ ext.ciEvidenceGates = [
     'docsCheck',
     'releaseNotesLabelCheck',
     'specCorpusConformance',
+    'sprintBootstrapAudit',
     'specContract',
     'specContractTest',
     'domainRegistryCheck',
@@ -203,6 +205,8 @@ List<String> artifactPathsForGate(String gateName) {
             return ['build/docs/user', 'build/docs/admin']
         case 'specCorpusConformance':
             return ['specs/weave-specs.lock.json', 'tools/spec_corpus_conformance_check.py']
+        case 'sprintBootstrapAudit':
+            return ['tools/sprint_bootstrap.py', 'tools/fixtures/sprint_bootstrap_sprint12.json', 'docs/sprint-bootstrap-and-board-flow.md']
         case 'specContract':
             return ['specs', '.specify/memory/constitution.md', '.specify/templates']
         case 'specContractTest':

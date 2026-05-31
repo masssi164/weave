@@ -59,6 +59,7 @@ Do not stop after one PR. Do not report success from local git state, a green br
 - `docs/`: implementation-facing product projections, release notes, handbooks, closure reports.
 
 Use compact templates from `.specify/templates/weave-agent-briefs.md`: Truth-Recovery, Specialist-Brief, Coding-Harness-Brief, Evidence-Return, Integration-Gate, Optimization-Review, and Session-Handoff. Use `docs/agent-team-orchestration.md` for repo-safe AI-assisted delivery guidance.
+For new sprint setup or audit, use `docs/sprint-bootstrap-and-board-flow.md` and `tools/sprint_bootstrap.py` so milestones, issue DAGs, and the Weave Delivery Board stay reproducible from file-backed state.
 
 ## Hard stops
 
