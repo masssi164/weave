@@ -1,7 +1,8 @@
 package com.massimotter.weave.backend.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
-import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
 import com.massimotter.weave.backend.boards.local.LocalWorkspaceBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRepository;
 import com.massimotter.weave.backend.boards.openproject.OpenProjectBoardsRuntimeGate;
@@ -57,8 +58,10 @@ public class BoardsRuntimeConfiguration {
     }
 
     @Bean
-    AuditEventPublisher auditEventPublisher() {
-        return new InMemoryAuditEventPublisher();
+    AuditEventPublisher auditEventPublisher(
+            ObjectMapper objectMapper,
+            @Value("${weave.audit.events.storage.path:./data/audit-events.jsonl}") String storagePath) {
+        return new FileAuditEventPublisher(objectMapper, storagePath);
     }
 
     // Retained for direct unit tests that instantiate this configuration without a Spring RestClient.Builder bean.

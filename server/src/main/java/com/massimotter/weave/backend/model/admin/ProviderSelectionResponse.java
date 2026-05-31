@@ -18,7 +18,9 @@ public record ProviderSelectionResponse(
         boolean bootstrapSuggestionOnly,
         boolean migrationDryRunRequired,
         List<String> lossyMappingNotes,
-        String readiness) {
+        String readiness,
+        String persistencePosture,
+        Instant evidenceFreshAt) {
     public ProviderSelectionResponse {
         lossyMappingNotes = lossyMappingNotes == null ? List.of() : List.copyOf(lossyMappingNotes);
     }
