@@ -147,6 +147,56 @@ AsyncValue<WorkspaceCapabilitySnapshot> _workspaceCapabilitySnapshot() {
   );
 }
 
+AsyncValue<WorkspaceCapabilitySnapshot>
+_workspaceCapabilitySnapshotWithWeaver() {
+  return const AsyncData(
+    WorkspaceCapabilitySnapshot(
+      shellAccess: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.shellAccess,
+        readiness: WorkspaceCapabilityReadiness.ready,
+        connectionStatus: IntegrationConnectionStatus.connected,
+        policyState: WorkspaceCapabilityPolicyState.allowed,
+      ),
+      chat: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.chat,
+        readiness: WorkspaceCapabilityReadiness.ready,
+        connectionStatus: IntegrationConnectionStatus.connected,
+        policyState: WorkspaceCapabilityPolicyState.allowed,
+      ),
+      files: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.files,
+        readiness: WorkspaceCapabilityReadiness.ready,
+        connectionStatus: IntegrationConnectionStatus.connected,
+        policyState: WorkspaceCapabilityPolicyState.allowed,
+      ),
+      calendar: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.calendar,
+        readiness: WorkspaceCapabilityReadiness.unavailable,
+      ),
+      boards: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.boards,
+        readiness: WorkspaceCapabilityReadiness.unavailable,
+      ),
+      weaver: WorkspaceCapabilityState(
+        capability: WorkspaceCapability.weaver,
+        readiness: WorkspaceCapabilityReadiness.ready,
+        policyState: WorkspaceCapabilityPolicyState.allowed,
+        memberImpact:
+            'Mein Weaver is available with workspace-approved choices.',
+        grantedCapabilities: [
+          'weaver.enabled',
+          'weaver.model_alias.fast_local',
+          'weaver.model_alias.careful_cloud',
+          'weaver.configure_style',
+          'weaver.configure_memory',
+          'weaver.skill.summarize_notes',
+          'weaver.personal_connection.calendar_import',
+        ],
+      ),
+    ),
+  );
+}
+
 ProviderStatusSnapshot _providerStatus({
   required String module,
   required String providerKey,
@@ -433,6 +483,74 @@ void main() {
         findsNothing,
       );
     });
+
+    testWidgets(
+      'shows governed Mein Weaver choices without raw runtime surfaces',
+      (tester) async {
+        final capabilities = _workspaceCapabilitySnapshotWithWeaver();
+        final container = ProviderContainer.test(
+          overrides: [
+            preferencesStoreProvider.overrideWith(
+              (ref) => InMemoryPreferencesStore(buildStoredConfiguration()),
+            ),
+            chatSecurityRepositoryProvider.overrideWithValue(
+              FakeChatSecurityRepository(),
+            ),
+            workspaceConnectionStateProvider.overrideWithValue(
+              _workspaceConnectionState(),
+            ),
+            workspaceCapabilitySnapshotProvider.overrideWithValue(capabilities),
+            weaveApiWorkspaceCapabilitySnapshotProvider.overrideWith(
+              (ref) async => capabilities.requireValue,
+            ),
+            weaveBackendConnectionStateProvider.overrideWithValue(
+              WeaveBackendConnectionState.connected,
+            ),
+            weaveApiMatrixE2eeDiagnosticProvider.overrideWith(
+              (ref) async => _matrixDiagnostic,
+            ),
+            userProfileProvider.overrideWith((ref) async => _memberProfile),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: const MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(body: SettingsScreen()),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.scrollUntilVisible(
+          find.text('Mein Weaver'),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.text('Mein Weaver'), findsOneWidget);
+        expect(find.text('Enabled by policy'), findsOneWidget);
+        expect(find.text('Careful Cloud'), findsOneWidget);
+        expect(find.text('Fast Local'), findsOneWidget);
+        expect(find.text('Style preferences'), findsOneWidget);
+        expect(find.text('Memory controls'), findsOneWidget);
+        expect(find.text('Summarize Notes'), findsOneWidget);
+        expect(find.text('Calendar Import'), findsOneWidget);
+        expect(
+          find.textContaining('members only see policy-approved choices'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('OpenClaw'), findsNothing);
+        expect(find.textContaining('openclaw.json'), findsNothing);
+        expect(find.textContaining('channel tokens'), findsNothing);
+        expect(find.textContaining('provider secrets'), findsNothing);
+        expect(find.textContaining('raw MCP'), findsNothing);
+        expect(find.text('Server Configuration'), findsNothing);
+      },
+    );
 
     testWidgets('keeps provider diagnostics admin-only for members', (
       tester,

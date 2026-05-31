@@ -5598,6 +5598,150 @@ abstract class AppLocalizations {
   /// **'Checking agent capability policy…'**
   String get agentCapabilityPolicyLoading;
 
+  /// Title for the governed member Weaver settings entry point
+  ///
+  /// In en, this message translates to:
+  /// **'Mein Weaver'**
+  String get weaverMemberTitle;
+
+  /// Title when the governed Weaver member settings entry point is unavailable
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver unavailable'**
+  String get weaverMemberUnavailableTitle;
+
+  /// Description for available governed Weaver member settings
+  ///
+  /// In en, this message translates to:
+  /// **'Choose from admin-approved model aliases and review the personal settings your workspace policy allows.'**
+  String get weaverMemberDescription;
+
+  /// Description when Weaver is unavailable for the member
+  ///
+  /// In en, this message translates to:
+  /// **'Your workspace has not enabled a governed Weaver profile for this account.'**
+  String get weaverMemberUnavailableDescription;
+
+  /// Status chip for available Weaver member settings
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled by policy'**
+  String get weaverMemberStatusAvailable;
+
+  /// Status chip for disabled Weaver member settings
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled by policy'**
+  String get weaverMemberStatusDisabled;
+
+  /// Status chip for unavailable Weaver member settings
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get weaverMemberStatusUnavailable;
+
+  /// Loading message for Weaver member policy
+  ///
+  /// In en, this message translates to:
+  /// **'Checking Weaver policy…'**
+  String get weaverMemberLoading;
+
+  /// Title for choosing a Weaver model alias
+  ///
+  /// In en, this message translates to:
+  /// **'Model alias'**
+  String get weaverMemberModelAliasTitle;
+
+  /// Description for admin-approved model alias choices
+  ///
+  /// In en, this message translates to:
+  /// **'Only aliases approved by your workspace policy are shown here.'**
+  String get weaverMemberModelAliasDescription;
+
+  /// Fallback model alias label when no explicit alias names are exposed
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace default'**
+  String get weaverMemberWorkspaceDefaultAlias;
+
+  /// Subtitle for an approved Weaver setting
+  ///
+  /// In en, this message translates to:
+  /// **'Approved by workspace policy'**
+  String get weaverMemberApprovedByAdmin;
+
+  /// Title for personal Weaver settings
+  ///
+  /// In en, this message translates to:
+  /// **'Personal settings'**
+  String get weaverMemberPersonalSettingsTitle;
+
+  /// Weaver style preference setting label
+  ///
+  /// In en, this message translates to:
+  /// **'Style preferences'**
+  String get weaverMemberStyleSetting;
+
+  /// Weaver memory control setting label
+  ///
+  /// In en, this message translates to:
+  /// **'Memory controls'**
+  String get weaverMemberMemorySetting;
+
+  /// Weaver workspace personalization setting label
+  ///
+  /// In en, this message translates to:
+  /// **'Workspace personalization'**
+  String get weaverMemberWorkspaceSetting;
+
+  /// Subtitle for an allowed Weaver personal setting
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed for your profile'**
+  String get weaverMemberSettingAllowed;
+
+  /// Subtitle for a disabled Weaver personal setting
+  ///
+  /// In en, this message translates to:
+  /// **'Not enabled for your profile'**
+  String get weaverMemberSettingDisabled;
+
+  /// Title for allowed Weaver skills
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed skills'**
+  String get weaverMemberAllowedSkillsTitle;
+
+  /// Empty state for allowed Weaver skills
+  ///
+  /// In en, this message translates to:
+  /// **'No optional skills are enabled for your profile.'**
+  String get weaverMemberNoAllowedSkills;
+
+  /// Title for approved personal Weaver connections
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed personal connections'**
+  String get weaverMemberAllowedConnectionsTitle;
+
+  /// Empty state for allowed Weaver personal connections
+  ///
+  /// In en, this message translates to:
+  /// **'No personal connection flows are enabled for your profile.'**
+  String get weaverMemberNoAllowedConnections;
+
+  /// Boundary notice for available Weaver member settings
+  ///
+  /// In en, this message translates to:
+  /// **'Administration of providers, credentials, connector setup, and runtime files stays outside member settings; members only see policy-approved choices.'**
+  String get weaverMemberBoundaryNotice;
+
+  /// Boundary notice when Weaver is disabled for a member
+  ///
+  /// In en, this message translates to:
+  /// **'No provider secrets or runtime configuration are exposed. Contact your workspace owner if you expected Weaver access.'**
+  String get weaverMemberDisabledBoundaryNotice;
+
   /// Title for the context-driven workflow preview panel
   ///
   /// In en, this message translates to:
