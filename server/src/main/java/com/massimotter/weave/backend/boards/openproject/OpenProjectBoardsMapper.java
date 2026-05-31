@@ -56,7 +56,7 @@ public final class OpenProjectBoardsMapper {
 
     public TaskItem toTask(OpenProjectWorkPackageSnapshot source, Map<Long, OpenProjectStatusSnapshot> statusesById) {
         OpenProjectStatusSnapshot status = statusesById.get(source.statusId());
-        return toTask(source, statusTaskStatus(status));
+        return toTask(source, toTaskStatus(status));
     }
 
     public TaskItem toTask(OpenProjectWorkPackageSnapshot source, TaskStatus providerNeutralStatus) {
@@ -82,7 +82,7 @@ public final class OpenProjectBoardsMapper {
                 List.of(providerRef("work-package", source.id(), source.lockVersion(), updatedAt)));
     }
 
-    private TaskStatus statusTaskStatus(OpenProjectStatusSnapshot status) {
+    TaskStatus toTaskStatus(OpenProjectStatusSnapshot status) {
         if (status == null) {
             return TaskStatus.OPEN;
         }

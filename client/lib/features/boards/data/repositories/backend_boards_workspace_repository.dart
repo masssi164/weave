@@ -208,13 +208,13 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
     if (response.statusCode == 409 || code == 'boards-conflict') {
       throw AppFailure.validation(
         'Task changed somewhere else. Refresh the board and try the action again.',
-        cause: response.statusCode,
+        cause: code ?? 'boards-conflict',
       );
     }
     if (code == 'boards-unsupported_capability') {
       throw AppFailure.validation(
         'This board provider cannot apply that action yet. Use a supported move or ask an admin to check provider readiness.',
-        cause: response.statusCode,
+        cause: code,
       );
     }
     throw AppFailure.unknown(

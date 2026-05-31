@@ -559,7 +559,11 @@ class _TaskActionMenu extends StatelessWidget {
   }
 
   String _actionFailureText(AppLocalizations l10n, AppFailure error) {
-    return l10n.boardsWorkspaceActionFailed;
+    return switch (error.cause) {
+      'boards-conflict' => l10n.boardsWorkspaceActionConflict,
+      'boards-unsupported_capability' => l10n.boardsWorkspaceActionUnsupported,
+      _ => l10n.boardsWorkspaceActionFailed,
+    };
   }
 }
 

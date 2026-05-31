@@ -165,6 +165,9 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
         runtimeGate.requireWriteAllowed("move-task");
         long taskId = parseWeaveId(command.taskId(), "work-package", "move-task");
         long statusId = parseWeaveId(command.targetColumnId(), "status", "move-task");
+        OpenProjectStatusSnapshot targetStatus = status(statusId, "move-task");
+        TaskStatus providerNeutralStatus = mapper.toTaskStatus(targetStatus);
+        requireSupportedWriteStatus(providerNeutralStatus, "move-task");
         OpenProjectWorkPackageSnapshot current = workPackage(taskId, "move-task");
         OpenProjectWorkPackageSnapshot updated = client.updateWorkPackage(
                 taskId,
@@ -172,7 +175,7 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
                 statusId,
                 command.targetPosition(),
                 "move-task");
-        return mapper.toTask(updated, statusesById());
+        return mapper.toTask(updated, providerNeutralStatus);
     }
 
     @Override
@@ -194,7 +197,11 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
     public TaskItem updateTaskStatus(String taskId, TaskStatus status, String targetColumnId) {
         runtimeGate.requireWriteAllowed("update-task-status");
         long workPackageId = parseWeaveId(taskId, "work-package", "update-task-status");
+        requireSupportedWriteStatus(status, "update-task-status");
         long statusId = targetStatusId(status, targetColumnId, "update-task-status");
+        if (targetColumnId != null && !targetColumnId.isBlank()) {
+            requireSupportedWriteStatus(mapper.toTaskStatus(status(statusId, "update-task-status")), "update-task-status");
+        }
         OpenProjectWorkPackageSnapshot current = workPackage(workPackageId, "update-task-status");
         OpenProjectWorkPackageSnapshot updated = client.updateWorkPackage(
                 workPackageId,
@@ -247,10 +254,28 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
     }
 
     private OpenProjectWorkPackageSnapshot workPackage(long workPackageId, String operation) {
-        return client.findWorkPackage(workPackageId).orElseThrow(() -> new BoardsException(
+        return client.findWorkPackageForWrite(workPackageId, operation).orElseThrow(() -> new BoardsException(
                 BoardsErrorCode.NOT_FOUND,
                 "OpenProject work package was not found for the Weave Boards write request.",
                 Map.of("provider", "openproject", "operation", operation, "supportSafe", "true")));
+    }
+
+
+    private OpenProjectStatusSnapshot status(long statusId, String operation) {
+        OpenProjectStatusSnapshot status = statusesById().get(statusId);
+        if (status == null) {
+            throw new BoardsException(
+                    BoardsErrorCode.NOT_FOUND,
+                    "OpenProject status was not found for the Weave Boards write request.",
+                    Map.of("provider", "openproject", "operation", operation, "mode", "write", "supportSafe", "true"));
+        }
+        return status;
+    }
+
+    private void requireSupportedWriteStatus(TaskStatus status, String operation) {
+        if (status == TaskStatus.ARCHIVED) {
+            throw unsupportedWrite(operation, "non_destructive_archive", "OpenProject Boards archive-like provider statuses remain fail-closed until non-destructive archive evidence is implemented.");
+        }
     }
 
     private Map<Long, OpenProjectStatusSnapshot> statusesById() {

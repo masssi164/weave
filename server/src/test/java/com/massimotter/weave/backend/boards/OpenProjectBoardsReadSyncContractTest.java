@@ -228,6 +228,10 @@ class OpenProjectBoardsReadSyncContractTest {
         assertThat(repository.capabilities().supported())
                 .contains(BoardCapability.STATUS_UPDATES, BoardCapability.ACCESSIBLE_NON_DRAG_MOVES);
 
+        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/statuses")))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, authHeader()))
+                .andRespond(withSuccess(statusesJson(), MediaType.APPLICATION_JSON));
         server.expect(requestTo("https://openproject.example.test/api/v3/work_packages/99"))
                 .andExpect(method(HttpMethod.GET))
                 .andExpect(header(HttpHeaders.AUTHORIZATION, authHeader()))
@@ -238,10 +242,6 @@ class OpenProjectBoardsReadSyncContractTest {
                 .andExpect(content().string(containsString("\"lockVersion\":17")))
                 .andExpect(content().string(containsString("/api/v3/statuses/3")))
                 .andRespond(withSuccess(workPackageJson(3, 18, "2026-05-19T08:00:00Z"), MediaType.APPLICATION_JSON));
-        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/statuses")))
-                .andExpect(method(HttpMethod.GET))
-                .andExpect(header(HttpHeaders.AUTHORIZATION, authHeader()))
-                .andRespond(withSuccess(statusesJson(), MediaType.APPLICATION_JSON));
 
         var task = repository.moveTask(new com.massimotter.weave.backend.boards.port.MoveTaskCommand(
                 "openproject:work-package:99",
@@ -260,6 +260,9 @@ class OpenProjectBoardsReadSyncContractTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         var repository = writeEnabledRepository(builder);
 
+        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/statuses")))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(statusesJson(), MediaType.APPLICATION_JSON));
         server.expect(requestTo("https://openproject.example.test/api/v3/work_packages/99"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(workPackageJson(2, 17, null), MediaType.APPLICATION_JSON));
@@ -284,6 +287,9 @@ class OpenProjectBoardsReadSyncContractTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         var repository = writeEnabledRepository(builder);
 
+        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/statuses")))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(statusesJson(), MediaType.APPLICATION_JSON));
         server.expect(requestTo("https://openproject.example.test/api/v3/work_packages/99"))
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess(workPackageJson(2, 17, null), MediaType.APPLICATION_JSON));
@@ -327,6 +333,30 @@ class OpenProjectBoardsReadSyncContractTest {
                             .containsEntry("operation", "link-decision")
                             .containsEntry("mode", "write")
                             .containsEntry("supportSafe", "true");
+                });
+        server.verify();
+    }
+
+    @Test
+    void openProjectArchiveLikeMovesFailClosedBeforeProviderMutation() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        var repository = writeEnabledRepository(builder);
+
+        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/statuses")))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(archiveLikeStatusesJson(), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> repository.moveTask(new com.massimotter.weave.backend.boards.port.MoveTaskCommand(
+                "openproject:work-package:99",
+                "openproject:status:4",
+                0)))
+                .isInstanceOfSatisfying(BoardsException.class, error -> {
+                    assertThat(error.code()).isEqualTo(BoardsErrorCode.UNSUPPORTED_CAPABILITY);
+                    assertThat(error.details())
+                            .containsEntry("operation", "move-task")
+                            .containsEntry("capability", "non_destructive_archive")
+                            .containsEntry("mode", "write");
                 });
         server.verify();
     }
@@ -587,6 +617,22 @@ class OpenProjectBoardsReadSyncContractTest {
                       {"id": 1, "name": "New", "position": 0, "isClosed": false},
                       {"id": 2, "name": "In progress", "position": 1, "isClosed": false},
                       {"id": 3, "name": "Closed", "position": 2, "isClosed": true}
+                    ]
+                  }
+                }
+                """;
+    }
+
+    private String archiveLikeStatusesJson() {
+        return """
+                {
+                  "count": 1,
+                  "total": 1,
+                  "pageSize": 50,
+                  "offset": 1,
+                  "_embedded": {
+                    "elements": [
+                      {"id": 4, "name": "Archived", "position": 3, "isClosed": false}
                     ]
                   }
                 }
