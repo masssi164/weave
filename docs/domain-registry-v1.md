@@ -1,6 +1,6 @@
 # Canonical domain registry v1
 
-The machine-readable source of truth for Sprint 8 domain vocabulary is `specs/0004-domain-registry/canonical-domain-registry-v1.json`. The backend carries an identical runtime resource at `server/src/main/resources/canonical-domain-registry-v1.json`; `./gradlew domainRegistryCheck` fails if the two copies drift.
+The machine-readable implementation conformance fixture for Sprint 8 domain vocabulary is `specs/0004-domain-registry/canonical-domain-registry-v1.json`. The pinned Weave Specification Corpus remains canonical product/domain truth. The backend carries an identical runtime resource at `server/src/main/resources/canonical-domain-registry-v1.json`; `./gradlew domainRegistryCheck` fails if the implementation copies drift.
 
 The registry defines the provider-neutral Weave domain keys, stable member states, admin/operator readiness states, provider reality levels, source-of-truth modes, compatibility aliases for older provider-category names, and the required Provider Adapter Manifest fields.
 

@@ -64,6 +64,10 @@ FORBIDDEN_IMPLEMENTATION_TRUTH_MARKERS = [
     "Recover truth from repo/GitHub/CI and identify the contract/spec.",
     "Recover current truth from the Weave repo, GitHub issues/PRs, and CI/evidence.",
     "Do first: recover truth from main, specs, GitHub issues/PRs, CI/evidence.",
+    "repo-local spec remains the canonical source",
+    "repo docs, specs, issues, PRs, and CI evidence remain the source of truth",
+    "The machine-readable source of truth for Sprint",
+    "product truth does not drift into orphaned Markdown",
 ]
 REQUIRED_IMPLEMENTATION_TRUTH_MARKERS = {
     "AGENTS.md": ["pinned Weave Specification Corpus", "implementation/evidence truth"],

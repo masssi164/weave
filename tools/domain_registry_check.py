@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the canonical domain registry contract."""
+"""Validate the domain registry implementation conformance fixture."""
 from __future__ import annotations
 import json, sys
 from pathlib import Path
@@ -19,7 +19,7 @@ def load(p):
  except json.JSONDecodeError as e: fail(f'invalid JSON in {p.relative_to(ROOT)}: {e}')
 def main():
  data=load(REGISTRY); server=load(SERVER_COPY)
- if data!=server: fail('server resource copy differs from specs/domain-registry source')
+ if data!=server: fail('server resource copy differs from repo domain-registry conformance fixture')
  if data.get('schemaVersion')!=1 or data.get('registryVersion')!='canonical-domain-registry-v1': fail('unexpected schema or registry version')
  if data.get('memberStates')!=MEMBER: fail('top-level member states are not canonical')
  if data.get('adminStates')!=ADMIN: fail('top-level admin states are not canonical')
