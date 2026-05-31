@@ -226,6 +226,15 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].failClosed", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].providerKey", hasItems("onlyoffice-community")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.providerRealityLevel", hasItems("contract_only")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.memberImpact", hasItems("coming_later")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.missingReadinessPrerequisites[*]", hasItems(
+                        "document-runtime",
+                        "callback-url",
+                        "jwt-or-session-secret",
+                        "storage-binding",
+                        "permission-model",
+                        "health-check")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].providerKey", hasItems("livekit")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].configured", hasItems(false)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'meetings')].failClosed", hasItems(true)))

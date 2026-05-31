@@ -67,7 +67,7 @@ public class DisabledOfficeProvider implements OfficeProvider {
                 true,
                 "unavailable",
                 "onlyoffice-community",
-                List.of(status),
+                List.of(memberVisibleStatus()),
                 List.of(
                         new OfficeProviderCandidateResponse(
                                 "onlyoffice-community",
@@ -89,6 +89,27 @@ public class DisabledOfficeProvider implements OfficeProvider {
                 List.of(),
                 new OfficePermissionModelResponse(false, false, false, false, false, "Office provider unavailable; no document session permissions granted."),
                 new OfficeLockSessionReadinessResponse("unavailable", "unavailable", "unavailable", true));
+    }
+
+    private ProviderStatusResponse memberVisibleStatus() {
+        return new ProviderStatusResponse(
+                status.module(),
+                status.providerKey(),
+                status.state(),
+                status.readiness(),
+                status.enabled(),
+                status.configured(),
+                status.readOnly(),
+                status.failClosed(),
+                status.supportSafe(),
+                status.paidFeaturesRequired(),
+                status.summary(),
+                status.supportedCapabilities(),
+                status.unsupportedOperations(),
+                status.supportSafeErrorCodes(),
+                status.redactionPolicy(),
+                status.candidates(),
+                Map.of());
     }
 
     @Override
