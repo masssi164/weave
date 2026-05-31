@@ -152,4 +152,93 @@ describe('AdminControlPlaneApi provider boundary', () => {
       'Treat missing identity readiness as admin-action-required and fail closed.',
     );
   });
+
+  it('fails closed when dry-run evidence omits supportSafe or expiresAt', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path.includes('/providers/selections')
+        ? {
+            category: 'identity',
+            providerKey: 'keycloak-realm',
+            choiceModel: 'recommended_self_hosted_default',
+            dryRun: true,
+            evidenceRef: 'identity-keycloak-realm-dry-run',
+          }
+        : {};
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: 'https://api.example.invalid/api',
+        oidcIssuerUrl: 'https://auth.example.invalid',
+        oidcClientId: 'weave-admin-console',
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const result = await api.selectProvider(
+      'identity',
+      'keycloak-realm',
+      'recommended_self_hosted_default',
+      true,
+    );
+
+    expect(result.supportSafe).toBe(false);
+    expect(result.expiresAt).toBeUndefined();
+  });
+
+  it('does not infer dry-run freshness from control-plane generatedAt', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path.includes('/audit/events')
+        ? []
+        : {
+            organizationId: 'weave-dogfood',
+            generatedAt: '2099-01-01T00:00:00Z',
+            categories: [
+              {
+                category: 'identity',
+                readiness: 'ready',
+                selectedProviderKey: 'keycloak-realm',
+              },
+              {
+                category: 'chat-channels',
+                readiness: 'ready',
+                selectedProviderKey: 'synapse-homeserver',
+                dryRunEvidenceExpiresAt: 'not-a-date',
+              },
+            ],
+            whitelist: { denyByDefault: true },
+          };
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: 'https://api.example.invalid/api',
+        oidcIssuerUrl: 'https://auth.example.invalid',
+        oidcClientId: 'weave-admin-console',
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const controlPlane = await api.getControlPlane();
+
+    expect(controlPlane.providerCategories[0]?.lastCheckedAt).toBe(
+      '2099-01-01T00:00:00Z',
+    );
+    expect(controlPlane.providerCategories[0]?.evidenceFreshness).toBe(
+      'missing',
+    );
+    expect(controlPlane.providerCategories[1]?.evidenceFreshness).toBe(
+      'missing',
+    );
+    expect(controlPlane.providerCategories[0]?.supportSafe).toBe(false);
+  });
+
 });

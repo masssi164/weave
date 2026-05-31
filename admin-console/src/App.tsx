@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   AppBar,
@@ -25,7 +25,7 @@ import {
   TextField,
   Toolbar,
   Typography,
-} from '@mui/material';
+} from "@mui/material";
 import {
   AdminControlPlaneApi,
   adminConsoleConfig,
@@ -35,112 +35,111 @@ import {
   ProviderReplacementDryRunReport,
   ProviderSwitchApplyGates,
   sampleControlPlane,
-} from './api';
-import { AdminConsoleLocale, adminCopy } from './copy';
+} from "./api";
+import { AdminConsoleLocale, adminCopy } from "./copy";
 
-type ViewerRole = 'owner' | 'admin' | 'operator' | 'member';
+type ViewerRole = "owner" | "admin" | "operator" | "member";
 type MemberStableState =
-  | 'available'
-  | 'disabled_by_policy'
-  | 'not_configured'
-  | 'degraded'
-  | 'unavailable'
-  | 'coming_later';
+  | "available"
+  | "disabled_by_policy"
+  | "not_configured"
+  | "degraded"
+  | "unavailable"
+  | "coming_later";
 
 const stateColor: Record<
   CapabilityState,
-  'success' | 'default' | 'warning' | 'error' | 'info'
+  "success" | "default" | "warning" | "error" | "info"
 > = {
-  ready: 'success',
-  disabled: 'default',
-  degraded: 'warning',
-  'policy-blocked': 'info',
-  'admin-action-required': 'warning',
-  misconfigured: 'error',
-  unsupported: 'error',
-  not_configured: 'default',
-  configured: 'info',
+  ready: "success",
+  disabled: "default",
+  degraded: "warning",
+  "policy-blocked": "info",
+  "admin-action-required": "warning",
+  misconfigured: "error",
+  unsupported: "error",
+  not_configured: "default",
+  configured: "info",
 };
 
 function readableState(state: string): string {
-  return state.replace(/[-_]/g, ' ');
+  return state.replace(/[-_]/g, " ");
 }
 
 function memberStableState(state: CapabilityState): MemberStableState {
   switch (state) {
-    case 'ready':
-    case 'configured':
-      return 'available';
-    case 'policy-blocked':
-    case 'disabled':
-      return 'disabled_by_policy';
-    case 'not_configured':
-      return 'not_configured';
-    case 'unsupported':
-      return 'unavailable';
-    case 'admin-action-required':
-    case 'degraded':
-    case 'misconfigured':
+    case "ready":
+    case "configured":
+      return "available";
+    case "policy-blocked":
+    case "disabled":
+      return "disabled_by_policy";
+    case "not_configured":
+      return "not_configured";
+    case "unsupported":
+      return "unavailable";
+    case "admin-action-required":
+    case "degraded":
+    case "misconfigured":
     default:
-      return 'degraded';
+      return "degraded";
   }
 }
 
 function setupStage(state: CapabilityState): string {
   switch (state) {
-    case 'ready':
-    case 'configured':
-      return 'Ready for member go-live';
-    case 'policy-blocked':
-    case 'disabled':
-      return 'Disabled by policy';
-    case 'not_configured':
-    case 'admin-action-required':
-      return 'Admin setup required';
-    case 'unsupported':
-      return 'Unavailable for this adapter';
-    case 'degraded':
-    case 'misconfigured':
+    case "ready":
+    case "configured":
+      return "Ready for member go-live";
+    case "policy-blocked":
+    case "disabled":
+      return "Disabled by policy";
+    case "not_configured":
+    case "admin-action-required":
+      return "Admin setup required";
+    case "unsupported":
+      return "Unavailable for this adapter";
+    case "degraded":
+    case "misconfigured":
     default:
-      return 'Repair before inviting affected members';
+      return "Repair before inviting affected members";
   }
 }
 
 function setupNextAction(category: ProviderCategory): string {
   switch (category.state) {
-    case 'ready':
-    case 'configured':
-      return 'Keep monitoring audit evidence and invite members when policy simulation is green.';
-    case 'policy-blocked':
-    case 'disabled':
-      return 'Review deny-by-default policy before exposing this domain to members.';
-    case 'not_configured':
-    case 'admin-action-required':
-      return 'Select and dry-run a provider adapter, then test readiness through the backend.';
-    case 'unsupported':
-      return 'Choose a supported adapter or keep the member state unavailable.';
-    case 'degraded':
-    case 'misconfigured':
+    case "ready":
+    case "configured":
+      return "Keep monitoring audit evidence and invite members when policy simulation is green.";
+    case "policy-blocked":
+    case "disabled":
+      return "Review deny-by-default policy before exposing this domain to members.";
+    case "not_configured":
+    case "admin-action-required":
+      return "Select and dry-run a provider adapter, then test readiness through the backend.";
+    case "unsupported":
+      return "Choose a supported adapter or keep the member state unavailable.";
+    case "degraded":
+    case "misconfigured":
     default:
-      return 'Run a readiness test, review support-safe diagnostics, and repair before member go-live.';
+      return "Run a readiness test, review support-safe diagnostics, and repair before member go-live.";
   }
 }
 
-
 const applyGateLabels: Array<[keyof ProviderSwitchApplyGates, string]> = [
-  ['applySupported', 'Backend apply support'],
-  ['preflightPassed', 'Preflight passed'],
-  ['sourceReadinessValid', 'Source readiness valid'],
-  ['targetReadinessValid', 'Target readiness valid'],
-  ['identityMappingComplete', 'Identity mapping complete'],
-  ['exportSnapshotExists', 'Export snapshot exists'],
-  ['dryRunSuccessful', 'Dry-run successful'],
-  ['lossyMappingReportAccepted', 'Lossy report accepted'],
-  ['conflictsResolvedOrWaived', 'Conflicts resolved or waived'],
-  ['rollbackBoundaryExists', 'Rollback boundary exists'],
-  ['rbacAllowsMutation', 'RBAC allows mutation'],
-  ['auditSinkAvailable', 'Audit sink available'],
-  ['memberImpactPreviewConfirmed', 'Member impact preview confirmed'],
+  ["applySupported", "Backend apply support"],
+  ["preflightPassed", "Preflight passed"],
+  ["sourceReadinessValid", "Source readiness valid"],
+  ["targetReadinessValid", "Target readiness valid"],
+  ["identityMappingComplete", "Identity mapping complete"],
+  ["exportSnapshotExists", "Export snapshot exists"],
+  ["dryRunSuccessful", "Dry-run successful"],
+  ["lossyMappingReportAccepted", "Lossy report accepted"],
+  ["conflictsResolvedOrWaived", "Conflicts resolved or waived"],
+  ["rollbackBoundaryExists", "Rollback boundary exists"],
+  ["rbacAllowsMutation", "RBAC allows mutation"],
+  ["auditSinkAvailable", "Audit sink available"],
+  ["memberImpactPreviewConfirmed", "Member impact preview confirmed"],
 ];
 
 function applyGatesPass(gates: ProviderSwitchApplyGates): boolean {
@@ -154,9 +153,9 @@ function blockedApplyGateLabels(gates: ProviderSwitchApplyGates): string[] {
 }
 
 function defaultProviderKey(category?: ProviderCategory): string {
-  if (!category) return '';
-  return category.selectedAdapter === 'awaiting_admin_selection'
-    ? (category.providerCandidates[0] ?? '')
+  if (!category) return "";
+  return category.selectedAdapter === "awaiting_admin_selection"
+    ? (category.providerCandidates[0] ?? "")
     : category.selectedAdapter;
 }
 
@@ -171,34 +170,58 @@ interface ProviderSelectionDryRunEvidence {
   providerKey: string;
   choiceModel: string;
   completedAt: string;
-  evidenceRef: string;
+  evidenceRef?: string;
+  expiresAt?: string;
+  restartSurvivalEvidenceRef?: string;
+  trustedBackendEvidence: boolean;
+}
+
+function isEvidenceFresh(
+  evidence: ProviderSelectionDryRunEvidence | null,
+): boolean {
+  if (!evidence?.trustedBackendEvidence || !evidence.evidenceRef) return false;
+  if (!evidence.expiresAt) return false;
+  const expires = Date.parse(evidence.expiresAt);
+  return !Number.isNaN(expires) && expires > Date.now();
+}
+
+function dryRunEvidenceFailureLabel(
+  evidence: ProviderSelectionDryRunEvidence | null,
+): string {
+  if (!evidence?.evidenceRef) return "Missing trusted backend dry-run evidence";
+  if (!evidence.trustedBackendEvidence) return "Untrusted dry-run evidence";
+  if (!evidence.expiresAt) return "Missing dry-run evidence expiration";
+  const expires = Date.parse(evidence.expiresAt);
+  if (Number.isNaN(expires)) return "Unparseable dry-run evidence expiration";
+  if (expires <= Date.now()) return "Stale dry-run evidence";
+  return "Fresh current-session dry-run evidence";
 }
 
 export default function App({
   api = new AdminControlPlaneApi(),
-  viewerRole = 'owner',
-  locale = 'en',
+  viewerRole = "owner",
+  locale = "en",
 }: AppProps) {
   const copy = adminCopy(locale);
-  const canConfigure = viewerRole === 'owner' || viewerRole === 'admin';
-  const canInspectReadiness = canConfigure || viewerRole === 'operator';
+  const canConfigure = viewerRole === "owner" || viewerRole === "admin";
+  const canInspectReadiness = canConfigure || viewerRole === "operator";
   const [controlPlane, setControlPlane] =
     useState<ControlPlaneResponse>(sampleControlPlane);
   const [loadState, setLoadState] = useState<
-    'loading' | 'loaded' | 'offline-sample'
-  >('loading');
+    "loading" | "loaded" | "offline-sample"
+  >("loading");
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState(
-    sampleControlPlane.providerCategories[0]?.key ?? '',
+    sampleControlPlane.providerCategories[0]?.key ?? "",
   );
   const [providerDraft, setProviderDraft] = useState(
     defaultProviderKey(sampleControlPlane.providerCategories[0]),
   );
   const [choiceModelDraft, setChoiceModelDraft] = useState(
-    'recommended_self_hosted_default',
+    "recommended_self_hosted_default",
   );
   const [policyDraft, setPolicyDraft] = useState(
-    sampleControlPlane.whitelistPolicy.allowedCapabilities.join('\n'),
+    sampleControlPlane.whitelistPolicy.allowedCapabilities.join("\n"),
   );
   const [dryRunReport, setDryRunReport] =
     useState<ProviderReplacementDryRunReport | null>(null);
@@ -206,7 +229,7 @@ export default function App({
     useState<ProviderSelectionDryRunEvidence | null>(null);
   const [consequenceConfirmed, setConsequenceConfirmed] = useState(false);
   const [statusMessage, setStatusMessage] = useState(
-    'Admin Console is loading backend control-plane data.',
+    "Admin Console is loading backend control-plane data.",
   );
 
   useEffect(() => {
@@ -217,27 +240,27 @@ export default function App({
         if (!alive) return;
         const firstCategory = response.providerCategories[0];
         setControlPlane(response);
-        setPolicyDraft(response.whitelistPolicy.allowedCapabilities.join('\n'));
-        setSelectedCategory(firstCategory?.key ?? '');
+        setPolicyDraft(response.whitelistPolicy.allowedCapabilities.join("\n"));
+        setSelectedCategory(firstCategory?.key ?? "");
         setProviderDraft(defaultProviderKey(firstCategory));
         setChoiceModelDraft(
-          firstCategory?.choiceModel === 'not_selected'
-            ? 'recommended_self_hosted_default'
-            : (firstCategory?.choiceModel ?? 'recommended_self_hosted_default'),
+          firstCategory?.choiceModel === "not_selected"
+            ? "recommended_self_hosted_default"
+            : (firstCategory?.choiceModel ?? "recommended_self_hosted_default"),
         );
-        setLoadState('loaded');
-        setStatusMessage('Backend control-plane data loaded.');
+        setLoadState("loaded");
+        setStatusMessage("Backend control-plane data loaded.");
       })
       .catch((cause: unknown) => {
         if (!alive) return;
-        setLoadState('offline-sample');
+        setLoadState("offline-sample");
         setError(
           cause instanceof Error
             ? cause.message
-            : 'Admin API is unavailable; showing the contract-backed sample state.',
+            : "Admin API is unavailable; showing the contract-backed sample state.",
         );
         setStatusMessage(
-          'Admin API unavailable. Showing support-safe sample data only.',
+          "Admin API unavailable. Showing support-safe sample data only.",
         );
       });
     return () => {
@@ -253,21 +276,27 @@ export default function App({
     [controlPlane.providerCategories, selectedCategory],
   );
 
-  const hasFreshProviderSelectionDryRun =
+  const hasMatchingProviderSelectionDryRun =
     selectedCategoryDetails !== undefined &&
     providerSelectionDryRun?.categoryKey === selectedCategoryDetails.key &&
     providerSelectionDryRun.providerKey === providerDraft &&
     providerSelectionDryRun.choiceModel === choiceModelDraft;
+  const hasFreshProviderSelectionDryRun =
+    hasMatchingProviderSelectionDryRun &&
+    isEvidenceFresh(providerSelectionDryRun);
+  const evidenceFailureLabel = hasMatchingProviderSelectionDryRun
+    ? dryRunEvidenceFailureLabel(providerSelectionDryRun)
+    : "Missing current-session dry-run evidence";
   const selectedApplyBackendAllowed =
     canConfigure &&
     selectedCategoryDetails !== undefined &&
     applyGatesPass(selectedCategoryDetails.applyGates);
   const selectedApplyBlockedReasons = [
     ...(selectedCategoryDetails
-    ? blockedApplyGateLabels(selectedCategoryDetails.applyGates)
-    : applyGateLabels.map(([, label]) => label)),
-    ...(hasFreshProviderSelectionDryRun ? [] : ['Fresh current-session dry-run evidence']),
-    ...(consequenceConfirmed ? [] : ['Explicit consequence confirmation']),
+      ? blockedApplyGateLabels(selectedCategoryDetails.applyGates)
+      : applyGateLabels.map(([, label]) => label)),
+    ...(hasFreshProviderSelectionDryRun ? [] : [evidenceFailureLabel]),
+    ...(consequenceConfirmed ? [] : ["Explicit consequence confirmation"]),
   ];
   const selectedApplyAllowed =
     selectedApplyBackendAllowed &&
@@ -286,9 +315,9 @@ export default function App({
     setSelectedCategory(categoryKey);
     setProviderDraft(defaultProviderKey(category));
     setChoiceModelDraft(
-      category?.choiceModel === 'not_selected'
-        ? 'recommended_self_hosted_default'
-        : (category?.choiceModel ?? 'recommended_self_hosted_default'),
+      category?.choiceModel === "not_selected"
+        ? "recommended_self_hosted_default"
+        : (category?.choiceModel ?? "recommended_self_hosted_default"),
     );
     setDryRunReport(null);
     resetApplyEvidence();
@@ -297,7 +326,7 @@ export default function App({
   async function savePolicy() {
     if (!canConfigure) return;
     const allowedCapabilities = policyDraft
-      .split('\n')
+      .split("\n")
       .map((capability) => capability.trim())
       .filter(Boolean);
     const response = await api.updateWhitelistPolicy(allowedCapabilities);
@@ -309,23 +338,31 @@ export default function App({
 
   async function selectProvider(dryRun: boolean) {
     if (!canConfigure || !selectedCategoryDetails || !providerDraft) return;
-    await api.selectProvider(
+    const result = await api.selectProvider(
       selectedCategoryDetails.key,
       providerDraft,
       choiceModelDraft,
       dryRun,
+      dryRun ? undefined : providerSelectionDryRun?.evidenceRef,
     );
     if (dryRun) {
       setProviderSelectionDryRun({
         categoryKey: selectedCategoryDetails.key,
         providerKey: providerDraft,
         choiceModel: choiceModelDraft,
-        completedAt: new Date().toISOString(),
-        evidenceRef: `${selectedCategoryDetails.key}:${providerDraft}:${choiceModelDraft}`,
+        completedAt: result.issuedAt ?? new Date().toISOString(),
+        evidenceRef: result.evidenceRef,
+        expiresAt: result.expiresAt,
+        restartSurvivalEvidenceRef: result.restartSurvivalEvidenceRef,
+        trustedBackendEvidence: Boolean(
+          result.evidenceRef && result.supportSafe,
+        ),
       });
       setConsequenceConfirmed(false);
       setStatusMessage(
-        `Dry-run validated for ${selectedCategoryDetails.key}: ${providerDraft}. Review consequences and confirm before apply.`,
+        result.evidenceRef
+          ? `Dry-run validated for ${selectedCategoryDetails.key}: ${providerDraft}. Review consequences and confirm before apply.`
+          : `Dry-run response for ${selectedCategoryDetails.key}: ${providerDraft} did not include trusted backend evidence; apply remains blocked.`,
       );
       return;
     }
@@ -366,7 +403,7 @@ export default function App({
           <Typography
             variant="h1"
             component="h1"
-            sx={{ fontSize: { xs: '1.35rem', md: '1.7rem' }, fontWeight: 700 }}
+            sx={{ fontSize: { xs: "1.35rem", md: "1.7rem" }, fontWeight: 700 }}
           >
             Weave Organization Admin Console
           </Typography>
@@ -376,21 +413,21 @@ export default function App({
         <Stack spacing={3}>
           <Alert
             severity={
-              loadState === 'loaded'
-                ? 'success'
-                : loadState === 'loading'
-                  ? 'info'
-                  : 'warning'
+              loadState === "loaded"
+                ? "success"
+                : loadState === "loading"
+                  ? "info"
+                  : "warning"
             }
             role="status"
           >
             {statusMessage}
           </Alert>
           {error ? <Alert severity="warning">{error}</Alert> : null}
-          {loadState === 'offline-sample' ? (
+          {loadState === "offline-sample" ? (
             <Alert severity="warning">
-              Offline/demo sample state — not live organization status. Do not use
-              sample readiness as approval evidence.
+              Offline/demo sample state — not live organization status. Do not
+              use sample readiness as approval evidence.
             </Alert>
           ) : null}
 
@@ -399,19 +436,19 @@ export default function App({
               <Typography
                 id="effective-policy-heading"
                 variant="h2"
-                sx={{ fontSize: '1.35rem', mb: 1 }}
+                sx={{ fontSize: "1.35rem", mb: 1 }}
               >
                 {copy.effectivePolicyHeading}
               </Typography>
               <Typography>{copy.effectivePolicySummary}</Typography>
               <Stack
-                direction={{ xs: 'column', md: 'row' }}
+                direction={{ xs: "column", md: "row" }}
                 spacing={2}
                 sx={{ mt: 2 }}
               >
                 <Card variant="outlined" sx={{ flex: 1 }}>
                   <CardContent>
-                    <Typography variant="h3" sx={{ fontSize: '1.05rem' }}>
+                    <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
                       {copy.ownerAdminRole}
                     </Typography>
                     <Typography>{copy.ownerAdminDescription}</Typography>
@@ -419,7 +456,7 @@ export default function App({
                 </Card>
                 <Card variant="outlined" sx={{ flex: 1 }}>
                   <CardContent>
-                    <Typography variant="h3" sx={{ fontSize: '1.05rem' }}>
+                    <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
                       {copy.operatorRole}
                     </Typography>
                     <Typography>{copy.operatorDescription}</Typography>
@@ -427,7 +464,7 @@ export default function App({
                 </Card>
                 <Card variant="outlined" sx={{ flex: 1 }}>
                   <CardContent>
-                    <Typography variant="h3" sx={{ fontSize: '1.05rem' }}>
+                    <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
                       {copy.memberRole}
                     </Typography>
                     <Typography>{copy.memberDescription}</Typography>
@@ -437,13 +474,13 @@ export default function App({
             </CardContent>
           </Card>
 
-          {viewerRole !== 'member' ? (
+          {viewerRole !== "member" ? (
             <Card component="section" aria-labelledby="setup-assistant-heading">
               <CardContent>
                 <Typography
                   id="setup-assistant-heading"
                   variant="h2"
-                  sx={{ fontSize: '1.35rem', mb: 1 }}
+                  sx={{ fontSize: "1.35rem", mb: 1 }}
                 >
                   Guided setup assistant
                 </Typography>
@@ -456,7 +493,10 @@ export default function App({
                 </Alert>
                 <List aria-label="Admin setup assistant steps">
                   {controlPlane.providerCategories.map((category) => (
-                    <ListItem key={`setup-${category.key}`} alignItems="flex-start">
+                    <ListItem
+                      key={`setup-${category.key}`}
+                      alignItems="flex-start"
+                    >
                       <ListItemText
                         primary={`${category.label}: ${setupStage(category.state)}`}
                         secondary={setupNextAction(category)}
@@ -473,7 +513,7 @@ export default function App({
               <Typography
                 id="member-preview-heading"
                 variant="h2"
-                sx={{ fontSize: '1.35rem', mb: 1 }}
+                sx={{ fontSize: "1.35rem", mb: 1 }}
               >
                 {copy.memberPreviewHeading}
               </Typography>
@@ -493,19 +533,19 @@ export default function App({
             </CardContent>
           </Card>
 
-          {viewerRole !== 'member' ? (
+          {viewerRole !== "member" ? (
             <>
               <Card component="section" aria-labelledby="oidc-heading">
                 <CardContent>
                   <Typography
                     id="oidc-heading"
                     variant="h2"
-                    sx={{ fontSize: '1.35rem', mb: 1 }}
+                    sx={{ fontSize: "1.35rem", mb: 1 }}
                   >
                     Admin sign-in contract
                   </Typography>
                   <Typography>
-                    Sign in through OIDC/Keycloak client{' '}
+                    Sign in through OIDC/Keycloak client{" "}
                     <strong>{adminConsoleConfig.oidcClientId}</strong>. This
                     console calls only Weave backend admin APIs; it does not
                     call Keycloak, Nextcloud, Matrix, Microsoft Graph, Slack,
@@ -529,7 +569,7 @@ export default function App({
                   <Typography
                     id="org-heading"
                     variant="h2"
-                    sx={{ fontSize: '1.35rem', mb: 1 }}
+                    sx={{ fontSize: "1.35rem", mb: 1 }}
                   >
                     Organization overview
                   </Typography>
@@ -539,22 +579,22 @@ export default function App({
                       {controlPlane.organization.id})
                     </Typography>
                     <Typography>
-                      Provider source of truth:{' '}
+                      Provider source of truth:{" "}
                       <code>{controlPlane.providerConfigSource}</code>
                     </Typography>
                     <Typography>
-                      Bootstrap defaults are suggestions only:{' '}
+                      Bootstrap defaults are suggestions only:{" "}
                       <strong>
                         {controlPlane.bootstrapDefaultsAreSuggestionsOnly
-                          ? 'yes'
-                          : 'no'}
+                          ? "yes"
+                          : "no"}
                       </strong>
                     </Typography>
                     <Typography>
                       Current viewer role: <strong>{viewerRole}</strong>
                     </Typography>
                     <Typography>
-                      Member clients may configure providers:{' '}
+                      Member clients may configure providers:{" "}
                       <strong>no</strong>
                     </Typography>
                   </Stack>
@@ -566,24 +606,24 @@ export default function App({
                   <Typography
                     id="providers-heading"
                     variant="h2"
-                    sx={{ fontSize: '1.35rem', mb: 2 }}
+                    sx={{ fontSize: "1.35rem", mb: 2 }}
                   >
                     Provider categories
                   </Typography>
                   <Stack
-                    direction={{ xs: 'column', md: 'row' }}
+                    direction={{ xs: "column", md: "row" }}
                     spacing={2}
-                    sx={{ flexWrap: 'wrap' }}
+                    sx={{ flexWrap: "wrap" }}
                     useFlexGap
                   >
                     {controlPlane.providerCategories.map((category) => (
                       <Card
                         key={category.key}
                         variant="outlined"
-                        sx={{ flex: '1 1 260px' }}
+                        sx={{ flex: "1 1 260px" }}
                       >
                         <CardContent>
-                          <Typography variant="h3" sx={{ fontSize: '1.05rem' }}>
+                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
                             {category.label}
                           </Typography>
                           <Chip
@@ -595,35 +635,89 @@ export default function App({
                           <Typography sx={{ mt: 1 }}>
                             {category.summary}
                           </Typography>
-                          <List dense aria-label={`${category.label} control-plane fields`}>
+                          <List
+                            dense
+                            aria-label={`${category.label} control-plane fields`}
+                          >
                             <ListItem disableGutters>
-                              <ListItemText primary="Selected adapter" secondary={category.selectedAdapter} />
+                              <ListItemText
+                                primary="Selected adapter"
+                                secondary={category.selectedAdapter}
+                              />
                             </ListItem>
                             <ListItem disableGutters>
-                              <ListItemText primary="Member impact" secondary={category.memberImpact} />
+                              <ListItemText
+                                primary="Reality level"
+                                secondary={readableState(category.realityLevel)}
+                              />
                             </ListItem>
                             <ListItem disableGutters>
-                              <ListItemText primary="Required next action" secondary={category.requiredNextAction} />
+                              <ListItemText
+                                primary="Evidence freshness"
+                                secondary={readableState(
+                                  category.evidenceFreshness,
+                                )}
+                              />
                             </ListItem>
                             <ListItem disableGutters>
-                              <ListItemText primary="SecretRef status" secondary={category.secretRefStatus} />
+                              <ListItemText
+                                primary="Member impact"
+                                secondary={category.memberImpact}
+                              />
                             </ListItem>
                             <ListItem disableGutters>
-                              <ListItemText primary="Policy state" secondary={category.policyState} />
+                              <ListItemText
+                                primary="Required next action"
+                                secondary={category.requiredNextAction}
+                              />
                             </ListItem>
                             <ListItem disableGutters>
-                              <ListItemText primary="Migration / dry-run state" secondary={category.migrationState} />
+                              <ListItemText
+                                primary="Safe next action"
+                                secondary={category.safeNextAction}
+                              />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="SecretRef status"
+                                secondary={category.secretRefStatus}
+                              />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="Policy state"
+                                secondary={category.policyState}
+                              />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="Migration / dry-run state"
+                                secondary={category.migrationState}
+                              />
                             </ListItem>
                             <ListItem disableGutters>
                               <ListItemText
                                 primary="Evidence refs"
-                                secondary={category.evidenceRefs.join(', ') || 'backend evidence required'}
+                                secondary={
+                                  category.evidenceRefs.join(", ") ||
+                                  "backend evidence required"
+                                }
+                              />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="Restart survival evidence"
+                                secondary={
+                                  category.restartSurvivalEvidenceRef ??
+                                  "backend restart evidence required before persistence claim"
+                                }
                               />
                             </ListItem>
                           </List>
                           {canConfigure ? (
                             <Typography variant="body2" sx={{ mt: 1 }}>
-                              Candidates: {category.providerCandidates.join(', ')}
+                              Candidates:{" "}
+                              {category.providerCandidates.join(", ")}
                             </Typography>
                           ) : null}
                         </CardContent>
@@ -633,12 +727,15 @@ export default function App({
                 </CardContent>
               </Card>
 
-              <Card component="section" aria-labelledby="readiness-dashboard-heading">
+              <Card
+                component="section"
+                aria-labelledby="readiness-dashboard-heading"
+              >
                 <CardContent>
                   <Typography
                     id="readiness-dashboard-heading"
                     variant="h2"
-                    sx={{ fontSize: '1.35rem', mb: 2 }}
+                    sx={{ fontSize: "1.35rem", mb: 2 }}
                   >
                     Readiness dashboard
                   </Typography>
@@ -650,7 +747,10 @@ export default function App({
                   </Typography>
                   <List aria-label="Domain readiness dashboard">
                     {controlPlane.providerCategories.map((category) => (
-                      <ListItem key={`readiness-${category.key}`} alignItems="flex-start">
+                      <ListItem
+                        key={`readiness-${category.key}`}
+                        alignItems="flex-start"
+                      >
                         <ListItemText
                           primary={`${category.label}: ${readableState(category.state)}`}
                           secondary={`Member preview: ${memberStableState(
@@ -664,12 +764,15 @@ export default function App({
               </Card>
 
               {canInspectReadiness ? (
-                <Card component="section" aria-labelledby="identity-readiness-heading">
+                <Card
+                  component="section"
+                  aria-labelledby="identity-readiness-heading"
+                >
                   <CardContent>
                     <Typography
                       id="identity-readiness-heading"
                       variant="h2"
-                      sx={{ fontSize: '1.35rem', mb: 2 }}
+                      sx={{ fontSize: "1.35rem", mb: 2 }}
                     >
                       Identity provider readiness
                     </Typography>
@@ -681,70 +784,81 @@ export default function App({
                     </Alert>
                     <Stack spacing={1}>
                       <Typography>
-                        Contract:{' '}
+                        Contract:{" "}
                         <code>
-                          {controlPlane.identityProviderReadiness.contractVersion}
+                          {
+                            controlPlane.identityProviderReadiness
+                              .contractVersion
+                          }
                         </code>
-                        ; overall state:{' '}
+                        ; overall state:{" "}
                         <strong>
                           {readableState(
                             controlPlane.identityProviderReadiness.overallState,
                           )}
                         </strong>
-                        ; backend-owned facade:{' '}
+                        ; backend-owned facade:{" "}
                         <strong>
-                          {controlPlane.identityProviderReadiness.backendOwnedFacade
-                            ? 'yes'
-                            : 'no'}
+                          {controlPlane.identityProviderReadiness
+                            .backendOwnedFacade
+                            ? "yes"
+                            : "no"}
                         </strong>
-                        ; member provider setup:{' '}
+                        ; member provider setup:{" "}
                         <strong>
                           {controlPlane.identityProviderReadiness
                             .memberClientMayConfigureIdentityProvider
-                            ? 'allowed'
-                            : 'blocked'}
+                            ? "allowed"
+                            : "blocked"}
                         </strong>
                         .
                       </Typography>
                       <Typography>
-                        Stable states:{' '}
+                        Stable states:{" "}
                         {controlPlane.identityProviderReadiness.stableStates
                           .map(readableState)
-                          .join(', ')}
+                          .join(", ")}
                       </Typography>
                     </Stack>
                     <Stack spacing={2} sx={{ mt: 2 }}>
-                      {controlPlane.identityProviderReadiness.cards.map((card) => (
-                        <Card key={card.key} variant="outlined">
-                          <CardContent>
-                            <Stack spacing={1}>
-                              <Typography variant="h3" sx={{ fontSize: '1.05rem' }}>
-                                {card.label}
-                              </Typography>
-                              <Chip
-                                color={stateColor[card.state]}
-                                label={`State: ${readableState(card.state)}`}
-                                aria-label={`${card.label} state is ${readableState(card.state)}`}
-                              />
-                              <Typography>{card.summary}</Typography>
-                              <Typography>
-                                Member impact: {card.memberImpact}.
-                              </Typography>
-                              <Typography>Remediation: {card.remediation}</Typography>
-                              <Typography>
-                                Next actions:{' '}
-                                {card.nextActions.join('; ') ||
-                                  'No action reported by backend.'}
-                              </Typography>
-                              <Typography>
-                                Evidence refs:{' '}
-                                {card.evidenceRefs.join(', ') ||
-                                  'support-safe backend evidence'}
-                              </Typography>
-                            </Stack>
-                          </CardContent>
-                        </Card>
-                      ))}
+                      {controlPlane.identityProviderReadiness.cards.map(
+                        (card) => (
+                          <Card key={card.key} variant="outlined">
+                            <CardContent>
+                              <Stack spacing={1}>
+                                <Typography
+                                  variant="h3"
+                                  sx={{ fontSize: "1.05rem" }}
+                                >
+                                  {card.label}
+                                </Typography>
+                                <Chip
+                                  color={stateColor[card.state]}
+                                  label={`State: ${readableState(card.state)}`}
+                                  aria-label={`${card.label} state is ${readableState(card.state)}`}
+                                />
+                                <Typography>{card.summary}</Typography>
+                                <Typography>
+                                  Member impact: {card.memberImpact}.
+                                </Typography>
+                                <Typography>
+                                  Remediation: {card.remediation}
+                                </Typography>
+                                <Typography>
+                                  Next actions:{" "}
+                                  {card.nextActions.join("; ") ||
+                                    "No action reported by backend."}
+                                </Typography>
+                                <Typography>
+                                  Evidence refs:{" "}
+                                  {card.evidenceRefs.join(", ") ||
+                                    "support-safe backend evidence"}
+                                </Typography>
+                              </Stack>
+                            </CardContent>
+                          </Card>
+                        ),
+                      )}
                     </Stack>
                   </CardContent>
                 </Card>
@@ -758,7 +872,7 @@ export default function App({
                   <Typography
                     id="provider-selection-heading"
                     variant="h2"
-                    sx={{ fontSize: '1.35rem', mb: 2 }}
+                    sx={{ fontSize: "1.35rem", mb: 2 }}
                   >
                     Provider selection and readiness
                   </Typography>
@@ -843,8 +957,8 @@ export default function App({
                         </FormControl>
                         {canConfigure ? (
                           <Typography>
-                            SecretRefs:{' '}
-                            {selectedCategoryDetails.secretRefs.join(', ') ||
+                            SecretRefs:{" "}
+                            {selectedCategoryDetails.secretRefs.join(", ") ||
                               `secretref://weave/provider/${providerDraft}`}
                           </Typography>
                         ) : null}
@@ -852,18 +966,34 @@ export default function App({
                           Never paste raw secrets, bearer tokens, provider URLs
                           with credentials, or downstream diagnostics.
                         </Typography>
-                        <Alert severity={selectedApplyAllowed ? 'success' : 'warning'}>
-                          Provider apply is {selectedApplyAllowed ? 'enabled' : 'blocked'} by backend gates, current-session dry-run evidence, and explicit consequence confirmation.
+                        <Alert
+                          severity={
+                            selectedApplyAllowed ? "success" : "warning"
+                          }
+                        >
+                          Provider apply is{" "}
+                          {selectedApplyAllowed ? "enabled" : "blocked"} by
+                          backend gates, current-session dry-run evidence, and
+                          explicit consequence confirmation.
                           {selectedApplyAllowed
-                            ? ' All required evidence gates passed.'
-                            : ` Missing gates: ${selectedApplyBlockedReasons.join(', ')}.`}
+                            ? " All required evidence gates passed."
+                            : ` Missing gates: ${selectedApplyBlockedReasons.join(", ")}.`}
                         </Alert>
-                        <Alert severity={hasFreshProviderSelectionDryRun ? 'success' : 'warning'}>
-                          Current-session dry-run evidence is{' '}
-                          {hasFreshProviderSelectionDryRun ? 'fresh' : 'missing or stale'}.
+                        <Alert
+                          severity={
+                            hasFreshProviderSelectionDryRun
+                              ? "success"
+                              : "warning"
+                          }
+                        >
+                          Current-session dry-run evidence is{" "}
+                          {hasFreshProviderSelectionDryRun
+                            ? "fresh and trusted"
+                            : "missing, stale, or untrusted"}
+                          .
                           {providerSelectionDryRun
-                            ? ` Last dry-run evidence ${providerSelectionDryRun.evidenceRef} at ${providerSelectionDryRun.completedAt}.`
-                            : ' Run a dry-run for the selected category, adapter, and choice model before apply.'}
+                            ? ` Last dry-run evidence ${providerSelectionDryRun.evidenceRef ?? "untrusted-client-only"} at ${providerSelectionDryRun.completedAt}${providerSelectionDryRun.expiresAt ? `, expires ${providerSelectionDryRun.expiresAt}` : ""}. Restart evidence: ${providerSelectionDryRun.restartSurvivalEvidenceRef ?? "not reported"}.`
+                            : " Run a dry-run for the selected category, adapter, and choice model before apply."}
                         </Alert>
                         {canConfigure ? (
                           <FormControlLabel
@@ -880,7 +1010,7 @@ export default function App({
                           />
                         ) : null}
                         <Stack
-                          direction={{ xs: 'column', sm: 'row' }}
+                          direction={{ xs: "column", sm: "row" }}
                           spacing={2}
                         >
                           {canConfigure ? (
@@ -903,8 +1033,8 @@ export default function App({
                                 disabled={!selectedApplyAllowed}
                                 title={
                                   selectedApplyAllowed
-                                    ? 'Backend apply gates passed.'
-                                    : `Apply blocked: ${selectedApplyBlockedReasons.join(', ')}`
+                                    ? "Backend apply gates passed."
+                                    : `Apply blocked: ${selectedApplyBlockedReasons.join(", ")}`
                                 }
                                 onClick={() => void selectProvider(false)}
                               >
@@ -931,7 +1061,7 @@ export default function App({
                   <Typography
                     id="replacement-heading"
                     variant="h2"
-                    sx={{ fontSize: '1.35rem', mb: 1 }}
+                    sx={{ fontSize: "1.35rem", mb: 1 }}
                   >
                     {copy.replacementHeading}
                   </Typography>
@@ -942,61 +1072,58 @@ export default function App({
                         severity={
                           dryRunReport.supportSafe &&
                           dryRunReport.providerDiagnosticsRedacted
-                            ? 'success'
-                            : 'warning'
+                            ? "success"
+                            : "warning"
                         }
                       >
-                        {dryRunReport.status}; support-safe:{' '}
-                        {dryRunReport.supportSafe ? 'yes' : 'no'}; diagnostics
-                        redacted:{' '}
+                        {dryRunReport.status}; support-safe:{" "}
+                        {dryRunReport.supportSafe ? "yes" : "no"}; diagnostics
+                        redacted:{" "}
                         {dryRunReport.providerDiagnosticsRedacted
-                          ? 'yes'
-                          : 'no'}
+                          ? "yes"
+                          : "no"}
                         .
                       </Alert>
                       <Typography>
-                        {dryRunReport.category}: {dryRunReport.currentAdapter} →{' '}
-                        {dryRunReport.targetAdapter}; readiness{' '}
+                        {dryRunReport.category}: {dryRunReport.currentAdapter} →{" "}
+                        {dryRunReport.targetAdapter}; readiness{" "}
                         {readableState(dryRunReport.readinessState)}.
                       </Typography>
                       <Typography>
-                        Member impact states:{' '}
-                        {dryRunReport.memberImpactStates.join(', ')}
+                        Member impact states:{" "}
+                        {dryRunReport.memberImpactStates.join(", ")}
                       </Typography>
                       <Typography>
-                        Source of truth:{' '}
-                        {
-                          dryRunReport.lifecycleExpectations
-                            .sourceOfTruthPolicy
-                        }
+                        Source of truth:{" "}
+                        {dryRunReport.lifecycleExpectations.sourceOfTruthPolicy}
                       </Typography>
                       <Typography>
-                        What moves:{' '}
+                        What moves:{" "}
                         {dryRunReport.lossyMappingReport.canonicalObjects.join(
-                          ', ',
-                        ) || 'reported by backend contract'}
+                          ", ",
+                        ) || "reported by backend contract"}
                       </Typography>
                       <Typography>
-                        What will not move:{' '}
+                        What will not move:{" "}
                         {dryRunReport.portableExportImportContract.excludedAutomation.join(
-                          '; ',
-                        ) || 'none reported by backend dry-run'}
+                          "; ",
+                        ) || "none reported by backend dry-run"}
                       </Typography>
                       <Typography>
-                        Risks:{' '}
+                        Risks:{" "}
                         {dryRunReport.lossyMappingReport.contractRisks.join(
-                          '; ',
-                        ) || 'none reported by backend dry-run'}
+                          "; ",
+                        ) || "none reported by backend dry-run"}
                       </Typography>
                       <Typography>
-                        Conflicts:{' '}
-                        {dryRunReport.lossyMappingReport.conflicts.join('; ') ||
-                          'none reported by backend dry-run'}
+                        Conflicts:{" "}
+                        {dryRunReport.lossyMappingReport.conflicts.join("; ") ||
+                          "none reported by backend dry-run"}
                       </Typography>
                       <Typography>
-                        Cutover gates:{' '}
-                        {dryRunReport.cutoverGates.join('; ') ||
-                          'backend migration dry-run before apply'}
+                        Cutover gates:{" "}
+                        {dryRunReport.cutoverGates.join("; ") ||
+                          "backend migration dry-run before apply"}
                       </Typography>
                       <Typography>
                         {dryRunReport.lifecycleExpectations.exportExpectation}
@@ -1005,61 +1132,60 @@ export default function App({
                         {dryRunReport.lifecycleExpectations.deleteExpectation}
                       </Typography>
                       <Typography>
-                        Rollback boundary:{' '}
+                        Rollback boundary:{" "}
                         {
                           dryRunReport.lifecycleExpectations
                             .rollbackSupportBoundary
                         }
                       </Typography>
                       <Typography>
-                        Portable export/import:{' '}
+                        Portable export/import:{" "}
                         {
                           dryRunReport.portableExportImportContract
                             .exportManifestRef
-                        }{' '}
-                        →{' '}
+                        }{" "}
+                        →{" "}
                         {
                           dryRunReport.portableExportImportContract
                             .importManifestRef
                         }
-                        ; guarantee:{' '}
+                        ; guarantee:{" "}
                         {
                           dryRunReport.portableExportImportContract
                             .portabilityGuarantee
                         }
                       </Typography>
                       <Typography>
-                        Evidence refs:{' '}
+                        Evidence refs:{" "}
                         {dryRunReport.portableExportImportContract.evidenceRefs.join(
-                          ', ',
+                          ", ",
                         )}
                       </Typography>
                       <Typography>
-                        Audit refs:{' '}
-                        {dryRunReport.auditRefs.join(', ') ||
-                          'backend audit ref required before apply'}
+                        Audit refs:{" "}
+                        {dryRunReport.auditRefs.join(", ") ||
+                          "backend audit ref required before apply"}
                       </Typography>
                       <Typography>
                         Switch plan: {dryRunReport.switchPlan.planRef};
-                        preflight required:{' '}
+                        preflight required:{" "}
                         {dryRunReport.switchPlan.preflightRequired
-                          ? 'yes'
-                          : 'no'}
-                        ; cutover window required:{' '}
+                          ? "yes"
+                          : "no"}
+                        ; cutover window required:{" "}
                         {dryRunReport.switchPlan.cutoverWindowRequired
-                          ? 'yes'
-                          : 'no'}
-                        ; rollback required:{' '}
+                          ? "yes"
+                          : "no"}
+                        ; rollback required:{" "}
                         {dryRunReport.switchPlan.rollbackRequired
-                          ? 'yes'
-                          : 'no'}
-                        ; member state during switch:{' '}
-                        {dryRunReport.switchPlan.memberFacingStateDuringSwitch}
-                        .
+                          ? "yes"
+                          : "no"}
+                        ; member state during switch:{" "}
+                        {dryRunReport.switchPlan.memberFacingStateDuringSwitch}.
                       </Typography>
                       <Typography>
-                        Recovery actions:{' '}
-                        {dryRunReport.switchPlan.recoveryActions.join('; ')}
+                        Recovery actions:{" "}
+                        {dryRunReport.switchPlan.recoveryActions.join("; ")}
                       </Typography>
                     </Stack>
                   ) : (
@@ -1076,7 +1202,7 @@ export default function App({
                     <Typography
                       id="policy-heading"
                       variant="h2"
-                      sx={{ fontSize: '1.35rem', mb: 1 }}
+                      sx={{ fontSize: "1.35rem", mb: 1 }}
                     >
                       Policy and whitelist
                     </Typography>
@@ -1103,9 +1229,9 @@ export default function App({
                     </Button>
                     <Divider sx={{ my: 2 }} />
                     <Typography>
-                      Blocked examples:{' '}
+                      Blocked examples:{" "}
                       {controlPlane.whitelistPolicy.blockedCapabilities.join(
-                        ', ',
+                        ", ",
                       )}
                     </Typography>
                   </CardContent>
@@ -1118,7 +1244,7 @@ export default function App({
                     <Typography
                       id="secrets-heading"
                       variant="h2"
-                      sx={{ fontSize: '1.35rem', mb: 1 }}
+                      sx={{ fontSize: "1.35rem", mb: 1 }}
                     >
                       SecretRef inventory
                     </Typography>
@@ -1151,7 +1277,7 @@ export default function App({
                   <Typography
                     id="audit-heading"
                     variant="h2"
-                    sx={{ fontSize: '1.35rem', mb: 1 }}
+                    sx={{ fontSize: "1.35rem", mb: 1 }}
                   >
                     Audit trail
                   </Typography>
@@ -1173,7 +1299,7 @@ export default function App({
           <Box component="footer">
             <Typography variant="body2">
               Need member behavior? Use the provider-agnostic Weave Client.
-              Admin/provider setup belongs here and in backend policy.{' '}
+              Admin/provider setup belongs here and in backend policy.{" "}
               <Link href="/api/organization/manifest">
                 Organization manifest
               </Link>
