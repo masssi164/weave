@@ -22,11 +22,11 @@ Required projection controls:
 - Normal members cannot edit `openclaw.json`, run the OpenClaw config wizard, manage gateway/channels/plugins/MCP/secrets/sandbox/exec/tool allowlists, or use raw dashboard controls for those areas.
 - Member-facing Weaver settings are limited to policy-allowed model aliases, style, memory/workspace preferences, allowed skills, and allowed personal MCP connection flows exposed by Weave.
 - Admin policy projects model defaults, fallbacks, and allowed aliases; users choose only among Weave aliases, not raw provider/model identifiers.
-- Admin Chat domain provider changes project into OpenClaw channel/plugin configuration. Matrix, Teams, iMessage, Slack, Telegram, and other OpenClaw channels/plugins are technical providers behind the Weave Chat domain, not member-swappable chat adapters.
+- Weaver normally exposes one stable OpenClaw channel plugin, `channels.weave-chat`. Matrix, Teams, iMessage, Slack, Telegram, and other chat systems remain Weave Chat-domain providers behind Weave server routing, not separate per-user Weaver channel configs.
 - MCP servers, skills, and tools are distributed through Weave policy. `tools.deny` is hard-deny; `bundle-mcp`, gateway, cron, exec, write, and patch-style capabilities remain default-deny unless the signed profile explicitly allows a constrained use.
 - OpenClaw Policy/Doctor output is conformance lint over generated settings. It is not a second source of truth.
 
-Correct Chat provider-change flow: Admin changes the Chat domain provider in Weave -> readiness/migration checks run -> Credential Broker binds new provider credentials -> signed RuntimeProfile vNext is generated -> OpenClaw channel/plugin projection changes -> the per-user runtime reloads or restarts -> the user continues through Weave UX.
+Correct Chat provider-change flow: Admin changes the Chat domain provider in Weave -> readiness/migration checks run -> Credential Broker binds new provider credentials -> Weave backend routing/profile version changes -> signed RuntimeProfile vNext still exposes `channels.weave-chat` with updated profile hash/runtime token metadata -> the stable channel reloads or restarts if needed -> the user continues through Weave UX.
 
 ## Disabled-by-default gates
 
