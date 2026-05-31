@@ -478,6 +478,66 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('renders encrypted and unsupported messages accessibly', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final repository = FakeChatRepository(
+      loadRoomTimelineHandler: (_) async => buildTimeline(
+        messages: [
+          ChatMessage(
+            id: r'$encrypted',
+            senderId: '@alex:home.internal',
+            senderDisplayName: 'Alex',
+            sentAt: DateTime(2026, 4, 20, 12),
+            isMine: false,
+            deliveryState: ChatMessageDeliveryState.sent,
+            contentType: ChatMessageContentType.encrypted,
+          ),
+          ChatMessage(
+            id: r'$unsupported',
+            senderId: '@me:home.internal',
+            senderDisplayName: 'Me',
+            sentAt: DateTime(2026, 4, 20, 12, 1),
+            isMine: true,
+            deliveryState: ChatMessageDeliveryState.failed,
+            contentType: ChatMessageContentType.unsupported,
+          ),
+        ],
+      ),
+    );
+
+    await tester.pumpWidget(
+      createTestApp(
+        const ChatRoomScreen(conversation: conversation),
+        overrides: overridesFor(repository),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Encrypted message', skipOffstage: false), findsOneWidget);
+    expect(
+      find.text('Unsupported message', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(find.text('Not sent', skipOffstage: false), findsOneWidget);
+    expect(
+      find.bySemanticsLabel(
+        RegExp('Alex.*Encrypted message'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel(
+        RegExp('Me.*Unsupported message.*Not sent'),
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
+
   testWidgets('shows retryable failures in the room', (tester) async {
     final repository = FakeChatRepository(
       loadRoomTimelineHandler: (_) async => throw const ChatFailure.protocol(

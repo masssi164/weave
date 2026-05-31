@@ -24,6 +24,22 @@ enum ChatRoomEncryptionReadiness {
   ready,
 }
 
+/// Member-safe readiness buckets for the Matrix-backed Chat path.
+///
+/// This intentionally stays provider-owned but support-safe: widgets/tests can
+/// distinguish signed-out, unsupported, E2EE-unavailable, encrypted-timeline,
+/// provider-unavailable, and policy-disabled cases without consuming raw Matrix
+/// SDK diagnostics.
+enum ChatReadinessState {
+  matrixSignedIn,
+  matrixNotSignedIn,
+  unsupportedDevice,
+  e2eeUnavailable,
+  e2eeEncryptedTimeline,
+  providerUnavailable,
+  policyDisabled,
+}
+
 enum ChatVerificationPhase {
   none,
   incomingRequest,
@@ -107,6 +123,26 @@ class ChatSecurityState {
   final bool crossSigningReady;
   final bool hasEncryptedConversations;
   final ChatVerificationSession verificationSession;
+
+  ChatReadinessState get readinessState {
+    if (!isMatrixSignedIn &&
+        bootstrapState == ChatSecurityBootstrapState.unavailable &&
+        deviceVerificationState == ChatDeviceVerificationState.unavailable &&
+        roomEncryptionReadiness == ChatRoomEncryptionReadiness.unavailable) {
+      return ChatReadinessState.unsupportedDevice;
+    }
+    if (!isMatrixSignedIn) {
+      return ChatReadinessState.matrixNotSignedIn;
+    }
+    if (bootstrapState == ChatSecurityBootstrapState.unavailable &&
+        roomEncryptionReadiness == ChatRoomEncryptionReadiness.unavailable) {
+      return ChatReadinessState.e2eeUnavailable;
+    }
+    if (hasEncryptedConversations) {
+      return ChatReadinessState.e2eeEncryptedTimeline;
+    }
+    return ChatReadinessState.matrixSignedIn;
+  }
 
   bool get requiresAttention =>
       !isMatrixSignedIn ||

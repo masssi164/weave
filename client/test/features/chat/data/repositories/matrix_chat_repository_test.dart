@@ -6,6 +6,7 @@ import 'package:weave/features/chat/data/services/matrix_service_types.dart';
 import 'package:weave/features/chat/data/services/matrix_session_service.dart';
 import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 import 'package:weave/features/chat/domain/entities/chat_failure.dart';
+import 'package:weave/features/chat/domain/entities/chat_message.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/'
     'server_configuration_repository.dart';
@@ -62,26 +63,46 @@ class _FakeServerConfigurationRepository
 }
 
 class _FakeMatrixRoomService implements MatrixRoomService {
+  MatrixRoomTimelineSnapshot? timeline;
+  Object? loadFailure;
+  Object? sendFailure;
+  Object? markReadFailure;
+
   @override
   Future<MatrixRoomTimelineSnapshot> loadRoomTimeline({
     required Uri homeserver,
     required String roomId,
   }) async {
-    throw UnimplementedError();
+    final failure = loadFailure;
+    if (failure != null) throw failure;
+    return timeline ??
+        MatrixRoomTimelineSnapshot(
+          roomId: roomId,
+          roomTitle: 'Project',
+          isInvite: false,
+          canSendMessages: true,
+          messages: const <MatrixTimelineMessageSnapshot>[],
+        );
   }
 
   @override
   Future<void> markRoomRead({
     required Uri homeserver,
     required String roomId,
-  }) async {}
+  }) async {
+    final failure = markReadFailure;
+    if (failure != null) throw failure;
+  }
 
   @override
   Future<void> sendMessage({
     required Uri homeserver,
     required String roomId,
     required String message,
-  }) async {}
+  }) async {
+    final failure = sendFailure;
+    if (failure != null) throw failure;
+  }
 }
 
 void main() {
@@ -213,6 +234,125 @@ void main() {
         'https://matrix.home.internal',
       );
     });
+
+    test(
+      'maps Matrix timeline message safety states into chat entities',
+      () async {
+        final roomService = _FakeMatrixRoomService()
+          ..timeline = MatrixRoomTimelineSnapshot(
+            roomId: '!room:home.internal',
+            roomTitle: 'Project',
+            isInvite: false,
+            canSendMessages: true,
+            messages: [
+              MatrixTimelineMessageSnapshot(
+                id: r'$sending',
+                senderId: '@me:home.internal',
+                senderDisplayName: 'Me',
+                sentAt: DateTime(2026, 5, 31, 10),
+                isMine: true,
+                deliveryState: MatrixMessageDeliveryState.sending,
+                contentType: MatrixMessageContentType.encrypted,
+              ),
+              MatrixTimelineMessageSnapshot(
+                id: r'$failed',
+                senderId: '@alex:home.internal',
+                senderDisplayName: 'Alex',
+                sentAt: DateTime(2026, 5, 31, 10, 1),
+                isMine: false,
+                deliveryState: MatrixMessageDeliveryState.failed,
+                contentType: MatrixMessageContentType.unsupported,
+              ),
+            ],
+          );
+        final repository = MatrixChatRepository(
+          sessionService: _FakeMatrixSessionService(),
+          conversationService: _FakeMatrixConversationService(),
+          roomService: roomService,
+          serverConfigurationRepository: _FakeServerConfigurationRepository(
+            buildTestConfiguration(),
+          ),
+        );
+
+        final timeline = await repository.loadRoomTimeline(
+          '!room:home.internal',
+        );
+
+        expect(
+          timeline.messages.map((message) => message.deliveryState),
+          <ChatMessageDeliveryState>[
+            ChatMessageDeliveryState.sending,
+            ChatMessageDeliveryState.failed,
+          ],
+        );
+        expect(
+          timeline.messages.map((message) => message.contentType),
+          <ChatMessageContentType>[
+            ChatMessageContentType.encrypted,
+            ChatMessageContentType.unsupported,
+          ],
+        );
+        expect(
+          timeline.messages.map((message) => message.text),
+          everyElement(isNull),
+        );
+      },
+    );
+
+    test(
+      'send and read-marker failures remain support-safe chat failures',
+      () async {
+        final roomService = _FakeMatrixRoomService()
+          ..sendFailure = const ChatFailure.protocol('Chat send failed safely.')
+          ..markReadFailure = const ChatFailure.protocol(
+            'Chat read marker failed safely.',
+          );
+        final repository = MatrixChatRepository(
+          sessionService: _FakeMatrixSessionService(),
+          conversationService: _FakeMatrixConversationService(),
+          roomService: roomService,
+          serverConfigurationRepository: _FakeServerConfigurationRepository(
+            buildTestConfiguration(),
+          ),
+        );
+
+        await expectLater(
+          repository.sendMessage(
+            roomId: '!room:home.internal',
+            message: 'hello',
+          ),
+          throwsA(
+            isA<ChatFailure>()
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  contains('Chat'),
+                )
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  isNot(contains('access_token')),
+                ),
+          ),
+        );
+        await expectLater(
+          repository.markRoomRead('!room:home.internal'),
+          throwsA(
+            isA<ChatFailure>()
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  contains('Chat'),
+                )
+                .having(
+                  (failure) => failure.message,
+                  'message',
+                  isNot(contains('homeserver')),
+                ),
+          ),
+        );
+      },
+    );
 
     test('fails clearly when setup is missing', () async {
       final repository = MatrixChatRepository(

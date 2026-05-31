@@ -31,7 +31,7 @@ Stable Weave IDs are acceptable only with provenance, export, delete/deprovision
 | Capability | Canonical objects | Dogfood/default provider examples | External/cloud provider examples | Required anti-silo evidence |
 | --- | --- | --- | --- | --- |
 | Identity/IDM | Organization, UserAccount, Person, Group, Role, IdentitySource, CapabilityPolicy | Keycloak, Authentik | Entra ID, Okta, Auth0, SAML/OIDC, LDAP/AD bridge | immutable IDs, SCIM/deprovisioning, group/role mapping, guest/service-principal model, effective-policy explanation |
-| Chat | Space, Conversation, Message, Thread, Reaction, Attachment, Membership, Presence | Matrix/Synapse | Teams, Slack | thread/message mapping, membership/retention source, attachment provenance, E2EE/retention caveats, export path |
+| Chat | Space, Conversation, Message, Thread, Reaction, Attachment, Membership, Presence | Matrix/Synapse as the current real release provider path | Teams, Slack, Nextcloud Talk as contract-only/coming-later targets until adapter evidence promotes them | thread/message mapping, membership/retention source, attachment provenance, E2EE/retention caveats, export path |
 | Files/docs | Drive, Node, Folder, File, Version, Share, Permission, Lock, EditSession | Nextcloud/WebDAV/WOPI-capable editor | SharePoint/OneDrive, S3, CMIS repository | permissions/share mapping, versioning, locks, external link risk, export/delete behavior |
 | Calendar | Calendar, Event, Attendee, Recurrence, Availability, Resource | backend/shared calendar facade, CalDAV-compatible backing | Microsoft Graph calendars, Google/other enterprise calendars where supported | RRULE/time-zone fidelity, attendee semantics, resource booking, conflict/loss notes |
 | Boards/tasks | Board, List, Task, Status, Assignee, Comment, Attachment, Dependency, CustomField | OpenProject | Planner, Jira-like providers | workflow/status mapping, custom fields, comments, dependencies, multi-assignee fidelity, lossy report |
@@ -39,6 +39,13 @@ Stable Weave IDs are acceptable only with provenance, export, delete/deprovision
 | Decisions/evidence | Decision, SourceRef, Status, AuditRef | Weave-owned backend | imported decision records/future external sources | source citations, immutable audit refs, export, retention |
 | Admin health/readiness | ProviderConfig, Readiness, RiskNote, SupportBundle, AuditEvent | Weave backend/infra probes | provider APIs/admin APIs | redaction plus actionable next action, no raw secrets/provider bodies |
 | Weaver runtime | RuntimeProfile, ToolCapability, ApprovalReceipt, AuditEvent | disabled by default; later OpenClaw-derived runtime | future org-approved harnesses | user-rights/org-whitelisted tools, no default autonomous writes, per-user isolation, audit |
+
+
+### Matrix Chat portability boundary
+
+Matrix/Synapse is the v0.1 real-time Chat path. Weave maps rooms, timeline events, encrypted/unsupported message placeholders, send state, read markers, membership, and support-safe readiness into canonical Chat objects. Matrix remains the source of truth for message history, E2EE room keys, device trust, recovery, and server-side retention until a migration dry-run explicitly declares otherwise.
+
+Non-Matrix chat providers are portability contracts, not current member chat implementations. Teams, Slack, and Nextcloud Talk may appear in admin/provider comparison and migration preflight language, but normal member Chat must not claim live non-Matrix send/read support until provider adapters, redacted error mapping, accessibility states, export/import boundaries, and release evidence are promoted.
 
 ## Provider capability manifest
 

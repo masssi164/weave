@@ -109,10 +109,12 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
+- Chat readiness and release evidence now lock Matrix/Synapse as the current real provider path, keep non-Matrix chat providers contract-only until promoted, and document Matrix portability/E2EE boundaries.
 - Provider registry and release evidence now distinguish `contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, and `release_ready` providers so contract-only seams cannot appear generally available to members.
 
 ## Fixed
 
+- Chat Matrix error handling and member room UI now keep load/send/read-marker failures, encrypted timeline placeholders, unsupported messages, failed sends, and retry states support-safe and accessible.
 - Nextcloud Files and Calendar adapters now have stronger release-quality coverage for WebDAV/CalDAV error redaction, invalid path rejection, quota/permission/conflict handling, all-day event preservation, and explicit recurrence blocking until a recurrence contract exists.
 
 ## Security
@@ -147,7 +149,7 @@ Normal members join after setup; raw provider configuration is not the member pa
 
 [<img src="docs/assets/marketing/03-chat-room.svg" alt="Custom Weave chat room showing a release room conversation and accessible message composer." width="680">](docs/assets/marketing/03-chat-room.svg)
 
-Chat is a Weave product experience backed by the selected chat adapter.
+Chat is a Weave product experience backed by the selected chat adapter. For v0.1 dogfood release evidence, Matrix/Synapse is the current real chat provider path; Slack, Teams, and Nextcloud Talk remain contract-only portability targets until separately promoted with adapter and E2EE-safe evidence.
 
 ### Weave files through the backend facade
 

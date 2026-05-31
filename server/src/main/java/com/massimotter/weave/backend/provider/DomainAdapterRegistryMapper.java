@@ -31,8 +31,15 @@ final class DomainAdapterRegistryMapper {
         adapterKeys.addAll(category.contract().defaultAdapters());
         adapterKeys.addAll(category.contract().externalAdapters());
         adapterKeys = adapterKeys.stream().distinct().toList();
-        String activeAdapter = enabled && !category.contract().defaultAdapters().isEmpty()
-                ? category.contract().defaultAdapters().get(0)
+        String selectedAdapter = category.selectedByAdmin() && adapterKeys.contains(category.selectedProviderKey())
+                ? category.selectedProviderKey()
+                : null;
+        String activeAdapter = enabled
+                ? selectedAdapter != null
+                        ? selectedAdapter
+                        : category.contract().defaultAdapters().isEmpty()
+                                ? null
+                                : category.contract().defaultAdapters().get(0)
                 : null;
         List<DomainAdapterCandidateResponse> candidates = adapterKeys.stream()
                 .map(adapter -> candidate(category, adapter, adapter.equals(activeAdapter)))

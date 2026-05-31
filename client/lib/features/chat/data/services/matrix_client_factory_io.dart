@@ -205,11 +205,7 @@ ChatFailure mapMatrixFactoryError(Object error, {required String fallback}) {
   if (error is ChatFailure) return error;
 
   if (error is sdk.MatrixException) {
-    final message = error.errorMessage.trim();
-    return ChatFailure.protocol(
-      message.isEmpty ? fallback : message,
-      cause: error,
-    );
+    return ChatFailure.protocol(fallback, cause: error);
   }
 
   if (error is IOException || error is sqflite.DatabaseException) {

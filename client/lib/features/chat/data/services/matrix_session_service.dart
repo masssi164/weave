@@ -226,8 +226,7 @@ class SdkMatrixSessionService implements MatrixSessionService {
     );
     if (response.statusCode != 201) {
       throw ChatFailure.protocol(
-        'Matrix OIDC client registration failed with HTTP '
-        '${response.statusCode}: ${utf8.decode(response.bodyBytes)}',
+        'Matrix OIDC client registration failed with HTTP ${response.statusCode}.',
       );
     }
 

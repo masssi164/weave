@@ -121,7 +121,14 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
       });
 
       unawaited(
-        ref.read(chatRepositoryProvider).markRoomRead(widget.conversation.id),
+        ref
+            .read(chatRepositoryProvider)
+            .markRoomRead(widget.conversation.id)
+            .catchError((Object _) {
+              // Read-marker failures must not surface raw provider diagnostics
+              // or interrupt the already-loaded room timeline. The next load or
+              // send path will retry through the support-safe repository seam.
+            }),
       );
     } on ChatFailure catch (failure) {
       if (!mounted) return;
