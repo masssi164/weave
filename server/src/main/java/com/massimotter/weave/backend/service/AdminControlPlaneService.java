@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyReport;
@@ -724,19 +725,26 @@ public class AdminControlPlaneService {
     public List<AdminAuditEventResponse> auditEvents(Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "read-audit-events");
         if (auditEventPublisher instanceof InMemoryAuditEventPublisher memoryAudit) {
-            return memoryAudit.events().stream()
-                    .map(event -> new AdminAuditEventResponse(
-                            event.tenantId(),
-                            event.actorRef(),
-                            event.sourceRef(),
-                            event.action().wireName(),
-                            event.occurredAt(),
-                            event.idempotencyKey(),
-                            event.redactionLevel().name().toLowerCase(Locale.ROOT),
-                            event.payload()))
-                    .toList();
+            return auditEventResponses(memoryAudit.events());
+        }
+        if (auditEventPublisher instanceof FileAuditEventPublisher fileAudit) {
+            return auditEventResponses(fileAudit.events());
         }
         return List.of();
+    }
+
+    private List<AdminAuditEventResponse> auditEventResponses(List<AuditEvent> events) {
+        return events.stream()
+                .map(event -> new AdminAuditEventResponse(
+                        event.tenantId(),
+                        event.actorRef(),
+                        event.sourceRef(),
+                        event.action().wireName(),
+                        event.occurredAt(),
+                        event.idempotencyKey(),
+                        event.redactionLevel().name().toLowerCase(Locale.ROOT),
+                        event.payload()))
+                .toList();
     }
 
     private IdentityProviderReadinessResponse identityProviderReadiness(ProviderRegistryResponse registry, Jwt jwt) {
@@ -1168,7 +1176,9 @@ public class AdminControlPlaneService {
                 !selection.applied() || dryRun,
                 selection.migrationDryRunRequired(),
                 selection.lossyMappingNotes(),
-                readiness);
+                readiness,
+                providerSelectionRepository.persistencePosture(),
+                selection.selectedAt());
     }
 
     private String readinessFor(String category, ProviderRegistryResponse registry) {
