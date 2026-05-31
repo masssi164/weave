@@ -64,7 +64,8 @@ FRAMEWORK_REQUIRED_FILES = {
         "Live runtime configuration",
     ],
     "docs/spec-driven-development.md": [
-        "Git-versioned specs are truth",
+        "Specification truth",
+        "Implementation/evidence truth",
         "agent-team-orchestration.md",
         "Do not add live agent allowlists",
     ],
