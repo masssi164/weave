@@ -40,7 +40,7 @@ PR #549 was closed unmerged because merged PR #550 superseded it with the Matrix
 
 ## Evidence and gates
 
-Current `main` evidence run after PR #550:
+Closure PR branch evidence run based on current `origin/main` after PR #550:
 
 ```text
 ./gradlew productTrustClaimMatrixCheck portabilityContractCheck docsCheck releaseEvidenceCheck --no-daemon
