@@ -3443,6 +3443,87 @@ class AppLocalizationsDe extends AppLocalizations {
       'Agenten-Funktionsrichtlinie wird geprüft…';
 
   @override
+  String get weaverMemberTitle => 'Mein Weaver';
+
+  @override
+  String get weaverMemberUnavailableTitle => 'Weaver nicht verfügbar';
+
+  @override
+  String get weaverMemberDescription =>
+      'Wähle aus adminfreigegebenen Modell-Aliasen und prüfe die persönlichen Einstellungen, die deine Workspace-Richtlinie erlaubt.';
+
+  @override
+  String get weaverMemberUnavailableDescription =>
+      'Dein Workspace hat für dieses Konto kein gesteuertes Weaver-Profil aktiviert.';
+
+  @override
+  String get weaverMemberStatusAvailable => 'Durch Richtlinie aktiviert';
+
+  @override
+  String get weaverMemberStatusDisabled => 'Durch Richtlinie deaktiviert';
+
+  @override
+  String get weaverMemberStatusUnavailable => 'Nicht verfügbar';
+
+  @override
+  String get weaverMemberLoading => 'Weaver-Richtlinie wird geprüft…';
+
+  @override
+  String get weaverMemberModelAliasTitle => 'Modell-Alias';
+
+  @override
+  String get weaverMemberModelAliasDescription =>
+      'Hier erscheinen nur Aliase, die deine Workspace-Richtlinie freigegeben hat.';
+
+  @override
+  String get weaverMemberWorkspaceDefaultAlias => 'Workspace-Standard';
+
+  @override
+  String get weaverMemberApprovedByAdmin =>
+      'Durch Workspace-Richtlinie freigegeben';
+
+  @override
+  String get weaverMemberPersonalSettingsTitle => 'Persönliche Einstellungen';
+
+  @override
+  String get weaverMemberStyleSetting => 'Stilpräferenzen';
+
+  @override
+  String get weaverMemberMemorySetting => 'Speichersteuerung';
+
+  @override
+  String get weaverMemberWorkspaceSetting => 'Workspace-Personalisierung';
+
+  @override
+  String get weaverMemberSettingAllowed => 'Für dein Profil erlaubt';
+
+  @override
+  String get weaverMemberSettingDisabled => 'Für dein Profil nicht aktiviert';
+
+  @override
+  String get weaverMemberAllowedSkillsTitle => 'Erlaubte Skills';
+
+  @override
+  String get weaverMemberNoAllowedSkills =>
+      'Für dein Profil sind keine optionalen Skills aktiviert.';
+
+  @override
+  String get weaverMemberAllowedConnectionsTitle =>
+      'Erlaubte persönliche Verbindungen';
+
+  @override
+  String get weaverMemberNoAllowedConnections =>
+      'Für dein Profil sind keine persönlichen Verbindungsabläufe aktiviert.';
+
+  @override
+  String get weaverMemberBoundaryNotice =>
+      'Administration von Providern, Zugangsdaten, Connector-Einrichtung und Laufzeitdateien bleibt außerhalb der Mitgliedereinstellungen; Mitglieder sehen nur richtlinienfreigegebene Auswahl.';
+
+  @override
+  String get weaverMemberDisabledBoundaryNotice =>
+      'Es werden keine Provider-Secrets oder Laufzeitkonfigurationen angezeigt. Kontaktiere deine Workspace-Eigentümerin, wenn du Weaver-Zugriff erwartet hast.';
+
+  @override
   String get workflowPreviewTitle => 'Aktive Workflows';
 
   @override
