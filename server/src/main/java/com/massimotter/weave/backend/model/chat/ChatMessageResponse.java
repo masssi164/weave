@@ -3,6 +3,7 @@ package com.massimotter.weave.backend.model.chat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Schema(description = "Canonical Weave Chat message. Provider event ids, room ids, and raw media URLs are deliberately omitted.")
 public record ChatMessageResponse(
@@ -20,5 +21,7 @@ public record ChatMessageResponse(
         boolean isMine,
         @Schema(description = "Whether encrypted-provider content was redacted from this facade response.", example = "false")
         boolean encryptedProviderContentRedacted,
-        Instant sentAt) {
+        Instant sentAt,
+        @Schema(description = "Support-safe delivery/runtime evidence. Raw provider ids, URLs, tokens, and diagnostics are deliberately omitted.")
+        Map<String, Object> deliveryEvidence) {
 }

@@ -2,9 +2,11 @@ package com.massimotter.weave.backend.controller;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -36,6 +38,7 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.ChatFacadeService;
+import com.massimotter.weave.backend.service.SupportSafeWeaverPaChatClient;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.List;
@@ -64,11 +67,15 @@ import org.springframework.test.web.servlet.MockMvc;
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         WorkspaceCapabilityService.class,
+        SupportSafeWeaverPaChatClient.class,
         ChatFacadeService.class
 })
 @TestPropertySource(properties = {
         "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.example.invalid/realms/weave",
         "weave.workspace.chat.readiness=ready",
+        "weave.workspace.weaver.enabled=true",
+        "weave.workspace.weaver.readiness=ready",
+        "weave.weaver.runtime.enabled=true",
         "weave.context.authorization.principal-claim=preferred_username"
 })
 @EnableConfigurationProperties({
@@ -181,6 +188,76 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$..matrix").doesNotExist())
                 .andExpect(jsonPath("$..roomId").doesNotExist())
                 .andExpect(jsonPath("$..providerUrl").doesNotExist());
+    }
+
+    @Test
+    void chatConversationsExposePaWeaverChatOptionWithoutProviderDetails() throws Exception {
+        allowChatPermission(ContextPermission.VIEW);
+
+        mockMvc.perform(get("/api/chat/conversations")
+                        .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversations[?(@.id == 'pa-weaver')].kind").value("ai"))
+                .andExpect(jsonPath("$.conversations[?(@.id == 'pa-weaver')].title").value("PA Weaver"))
+                .andExpect(jsonPath("$.conversations[?(@.id == 'pa-weaver')].availableActions[*]", hasItems("message-pa-weaver")))
+                .andExpect(content().string(not(containsString("secretref://"))))
+                .andExpect(content().string(not(containsString("https://"))))
+                .andExpect(content().string(not(containsString("access_token"))));
+    }
+
+    @Test
+    void paWeaverChatRoutesMemberMessageToWeaverAndStoresLmStudioResponse() throws Exception {
+        allowChatPermission(ContextPermission.EDIT);
+        allowChatPermission(ContextPermission.VIEW);
+
+        mockMvc.perform(post("/api/chat/conversations/pa-weaver/messages")
+                        .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"Bitte antworte kurz support-safe.\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.conversationId").value("pa-weaver"))
+                .andExpect(jsonPath("$.senderRef").value("user:test"))
+                .andExpect(jsonPath("$.deliveryEvidence.route").value("weave-chat-to-pa-weaver"))
+                .andExpect(jsonPath("$.deliveryEvidence.channelId").value("channels.weave-chat"))
+                .andExpect(jsonPath("$.deliveryEvidence.weaverReceived").value(true))
+                .andExpect(jsonPath("$.deliveryEvidence.lmStudioResponseReceived").value(true))
+                .andExpect(jsonPath("$.deliveryEvidence.modelRef").value("lmstudio/qwen/qwen3.5-9b"))
+                .andExpect(content().string(not(containsString("secretref://"))))
+                .andExpect(content().string(not(containsString("access_token"))));
+
+        mockMvc.perform(get("/api/chat/conversations/pa-weaver/messages")
+                        .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.messages[?(@.senderRef == 'weaver:pa' && @.deliveryEvidence.route == 'pa-weaver-to-lmstudio')].deliveryEvidence.weaverReceived").value(true))
+                .andExpect(jsonPath("$.messages[?(@.senderRef == 'weaver:pa' && @.deliveryEvidence.route == 'pa-weaver-to-lmstudio')].deliveryEvidence.lmStudioResponseReceived").value(true))
+                .andExpect(jsonPath("$.messages[?(@.senderRef == 'weaver:pa' && @.deliveryEvidence.route == 'pa-weaver-to-lmstudio')].deliveryEvidence.rawProviderDiagnosticsExposed").value(false))
+                .andExpect(content().string(not(containsString("https://lmstudio"))))
+                .andExpect(content().string(not(containsString("Bearer "))));
+
+        verify(auditEventPublisher).publish(argThat(event ->
+                event != null
+                        && event.action() == AuditAction.WEAVER_PA_CHAT_TURN_COMPLETED
+                        && Boolean.TRUE.equals(event.payload().get("weaverReceived"))
+                        && Boolean.TRUE.equals(event.payload().get("lmStudioResponseReceived"))
+                        && "lmstudio/qwen/qwen3.5-9b".equals(event.payload().get("modelRef"))
+                        && Boolean.TRUE.equals(event.payload().get("supportSafe"))));
+    }
+
+    @Test
+    void paWeaverChatBlocksMembersWithoutWeaverRuntimePolicyBeforeRouting() throws Exception {
+        allowChatPermission(ContextPermission.EDIT);
+
+        mockMvc.perform(post("/api/chat/conversations/pa-weaver/messages")
+                        .with(workspaceJwt("member"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"text\":\"Should not route.\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("weaver.enabled"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+
+        verify(auditEventPublisher, never()).publish(argThat(event ->
+                event != null && event.action() == AuditAction.WEAVER_PA_CHAT_TURN_COMPLETED));
     }
 
     @Test
@@ -469,12 +546,17 @@ class ChatControllerTest {
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt(String role) {
+        return workspaceJwt(role, List.of());
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt(String role, List<String> groups) {
         return jwt().jwt(jwt -> jwt
                         .subject("user-123")
                         .claim("iss", "https://auth.example.invalid/realms/acme")
                         .claim("preferred_username", "test")
                         .claim("weave_tenant_id", "tenant-default")
                         .claim("realm_access", Map.of("roles", List.of(role)))
+                        .claim("groups", groups)
                         .claim("aud", List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }

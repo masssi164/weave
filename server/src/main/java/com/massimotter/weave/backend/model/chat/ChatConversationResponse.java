@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.model.chat;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
+import java.util.List;
 
 @Schema(description = "Canonical Weave Chat conversation. Provider-specific room/channel ids are deliberately omitted.")
 public record ChatConversationResponse(
@@ -16,6 +17,8 @@ public record ChatConversationResponse(
         ChatMembershipResponse membership,
         ChatHistoryPolicyResponse historyPolicy,
         ChatAttachmentPolicyResponse attachmentPolicy,
+        @Schema(description = "Member-visible product actions available in this conversation.")
+        List<String> availableActions,
         @Schema(description = "Last canonical message timestamp, if any.")
         Instant lastMessageAt) {
 }

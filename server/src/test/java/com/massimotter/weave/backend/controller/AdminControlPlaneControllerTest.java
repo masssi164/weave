@@ -761,6 +761,18 @@ class AdminControlPlaneControllerTest {
                 .andExpect(content().string(not(containsString("raw provider"))));
     }
 
+    @Test
+    void memberCannotChangeWeaverProviderSelection() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(memberJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"weaver\",\"providerKey\":\"openclaw-derived-profile\",\"choiceModel\":\"recommended_self_hosted_default\",\"secretRef\":\"secretref://weave/provider/openclaw-derived-profile\",\"reason\":\"member attempt\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin.provider.configure"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
+    }
+
     private WorkspaceCapabilityStatusResponse capability(
             WorkspaceCapabilityReadiness readiness,
             WorkspaceCapabilityPolicyState policyState,
