@@ -38,6 +38,7 @@ registerRootCommandTask('specContract', ['python3', 'tools/spec_contract_check.p
 registerRootCommandTask('domainRegistryCheck', ['python3', 'tools/domain_registry_check.py'], 'Validate the canonical domain registry v1 machine-readable contract.')
 registerRootCommandTask('spaceAnchorCheck', ['python3', 'tools/space_anchor_check.py'], 'Validate the Space anchor contract fixture.')
 registerRootCommandTask('portabilityContractCheck', ['python3', 'tools/portability_contract_check.py'], 'Validate provider portability and no-unaccounted-data-loss migration schemas.')
+registerRootCommandTask('portabilityContractTest', ['python3', 'tools/portability_contract_check_test.py'], 'Run fixture tests for the provider portability contract checker.')
 registerRootCommandTask('specContractTest', ['python3', 'tools/spec_contract_check_test.py'], 'Run fixture tests for the repo-local Weave spec contract guard.')
 registerRootCommandTask('androidReleaseIdentityCheck', ['python3', 'tools/android_release_identity_check.py'], 'Validate Android package identity and release-signing fail-safe posture.')
 registerRootCommandTask('adminDependencyPolicyCheck', ['python3', 'tools/admin_console_dependency_policy_check.py'], 'Validate Admin Console dependency pins and lockfile policy.')
@@ -111,6 +112,7 @@ ext.ciEvidenceGates = [
     'domainRegistryCheck',
     'spaceAnchorCheck',
     'portabilityContractCheck',
+    'portabilityContractTest',
     'androidReleaseIdentityCheck',
     'adminDependencyPolicyCheck',
     'releaseEvidenceCheck',
@@ -217,6 +219,8 @@ List<String> artifactPathsForGate(String gateName) {
             return ['docs/space-anchor-contract.md', 'specs/0005-spaces-anchor/space-anchor-fixture.json', 'tools/space_anchor_check.py']
         case 'portabilityContractCheck':
             return ['server/src/main/resources/contracts/portability', 'specs/0006-portability-contract', 'tools/portability_contract_check.py']
+        case 'portabilityContractTest':
+            return ['tools/portability_contract_check_test.py', 'tools/fixtures/portability']
         case 'releaseEvidenceCheck':
             return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md']
         case 'projectReadinessEvidenceCheck':

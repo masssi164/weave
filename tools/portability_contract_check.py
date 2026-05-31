@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """Validate portability schemas for no-unaccounted-data-loss migrations."""
 from __future__ import annotations
 import json, re, sys
@@ -9,6 +9,101 @@ DOC=ROOT/'docs/architecture/no-unaccounted-data-loss.md'
 FIXTURES=ROOT/'specs/0006-portability-contract'
 LEGACY_ROOT_CONTRACTS=ROOT/'contracts'
 LOSS=['portable','lossy','unsupported','manual_review','vendor_locked','archive_only']
+
+
+ALLOWED_FIXTURE_CLASSIFICATIONS = {
+ 'available','disabled_by_policy','not_configured','degraded','unavailable','coming_later','unsupported'
+}
+SECRET_PATTERNS = [
+ re.compile(r'Bearer\s+[A-Za-z0-9._~+/=-]+', re.I),
+ re.compile(r'xox[baprs]-[A-Za-z0-9-]+', re.I),
+ re.compile(r'access[_-]?token\s*[:=]\s*[^\s,;}]+', re.I),
+ re.compile(r'secret\s*[:=]\s*[^\s,;}]+', re.I),
+ re.compile(r'https?://', re.I),
+ re.compile(r'mxc://', re.I),
+]
+FORBIDDEN_CLAIMS = [
+ re.compile(r'\bGDPR[-\s]?proof\b', re.I),
+ re.compile(r'\bCloud[-\s]?Act[-\s]?proof\b', re.I),
+ re.compile(r'\bguaranteed\s+compliant\b', re.I),
+ re.compile(r'\blossless\s+migration\b', re.I),
+]
+CLAIM_ALLOW_TERMS = re.compile(r'\b(avoid|avoids|non-goals?|forbid|forbids|forbidden|block|blocks|blocked|blockers?|reject|rejects|rejected|until|unless|never|not|no|without|overclaim|overclaims|must not|does not|do not|cannot|unsupported)\b', re.I)
+DEFAULT_CLAIM_GLOBS = ['README.md', 'docs/**/*.md', 'infra/docs/**/*.md', 'server/docs/**/*.md']
+
+def _walk_strings(value, prefix='$'):
+ if isinstance(value, str):
+  yield prefix, value
+ elif isinstance(value, dict):
+  for key, child in value.items(): yield from _walk_strings(child, f'{prefix}.{key}')
+ elif isinstance(value, list):
+  for index, child in enumerate(value): yield from _walk_strings(child, f'{prefix}[{index}]')
+
+def _load_fixture_for_errors(path):
+ try: return json.loads(Path(path).read_text(encoding='utf-8'))
+ except Exception as exc: return {'__load_error__': str(exc)}
+
+def validate_fixture(path):
+ path=Path(path)
+ errors=[]
+ data=_load_fixture_for_errors(path)
+ if '__load_error__' in data: return [f'{path}: invalid JSON: {data["__load_error__"]}']
+ if not isinstance(data, dict): return [f'{path}: root must be an object']
+ ctx=f"{data.get('domain','unknown')}:{data.get('provider', data.get('sourceProvider','unknown'))}:{data.get('operation','unknown')}"
+ if data.get('supportSafe') is not True: errors.append(f'{path}: {ctx} must set supportSafe=true')
+ if data.get('providerDiagnosticsRedacted') is not True: errors.append(f'{path}: {ctx} must set providerDiagnosticsRedacted=true')
+ for string_path,text in _walk_strings(data):
+  for pattern in SECRET_PATTERNS:
+   if pattern.search(text): errors.append(f'{path}: {string_path} leaks provider secret/url shaped value')
+  for pattern in FORBIDDEN_CLAIMS:
+   if pattern.search(text): errors.append(f'{path}: {string_path} uses forbidden overclaim {pattern.pattern!r}')
+ caps=data.get('capabilities')
+ if not isinstance(caps, list) or not caps:
+  errors.append(f'{path}: {ctx} must include non-empty capabilities[]')
+  return errors
+ by_key={}
+ for index, cap in enumerate(caps):
+  if not isinstance(cap, dict): errors.append(f'{path}: capabilities[{index}] must be an object'); continue
+  key=str(cap.get('key',''))
+  classification=cap.get('classification')
+  by_key[key]=cap
+  if classification not in ALLOWED_FIXTURE_CLASSIFICATIONS: errors.append(f'{path}: capability {key or index} has invalid classification {classification!r}')
+  if classification in {'degraded','unavailable','coming_later','unsupported'} and not cap.get('evidence'): errors.append(f'{path}: capability {key} needs evidence for {classification}')
+  if classification == 'available' and cap.get('losslessClaim') is not True: errors.append(f'{path}: available capability {key} must be explicitly fixture-backed with losslessClaim=true')
+  if classification != 'available' and cap.get('losslessClaim'): errors.append(f'{path}: non-available capability {key} cannot assert losslessClaim=true')
+ encrypted=by_key.get('encrypted_room_history')
+ if not encrypted: errors.append(f'{path}: {ctx} must classify encrypted_room_history')
+ elif encrypted.get('classification') != 'unsupported': errors.append(f'{path}: encrypted_room_history must be unsupported until client/user export exists')
+ elif 'e2ee_server_side_decryption_unsupported' not in encrypted.get('blockers', []): errors.append(f'{path}: encrypted_room_history must carry e2ee_server_side_decryption_unsupported blocker')
+ blocked=data.get('blockedOperations')
+ if not isinstance(blocked, list) or 'apply' not in blocked: errors.append(f'{path}: destructive apply must be listed in blockedOperations')
+ if isinstance(blocked, list) and 'cutover' not in blocked: errors.append(f'{path}: destructive cutover must be listed in blockedOperations')
+ rollback=data.get('rollback')
+ if not isinstance(rollback, dict) or rollback.get('classification') not in ALLOWED_FIXTURE_CLASSIFICATIONS: errors.append(f'{path}: rollback must have an explicit classification')
+ elif rollback.get('classification') == 'available' and not rollback.get('evidence'): errors.append(f'{path}: available rollback must include fixture evidence')
+ return errors
+
+def claim_files(root):
+ root=Path(root)
+ files=set()
+ for glob in DEFAULT_CLAIM_GLOBS: files.update(path for path in root.glob(glob) if path.is_file())
+ return files
+
+def validate_claim_text(root):
+ root=Path(root)
+ errors=[]
+ for path in sorted(claim_files(root)):
+  text=path.read_text(encoding='utf-8', errors='replace')
+  allow_context=False
+  for line_number,line in enumerate(text.splitlines(),1):
+   lowered=line.lower()
+   if any(marker in lowered for marker in ['avoid this wording', 'non-goals', 'forbidden wording', 'blocked overclaims']): allow_context=True
+   if line.startswith('## ') and not any(marker in lowered for marker in ['non-goals', 'blocked overclaims']): allow_context=False
+   if not line.strip(): continue
+   for pattern in FORBIDDEN_CLAIMS:
+    if pattern.search(line) and not allow_context and not CLAIM_ALLOW_TERMS.search(line): errors.append(f'{path.relative_to(root)}:{line_number}: forbidden overclaim {pattern.pattern!r}')
+ return errors
+
 REQUIRED={
  'provider-adapter-manifest.schema.json':'ProviderAdapterManifest',
  'provider-mapping.schema.json':'ProviderMapping',
@@ -104,6 +199,12 @@ def main():
  boundary=matrix.get('claimBoundary', '').lower()
  for phrase in ['does not prove lossless migration', 'legal compliance', 'e2ee history migration']:
   if phrase not in boundary: fail(f'Matrix proof claim boundary missing {phrase}')
+
+ extra_fixture=ROOT/'tools/fixtures/portability/matrix_chat_preflight_apply_blocked.json'
+ extra_errors=validate_fixture(extra_fixture)
+ if extra_errors: fail('; '.join(extra_errors))
+ claim_errors=validate_claim_text(ROOT)
+ if claim_errors: fail('; '.join(claim_errors[:5]))
  success=load(FIXTURES/'migration-run-dry-run-success.json')
  blocked=load(FIXTURES/'migration-run-apply-blocked.json')
  for fixture in [success, blocked]:

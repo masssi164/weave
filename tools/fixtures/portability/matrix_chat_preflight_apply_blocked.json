@@ -1,0 +1,64 @@
+{
+  "contractVersion": "provider-portability-v1",
+  "domain": "chat",
+  "provider": "matrix",
+  "operation": "preflight",
+  "fixtureId": "matrix-chat-preflight-apply-blocked",
+  "supportSafe": true,
+  "providerDiagnosticsRedacted": true,
+  "canonicalMapping": {
+    "sourceIds": "stable-redacted-provider-ids",
+    "weaveObjects": "weave:chat:conversations/messages/memberships/attachment-refs",
+    "targetAdapterObjects": "target-adapter:chat:conversations/messages/memberships"
+  },
+  "capabilities": [
+    {
+      "key": "room_metadata",
+      "classification": "available",
+      "losslessClaim": true,
+      "evidence": ["fixture-backed-name-topic-avatar-metadata"]
+    },
+    {
+      "key": "plain_timeline_messages",
+      "classification": "available",
+      "losslessClaim": true,
+      "evidence": ["fixture-backed-sender-timestamp-room-body-message-type"]
+    },
+    {
+      "key": "media_copy_or_reference",
+      "classification": "degraded",
+      "losslessClaim": false,
+      "evidence": ["portable-media-reference-or-copy-policy-required"]
+    },
+    {
+      "key": "simple_replies_reactions",
+      "classification": "degraded",
+      "losslessClaim": false,
+      "evidence": ["simple-reply-reaction-subset-only"]
+    },
+    {
+      "key": "encrypted_room_history",
+      "classification": "unsupported",
+      "losslessClaim": false,
+      "blockers": ["e2ee_server_side_decryption_unsupported", "user_export_or_key_share_path_not_implemented"],
+      "evidence": ["matrix-e2ee-history-blocked-by-design"]
+    },
+    {
+      "key": "provider_bots_bridges",
+      "classification": "unsupported",
+      "losslessClaim": false,
+      "evidence": ["provider-specific-automation-not-canonical-weave-chat"]
+    }
+  ],
+  "blockedOperations": ["apply", "cutover"],
+  "rollback": {
+    "classification": "degraded",
+    "evidence": ["rollback-marker-validation-required-before-cutover"],
+    "constraints": ["only canonical mappings and redacted counts are support-bundle-safe"]
+  },
+  "supportSafeEvidence": [
+    "no raw provider URLs, room IDs, usernames, media IDs, credentials, or downstream errors are present",
+    "admin review is required before any provider mutation",
+    "encrypted history stays blocked instead of being represented as migrated"
+  ]
+}
