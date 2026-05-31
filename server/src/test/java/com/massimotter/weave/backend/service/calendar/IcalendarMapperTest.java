@@ -122,6 +122,12 @@ class IcalendarMapperTest {
 
     @Test
     void blocksRecurringEventsWithSupportSafeReasonUntilRecurrenceContractExists() {
+        assertRecurrenceFieldIsBlocked("RRULE:FREQ=WEEKLY;COUNT=3");
+        assertRecurrenceFieldIsBlocked("RDATE:20260503T100000");
+        assertRecurrenceFieldIsBlocked("EXDATE:20260510T100000");
+    }
+
+    private void assertRecurrenceFieldIsBlocked(String recurrenceProperty) {
         assertThatThrownBy(() -> mapper.parse("""
                 BEGIN:VCALENDAR
                 BEGIN:VEVENT
@@ -129,14 +135,14 @@ class IcalendarMapperTest {
                 DTSTART;TZID=Europe/Berlin:20260426T100000
                 DTEND;TZID=Europe/Berlin:20260426T110000
                 SUMMARY:Planning
-                RRULE:FREQ=WEEKLY;COUNT=3
+                %s
                 END:VEVENT
                 END:VCALENDAR
-                """))
+                """.formatted(recurrenceProperty)))
                 .isInstanceOfSatisfying(CalendarAdapterException.class, exception -> {
                     assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.INVALID_RESPONSE);
                     assertThat(exception.details()).containsEntry("supportSafeReason", "recurrence-not-yet-supported");
-                    assertThat(exception.details()).containsKey("unsupportedFields");
+                    assertThat(exception.details()).containsEntry("unsupportedFields", java.util.List.of("RRULE", "RDATE", "EXDATE"));
                 });
     }
 }
