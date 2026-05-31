@@ -4,11 +4,12 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 
 ## Source of truth
 
-- Current implementation truth lives in this monorepo, GitHub issues/PRs, protected-branch status, and executable CI/evidence artifacts.
+- Fachliche product/domain specification truth lives in the pinned Weave Specification Corpus referenced by `specs/weave-specs.lock.json` (default local path: `../weave-specs`).
+- Current implementation/evidence truth lives in this monorepo, GitHub issues/PRs, protected-branch status, and executable CI/evidence artifacts.
 - Historical chat, agent transcripts, local memories, and old checkouts are orientation only; verify them before acting.
 - Sprint state belongs in GitHub issues, PRs, and closure reports, not in bootstrap prompts.
-- Product and architecture decisions belong in repo docs and repo-local `specs/`; PR bodies carry current acceptance/evidence for one slice.
-- `~/code/specs` and external notebooks are orientation only. New durable product/system contracts live under `specs/` and are checked by `./gradlew specContract`.
+- Product and architecture decisions must be made in the spec corpus first; this repo carries generated projections, transitional conformance specs, implementation docs, and PR evidence for one slice.
+- Legacy `~/code/specs`, external notebooks, and repo-local transitional `specs/` are orientation/conformance artifacts only. They must not silently redefine the pinned corpus.
 
 ## Branch and release model
 
@@ -49,8 +50,8 @@ A PR is merge-ready only when protected checks are green, required conversations
 
 Use this loop:
 
-1. Recover current truth from repo, GitHub, and CI.
-2. Select the smallest next slice.
+1. Recover specification truth from the pinned spec corpus, then implementation truth from repo, GitHub, and CI.
+2. Select the smallest next conformance slice.
 3. Spawn scoped specialists only when useful.
 4. Require evidence-only returns.
 5. Run the integration gate before PR handoff or merge.
