@@ -50,5 +50,5 @@ A fresh scheduled Live Stack E2E run is still required after merge for final rel
 
 ## PR and closure state
 
-- Integrated PR: pending at report creation; update this section with the PR number and CI run IDs before milestone closure.
-- Milestone 10: keep open until all issues are closed, PR CI is green, main is green after merge, and the Live Stack E2E result or accepted waiver/blocker is recorded.
+- Integrated PR: #478 (`chore: close Sprint 10 readiness debt`).
+- Milestone 10: keep open until #478 CI is green, #478 is merged, all issues are closed by the merge, final `main` CI is green, and the Live Stack E2E result or accepted waiver/blocker is recorded.
