@@ -56,7 +56,7 @@ Do not stop after one PR. Do not report success from local git state, a green br
 - `admin-console/`: admin UX, readiness, policy preview, setup flows.
 - `infra/`: OpenTofu, deploy, backup/restore, support bundles.
 - `e2e/`: Gherkin contracts and evidence mapping.
-- `docs/`: current product truth, release notes, handbooks, closure reports.
+- `docs/`: implementation-facing product projections, release notes, handbooks, closure reports.
 
 Use compact templates from `.specify/templates/weave-agent-briefs.md`: Truth-Recovery, Specialist-Brief, Coding-Harness-Brief, Evidence-Return, Integration-Gate, Optimization-Review, and Session-Handoff. Use `docs/agent-team-orchestration.md` for repo-safe AI-assisted delivery guidance.
 
