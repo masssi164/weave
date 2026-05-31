@@ -32,8 +32,8 @@ public class DisabledOfficeProvider implements OfficeProvider {
             true,
             true,
             false,
-            "ONLYOFFICE is the default candidate, but no office provider runtime/session bridge is configured.",
-            Set.of("view", "edit", "comment", "review", "form-fill", "docx", "xlsx", "pptx", "odt", "ods", "odp", "pdf-view"),
+            "ONLYOFFICE Docs Community is the default candidate, but no office provider runtime/session bridge is configured.",
+            Set.of(),
             Set.of("launch-session", "credential-bearing-url", "document-server-token-exposure", "raw-provider-errors"),
             List.of("office-provider-not-configured", "office-provider-unavailable", "office-unsupported-mode"),
             "support-safe: no document-server JWTs, signed URLs, app passwords, bearer tokens, callbacks secrets, or raw provider errors",
@@ -42,7 +42,16 @@ public class DisabledOfficeProvider implements OfficeProvider {
                     "defaultProvider", "onlyoffice",
                     "nonDefaultProvider", "collabora",
                     "collaboraPosture", "non-default/licensing-risk",
-                    "likelyFirstPath", "nextcloud-onlyoffice-app-behind-backend-facade"));
+                    "likelyFirstPath", "nextcloud-onlyoffice-app-behind-backend-facade",
+                    "providerRealityLevel", "contract_only",
+                    "memberImpact", "coming_later",
+                    "missingReadinessPrerequisites", List.of(
+                            "document-runtime",
+                            "callback-url",
+                            "jwt-or-session-secret",
+                            "storage-binding",
+                            "permission-model",
+                            "health-check")));
 
     @Override
     public ProviderStatusResponse status() {
@@ -58,7 +67,7 @@ public class DisabledOfficeProvider implements OfficeProvider {
                 true,
                 "unavailable",
                 "onlyoffice",
-                List.of(status),
+                List.of(memberVisibleStatus()),
                 List.of(
                         new OfficeProviderCandidateResponse(
                                 "onlyoffice",
@@ -80,6 +89,27 @@ public class DisabledOfficeProvider implements OfficeProvider {
                 List.of(),
                 new OfficePermissionModelResponse(false, false, false, false, false, "Office provider unavailable; no document session permissions granted."),
                 new OfficeLockSessionReadinessResponse("unavailable", "unavailable", "unavailable", true));
+    }
+
+    private ProviderStatusResponse memberVisibleStatus() {
+        return new ProviderStatusResponse(
+                status.module(),
+                status.providerKey(),
+                status.state(),
+                status.readiness(),
+                status.enabled(),
+                status.configured(),
+                status.readOnly(),
+                status.failClosed(),
+                status.supportSafe(),
+                status.paidFeaturesRequired(),
+                status.summary(),
+                status.supportedCapabilities(),
+                status.unsupportedOperations(),
+                status.supportSafeErrorCodes(),
+                status.redactionPolicy(),
+                status.candidates(),
+                Map.of());
     }
 
     @Override
