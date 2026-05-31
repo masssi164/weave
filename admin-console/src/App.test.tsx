@@ -1,6 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { AdminControlPlaneApi, sampleControlPlane } from "./api";
@@ -14,6 +20,17 @@ function mockApi(
     updateWhitelistPolicy: vi.fn().mockResolvedValue({
       ...sampleControlPlane.whitelistPolicy,
       allowedCapabilities: ["files.read"],
+    }),
+    updateWeaverDistributionPolicy: vi
+      .fn()
+      .mockImplementation(async (policy) => policy),
+    revokeRuntimeProfile: vi.fn().mockResolvedValue({
+      ...sampleControlPlane.weaverDistributionPolicy,
+      revocationState: "revocation_pending",
+      auditRefs: [
+        ...sampleControlPlane.weaverDistributionPolicy.auditRefs,
+        "audit://weaver/revocation/requested",
+      ],
     }),
     selectProvider: vi.fn(
       async (category, providerKey, choiceModel, dryRun) => ({
@@ -138,6 +155,9 @@ describe("Admin Console MVP", () => {
       screen.getByRole("heading", {
         name: /provider replacement dry-run results/i,
       }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /weaver distribution policy/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: /policy and whitelist/i }),
@@ -377,7 +397,9 @@ describe("Admin Console MVP", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/missing gates: missing current-session dry-run evidence/i),
+      screen.getByText(
+        /missing gates: missing current-session dry-run evidence/i,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", {
@@ -421,7 +443,6 @@ describe("Admin Console MVP", () => {
     ).toBeDisabled();
     expect(api.selectProvider).toHaveBeenCalledTimes(1);
   });
-
 
   it("blocks untrusted dry-run evidence when supportSafe is omitted", async () => {
     const api = mockApi({
@@ -487,7 +508,6 @@ describe("Admin Console MVP", () => {
     expect(api.selectProvider).toHaveBeenCalledTimes(1);
   });
 
-
   it("blocks dry-run evidence when expiration is missing or unparseable", async () => {
     const api = mockApi({
       selectProvider: vi
@@ -536,6 +556,119 @@ describe("Admin Console MVP", () => {
       screen.getByRole("button", { name: /apply selected provider/i }),
     ).toBeDisabled();
     expect(api.selectProvider).toHaveBeenCalledTimes(2);
+  });
+
+  it("manages Weaver chat, model, tool, skill, and MCP policy before RuntimeProfile apply", async () => {
+    const api = mockApi();
+    const user = userEvent.setup();
+    render(<App api={api} />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /weaver distribution policy/i,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/channels.weave-chat/i).length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getByText(/chat readiness: ready/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/effective weaver runtimeprofile policy preview/i),
+    ).toHaveTextContent(/model.default=general-assistant/i);
+    expect(
+      screen.getByLabelText(/effective weaver runtimeprofile policy preview/i),
+    ).toHaveTextContent(/mcp.allow=weave-facade-mcp/i);
+
+    expect(
+      screen.getByLabelText(/weaver chat-domain provider/i),
+    ).toHaveTextContent(/synapse-homeserver/i);
+    await user.clear(screen.getByLabelText(/default model alias/i));
+    await user.type(
+      screen.getByLabelText(/default model alias/i),
+      "sovereign-local",
+    );
+    await user.clear(screen.getByLabelText(/allowed weaver tools/i));
+    await user.type(
+      screen.getByLabelText(/allowed weaver tools/i),
+      "chat.search_messages\nnotifications.create_action_request",
+    );
+    await user.clear(screen.getByLabelText(/allowed weaver skills/i));
+    await user.type(
+      screen.getByLabelText(/allowed weaver skills/i),
+      "weave-user-help\nweave-release-evidence",
+    );
+    await user.clear(screen.getByLabelText(/allowed mcp servers/i));
+    await user.type(
+      screen.getByLabelText(/allowed mcp servers/i),
+      "weave-facade-mcp=chat.search_messages approval-required",
+    );
+
+    expect(
+      screen.getByRole("button", { name: /save weaver distribution policy/i }),
+    ).toBeDisabled();
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: /i confirm the effective weaver policy preview/i,
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: /save weaver distribution policy/i }),
+    );
+
+    await waitFor(() =>
+      expect(api.updateWeaverDistributionPolicy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chatProviderKey: "synapse-homeserver",
+          defaultModelAlias: "sovereign-local",
+          allowedTools: [
+            "chat.search_messages",
+            "notifications.create_action_request",
+          ],
+          allowedSkills: ["weave-user-help", "weave-release-evidence"],
+          mcpServers: [
+            {
+              serverKey: "weave-facade-mcp",
+              tools: ["chat.search_messages"],
+              approvalRequired: true,
+            },
+          ],
+        }),
+      ),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /weaver distribution policy saved/i,
+    );
+  }, 15000);
+
+  it("surfaces RuntimeProfile revocation and audit affordances", async () => {
+    const api = mockApi();
+    const user = userEvent.setup();
+    render(<App api={api} />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /runtimeprofile revocation and audit/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/active hash: wrp_2026_05_31_active_hash/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/runtimeprofile change history/i),
+    ).toHaveTextContent(/draft regeneration waits/i);
+
+    await user.click(
+      screen.getByRole("button", { name: /revoke active runtimeprofile/i }),
+    );
+
+    await waitFor(() =>
+      expect(api.revokeRuntimeProfile).toHaveBeenCalledWith(
+        "wrp_2026_05_31_active_hash",
+      ),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /revocation requested/i,
+    );
   });
 
   it("dry-runs selected providers through the backend API before applying", async () => {
