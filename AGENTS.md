@@ -4,7 +4,7 @@ Weave is one monorepo. `client/`, `server/`, `infra/`, `e2e/`, `docs/`, and `rel
 
 Old `weave-backend` and `weave-infra` checkouts are stale. Ignore them.
 
-Current truth: this repo, README/docs, GitHub issues/PRs/milestones, repo-local `specs/`, and executable evidence. `~/code/specs` is orientation/cross-session contract context; repo-local specs/docs remain the implementation authority when they are more current.
+Truth split: the canonical fachliche specification truth is the pinned Weave Specification Corpus in `specs/weave-specs.lock.json` (local default `../weave-specs`). This repo is implementation/evidence truth: code, tests, CI, release evidence, GitHub issues/PRs/milestones, and generated or transitional spec projections. If corpus and repo reality disagree, create an explicit spec-change or conformance-fix task; never let implementation state silently redefine product/domain meaning.
 
 Language policy: every `AGENTS.md`, agent prompt, checked-in project instruction, PR body, issue body, code comment, and documentation change must be written in English unless a user-facing localization file explicitly requires another language.
 
@@ -19,10 +19,10 @@ Before coding, opening PRs, merging, or declaring work complete, read and follow
 - `docs/developer-handbook.md` for coding conventions, Gradle gates, generated code, accessibility/i18n, and evidence expectations.
 - `docs/gitflow-pr-workflow.md` for protected `main`, short-lived branches, PR readiness, merge rules, and release-notes labels.
 - `docs/weave-operating-model.md` for delivery lifecycle and governance.
-- `.specify/memory/constitution.md`, `docs/spec-driven-development.md`, and relevant repo-local `specs/` for spec-driven delivery.
+- `specs/weave-specs.lock.json`, the pinned spec corpus files, `.specify/memory/constitution.md`, `docs/spec-driven-development.md`, and transitional repo-local `specs/` for conformance context.
 - Domain docs near the changed area (`client/`, `server/`, `infra/`, `e2e/`, `docs/`).
 
-Default gates: `./gradlew acceptanceContract`, `./gradlew clientCi`, `./gradlew serverCi`, `./gradlew adminCi`, `./gradlew infraStatic`, `./gradlew docsCheck`, and `./gradlew releaseEvidenceCheck`; use the smallest meaningful subset and `./gradlew ci` for cross-stack changes.
+Default gates: `./gradlew specCorpusConformance`, `./gradlew acceptanceContract`, `./gradlew clientCi`, `./gradlew serverCi`, `./gradlew adminCi`, `./gradlew infraStatic`, `./gradlew docsCheck`, and `./gradlew releaseEvidenceCheck`; use the smallest meaningful subset and `./gradlew ci` for cross-stack changes.
 
 ## Autonomous sprint ownership
 
@@ -36,7 +36,7 @@ A sprint-finish request authorizes normal repository delivery actions needed to 
 
 When assigned a sprint or milestone, the delivery lead must run this loop without handing decomposition back to the requester:
 
-1. **Truth recovery**: fetch current `origin/main`, inspect GitHub milestone/issues/PRs/checks, read linked specs/tasks/docs, and identify the governing sprint lifecycle.
+1. **Truth recovery**: identify governing spec corpus files first, then fetch current `origin/main`, inspect GitHub milestone/issues/PRs/checks, read linked repo specs/tasks/docs as conformance artifacts, and identify the governing sprint lifecycle.
 2. **Acceptance derivation**: turn each issue/spec/task into testable acceptance criteria and evidence gates. If an issue lacks acceptance, infer it from linked specs/docs and update the issue or sprint plan instead of asking the user for restatement.
 3. **Issue DAG**: build or repair the dependency graph; mark independent work parallel and ordered work sequential.
 4. **Delegation**: brief scoped reviewers or implementers with strict repo-safe inputs: task id, allowed files/globs, relevant docs, derived acceptance, required gates, output contract, and stop conditions.
@@ -70,6 +70,6 @@ Accessibility, supportability, auditability, and deployability are release block
 
 - Write agent instructions, PRs, issues, code comments, and documentation in English unless an explicit localization file requires another language.
 - Follow `docs/developer-handbook.md`, `docs/gitflow-pr-workflow.md`, `docs/weave-operating-model.md`, and relevant domain docs before coding, opening PRs, merging, or declaring work complete.
-- If the user asks to finish a sprint/milestone, derive acceptance from GitHub issues/milestones, repo specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
+- If the user asks to finish a sprint/milestone, derive acceptance first from the pinned spec corpus, then from GitHub issues/milestones, repo conformance specs/tasks, docs, CI policy, and evidence; do not require the user to restate issue acceptance criteria.
 - Keep live assistant runtime configuration, allowlists, hierarchy, model routing, and personal operator paths outside this product repo.
 - Use protected `main`, short-lived branches, exactly one `release-notes-*` label per PR, smallest meaningful local gates, green CI, fallback review evidence, and GitHub closure verification before reporting completion.
