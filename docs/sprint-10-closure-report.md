@@ -47,9 +47,12 @@ Local gates run before PR:
 
 The Sprint 10 blocker was scheduled Live Stack run `26702182436`, which reached the app flow but failed because the acceptance marker contract required offline/spec markers from live runtime logs. Sprint 10 fixes the mapping contract by marking those scenarios as offline/spec executable evidence rather than live runtime markers.
 
-A fresh scheduled Live Stack E2E run is still required after merge for final release readiness. If the live stack is unavailable, closure requires an explicit accepted waiver/blocker reference.
+Final post-merge Live Stack E2E evidence is present: workflow run `26705326312` (`Live Stack E2E`, `workflow_dispatch`) ran on `main` at merge commit `94f935b72dfa613ff031882422339781a6966c94` and completed successfully. Job `78705391664` (`Bootstrap Stack And Run App E2E`) also completed successfully.
 
 ## PR and closure state
 
 - Integrated PR: #478 (`chore: close Sprint 10 readiness debt`).
-- Milestone 10: keep open until #478 CI is green, #478 is merged, all issues are closed by the merge, final `main` CI is green, and the Live Stack E2E result or accepted waiver/blocker is recorded.
+- Final `main` CI after the merge: run `26705197247` (`CI`) on commit `94f935b72dfa613ff031882422339781a6966c94` — PASS.
+- Final Live Stack E2E after the merge: run `26705326312` — PASS.
+- Milestone 10: closed with 0 open / 12 closed issues after #478 merged and final CI/E2E evidence passed.
+- Remaining blockers: none.
