@@ -1,6 +1,20 @@
 # Product trust and provider-choice claim matrix
 
-Status: Sprint 14 claim-control artifact. Public/customer wording must not exceed the evidence class recorded here.
+Status: Sprint 14 claim-control artifact. Public/customer wording must not exceed the evidence class recorded here. `./gradlew releaseEvidenceCheck` and `./gradlew portabilityContractCheck` keep the claim/release posture wired into CI evidence.
+
+## Evidence classes and member-impact states
+
+Every public/product claim must map to at least one evidence class:
+
+- **Source-backed research evidence**: cited upstream standards, provider documentation, legal/regulatory references, or risk sources.
+- **Architecture/spec projection evidence**: Weave specification corpus, repo-local transitional specs, architecture docs, ADRs, or domain contracts.
+- **Fixture-based migration contract tests**: support-safe fixtures validated by `./gradlew portabilityContractCheck`, `./gradlew specContract`, or a narrower contract gate.
+- **Live smoke test evidence**: sanitized dogfood/live-stack evidence, CI artifacts, or runtime smoke results with secrets redacted.
+- **Accessibility/manual UX evidence**: mapped user/admin journeys, screen-reader/keyboard expectations, screenshots, or manual accessibility notes.
+- **Operator runbook evidence**: support-safe admin/operator handbooks, readiness runbooks, rollback notes, and evidence interpretation guidance.
+- **Claim matrix entry**: this page or the README claim matrix explicitly classifies the claim and its release/customer-copy state.
+
+Claim states and member-facing impact copy must use stable vocabulary: `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, `coming_later`, or `unsupported`. Marketing or release copy must not replace these with stronger availability claims. The portability promise is no-unaccounted data loss; it does not claim lossless provider migration.
 
 ## Approved positioning
 
@@ -26,14 +40,14 @@ Avoid this wording until explicitly evidenced and reviewed:
 | Consistent member UX across providers | "Members see stable Weave capability states while providers are managed by admins/operators." | Architecture + client/accessibility evidence | Product line plan, user/admin handbooks, client capability-state tests from prior sprints. | Usable; do not imply every provider swap is implemented. |
 | Data sovereignty | "Self-hosted/reference deployments make operational control over data location, keys, logs, backups, and exports testable." | Operator docs + public-source research | Control-plane infra bootstrap, admin/operator handbook, Sprint 14 risk framing. | Usable as design/operational-control claim; not a legal guarantee. |
 | Auditability | "Provider setup, policy, readiness, migration, and support evidence are designed to be auditable and support-safe." | Architecture + test evidence | Admin/operator handbook, portability schemas, audit refs in portability contracts. | Usable where backed by implemented slice; mark future providers separately. |
-| Reversibility | "Provider changes require export/import, rollback, retention, and validation evidence before apply." | Contract/fixture evidence | Provider portability schema v2 and no-unaccounted-data-loss docs. Matrix fixtures still pending. | Use as contract direction; do not claim automated reversibility for Matrix until fixtures land. |
+| Reversibility | "Provider changes require export/import, rollback, retention, and validation evidence before apply." | Fixture-based migration contract tests + operator runbook evidence | Provider portability schema v2, no-unaccounted-data-loss docs, `matrix-synapse-chat-migration-proof.json`, `matrix-synapse-chat-lifecycle-fixture.json`, and `./gradlew portabilityContractCheck`. | Usable as contract-gated behavior for named fixtures only; do not claim automated Matrix apply or lossless rollback. |
 | Reduced provider lock-in | "Weave reduces lock-in by making provider dependencies explicit and switch evidence reviewable." | Architecture + public-source research | Interoperability/vendor-lock-in source anchors and portability contracts. | Usable; avoid "no lock-in". |
-| Matrix-first migration proof | "Sprint 14 starts with a conservative self-hosted Matrix/Synapse Chat migration proof." | Source-backed research + future fixture tests | Matrix proof doc; fixtures pending. | Coming_later for executable migration proof until tests/fixtures merge. |
-| E2EE Chat migration | "Encrypted Matrix history is unsupported/coming_later until a client-side key/export strategy is solved." | Risk classification | Matrix proof doc and Matrix API semantics. | Must be stated as unsupported/coming_later. |
+| Matrix-first migration proof | "Sprint 14 starts with a conservative self-hosted Matrix/Synapse Chat migration proof." | Source-backed research evidence + fixture-based migration contract tests | Matrix Client-Server API source anchor, `provider-portability-v2-chat-matrix-dry-run.json`, `matrix-synapse-chat-migration-proof.json`, `matrix-synapse-chat-lifecycle-fixture.json`, and `./gradlew portabilityContractCheck`. | Contract evidence exists for a conservative support-safe proof; actual apply remains blocked and member copy must say `degraded`, `coming_later`, or `unsupported` where appropriate. |
+| E2EE Chat migration | "Encrypted Matrix history is unsupported/coming_later until a client-side key/export strategy is solved." | Source-backed research evidence + fixture-based migration contract tests | Matrix proof and lifecycle fixtures classify encrypted history as `unsupported`, block apply, and record the client-side key/export prerequisite. | Must be stated as `unsupported`/`coming_later`; forbidden to imply lossless E2EE migration. |
 | GDPR/DSGVO vs Cloud Act risk | "Weave helps admins separate formal compliance posture from residual operational, jurisdictional, subprocessor, telemetry, and exportability risk." | Source-backed research + legal-review caveat | EDPB/EDPS/Schrems II sources listed below. | Usable as engineering/procurement-risk framing; not legal advice. |
 | Admin provider-switch journey | "Admins review readiness, consequences, user disruption, cutover, rollback, audit, and validation before provider changes." | Product/UX contract + future Admin Console evidence | Provider replacement contract and Sprint 14 board. | Contract direction; implementation evidence still per-domain. |
-| Stable Weaver `weave-chat` channel | "The governed Weaver runtime should normally receive stable `channels.weave-chat`; providerRefs stay behind Weave Chat-domain routing." | Architecture + cross-repo implementation evidence | Governed Weaver runtime security contract; #519 remains open. | Do not claim complete until #519 child evidence is merged. |
-| Credential secrecy | "Runtime profiles contain SecretRefs, short-lived runtime-token references, and audit receipts only; raw provider secrets stay behind Weave." | Security/contract tests | Governed Weaver runtime security contract; #519 pending. | Contract claim only until profile fixtures/tests land. |
+| Stable Weaver `weave-chat` channel | "The governed Weaver runtime should normally receive stable `channels.weave-chat`; providerRefs stay behind Weave Chat-domain routing." | Architecture + cross-repo implementation evidence | Governed Weaver runtime security contract, Weave PRs #520/#521/#528/#529/#530/#532/#533, Weaver PRs #7/#8/#10/#11/#12, and closed #519. | Usable for governed `weave-chat` runtime boundary; do not imply unmanaged raw provider channel access. |
+| Credential secrecy | "Runtime profiles contain SecretRefs, short-lived runtime-token references, and audit receipts only; raw provider secrets stay behind Weave." | Security/contract tests | Governed Weaver runtime security contract, server audit/profile evidence, infra lifecycle docs, and Weaver support-safe audit refs. | Usable as governed-runtime evidence; raw provider secrets/OAuth refresh tokens remain forbidden in profiles and support evidence. |
 
 ## Procurement-risk checklist
 
