@@ -111,7 +111,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Fixed
 
-- Nothing yet.
+- Nextcloud Files and Calendar adapters now have stronger release-quality coverage for WebDAV/CalDAV error redaction, invalid path rejection, quota/permission/conflict handling, all-day event preservation, and explicit recurrence blocking until a recurrence contract exists.
 
 ## Security
 

@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class IcalendarMapperTest {
 
@@ -45,7 +46,6 @@ class IcalendarMapperTest {
                 DTEND;TZID=Europe/Berlin:20260426T110000
                 SUMMARY:Planning
                 DESCRIPTION:Original
-                RRULE:FREQ=WEEKLY;COUNT=3
                 END:VEVENT
                 END:VCALENDAR
                 """);
@@ -97,5 +97,46 @@ class IcalendarMapperTest {
         assertThat(response.providerRef().opaqueId()).isEqualTo("opaque-event-id");
         assertThat(response.providerRef().etag()).isEqualTo("\"etag-1\"");
         assertThat(response.providerRef().rawProviderPathExposed()).isFalse();
+    }
+
+    @Test
+    void preservesAllDayDateSemantics() {
+        CreateCalendarEventRequest request = new CreateCalendarEventRequest(
+                "Release day",
+                null,
+                OffsetDateTime.parse("2026-04-26T00:00:00+02:00"),
+                OffsetDateTime.parse("2026-04-27T00:00:00+02:00"),
+                "Europe/Berlin",
+                null,
+                true);
+
+        String icalendar = mapper.toIcalendar(mapper.draftFrom(request));
+        IcalendarMapper.EventDraft parsed = mapper.parse(icalendar);
+
+        assertThat(icalendar).contains("DTSTART;VALUE=DATE:20260426");
+        assertThat(icalendar).contains("DTEND;VALUE=DATE:20260427");
+        assertThat(parsed.allDay()).isTrue();
+        assertThat(parsed.startsAt()).isEqualTo(request.startsAt());
+        assertThat(parsed.endsAt()).isEqualTo(request.endsAt());
+    }
+
+    @Test
+    void blocksRecurringEventsWithSupportSafeReasonUntilRecurrenceContractExists() {
+        assertThatThrownBy(() -> mapper.parse("""
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                UID:test-uid
+                DTSTART;TZID=Europe/Berlin:20260426T100000
+                DTEND;TZID=Europe/Berlin:20260426T110000
+                SUMMARY:Planning
+                RRULE:FREQ=WEEKLY;COUNT=3
+                END:VEVENT
+                END:VCALENDAR
+                """))
+                .isInstanceOfSatisfying(CalendarAdapterException.class, exception -> {
+                    assertThat(exception.type()).isEqualTo(CalendarAdapterException.Type.INVALID_RESPONSE);
+                    assertThat(exception.details()).containsEntry("supportSafeReason", "recurrence-not-yet-supported");
+                    assertThat(exception.details()).containsKey("unsupportedFields");
+                });
     }
 }
