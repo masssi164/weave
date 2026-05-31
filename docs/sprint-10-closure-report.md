@@ -40,7 +40,8 @@ Local gates run before PR:
 - `./gradlew adminCi acceptanceContract docsCheck --console=plain` — PASS.
 - `./gradlew infraStatic releaseEvidenceCheck specContractTest --console=plain` — PASS.
 
-`./gradlew clientCi --console=plain` was run before staging and failed only at the repository-diff cleanliness step because the sprint changes were intentionally uncommitted; Flutter tests passed (`399 passed, 6 skipped`) during that run. Re-run after staging/PR before closure.
+- `./gradlew clientCi --console=plain` — PASS after staging.
+- PR #478 checks — PASS: Gradle CI runs `26704946251` and `26704947108`; Release Notes Label Check run `26704947108`.
 
 ## Live Stack E2E status
 
