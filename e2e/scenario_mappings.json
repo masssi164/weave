@@ -634,6 +634,32 @@
             "User-rights, organization-whitelisted capabilities",
             "runtime profile generation is audited"
           ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "renders support-safe Weaver projection labels for chat, models, tools, skills, and MCPs",
+            "receipt://weaver/runtime/profile-regeneration",
+            "client_secret|access_token|refresh token|bearer|openclaw\\.json|credential="
+          ]
+        },
+        {
+          "path": "infra/docs/weaver-runtime-lifecycle.md",
+          "fragments": [
+            "One active user/trust boundary maps to one active Weaver runtime context",
+            "The only runtime input is a signed `WeaverRuntimeProfile`",
+            "Default egress is deny",
+            "Rollback to the previous signed profile"
+          ]
+        },
+        {
+          "path": "infra/weave-workspace/weaver-runtime-lifecycle.contract.json",
+          "fragments": [
+            "weave-weaver-runtime-lifecycle-contract-v1",
+            "signed-WeaverRuntimeProfile",
+            "weave-api-internal",
+            "stop-container-revoke-token-deny-new-tool-calls"
+          ]
         }
       ],
       "evidenceMode": "offline-spec"

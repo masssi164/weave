@@ -1,0 +1,147 @@
+{
+  "schema": "weave-weaver-runtime-lifecycle-contract-v1",
+  "status": "disabled-preflight",
+  "runtimeProfileInput": {
+    "source": "signed-WeaverRuntimeProfile",
+    "requiredVerification": [
+      "signature",
+      "issuer",
+      "organizationRef",
+      "subjectRef",
+      "runtimeProfileHash",
+      "expiresAt",
+      "revocationGeneration",
+      "rollbackPointer"
+    ],
+    "forbiddenMaterial": [
+      "rawProviderSecrets",
+      "oauthRefreshTokens",
+      "credentialBearingProviderUrls",
+      "rawProviderPayloads"
+    ]
+  },
+  "containerBinding": {
+    "activeContainerPerTrustBoundary": 1,
+    "trustBoundaryKeys": [
+      "organizationRef",
+      "subjectRef",
+      "capabilityProfileRef",
+      "runtimeProfileHash",
+      "revocationGeneration"
+    ],
+    "supportSafeContainerNameTemplate": "weaver-${runtimeContextRef}",
+    "disallowUsernamesInRuntimeRefs": true
+  },
+  "filesystem": {
+    "readOnlyRootFilesystem": true,
+    "implicitHostMounts": false,
+    "volumes": {
+      "stateDir": "weaver-state-${runtimeContextRef}",
+      "workspaceDir": "weaver-workspace-${runtimeContextRef}",
+      "agentDir": "weaver-agent-${runtimeContextRef}"
+    },
+    "forbiddenMounts": [
+      "/var/run/docker.sock",
+      "hostSshAgent",
+      "hostKeychain",
+      "operatorHome",
+      "rawOpenClawDashboard"
+    ]
+  },
+  "resources": {
+    "memoryLimitRequired": true,
+    "cpuLimitRequired": true,
+    "processLimitRequired": true,
+    "diskQuotaRequired": true,
+    "quotaCleanupRequired": true
+  },
+  "network": {
+    "defaultEgress": "deny",
+    "allowedInternalTargets": [
+      "weave-api-internal",
+      "weave-mcp-gateway-internal",
+      "allowed-channel-proxy",
+      "allowed-mcp-proxy"
+    ],
+    "forbiddenTargets": [
+      "public-internet",
+      "provider-api-direct",
+      "cloud-metadata-service",
+      "host-network",
+      "cross-user-runtime-network"
+    ]
+  },
+  "credentials": {
+    "runtimeReceives": [
+      "shortLivedRuntimeTokenRef",
+      "CredentialRef"
+    ],
+    "runtimeTokenMaxTtlSeconds": 900,
+    "directSecretAccess": false,
+    "credentialBrokerRequired": true
+  },
+  "lifecycle": {
+    "states": [
+      "profile_received",
+      "verified",
+      "staged",
+      "active",
+      "reload_requested",
+      "restart_required",
+      "rollback_pending",
+      "revoked",
+      "stopped"
+    ],
+    "reloadAllowedFor": [
+      "toolGrantChange",
+      "modelAliasChange",
+      "approvalPolicyChange",
+      "auditPolicyChange"
+    ],
+    "restartRequiredFor": [
+      "imageDigestChange",
+      "networkBoundaryChange",
+      "filesystemBoundaryChange",
+      "memoryBoundaryChange",
+      "workspaceBoundaryChange",
+      "sandboxPolicyChange"
+    ],
+    "rollbackGate": [
+      "previousProfileSignatureValid",
+      "previousProfileUnexpired",
+      "previousProfileNotRevoked",
+      "compatibleWithCurrentPolicyFloor"
+    ],
+    "revocationAction": "stop-container-revoke-token-deny-new-tool-calls"
+  },
+  "supportBundle": {
+    "allowedEvidence": [
+      "runtimeContextRef",
+      "runtimeProfileHash",
+      "lifecycleState",
+      "imageDigest",
+      "sbomRef",
+      "scanRef",
+      "quotaSummary",
+      "policyDecisionRef",
+      "auditEventRef"
+    ],
+    "redactOrOmit": [
+      "prompts",
+      "rawProviderPayloads",
+      "oauthAccessTokens",
+      "oauthRefreshTokens",
+      "cookies",
+      "privateKeys",
+      "credentialBearingUrls",
+      "SecretRefValues",
+      "runtimeTokens",
+      "memberNames",
+      "emails",
+      "roomIds",
+      "eventIds",
+      "filenames",
+      "directProviderIdentifiers"
+    ]
+  }
+}

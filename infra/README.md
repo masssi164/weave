@@ -59,6 +59,7 @@ For a real single-host deployment, start here:
 - [Operator runbook](docs/operator-runbook.md): install/upgrade, rotation, backup, restore, destructive reset, and triage guidance.
 - [CalDAV/CardDAV external clients](docs/calendar-caldav-external-clients.md): DAV discovery, safe external-client credential path, and blocked private calendar/addressbook/profile flows.
 - [Connector runtime guardrails](docs/connector-runtime-guardrails.md): disabled-by-default connector runtime, callback, secret, and support-bundle boundaries.
+- [Weaver runtime lifecycle](docs/weaver-runtime-lifecycle.md): signed RuntimeProfile input, one active per-user runtime container boundary, internal-only network, reload/restart/rollback/revocation gates, and support-safe evidence; execution remains disabled by default.
 - [OpenProject Boards runtime](docs/openproject-boards-runtime.md): optional provider-backed validation setup and live E2E gate; off by default.
 
 After installation, verify public and host-local state:
