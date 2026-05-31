@@ -67,6 +67,22 @@ class ChatFacadeServiceTest {
     }
 
     @Test
+    void paWeaverChatFailsClosedWhenRuntimeBridgeIsNotConfigured() {
+        ChatFacadeService service = serviceWithoutConfiguredWeaverBridge();
+
+        assertThatThrownBy(() -> service.sendMessage(
+                jwt(List.of("member"), List.of("weave-weaver-runtime")),
+                "pa-weaver",
+                new ChatSendMessageRequest("do not fake provider success", List.of())))
+                .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
+                    assertThat(exception.status().value()).isEqualTo(503);
+                    assertThat(exception.details())
+                            .containsEntry("channelId", "channels.weave-chat")
+                            .containsEntry("diagnosticsRedacted", true);
+                });
+    }
+
+    @Test
     void paWeaverChatFailsClosedForMemberWithoutWeaverRuntimePolicy() {
         ChatFacadeService service = service(new InMemoryAuditEventPublisher());
 
@@ -105,6 +121,16 @@ class ChatFacadeServiceTest {
         assertThat(service.meetingCapsules(jwt(), "channel-general").capsules()).isEmpty();
     }
 
+    private ChatFacadeService serviceWithoutConfiguredWeaverBridge() {
+        WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
+        return new ChatFacadeService(
+                properties,
+                workspaceCapabilityService(properties, weaverRuntimeProperties(true)),
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+                new InMemoryAuditEventPublisher());
+    }
+
     private ChatFacadeService serviceWithMissingAuditPublisher() {
         WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
         return new ChatFacadeService(
@@ -123,7 +149,18 @@ class ChatFacadeServiceTest {
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
                 auditPublisher,
-                new SupportSafeWeaverPaChatClient());
+                request -> new WeaverPaChatTurnResult(
+                        true,
+                        true,
+                        "PA Weaver received the chat turn and returned a test LM Studio answer through channels.weave-chat.",
+                        request.modelRef(),
+                        "provider:model:lmstudio",
+                        "audit://weaver/pa-chat/test-roundtrip",
+                        Map.of(
+                                "channelId", request.channelId(),
+                                "modelRef", request.modelRef(),
+                                "rawProviderDiagnosticsExposed", false,
+                                "supportSafe", true)));
     }
 
     private WorkspaceCapabilityProperties workspaceCapabilityProperties() {

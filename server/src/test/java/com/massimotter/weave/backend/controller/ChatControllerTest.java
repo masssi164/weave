@@ -38,7 +38,8 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.service.ChatFacadeService;
-import com.massimotter.weave.backend.service.SupportSafeWeaverPaChatClient;
+import com.massimotter.weave.backend.service.WeaverPaChatClient;
+import com.massimotter.weave.backend.service.WeaverPaChatTurnResult;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.List;
@@ -49,7 +50,9 @@ import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2Res
 import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -67,7 +70,7 @@ import org.springframework.test.web.servlet.MockMvc;
         ApiErrorResponseWriter.class,
         ApiExceptionHandler.class,
         WorkspaceCapabilityService.class,
-        SupportSafeWeaverPaChatClient.class,
+        ChatControllerTest.PaWeaverTestClientConfiguration.class,
         ChatFacadeService.class
 })
 @TestPropertySource(properties = {
@@ -107,6 +110,25 @@ class ChatControllerTest {
 
     @MockBean
     private ChatDomainFacadeService chatDomainFacadeService;
+
+    @TestConfiguration
+    static class PaWeaverTestClientConfiguration {
+        @Bean
+        WeaverPaChatClient weaverPaChatClient() {
+            return request -> new WeaverPaChatTurnResult(
+                    true,
+                    true,
+                    "PA Weaver returned a test LM Studio answer through channels.weave-chat.",
+                    request.modelRef(),
+                    "provider:model:lmstudio",
+                    "audit://weaver/pa-chat/test-roundtrip",
+                    Map.of(
+                            "channelId", request.channelId(),
+                            "modelRef", request.modelRef(),
+                            "rawProviderDiagnosticsExposed", false,
+                            "supportSafe", true));
+        }
+    }
 
     @Test
     void memberReadinessExposesOnlyStableProductState() throws Exception {

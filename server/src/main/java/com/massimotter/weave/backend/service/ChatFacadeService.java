@@ -83,7 +83,10 @@ public class ChatFacadeService {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 new InMemoryAuditEventPublisher(),
-                new SupportSafeWeaverPaChatClient());
+                request -> {
+                    throw new WeaverPaChatUnavailableException(
+                            "PA Weaver chat bridge is not configured; refusing to synthesize LM Studio evidence.");
+                });
     }
 
     public ChatFacadeService(
@@ -98,7 +101,10 @@ public class ChatFacadeService {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 auditEventPublisher,
-                new SupportSafeWeaverPaChatClient());
+                request -> {
+                    throw new WeaverPaChatUnavailableException(
+                            "PA Weaver chat bridge is not configured; refusing to synthesize LM Studio evidence.");
+                });
     }
 
     @Autowired
@@ -114,7 +120,12 @@ public class ChatFacadeService {
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.auditEventPublisher = auditEventPublisher;
-        this.weaverPaChatClient = weaverPaChatClient == null ? new SupportSafeWeaverPaChatClient() : weaverPaChatClient;
+        this.weaverPaChatClient = weaverPaChatClient == null
+                ? request -> {
+                    throw new WeaverPaChatUnavailableException(
+                            "PA Weaver chat bridge is not configured; refusing to synthesize LM Studio evidence.");
+                }
+                : weaverPaChatClient;
         seedConversations();
     }
 
@@ -210,6 +221,7 @@ public class ChatFacadeService {
         conversation.add(message);
         if (conversation.isPaWeaver()) {
             ChatMessageResponse assistantMessage = completePaWeaverTurn(principal, conversation, message, timestamp);
+            Map<String, Object> assistantEvidence = assistantMessage.deliveryEvidence();
             return new ChatMessageResponse(
                     message.id(),
                     message.conversationId(),
@@ -223,10 +235,10 @@ public class ChatFacadeService {
                             "route", "weave-chat-to-pa-weaver",
                             "channelId", WEAVER_CHANNEL_ID,
                             "providerRef", WEAVER_CHAT_PROVIDER_REF,
-                            "weaverReceived", true,
-                            "lmStudioResponseReceived", true,
+                            "weaverReceived", assistantEvidence.get("weaverReceived"),
+                            "lmStudioResponseReceived", assistantEvidence.get("lmStudioResponseReceived"),
                             "assistantMessageId", assistantMessage.id(),
-                            "modelRef", WEAVER_LMSTUDIO_MODEL_REF,
+                            "modelRef", assistantEvidence.get("modelRef"),
                             "supportSafe", true));
         }
         return message;
@@ -237,18 +249,31 @@ public class ChatFacadeService {
             ConversationState conversation,
             ChatMessageResponse userMessage,
             Instant userMessageTimestamp) {
-        WeaverPaChatTurnResult result = weaverPaChatClient.completeTurn(new WeaverPaChatTurnRequest(
-                conversation.id(),
-                userMessage.id(),
-                principal.principalRef(),
-                userMessage.text(),
-                WEAVER_CHANNEL_ID,
-                WEAVER_CHAT_PROVIDER_REF,
-                WEAVER_LMSTUDIO_MODEL_REF,
-                Map.of(
-                        "contextId", conversation.contextId(),
-                        "supportSafe", true,
-                        "rawProviderContentIncluded", false)));
+        WeaverPaChatTurnResult result;
+        try {
+            result = weaverPaChatClient.completeTurn(new WeaverPaChatTurnRequest(
+                    conversation.id(),
+                    userMessage.id(),
+                    principal.principalRef(),
+                    userMessage.text(),
+                    WEAVER_CHANNEL_ID,
+                    WEAVER_CHAT_PROVIDER_REF,
+                    WEAVER_LMSTUDIO_MODEL_REF,
+                    Map.of(
+                            "contextId", conversation.contextId(),
+                            "supportSafe", true,
+                            "rawProviderContentIncluded", false)));
+        } catch (WeaverPaChatUnavailableException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "weaver-pa-chat-unavailable",
+                    "PA Weaver chat is not available yet. Ask an admin to check the governed Weaver runtime bridge.",
+                    Map.of(
+                            "route", "weave-chat-to-pa-weaver",
+                            "channelId", WEAVER_CHANNEL_ID,
+                            "supportSafe", true,
+                            "diagnosticsRedacted", true));
+        }
         Instant timestamp = userMessageTimestamp.plusMillis(1);
         Map<String, Object> evidence = Map.of(
                 "route", "pa-weaver-to-lmstudio",

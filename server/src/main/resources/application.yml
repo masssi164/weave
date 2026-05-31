@@ -125,6 +125,14 @@ weave:
       elevated-enabled: ${WEAVE_WEAVER_RUNTIME_ELEVATED_ENABLED:false}
       audit-required: true
       fork-required: ${WEAVE_WEAVER_RUNTIME_FORK_REQUIRED:false}
+    pa-chat:
+      # Real PA Weaver chat must call a governed Weaver runtime bridge. When
+      # disabled or unset, Weave Chat fails closed instead of synthesizing
+      # Weaver/LM Studio success evidence.
+      enabled: ${WEAVE_WEAVER_PA_CHAT_ENABLED:false}
+      bridge-url: ${WEAVE_WEAVER_PA_CHAT_BRIDGE_URL:}
+      timeout: ${WEAVE_WEAVER_PA_CHAT_TIMEOUT:10s}
+      runtime-token-ref: ${WEAVE_WEAVER_PA_CHAT_RUNTIME_TOKEN_REF:credentialref://weave/channels/weave-chat/runtime-token}
   boards:
     runtime-enabled: ${WEAVE_BOARDS_RUNTIME_ENABLED:${WEAVE_BOARDS_WORKSPACE_RUNTIME_ENABLED:false}}
     provider: ${WEAVE_BOARDS_PROVIDER:${WEAVE_BOARDS_WORKSPACE_PROVIDER:local-workspace}}
