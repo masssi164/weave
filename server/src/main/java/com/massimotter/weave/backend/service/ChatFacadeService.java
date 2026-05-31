@@ -275,16 +275,20 @@ public class ChatFacadeService {
                             "diagnosticsRedacted", true));
         }
         Instant timestamp = userMessageTimestamp.plusMillis(1);
-        Map<String, Object> evidence = Map.of(
-                "route", "pa-weaver-to-lmstudio",
-                "channelId", WEAVER_CHANNEL_ID,
-                "providerRef", WEAVER_CHAT_PROVIDER_REF,
-                "modelRef", result.modelRef(),
-                "weaverReceived", result.weaverReceived(),
-                "lmStudioResponseReceived", result.lmStudioResponseReceived(),
-                "auditRef", result.auditRef(),
-                "supportSafe", true,
-                "rawProviderDiagnosticsExposed", false);
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("route", "pa-weaver-to-lmstudio");
+        evidence.put("channelId", WEAVER_CHANNEL_ID);
+        evidence.put("providerRef", WEAVER_CHAT_PROVIDER_REF);
+        evidence.put("modelRef", result.modelRef());
+        evidence.put("weaverReceived", result.weaverReceived());
+        evidence.put("lmStudioResponseReceived", result.lmStudioResponseReceived());
+        evidence.put("auditRef", result.auditRef());
+        evidence.put("supportSafe", true);
+        evidence.put("rawProviderDiagnosticsExposed", false);
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "source");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "liveCall");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "approvedReplyTool");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "unsafeExecTool");
         ChatMessageResponse assistantMessage = new ChatMessageResponse(
                 "msg-" + UUID.randomUUID(),
                 conversation.id(),
@@ -774,6 +778,19 @@ public class ChatFacadeService {
             return "";
         }
         return sanitizeText(value, "excerpt", maxLength);
+    }
+
+    private void copySupportSafeEvidence(
+            Map<String, Object> source,
+            Map<String, Object> target,
+            String key) {
+        if (source == null || !source.containsKey(key)) {
+            return;
+        }
+        Object value = source.get(key);
+        if (value instanceof String || value instanceof Boolean || value instanceof Number) {
+            target.put(key, value);
+        }
     }
 
     private String sanitizeWeaverAnswer(String value) {
