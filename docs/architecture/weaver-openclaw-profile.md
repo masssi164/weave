@@ -41,6 +41,14 @@ Minimum profile fields for the next implementation slice:
 
 Admin Chat provider changes are provider migrations, not member adapter switches: Weave checks readiness/migration, binds credentials through the Credential Broker, updates backend Chat-domain routing and providerRefs, generates RuntimeProfile vNext while preserving `channels.weave-chat`, reloads or restarts the stable channel/runtime when needed, and keeps member UX inside Weave.
 
+## Per-user runtime container lifecycle
+
+The infrastructure lifecycle contract is defined in `infra/docs/weaver-runtime-lifecycle.md` and the executable static projection is `infra/weave-workspace/weaver-runtime-lifecycle.contract.json`. One active user/trust boundary maps to one active runtime context/container. The trust boundary is the organization, immutable subject, effective capability profile, signed `runtimeProfileHash`, and revocation generation; another browser session for the same boundary attaches to that context instead of creating a second container.
+
+Each runtime context uses separate `stateDir`, `workspaceDir`, and `agentDir` volumes with opaque support-safe refs, a read-only base filesystem, explicit CPU/memory/process/disk quotas, and no implicit host mounts such as Docker socket, SSH agent, keychain, operator home, or raw OpenClaw dashboard. Default egress is deny. The allowed network targets are internal Weave API, internal Weave MCP Gateway, and explicitly allowed channel/MCP proxies that enforce the same RuntimeProfile and short-lived runtime token.
+
+Profile reload, restart, rollback, and revocation are lifecycle operations, not ad-hoc container edits. Grant/model/approval/audit changes may reload when the loader proves they are safe. Image, network, filesystem, memory, workspace, and sandbox changes require restart. Rollback may activate only the previous signed profile when it is unexpired, not revoked, and compatible with the current policy floor. Revocation stops the container, revokes runtime tokens, denies new tool calls, and preserves only support-safe audit evidence.
+
 ## Capability rule
 
 The effective rule is: **user-rights, organization-whitelisted capabilities**.

@@ -19,3 +19,6 @@
 - [x] T012 [#519/#522] Preserve stable `channels.weave-chat` for Chat-domain provider changes while Matrix, Teams, iMessage, Slack, and future providers remain backend `providerRef` bindings.
 - [x] T013 [#519/#522] Require CredentialRefs and short-lived runtime token references only; exclude provider secrets and OAuth refresh tokens from profiles, logs, support bundles, and release evidence.
 - [x] T014 [#519/#522] Map the provider-change acceptance evidence to the Sprint 13 RuntimeProfile projection and Weaver/OpenClaw architecture boundary.
+- [x] T015 [#526] Define the per-user runtime context/container lifecycle with signed RuntimeProfile input, isolated state/workspace/agentDir, internal-only network, quota/memory boundaries, and reload/restart/rollback/revocation gates.
+- [x] T016 [#526] Add infra static evidence for lifecycle contract and support-bundle redaction of Weaver runtime tokens, SecretRefs, and raw provider material.
+- [x] T015 [#524] Add Admin Console support-safe RuntimeProfile projection management for Chat, model, tool, skill, MCP, revocation, and audit previews.

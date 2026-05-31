@@ -107,6 +107,40 @@ export interface AuditEvent {
   summary: string;
 }
 
+export type WeaverProjectionCategory =
+  | "chat"
+  | "model"
+  | "tool"
+  | "skill"
+  | "mcp";
+
+export interface WeaverProjectionItem {
+  id: string;
+  category: WeaverProjectionCategory;
+  label: string;
+  state: CapabilityState;
+  memberImpact: MemberCapabilityState;
+  policyImpact: string;
+  readinessSummary: string;
+  receiptRefs: string[];
+  userSelectable?: boolean;
+  defaultSelected?: boolean;
+  fallbackOrder?: number;
+}
+
+export interface WeaverRuntimeProjection {
+  profileVersion: string;
+  runtimeProfileHash: string;
+  expiresAt: string;
+  regeneratedAt?: string;
+  supportSafe: boolean;
+  providerDiagnosticsRedacted: boolean;
+  rawRuntimeInternalsExposed: boolean;
+  pendingRevocationRefs: string[];
+  auditReceiptRefs: string[];
+  items: WeaverProjectionItem[];
+}
+
 export type MemberCapabilityState =
   | "available"
   | "disabled_by_policy"
@@ -208,6 +242,7 @@ export interface ControlPlaneResponse {
   bootstrapDefaultsAreSuggestionsOnly: boolean;
   providerCategories: ProviderCategory[];
   identityProviderReadiness: IdentityProviderReadiness;
+  weaverRuntimeProjection: WeaverRuntimeProjection;
   whitelistPolicy: WhitelistPolicy;
   auditEvents: AuditEvent[];
 }
@@ -264,7 +299,33 @@ interface ServerControlPlaneResponse {
   }>;
   whitelist?: ServerWhitelistPolicy;
   identityProviderReadiness?: ServerIdentityProviderReadiness;
+  weaverRuntimeProjection?: ServerWeaverRuntimeProjection;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
+}
+
+interface ServerWeaverRuntimeProjection {
+  profileVersion?: string;
+  runtimeProfileHash?: string;
+  expiresAt?: string;
+  regeneratedAt?: string;
+  supportSafe?: boolean;
+  providerDiagnosticsRedacted?: boolean;
+  rawRuntimeInternalsExposed?: boolean;
+  pendingRevocationRefs?: string[];
+  auditReceiptRefs?: string[];
+  items?: Array<{
+    id?: string;
+    category?: string;
+    label?: string;
+    state?: string;
+    memberImpact?: string;
+    policyImpact?: string;
+    readinessSummary?: string;
+    receiptRefs?: string[];
+    userSelectable?: boolean;
+    defaultSelected?: boolean;
+    fallbackOrder?: number;
+  }>;
 }
 
 interface ServerIdentityProviderReadiness {
@@ -547,6 +608,9 @@ function normalizeControlPlane(
     identityProviderReadiness: normalizeIdentityProviderReadiness(
       controlPlane.identityProviderReadiness,
     ),
+    weaverRuntimeProjection: normalizeWeaverRuntimeProjection(
+      controlPlane.weaverRuntimeProjection,
+    ),
     whitelistPolicy: normalizeWhitelist(controlPlane.whitelist),
     auditEvents,
   };
@@ -674,6 +738,69 @@ function normalizeCategory(
   };
 }
 
+function normalizeWeaverRuntimeProjection(
+  projection?: ServerWeaverRuntimeProjection,
+): WeaverRuntimeProjection {
+  const items = (projection?.items ?? [])
+    .map((item): WeaverProjectionItem => ({
+      id: item.id ?? `${item.category ?? "tool"}-projection-item`,
+      category: normalizeWeaverProjectionCategory(item.category),
+      label: item.label ?? "Governed Weaver projection",
+      state: normalizeState(item.state),
+      memberImpact:
+        normalizeMemberCapabilityState(item.memberImpact) ?? "degraded",
+      policyImpact:
+        item.policyImpact ??
+        "Effective policy must be simulated before RuntimeProfile regeneration.",
+      readinessSummary:
+        item.readinessSummary ??
+        "Backend readiness evidence is required before this projection is exposed.",
+      receiptRefs: item.receiptRefs ?? [],
+      userSelectable: item.userSelectable,
+      defaultSelected: item.defaultSelected,
+      fallbackOrder: item.fallbackOrder,
+    }))
+    .filter((item) => isSupportSafeProjectionLabel(item.label));
+  return {
+    profileVersion: projection?.profileVersion ?? "weaver-runtime-profile-v1",
+    runtimeProfileHash:
+      projection?.runtimeProfileHash ?? "profile-hash-pending-backend-signature",
+    expiresAt: projection?.expiresAt ?? "backend-expiry-required-before-apply",
+    regeneratedAt: projection?.regeneratedAt,
+    supportSafe: projection?.supportSafe ?? false,
+    providerDiagnosticsRedacted: projection?.providerDiagnosticsRedacted ?? false,
+    rawRuntimeInternalsExposed: projection?.rawRuntimeInternalsExposed ?? false,
+    pendingRevocationRefs: projection?.pendingRevocationRefs ?? [
+      "runtime-profile-revocation-check-required",
+    ],
+    auditReceiptRefs: projection?.auditReceiptRefs ?? [
+      "runtime-profile-audit-receipt-required",
+    ],
+    items: items.length > 0 ? items : sampleWeaverProjectionItems,
+  };
+}
+
+function normalizeWeaverProjectionCategory(
+  value?: string,
+): WeaverProjectionCategory {
+  switch (value) {
+    case "chat":
+    case "model":
+    case "tool":
+    case "skill":
+    case "mcp":
+      return value;
+    default:
+      return "tool";
+  }
+}
+
+function isSupportSafeProjectionLabel(label: string): boolean {
+  return !/(secret|token|bearer|refresh|password|openclaw\.json|credential=)/i.test(
+    label,
+  );
+}
+
 function normalizeProviderSelectionResult(
   response: ServerProviderSelectionResult,
   category: string,
@@ -781,6 +908,73 @@ const allApplyGatesPassed: ProviderSwitchApplyGates = {
 };
 
 const blockedApplyGates: ProviderSwitchApplyGates = normalizeApplyGates();
+
+const sampleWeaverProjectionItems: WeaverProjectionItem[] = [
+  {
+    id: "chat-weave-domain-route",
+    category: "chat",
+    label: "Weave Chat domain route",
+    state: "ready",
+    memberImpact: "available",
+    policyImpact:
+      "Provider changes preserve the stable Weave Chat projection while backend routing and migration evidence are reviewed.",
+    readinessSummary:
+      "Readiness is based on Chat-domain dry-run, member impact preview, and restart survival receipts.",
+    receiptRefs: ["receipt://weaver/chat-domain-route/dry-run"],
+    defaultSelected: true,
+  },
+  {
+    id: "model-general-assistant",
+    category: "model",
+    label: "General assistant model alias",
+    state: "configured",
+    memberImpact: "available",
+    policyImpact:
+      "Users may select this alias; provider identity and credentials stay behind admin policy.",
+    readinessSummary:
+      "Default alias is configured with a fallback order and audit receipt.",
+    receiptRefs: ["receipt://weaver/models/general-assistant"],
+    userSelectable: true,
+    defaultSelected: true,
+    fallbackOrder: 1,
+  },
+  {
+    id: "tool-chat-summary-read",
+    category: "tool",
+    label: "Chat summary read tool",
+    state: "configured",
+    memberImpact: "available",
+    policyImpact:
+      "Read-only Chat-domain access follows user rights and organization whitelist policy.",
+    readinessSummary:
+      "Grant-filtered discovery is allowed; writes still require approval receipts.",
+    receiptRefs: ["receipt://weaver/tools/chat-summary-read"],
+  },
+  {
+    id: "skill-workspace-triage",
+    category: "skill",
+    label: "Workspace triage skill package",
+    state: "policy-blocked",
+    memberImpact: "disabled_by_policy",
+    policyImpact:
+      "Blocked until owner/admin approves package provenance, version, and group scope.",
+    readinessSummary:
+      "Preview shows policy impact before distribution; no runtime internals are exposed.",
+    receiptRefs: ["receipt://weaver/skills/workspace-triage/review"],
+  },
+  {
+    id: "mcp-approved-knowledge",
+    category: "mcp",
+    label: "Approved knowledge connector",
+    state: "admin-action-required",
+    memberImpact: "degraded",
+    policyImpact:
+      "Connector remains unavailable until approval routing, revocation, and audit receipts pass.",
+    readinessSummary:
+      "MCP projection is label-only and support-safe; personal connector secrets never appear here.",
+    receiptRefs: ["receipt://weaver/mcp/approved-knowledge/preflight"],
+  },
+];
 
 function sampleDomain(
   key: string,
@@ -1195,6 +1389,18 @@ export const sampleControlPlane: ControlPlaneResponse = {
       },
     ),
   ],
+  weaverRuntimeProjection: {
+    profileVersion: "weaver-runtime-profile-v1",
+    runtimeProfileHash: "sha256:profile-projection-sample",
+    expiresAt: "2026-06-01T08:00:00Z",
+    regeneratedAt: "2026-05-31T08:00:00Z",
+    supportSafe: true,
+    providerDiagnosticsRedacted: true,
+    rawRuntimeInternalsExposed: false,
+    pendingRevocationRefs: ["receipt://weaver/runtime/revocation-preview"],
+    auditReceiptRefs: ["receipt://weaver/runtime/profile-regeneration"],
+    items: sampleWeaverProjectionItems,
+  },
   identityProviderReadiness: {
     contractVersion: "identity-provider-readiness-v1",
     category: "idm-rbac",

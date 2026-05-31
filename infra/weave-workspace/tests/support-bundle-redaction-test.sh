@@ -56,6 +56,7 @@ callback=https://weave-admin:super-secret-password@provider.internal.example/pat
 raw-private-key-material
 -----END PRIVATE KEY-----
 operator=person@example.com
+weaver_secret_ref=secretref://weave/provider/openproject/user-refresh-token
 LOG
 cat >"${bootstrap_env}" <<'ENV'
 TF_VAR_tenant_domain=weave.local
@@ -78,6 +79,8 @@ WEAVE_INTEROP_SLACK_CLIENT_SECRET_REF=slack-client-secret-ref
 WEAVE_BOARDS_OPENPROJECT_BASE_URL=https://openproject.example
 WEAVE_BOARDS_OPENPROJECT_API_TOKEN=openproject-app-token
 WEAVE_BOARDS_PROVIDER_TOKEN=boards-runtime-token
+WEAVE_WEAVER_RUNTIME_TOKEN=weaver-short-lived-token
+WEAVE_WEAVER_CREDENTIAL_REF=secretref://weave/weaver/runtime/user-secret
 ENV
 
 (
@@ -107,9 +110,9 @@ grep -Fq '"domain": "boards-tasks"' "${extracted}/checks/adapter-readiness-summa
 grep -Fq '"adapterKey": "openproject-primary"' "${extracted}/checks/adapter-readiness-summary.json"
 grep -Fq '"configured": true' "${extracted}/checks/adapter-readiness-summary.json"
 
-if grep -R -Fq 'super-secret' "${extracted}" || grep -R -Fq 'calendar-token' "${extracted}" || grep -R -Fq 'slack-signing-secret' "${extracted}" || grep -R -Fq 'slack-client-secret-ref' "${extracted}" || grep -R -Fq 'openproject-super-secret' "${extracted}" || grep -R -Fq 'openproject-secret-key-base' "${extracted}" || grep -R -Fq 'openproject-app-token' "${extracted}" || grep -R -Fq 'boards-provider-secret' "${extracted}" || grep -R -Fq 'boards-runtime-token' "${extracted}" || grep -R -Fq 'openproject.example' "${extracted}" || grep -R -Fq 'files.weave.local' "${extracted}" || grep -R -Fq 'AKIAABCDEFGHIJKLMNOP' "${extracted}" || grep -R -Fq 'person@example.com' "${extracted}" || grep -R -Fq 'raw-private-key-material' "${extracted}"; then
+if grep -R -Fq 'super-secret' "${extracted}" || grep -R -Fq 'calendar-token' "${extracted}" || grep -R -Fq 'slack-signing-secret' "${extracted}" || grep -R -Fq 'slack-client-secret-ref' "${extracted}" || grep -R -Fq 'openproject-super-secret' "${extracted}" || grep -R -Fq 'openproject-secret-key-base' "${extracted}" || grep -R -Fq 'openproject-app-token' "${extracted}" || grep -R -Fq 'boards-provider-secret' "${extracted}" || grep -R -Fq 'boards-runtime-token' "${extracted}" || grep -R -Fq 'weaver-short-lived-token' "${extracted}" || grep -R -Fq 'secretref://weave' "${extracted}" || grep -R -Fq 'openproject.example' "${extracted}" || grep -R -Fq 'files.weave.local' "${extracted}" || grep -R -Fq 'AKIAABCDEFGHIJKLMNOP' "${extracted}" || grep -R -Fq 'person@example.com' "${extracted}" || grep -R -Fq 'raw-private-key-material' "${extracted}"; then
   echo "support bundle leaked a test secret" >&2
-  grep -R -n -E 'super-secret|calendar-token|slack-signing-secret|slack-client-secret-ref|openproject-super-secret|openproject-secret-key-base|openproject-app-token|boards-provider-secret|boards-runtime-token|openproject\.example|files\.weave\.local|AKIAABCDEFGHIJKLMNOP|person@example\.com|raw-private-key-material' "${extracted}" >&2 || true
+  grep -R -n -E 'super-secret|calendar-token|slack-signing-secret|slack-client-secret-ref|openproject-super-secret|openproject-secret-key-base|openproject-app-token|boards-provider-secret|boards-runtime-token|weaver-short-lived-token|secretref://weave|openproject\.example|files\.weave\.local|AKIAABCDEFGHIJKLMNOP|person@example\.com|raw-private-key-material' "${extracted}" >&2 || true
   exit 1
 fi
 
