@@ -65,9 +65,28 @@ public class WeaverRuntimeService {
         boolean execEnabled = weaverRuntimeProperties.execEnabled() && grantedCapabilities.contains("weaver.exec_enabled");
         boolean elevatedEnabled = weaverRuntimeProperties.elevatedEnabled() && grantedCapabilities.contains("weaver.elevated_enabled");
         String profileVersion = profileVersion(userRef, allowedCapabilities);
-        String runtimeProfileHash = runtimeProfileHash(userRef, profileVersion, allowedCapabilities, pluginAllowlist, toolAllowlist);
-        String signature = signProfile(runtimeProfileHash, profileVersion);
         String expiresAt = Instant.now().plus(1, ChronoUnit.HOURS).toString();
+        String previousProfileHash = previousProfileHash(userRef, profileVersion);
+        String runtimeProfileHash = runtimeProfileHash(
+                userRef,
+                profileVersion,
+                expiresAt,
+                false,
+                "active",
+                previousProfileHash,
+                allowedCapabilities,
+                pluginAllowlist,
+                toolAllowlist,
+                execEnabled,
+                elevatedEnabled,
+                weaverRuntimeProperties.auditRequired(),
+                weaverRuntimeProperties.forkRequired(),
+                weaverRuntimeProperties.image(),
+                workspacePath(userRef),
+                weaverRuntimeProperties.isolatedAgentDirectory(),
+                weaverRuntimeProperties.dockerNetworkMode(),
+                userRef);
+        String signature = signProfile(runtimeProfileHash, profileVersion);
         WeaverRuntimeProfileResponse response = new WeaverRuntimeProfileResponse(
                 true,
                 "ready-to-provision",
@@ -83,7 +102,7 @@ public class WeaverRuntimeService {
                 expiresAt,
                 false,
                 "active",
-                previousProfileHash(userRef, profileVersion),
+                previousProfileHash,
                 weaverRuntimeProperties.baselineProfile(),
                 weaverRuntimeProperties.image(),
                 workspacePath(userRef),
@@ -109,6 +128,28 @@ public class WeaverRuntimeService {
     }
 
     private WeaverRuntimeProfileResponse disabledProfile(String userRef, String posture, String impact) {
+        String profileVersion = "disabled-0";
+        String expiresAt = Instant.now().plus(15, ChronoUnit.MINUTES).toString();
+        String runtimeProfileHash = runtimeProfileHash(
+                userRef,
+                profileVersion,
+                expiresAt,
+                true,
+                posture,
+                "none",
+                List.of(),
+                List.of(),
+                List.of(),
+                false,
+                false,
+                true,
+                false,
+                "",
+                "",
+                weaverRuntimeProperties.isolatedAgentDirectory(),
+                "none",
+                userRef);
+        String signature = signProfile(runtimeProfileHash, profileVersion);
         return new WeaverRuntimeProfileResponse(
                 false,
                 posture,
@@ -118,10 +159,10 @@ public class WeaverRuntimeService {
                 "weave-domain-tool-registry",
                 "workspace-capability-policy",
                 userRef,
-                "disabled-0",
-                runtimeProfileHash(userRef, "disabled-0", List.of(), List.of(), List.of()),
-                signProfile(runtimeProfileHash(userRef, "disabled-0", List.of(), List.of(), List.of()), "disabled-0"),
-                Instant.now().plus(15, ChronoUnit.MINUTES).toString(),
+                profileVersion,
+                runtimeProfileHash,
+                signature,
+                expiresAt,
                 true,
                 posture,
                 "none",
@@ -137,13 +178,13 @@ public class WeaverRuntimeService {
                 false,
                 true,
                 false,
-                channelProjection(runtimeProfileHash(userRef, "disabled-0", List.of(), List.of(), List.of()), "disabled-0", userRef),
+                channelProjection(runtimeProfileHash, profileVersion, userRef),
                 credentialBrokerContract(userRef),
-                auditPolicy(runtimeProfileHash(userRef, "disabled-0", List.of(), List.of(), List.of()), userRef),
+                auditPolicy(runtimeProfileHash, userRef),
                 supportSafeProfileReceipt(
-                        "disabled-0",
-                        runtimeProfileHash(userRef, "disabled-0", List.of(), List.of(), List.of()),
-                        signProfile(runtimeProfileHash(userRef, "disabled-0", List.of(), List.of(), List.of()), "disabled-0"),
+                        profileVersion,
+                        runtimeProfileHash,
+                        signature,
                         true,
                         posture),
                 "writes-delete-external-send-provider-switch require approval receipts",
@@ -170,23 +211,52 @@ public class WeaverRuntimeService {
     }
 
     private String profileVersion(String userRef, List<String> allowedCapabilities) {
-        return "v" + Math.abs((userRef + ":" + allowedCapabilities + ":" + weaverRuntimeProperties.baselineProfile()).hashCode());
+        return "v" + sha256(String.join("|", userRef, allowedCapabilities.toString(), weaverRuntimeProperties.baselineProfile()))
+                .substring(0, 16);
     }
 
     private String runtimeProfileHash(
             String userRef,
             String profileVersion,
+            String expiresAt,
+            boolean revoked,
+            String revocationStatus,
+            String previousProfileHash,
             List<String> allowedCapabilities,
             List<String> pluginAllowlist,
-            List<String> toolAllowlist) {
+            List<String> toolAllowlist,
+            boolean execEnabled,
+            boolean elevatedEnabled,
+            boolean auditRequired,
+            boolean forkRequired,
+            String containerImage,
+            String workspacePath,
+            String isolatedAgentDirectory,
+            String dockerNetworkMode,
+            String credentialUserRef) {
         return "sha256:" + sha256(String.join("|",
                 userRef,
                 profileVersion,
+                expiresAt,
+                Boolean.toString(revoked),
+                revocationStatus,
+                previousProfileHash,
                 weaverRuntimeProperties.baselineProfile(),
+                containerImage,
+                workspacePath,
+                isolatedAgentDirectory,
+                dockerNetworkMode,
                 allowedCapabilities.toString(),
                 pluginAllowlist.toString(),
                 toolAllowlist.toString(),
-                "channels.weave-chat"));
+                Boolean.toString(execEnabled),
+                Boolean.toString(elevatedEnabled),
+                Boolean.toString(auditRequired),
+                Boolean.toString(forkRequired),
+                "channels.weave-chat",
+                "provider:chat:selected-by-admin",
+                "credentialref://weave/runtime/weave-chat/" + credentialUserRef.replace("user:", ""),
+                credentialBrokerContract(credentialUserRef).toString()));
     }
 
     private String signProfile(String runtimeProfileHash, String profileVersion) {

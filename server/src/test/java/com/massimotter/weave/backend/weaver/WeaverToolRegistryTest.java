@@ -40,6 +40,7 @@ class WeaverToolRegistryTest {
         var result = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
                 "user:abc123",
+                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 List.of("weaver.files_read"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 null));
@@ -50,7 +51,7 @@ class WeaverToolRegistryTest {
         assertThat(audit.events().get(0).action()).isEqualTo(AuditAction.WEAVER_TOOL_INVOCATION_RECORDED);
         assertThat(audit.events().get(0).payload()).containsEntry("status", "blocked");
         assertThat(audit.events().get(0).payload())
-                .containsEntry("runtimeProfileHash", "sha256:profile-hash-required-by-runtime-profile")
+                .containsEntry("runtimeProfileHash", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                 .containsEntry("user", "user:abc123")
                 .containsEntry("tool", "boards.comment")
                 .containsEntry("action", "tool.invoke")
@@ -69,6 +70,7 @@ class WeaverToolRegistryTest {
         var missingApproval = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
                 "user:abc123",
+                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                 List.of("weaver.boards_write"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 null));
@@ -80,6 +82,7 @@ class WeaverToolRegistryTest {
         var approved = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
                 "user:abc123",
+                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                 List.of("weaver.boards_write"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 "approval:abc123"));

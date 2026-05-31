@@ -32,7 +32,7 @@ public class WeaverToolRegistry {
     public WeaverToolInvocationResult invoke(WeaverToolInvocationRequest request) {
         WeaverDomainToolDefinition definition = definitions.get(request.toolName());
         if (definition == null || !request.grantedCapabilities().contains(definition.requiredCapability())) {
-            audit(request.userRef(), request.toolName(), "blocked", Map.of("reason", "not_granted"));
+            audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "blocked", Map.of("reason", "not_granted"));
             return new WeaverToolInvocationResult(
                     request.toolName(),
                     "blocked",
@@ -42,7 +42,7 @@ public class WeaverToolRegistry {
                     "Tool is not available for this runtime profile.");
         }
         if (definition.writeLike() && (request.approvalReceiptRef() == null || request.approvalReceiptRef().isBlank())) {
-            audit(request.userRef(), request.toolName(), "approval_required", Map.of("domain", definition.domain()));
+            audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "approval_required", Map.of("domain", definition.domain()));
             return new WeaverToolInvocationResult(
                     request.toolName(),
                     "approval_required",
@@ -51,7 +51,7 @@ public class WeaverToolRegistry {
                     Map.of("approvalPolicy", definition.approvalRequirement().name()),
                     "This action requires an approval receipt before Weaver may continue.");
         }
-        audit(request.userRef(), request.toolName(), "invoked", Map.of("domain", definition.domain(), "mode", definition.mode().name()));
+        audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "invoked", Map.of("domain", definition.domain(), "mode", definition.mode().name()));
         return new WeaverToolInvocationResult(
                 request.toolName(),
                 "ok",
@@ -64,10 +64,10 @@ public class WeaverToolRegistry {
                 "Tool invocation went through a Weave domain capability boundary; raw provider APIs are not exposed.");
     }
 
-    private void audit(String userRef, String toolName, String status, Map<String, Object> payload) {
+    private void audit(String userRef, String runtimeProfileHash, String toolName, String status, Map<String, Object> payload) {
         Map<String, Object> safePayload = new LinkedHashMap<>(payload);
         String safeUserRef = userRef == null || userRef.isBlank() ? "user:unknown" : userRef;
-        safePayload.putIfAbsent("runtimeProfileHash", "sha256:profile-hash-required-by-runtime-profile");
+        safePayload.putIfAbsent("runtimeProfileHash", runtimeProfileHash);
         safePayload.putIfAbsent("user", safeUserRef);
         safePayload.put("toolName", toolName);
         safePayload.putIfAbsent("tool", toolName);
