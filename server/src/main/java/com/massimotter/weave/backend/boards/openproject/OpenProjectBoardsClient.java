@@ -134,7 +134,7 @@ final class OpenProjectBoardsClient {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientResponseException exception) {
-            throw httpError(operation, exception);
+            throw httpError(operation, exception, "read-sync");
         } catch (ResourceAccessException exception) {
             throw new BoardsException(
                     BoardsErrorCode.OFFLINE,
@@ -159,7 +159,7 @@ final class OpenProjectBoardsClient {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientResponseException exception) {
-            throw httpError(operation, exception);
+            throw httpError(operation, exception, "write");
         } catch (ResourceAccessException exception) {
             throw new BoardsException(
                     BoardsErrorCode.OFFLINE,
@@ -200,7 +200,7 @@ final class OpenProjectBoardsClient {
         return "Basic " + HttpHeaders.encodeBasicAuth(API_USER, apiToken, java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    private BoardsException httpError(String operation, RestClientResponseException exception) {
+    private BoardsException httpError(String operation, RestClientResponseException exception, String mode) {
         BoardsErrorCode code = switch (exception.getStatusCode().value()) {
             case 401 -> BoardsErrorCode.UNAUTHORIZED;
             case 403 -> BoardsErrorCode.FORBIDDEN;
@@ -213,8 +213,8 @@ final class OpenProjectBoardsClient {
         };
         return new BoardsException(
                 code,
-                "OpenProject Boards read-sync failed with a support-safe provider response.",
-                details(operation, code.contractName()));
+                "OpenProject Boards " + mode + " failed with a support-safe provider response.",
+                details(operation, code.contractName(), mode));
     }
 
     private void requireConfigured(String operation) {
@@ -227,11 +227,19 @@ final class OpenProjectBoardsClient {
     }
 
     private Map<String, String> details(String operation, String reason) {
-        return Map.of(
-                "provider", "openproject",
-                "operation", operation,
-                "reason", reason,
-                "supportSafe", "true");
+        return details(operation, reason, null);
+    }
+
+    private Map<String, String> details(String operation, String reason, String mode) {
+        var details = new java.util.LinkedHashMap<String, String>();
+        details.put("provider", "openproject");
+        details.put("operation", operation);
+        details.put("reason", reason);
+        if (mode != null && !mode.isBlank()) {
+            details.put("mode", mode);
+        }
+        details.put("supportSafe", "true");
+        return details;
     }
 
     private OpenProjectProjectSnapshot project(JsonNode node) {

@@ -559,10 +559,7 @@ class _TaskActionMenu extends StatelessWidget {
   }
 
   String _actionFailureText(AppLocalizations l10n, AppFailure error) {
-    return switch (error.type) {
-      AppFailureType.validation => error.message,
-      _ => l10n.boardsWorkspaceActionFailed,
-    };
+    return l10n.boardsWorkspaceActionFailed;
   }
 }
 

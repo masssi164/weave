@@ -159,6 +159,32 @@ class OpenProjectBoardsReadSyncContractTest {
     }
 
     @Test
+    void openProjectWritesFailClosedWhenProviderRuntimeOrReadSyncGatesAreMissing() {
+        var repository = new OpenProjectBoardsRepository(new OpenProjectBoardsRuntimeGate(
+                false,
+                false,
+                true,
+                true,
+                true,
+                "service-token"));
+
+        assertThat(repository.capabilities().supported()).doesNotContain(BoardCapability.STATUS_UPDATES);
+        assertThatThrownBy(() -> repository.completeTask("openproject:work-package:99"))
+                .isInstanceOfSatisfying(BoardsException.class, error -> {
+                    assertThat(error.code()).isEqualTo(BoardsErrorCode.PROVIDER_UNAVAILABLE);
+                    assertThat(error.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "complete-task")
+                            .containsEntry("mode", "write")
+                            .containsEntry("providerWritesEnabled", "true");
+                    assertThat(error.details().get("missingGates"))
+                            .contains("provider_runtime")
+                            .contains("read_sync")
+                            .doesNotContain("audit_consent");
+                });
+    }
+
+    @Test
     void openProjectCommentsAndAttachmentsStayUnsupportedUntilPromotion() {
         var repository = new OpenProjectBoardsRepository(new OpenProjectBoardsRuntimeGate(
                 true,
@@ -229,6 +255,30 @@ class OpenProjectBoardsReadSyncContractTest {
     }
 
     @Test
+    void promotedOpenProjectStatusUpdatePreservesRequestedProviderNeutralStatus() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        var repository = writeEnabledRepository(builder);
+
+        server.expect(requestTo("https://openproject.example.test/api/v3/work_packages/99"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(workPackageJson(2, 17, null), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://openproject.example.test/api/v3/work_packages/99"))
+                .andExpect(method(HttpMethod.PATCH))
+                .andExpect(content().string(containsString("\"lockVersion\":17")))
+                .andExpect(content().string(containsString("/api/v3/statuses/2")))
+                .andRespond(withSuccess(workPackageJson(2, 18, null), MediaType.APPLICATION_JSON));
+        var task = repository.updateTaskStatus(
+                "openproject:work-package:99",
+                TaskStatus.BLOCKED,
+                "openproject:status:2");
+
+        assertThat(task.columnId()).isEqualTo("openproject:status:2");
+        assertThat(task.status()).isEqualTo(TaskStatus.BLOCKED);
+        server.verify();
+    }
+
+    @Test
     void promotedOpenProjectWriteConflictMapsToSupportSafeConflict() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -253,8 +303,12 @@ class OpenProjectBoardsReadSyncContractTest {
                     assertThat(error.details())
                             .containsEntry("provider", "openproject")
                             .containsEntry("operation", "update-task-status")
+                            .containsEntry("mode", "write")
                             .containsEntry("supportSafe", "true");
-                    assertThat(error.getMessage()).doesNotContain("stale lockVersion");
+                    assertThat(error.getMessage())
+                            .contains("write")
+                            .doesNotContain("read-sync")
+                            .doesNotContain("stale lockVersion");
                 });
         server.verify();
     }

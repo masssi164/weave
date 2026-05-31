@@ -202,7 +202,7 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
                 statusId,
                 null,
                 "update-task-status");
-        return mapper.toTask(updated, statusesById());
+        return mapper.toTask(updated, status);
     }
 
     @Override
