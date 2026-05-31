@@ -24,7 +24,31 @@ public record ProviderStatusResponse(
         List<String> supportSafeErrorCodes,
         String redactionPolicy,
         List<String> candidates,
+        ProviderRealityLevel providerRealityLevel,
         Map<String, Object> diagnostics) {
+
+    public ProviderStatusResponse(
+            ProviderModule module,
+            String providerKey,
+            ProviderState state,
+            String readiness,
+            boolean enabled,
+            boolean configured,
+            boolean readOnly,
+            boolean failClosed,
+            boolean supportSafe,
+            boolean paidFeaturesRequired,
+            String summary,
+            Set<String> supportedCapabilities,
+            Set<String> unsupportedOperations,
+            List<String> supportSafeErrorCodes,
+            String redactionPolicy,
+            List<String> candidates,
+            Map<String, Object> diagnostics) {
+        this(module, providerKey, state, readiness, enabled, configured, readOnly, failClosed, supportSafe, paidFeaturesRequired,
+                summary, supportedCapabilities, unsupportedOperations, supportSafeErrorCodes, redactionPolicy, candidates,
+                defaultRealityLevel(enabled, configured, state), diagnostics);
+    }
 
     public ProviderStatusResponse {
         module = requireNonNull(module, "module must not be null");
@@ -39,7 +63,18 @@ public record ProviderStatusResponse(
                 ? "support-safe: no tokens, passwords, app passwords, credentials, authorization headers, or raw provider errors"
                 : redactionPolicy, "redactionPolicy");
         candidates = candidates == null ? List.of() : List.copyOf(candidates);
+        providerRealityLevel = providerRealityLevel == null ? defaultRealityLevel(enabled, configured, state) : providerRealityLevel;
         diagnostics = diagnostics == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(diagnostics));
+    }
+
+    private static ProviderRealityLevel defaultRealityLevel(boolean enabled, boolean configured, ProviderState state) {
+        if (!enabled) {
+            return ProviderRealityLevel.CONTRACT_ONLY;
+        }
+        if (configured && (state == ProviderState.READY || state == ProviderState.CONFIGURED || state == ProviderState.DEGRADED)) {
+            return ProviderRealityLevel.CONFIGURED_READINESS;
+        }
+        return ProviderRealityLevel.CONTRACT_ONLY;
     }
 
     private static String requireText(String value, String field) {

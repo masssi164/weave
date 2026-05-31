@@ -56,6 +56,13 @@ class CanonicalDomainRegistryContractTest {
                 "lossy_with_report",
                 "blocked_nonportable",
                 "provider_unexportable");
+        assertThat(registry.providerRealityLevels()).containsExactly(
+                "contract_only",
+                "configured_readiness",
+                "live_adapter_read",
+                "live_adapter_write",
+                "migration_apply_ready",
+                "release_ready");
         assertThat(registry.domains()).extracting(CanonicalDomainRegistryEntryResponse::key)
                 .containsExactlyElementsOf(CANONICAL_DOMAINS);
         assertThat(registry.compatibilityAliases())
@@ -88,6 +95,9 @@ class CanonicalDomainRegistryContractTest {
                     "canonical_object_coverage",
                     "secret_ref_only",
                     "support_safe_diagnostics");
+            assertThat(domain.providerRealityLevelByCandidate().values())
+                    .allMatch(registry.providerRealityLevels()::contains);
+            assertThat(domain.providerRealityLevelByCandidate().values()).isNotEmpty();
         });
     }
 

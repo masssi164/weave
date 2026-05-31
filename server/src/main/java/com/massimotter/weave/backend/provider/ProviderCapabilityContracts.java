@@ -144,6 +144,16 @@ public final class ProviderCapabilityContracts {
                 false);
     }
 
+
+    public static ProviderRealityLevel defaultRealityLevel(String category) {
+        return switch (category) {
+            case "identity-idm", "chat", "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
+            case "meetings-calls" -> ProviderRealityLevel.CONFIGURED_READINESS;
+            case "documents-collaboration", "weaver" -> ProviderRealityLevel.CONTRACT_ONLY;
+            default -> ProviderRealityLevel.CONTRACT_ONLY;
+        };
+    }
+
     public static List<String> providerCandidates(String category) {
         Definition definition = definition(category);
         return java.util.stream.Stream.concat(definition.defaultAdapters().stream(), definition.externalAdapters().stream())

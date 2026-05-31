@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.config;
 
 import com.massimotter.weave.backend.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderPort;
+import com.massimotter.weave.backend.provider.ProviderRealityLevel;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
 import com.massimotter.weave.backend.provider.StaticProviderPort;
@@ -147,6 +148,7 @@ public class ProviderCoreConfiguration {
                 List.of("meetings-provider-not-configured", "meetings-provider-disabled", "meetings-provider-unavailable", "meetings-token-unavailable"),
                 "support-safe: no LiveKit API keys, API secrets, bearer tokens, room tokens, credential-bearing URLs, or raw provider errors",
                 List.of("livekit", "microsoft-teams-meetings", "managed-meetings-provider", "external-meeting-link"),
+                ProviderRealityLevel.CONFIGURED_READINESS,
                 Map.of(
                         "activeProvider", "livekit",
                         "livekitUrlConfigured", liveKit.urlConfigured(),
