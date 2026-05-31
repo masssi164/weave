@@ -3395,6 +3395,86 @@ class AppLocalizationsEn extends AppLocalizations {
       'Checking agent capability policy…';
 
   @override
+  String get weaverMemberTitle => 'Mein Weaver';
+
+  @override
+  String get weaverMemberUnavailableTitle => 'Weaver unavailable';
+
+  @override
+  String get weaverMemberDescription =>
+      'Choose from admin-approved model aliases and review the personal settings your workspace policy allows.';
+
+  @override
+  String get weaverMemberUnavailableDescription =>
+      'Your workspace has not enabled a governed Weaver profile for this account.';
+
+  @override
+  String get weaverMemberStatusAvailable => 'Enabled by policy';
+
+  @override
+  String get weaverMemberStatusDisabled => 'Disabled by policy';
+
+  @override
+  String get weaverMemberStatusUnavailable => 'Unavailable';
+
+  @override
+  String get weaverMemberLoading => 'Checking Weaver policy…';
+
+  @override
+  String get weaverMemberModelAliasTitle => 'Model alias';
+
+  @override
+  String get weaverMemberModelAliasDescription =>
+      'Only aliases approved by your workspace policy are shown here.';
+
+  @override
+  String get weaverMemberWorkspaceDefaultAlias => 'Workspace default';
+
+  @override
+  String get weaverMemberApprovedByAdmin => 'Approved by workspace policy';
+
+  @override
+  String get weaverMemberPersonalSettingsTitle => 'Personal settings';
+
+  @override
+  String get weaverMemberStyleSetting => 'Style preferences';
+
+  @override
+  String get weaverMemberMemorySetting => 'Memory controls';
+
+  @override
+  String get weaverMemberWorkspaceSetting => 'Workspace personalization';
+
+  @override
+  String get weaverMemberSettingAllowed => 'Allowed for your profile';
+
+  @override
+  String get weaverMemberSettingDisabled => 'Not enabled for your profile';
+
+  @override
+  String get weaverMemberAllowedSkillsTitle => 'Allowed skills';
+
+  @override
+  String get weaverMemberNoAllowedSkills =>
+      'No optional skills are enabled for your profile.';
+
+  @override
+  String get weaverMemberAllowedConnectionsTitle =>
+      'Allowed personal connections';
+
+  @override
+  String get weaverMemberNoAllowedConnections =>
+      'No personal connection flows are enabled for your profile.';
+
+  @override
+  String get weaverMemberBoundaryNotice =>
+      'Administration of providers, credentials, connector setup, and runtime files stays outside member settings; members only see policy-approved choices.';
+
+  @override
+  String get weaverMemberDisabledBoundaryNotice =>
+      'No provider secrets or runtime configuration are exposed. Contact your workspace owner if you expected Weaver access.';
+
+  @override
   String get workflowPreviewTitle => 'Active workflows';
 
   @override

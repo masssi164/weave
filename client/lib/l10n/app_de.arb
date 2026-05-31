@@ -1072,6 +1072,103 @@
   "@agentCapabilityPolicyLoading": {
     "description": "Loading message for AI agent capability policy settings section"
   },
+
+  "weaverMemberTitle": "Mein Weaver",
+  "@weaverMemberTitle": {
+    "description": "Title for the governed member Weaver settings entry point"
+  },
+  "weaverMemberUnavailableTitle": "Weaver nicht verfügbar",
+  "@weaverMemberUnavailableTitle": {
+    "description": "Title when the governed Weaver member settings entry point is unavailable"
+  },
+  "weaverMemberDescription": "Wähle aus adminfreigegebenen Modell-Aliasen und prüfe die persönlichen Einstellungen, die deine Workspace-Richtlinie erlaubt.",
+  "@weaverMemberDescription": {
+    "description": "Description for available governed Weaver member settings"
+  },
+  "weaverMemberUnavailableDescription": "Dein Workspace hat für dieses Konto kein gesteuertes Weaver-Profil aktiviert.",
+  "@weaverMemberUnavailableDescription": {
+    "description": "Description when Weaver is unavailable for the member"
+  },
+  "weaverMemberStatusAvailable": "Durch Richtlinie aktiviert",
+  "@weaverMemberStatusAvailable": {
+    "description": "Status chip for available Weaver member settings"
+  },
+  "weaverMemberStatusDisabled": "Durch Richtlinie deaktiviert",
+  "@weaverMemberStatusDisabled": {
+    "description": "Status chip for disabled Weaver member settings"
+  },
+  "weaverMemberStatusUnavailable": "Nicht verfügbar",
+  "@weaverMemberStatusUnavailable": {
+    "description": "Status chip for unavailable Weaver member settings"
+  },
+  "weaverMemberLoading": "Weaver-Richtlinie wird geprüft…",
+  "@weaverMemberLoading": {
+    "description": "Loading message for Weaver member policy"
+  },
+  "weaverMemberModelAliasTitle": "Modell-Alias",
+  "@weaverMemberModelAliasTitle": {
+    "description": "Title for choosing a Weaver model alias"
+  },
+  "weaverMemberModelAliasDescription": "Hier erscheinen nur Aliase, die deine Workspace-Richtlinie freigegeben hat.",
+  "@weaverMemberModelAliasDescription": {
+    "description": "Description for admin-approved model alias choices"
+  },
+  "weaverMemberWorkspaceDefaultAlias": "Workspace-Standard",
+  "@weaverMemberWorkspaceDefaultAlias": {
+    "description": "Fallback model alias label when no explicit alias names are exposed"
+  },
+  "weaverMemberApprovedByAdmin": "Durch Workspace-Richtlinie freigegeben",
+  "@weaverMemberApprovedByAdmin": {
+    "description": "Subtitle for an approved Weaver setting"
+  },
+  "weaverMemberPersonalSettingsTitle": "Persönliche Einstellungen",
+  "@weaverMemberPersonalSettingsTitle": {
+    "description": "Title for personal Weaver settings"
+  },
+  "weaverMemberStyleSetting": "Stilpräferenzen",
+  "@weaverMemberStyleSetting": {
+    "description": "Weaver style preference setting label"
+  },
+  "weaverMemberMemorySetting": "Speichersteuerung",
+  "@weaverMemberMemorySetting": {
+    "description": "Weaver memory control setting label"
+  },
+  "weaverMemberWorkspaceSetting": "Workspace-Personalisierung",
+  "@weaverMemberWorkspaceSetting": {
+    "description": "Weaver workspace personalization setting label"
+  },
+  "weaverMemberSettingAllowed": "Für dein Profil erlaubt",
+  "@weaverMemberSettingAllowed": {
+    "description": "Subtitle for an allowed Weaver personal setting"
+  },
+  "weaverMemberSettingDisabled": "Für dein Profil nicht aktiviert",
+  "@weaverMemberSettingDisabled": {
+    "description": "Subtitle for a disabled Weaver personal setting"
+  },
+  "weaverMemberAllowedSkillsTitle": "Erlaubte Skills",
+  "@weaverMemberAllowedSkillsTitle": {
+    "description": "Title for allowed Weaver skills"
+  },
+  "weaverMemberNoAllowedSkills": "Für dein Profil sind keine optionalen Skills aktiviert.",
+  "@weaverMemberNoAllowedSkills": {
+    "description": "Empty state for allowed Weaver skills"
+  },
+  "weaverMemberAllowedConnectionsTitle": "Erlaubte persönliche Verbindungen",
+  "@weaverMemberAllowedConnectionsTitle": {
+    "description": "Title for approved personal Weaver connections"
+  },
+  "weaverMemberNoAllowedConnections": "Für dein Profil sind keine persönlichen Verbindungsabläufe aktiviert.",
+  "@weaverMemberNoAllowedConnections": {
+    "description": "Empty state for allowed Weaver personal connections"
+  },
+  "weaverMemberBoundaryNotice": "Administration von Providern, Zugangsdaten, Connector-Einrichtung und Laufzeitdateien bleibt außerhalb der Mitgliedereinstellungen; Mitglieder sehen nur richtlinienfreigegebene Auswahl.",
+  "@weaverMemberBoundaryNotice": {
+    "description": "Boundary notice for available Weaver member settings"
+  },
+  "weaverMemberDisabledBoundaryNotice": "Es werden keine Provider-Secrets oder Laufzeitkonfigurationen angezeigt. Kontaktiere deine Workspace-Eigentümerin, wenn du Weaver-Zugriff erwartet hast.",
+  "@weaverMemberDisabledBoundaryNotice": {
+    "description": "Boundary notice when Weaver is disabled for a member"
+  },
   "workflowPreviewTitle": "Aktive Workflows",
   "workflowPreviewDescription": "Eine lineare Ansicht der aktuellen Schritte, Verantwortlichen, Blockaden und Evidenz. Diagramme können später dazukommen; diese Ansicht muss zuerst mit Tastatur und Screenreadern funktionieren.",
   "workflowPreviewLinearViewChip": "Lineare Ansicht zuerst",

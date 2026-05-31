@@ -38,6 +38,7 @@ import {
   WeaverDistributionPolicy,
   WeaverMcpGrant,
   WeaverModelAlias,
+  WeaverProjectionCategory,
 } from "./api";
 import { AdminConsoleLocale, adminCopy } from "./copy";
 
@@ -280,6 +281,14 @@ function dryRunEvidenceFailureLabel(
   if (expires <= Date.now()) return "Stale dry-run evidence";
   return "Fresh current-session dry-run evidence";
 }
+
+const weaverProjectionCategoryLabels: Record<WeaverProjectionCategory, string> = {
+  chat: "Chat projection",
+  model: "Model aliases",
+  tool: "Tool distribution",
+  skill: "Skill distribution",
+  mcp: "MCP connectors",
+};
 
 export default function App({
   api = new AdminControlPlaneApi(),
@@ -1254,6 +1263,130 @@ export default function App({
                         </Stack>
                       </>
                     ) : null}
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Card
+                component="section"
+                aria-labelledby="weaver-projection-heading"
+              >
+                <CardContent>
+                  <Typography
+                    id="weaver-projection-heading"
+                    variant="h2"
+                    sx={{ fontSize: "1.35rem", mb: 1 }}
+                  >
+                    {copy.weaverProjectionHeading}
+                  </Typography>
+                  <Alert
+                    severity={
+                      controlPlane.weaverRuntimeProjection.supportSafe &&
+                      controlPlane.weaverRuntimeProjection
+                        .providerDiagnosticsRedacted &&
+                      !controlPlane.weaverRuntimeProjection
+                        .rawRuntimeInternalsExposed
+                        ? "success"
+                        : "warning"
+                    }
+                    sx={{ mb: 2 }}
+                  >
+                    {copy.weaverProjectionSummary}
+                  </Alert>
+                  <Stack spacing={1} sx={{ mb: 2 }}>
+                    <Typography>
+                      Profile version: {" "}
+                      <code>
+                        {controlPlane.weaverRuntimeProjection.profileVersion}
+                      </code>
+                      ; RuntimeProfile hash: {" "}
+                      <code>
+                        {controlPlane.weaverRuntimeProjection.runtimeProfileHash}
+                      </code>
+                      ; expires: {controlPlane.weaverRuntimeProjection.expiresAt}
+                      .
+                    </Typography>
+                    <Typography>
+                      Audit receipt refs: {" "}
+                      {controlPlane.weaverRuntimeProjection.auditReceiptRefs.join(
+                        ", ",
+                      ) || "backend audit receipt required"}
+                    </Typography>
+                    <Typography>
+                      Revocation refs: {" "}
+                      {controlPlane.weaverRuntimeProjection.pendingRevocationRefs.join(
+                        ", ",
+                      ) || "no pending revocation reported"}
+                    </Typography>
+                  </Stack>
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={2}
+                    sx={{ flexWrap: "wrap" }}
+                    useFlexGap
+                  >
+                    {controlPlane.weaverRuntimeProjection.items.map((item) => (
+                      <Card
+                        key={item.id}
+                        variant="outlined"
+                        sx={{ flex: "1 1 280px" }}
+                      >
+                        <CardContent>
+                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
+                            {weaverProjectionCategoryLabels[item.category]}
+                          </Typography>
+                          <Typography sx={{ mt: 1 }}>
+                            <strong>{item.label}</strong>
+                          </Typography>
+                          <Chip
+                            sx={{ mt: 1 }}
+                            color={stateColor[item.state]}
+                            label={`State: ${readableState(item.state)}`}
+                            aria-label={`${item.label} projection state is ${readableState(item.state)}`}
+                          />
+                          <List
+                            dense
+                            aria-label={`${item.label} support-safe projection details`}
+                          >
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="Member impact"
+                                secondary={item.memberImpact}
+                              />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="Policy impact preview"
+                                secondary={item.policyImpact}
+                              />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="Readiness preview"
+                                secondary={item.readinessSummary}
+                              />
+                            </ListItem>
+                            <ListItem disableGutters>
+                              <ListItemText
+                                primary="Receipt refs"
+                                secondary={
+                                  item.receiptRefs.join(", ") ||
+                                  "backend receipt required before apply"
+                                }
+                              />
+                            </ListItem>
+                            {item.category === "model" ? (
+                              <ListItem disableGutters>
+                                <ListItemText
+                                  primary="Model alias exposure"
+                                  secondary={`User selectable: ${item.userSelectable ? "yes" : "no"}; default: ${item.defaultSelected ? "yes" : "no"}; fallback order: ${item.fallbackOrder ?? "not configured"}`}
+                                />
+                              </ListItem>
+                            ) : null}
+                          </List>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </Stack>
                 </CardContent>
               </Card>

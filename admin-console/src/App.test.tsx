@@ -152,6 +152,9 @@ describe("Admin Console MVP", () => {
       screen.getByRole("heading", { name: /member capability preview/i }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("heading", { name: /weaver runtimeprofile projection/i }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("heading", {
         name: /provider replacement dry-run results/i,
       }),
@@ -289,6 +292,62 @@ describe("Admin Console MVP", () => {
     expect(
       screen.getByText(/use the provider-agnostic weave client/i),
     ).toBeInTheDocument();
+  });
+
+  // V01_GOVERNED_WEAVER_RUNTIME_POLICY: admins preview support-safe RuntimeProfile distribution labels and receipt refs before apply.
+  // Evidence fragment: receipt://weaver/runtime/profile-regeneration
+  it("renders support-safe Weaver projection labels for chat, models, tools, skills, and MCPs", async () => {
+    render(<App api={mockApi()} />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: /weaver runtimeprofile projection/i,
+      }),
+    ).toBeInTheDocument();
+    for (const category of [
+      /chat projection/i,
+      /model aliases/i,
+      /tool distribution/i,
+      /skill distribution/i,
+      /mcp connectors/i,
+    ]) {
+      expect(screen.getByRole("heading", { name: category })).toBeInTheDocument();
+    }
+    expect(screen.getByText(/weave chat domain route/i)).toBeInTheDocument();
+    expect(screen.getByText(/general assistant model alias/i)).toBeInTheDocument();
+    expect(screen.getByText(/chat summary read tool/i)).toBeInTheDocument();
+    expect(screen.getByText(/workspace triage skill package/i)).toBeInTheDocument();
+    expect(screen.getByText(/approved knowledge connector/i)).toBeInTheDocument();
+    expect(screen.getByText(/provider changes preserve the stable weave chat projection/i)).toBeInTheDocument();
+    expect(screen.getByText(/user selectable: yes; default: yes; fallback order: 1/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/receipt:\/\/weaver\//i).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("region", {
+        name: /weaver runtimeprofile projection/i,
+      }),
+    ).not.toHaveTextContent(
+      /client_secret|access_token|refresh token|bearer|openclaw\.json|credential=/i,
+    );
+  });
+
+  it("shows Weaver projection as an inspect-only member-safe preview", async () => {
+    render(<App api={mockApi()} viewerRole="operator" />);
+
+    expect(
+      await screen.findByText(/label-only chat, model, tool, skill, and MCP projections/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/audit receipt refs:/i)).toHaveTextContent(
+      /receipt:\/\/weaver\/runtime\/profile-regeneration/i,
+    );
+    expect(screen.getByText(/revocation refs:/i)).toHaveTextContent(
+      /receipt:\/\/weaver\/runtime\/revocation-preview/i,
+    );
+    expect(
+      screen.queryByRole("button", { name: /apply selected provider/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /save whitelist policy/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("saves whitelist policy through the backend API and announces the result", async () => {
@@ -866,6 +925,12 @@ describe("Admin Console MVP", () => {
     );
     expect(adminConsoleMessages.en.replacementButton).toBe(
       "Dry-run replacement contract",
+    );
+    expect(adminConsoleMessages.en.weaverProjectionHeading).toBe(
+      "Weaver RuntimeProfile projection",
+    );
+    expect(adminConsoleMessages.en.weaverProjectionSummary).toContain(
+      "label-only chat, model, tool, skill, and MCP projections",
     );
     expect(adminConsoleMessages.en.memberPreviewDescription).toContain(
       "hides provider adapters",

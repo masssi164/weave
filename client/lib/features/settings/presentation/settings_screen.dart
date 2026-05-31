@@ -18,6 +18,7 @@ import 'package:weave/features/app/domain/entities/matrix_e2ee_diagnostic.dart';
 import 'package:weave/features/app/domain/entities/provider_stack_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_capability_snapshot.dart';
 import 'package:weave/features/app/domain/entities/workspace_connection_state.dart';
+import 'package:weave/features/agents/domain/entities/agent_capability_policy.dart';
 import 'package:weave/features/agents/presentation/providers/agent_capability_policy_provider.dart';
 import 'package:weave/features/agents/presentation/widgets/agent_capability_policy_card.dart';
 import 'package:weave/features/app/presentation/providers/workspace_connection_provider.dart';
@@ -74,6 +75,8 @@ class SettingsScreen extends ConsumerWidget {
                   const _WorkspaceReadinessCard(),
                   const SizedBox(height: 32),
                   const _AgentCapabilityPolicySection(),
+                  const SizedBox(height: 32),
+                  const _WeaverMemberSettingsSection(),
                   const SizedBox(height: 32),
                   const _SettingsHelpCard(),
                   const SizedBox(height: 32),
@@ -469,6 +472,335 @@ class _AgentCapabilityPolicySection extends ConsumerWidget {
         icon: Icons.admin_panel_settings_outlined,
       ),
     };
+  }
+}
+
+class _WeaverMemberSettingsSection extends ConsumerWidget {
+  const _WeaverMemberSettingsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final policy = ref.watch(agentCapabilityPolicyProvider);
+
+    return switch (policy) {
+      AsyncData(value: final value) => _WeaverMemberSettingsCard(
+        state: value.weaverMemberUx,
+      ),
+      AsyncError() => _WeaverMemberSettingsCard(
+        state: WeaverMemberUxState.blockedState,
+        statusOverride: l10n.weaverMemberStatusUnavailable,
+      ),
+      _ => LoadingState(
+        message: l10n.weaverMemberLoading,
+        icon: Icons.auto_awesome_outlined,
+      ),
+    };
+  }
+}
+
+class _WeaverMemberSettingsCard extends StatelessWidget {
+  const _WeaverMemberSettingsCard({required this.state, this.statusOverride});
+
+  final WeaverMemberUxState state;
+  final String? statusOverride;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final available = state.available;
+    final title = available
+        ? l10n.weaverMemberTitle
+        : l10n.weaverMemberUnavailableTitle;
+    final description = available
+        ? l10n.weaverMemberDescription
+        : state.memberImpact ?? l10n.weaverMemberUnavailableDescription;
+
+    return Card(
+      elevation: 0,
+      color: theme.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Semantics(
+          container: true,
+          explicitChildNodes: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    available
+                        ? Icons.auto_awesome_outlined
+                        : Icons.lock_outline,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Semantics(
+                          header: true,
+                          child: Text(title, style: theme.textTheme.titleLarge),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          description,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Chip(
+                    avatar: Icon(
+                      available ? Icons.verified_user_outlined : Icons.policy,
+                      size: 18,
+                    ),
+                    label: Text(
+                      statusOverride ??
+                          (available
+                              ? l10n.weaverMemberStatusAvailable
+                              : state.isBlocked
+                              ? l10n.weaverMemberStatusUnavailable
+                              : l10n.weaverMemberStatusDisabled),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (available) ...[
+                _AdminApprovedModelAliasPicker(aliases: state.modelAliases),
+                const SizedBox(height: 16),
+                _WeaverPersonalSettingsList(state: state),
+                const SizedBox(height: 16),
+                _WeaverAllowedItemsWrap(
+                  title: l10n.weaverMemberAllowedSkillsTitle,
+                  emptyLabel: l10n.weaverMemberNoAllowedSkills,
+                  items: state.allowedSkills,
+                ),
+                const SizedBox(height: 12),
+                _WeaverAllowedItemsWrap(
+                  title: l10n.weaverMemberAllowedConnectionsTitle,
+                  emptyLabel: l10n.weaverMemberNoAllowedConnections,
+                  items: state.allowedPersonalConnections,
+                ),
+                const SizedBox(height: 16),
+                _WeaverBoundaryNotice(text: l10n.weaverMemberBoundaryNotice),
+              ] else
+                _WeaverBoundaryNotice(
+                  text: l10n.weaverMemberDisabledBoundaryNotice,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AdminApprovedModelAliasPicker extends StatefulWidget {
+  const _AdminApprovedModelAliasPicker({required this.aliases});
+
+  final List<String> aliases;
+
+  @override
+  State<_AdminApprovedModelAliasPicker> createState() =>
+      _AdminApprovedModelAliasPickerState();
+}
+
+class _AdminApprovedModelAliasPickerState
+    extends State<_AdminApprovedModelAliasPicker> {
+  String? _selectedAlias;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final aliases = widget.aliases.isEmpty
+        ? <String>[l10n.weaverMemberWorkspaceDefaultAlias]
+        : widget.aliases;
+    _selectedAlias ??= aliases.first;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.weaverMemberModelAliasTitle,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          l10n.weaverMemberModelAliasDescription,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        RadioGroup<String>(
+          groupValue: _selectedAlias,
+          onChanged: (value) => setState(() => _selectedAlias = value),
+          child: Column(
+            children: [
+              for (final alias in aliases)
+                RadioListTile<String>.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: alias,
+                  title: Text(alias),
+                  subtitle: Text(l10n.weaverMemberApprovedByAdmin),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeaverPersonalSettingsList extends StatelessWidget {
+  const _WeaverPersonalSettingsList({required this.state});
+
+  final WeaverMemberUxState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          l10n.weaverMemberPersonalSettingsTitle,
+          style: theme.textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        _WeaverSettingRow(
+          label: l10n.weaverMemberStyleSetting,
+          enabled: state.canConfigureStyle,
+        ),
+        _WeaverSettingRow(
+          label: l10n.weaverMemberMemorySetting,
+          enabled: state.canConfigureMemory,
+        ),
+        _WeaverSettingRow(
+          label: l10n.weaverMemberWorkspaceSetting,
+          enabled: state.canConfigureWorkspace,
+        ),
+      ],
+    );
+  }
+}
+
+class _WeaverSettingRow extends StatelessWidget {
+  const _WeaverSettingRow({required this.label, required this.enabled});
+
+  final String label;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return CheckboxListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      value: enabled,
+      onChanged: null,
+      title: Text(label),
+      subtitle: Text(
+        enabled
+            ? l10n.weaverMemberSettingAllowed
+            : l10n.weaverMemberSettingDisabled,
+      ),
+      controlAffinity: ListTileControlAffinity.leading,
+    );
+  }
+}
+
+class _WeaverAllowedItemsWrap extends StatelessWidget {
+  const _WeaverAllowedItemsWrap({
+    required this.title,
+    required this.emptyLabel,
+    required this.items,
+  });
+
+  final String title;
+  final String emptyLabel;
+  final List<String> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: theme.textTheme.titleMedium),
+        const SizedBox(height: 8),
+        if (items.isEmpty)
+          Text(
+            emptyLabel,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final item in items)
+                Chip(
+                  avatar: const Icon(Icons.check_circle_outline, size: 18),
+                  label: Text(item),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _WeaverBoundaryNotice extends StatelessWidget {
+  const _WeaverBoundaryNotice({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MergeSemantics(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.privacy_tip_outlined,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

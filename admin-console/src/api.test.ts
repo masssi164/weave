@@ -114,6 +114,77 @@ describe("AdminControlPlaneApi provider boundary", () => {
     );
   });
 
+  it("normalizes Weaver projection labels without exposing unsafe runtime details", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      const body = path.includes("/audit/events")
+        ? []
+        : {
+            organizationId: "weave-dogfood",
+            categories: [],
+            whitelist: { denyByDefault: true },
+            weaverRuntimeProjection: {
+              profileVersion: "weaver-runtime-profile-v1",
+              runtimeProfileHash: "sha256:test-profile",
+              expiresAt: "2099-01-02T00:00:00Z",
+              supportSafe: true,
+              providerDiagnosticsRedacted: true,
+              rawRuntimeInternalsExposed: false,
+              auditReceiptRefs: ["receipt://weaver/runtime/test-audit"],
+              pendingRevocationRefs: ["receipt://weaver/runtime/test-revoke"],
+              items: [
+                {
+                  id: "chat-route",
+                  category: "chat",
+                  label: "Weave Chat domain route",
+                  state: "ready",
+                  memberImpact: "available",
+                  policyImpact: "Stable chat projection is preserved.",
+                  readinessSummary: "Backend dry-run passed.",
+                  receiptRefs: ["receipt://weaver/chat-route"],
+                },
+                {
+                  id: "unsafe",
+                  category: "tool",
+                  label: "openclaw.json bearer token",
+                  state: "ready",
+                },
+              ],
+            },
+          };
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const controlPlane = await api.getControlPlane();
+
+    expect(controlPlane.weaverRuntimeProjection.supportSafe).toBe(true);
+    expect(controlPlane.weaverRuntimeProjection.rawRuntimeInternalsExposed).toBe(
+      false,
+    );
+    expect(controlPlane.weaverRuntimeProjection.items).toHaveLength(1);
+    expect(controlPlane.weaverRuntimeProjection.items[0]).toEqual(
+      expect.objectContaining({
+        category: "chat",
+        label: "Weave Chat domain route",
+        receiptRefs: ["receipt://weaver/chat-route"],
+      }),
+    );
+    expect(JSON.stringify(controlPlane.weaverRuntimeProjection)).not.toMatch(
+      /openclaw\.json|bearer|token/i,
+    );
+  });
+
   it("fails closed when older backends omit the optional identity readiness contract", async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
