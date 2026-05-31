@@ -125,6 +125,12 @@ class ChatSecurityState {
   final ChatVerificationSession verificationSession;
 
   ChatReadinessState get readinessState {
+    if (!isMatrixSignedIn &&
+        bootstrapState == ChatSecurityBootstrapState.unavailable &&
+        deviceVerificationState == ChatDeviceVerificationState.unavailable &&
+        roomEncryptionReadiness == ChatRoomEncryptionReadiness.unavailable) {
+      return ChatReadinessState.unsupportedDevice;
+    }
     if (!isMatrixSignedIn) {
       return ChatReadinessState.matrixNotSignedIn;
     }

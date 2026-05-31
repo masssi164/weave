@@ -1,4 +1,4 @@
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:weave/features/chat/domain/entities/chat_security_state.dart';
 
 void main() {
@@ -9,6 +9,18 @@ void main() {
         ChatReadinessState.matrixNotSignedIn,
       );
       expect(_state().readinessState, ChatReadinessState.matrixSignedIn);
+    });
+
+    test('keeps unsupported-device snapshots reachable before signed-out', () {
+      expect(
+        _state(
+          isMatrixSignedIn: false,
+          bootstrapState: ChatSecurityBootstrapState.unavailable,
+          deviceVerificationState: ChatDeviceVerificationState.unavailable,
+          roomEncryptionReadiness: ChatRoomEncryptionReadiness.unavailable,
+        ).readinessState,
+        ChatReadinessState.unsupportedDevice,
+      );
     });
 
     test('distinguishes E2EE unavailable and encrypted timeline states', () {
@@ -41,6 +53,8 @@ void main() {
 ChatSecurityState _state({
   bool isMatrixSignedIn = true,
   ChatSecurityBootstrapState bootstrapState = ChatSecurityBootstrapState.ready,
+  ChatDeviceVerificationState deviceVerificationState =
+      ChatDeviceVerificationState.verified,
   ChatRoomEncryptionReadiness roomEncryptionReadiness =
       ChatRoomEncryptionReadiness.ready,
   bool hasEncryptedConversations = false,
@@ -49,7 +63,7 @@ ChatSecurityState _state({
     isMatrixSignedIn: isMatrixSignedIn,
     bootstrapState: bootstrapState,
     accountVerificationState: ChatAccountVerificationState.verified,
-    deviceVerificationState: ChatDeviceVerificationState.verified,
+    deviceVerificationState: deviceVerificationState,
     keyBackupState: ChatKeyBackupState.ready,
     roomEncryptionReadiness: roomEncryptionReadiness,
     secretStorageReady: true,
