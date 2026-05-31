@@ -1,0 +1,90 @@
+# Sprint 14 Closure Report — Product Trust, Provider Choice, and Operator Experience
+
+## Governing sources
+
+- Sprint epic: [weave#535](https://github.com/masssi164/weave/issues/535)
+- Closure issue: [weave#546](https://github.com/masssi164/weave/issues/546)
+- Delivery board: `docs/project/sprint-14-delivery-board.md`
+- Claim matrix: `docs/product-trust-provider-choice-claim-matrix.md`
+- Matrix proof boundary: `docs/matrix-chat-migration-proof.md`
+- Portability contract: `docs/architecture/provider-portability.md` and `docs/architecture/no-unaccounted-data-loss.md`
+- Cross-repo Weaver carry-over: [weave#519](https://github.com/masssi164/weave/issues/519), [weaver#1](https://github.com/masssi164/weaver/issues/1), and [weaver#9](https://github.com/masssi164/weaver/issues/9)
+
+## Final issue state
+
+| Issue | Scope | Final state | Evidence |
+| --- | --- | --- | --- |
+| [weave#535](https://github.com/masssi164/weave/issues/535) | Sprint program governance | Ready to close | Delivery board, claim matrix, this closure report, green gates. |
+| [weave#536](https://github.com/masssi164/weave/issues/536) | Why Weave positioning | Ready to close | Approved/avoid wording in `docs/product-trust-provider-choice-claim-matrix.md`; PR #548. |
+| [weave#537](https://github.com/masssi164/weave/issues/537) | Matrix-first provider data model research | Ready to close | Matrix source-object mapping in `docs/matrix-chat-migration-proof.md`; PR #548. |
+| [weave#538](https://github.com/masssi164/weave/issues/538) | Self-hosted Matrix Chat migration proof | Ready to close | Matrix proof and lifecycle fixtures; PRs #548 and #550. |
+| [weave#539](https://github.com/masssi164/weave/issues/539) | Admin provider-switch journey | Ready to close | Admin journey in `docs/matrix-chat-migration-proof.md`; provider selection/apply gates in `docs/admin-operator-handbook.md`; PR #548. |
+| [weave#540](https://github.com/masssi164/weave/issues/540) | Provider-agnostic member UX | Ready to close | Member/client boundary and stable capability states in Matrix proof and claim matrix; PR #548. |
+| [weave#541](https://github.com/masssi164/weave/issues/541) | Export/import/cutover/rollback contracts | Ready to close | Provider portability schema v2 plus Matrix lifecycle fixture validated by `portabilityContractCheck`; PR #550. |
+| [weave#542](https://github.com/masssi164/weave/issues/542) | Claim and migration evidence matrix | Ready to close | Claim matrix, product-trust claim matrix guard, release evidence gate, and portability gate; PRs #548/#550. |
+| [weave#543](https://github.com/masssi164/weave/issues/543) | Self-hosted reference stack/operator experience | Ready to close | `docs/admin-operator-handbook.md`, infra README/operator docs, release-verify/operator-check/backup/restore/support-bundle paths. |
+| [weave#544](https://github.com/masssi164/weave/issues/544) | Cloud Act/GDPR/subprocessor/sovereignty risk framing | Ready to close | Procurement-risk checklist, source anchors, and legal-review caveat in claim matrix; PR #548. |
+| [weave#545](https://github.com/masssi164/weave/issues/545) | Customer-facing claim matrix | Ready to close | Customer wording/evidence table in claim matrix; PR #548. |
+| [weave#546](https://github.com/masssi164/weave/issues/546) | Sprint closure | Ready to close after this report lands | This report, zero open Sprint 14 issues, green gates. |
+| [weave#519](https://github.com/masssi164/weave/issues/519) | Weaver RuntimeProfile / `weave-chat` / Credential Broker carry-over | Closed | Weave PRs #520/#521/#528/#529/#530/#532/#533, Weaver PRs #7/#8/#10/#11/#12, closed `weaver#1` and `weaver#9`. |
+
+## Merge train
+
+1. [weave#548](https://github.com/masssi164/weave/pull/548) — `9b67fed` — Sprint 14 product-trust docs, delivery board, claim matrix, Matrix proof boundary, and fixture checks.
+2. [weave#550](https://github.com/masssi164/weave/pull/550) — `4f7c33f` — Matrix Chat lifecycle fixture and executable portability guard for preflight, blocked apply, rollback-retention, support-safe redaction, and overclaim prevention.
+3. [weaver#11](https://github.com/masssi164/weaver/pull/11) — `448def6` — offline and live/container `weave-chat` LM Studio round-trip harness; closes `weaver#9`.
+4. [weaver#12](https://github.com/masssi164/weaver/pull/12) — `ada8c4b` — support-safe channel/model audit refs; closes `weaver#1` with prior Weaver RuntimeProfile PR evidence.
+5. Earlier cross-repo carry-over evidence: Weave PRs #520, #521, #528, #529, #530, #532, and #533; Weaver PRs #7, #8, and #10.
+
+PR #549 was closed unmerged because merged PR #550 superseded it with the Matrix lifecycle fixture and removed the conflicting duplicate branch.
+
+## Evidence and gates
+
+Current `main` evidence run after PR #550:
+
+```text
+./gradlew productTrustClaimMatrixCheck portabilityContractCheck docsCheck releaseEvidenceCheck --no-daemon
+# BUILD SUCCESSFUL
+```
+
+Targeted Weaver evidence before closing the cross-repo runtime anchors:
+
+```text
+node scripts/run-vitest.mjs src/weaver/weave-chat-roundtrip-harness.test.ts src/weaver/runtime-profile.test.ts
+pnpm format:docs:check -- docs/channels/weave-chat.md
+node --import tsx scripts/weaver/weave-chat-roundtrip.ts > /tmp/weaver-weave-chat-roundtrip-evidence.json
+node scripts/run-vitest.mjs src/weaver/runtime-profile.test.ts
+pnpm docs:check-mdx docs/weaver-runtime-profile.md
+```
+
+## Decisions and boundaries
+
+- Weave is positioned as a provider-neutral collaboration control plane, not as a hobby-only self-hosting bundle.
+- The reference self-hosted stack is the strongest proof path for sovereignty, auditability, operational control, and reversibility, but product architecture remains provider-neutral.
+- Public claims must stay inside the claim matrix evidence class. Forbidden wording remains: GDPR-proof, Cloud-Act-proof, guaranteed compliant, legally sovereign, compliant by default, no vendor lock-in without scope, or lossless migration without named fixture proof.
+- Matrix Chat is the first no-cost provider proof. Sprint 14 proves support-safe classification, preflight, blocked apply, and rollback-retention evidence; it does not enable production apply.
+- Matrix encrypted-room history remains unsupported/coming_later until a client-side key/export strategy exists.
+- Normal members see stable Weave capability states only. Raw provider diagnostics, secrets, URLs, Matrix internals, MCP/tool internals, and migration reports stay in admin/operator/support-safe evidence surfaces.
+- Weaver runtime profiles use stable `channels.weave-chat`, support-safe audit refs, SecretRefs/runtime-token references, and deny-by-default policy boundaries; raw provider channels/secrets are not projected to normal runtime/member surfaces.
+
+## Follow-up / next implementation sprint
+
+Sprint 15 should implement from the now-evidenced contracts, not expand claims first:
+
+- turn Matrix Chat proof artifacts into server/admin migration dry-run implementation slices;
+- decide media copy/reference retention and power-level mapping policy before any apply path;
+- keep E2EE encrypted-history migration blocked until client-side export/key strategy is designed and fixture-tested;
+- connect Admin Console provider-switch screens to backend-owned preflight/consequence/rollback evidence;
+- add accessibility/manual UX evidence for member disruption copy before promoting customer-facing provider-switch flows.
+
+## Closure gate
+
+- [x] Sprint 14 issues are labeled by track/phase and represented in the delivery board.
+- [x] Product positioning and avoid wording are recorded in the claim matrix.
+- [x] Procurement-risk framing separates legal compliance from engineering/operational evidence.
+- [x] Matrix-first migration scope is explicit about supported, lossy, manual-review, unsupported, archive-only, and coming_later states.
+- [x] Product-trust claims are checked by `productTrustClaimMatrixCheck`.
+- [x] Provider portability contracts and Matrix lifecycle fixtures are executable through `portabilityContractCheck`.
+- [x] Release/claim posture is guarded through `releaseEvidenceCheck`.
+- [x] `weave#519`, `weaver#1`, and `weaver#9` are closed with cross-repo evidence.
+- [x] Closure report exists on the docs branch and is ready to merge.

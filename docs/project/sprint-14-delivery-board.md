@@ -1,6 +1,6 @@
 # Sprint 14 delivery board: product trust and provider choice
 
-Status: active Sprint 14 execution plan. GitHub milestone: [Sprint 14 — Product Trust, Provider Choice & Operator Experience](https://github.com/masssi164/weave/milestone/14). Cross-repo Weaver milestone: [Sprint 14 — Product Trust, Provider Choice & Operator Experience](https://github.com/masssi164/weaver/milestone/2).
+Status: closed Sprint 14 execution record. GitHub milestone: [Sprint 14 — Product Trust, Provider Choice & Operator Experience](https://github.com/masssi164/weave/milestone/14). Cross-repo Weaver milestone: [Sprint 14 — Product Trust, Provider Choice & Operator Experience](https://github.com/masssi164/weaver/milestone/2).
 
 Board rule: every open issue listed on this Delivery Board is Sprint 14 scope and must be assigned to the Sprint 14 milestone in its owning repository. Use the local Sprint 14 ops script `sprint_14/scripts/add_delivery_board_issues_to_sprint14.sh` after board edits so Weave and Weaver issue metadata stay aligned.
 
@@ -34,9 +34,9 @@ Sprint 14 makes Weave professionally explainable and evidence-backed as a provid
 
 ## #519 decision for this sprint
 
-Do not close `weave#519` from documentation alone. Treat it as the cross-repo umbrella until all of these are implemented or split into closed child issues with evidence. Current Weaver child anchors are [`weaver#1`](https://github.com/masssi164/weaver/issues/1) and [`weaver#9`](https://github.com/masssi164/weaver/issues/9), both assigned to Sprint 14.
+`weave#519` is closed in Sprint 14 after the cross-repo evidence train landed. The Weaver child anchors [`weaver#1`](https://github.com/masssi164/weaver/issues/1) and [`weaver#9`](https://github.com/masssi164/weaver/issues/9) are closed, and the Weave-side projection/audit/infra evidence from PRs #520, #521, #528, #529, #530, #532, and #533 is linked from the Sprint 14 closure report.
 
-Completion criteria:
+Completion criteria satisfied:
 
 1. `weave`: signed `WeaverRuntimeProfile` projection from Weave policy, model aliases, domain provider projections, tool/MCP grants, sandbox/deny policy, CredentialRefs, runtime-token references, audit policy, and profile hash.
 2. `weave`: stable `channels.weave-chat` projection backed by Weave Chat-domain routing, with providerRefs such as Matrix/Teams/Slack hidden behind backend routing and normal member UX.
@@ -44,7 +44,7 @@ Completion criteria:
 4. `weaver`: runtime consumption of the signed profile without accepting raw OpenClaw dashboard/config as a second policy source.
 5. Cross-repo evidence: tests, docs, CI links, and support-safe fixtures proving no raw provider secrets or OAuth refresh tokens are projected.
 
-Recommended split if direct implementation is too large for one PR train:
+Historical split option, now resolved by the Sprint 13/14 merge train:
 
 | Child issue | Repo | Scope |
 | --- | --- | --- |
@@ -53,12 +53,15 @@ Recommended split if direct implementation is too large for one PR train:
 | Credential Broker RuntimeProfile grant path | `weave` | Short-lived runtime-token references, SecretRef-only profile content, audit receipts. |
 | Cross-repo incorporation evidence | `weave` + `weaver` | CI/evidence bundle linked from #519 and Sprint 14 closure. |
 
-## First implementation slice
+## Implementation slices delivered
 
-This PR train starts with a low-risk docs/evidence slice:
+The Sprint 14 PR train delivered:
 
-- board/DAG and #519 split decision;
+- board/DAG and #519 completion decision;
 - claim/evidence matrix for professional positioning, procurement-risk language, Matrix-first proof, Admin provider-switch journey, and customer wording;
-- Matrix Chat migration proof boundary that can drive later fixture tests without claiming lossless migration.
+- Matrix Chat migration proof boundary without lossless/legal overclaims;
+- machine-readable Matrix migration proof and lifecycle fixtures;
+- `portabilityContractCheck`, `docsCheck`, and `releaseEvidenceCheck` gates on current `main`;
+- cross-repo Weaver `weave-chat` runtime evidence and support-safe audit refs.
 
-Follow-up implementation PRs should add machine-readable fixtures and contract checks for Matrix Chat export/import/cutover/rollback, then wire Admin Console and client behavior only after those contracts are executable.
+Next implementation sprint should turn the blocked Matrix migration proof into concrete admin/server implementation slices only after media retention, power-level mapping, and E2EE client-export strategy decisions are made explicitly.
