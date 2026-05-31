@@ -984,6 +984,8 @@
   "boardsWorkspaceActionCompleted": "Aufgabe über die Backend-Fassade als erledigt markiert.",
   "boardsWorkspaceActionBlocked": "Aufgabe über die Backend-Fassade als blockiert markiert.",
   "boardsWorkspaceActionFailed": "Die Backend-Fassade konnte diese Boards-Workspace-Aktion nicht speichern.",
+  "boardsWorkspaceActionConflict": "Die Aufgabe wurde an anderer Stelle geändert. Aktualisiere das Board und versuche die Aktion erneut.",
+  "boardsWorkspaceActionUnsupported": "Dieser Board-Anbieter kann diese Aktion noch nicht anwenden. Nutze einen unterstützten Schritt oder bitte einen Admin, die Anbieterbereitschaft zu prüfen.",
   "boardsWorkspaceActionNoNextColumn": "Diese Aufgabe ist bereits in der letzten Workspace-Spalte.",
   "settingsAdminSetupTitle": "Owner- und Admin-Einrichtung",
   "settingsAdminSetupDescription": "Workspace-Owner und Admins verwalten hier OIDC, Realm, Organisation und Dienstendpunkte. Mitglieder und Gäste sehen nur Anmeldung und Produkteinstellungen.",
