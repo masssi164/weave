@@ -42,7 +42,16 @@ public class DisabledOfficeProvider implements OfficeProvider {
                     "defaultProvider", "onlyoffice-community",
                     "nonDefaultProvider", "collabora-code",
                     "collaboraPosture", "non-default/licensing-risk",
-                    "likelyFirstPath", "nextcloud-onlyoffice-app-behind-backend-facade"));
+                    "likelyFirstPath", "nextcloud-onlyoffice-app-behind-backend-facade",
+                    "providerRealityLevel", "contract_only",
+                    "memberImpact", "coming_later",
+                    "missingReadinessPrerequisites", List.of(
+                            "document-runtime",
+                            "callback-url",
+                            "jwt-or-session-secret",
+                            "storage-binding",
+                            "permission-model",
+                            "health-check")));
 
     @Override
     public ProviderStatusResponse status() {

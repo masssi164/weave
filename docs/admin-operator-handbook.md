@@ -44,6 +44,21 @@ Record provider posture as `recommended_self_hosted_default`, `external_existing
 
 Provider URLs, credentials, OAuth client secrets, app passwords, signing keys, and bearer tokens must stay out of the member client and support artifacts. Store and display secret handles as `SecretRef` values only. Rotate provider URLs/secrets through admin/operator workflows and audit the change.
 
+## Documents/Office readiness
+
+Document editing and Office launch are not generally available in v0.1. The current Office provider is a fail-closed `contract_only` readiness surface: members see `coming_later`/unavailable capability state, and admins see support-safe remediation rather than provider internals.
+
+Before an Office adapter can move beyond `contract_only`, the admin/operator readiness record must prove these prerequisites without exposing raw provider data:
+
+- document runtime selected and reachable;
+- callback URL configured through a backend-owned route;
+- JWT/session secret stored as a `SecretRef`;
+- storage binding to the files domain;
+- permission model for view/edit/comment/review/form-fill;
+- health check and callback verification evidence.
+
+Until those gates are green, launch requests must fail before provider mutation/session creation and must not return credential-bearing URLs, document-server tokens, callback secrets, provider-internal IDs, or raw provider errors.
+
 ## Identity realm dry-run
 
 Use `POST /api/admin/identity/realm/dry-run` before changing Keycloak/OIDC realm state. The request compares an optional `currentState` snapshot with the `desiredState`; if `currentState` is omitted, the backend produces an import/create plan only. This endpoint is dry-run only: it must not mutate Keycloak, OpenTofu/Terraform state, credentials, or member-facing provider configuration.

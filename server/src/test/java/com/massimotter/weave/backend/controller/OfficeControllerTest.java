@@ -82,7 +82,16 @@ class OfficeControllerTest {
                 .andExpect(jsonPath("$.capabilities.review").value(false))
                 .andExpect(jsonPath("$.capabilities.formFill").value(false))
                 .andExpect(jsonPath("$.candidates[*].providerKey", hasItems("onlyoffice-community", "collabora-code")))
-                .andExpect(jsonPath("$.providerReadiness[0].unsupportedOperations", hasItems("launch-session")));
+                .andExpect(jsonPath("$.providerReadiness[0].unsupportedOperations", hasItems("launch-session")))
+                .andExpect(jsonPath("$.providerReadiness[0].diagnostics.providerRealityLevel").value("contract_only"))
+                .andExpect(jsonPath("$.providerReadiness[0].diagnostics.memberImpact").value("coming_later"))
+                .andExpect(jsonPath("$.providerReadiness[0].diagnostics.missingReadinessPrerequisites", hasItems(
+                        "document-runtime",
+                        "callback-url",
+                        "jwt-or-session-secret",
+                        "storage-binding",
+                        "permission-model",
+                        "health-check")));
     }
 
     @Test
