@@ -33,13 +33,13 @@ Minimum profile fields for the next implementation slice:
 - profile version, signature, `runtimeProfileHash`, expiry, revocation status, and rollback pointer;
 - model provider aliases, default, fallback order, and user-selectable alias list from admin policy;
 - domain capability catalog including `chat.read`, `chat.send`, `files.read`, `calendar.read`, and `weaver.enabled`;
-- Chat domain provider binding and OpenClaw channel/plugin projection for Matrix, Teams, iMessage, Slack, Telegram, or another supported provider;
+- stable `channels.weave-chat` projection plus Weave Chat-domain routing metadata; Matrix, Teams, iMessage, Slack, Telegram, or another supported provider are backend providerRefs, not separate member/runtime channel configs;
 - MCP server/tool/skill grants from Weave policy only, with personal MCPs routed through Weave approval where allowed;
 - tool and sandbox deny policy where `tools.deny` wins globally and `bundle-mcp`, gateway, cron, exec, write, and patch-style tools are disabled unless explicitly granted;
 - CredentialRefs and short-lived runtime token references only;
 - audit policy requiring `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef when applicable, and policy decision for model/channel/tool/MCP calls.
 
-Admin Chat provider changes are provider migrations, not member adapter switches: Weave checks readiness/migration, binds credentials through the Credential Broker, generates RuntimeProfile vNext, projects the selected provider into OpenClaw channel/plugin config, reloads or restarts the user runtime, and keeps member UX inside Weave.
+Admin Chat provider changes are provider migrations, not member adapter switches: Weave checks readiness/migration, binds credentials through the Credential Broker, updates backend Chat-domain routing and providerRefs, generates RuntimeProfile vNext while preserving `channels.weave-chat`, reloads or restarts the stable channel/runtime when needed, and keeps member UX inside Weave.
 
 ## Capability rule
 
