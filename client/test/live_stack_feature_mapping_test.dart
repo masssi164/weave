@@ -31,6 +31,7 @@ void main() {
         'Provider stack readiness stays backend-owned and support-safe',
         'Calendar scopes are readable and event writes obey capability policy',
         'Boards workspace supports accessible non-drag task work',
+        'Provider reality vertical reports domain availability honestly',
         'Weave Home starts the daily work loop',
         'A normal member sees a user-ready organization flow',
         'Admin sees provider categories before member use',

@@ -70,6 +70,19 @@ Current Sprint 10 artifact: [manual accessibility evidence waiver](evidence/spri
 | Admin Console 200% text scaling | Provider apply gates, consequence confirmation, evidence refs, and recovery copy remain readable and operable at 200% zoom/text scaling. | Waived pending live AT execution: `docs/evidence/sprint-10-manual-accessibility-waiver.md` |
 | Baseline member/admin critical traversal | Existing release-gate rows remain passed or have linked release-blocking issues; no pass may be inferred from automated tests alone. | Waived pending live AT execution: `docs/evidence/sprint-10-manual-accessibility-waiver.md` |
 
+## Sprint 11 provider-reality accessibility replacement scope
+
+Sprint 11 must replace, not extend, the Sprint 10 waiver before v0.1 RC promotion. The working evidence template is [Sprint 11 manual accessibility evidence template](evidence/sprint-11-manual-accessibility-evidence-template.md); it is not pass evidence until completed with real tester, date, platform/browser, assistive technology, result, evidence link, and any linked release-blocking issue.
+
+Release evidence distinguishes live-runtime checks from offline/spec checks: `e2e/scenario_mappings.json` marks credentialed provider-reality scenarios as `live-runtime`, while this accessibility gate and the Sprint 11 manual evidence template remain offline release-accounting artifacts until live assistive-technology execution fills them.
+
+| Sprint 11 flow | Required replacement evidence shape | Current artifact |
+| --- | --- | --- |
+| Admin setup and provider category review | Keyboard-only and screen-reader traversal reaches identity, chat, files, documents, calendar, boards, calls, and Weaver readiness without pointer-only steps or raw provider setup leakage to members. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
+| Provider apply and recovery gates | Category, adapter, dry-run, consequence confirmation, readiness test, replacement evidence, blocked apply, enabled apply, rollback/support boundary, and fresh/stale evidence states are reachable and announced as text. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
+| Member domain provider reality | Files, Calendar, Boards, Calls, and Documents states are announced as available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later with support-safe fallback copy. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
+| Admin Console and member 200% text scaling | Provider apply gates, evidence refs, recovery copy, and member domain state cards remain readable and operable at 200% zoom/text scaling. | Pending execution: `docs/evidence/sprint-11-manual-accessibility-evidence-template.md` |
+
 ## Manual assistive-technology evidence required before release sign-off
 
 Record the tester, date, platform, assistive technology, result, and evidence link in the release issue or runbook. Manual-only checks are a gate; they may not be inferred from green widget tests.

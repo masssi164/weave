@@ -82,7 +82,7 @@ v0.1 is dogfood-production, not preview. A normal member should see Weave-owned 
 | v0.1 is dogfood-production, not preview/scaffold UX for normal members. | **Ready** | [v0.1 Golden Path readiness](docs/v0.1-golden-path.md), [ISO 9241-110 dogfood UX gate](docs/iso-9241-110-dogfood-ux-gate.md). |
 | Members work in provider-neutral Weave domains. | **Ready foundation** | [Canonical domains](docs/architecture/canonical-domains.md), [Canonical feature models](docs/canonical-feature-models.md), [Architecture](docs/architecture.md). |
 | Normal members do not configure raw providers, secrets, OIDC clients, or diagnostics. | **Ready boundary** | [Admin-provisioned first use](docs/admin-provisioned-first-use.md), [Admin/Operator Handbook](docs/admin-operator-handbook.md). |
-| Provider adapters are replaceable behind Weave-owned contracts. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md), [Provider replacement and anti-silo contract](docs/provider-replacement-and-anti-silo-contract.md). Replacement apply is limited to domains with explicit dry-run/apply/rollback evidence. |
+| Provider adapters are replaceable behind Weave-owned contracts. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md), [Provider replacement and anti-silo contract](docs/provider-replacement-and-anti-silo-contract.md). Provider reality levels (`contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, `release_ready`) prevent contract-only candidates from being marketed as generally available; replacement apply is limited to domains with explicit dry-run/apply/rollback evidence. |
 | No unaccounted data loss is the portability promise. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md). Unsupported fields, conflicts, archive-only data, and provider-unexportable data must be reported; perfect lossless migration is not claimed. |
 | Calls/meetings use LiveKit readiness today. | **Guarded** | [Meeting architecture decision record](docs/meeting-architecture-decision.md). Join/media claims remain limited to implemented readiness and token facade evidence. |
 | Workspace/Admin Health is the support-safe readiness and diagnostics control plane. | **Ready foundation / expanding** | [Admin-Suite readiness and setup contract](docs/admin-suite-readiness-setup-contract.md), [Quality and acceptance evidence](docs/quality-and-evidence.md). |
@@ -104,14 +104,15 @@ Use this page for release-affecting changes that have merged but are not include
 - Context-driven workflow primitives now have a provider-neutral, linear-first preview contract with explicit context references, blocker/evidence metadata, sample workflows, and dry-run-only governed agent participation.
 - Contextual meetings now have a fail-closed architecture contract preserving LiveKit as the active meetings provider contract while documenting encryption boundaries, consent defaults, and accessible join requirements before media controls are enabled.
 - Sprint 8/Sprint 9 acceptance now includes mapped product-readiness waterfall evidence for domain registry review, Keycloak dry-run, provider apply blocking, portability reports, Calls/LiveKit readiness, Weaver approvals, member opt-in, and support-safe release blockers.
+- Sprint 11 Live Stack acceptance now maps a provider-reality vertical for Files, Calendar, Boards, Calls, and Documents with live-runtime evidence separated from manual accessibility accounting.
 
 ## Changed
 
-- Nothing yet.
+- Provider registry and release evidence now distinguish `contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, and `release_ready` providers so contract-only seams cannot appear generally available to members.
 
 ## Fixed
 
-- Nothing yet.
+- Nextcloud Files and Calendar adapters now have stronger release-quality coverage for WebDAV/CalDAV error redaction, invalid path rejection, quota/permission/conflict handling, all-day event preservation, and explicit recurrence blocking until a recurrence contract exists.
 
 ## Security
 
@@ -120,6 +121,7 @@ Use this page for release-affecting changes that have merged but are not include
 ## Accessibility
 
 - Sprint 9 release readiness now treats admin setup, provider switching/report review, Calls/LiveKit states, Weaver approvals, and member capability states as release-blocking accessibility flows.
+- Sprint 11 now carries a manual assistive-technology evidence template for replacing the Sprint 10 accessibility waiver before v0.1 RC promotion; the template is explicitly not pass evidence until real tester results are recorded.
 
 ## Migration/Operator Notes
 

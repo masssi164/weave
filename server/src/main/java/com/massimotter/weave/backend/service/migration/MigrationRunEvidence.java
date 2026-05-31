@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
-record MigrationRunEvidence(
+public record MigrationRunEvidence(
         String runId,
         String domainKey,
         String lifecycle,
@@ -19,7 +19,7 @@ record MigrationRunEvidence(
         Instant recordedAt,
         Instant expiresAt) {
 
-    MigrationRunEvidence {
+    public MigrationRunEvidence {
         objectCounts = objectCounts == null ? Map.of() : Map.copyOf(objectCounts);
         contentHashes = contentHashes == null ? List.of() : List.copyOf(contentHashes);
         auditRefs = auditRefs == null ? List.of() : List.copyOf(auditRefs);

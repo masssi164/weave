@@ -56,15 +56,20 @@ public final class OpenProjectBoardsMapper {
 
     public TaskItem toTask(OpenProjectWorkPackageSnapshot source, Map<Long, OpenProjectStatusSnapshot> statusesById) {
         OpenProjectStatusSnapshot status = statusesById.get(source.statusId());
+        return toTask(source, toTaskStatus(status));
+    }
+
+    public TaskItem toTask(OpenProjectWorkPackageSnapshot source, TaskStatus providerNeutralStatus) {
         Instant updatedAt = source.updatedAt() == null ? Instant.EPOCH : source.updatedAt();
-        boolean completed = status != null && status.closed();
+        TaskStatus effectiveStatus = providerNeutralStatus == null ? TaskStatus.OPEN : providerNeutralStatus;
+        boolean completed = effectiveStatus == TaskStatus.COMPLETED;
         return new TaskItem(
                 weaveId("work-package", source.id()),
                 weaveId("board", source.projectId()),
                 weaveId("status", source.statusId()),
                 source.subject(),
                 source.description(),
-                completed ? TaskStatus.COMPLETED : TaskStatus.OPEN,
+                effectiveStatus,
                 Math.max(0, source.position()),
                 source.assigneeRefs() == null ? List.of() : source.assigneeRefs(),
                 source.labelRefs() == null ? List.of() : source.labelRefs(),
@@ -75,6 +80,21 @@ public final class OpenProjectBoardsMapper {
                 completed ? source.closedAt() : null,
                 updatedAt,
                 List.of(providerRef("work-package", source.id(), source.lockVersion(), updatedAt)));
+    }
+
+    TaskStatus toTaskStatus(OpenProjectStatusSnapshot status) {
+        if (status == null) {
+            return TaskStatus.OPEN;
+        }
+        if (status.closed()) {
+            return TaskStatus.COMPLETED;
+        }
+        return switch (semanticStatus(status)) {
+            case BLOCKED -> TaskStatus.BLOCKED;
+            case ARCHIVED -> TaskStatus.ARCHIVED;
+            case DONE -> TaskStatus.COMPLETED;
+            default -> TaskStatus.OPEN;
+        };
     }
 
     private ColumnSemanticStatus semanticStatus(OpenProjectStatusSnapshot status) {

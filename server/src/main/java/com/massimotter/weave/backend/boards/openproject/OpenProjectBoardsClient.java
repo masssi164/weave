@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -54,7 +55,7 @@ final class OpenProjectBoardsClient {
         BoardQuery effectiveQuery = query == null ? BoardQuery.firstPage() : query;
         JsonNode root = get("/api/v3/projects", Map.of(
                 "pageSize", Integer.toString(effectiveQuery.limit()),
-                "offset", offset(effectiveQuery.cursor(), "projects", "list-projects")), "list-projects");
+                "offset", offset(effectiveQuery.cursor(), "projects", "list-projects")), "list-projects", "read-sync");
         List<OpenProjectProjectSnapshot> projects = elements(root).stream().map(this::project).toList();
         return new BoardPage<>(projects, nextCursor(root, effectiveQuery.limit(), "projects"));
     }
@@ -62,7 +63,7 @@ final class OpenProjectBoardsClient {
     Optional<OpenProjectProjectSnapshot> findProject(long projectId) {
         requireConfigured("find-project");
         try {
-            return Optional.of(project(get("/api/v3/projects/" + projectId, Map.of(), "find-project")));
+            return Optional.of(project(get("/api/v3/projects/" + projectId, Map.of(), "find-project", "read-sync")));
         } catch (BoardsException exception) {
             if (exception.code() == BoardsErrorCode.NOT_FOUND) {
                 return Optional.empty();
@@ -76,7 +77,7 @@ final class OpenProjectBoardsClient {
         BoardQuery effectiveQuery = query == null ? BoardQuery.firstPage() : query;
         JsonNode root = get("/api/v3/statuses", Map.of(
                 "pageSize", Integer.toString(effectiveQuery.limit()),
-                "offset", offset(effectiveQuery.cursor(), "statuses", "list-statuses")), "list-statuses");
+                "offset", offset(effectiveQuery.cursor(), "statuses", "list-statuses")), "list-statuses", "read-sync");
         List<OpenProjectStatusSnapshot> statuses = elements(root).stream().map(this::status).toList();
         return new BoardPage<>(statuses, nextCursor(root, effectiveQuery.limit(), "statuses"));
     }
@@ -89,12 +90,50 @@ final class OpenProjectBoardsClient {
         JsonNode root = get("/api/v3/work_packages", Map.of(
                 "filters", filters,
                 "pageSize", Integer.toString(effectiveQuery.limit()),
-                "offset", offset(effectiveQuery.cursor(), cursorCollection, "list-tasks")), "list-tasks");
+                "offset", offset(effectiveQuery.cursor(), cursorCollection, "list-tasks")), "list-tasks", "read-sync");
         List<OpenProjectWorkPackageSnapshot> tasks = elements(root).stream().map(this::workPackage).toList();
         return new BoardPage<>(tasks, nextCursor(root, effectiveQuery.limit(), cursorCollection));
     }
 
-    private JsonNode get(String path, Map<String, String> queryParams, String operation) {
+    Optional<OpenProjectWorkPackageSnapshot> findWorkPackage(long workPackageId) {
+        return findWorkPackage(workPackageId, "find-task", "read-sync");
+    }
+
+    Optional<OpenProjectWorkPackageSnapshot> findWorkPackageForWrite(long workPackageId, String operation) {
+        return findWorkPackage(workPackageId, operation, "write");
+    }
+
+    private Optional<OpenProjectWorkPackageSnapshot> findWorkPackage(long workPackageId, String operation, String mode) {
+        requireConfigured(operation, mode);
+        try {
+            return Optional.of(workPackage(get("/api/v3/work_packages/" + workPackageId, Map.of(), operation, mode)));
+        } catch (BoardsException exception) {
+            if (exception.code() == BoardsErrorCode.NOT_FOUND) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
+    }
+
+    OpenProjectWorkPackageSnapshot updateWorkPackage(
+            long workPackageId,
+            String lockVersion,
+            Long statusId,
+            Integer position,
+            String operation) {
+        requireConfigured(operation, "write");
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("lockVersion", parseLockVersion(lockVersion, operation));
+        if (statusId != null) {
+            body.put("_links", Map.of("status", Map.of("href", "/api/v3/statuses/" + statusId)));
+        }
+        if (position != null) {
+            body.put("position", position);
+        }
+        return workPackage(patch("/api/v3/work_packages/" + workPackageId, body, operation));
+    }
+
+    private JsonNode get(String path, Map<String, String> queryParams, String operation, String mode) {
         URI uri = uri(path, queryParams);
         try {
             return restClient.get()
@@ -103,17 +142,59 @@ final class OpenProjectBoardsClient {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientResponseException exception) {
-            throw httpError(operation, exception);
+            throw httpError(operation, exception, mode);
         } catch (ResourceAccessException exception) {
             throw new BoardsException(
                     BoardsErrorCode.OFFLINE,
-                    "OpenProject Boards read-sync could not reach the provider runtime.",
-                    details(operation, "offline"));
+                    "OpenProject Boards " + mode + " could not reach the provider runtime.",
+                    details(operation, "offline", mode));
         } catch (RuntimeException exception) {
             throw new BoardsException(
                     BoardsErrorCode.UNKNOWN,
-                    "OpenProject Boards read-sync failed with a support-safe provider error.",
-                    details(operation, "unknown"));
+                    "OpenProject Boards " + mode + " failed with a support-safe provider error.",
+                    details(operation, "unknown", mode));
+        }
+    }
+
+    private JsonNode patch(String path, Map<String, Object> body, String operation) {
+        URI uri = uri(path, Map.of());
+        try {
+            return restClient.patch()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, basicAuthHeader())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(JsonNode.class);
+        } catch (RestClientResponseException exception) {
+            throw httpError(operation, exception, "write");
+        } catch (ResourceAccessException exception) {
+            throw new BoardsException(
+                    BoardsErrorCode.OFFLINE,
+                    "OpenProject Boards write could not reach the provider runtime.",
+                    details(operation, "offline", "write"));
+        } catch (RuntimeException exception) {
+            throw new BoardsException(
+                    BoardsErrorCode.UNKNOWN,
+                    "OpenProject Boards write failed with a support-safe provider error.",
+                    details(operation, "unknown", "write"));
+        }
+    }
+
+    private long parseLockVersion(String lockVersion, String operation) {
+        if (lockVersion == null || lockVersion.isBlank()) {
+            throw new BoardsException(
+                    BoardsErrorCode.CONFLICT,
+                    "OpenProject Boards write was blocked because the provider lock version was unavailable.",
+                    details(operation, "missing_lock_version", "write"));
+        }
+        try {
+            return Long.parseLong(lockVersion);
+        } catch (NumberFormatException exception) {
+            throw new BoardsException(
+                    BoardsErrorCode.CONFLICT,
+                    "OpenProject Boards write was blocked because the provider lock version was invalid.",
+                    details(operation, "invalid_lock_version", "write"));
         }
     }
 
@@ -127,7 +208,7 @@ final class OpenProjectBoardsClient {
         return "Basic " + HttpHeaders.encodeBasicAuth(API_USER, apiToken, java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    private BoardsException httpError(String operation, RestClientResponseException exception) {
+    private BoardsException httpError(String operation, RestClientResponseException exception, String mode) {
         BoardsErrorCode code = switch (exception.getStatusCode().value()) {
             case 401 -> BoardsErrorCode.UNAUTHORIZED;
             case 403 -> BoardsErrorCode.FORBIDDEN;
@@ -140,25 +221,37 @@ final class OpenProjectBoardsClient {
         };
         return new BoardsException(
                 code,
-                "OpenProject Boards read-sync failed with a support-safe provider response.",
-                details(operation, code.contractName()));
+                "OpenProject Boards " + mode + " failed with a support-safe provider response.",
+                details(operation, code.contractName(), mode));
     }
 
     private void requireConfigured(String operation) {
+        requireConfigured(operation, "read-sync");
+    }
+
+    private void requireConfigured(String operation, String mode) {
         if (!isConfigured()) {
             throw new BoardsException(
                     BoardsErrorCode.PROVIDER_UNAVAILABLE,
-                    "OpenProject Boards read-sync requires a provider base URL and backend-held API token.",
-                    details(operation, "provider_configuration"));
+                    "OpenProject Boards " + mode + " requires a provider base URL and backend-held API token.",
+                    details(operation, "provider_configuration", mode));
         }
     }
 
     private Map<String, String> details(String operation, String reason) {
-        return Map.of(
-                "provider", "openproject",
-                "operation", operation,
-                "reason", reason,
-                "supportSafe", "true");
+        return details(operation, reason, null);
+    }
+
+    private Map<String, String> details(String operation, String reason, String mode) {
+        var details = new java.util.LinkedHashMap<String, String>();
+        details.put("provider", "openproject");
+        details.put("operation", operation);
+        details.put("reason", reason);
+        if (mode != null && !mode.isBlank()) {
+            details.put("mode", mode);
+        }
+        details.put("supportSafe", "true");
+        return details;
     }
 
     private OpenProjectProjectSnapshot project(JsonNode node) {
