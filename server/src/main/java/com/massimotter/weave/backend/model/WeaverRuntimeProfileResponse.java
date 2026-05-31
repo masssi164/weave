@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.model;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.util.Map;
 import java.util.List;
 
 public record WeaverRuntimeProfileResponse(
@@ -12,6 +13,13 @@ public record WeaverRuntimeProfileResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String toolProvider,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String generatedFrom,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String userRef,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String profileVersion,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String runtimeProfileHash,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String signature,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String expiresAt,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean revoked,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String revocationStatus,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String previousProfileHash,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String baselineProfile,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String containerImage,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String workspacePath,
@@ -24,6 +32,10 @@ public record WeaverRuntimeProfileResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean elevatedEnabled,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean auditRequired,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean forkRequired,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> channelProjection,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> credentialBrokerContract,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> auditPolicy,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> supportSafeProfileReceipt,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String approvalPolicy,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String secretPosture,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) String isolationBoundary,
@@ -33,5 +45,9 @@ public record WeaverRuntimeProfileResponse(
         allowedCapabilities = List.copyOf(allowedCapabilities == null ? List.of() : allowedCapabilities);
         pluginAllowlist = List.copyOf(pluginAllowlist == null ? List.of() : pluginAllowlist);
         toolAllowlist = List.copyOf(toolAllowlist == null ? List.of() : toolAllowlist);
+        channelProjection = Map.copyOf(channelProjection == null ? Map.of() : channelProjection);
+        credentialBrokerContract = Map.copyOf(credentialBrokerContract == null ? Map.of() : credentialBrokerContract);
+        auditPolicy = Map.copyOf(auditPolicy == null ? Map.of() : auditPolicy);
+        supportSafeProfileReceipt = Map.copyOf(supportSafeProfileReceipt == null ? Map.of() : supportSafeProfileReceipt);
     }
 }

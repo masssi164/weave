@@ -40,6 +40,7 @@ class WeaverToolRegistryTest {
         var result = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
                 "user:abc123",
+                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 List.of("weaver.files_read"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 null));
@@ -49,6 +50,15 @@ class WeaverToolRegistryTest {
         assertThat(audit.events()).hasSize(1);
         assertThat(audit.events().get(0).action()).isEqualTo(AuditAction.WEAVER_TOOL_INVOCATION_RECORDED);
         assertThat(audit.events().get(0).payload()).containsEntry("status", "blocked");
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("runtimeProfileHash", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .containsEntry("user", "user:abc123")
+                .containsEntry("tool", "boards.comment")
+                .containsEntry("action", "tool.invoke")
+                .containsEntry("domain", "weaver-runtime")
+                .containsEntry("providerRef", "provider:domain-facade")
+                .containsEntry("credentialRef", "credentialref://weave/runtime/short-lived")
+                .containsEntry("decision", "blocked");
         assertThat(audit.events().get(0).payload()).containsEntry("supportSafe", true);
     }
 
@@ -60,6 +70,7 @@ class WeaverToolRegistryTest {
         var missingApproval = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
                 "user:abc123",
+                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                 List.of("weaver.boards_write"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 null));
@@ -71,6 +82,7 @@ class WeaverToolRegistryTest {
         var approved = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
                 "user:abc123",
+                "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
                 List.of("weaver.boards_write"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 "approval:abc123"));
@@ -80,5 +92,7 @@ class WeaverToolRegistryTest {
         assertThat(approved.redactedResult()).containsEntry("rawProviderPayload", "redacted");
         assertThat(audit.events()).hasSize(2);
         assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload()).containsEntry("supportSafe", true));
+        assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
+                .containsKeys("runtimeProfileHash", "user", "tool", "action", "domain", "providerRef", "credentialRef", "decision"));
     }
 }
