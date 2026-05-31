@@ -134,8 +134,14 @@ class PlatformProductContractControllerTest {
                 }
                 """;
 
-        MvcResult first = mockMvc.perform(post("/api/migration/dry-runs")
+        mockMvc.perform(post("/api/migration/dry-runs")
                         .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isForbidden());
+
+        MvcResult first = mockMvc.perform(post("/api/migration/dry-runs")
+                        .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isOk())
@@ -148,7 +154,7 @@ class PlatformProductContractControllerTest {
                 .andReturn();
 
         MvcResult second = mockMvc.perform(post("/api/migration/dry-runs")
-                        .with(workspaceJwt())
+                        .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isOk())
@@ -163,6 +169,25 @@ class PlatformProductContractControllerTest {
     void migrationApplyGateBlocksMissingArtifactsAndRedactsEvidence() throws Exception {
         mockMvc.perform(post("/api/migration/apply-gates")
                         .with(workspaceJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "runId": "migration-chat-apply-001",
+                                  "domainKey": "chat",
+                                  "requestedLifecycle": "approved",
+                                  "objectCounts": {"Conversation": 2},
+                                  "contentHashes": ["sha256:3333333333333333333333333333333333333333333333333333333333333333"],
+                                  "auditRefs": ["audit:migration.dry_run:001"],
+                                  "identityMappingComplete": true,
+                                  "auditSinkAvailable": true,
+                                  "adminApproved": true,
+                                  "providerDiagnostics": []
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/migration/apply-gates")
+                        .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -188,11 +213,9 @@ class PlatformProductContractControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.applyAllowed").value(false))
                 .andExpect(jsonPath("$.lifecycle").value("blocked"))
-                .andExpect(jsonPath("$.missingArtifacts[*]", hasItems("lossyMappingReportRef", "conflictReportRef", "adminApprovalRef")))
-                .andExpect(jsonPath("$.blockers[*]", hasItems(
-                        "apply blocked until identity mapping is complete",
-                        "apply blocked until the audit sink is available",
-                        "apply blocked until an admin approval record is present")))
+                .andExpect(jsonPath("$.missingArtifacts[*]", hasItems("dryRunReportRef", "adminApprovalRef")))
+                .andExpect(jsonPath("$.blockers[*]", hasItem(
+                        "apply blocked until current server-side dry-run evidence exists for this run and domain")))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
                 .andExpect(jsonPath("$.evidenceBundle.redaction").value("support_safe"))

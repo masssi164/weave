@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Stable mapping from product-language Gherkin scenarios to executable Live Stack E2E evidence. Every feature scenario must appear here, and every marker must exist in the mapped executable test.",
+  "description": "Stable mapping from product-language Gherkin scenarios to executable evidence. Every feature scenario must appear here, every marker must exist in the mapped executable test, and evidenceMode must distinguish live-runtime from offline-spec evidence.",
   "scenarios": [
     {
       "tag": "@weave-live-auth-shell",
@@ -10,7 +10,8 @@
       "evidenceMarkers": [
         "AUTH_RESULT",
         "PROFILE_RESULT"
-      ]
+      ],
+      "evidenceMode": "live-runtime"
     },
     {
       "tag": "@weave-live-matrix-content",
@@ -20,7 +21,8 @@
       "evidenceMarkers": [
         "CHAT_RESULT",
         "MATRIX_RESULT"
-      ]
+      ],
+      "evidenceMode": "live-runtime"
     },
     {
       "tag": "@weave-live-matrix-e2ee",
@@ -29,7 +31,8 @@
       "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
       "evidenceMarkers": [
         "E2EE_RESULT"
-      ]
+      ],
+      "evidenceMode": "live-runtime"
     },
     {
       "tag": "@weave-live-files-boundary",
@@ -38,7 +41,8 @@
       "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
       "evidenceMarkers": [
         "FILES_RESULT"
-      ]
+      ],
+      "evidenceMode": "live-runtime"
     },
     {
       "tag": "@weave-live-provider-stack-readiness",
@@ -56,7 +60,8 @@
             "direct Flutter provider calls remain blocked for optional provider stack modules"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "live-runtime"
     },
     {
       "tag": "@weave-live-calendar-threadrefs",
@@ -65,7 +70,8 @@
       "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
       "evidenceMarkers": [
         "CALENDAR_RESULT"
-      ]
+      ],
+      "evidenceMode": "live-runtime"
     },
     {
       "tag": "@weave-live-boards-workspace-nondrag",
@@ -92,7 +98,8 @@
             "\"targetColumnId\":\"done\",\"targetPosition\":2"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "live-runtime"
     },
     {
       "tag": "@weave-v01-home-daily-loop",
@@ -128,7 +135,8 @@
             "Open next work item"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-user-ready-organization-flow",
@@ -161,7 +169,8 @@
             "The member completes SSO and lands in Weave without raw provider setup."
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-admin-provider-categories",
@@ -216,7 +225,8 @@
             "hides OIDC and service endpoint setup from members"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-org-manifest-client-admin-split",
@@ -261,7 +271,8 @@
             "Whitelisting belongs to the Admin Console"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-admin-health-policy-enforcement",
@@ -322,7 +333,8 @@
             "overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-org-control-plane-provider-facade",
@@ -361,7 +373,8 @@
             "AuditAction.ADMIN_POLICY_UPDATED"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-canonical-provider-neutral-models",
@@ -438,7 +451,8 @@
             "PROVIDER_CONFIG ||--o{ SECRET_REF"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-member-provider-neutral-states",
@@ -464,7 +478,8 @@
             "must not leak provider IDs, raw provider payloads, secrets, or downstream diagnostics"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-admin-policy-decides-capabilities",
@@ -490,7 +505,8 @@
             "Capability profiles are deny-by-default."
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-idm-rbac-capability-policy",
@@ -525,7 +541,8 @@
             "category-level capability keys"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-governed-weaver-runtime-policy",
@@ -560,7 +577,8 @@
             "runtime profile generation is audited"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-governed-weaver-tool-registry",
@@ -587,7 +605,8 @@
             "Weaver tool approval proof"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-channel-workspace",
@@ -614,7 +633,8 @@
             "read-only Weaver scout"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-chat-domain-facade",
@@ -650,7 +670,8 @@
             "providerReplacementDryRunRejectsRawSecretsAndUnsupportedAdapterCombinations"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-board-write-audit",
@@ -678,7 +699,8 @@
             "Fail closed"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-meeting-capsule",
@@ -712,7 +734,8 @@
             "LiveKit token facade only"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-decision-ledger",
@@ -745,7 +768,8 @@
             "Link decisions to channels, meetings, events, files, and board items"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-operator-release-path",
@@ -765,7 +789,8 @@
             "support bundle is redacted"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-infra-control-plane-bootstrap",
@@ -790,7 +815,8 @@
             "WEAVE_PROVIDER_PROFILE"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-admin-console-mvp",
@@ -815,7 +841,8 @@
             "role=\"status\""
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-v01-provider-switch-portability",
@@ -872,7 +899,8 @@
             "rollback-recovery-plan"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-spec-0001-member-join-invite-sso-passkey",
@@ -897,7 +925,8 @@
             "join_flow: invite/SSO/passkey and done after admin setup"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-spec-0001-stable-member-capabilities",
@@ -923,7 +952,8 @@
             "Normal members never configure raw providers"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-spec-0001-admin-readiness-setup",
@@ -949,7 +979,8 @@
             "support-safe audit evidence"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-spec-0001-provider-switch-evidence",
@@ -976,7 +1007,8 @@
             "rollback/restore notes"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-spec-0001-weaver-ai-runtime-excluded",
@@ -1002,7 +1034,8 @@
             "Weaver/AI runtime"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-sprint8-domain-control-plane-evidence",
@@ -1059,7 +1092,8 @@
             "Live-stack execution is required for release-candidate promotion unless a release-owner waiver"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     },
     {
       "tag": "@weave-product-readiness-waterfall",
@@ -1118,7 +1152,8 @@
             "Sprint 9 product-readiness accessibility scope"
           ]
         }
-      ]
+      ],
+      "evidenceMode": "offline-spec"
     }
   ]
 }

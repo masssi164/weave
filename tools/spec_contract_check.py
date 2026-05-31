@@ -207,6 +207,21 @@ def check_framework_artifacts(spec_dirs: list[Path]) -> None:
                 fail(f"{relative} must contain framework marker {marker!r}")
 
 
+def check_unique_spec_ids(spec_dirs: list[Path]) -> None:
+    owners: dict[str, Path] = {}
+    for spec_dir in spec_dirs:
+        spec_path = spec_dir / "spec.md"
+        meta = parse_frontmatter(spec_path.read_text(encoding="utf-8"), spec_path)
+        spec_id = str(meta.get("id", ""))
+        prior = owners.get(spec_id)
+        if prior is not None:
+            fail(
+                "duplicate global spec id "
+                f"{spec_id}: {prior.relative_to(ROOT)} and {spec_path.relative_to(ROOT)}"
+            )
+        owners[spec_id] = spec_path
+
+
 def main() -> None:
     if not SPECS_DIR.exists():
         fail("missing specs/ directory")
@@ -215,6 +230,7 @@ def main() -> None:
         fail("specs/ contains no spec directories")
     for spec_dir in spec_dirs:
         check_spec_dir(spec_dir)
+    check_unique_spec_ids(spec_dirs)
     check_framework_artifacts(spec_dirs)
     print(f"spec-contract-check: ok ({len(spec_dirs)} spec directory/directories)")
 

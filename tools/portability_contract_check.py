@@ -7,6 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 SCHEMA_DIR=ROOT/'server/src/main/resources/contracts/portability'
 DOC=ROOT/'docs/architecture/no-unaccounted-data-loss.md'
 FIXTURES=ROOT/'specs/0006-portability-contract'
+LEGACY_ROOT_CONTRACTS=ROOT/'contracts'
 LOSS=['lossless_canonical','lossless_extension','archive_only','lossy_with_report','blocked_nonportable','provider_unexportable']
 REQUIRED={
  'provider-adapter-manifest.schema.json':'ProviderAdapterManifest',
@@ -24,15 +25,27 @@ def load(p):
  try: return json.loads(p.read_text(encoding='utf-8'))
  except FileNotFoundError: fail(f'missing {p.relative_to(ROOT)}')
  except json.JSONDecodeError as e: fail(f'invalid JSON in {p.relative_to(ROOT)}: {e}')
+def check_no_legacy_portability_contracts():
+ if not LEGACY_ROOT_CONTRACTS.exists(): return
+ legacy=[]
+ for path in LEGACY_ROOT_CONTRACTS.rglob('*.schema.json'):
+  rel=path.relative_to(ROOT)
+  if 'portability' in str(rel) or path.name in REQUIRED:
+   legacy.append(str(rel))
+ if legacy:
+  fail('legacy root portability schema(s) are not canonical; use server/src/main/resources/contracts/portability only: '+', '.join(sorted(legacy)))
 def required_contains(schema, names, label):
  req=schema.get('required', [])
  for n in names:
   if n not in req: fail(f'{label} must require {n}')
 def main():
+ check_no_legacy_portability_contracts()
  schemas={name:load(SCHEMA_DIR/name) for name in REQUIRED}
  for name,title in REQUIRED.items():
   if schemas[name].get('title')!=title: fail(f'{name} title must be {title}')
   if schemas[name].get('$schema')!='https://json-schema.org/draft/2020-12/schema': fail(f'{name} must declare draft 2020-12')
+  expected_id=f'https://weave.local/contracts/portability/{name}'
+  if schemas[name].get('$id')!=expected_id: fail(f'{name} $id must be {expected_id}')
  if schemas['loss-class.schema.json'].get('enum')!=LOSS: fail('loss classes must match canonical list/order')
  required_contains(schemas['provider-adapter-manifest.schema.json'], ['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary'], 'ProviderAdapterManifest')
  required_contains(schemas['export-manifest.schema.json'], ['objectCounts','contentHashes','mappingRef','auditRef','redaction'], 'ExportManifest')
@@ -44,7 +57,7 @@ def main():
   unsafe_raw = raw.replace('secretBoundary', '').replace('no_secrets', '')
   if re.search(r'(token|password|clientSecret)', unsafe_raw): fail(f'{name} must not require raw secret fields')
  doc=DOC.read_text(encoding='utf-8')
- for item in LOSS + list(REQUIRED.values()) + ['Provider migration apply is impossible', 'support-safe identifiers']:
+ for item in LOSS + list(REQUIRED.values()) + ['server/src/main/resources/contracts/portability/', 'Provider migration apply is impossible', 'support-safe identifiers']:
   if item not in doc: fail(f'documentation missing {item}')
  success=load(FIXTURES/'migration-run-dry-run-success.json')
  blocked=load(FIXTURES/'migration-run-apply-blocked.json')

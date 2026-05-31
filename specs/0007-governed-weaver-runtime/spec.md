@@ -1,5 +1,5 @@
 ---
-id: WEAVE-SPEC-0004
+id: WEAVE-SPEC-0007
 title: Governed Weaver runtime and tool approval contract
 version: 0.1.0
 status: implementing

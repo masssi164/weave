@@ -86,7 +86,7 @@ Every Sprint 9 release bundle must include:
 - `callsLiveKitReadinessArtifact`: meeting architecture and guarded-surface evidence refs.
 - `openclawForkImageDigestRef`, `openclawForkSbomRef`, `openclawForkScanRef`: required before runtime execution, explicit blocker if absent.
 - `weaverToolApprovalProof`: audited generated profile with approved Weave domain tools only.
-- `scenarioMapping`: `@weave-product-readiness-waterfall` in `e2e/scenario_mappings.json`.
+- `scenarioMapping`: `@weave-product-readiness-waterfall` in `e2e/scenario_mappings.json`, marked as `offline-spec` evidence because it aggregates checked-in executable and documentation contracts rather than a single live runtime marker.
 - `redactionCheck`: no raw provider tokens, cookies, private keys, raw provider errors, provider URLs with credentials, personal data, SecretRef contents, or private live logs.
 
 Live-stack execution is required for release-candidate promotion unless a release-owner waiver names the exact blocker, commit, compensating evidence, expiry, and owner. PR-safe CI can merge the mapping and offline evidence, but cannot promote an RC by itself.

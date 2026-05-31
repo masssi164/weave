@@ -1,17 +1,18 @@
 # Sprint 8 closure report: Canonical Domains & Portable Provider Contracts
 
-Status: closure-ready audit, 2026-05-31.
+Status: audited with Sprint 10 follow-up debt, 2026-05-31.
 
 ## Closure verdict
 
-Sprint 8 is functionally closed: the GitHub milestone has zero open issues at the time of this report update. The latest implementation `main` CI for head `68e8d65d5cf2a3a648e9aa9963a3be05c3b86dcc` is green; final closure now depends on this closure-report PR and milestone-close verification.
+Sprint 8 implementation issues are closed, and the closure-audit report landed on `main` at `9f458f409ed58798e36812b085839d18125bb8fc` (#463). Repository readiness is not product-ready yet: Sprint 10 carries release-blocking follow-up debt, and Live Stack E2E for the closure-audit head failed. Treat this report as historical closure plus current blockers, not an RC or production-release claim.
 
 ## GitHub truth
 
 - Milestone: `Sprint 8 — Canonical Domains & Portable Provider Contracts`.
-- Open issues at update time: 0.
-- Final implementation head before this report: `68e8d65` (`docs(marketing): ship README v2 claim matrix (#458)`).
-- Latest implementation main CI runs: #464 run `26697124472` success, #465 run `26697126259` success, #458 run `26697128118` success.
+- Open Sprint 8 issues at update time: 0.
+- Closure-audit head: `9f458f4` (`docs: add Sprint 8 and 9 closure audits (#463)`).
+- Latest verified CI for the closure-audit head: CI run `26697473651` success; Live Stack E2E run `26702182436` failure.
+- Final implementation main CI runs before the closure audit: #464 run `26697124472` success, #465 run `26697126259` success, #458 run `26697128118` success.
 
 ## Issue DAG and final state
 
@@ -50,15 +51,16 @@ Sprint 8 is functionally closed: the GitHub milestone has zero open issues at th
 
 ## Local gates for this report
 
-Run before merging this closure report:
-
-- `WEAVE_DOCS_VENV=build/docs-venv ./gradlew docsCheck releaseEvidenceCheck --console=plain`
+The closure-audit PR (#463) recorded docs/release evidence before merge. Current Sprint 10 maintenance for this report should rerun the smallest relevant docs/spec gates.
 
 ## Release and RC impact
 
-Sprint 8 locks the canonical domain, Spaces, portability, Admin Console gate, identity dry-run, Boards parity, acceptance evidence, and README foundation needed for dogfood-production readiness. It does not claim a production release tag; release promotion remains governed by release evidence and final `main` CI.
+Sprint 8 locks the canonical domain, Spaces, portability, Admin Console gate, identity dry-run, Boards parity, acceptance evidence, and README foundation needed for dogfood-production readiness. It does not claim a production release tag or RC readiness; release promotion remains blocked until Sprint 10 release blockers and Live Stack E2E evidence are resolved.
 
-## Remaining gate
+## Sprint 10 follow-up debt
 
-- Merge this closure report after its docs/release checks pass.
-- Verify both milestones remain at zero open issues, then close the milestones.
+- #467 restore canonical domain registry drift gate.
+- #471 choose one canonical portability schema family.
+- #475 fix duplicate `WEAVE-SPEC-0004` traceability.
+- #476 keep Sprint 8/9 closure wording accurate.
+- #477 deepen registry, Calls, waiver, and provider-vocabulary contracts.

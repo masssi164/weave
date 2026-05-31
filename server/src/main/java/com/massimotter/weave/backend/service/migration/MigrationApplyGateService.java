@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.service.migration;
 
 import com.massimotter.weave.backend.model.migration.MigrationApplyGateRequest;
 import com.massimotter.weave.backend.model.migration.MigrationApplyGateResponse;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,37 +43,51 @@ public class MigrationApplyGateService {
             "(?i)(https?://|token|password|passwd|client[_-]?secret|authorization|bearer|cookie|private[_-]?key|secretref://|credential)");
     private static final Pattern SHA_256 = Pattern.compile("^sha256:[a-f0-9]{64}$");
 
+    private final MigrationRunEvidenceRepository evidenceRepository;
+
+    public MigrationApplyGateService(MigrationRunEvidenceRepository evidenceRepository) {
+        this.evidenceRepository = evidenceRepository;
+    }
+
     public MigrationApplyGateResponse evaluate(MigrationApplyGateRequest request) {
-        String lifecycle = normalizeLifecycle(request.requestedLifecycle());
+        return evidenceRepository.findCurrent(request.runId(), request.domainKey(), Instant.now())
+                .map(evidence -> evaluatePersistedEvidence(request, evidence))
+                .orElseGet(() -> blockedForMissingEvidence(request));
+    }
+
+    private MigrationApplyGateResponse evaluatePersistedEvidence(
+            MigrationApplyGateRequest request,
+            MigrationRunEvidence evidence) {
+        String lifecycle = normalizeLifecycle(evidence.lifecycle());
         List<String> blockers = new ArrayList<>();
-        List<String> missing = missingArtifacts(request);
+        List<String> missing = missingArtifacts(evidence);
         if (!LIFECYCLE.contains(lifecycle)) {
-            blockers.add("unknown migration lifecycle state: " + safeLifecycle(request.requestedLifecycle()));
+            blockers.add("unknown migration lifecycle state: " + safeLifecycle(evidence.lifecycle()));
         }
         if (!missing.isEmpty()) {
-            blockers.add("apply blocked until required portability artifacts exist: " + String.join(", ", missing));
+            blockers.add("apply blocked until required portability artifacts exist in server-side evidence: " + String.join(", ", missing));
         }
-        if (request.objectCounts().isEmpty()) {
-            blockers.add("apply blocked until object counts are recorded");
+        if (evidence.objectCounts().isEmpty()) {
+            blockers.add("apply blocked until object counts are recorded in server-side evidence");
         }
-        if (request.contentHashes().isEmpty() || request.contentHashes().stream().anyMatch(hash -> !SHA_256.matcher(hash).matches())) {
-            blockers.add("apply blocked until content hashes use sha256 evidence references");
+        if (evidence.contentHashes().isEmpty() || evidence.contentHashes().stream().anyMatch(hash -> !SHA_256.matcher(hash).matches())) {
+            blockers.add("apply blocked until server-side content hashes use sha256 evidence references");
         }
-        if (request.auditRefs().isEmpty()) {
-            blockers.add("apply blocked until migration audit references exist");
+        if (evidence.auditRefs().isEmpty()) {
+            blockers.add("apply blocked until server-side migration audit references exist");
         }
-        if (!request.identityMappingComplete()) {
-            blockers.add("apply blocked until identity mapping is complete");
+        if (!evidence.identityMappingComplete()) {
+            blockers.add("apply blocked until server-side identity mapping is complete");
         }
-        if (!request.auditSinkAvailable()) {
-            blockers.add("apply blocked until the audit sink is available");
+        if (!evidence.auditSinkAvailable()) {
+            blockers.add("apply blocked until the server-side audit sink is available");
         }
-        if (!request.adminApproved()) {
-            blockers.add("apply blocked until an admin approval record is present");
+        if (!evidence.adminApproved()) {
+            blockers.add("apply blocked until a server-side admin approval record is present");
         }
         boolean applyAllowed = blockers.isEmpty() && Set.of("approved", "applying", "applied", "verified").contains(lifecycle);
         if (blockers.isEmpty() && !applyAllowed) {
-            blockers.add("apply blocked until lifecycle reaches approved after dry-run and preflight evidence");
+            blockers.add("apply blocked until server-side lifecycle reaches approved after dry-run and preflight evidence");
         }
         boolean finalApplyAllowed = blockers.isEmpty() && applyAllowed;
         String effectiveLifecycle = finalApplyAllowed ? lifecycle : "blocked";
@@ -87,44 +102,62 @@ public class MigrationApplyGateService {
                 missing,
                 List.copyOf(blockers),
                 nextActions(finalApplyAllowed, missing),
-                evidenceBundle(request, effectiveLifecycle));
+                evidenceBundle(evidence, effectiveLifecycle));
     }
 
-    private List<String> missingArtifacts(MigrationApplyGateRequest request) {
-        Map<String, String> refs = artifactRefs(request);
+    private MigrationApplyGateResponse blockedForMissingEvidence(MigrationApplyGateRequest request) {
+        var blockers = List.of("apply blocked until current server-side dry-run evidence exists for this run and domain");
+        return new MigrationApplyGateResponse(
+                request.runId(),
+                request.domainKey(),
+                "blocked",
+                false,
+                true,
+                true,
+                REQUIRED_ARTIFACTS,
+                REQUIRED_ARTIFACTS,
+                blockers,
+                nextActions(false, REQUIRED_ARTIFACTS),
+                new MigrationApplyGateResponse.SupportSafeEvidenceBundle(
+                        request.runId(),
+                        request.domainKey(),
+                        "blocked",
+                        Map.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        "support_safe"));
+    }
+
+    private List<String> missingArtifacts(MigrationRunEvidence evidence) {
+        Map<String, String> refs = evidence.artifactRefs();
         return REQUIRED_ARTIFACTS.stream()
                 .filter(name -> blank(refs.get(name)))
                 .toList();
     }
 
     private MigrationApplyGateResponse.SupportSafeEvidenceBundle evidenceBundle(
-            MigrationApplyGateRequest request,
+            MigrationRunEvidence evidence,
             String lifecycle) {
         return new MigrationApplyGateResponse.SupportSafeEvidenceBundle(
-                request.runId(),
-                request.domainKey(),
+                evidence.runId(),
+                evidence.domainKey(),
                 lifecycle,
-                request.objectCounts(),
-                request.contentHashes(),
-                request.auditRefs(),
-                artifactRefs(request).values().stream().filter(value -> !blank(value)).map(this::redact).toList(),
-                request.providerDiagnostics().stream().map(this::redact).toList(),
+                evidence.objectCounts(),
+                evidence.contentHashes(),
+                evidence.auditRefs(),
+                orderedArtifactRefs(evidence).stream().filter(value -> !blank(value)).map(this::redact).toList(),
+                evidence.providerDiagnostics().stream().map(this::redact).toList(),
                 "support_safe");
     }
 
-    private Map<String, String> artifactRefs(MigrationApplyGateRequest request) {
+    private List<String> orderedArtifactRefs(MigrationRunEvidence evidence) {
         Map<String, String> refs = new LinkedHashMap<>();
-        refs.put("dryRunReportRef", request.dryRunReportRef());
-        refs.put("exportSnapshotRef", request.exportSnapshotRef());
-        refs.put("importPlanRef", request.importPlanRef());
-        refs.put("providerMappingRef", request.providerMappingRef());
-        refs.put("lossyMappingReportRef", request.lossyMappingReportRef());
-        refs.put("conflictReportRef", request.conflictReportRef());
-        refs.put("memberImpactPreviewRef", request.memberImpactPreviewRef());
-        refs.put("adminApprovalRef", request.adminApprovalRef());
-        refs.put("rollbackArchiveRef", request.rollbackArchiveRef());
-        refs.put("postApplyVerificationRef", request.postApplyVerificationRef());
-        return refs;
+        for (String requiredArtifact : REQUIRED_ARTIFACTS) {
+            refs.put(requiredArtifact, evidence.artifactRefs().get(requiredArtifact));
+        }
+        return refs.values().stream().filter(value -> value != null && !value.isBlank()).toList();
     }
 
     private List<String> nextActions(boolean applyAllowed, List<String> missing) {

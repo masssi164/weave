@@ -12,7 +12,8 @@ class MigrationDryRunServiceTest {
 
     @Test
     void dryRunIncludesSupportSafeChatAndFilesMappingEvidence() {
-        var service = new MigrationDryRunService(new IdempotencyKeyService());
+        var repository = new InMemoryMigrationRunEvidenceRepository();
+        var service = new MigrationDryRunService(new IdempotencyKeyService(), repository);
 
         var response = service.dryRun(new MigrationDryRunRequest(
                 "slack",
@@ -35,6 +36,8 @@ class MigrationDryRunServiceTest {
                 .doesNotContain("Authorization")
                 .doesNotContain("Bearer")
                 .doesNotContain("token");
+        assertThat(repository.findCurrent(response.jobId(), "chat", java.time.Instant.now())).isPresent();
+        assertThat(repository.findCurrent(response.jobId(), "files", java.time.Instant.now())).isPresent();
     }
 
     @Test
@@ -42,7 +45,7 @@ class MigrationDryRunServiceTest {
         Locale previous = Locale.getDefault();
         try {
             Locale.setDefault(Locale.forLanguageTag("tr-TR"));
-            var service = new MigrationDryRunService(new IdempotencyKeyService());
+            var service = new MigrationDryRunService(new IdempotencyKeyService(), new InMemoryMigrationRunEvidenceRepository());
 
             var response = service.dryRun(new MigrationDryRunRequest(
                     "TEAMS",

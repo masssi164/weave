@@ -29,14 +29,23 @@ def main():
  if list(by_key.keys())!=REQUIRED_KEYS: fail(f'domain keys/order mismatch: {list(by_key.keys())}')
  aliases={}
  for key,d in by_key.items():
+  if key.lower()!=key or '/' in key: fail(f'{key} must be a lowercase canonical key without slash-style category syntax')
   for field in ['displayName','purpose']:
    if not str(d.get(field,'')).strip(): fail(f'{key} missing {field}')
   for field in ['canonicalObjects','capabilityKeys','providerCandidates','portabilityRequirements','sourceOfTruthModes','compatibilityAliases','portabilityRisks']:
    if not isinstance(d.get(field),list) or not d[field]: fail(f'{key} {field} must be a non-empty list')
+   for field in ['canonicalObjects','capabilityKeys','providerCandidates','portabilityRequirements','sourceOfTruthModes','compatibilityAliases','portabilityRisks']:
+    values=d[field]
+    if len(values)!=len(set(values)): fail(f'{key} {field} contains duplicate values')
   if d.get('memberStates')!=MEMBER: fail(f'{key} member states differ from canonical list')
   if d.get('adminStates')!=ADMIN: fail(f'{key} admin states differ from canonical list')
   if d.get('adapterManifestRequirements')!=MANIFEST: fail(f'{key} manifest requirements differ from canonical list')
+  for obj in d['canonicalObjects']:
+   if not isinstance(obj,str) or not obj[:1].isupper() or '/' in obj: fail(f'{key} canonical object {obj!r} must be a PascalCase Weave object name')
+  for capability in d['capabilityKeys']:
+   if not isinstance(capability,str) or capability.lower()!=capability or '/' in capability: fail(f'{key} capability {capability!r} must be a lowercase provider-neutral key without slash-style category syntax')
   for alias in d['compatibilityAliases']:
+   if '/' in alias: fail(f'{key} alias {alias!r} must use canonical hyphen/camel compatibility syntax, not slash-style display text')
    if alias in by_key: fail(f'{key} alias duplicates canonical key {alias}')
    prior=aliases.setdefault(alias,key)
    if prior!=key: fail(f'alias {alias} points to both {prior} and {key}')

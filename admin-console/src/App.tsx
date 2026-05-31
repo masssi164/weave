@@ -6,11 +6,13 @@ import {
   Button,
   Card,
   CardContent,
+  Checkbox,
   Chip,
   Container,
   CssBaseline,
   Divider,
   FormControl,
+  FormControlLabel,
   FormHelperText,
   InputLabel,
   Link,
@@ -164,6 +166,14 @@ interface AppProps {
   locale?: AdminConsoleLocale;
 }
 
+interface ProviderSelectionDryRunEvidence {
+  categoryKey: string;
+  providerKey: string;
+  choiceModel: string;
+  completedAt: string;
+  evidenceRef: string;
+}
+
 export default function App({
   api = new AdminControlPlaneApi(),
   viewerRole = 'owner',
@@ -192,6 +202,9 @@ export default function App({
   );
   const [dryRunReport, setDryRunReport] =
     useState<ProviderReplacementDryRunReport | null>(null);
+  const [providerSelectionDryRun, setProviderSelectionDryRun] =
+    useState<ProviderSelectionDryRunEvidence | null>(null);
+  const [consequenceConfirmed, setConsequenceConfirmed] = useState(false);
   const [statusMessage, setStatusMessage] = useState(
     'Admin Console is loading backend control-plane data.',
   );
@@ -240,13 +253,31 @@ export default function App({
     [controlPlane.providerCategories, selectedCategory],
   );
 
-  const selectedApplyBlockedReasons = selectedCategoryDetails
-    ? blockedApplyGateLabels(selectedCategoryDetails.applyGates)
-    : applyGateLabels.map(([, label]) => label);
-  const selectedApplyAllowed =
+  const hasFreshProviderSelectionDryRun =
+    selectedCategoryDetails !== undefined &&
+    providerSelectionDryRun?.categoryKey === selectedCategoryDetails.key &&
+    providerSelectionDryRun.providerKey === providerDraft &&
+    providerSelectionDryRun.choiceModel === choiceModelDraft;
+  const selectedApplyBackendAllowed =
     canConfigure &&
     selectedCategoryDetails !== undefined &&
     applyGatesPass(selectedCategoryDetails.applyGates);
+  const selectedApplyBlockedReasons = [
+    ...(selectedCategoryDetails
+    ? blockedApplyGateLabels(selectedCategoryDetails.applyGates)
+    : applyGateLabels.map(([, label]) => label)),
+    ...(hasFreshProviderSelectionDryRun ? [] : ['Fresh current-session dry-run evidence']),
+    ...(consequenceConfirmed ? [] : ['Explicit consequence confirmation']),
+  ];
+  const selectedApplyAllowed =
+    selectedApplyBackendAllowed &&
+    hasFreshProviderSelectionDryRun &&
+    consequenceConfirmed;
+
+  function resetApplyEvidence() {
+    setProviderSelectionDryRun(null);
+    setConsequenceConfirmed(false);
+  }
 
   function changeCategory(categoryKey: string) {
     const category = controlPlane.providerCategories.find(
@@ -260,6 +291,7 @@ export default function App({
         : (category?.choiceModel ?? 'recommended_self_hosted_default'),
     );
     setDryRunReport(null);
+    resetApplyEvidence();
   }
 
   async function savePolicy() {
@@ -284,8 +316,16 @@ export default function App({
       dryRun,
     );
     if (dryRun) {
+      setProviderSelectionDryRun({
+        categoryKey: selectedCategoryDetails.key,
+        providerKey: providerDraft,
+        choiceModel: choiceModelDraft,
+        completedAt: new Date().toISOString(),
+        evidenceRef: `${selectedCategoryDetails.key}:${providerDraft}:${choiceModelDraft}`,
+      });
+      setConsequenceConfirmed(false);
       setStatusMessage(
-        `Dry-run validated for ${selectedCategoryDetails.key}: ${providerDraft}.`,
+        `Dry-run validated for ${selectedCategoryDetails.key}: ${providerDraft}. Review consequences and confirm before apply.`,
       );
       return;
     }
@@ -294,6 +334,7 @@ export default function App({
     setStatusMessage(
       `Provider selection applied for ${selectedCategoryDetails.key}: ${providerDraft}. Backend control plane refreshed as source of truth.`,
     );
+    resetApplyEvidence();
   }
 
   async function dryRunReplacement() {
@@ -761,9 +802,10 @@ export default function App({
                             id="provider-candidate-select"
                             value={providerDraft}
                             label="Selected provider adapter"
-                            onChange={(event) =>
-                              setProviderDraft(event.target.value)
-                            }
+                            onChange={(event) => {
+                              setProviderDraft(event.target.value);
+                              resetApplyEvidence();
+                            }}
                           >
                             {selectedCategoryDetails.providerCandidates.map(
                               (candidate) => (
@@ -783,9 +825,10 @@ export default function App({
                             id="choice-model-select"
                             value={choiceModelDraft}
                             label="Choice model"
-                            onChange={(event) =>
-                              setChoiceModelDraft(event.target.value)
-                            }
+                            onChange={(event) => {
+                              setChoiceModelDraft(event.target.value);
+                              resetApplyEvidence();
+                            }}
                           >
                             <MenuItem value="recommended_self_hosted_default">
                               recommended self-hosted default
@@ -810,11 +853,32 @@ export default function App({
                           with credentials, or downstream diagnostics.
                         </Typography>
                         <Alert severity={selectedApplyAllowed ? 'success' : 'warning'}>
-                          Provider apply is {selectedApplyAllowed ? 'enabled' : 'blocked'} by backend gates.
+                          Provider apply is {selectedApplyAllowed ? 'enabled' : 'blocked'} by backend gates, current-session dry-run evidence, and explicit consequence confirmation.
                           {selectedApplyAllowed
                             ? ' All required evidence gates passed.'
                             : ` Missing gates: ${selectedApplyBlockedReasons.join(', ')}.`}
                         </Alert>
+                        <Alert severity={hasFreshProviderSelectionDryRun ? 'success' : 'warning'}>
+                          Current-session dry-run evidence is{' '}
+                          {hasFreshProviderSelectionDryRun ? 'fresh' : 'missing or stale'}.
+                          {providerSelectionDryRun
+                            ? ` Last dry-run evidence ${providerSelectionDryRun.evidenceRef} at ${providerSelectionDryRun.completedAt}.`
+                            : ' Run a dry-run for the selected category, adapter, and choice model before apply.'}
+                        </Alert>
+                        {canConfigure ? (
+                          <FormControlLabel
+                            control={
+                              <Checkbox
+                                checked={consequenceConfirmed}
+                                disabled={!hasFreshProviderSelectionDryRun}
+                                onChange={(event) =>
+                                  setConsequenceConfirmed(event.target.checked)
+                                }
+                              />
+                            }
+                            label="I confirm I reviewed member impact, rollback evidence, and provider-switch consequences for this dry-run."
+                          />
+                        ) : null}
                         <Stack
                           direction={{ xs: 'column', sm: 'row' }}
                           spacing={2}
