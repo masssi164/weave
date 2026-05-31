@@ -78,6 +78,35 @@ class DomainAdapterRegistryMapperTest {
     }
 
     @Test
+    void mapperUsesAdminSelectedAdapterWhenItIsInTheContract() {
+        var category = new ProviderCategoryStatusResponse(
+                "chat",
+                "chat",
+                ProviderCapabilityContracts.contract("chat", Set.of(ProviderModule.MATRIX)),
+                ProviderCategoryReadiness.READY,
+                WorkspaceCapabilityPolicyState.ALLOWED,
+                "Chat is available through Weave.",
+                List.of("matrix"),
+                List.of("synapse-homeserver", "microsoft-teams", "slack"),
+                "synapse-homeserver",
+                "recommended_self_hosted_default",
+                true,
+                false,
+                List.of(),
+                List.of(),
+                Map.of("allFailClosed", true, "secretsReturned", false, "rawProviderErrorsReturned", false));
+
+        var status = DomainAdapterRegistryMapper.fromCategory(category);
+
+        assertThat(status.singleActiveAdapterValid()).isTrue();
+        assertThat(status.activeAdapter()).isEqualTo("synapse-homeserver");
+        assertThat(status.candidates()).filteredOn(DomainAdapterCandidateResponse::active)
+                .singleElement()
+                .extracting(DomainAdapterCandidateResponse::adapterKey)
+                .isEqualTo("synapse-homeserver");
+    }
+
+    @Test
     void categoryContractCarriesAntiSiloDomainAdapterFit() {
         var contract = ProviderCapabilityContracts.contract("chat", Set.of(ProviderModule.MATRIX));
 
