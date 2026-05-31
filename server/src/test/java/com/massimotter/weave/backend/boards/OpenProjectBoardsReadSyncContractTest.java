@@ -320,6 +320,69 @@ class OpenProjectBoardsReadSyncContractTest {
     }
 
     @Test
+    void promotedOpenProjectPreflightHttpErrorsKeepWriteContext() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        var repository = writeEnabledRepository(builder);
+
+        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/statuses")))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(statusesJson(), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://openproject.example.test/api/v3/work_packages/99"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"message\":\"raw provider permission detail\"}"));
+
+        assertThatThrownBy(() -> repository.updateTaskStatus(
+                "openproject:work-package:99",
+                TaskStatus.OPEN,
+                "openproject:status:2"))
+                .isInstanceOfSatisfying(BoardsException.class, error -> {
+                    assertThat(error.code()).isEqualTo(BoardsErrorCode.FORBIDDEN);
+                    assertThat(error.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "update-task-status")
+                            .containsEntry("mode", "write")
+                            .containsEntry("supportSafe", "true");
+                    assertThat(error.getMessage())
+                            .contains("write")
+                            .doesNotContain("read-sync")
+                            .doesNotContain("raw provider");
+                });
+        server.verify();
+    }
+
+    @Test
+    void promotedOpenProjectLockVersionValidationKeepsWriteModeDetails() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        var repository = writeEnabledRepository(builder);
+
+        server.expect(requestTo(containsString("https://openproject.example.test/api/v3/statuses")))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(statusesJson(), MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://openproject.example.test/api/v3/work_packages/99"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(workPackageJson(2, null, null), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> repository.updateTaskStatus(
+                "openproject:work-package:99",
+                TaskStatus.OPEN,
+                "openproject:status:2"))
+                .isInstanceOfSatisfying(BoardsException.class, error -> {
+                    assertThat(error.code()).isEqualTo(BoardsErrorCode.CONFLICT);
+                    assertThat(error.details())
+                            .containsEntry("provider", "openproject")
+                            .containsEntry("operation", "update-task-status")
+                            .containsEntry("reason", "missing_lock_version")
+                            .containsEntry("mode", "write")
+                            .containsEntry("supportSafe", "true");
+                });
+        server.verify();
+    }
+
+    @Test
     void openProjectUnsupportedWritesFailBeforeProviderMutation() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -355,6 +418,26 @@ class OpenProjectBoardsReadSyncContractTest {
                     assertThat(error.code()).isEqualTo(BoardsErrorCode.UNSUPPORTED_CAPABILITY);
                     assertThat(error.details())
                             .containsEntry("operation", "move-task")
+                            .containsEntry("capability", "non_destructive_archive")
+                            .containsEntry("mode", "write");
+                });
+        server.verify();
+    }
+
+    @Test
+    void openProjectArchiveLikeStatusUpdatesFailClosedBeforeProviderMutation() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        var repository = writeEnabledRepository(builder);
+
+        assertThatThrownBy(() -> repository.updateTaskStatus(
+                "openproject:work-package:99",
+                TaskStatus.ARCHIVED,
+                "openproject:status:4"))
+                .isInstanceOfSatisfying(BoardsException.class, error -> {
+                    assertThat(error.code()).isEqualTo(BoardsErrorCode.UNSUPPORTED_CAPABILITY);
+                    assertThat(error.details())
+                            .containsEntry("operation", "update-task-status")
                             .containsEntry("capability", "non_destructive_archive")
                             .containsEntry("mode", "write");
                 });
@@ -639,14 +722,14 @@ class OpenProjectBoardsReadSyncContractTest {
                 """;
     }
 
-    private String workPackageJson(int statusId, int lockVersion, String closedAt) {
+    private String workPackageJson(int statusId, Integer lockVersion, String closedAt) {
         return """
                 {
                   "id": 99,
                   "subject": "Ship backend seam",
                   "description": {"raw": "Read-only first; no provider writes."},
                   "position": 4,
-                  "lockVersion": %d,
+                  "lockVersion": %s,
                   "dueDate": "2026-06-01",
                   "closedAt": %s,
                   "updatedAt": "2026-05-20T12:00:00Z",
@@ -657,7 +740,7 @@ class OpenProjectBoardsReadSyncContractTest {
                     "assignee": {"href": "/api/v3/users/5", "title": "Massimo"}
                   }
                 }
-                """.formatted(lockVersion, closedAt == null ? "null" : "\"" + closedAt + "\"", statusId);
+                """.formatted(lockVersion == null ? "null" : lockVersion, closedAt == null ? "null" : "\"" + closedAt + "\"", statusId);
     }
 
     private String workPackagesJson() {
