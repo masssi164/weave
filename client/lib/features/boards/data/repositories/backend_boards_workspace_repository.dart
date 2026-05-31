@@ -226,7 +226,9 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
   String? _errorCode(String body) {
     try {
       final payload = jsonDecode(body);
-      return payload is Map<String, dynamic> ? payload['code'] as String? : null;
+      return payload is Map<String, dynamic>
+          ? payload['code'] as String?
+          : null;
     } catch (_) {
       return null;
     }
