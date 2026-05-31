@@ -10,8 +10,8 @@ A delivery lead owns issue/PR orchestration, merge sequencing, integration, and 
 
 Use this loop until the issue DAG is integrated or a real blocker stops safe progress:
 
-1. Recover truth from `main`, repo specs/docs/tasks, GitHub issues/PRs, and CI/evidence.
-2. Identify the governing spec and decide whether it is ready for implementation. Keep unresolved product-core questions in `draft`/`proposed`.
+1. Recover truth from the pinned spec corpus, then `main`, repo conformance specs/docs/tasks, GitHub issues/PRs, and CI/evidence.
+2. Identify the governing corpus spec and decide whether it is ready for implementation. Keep unresolved product-core questions in `draft`/`proposed`.
 3. Convert the spec plan/tasks into a GitHub issue DAG. Label independent work `parallel`; label ordered work `sequential`; link issues/PRs back to the spec.
 4. Cut short-lived branches from updated `main` and open reviewable PRs in dependency order.
 5. Assign scoped implementation or review work only for narrow issue slices, each with exact files, inputs, stop conditions, and a required gate.
@@ -27,7 +27,7 @@ Material optimization means improved correctness, traceability, security/privacy
 
 Durable sprint state belongs in GitHub and repo files, not chat transcripts:
 
-- Specification stewarding lives in `specs/<id>/spec.md`, `plan.md`, `tasks.md`, and traceability files.
+- Specification stewarding lives in the pinned spec corpus; repo-local `specs/<id>/spec.md`, `plan.md`, `tasks.md`, and traceability files are transitional conformance artifacts.
 - Work tracking lives in GitHub issues with dependency notes and `parallel`/`sequential` labels.
 - Implementation state lives in PRs and CI artifacts.
 - Release impact lives in exactly one release-notes label per PR.

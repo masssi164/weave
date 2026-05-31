@@ -4,7 +4,7 @@ Use these compact templates for repo-safe AI-assisted delivery. Do not paste tra
 
 ## Invocation matrix
 
-- Delivery lead: recovers repo/GitHub/CI truth, plans the issue DAG, integrates evidence, and enforces gates.
+- Delivery lead: recovers spec-corpus truth first, then repo/GitHub/CI truth, plans the issue DAG, integrates evidence, and enforces gates.
 - Repo roles: scoped prompts with logical responsibilities such as Product/Spec, Architecture/Contract, Client/A11y, Server/Domain, Admin/Policy, Provider/Infra, QA/Evidence, Docs/Release, Security/Privacy, and Integration Review.
 - Coding harnesses: use only when explicitly selected by the operator environment. The product repo must not name deployable live harness profiles or allowlists.
 - Copilot review: fallback-only; do not block PR readiness on Copilot premium review exhaustion.
@@ -14,7 +14,7 @@ Use these compact templates for repo-safe AI-assisted delivery. Do not paste tra
 
 Use the smallest pattern that solves the slice:
 
-1. Recover truth from repo/GitHub/CI and identify the contract/spec.
+1. Recover truth from the pinned spec corpus, then repo/GitHub/CI, and identify the contract/spec.
 2. Build a task DAG; parallelize only independent file/contract areas.
 3. Give each worker exact inputs, allowed files, required gates, and stop conditions.
 4. Integrate from evidence, not transcript claims.
@@ -27,9 +27,9 @@ Material optimization means a change that improves correctness, traceability, se
 ## Truth-Recovery
 
 ```text
-Recover current truth from the Weave repo, GitHub issues/PRs, and CI/evidence.
+Recover current truth from the pinned Weave Specification Corpus, then the Weave repo, GitHub issues/PRs, and CI/evidence.
 Do not rely on chat memory except as orientation.
-Return: branch, relevant docs/specs, open PRs/issues, latest CI/evidence, blockers, smallest safe next slice.
+Return: spec corpus commit/IDs, branch, relevant conformance docs/specs, open PRs/issues, latest CI/evidence, blockers, smallest safe next slice.
 Do not modify files.
 ```
 
@@ -99,7 +99,7 @@ Return:
 ```text
 Plan a real Weave sprint from the governing spec.
 Inputs: <spec.md/plan.md/tasks.md/docs/issues>.
-Do first: recover truth from main, specs, GitHub issues/PRs, CI/evidence.
+Do first: recover truth from the pinned spec corpus, then main, repo conformance specs, GitHub issues/PRs, CI/evidence.
 Output: sprint goal, issue DAG, PR train order, required roles, required gates, merge authorization status, product-core blockers.
 If issues are missing and GitHub access is available, create/update them with dependency notes and parallel/sequential labels.
 Do not implement yet.
