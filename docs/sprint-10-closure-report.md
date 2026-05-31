@@ -2,7 +2,7 @@
 
 ## Governing scope
 
-Sprint 10 closes the readiness debt discovered after the Sprint 8/9 audit. The sprint is governed by GitHub milestone 10 and issues #466–#477, repo-local specs, the acceptance contract mapping, and executable Gradle gates.
+Sprint 10 closes the readiness debt discovered after the Sprint 8/9 audit. The sprint is governed by GitHub milestone 10 and issues #466–#477, transitional repo-local conformance specs, the acceptance contract mapping, and executable Gradle gates.
 
 ## Issue DAG final state
 
