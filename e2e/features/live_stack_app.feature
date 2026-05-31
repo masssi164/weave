@@ -57,3 +57,11 @@ Feature: Live Stack product acceptance journey
     When the person creates, moves, and completes a task without drag-and-drop
     Then the board still uses Weave product task concepts
     And mapped accessibility evidence covers screen-reader summaries, tap targets, large text, and action-menu alternatives
+
+  @weave-live-provider-reality-vertical
+  Scenario: Provider reality vertical reports domain availability honestly
+    Given the signed-in person uses provider-backed Weave domains
+    When Weave checks capability reality across files, calendar, boards, calls, and documents
+    Then files, calendar, and boards are backed by live backend paths
+    And calls and documents are either available or honestly unavailable with member-safe fallback copy
+    And provider reality evidence separates live-runtime checks from offline accessibility and release evidence

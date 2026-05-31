@@ -171,6 +171,26 @@ class DomainAdapterRegistryMapperTest {
     }
 
     @Test
+    void providerCapabilityContractsUseCanonicalRegistryCandidateKeys() {
+        assertThat(ProviderCapabilityContracts.contract("calendar", Set.of(ProviderModule.CALENDAR)).externalAdapters())
+                .contains("weave-calendar")
+                .doesNotContain("workspace-calendar", "team-channel-calendar");
+        assertThat(ProviderCapabilityContracts.contract("documents-collaboration", Set.of(ProviderModule.OFFICE)).defaultAdapters())
+                .containsExactly("onlyoffice");
+        assertThat(ProviderCapabilityContracts.contract("documents-collaboration", Set.of(ProviderModule.OFFICE)).externalAdapters())
+                .contains("collabora", "microsoft-365-office")
+                .doesNotContain("onlyoffice-community", "collabora-code", "microsoft-365-office-graph");
+    }
+
+    @Test
+    void providerRealityLevelPriorityComparatorIsExplicitAndNotEnumOrdinalDependent() {
+        assertThat(ProviderRealityLevel.priorityComparator().compare(
+                ProviderRealityLevel.LIVE_ADAPTER_WRITE,
+                ProviderRealityLevel.LIVE_ADAPTER_READ)).isPositive();
+        assertThat(ProviderRealityLevel.RELEASE_READY.priority()).isGreaterThan(ProviderRealityLevel.MIGRATION_APPLY_READY.priority());
+    }
+
+    @Test
     void mapperDoesNotMarkMisconfiguredActiveAdapterAsConfigured() {
         var category = category("files", ProviderCategoryReadiness.MISCONFIGURED);
 
@@ -196,6 +216,9 @@ class DomainAdapterRegistryMapperTest {
                 category,
                 ProviderCapabilityContracts.contract(category, Set.of(module)),
                 readiness,
+                ProviderRealityLevel.RELEASE_READY,
+                readiness == ProviderCategoryReadiness.READY ? "available" : "not_configured",
+                "Release-ready provider: keep policy, readiness, support-safe diagnostics, and release evidence current.",
                 WorkspaceCapabilityPolicyState.ALLOWED,
                 "Files are available through Weave.",
                 List.of("files"),
@@ -231,6 +254,8 @@ class DomainAdapterRegistryMapperTest {
                 active,
                 configured,
                 readiness,
+                active ? ProviderRealityLevel.RELEASE_READY : ProviderRealityLevel.CONTRACT_ONLY,
+                active ? "Release-ready provider." : "Candidate is inactive until admin selection and evidence promotion.",
                 List.of("dry-run"),
                 List.of("support-safe"),
                 true,

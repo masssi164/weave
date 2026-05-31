@@ -17,6 +17,7 @@ void main() {
         'Non-negotiable pass criteria',
         'Release accounting',
         'Sprint 4 dogfood evidence gate',
+        'Sprint 11 provider-reality accessibility replacement scope',
       ]) {
         expect(
           markdown,
@@ -38,6 +39,8 @@ void main() {
         'Decision Ledger',
         'Meeting Capsule',
         'Weaver Scout',
+        'Provider apply and recovery gates',
+        'Member domain provider reality',
       ]) {
         expect(
           markdown,
@@ -59,6 +62,30 @@ void main() {
         );
       }
     });
+
+    test(
+      'tracks Sprint 11 manual replacement evidence without treating it as a pass',
+      () {
+        final template = File(
+          '../docs/evidence/sprint-11-manual-accessibility-evidence-template.md',
+        );
+        expect(template.existsSync(), isTrue);
+
+        final templateMarkdown = template.readAsStringSync();
+        expect(templateMarkdown, contains('Issues: #480, #489'));
+        expect(
+          templateMarkdown,
+          contains(
+            'This file is not pass evidence until every result cell is completed',
+          ),
+        );
+        expect(templateMarkdown, contains('Provider apply and recovery gates'));
+        expect(
+          templateMarkdown,
+          contains('Member domain surfaces provider reality'),
+        );
+      },
+    );
 
     test('keeps the gate tied to executable validation commands', () {
       final markdown = checklist.readAsStringSync();

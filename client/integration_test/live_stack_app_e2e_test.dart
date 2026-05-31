@@ -845,6 +845,69 @@ void main() {
         'nonDragMutationWorked=$boardsNonDragMutationWorked',
       );
 
+      final organizationManifest = _decodeHttpJson(
+        await liveHttpClient.get(
+          config.apiUri('/api/v1/organization/manifest'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+          },
+        ),
+        operation: 'read member organization manifest provider reality',
+      );
+      final workspaceCapabilities = _jsonMap(
+        organizationManifest['capabilities'],
+      );
+      final memberCapabilityStates = _jsonMap(
+        organizationManifest['memberCapabilityStates'],
+      );
+      final filesCapability = _jsonMap(workspaceCapabilities['files']);
+      final calendarCapability = _jsonMap(workspaceCapabilities['calendar']);
+      final boardsCapability = _jsonMap(workspaceCapabilities['boards']);
+      final callsCapability = _jsonMap(workspaceCapabilities['meetingsCalls']);
+      final documentsCapability = _jsonMap(
+        workspaceCapabilities['documentsCollaboration'],
+      );
+      final capabilityRealitySupportSafe =
+          organizationManifest['supportSafe'] == true &&
+          organizationManifest['providerConfigurationExposed'] != true &&
+          organizationManifest['diagnosticsExposed'] != true &&
+          _capabilityStateSupportSafe(filesCapability) &&
+          _capabilityStateSupportSafe(calendarCapability) &&
+          _capabilityStateSupportSafe(boardsCapability) &&
+          _capabilityStateSupportSafe(callsCapability) &&
+          _capabilityStateSupportSafe(documentsCapability);
+      final providerRealityStatesHonest = _memberCapabilityStatesAreHonest(
+        memberCapabilityStates,
+      );
+      final providerRealityBacksLivePaths =
+          filesFacadeConnected &&
+          calendarReadReady &&
+          calendarWritePathValid &&
+          boardsProviderNeutral &&
+          boardsNonDragMutationWorked;
+      final callsAvailableOrHonestUnavailable = _availableOrHonestFallback(
+        callsCapability,
+      );
+      final documentsAvailableOrHonestUnavailable = _availableOrHonestFallback(
+        documentsCapability,
+      );
+      // ignore: avoid_print
+      print(
+        'PROVIDER_REALITY_RESULT '
+        'files=${_capabilityEvidence(filesCapability)} '
+        'calendar=${_capabilityEvidence(calendarCapability)} '
+        'boards=${_capabilityEvidence(boardsCapability)} '
+        'calls=${_capabilityEvidence(callsCapability)} '
+        'documents=${_capabilityEvidence(documentsCapability)} '
+        'memberStates=${_memberCapabilityEvidence(memberCapabilityStates)} '
+        'livePathsBacked=$providerRealityBacksLivePaths '
+        'callsAvailableOrHonestUnavailable=$callsAvailableOrHonestUnavailable '
+        'documentsAvailableOrHonestUnavailable=$documentsAvailableOrHonestUnavailable '
+        'supportSafe=$capabilityRealitySupportSafe '
+        'honestStates=$providerRealityStatesHonest',
+      );
+
       if (!matrixConnected ||
           !e2eeCryptoAvailable ||
           !e2eeSecurityReady ||
@@ -862,7 +925,12 @@ void main() {
           !providerRegistryBodySupportSafe ||
           !profileReadinessOk ||
           !boardsProviderNeutral ||
-          !boardsNonDragMutationWorked) {
+          !boardsNonDragMutationWorked ||
+          !providerRealityBacksLivePaths ||
+          !callsAvailableOrHonestUnavailable ||
+          !documentsAvailableOrHonestUnavailable ||
+          !capabilityRealitySupportSafe ||
+          !providerRealityStatesHonest) {
         fail(
           'live_e2e_result '
           'authSignedIn=true '
@@ -908,7 +976,12 @@ void main() {
           'profileReadinessOk=$profileReadinessOk '
           'boardsProviderNeutral=$boardsProviderNeutral '
           'boardsNonDragMutationWorked=$boardsNonDragMutationWorked '
-          'boardsTaskId=$taskId',
+          'boardsTaskId=$taskId '
+          'providerRealityBacksLivePaths=$providerRealityBacksLivePaths '
+          'callsAvailableOrHonestUnavailable=$callsAvailableOrHonestUnavailable '
+          'documentsAvailableOrHonestUnavailable=$documentsAvailableOrHonestUnavailable '
+          'capabilityRealitySupportSafe=$capabilityRealitySupportSafe '
+          'providerRealityStatesHonest=$providerRealityStatesHonest',
         );
       }
 
@@ -942,6 +1015,11 @@ void main() {
       expect(profileReadinessOk, isTrue);
       expect(boardsProviderNeutral, isTrue);
       expect(boardsNonDragMutationWorked, isTrue);
+      expect(providerRealityBacksLivePaths, isTrue);
+      expect(callsAvailableOrHonestUnavailable, isTrue);
+      expect(documentsAvailableOrHonestUnavailable, isTrue);
+      expect(capabilityRealitySupportSafe, isTrue);
+      expect(providerRealityStatesHonest, isTrue);
     },
     semanticsEnabled: false,
   );
@@ -1026,6 +1104,95 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 }
 
 String _jsonString(Object? value) => value is String ? value : '';
+
+String _capabilityEvidence(Map<String, dynamic> capability) {
+  final enabled = capability['enabled'] == true;
+  final readiness = _jsonString(capability['readiness']);
+  final policyState = _jsonString(capability['policyState']);
+  final impactPresent = _jsonString(capability['memberImpact']).isNotEmpty;
+  return 'enabled=$enabled,readiness=$readiness,policy=$policyState,impact=$impactPresent';
+}
+
+bool _capabilityStateSupportSafe(Map<String, dynamic> capability) {
+  final allowedKeys = <String>{
+    'enabled',
+    'readiness',
+    'policyState',
+    'profileKey',
+    'memberImpact',
+    'grantedCapabilities',
+  };
+  if (capability.isEmpty ||
+      capability.keys.any((key) => !allowedKeys.contains(key))) {
+    return false;
+  }
+  final impact = _jsonString(capability['memberImpact']);
+  return !RegExp(
+    r'(Authorization|Bearer|token|secret|password|https?://|/api/v3/|SecretRef|secretref://)',
+    caseSensitive: false,
+  ).hasMatch(impact);
+}
+
+bool _availableOrHonestFallback(Map<String, dynamic> capability) {
+  final enabled = capability['enabled'] == true;
+  final readiness = _jsonString(capability['readiness']);
+  final policyState = _jsonString(capability['policyState']);
+  final impactPresent = _jsonString(capability['memberImpact']).isNotEmpty;
+  if (enabled && readiness == 'ready' && policyState == 'allowed') {
+    return impactPresent;
+  }
+  if (impactPresent &&
+      readiness == 'degraded' &&
+      <String>{'allowed', 'unavailable'}.contains(policyState)) {
+    return true;
+  }
+  return impactPresent &&
+      <String>{'blocked', 'unavailable'}.contains(readiness) &&
+      <String>{
+        'policyBlocked',
+        'policy_blocked',
+        'disabled',
+        'unavailable',
+      }.contains(policyState);
+}
+
+const Set<String> _requiredMemberCapabilityStateKeys = <String>{
+  'idm-rbac',
+  'chat-channels',
+  'files-docs',
+  'calendar-events',
+  'boards-tasks',
+  'meetings',
+  'forms-contacts',
+};
+
+const Set<String> _honestMemberCapabilityStates = <String>{
+  'available',
+  'disabled_by_policy',
+  'not_configured',
+  'degraded',
+  'unavailable',
+  'coming_later',
+};
+
+bool _memberCapabilityStatesAreHonest(Map<String, dynamic> states) {
+  if (!states.keys.toSet().containsAll(_requiredMemberCapabilityStateKeys)) {
+    return false;
+  }
+  for (final key in _requiredMemberCapabilityStateKeys) {
+    final state = _jsonString(states[key]);
+    if (!_honestMemberCapabilityStates.contains(state)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+String _memberCapabilityEvidence(Map<String, dynamic> states) {
+  return _requiredMemberCapabilityStateKeys
+      .map((key) => '$key=${_jsonString(states[key])}')
+      .join(',');
+}
 
 String _supportSafeDiagnostic(Object? error) {
   if (error == null) {

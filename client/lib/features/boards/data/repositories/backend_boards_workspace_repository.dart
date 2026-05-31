@@ -200,11 +200,37 @@ class BackendBoardsWorkspaceRepository implements BoardsWorkspaceRepository {
   }
 
   void _requireMutationSuccess(http.Response response) {
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AppFailure.unknown(
-        'The Weave backend did not accept the Boards workspace task action.',
-        cause: response.statusCode,
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return;
+    }
+
+    final code = _errorCode(response.body);
+    if (response.statusCode == 409 || code == 'boards-conflict') {
+      throw AppFailure.validation(
+        'Task changed somewhere else. Refresh the board and try the action again.',
+        cause: code ?? 'boards-conflict',
       );
+    }
+    if (code == 'boards-unsupported_capability') {
+      throw AppFailure.validation(
+        'This board provider cannot apply that action yet. Use a supported move or ask an admin to check provider readiness.',
+        cause: code,
+      );
+    }
+    throw AppFailure.unknown(
+      'The Weave backend did not accept the Boards workspace task action.',
+      cause: response.statusCode,
+    );
+  }
+
+  String? _errorCode(String body) {
+    try {
+      final payload = jsonDecode(body);
+      return payload is Map<String, dynamic>
+          ? payload['code'] as String?
+          : null;
+    } catch (_) {
+      return null;
     }
   }
 

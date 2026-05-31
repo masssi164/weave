@@ -329,9 +329,11 @@ public class CalDavCalendarAdapter implements CalendarAdapter {
     }
 
     private CalendarAdapterException mapStatus(int status, String operation, String href) {
-        Map<String, Object> details = href == null
-                ? Map.of("module", "calendar", "operation", operation, "downstreamStatus", status)
-                : Map.of("module", "calendar", "operation", operation, "downstreamStatus", status, "href", href);
+        Map<String, Object> details = Map.of(
+                "module", "calendar",
+                "operation", operation,
+                "downstreamStatus", status,
+                "providerPathRedacted", href != null);
         if (status == 401 || status == 403) {
             return new CalendarAdapterException(
                     CalendarAdapterException.Type.AUTH_FAILED,

@@ -63,6 +63,7 @@ Required runtime markers for the v0.1 dogfood candidate:
 - `PROVIDER_STACK_RESULT`
 - `CALENDAR_RESULT`
 - `BOARDS_RESULT`
+- `PROVIDER_REALITY_RESULT`
 
 The live lane validates product flows. It must not become a junk drawer for admin/control-plane assertions. Admin/provider readiness can be part of the product evidence only when it is consumed through stable backend-owned facades and support-safe member/operator states.
 

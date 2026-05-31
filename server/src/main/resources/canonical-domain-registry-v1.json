@@ -122,7 +122,16 @@
         "nested_groups",
         "guest_identity",
         "last_admin_lockout"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "keycloak-realm": "release_ready",
+        "generic-oidc": "release_ready",
+        "generic-saml": "contract_only",
+        "scim-ldap": "contract_only",
+        "entra-id": "contract_only",
+        "authentik": "contract_only",
+        "auth0": "contract_only"
+      }
     },
     {
       "key": "people",
@@ -202,7 +211,13 @@
         "duplicate_profile",
         "guest_lifecycle",
         "visibility_rules"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "scim-directory": "contract_only",
+        "oidc-profile": "contract_only",
+        "ldap-directory": "contract_only",
+        "weave-directory": "contract_only"
+      }
     },
     {
       "key": "spaces",
@@ -287,7 +302,15 @@
         "partial_provisioning",
         "renamed_upstream_container",
         "membership_drift"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "weave-space-manifest": "contract_only",
+        "matrix-space": "contract_only",
+        "teams-team": "contract_only",
+        "slack-workspace": "contract_only",
+        "openproject-project": "contract_only",
+        "nextcloud-folder": "contract_only"
+      }
     },
     {
       "key": "chat",
@@ -368,7 +391,13 @@
         "e2ee_recovery",
         "attachment_retention",
         "mentions_and_cards"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "synapse-homeserver": "release_ready",
+        "microsoft-teams": "contract_only",
+        "slack": "contract_only",
+        "nextcloud-talk": "contract_only"
+      }
     },
     {
       "key": "files",
@@ -454,7 +483,14 @@
         "locks",
         "quota",
         "binary_transfer"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "nextcloud-files": "release_ready",
+        "sharepoint": "contract_only",
+        "onedrive": "contract_only",
+        "s3-compatible": "live_adapter_write",
+        "smb": "live_adapter_write"
+      }
     },
     {
       "key": "documents",
@@ -535,7 +571,13 @@
         "coauthoring_fidelity",
         "comments_suggestions",
         "external_share_links"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "collabora": "contract_only",
+        "onlyoffice": "contract_only",
+        "microsoft-365-office": "contract_only",
+        "google-workspace-docs": "contract_only"
+      }
     },
     {
       "key": "calendar",
@@ -616,7 +658,14 @@
         "attendee_responses",
         "resource_booking",
         "meeting_links"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "nextcloud-caldav": "release_ready",
+        "microsoft-graph-calendar": "contract_only",
+        "google-workspace-calendar": "contract_only",
+        "generic-caldav": "live_adapter_read",
+        "weave-calendar": "contract_only"
+      }
     },
     {
       "key": "boards",
@@ -702,7 +751,15 @@
         "multi_assignee",
         "comments_attachments",
         "optimistic_locking"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "openproject-primary": "release_ready",
+        "placeholder-boards": "contract_only",
+        "jira": "contract_only",
+        "microsoft-planner": "contract_only",
+        "nextcloud-deck": "live_adapter_read",
+        "vikunja": "contract_only"
+      }
     },
     {
       "key": "calls",
@@ -786,7 +843,15 @@
         "token_grants",
         "accessibility",
         "external_link_ownership"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "livekit": "configured_readiness",
+        "jitsi": "contract_only",
+        "zoom": "contract_only",
+        "microsoft-teams-meetings": "contract_only",
+        "google-meet": "contract_only",
+        "external-meeting-link": "contract_only"
+      }
     },
     {
       "key": "decisions",
@@ -867,7 +932,13 @@
         "stale_links",
         "conflicting_sources",
         "permissioned_rationale"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "weave-decision-ledger": "contract_only",
+        "openproject-wiki": "contract_only",
+        "nextcloud-docs": "contract_only",
+        "github-issues": "contract_only"
+      }
     },
     {
       "key": "notifications",
@@ -948,7 +1019,16 @@
         "unsubscribe_semantics",
         "cross_provider_identity",
         "rate_limits"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "weave-notifications": "contract_only",
+        "email-smtp": "contract_only",
+        "push": "contract_only",
+        "matrix-notifications": "contract_only",
+        "slack-notifications": "contract_only",
+        "teams-notifications": "contract_only",
+        "webhook": "contract_only"
+      }
     },
     {
       "key": "health",
@@ -1030,7 +1110,12 @@
         "secret_redaction",
         "false_green_state",
         "missing_restore_evidence"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "weave-health-facade": "contract_only",
+        "provider-stack-health": "contract_only",
+        "release-evidence": "contract_only"
+      }
     },
     {
       "key": "weaver",
@@ -1109,7 +1194,18 @@
         "cross_user_data_bleed",
         "group_chat_consent",
         "unaudited_actions"
-      ]
+      ],
+      "providerRealityLevelByCandidate": {
+        "openclaw-derived-profile": "contract_only"
+      }
     }
+  ],
+  "providerRealityLevels": [
+    "contract_only",
+    "configured_readiness",
+    "live_adapter_read",
+    "live_adapter_write",
+    "migration_apply_ready",
+    "release_ready"
   ]
 }
