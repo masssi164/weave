@@ -17,6 +17,16 @@ enum ProviderCategoryReadiness {
   unknown,
 }
 
+enum ProviderRealityLevel {
+  contractOnly,
+  configuredReadiness,
+  liveAdapterRead,
+  liveAdapterWrite,
+  migrationApplyReady,
+  releaseReady,
+  unknown,
+}
+
 class ProviderStackSnapshot {
   const ProviderStackSnapshot({
     required this.releaseStatus,
@@ -60,6 +70,10 @@ class ProviderCategoryStatusSnapshot {
     required this.label,
     this.contract = const ProviderCategoryContractSnapshot(),
     required this.readiness,
+    this.providerRealityLevel = ProviderRealityLevel.unknown,
+    this.memberCapabilityState = 'unavailable',
+    this.realityLevelRemediation =
+        'Admin review is required before member availability.',
     required this.policyState,
     required this.memberImpact,
     required this.modules,
@@ -77,6 +91,9 @@ class ProviderCategoryStatusSnapshot {
   final String label;
   final ProviderCategoryContractSnapshot contract;
   final ProviderCategoryReadiness readiness;
+  final ProviderRealityLevel providerRealityLevel;
+  final String memberCapabilityState;
+  final String realityLevelRemediation;
   final String policyState;
   final String memberImpact;
   final List<String> modules;
@@ -92,6 +109,10 @@ class ProviderCategoryStatusSnapshot {
   bool get supportSafe =>
       diagnostics['secretsReturned'] == false &&
       diagnostics['rawProviderErrorsReturned'] == false;
+
+  bool get memberAvailable =>
+      memberCapabilityState == 'available' &&
+      providerRealityLevel == ProviderRealityLevel.releaseReady;
 }
 
 class ProviderAdapterReadinessEvidenceSnapshot {
@@ -101,6 +122,7 @@ class ProviderAdapterReadinessEvidenceSnapshot {
     required this.configured,
     required this.reachable,
     required this.health,
+    this.providerRealityLevel = ProviderRealityLevel.unknown,
     required this.failClosed,
     required this.supportSafeDiagnostics,
     this.evidenceTimestamp,
@@ -111,6 +133,7 @@ class ProviderAdapterReadinessEvidenceSnapshot {
   final bool configured;
   final bool reachable;
   final String health;
+  final ProviderRealityLevel providerRealityLevel;
   final bool failClosed;
   final Map<String, Object?> supportSafeDiagnostics;
   final DateTime? evidenceTimestamp;
@@ -181,6 +204,7 @@ class ProviderStatusSnapshot {
     required this.supportSafeErrorCodes,
     required this.redactionPolicy,
     required this.candidates,
+    this.providerRealityLevel = ProviderRealityLevel.unknown,
     this.diagnostics = const <String, Object?>{},
   });
 
@@ -200,9 +224,14 @@ class ProviderStatusSnapshot {
   final List<String> supportSafeErrorCodes;
   final String redactionPolicy;
   final List<String> candidates;
+  final ProviderRealityLevel providerRealityLevel;
   final Map<String, Object?> diagnostics;
 
-  bool get available => enabled && configured && state == ProviderState.ready;
+  bool get available =>
+      enabled &&
+      configured &&
+      state == ProviderState.ready &&
+      providerRealityLevel == ProviderRealityLevel.releaseReady;
 
   bool get disabled => !enabled || state == ProviderState.disabled;
 

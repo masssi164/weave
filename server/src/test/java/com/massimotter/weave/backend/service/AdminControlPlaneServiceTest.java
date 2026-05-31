@@ -18,6 +18,7 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateReques
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
+import com.massimotter.weave.backend.provider.ProviderSelection;
 import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
@@ -396,6 +397,37 @@ class AdminControlPlaneServiceTest {
         assertThat(unavailable.providerMutationPerformed()).isFalse();
     }
 
+
+    @Test
+    void providerSelectionPersistencePostureReflectsRepositoryBackingStore() {
+        InMemoryProviderSelectionRepository selectionRepository = new InMemoryProviderSelectionRepository();
+        selectionRepository.save(new ProviderSelection(
+                "chat",
+                "synapse-homeserver",
+                "recommended_self_hosted_default",
+                "secretref://weave/provider/synapse-homeserver",
+                "actor:admin-123",
+                Instant.parse("2026-05-31T08:00:00Z"),
+                true,
+                true,
+                false,
+                List.of()));
+        WorkspaceCapabilityService workspaceCapabilityService = workspaceCapabilityService();
+        ProviderRegistry providerRegistry = new ProviderRegistry(List.of(), workspaceCapabilityService, selectionRepository);
+        AdminControlPlaneService service = new AdminControlPlaneService(
+                providerRegistry,
+                workspaceCapabilityService,
+                selectionRepository,
+                new InMemoryOrganizationBootstrapRepository(),
+                new InMemoryAuditEventPublisher(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
+
+        var response = service.overview(jwt("admin"));
+
+        assertThat(response.selectedProviderMappings())
+                .singleElement()
+                .satisfies(selection -> assertThat(selection.persistencePosture()).isEqualTo("in-memory-volatile"));
+    }
 
     @Test
     void checkedInApplyFixtureIsSupportSafeDecisionOnlyEvidence() throws Exception {

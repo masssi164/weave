@@ -9,4 +9,8 @@ public interface ProviderSelectionRepository {
     List<ProviderSelection> findAll();
 
     ProviderSelection save(ProviderSelection selection);
+
+    default String persistencePosture() {
+        return "in-memory-volatile";
+    }
 }

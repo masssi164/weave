@@ -183,7 +183,7 @@ class AdminControlPlaneControllerTest {
         providerSelectionRepository.save(selection("calendar", "nextcloud-caldav", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("boards-tasks", "openproject-primary", "recommended_self_hosted_default"));
         providerSelectionRepository.save(selection("meetings-calls", "livekit", "recommended_self_hosted_default"));
-        providerSelectionRepository.save(selection("documents-collaboration", "onlyoffice-community", "recommended_self_hosted_default"));
+        providerSelectionRepository.save(selection("documents-collaboration", "onlyoffice", "recommended_self_hosted_default"));
     }
 
     private ProviderSelection selection(String category, String providerKey, String choiceModel) {
@@ -746,18 +746,18 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/providers/selections")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"category\":\"weaver\",\"providerKey\":\"openclaw-governed-runtime\",\"choiceModel\":\"managed_cloud_provider\",\"secretRef\":\"secretref://weave/provider/openclaw-governed-runtime\",\"reason\":\"governed runtime pilot\"}"))
+                        .content("{\"category\":\"weaver\",\"providerKey\":\"openclaw-derived-profile\",\"choiceModel\":\"managed_cloud_provider\",\"secretRef\":\"secretref://weave/provider/openclaw-derived-profile\",\"reason\":\"governed runtime pilot\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.category").value("weaver"))
-                .andExpect(jsonPath("$.providerKey").value("openclaw-governed-runtime"))
+                .andExpect(jsonPath("$.providerKey").value("openclaw-derived-profile"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.migrationDryRunRequired").value(true));
 
         mockMvc.perform(get("/api/admin/control-plane").with(adminJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].selectedByAdmin", hasItems(true)))
-                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].selectedProviderKey", hasItems("openclaw-governed-runtime")))
-                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].providerCandidates[*]", hasItems("openclaw-governed-runtime")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].selectedProviderKey", hasItems("openclaw-derived-profile")))
+                .andExpect(jsonPath("$.categories[?(@.category == 'weaver')].providerCandidates[*]", hasItems("openclaw-derived-profile")))
                 .andExpect(content().string(not(containsString("raw provider"))));
     }
 

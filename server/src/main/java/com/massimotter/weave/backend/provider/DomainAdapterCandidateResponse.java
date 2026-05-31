@@ -11,6 +11,8 @@ public record DomainAdapterCandidateResponse(
         boolean active,
         boolean configured,
         ProviderCategoryReadiness readiness,
+        ProviderRealityLevel providerRealityLevel,
+        String realityLevelRemediation,
         List<String> migrationSupport,
         List<String> riskNotes,
         boolean supportSafe,
@@ -20,6 +22,8 @@ public record DomainAdapterCandidateResponse(
         adapterKey = requireText(adapterKey, "adapterKey");
         choiceModel = requireText(choiceModel, "choiceModel");
         readiness = readiness == null ? ProviderCategoryReadiness.DISABLED : readiness;
+        providerRealityLevel = providerRealityLevel == null ? ProviderRealityLevel.CONTRACT_ONLY : providerRealityLevel;
+        realityLevelRemediation = requireText(realityLevelRemediation == null ? "Admin review is required before member availability." : realityLevelRemediation, "realityLevelRemediation");
         migrationSupport = migrationSupport == null ? List.of() : List.copyOf(migrationSupport);
         riskNotes = riskNotes == null ? List.of() : List.copyOf(riskNotes);
         diagnostics = diagnostics == null ? Map.of() : Map.copyOf(diagnostics);

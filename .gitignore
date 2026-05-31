@@ -53,6 +53,9 @@ app.*.map.json
 # AI Agent Skills
 .dart_skills/
 
+# Local runtime persistence from server smoke/test runs
+server/data/
+
 # Local assistant state
 .openclaw/
 memory/
