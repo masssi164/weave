@@ -12,6 +12,22 @@ Weaver is an optional per-user personal-assistant runtime. It is generated from 
 - **Policy source**: Admin Console policy plus IDM/RBAC group/user grants plus member opt-in where allowed.
 - **Secret posture**: SecretRefs only. Raw provider tokens, downstream payloads, service endpoints, and secret values never appear in the runtime profile, member client, logs, support bundles, screenshots, or release evidence.
 
+## RuntimeProfile and OpenClaw projection boundary
+
+The Weaver/OpenClaw fork consumes one signed `WeaverRuntimeProfile` from Weave. Weave remains the source of truth for domains, provider selection, policy, credentials, and audit; OpenClaw configuration is generated runtime output, not a member-managed product model.
+
+Required projection controls:
+
+- RuntimeProfile Loader renders internal `openclaw.json` from the signed Weave profile.
+- Normal members cannot edit `openclaw.json`, run the OpenClaw config wizard, manage gateway/channels/plugins/MCP/secrets/sandbox/exec/tool allowlists, or use raw dashboard controls for those areas.
+- Member-facing Weaver settings are limited to policy-allowed model aliases, style, memory/workspace preferences, allowed skills, and allowed personal MCP connection flows exposed by Weave.
+- Admin policy projects model defaults, fallbacks, and allowed aliases; users choose only among Weave aliases, not raw provider/model identifiers.
+- Admin Chat domain provider changes project into OpenClaw channel/plugin configuration. Matrix, Teams, iMessage, Slack, Telegram, and other OpenClaw channels/plugins are technical providers behind the Weave Chat domain, not member-swappable chat adapters.
+- MCP servers, skills, and tools are distributed through Weave policy. `tools.deny` is hard-deny; `bundle-mcp`, gateway, cron, exec, write, and patch-style capabilities remain default-deny unless the signed profile explicitly allows a constrained use.
+- OpenClaw Policy/Doctor output is conformance lint over generated settings. It is not a second source of truth.
+
+Correct Chat provider-change flow: Admin changes the Chat domain provider in Weave -> readiness/migration checks run -> Credential Broker binds new provider credentials -> signed RuntimeProfile vNext is generated -> OpenClaw channel/plugin projection changes -> the per-user runtime reloads or restarts -> the user continues through Weave UX.
+
 ## Disabled-by-default gates
 
 Runtime provisioning is fail-closed unless all gates pass:
@@ -26,14 +42,17 @@ If any gate fails, member surfaces show only `disabled_by_policy`, `not_configur
 
 ## Isolation boundary
 
-Each enabled user receives one isolated runtime boundary, or an implementation-equivalent hard isolation model, with:
+Each enabled active user/trust boundary receives one isolated runtime boundary, or an implementation-equivalent hard isolation model, with:
 
 - per-user workspace volume;
 - per-user memory store;
 - per-user session store;
+- separate runtime state and agent directory;
 - no access to another user's workspace, memory, or sessions;
 - no raw provider tokens;
-- only Weave-issued tool endpoints/grants;
+- only Weave API, Weave MCP Gateway, and allowed channel/MCP proxy access;
+- short-lived runtime tokens plus CredentialRefs, not stored provider secrets;
+- profile reload/restart and rollback to the previous signed profile on admin changes;
 - audit-required profile generation and tool invocation.
 
 ## Approval policy

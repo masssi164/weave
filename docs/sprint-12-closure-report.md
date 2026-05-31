@@ -10,6 +10,8 @@ Sprint 12 is incorporated through PR #517, merged to protected `main` as commit 
 
 The sprint added the provider-portability and lifecycle-readiness contracts needed before Weave can honestly promise provider replacement or later Weaver execution. It deliberately does not claim lossless migration, live production migration apply, broad Weaver runtime execution, or provider-specific UI ownership.
 
+Post-merge release-gate reconciliation incorporated the Weaver/OpenClaw RuntimeProfile decision: Weave remains source of truth for domains, admin policy, provider selection, credentials, and audit; the OpenClaw-derived Weaver runtime consumes a signed `WeaverRuntimeProfile` and renders internal config as implementation output only. Chat provider changes are admin-governed Weave Chat domain migrations that project into OpenClaw channel/plugin configuration, not member-swappable raw chat adapters. The executable implementation slice is tracked as Sprint 13 issue #519.
+
 ## Issue DAG final state
 
 | Issue | Scope | Final state |
@@ -57,9 +59,12 @@ Release-facing changes are documented in `docs/release-notes/unreleased.md` and 
 
 Next release action: publish the next prerelease candidate from protected `main` after closure report merge and green `main` CI. Production release still requires explicit production approval and release-owner signoff.
 
+The release candidate may keep Weaver runtime execution disabled by default while carrying the clarified RuntimeProfile/channel-projection boundary as release documentation. The missing loader/generator/broker/admin/client/infra implementation work is explicitly deferred to #519 and is not represented as shipped v0.1.0-rc.3 functionality.
+
 ## Non-goals and follow-ups
 
 - No production provider migration apply path was enabled.
 - No claim of lossless migration was introduced; the release promise is no unaccounted data loss.
 - No broad Weaver runtime execution was enabled; stronger sandbox evidence such as gVisor/runsc or Firecracker remains required before widening runtime claims.
 - Office/WOPI remains a documented provider path, not a shipped live Office editor surface.
+- #519 tracks the next governed Weaver RuntimeProfile slice: RuntimeProfile Loader, raw OpenClaw config lockdown, Chat channel/plugin projection, Credential Broker, admin model/chat/MCP/tool distribution, `Mein Weaver` member boundary, per-user container lifecycle, rollback, and audit fields.

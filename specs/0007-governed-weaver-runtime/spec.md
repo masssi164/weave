@@ -55,6 +55,11 @@ Define the first implementation-ready Weaver runtime contract without making Wea
 - **FR-010**: Admin/operator evidence MUST include policy posture and audit metadata, not private member memory content.
 - **FR-011**: Release evidence MUST capture OpenClaw fork/image digest/SBOM/scan references before any release claim.
 - **FR-012**: Weaver approval UX MUST be screen-reader accessible and must not rely on color-only state.
+- **FR-013**: A `WeaverRuntimeProfile` MUST be the only source consumed by the OpenClaw-derived Weaver runtime. The signed profile MUST include version, hash, revocation metadata, model aliases/defaults/fallbacks, domain provider projections, MCP/tool/skill grants, sandbox/tool-deny policy, CredentialRefs, and audit policy.
+- **FR-014**: Chat provider changes MUST be modeled as admin-governed Weave Chat domain provider migrations. The profile generator MUST project the selected Chat provider into OpenClaw channel/plugin configuration; members MUST NOT switch raw chat adapters or edit channel tokens.
+- **FR-015**: Raw OpenClaw configuration surfaces (`openclaw.json`, `openclaw config`, setup wizard, dashboard controls for gateway/channels/MCP/secrets/sandbox/exec/tool allowlists) MUST be disabled, read-only, or RBAC-stripped for normal members.
+- **FR-016**: Credential handling MUST use Weave Credential Broker references and short-lived runtime tokens. Weaver profiles, logs, prompts, support bundles, and release evidence MUST NOT contain provider secrets, OAuth refresh tokens, cookies, or credential-bearing provider URLs.
+- **FR-017**: Every model, channel, tool, MCP, and provider call MUST emit support-safe audit metadata containing at least `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef where applicable, and policy decision.
 
 ## Initial tool set
 
@@ -64,6 +69,32 @@ Define the first implementation-ready Weaver runtime contract without making Wea
 - `chat.search_messages` read-only or guarded by chat policy.
 - `notifications.create_action_request` guarded external-send.
 - `boards.comment` write-with-approval.
+
+## RuntimeProfile projection model
+
+The implementation projection for the Weaver/OpenClaw fork is intentionally one-way:
+
+1. Weave remains source of truth for domains, admin policy, provider selection, credentials, and audit.
+2. The server profile generator signs and versions a `WeaverRuntimeProfile` from that source of truth.
+3. The Weaver RuntimeProfile Loader renders internal `openclaw.json` and related channel/plugin/MCP/tool settings as runtime implementation detail.
+4. OpenClaw Policy/Doctor is used as a conformance lint gate over rendered settings, not as a second policy source.
+
+The minimum profile sections are:
+
+| Section | Requirement |
+| --- | --- |
+| Identity and profile metadata | Organization, user, profile version, `runtimeProfileHash`, expiry, revocation status, and previous-profile rollback pointer. |
+| Models | Admin-selected provider/model aliases, default, fallback order, and user-selectable aliases only. |
+| Domains and providers | Stable domain grants such as `chat.read`, `chat.send`, `files.read`, `calendar.read`, and `weaver.enabled`, plus providerRef bindings hidden from member UX. |
+| Chat channel projection | Selected Chat domain provider (`matrix`, `teams`, `imessage`, `slack`, etc.) rendered into OpenClaw channel/plugin configuration. Multiple channels may exist for one user runtime, but the admin-governed Weave Chat domain binding drives the projection. |
+| MCP, skills, and tools | Admin-distributed MCP servers/tools/skills only; personal MCPs only through a Weave-approved flow. `tools.deny` remains hard-deny and `bundle-mcp` is disabled unless the profile explicitly permits it. |
+| Credentials | CredentialRefs and short-lived runtime token references only; OAuth refresh/runtime credentials stay behind the Weave Credential Broker. |
+| Sandbox and runtime lifecycle | One active user/trust boundary per runtime context/container, separate workspace/state/agentDir, internal-only network targets, reload/restart on profile changes, and rollback to the previous signed profile. |
+| Audit | Required fields for model/channel/tool/MCP/provider calls and denied decisions. |
+
+Provider-change flow: Admin changes the Weave Chat domain provider -> server readiness and migration checks run -> Credential Broker binds new provider credentials -> `WeaverRuntimeProfile` vNext is generated and signed -> OpenClaw channel/plugin projection changes -> user runtime reloads or restarts -> member continues through Weave UX.
+
+This flow is tracked for the next implementation slice in issue #519 and is not a new Sprint 12 runtime-execution claim.
 
 ## Acceptance mapping
 

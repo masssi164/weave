@@ -204,6 +204,11 @@ Goal: plug the PA into an already-governed product.
   - tool/capability allowlist from admin policy;
   - sandbox defaults;
   - exec disabled or heavily restricted by default.
+- Generate that runtime config only from a signed Weave `WeaverRuntimeProfile`; `openclaw.json`, channel/plugin setup, MCP servers, model defaults/fallbacks, and tool filters are implementation output, not member UX or a second policy source.
+- Treat Chat provider changes as Weave Chat domain migrations. Admin Console selects Matrix, Teams, iMessage, Slack, Telegram, or another supported Chat provider; Weave runs readiness/migration checks, binds credentials through the Credential Broker, regenerates RuntimeProfile vNext, projects OpenClaw channel/plugin configuration, and reloads/restarts the user's runtime.
+- Keep raw OpenClaw dashboard/config/wizard surfaces locked down or RBAC-stripped for members. Member `Mein Weaver` settings may cover style, memory/workspace, admin-approved model aliases, allowed skills, and allowed personal MCP connection flows only.
+- Keep MCP servers, skills, `bundle-mcp`, gateway, cron, exec, write, and patch-style tools default-deny unless admin policy explicitly grants a constrained capability. `tools.deny` is the hard global deny layer.
+- Use CredentialRefs and short-lived runtime tokens only; provider secrets, OAuth refresh tokens, channel tokens, and MCP OAuth credentials live behind the Weave Credential Broker.
 - Add audit for Weaver capability usage.
 - Only fork OpenClaw where existing configuration/plugin hooks cannot enforce the required boundary.
 
@@ -212,6 +217,7 @@ Evidence gate:
 - Weaver cannot see or call capabilities not enabled by admin policy.
 - User workspace customization cannot escape org baseline.
 - Exec/elevated surfaces are disabled by default and require explicit admin policy.
+- Audit records include `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef where applicable, and decision for model/channel/tool/MCP calls.
 
 ## Cross-session tracking rule
 
