@@ -33,7 +33,7 @@ public class DisabledOfficeProvider implements OfficeProvider {
             true,
             false,
             "ONLYOFFICE Docs Community is the default candidate, but no office provider runtime/session bridge is configured.",
-            Set.of("view", "edit", "comment", "review", "form-fill", "docx", "xlsx", "pptx", "odt", "ods", "odp", "pdf-view"),
+            Set.of(),
             Set.of("launch-session", "credential-bearing-url", "document-server-token-exposure", "raw-provider-errors"),
             List.of("office-provider-not-configured", "office-provider-unavailable", "office-unsupported-mode"),
             "support-safe: no document-server JWTs, signed URLs, app passwords, bearer tokens, callbacks secrets, or raw provider errors",

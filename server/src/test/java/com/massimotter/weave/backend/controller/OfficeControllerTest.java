@@ -82,6 +82,8 @@ class OfficeControllerTest {
                 .andExpect(jsonPath("$.capabilities.review").value(false))
                 .andExpect(jsonPath("$.capabilities.formFill").value(false))
                 .andExpect(jsonPath("$.candidates[*].providerKey", hasItems("onlyoffice-community", "collabora-code")))
+                .andExpect(jsonPath("$.supportedFileTypes").isEmpty())
+                .andExpect(jsonPath("$.providerReadiness[0].supportedCapabilities").isEmpty())
                 .andExpect(jsonPath("$.providerReadiness[0].unsupportedOperations", hasItems("launch-session")))
                 .andExpect(jsonPath("$.providerReadiness[0].diagnostics").isEmpty())
                 .andExpect(jsonPath("$.providerReadiness[0].diagnostics.providerRealityLevel").doesNotExist())

@@ -226,6 +226,7 @@ class ProviderRegistryControllerTest {
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].failClosed", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'matrix-auth')].supportSafe", hasItems(true)))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].providerKey", hasItems("onlyoffice-community")))
+                .andExpect(jsonPath("$.providers[?(@.module == 'office')].supportedCapabilities[0]").isEmpty())
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.providerRealityLevel", hasItems("contract_only")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.memberImpact", hasItems("coming_later")))
                 .andExpect(jsonPath("$.providers[?(@.module == 'office')].diagnostics.missingReadinessPrerequisites[*]", hasItems(
