@@ -66,13 +66,22 @@ public class WeaverToolRegistry {
 
     private void audit(String userRef, String toolName, String status, Map<String, Object> payload) {
         Map<String, Object> safePayload = new LinkedHashMap<>(payload);
+        String safeUserRef = userRef == null || userRef.isBlank() ? "user:unknown" : userRef;
+        safePayload.putIfAbsent("runtimeProfileHash", "sha256:profile-hash-required-by-runtime-profile");
+        safePayload.putIfAbsent("user", safeUserRef);
         safePayload.put("toolName", toolName);
+        safePayload.putIfAbsent("tool", toolName);
+        safePayload.putIfAbsent("action", "tool.invoke");
+        safePayload.putIfAbsent("domain", "weaver-runtime");
+        safePayload.putIfAbsent("providerRef", "provider:domain-facade");
+        safePayload.putIfAbsent("credentialRef", "credentialref://weave/runtime/short-lived");
+        safePayload.putIfAbsent("decision", status);
         safePayload.put("status", status);
         safePayload.put("supportSafe", true);
         auditEventPublisher.publish(new AuditEvent(
                 "tenant:workspace",
                 null,
-                userRef == null || userRef.isBlank() ? "user:unknown" : userRef,
+                safeUserRef,
                 "weaver-tool-registry",
                 AuditAction.WEAVER_TOOL_INVOCATION_RECORDED,
                 Instant.now(),

@@ -35,6 +35,8 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.modelProvider()).isEqualTo("organization-default-model-profile");
         assertThat(profile.toolProvider()).isEqualTo("weave-domain-tool-registry");
         assertThat(profile.secretPosture()).isEqualTo("secretrefs-only-no-raw-provider-tokens");
+        assertThat(profile.revoked()).isTrue();
+        assertThat(profile.supportSafeProfileReceipt()).containsEntry("signed", true).containsEntry("containsRawSecrets", false);
         assertThat(profile.execEnabled()).isFalse();
         assertThat(profile.elevatedEnabled()).isFalse();
         assertThat(profile.auditRequired()).isTrue();
@@ -70,6 +72,12 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.toolProvider()).isEqualTo("weave-domain-tool-registry");
         assertThat(profile.userRef()).startsWith("user:");
         assertThat(profile.userRef()).doesNotContain("member@example.invalid");
+        assertThat(profile.profileVersion()).startsWith("v");
+        assertThat(profile.runtimeProfileHash()).startsWith("sha256:");
+        assertThat(profile.signature()).startsWith("weave-signature:v1:");
+        assertThat(profile.revoked()).isFalse();
+        assertThat(profile.revocationStatus()).isEqualTo("active");
+        assertThat(profile.previousProfileHash()).startsWith("sha256:");
         assertThat(profile.workspacePath()).startsWith("/var/lib/weave/weaver/");
         assertThat(profile.isolatedAgentDirectory()).isEqualTo(".weaver/agents");
         assertThat(profile.dockerNetworkMode()).isEqualTo("none");
@@ -80,14 +88,56 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.elevatedEnabled()).isFalse();
         assertThat(profile.auditRequired()).isTrue();
         assertThat(profile.forkRequired()).isFalse();
+        assertThat(profile.channelProjection())
+                .containsEntry("channelId", "channels.weave-chat")
+                .containsEntry("providerRef", "provider:chat:selected-by-admin")
+                .containsEntry("rawProviderChannelConfigsRendered", false)
+                .containsEntry("memberMaySwitchProviderAdapters", false);
+        assertThat(profile.credentialBrokerContract())
+                .containsEntry("broker", "weave-credential-broker")
+                .containsEntry("shortLivedAccess", true)
+                .containsEntry("supportSafeReceipts", true)
+                .containsEntry("rawProviderSecretsExported", false)
+                .containsEntry("oauthRefreshTokensExported", false);
+        assertThat(profile.auditPolicy().get("decisionKinds").toString())
+                .contains("profile", "model", "channel", "tool", "mcp", "reload", "revocation", "rollback");
+        assertThat(profile.supportSafeProfileReceipt())
+                .containsEntry("profileVersion", profile.profileVersion())
+                .containsEntry("runtimeProfileHash", profile.runtimeProfileHash())
+                .containsEntry("signature", profile.signature())
+                .containsEntry("signed", true)
+                .containsEntry("revoked", false)
+                .containsEntry("supportSafe", true);
         assertThat(profile.approvalPolicy()).contains("approval receipts");
         assertThat(profile.secretPosture()).isEqualTo("secretrefs-only-no-raw-provider-tokens");
         assertThat(profile.isolationBoundary()).isEqualTo("one-user-one-isolated-workspace-memory-session-store");
+        assertThat(profile.toString()).doesNotContain("refresh_token", "Bearer ", "xox", "sk-");
 
         assertThat(audit.events()).hasSize(1);
         assertThat(audit.events().get(0).action()).isEqualTo(AuditAction.WEAVER_RUNTIME_PROFILE_GENERATED);
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("runtimeProfileHash", profile.runtimeProfileHash())
+                .containsEntry("user", profile.userRef())
+                .containsEntry("tool", "runtime-profile-generator")
+                .containsEntry("action", "profile.generate")
+                .containsEntry("domain", "weaver-runtime")
+                .containsEntry("providerRef", "provider:chat:selected-by-admin")
+                .containsEntry("decision", "generated");
         assertThat(audit.events().get(0).payload()).containsEntry("supportSafe", true);
         assertThat(audit.events().get(0).payload()).containsEntry("execEnabled", false);
+    }
+
+    @Test
+    void regeneratesStableChatProjectionWhenProfileMetadataChanges() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+
+        var base = service.profileFor(jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot")));
+        var regenerated = service.profileFor(jwt("different-member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot")));
+
+        assertThat(regenerated.runtimeProfileHash()).isNotEqualTo(base.runtimeProfileHash());
+        assertThat(regenerated.channelProjection()).containsEntry("channelId", "channels.weave-chat");
+        assertThat(regenerated.channelProjection()).containsEntry("providerRef", "provider:chat:selected-by-admin");
+        assertThat(regenerated.supportSafeProfileReceipt()).containsEntry("regeneratesOnPolicyOrProviderChange", true);
     }
 
     private WeaverRuntimeService service(
