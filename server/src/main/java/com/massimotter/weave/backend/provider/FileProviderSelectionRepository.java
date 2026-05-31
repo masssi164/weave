@@ -62,10 +62,17 @@ public class FileProviderSelectionRepository implements ProviderSelectionReposit
             throw new IllegalArgumentException("Provider selection must not be null.");
         }
         synchronized (persistenceLock) {
+            Map<String, ProviderSelection> nextSelections = new TreeMap<>(selections);
+            nextSelections.put(normalizeCategory(selection.category()), selection);
+            persist(nextSelections);
             selections.put(normalizeCategory(selection.category()), selection);
-            persist();
             return selection;
         }
+    }
+
+    @Override
+    public String persistencePosture() {
+        return "durable-file-backed";
     }
 
     private void load() {
@@ -84,14 +91,14 @@ public class FileProviderSelectionRepository implements ProviderSelectionReposit
         }
     }
 
-    private void persist() {
+    private void persist(Map<String, ProviderSelection> nextSelections) {
         try {
             Path parent = storagePath.toAbsolutePath().getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
             Path tempFile = Files.createTempFile(parent, storagePath.getFileName().toString(), ".tmp");
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), new TreeMap<>(selections));
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), new TreeMap<>(nextSelections));
             try {
                 Files.move(tempFile, storagePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException atomicMoveFailure) {

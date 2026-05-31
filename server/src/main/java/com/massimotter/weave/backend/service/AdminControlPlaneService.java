@@ -1177,7 +1177,7 @@ public class AdminControlPlaneService {
                 selection.migrationDryRunRequired(),
                 selection.lossyMappingNotes(),
                 readiness,
-                "durable-file-backed",
+                providerSelectionRepository.persistencePosture(),
                 selection.selectedAt());
     }
 

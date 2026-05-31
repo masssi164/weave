@@ -57,16 +57,18 @@ public final class FileAuditEventPublisher implements AuditEventPublisher {
     }
 
     public List<AuditEvent> events() {
-        if (!Files.exists(storagePath)) {
-            return List.of();
-        }
-        try {
-            return Files.readAllLines(storagePath, StandardCharsets.UTF_8).stream()
-                    .filter(line -> line != null && !line.isBlank())
-                    .map(this::readEvent)
-                    .toList();
-        } catch (IOException exception) {
-            throw new AuditRequiredException("durable audit read failed for " + storagePath, exception);
+        synchronized (appendLock) {
+            if (!Files.exists(storagePath)) {
+                return List.of();
+            }
+            try {
+                return Files.readAllLines(storagePath, StandardCharsets.UTF_8).stream()
+                        .filter(line -> line != null && !line.isBlank())
+                        .map(this::readEvent)
+                        .toList();
+            } catch (IOException exception) {
+                throw new AuditRequiredException("durable audit read failed for " + storagePath, exception);
+            }
         }
     }
 

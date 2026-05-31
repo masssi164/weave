@@ -45,8 +45,10 @@ class FileMigrationRunEvidenceRepository implements MigrationRunEvidenceReposito
             throw new IllegalArgumentException("Migration run evidence must not be null.");
         }
         synchronized (persistenceLock) {
+            Map<String, MigrationRunEvidence> nextEvidence = new TreeMap<>(evidenceByRunAndDomain);
+            nextEvidence.put(key(evidence.runId(), evidence.domainKey()), evidence);
+            persist(nextEvidence);
             evidenceByRunAndDomain.put(key(evidence.runId(), evidence.domainKey()), evidence);
-            persist();
         }
     }
 
@@ -72,14 +74,14 @@ class FileMigrationRunEvidenceRepository implements MigrationRunEvidenceReposito
         }
     }
 
-    private void persist() {
+    private void persist(Map<String, MigrationRunEvidence> nextEvidence) {
         try {
             Path parent = storagePath.toAbsolutePath().getParent();
             if (parent != null) {
                 Files.createDirectories(parent);
             }
             Path tempFile = Files.createTempFile(parent, storagePath.getFileName().toString(), ".tmp");
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), new TreeMap<>(evidenceByRunAndDomain));
+            objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), new TreeMap<>(nextEvidence));
             try {
                 Files.move(tempFile, storagePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (IOException atomicMoveFailure) {
