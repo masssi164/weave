@@ -1,7 +1,8 @@
 # Implementation plan: Replace with title
 
-**Spec**: `specs/0000-slug/spec.md`  
-**Branch**: `type/short-slug`  
+**Spec corpus commit/ID**: `<commit> / <WEAVE-...>`
+**Repo conformance spec**: `specs/0000-slug/spec.md` when applicable
+**Branch**: `type/short-slug`
 **Date**: YYYY-MM-DD
 
 ## Summary
@@ -10,6 +11,7 @@ One paragraph: technical approach that satisfies the spec without expanding prod
 
 ## Constitution check
 
+- Spec corpus truth recovered from `specs/weave-specs.lock.json` and relevant corpus files: yes/no
 - Repo truth recovered from `main`, docs, GitHub issue/PR state, and CI evidence: yes/no
 - Product-first/provider-neutral boundary preserved: yes/no
 - Acceptance/evidence path identified before implementation: yes/no
@@ -67,6 +69,7 @@ Use specialists only when they reduce risk or parallelize independent files. Eac
 
 ## Final gates
 
+- `./gradlew specCorpusConformance`
 - `./gradlew specContract`
 - `./gradlew acceptanceContract`
 - Smallest area gate(s):
