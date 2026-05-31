@@ -551,11 +551,18 @@ class _TaskActionMenu extends StatelessWidget {
           );
       }
       ref.invalidate(boardsWorkspaceProvider);
-    } on AppFailure {
+    } on AppFailure catch (error) {
       messenger.showSnackBar(
-        SnackBar(content: Text(l10n.boardsWorkspaceActionFailed)),
+        SnackBar(content: Text(_actionFailureText(l10n, error))),
       );
     }
+  }
+
+  String _actionFailureText(AppLocalizations l10n, AppFailure error) {
+    return switch (error.type) {
+      AppFailureType.validation => error.message,
+      _ => l10n.boardsWorkspaceActionFailed,
+    };
   }
 }
 

@@ -66,18 +66,34 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
         return new BoardProviderCapabilities(
                 ProviderKind.OPEN_PROJECT,
                 enabled,
-                EnumSet.of(
-                        BoardCapability.INCREMENTAL_SYNC),
-                EnumSet.of(
-                        BoardCapability.COMMENTS,
-                        BoardCapability.ATTACHMENTS,
-                        BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
-                        BoardCapability.WEBHOOK_EVENTS,
-                        BoardCapability.CHECKLISTS,
-                        BoardCapability.CUSTOM_FIELDS,
-                        BoardCapability.ACCESSIBLE_NON_DRAG_MOVES),
+                runtimeGate.writeConfigured()
+                        ? EnumSet.of(
+                                BoardCapability.INCREMENTAL_SYNC,
+                                BoardCapability.STATUS_UPDATES,
+                                BoardCapability.ACCESSIBLE_NON_DRAG_MOVES)
+                        : EnumSet.of(
+                                BoardCapability.INCREMENTAL_SYNC),
+                runtimeGate.writeConfigured()
+                        ? EnumSet.of(
+                                BoardCapability.COMMENTS,
+                                BoardCapability.ATTACHMENTS,
+                                BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
+                                BoardCapability.WEBHOOK_EVENTS,
+                                BoardCapability.CHECKLISTS,
+                                BoardCapability.CUSTOM_FIELDS,
+                                BoardCapability.DECISION_LINKS)
+                        : EnumSet.of(
+                                BoardCapability.COMMENTS,
+                                BoardCapability.ATTACHMENTS,
+                                BoardCapability.NON_DESTRUCTIVE_ARCHIVE,
+                                BoardCapability.STATUS_UPDATES,
+                                BoardCapability.DECISION_LINKS,
+                                BoardCapability.WEBHOOK_EVENTS,
+                                BoardCapability.CHECKLISTS,
+                                BoardCapability.CUSTOM_FIELDS,
+                                BoardCapability.ACCESSIBLE_NON_DRAG_MOVES),
                 enabled
-                        ? "OpenProject is enabled for authenticated Boards workspace sync of projects, statuses, and work packages; comments, attachments, archive, and provider writes remain gated behind audit/consent promotion."
+                        ? "OpenProject is enabled for authenticated Boards workspace sync of projects, statuses, and work packages; status moves use OpenProject lockVersion optimistic locking when provider writes are promoted; comments, attachments, archive, and decision links remain unsupported."
                         : "OpenProject is the disabled Boards workspace-sync provider seam; Vikunja and Deck are comparison/fallback paths only.");
     }
 
@@ -139,11 +155,60 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
         throw unsupportedUntilPromotion("list-attachments", "attachments");
     }
 
-    @Override public TaskItem createTask(CreateTaskCommand command) { throw writeDisabled("create-task"); }
-    @Override public TaskItem moveTask(MoveTaskCommand command) { throw writeDisabled("move-task"); }
-    @Override public TaskItem completeTask(String taskId) { throw writeDisabled("complete-task"); }
-    @Override public TaskItem updateTaskStatus(String taskId, TaskStatus status, String targetColumnId) { throw writeDisabled("update-task-status"); }
-    @Override public TaskItem linkDecision(String taskId, String decisionRef) { throw writeDisabled("link-decision"); }
+    @Override
+    public TaskItem createTask(CreateTaskCommand command) {
+        throw unsupportedWrite("create-task", "create_task", "OpenProject task creation requires type/form-schema mapping that is not yet release-safe.");
+    }
+
+    @Override
+    public TaskItem moveTask(MoveTaskCommand command) {
+        runtimeGate.requireWriteAllowed("move-task");
+        long taskId = parseWeaveId(command.taskId(), "work-package", "move-task");
+        long statusId = parseWeaveId(command.targetColumnId(), "status", "move-task");
+        OpenProjectWorkPackageSnapshot current = workPackage(taskId, "move-task");
+        OpenProjectWorkPackageSnapshot updated = client.updateWorkPackage(
+                taskId,
+                current.lockVersion(),
+                statusId,
+                command.targetPosition(),
+                "move-task");
+        return mapper.toTask(updated, statusesById());
+    }
+
+    @Override
+    public TaskItem completeTask(String taskId) {
+        runtimeGate.requireWriteAllowed("complete-task");
+        long workPackageId = parseWeaveId(taskId, "work-package", "complete-task");
+        OpenProjectStatusSnapshot done = firstClosedStatus("complete-task");
+        OpenProjectWorkPackageSnapshot current = workPackage(workPackageId, "complete-task");
+        OpenProjectWorkPackageSnapshot updated = client.updateWorkPackage(
+                workPackageId,
+                current.lockVersion(),
+                done.id(),
+                null,
+                "complete-task");
+        return mapper.toTask(updated, statusesById());
+    }
+
+    @Override
+    public TaskItem updateTaskStatus(String taskId, TaskStatus status, String targetColumnId) {
+        runtimeGate.requireWriteAllowed("update-task-status");
+        long workPackageId = parseWeaveId(taskId, "work-package", "update-task-status");
+        long statusId = targetStatusId(status, targetColumnId, "update-task-status");
+        OpenProjectWorkPackageSnapshot current = workPackage(workPackageId, "update-task-status");
+        OpenProjectWorkPackageSnapshot updated = client.updateWorkPackage(
+                workPackageId,
+                current.lockVersion(),
+                statusId,
+                null,
+                "update-task-status");
+        return mapper.toTask(updated, statusesById());
+    }
+
+    @Override
+    public TaskItem linkDecision(String taskId, String decisionRef) {
+        throw unsupportedWrite("link-decision", "decision_links", "OpenProject has no release-safe Weave decision-link field mapping yet.");
+    }
 
     private void requireReadSync(String operation) {
         runtimeGate.requireReadSyncAllowed(operation);
@@ -181,11 +246,51 @@ public final class OpenProjectBoardsRepository implements BoardsRepository {
         }
     }
 
-    private BoardsException writeDisabled(String operation) {
-        runtimeGate.requireWriteAllowed(operation);
+    private OpenProjectWorkPackageSnapshot workPackage(long workPackageId, String operation) {
+        return client.findWorkPackage(workPackageId).orElseThrow(() -> new BoardsException(
+                BoardsErrorCode.NOT_FOUND,
+                "OpenProject work package was not found for the Weave Boards write request.",
+                Map.of("provider", "openproject", "operation", operation, "supportSafe", "true")));
+    }
+
+    private Map<Long, OpenProjectStatusSnapshot> statusesById() {
+        return client.listStatuses(BoardQuery.firstPage()).items().stream()
+                .collect(Collectors.toMap(OpenProjectStatusSnapshot::id, Function.identity(), (first, ignored) -> first));
+    }
+
+    private OpenProjectStatusSnapshot firstClosedStatus(String operation) {
+        return client.listStatuses(BoardQuery.firstPage()).items().stream()
+                .filter(OpenProjectStatusSnapshot::closed)
+                .findFirst()
+                .orElseThrow(() -> new BoardsException(
+                        BoardsErrorCode.UNSUPPORTED_CAPABILITY,
+                        "OpenProject Boards complete-task requires a closed provider status mapping.",
+                        Map.of("provider", "openproject", "operation", operation, "capability", "status_updates", "supportSafe", "true")));
+    }
+
+    private long targetStatusId(TaskStatus status, String targetColumnId, String operation) {
+        if (targetColumnId != null && !targetColumnId.isBlank()) {
+            return parseWeaveId(targetColumnId, "status", operation);
+        }
+        if (status == TaskStatus.COMPLETED) {
+            return firstClosedStatus(operation).id();
+        }
+        throw new BoardsException(
+                BoardsErrorCode.UNSUPPORTED_CAPABILITY,
+                "OpenProject Boards status update requires a target column unless completing a task.",
+                Map.of("provider", "openproject", "operation", operation, "capability", "status_updates", "supportSafe", "true"));
+    }
+
+    private BoardsException unsupportedWrite(String operation, String capability, String reason) {
         return new BoardsException(
                 BoardsErrorCode.UNSUPPORTED_CAPABILITY,
-                "OpenProject Boards/Tasks writes are not implemented for the read-sync-first adapter seam.");
+                reason,
+                Map.of(
+                        "provider", "openproject",
+                        "operation", operation,
+                        "capability", capability,
+                        "mode", "write",
+                        "supportSafe", "true"));
     }
 
     private BoardsException unsupportedUntilPromotion(String operation, String capability) {

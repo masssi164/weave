@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -94,6 +95,36 @@ final class OpenProjectBoardsClient {
         return new BoardPage<>(tasks, nextCursor(root, effectiveQuery.limit(), cursorCollection));
     }
 
+    Optional<OpenProjectWorkPackageSnapshot> findWorkPackage(long workPackageId) {
+        requireConfigured("find-task");
+        try {
+            return Optional.of(workPackage(get("/api/v3/work_packages/" + workPackageId, Map.of(), "find-task")));
+        } catch (BoardsException exception) {
+            if (exception.code() == BoardsErrorCode.NOT_FOUND) {
+                return Optional.empty();
+            }
+            throw exception;
+        }
+    }
+
+    OpenProjectWorkPackageSnapshot updateWorkPackage(
+            long workPackageId,
+            String lockVersion,
+            Long statusId,
+            Integer position,
+            String operation) {
+        requireConfigured(operation);
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("lockVersion", parseLockVersion(lockVersion, operation));
+        if (statusId != null) {
+            body.put("_links", Map.of("status", Map.of("href", "/api/v3/statuses/" + statusId)));
+        }
+        if (position != null) {
+            body.put("position", position);
+        }
+        return workPackage(patch("/api/v3/work_packages/" + workPackageId, body, operation));
+    }
+
     private JsonNode get(String path, Map<String, String> queryParams, String operation) {
         URI uri = uri(path, queryParams);
         try {
@@ -114,6 +145,48 @@ final class OpenProjectBoardsClient {
                     BoardsErrorCode.UNKNOWN,
                     "OpenProject Boards read-sync failed with a support-safe provider error.",
                     details(operation, "unknown"));
+        }
+    }
+
+    private JsonNode patch(String path, Map<String, Object> body, String operation) {
+        URI uri = uri(path, Map.of());
+        try {
+            return restClient.patch()
+                    .uri(uri)
+                    .header(HttpHeaders.AUTHORIZATION, basicAuthHeader())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(JsonNode.class);
+        } catch (RestClientResponseException exception) {
+            throw httpError(operation, exception);
+        } catch (ResourceAccessException exception) {
+            throw new BoardsException(
+                    BoardsErrorCode.OFFLINE,
+                    "OpenProject Boards write could not reach the provider runtime.",
+                    details(operation, "offline"));
+        } catch (RuntimeException exception) {
+            throw new BoardsException(
+                    BoardsErrorCode.UNKNOWN,
+                    "OpenProject Boards write failed with a support-safe provider error.",
+                    details(operation, "unknown"));
+        }
+    }
+
+    private long parseLockVersion(String lockVersion, String operation) {
+        if (lockVersion == null || lockVersion.isBlank()) {
+            throw new BoardsException(
+                    BoardsErrorCode.CONFLICT,
+                    "OpenProject Boards write was blocked because the provider lock version was unavailable.",
+                    details(operation, "missing_lock_version"));
+        }
+        try {
+            return Long.parseLong(lockVersion);
+        } catch (NumberFormatException exception) {
+            throw new BoardsException(
+                    BoardsErrorCode.CONFLICT,
+                    "OpenProject Boards write was blocked because the provider lock version was invalid.",
+                    details(operation, "invalid_lock_version"));
         }
     }
 

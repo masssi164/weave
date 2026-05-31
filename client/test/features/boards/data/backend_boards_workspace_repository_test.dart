@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/boards/data/repositories/backend_boards_workspace_repository.dart';
 import 'package:weave/features/boards/domain/entities/board_workspace.dart';
 
@@ -169,6 +170,55 @@ void main() {
       expect(workspace.capabilities.provider, 'unavailable');
     },
   );
+
+  test('maps lock conflicts to actionable refresh remediation', () async {
+    final repository = BackendBoardsWorkspaceRepository(
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"code":"boards-conflict","message":"support-safe conflict"}',
+          409,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+      apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+      accessToken: 'token',
+    );
+
+    await expectLater(
+      repository.completeTask('task-1'),
+      throwsA(
+        isA<AppFailure>()
+            .having((failure) => failure.type, 'type', AppFailureType.validation)
+            .having((failure) => failure.message, 'message', contains('Refresh')),
+      ),
+    );
+  });
+
+  test('maps unsupported provider actions to provider-readiness remediation', () async {
+    final repository = BackendBoardsWorkspaceRepository(
+      httpClient: MockClient((request) async {
+        return http.Response(
+          '{"code":"boards-unsupported_capability","message":"unsupported"}',
+          503,
+          headers: {'content-type': 'application/json'},
+        );
+      }),
+      apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+      accessToken: 'token',
+    );
+
+    await expectLater(
+      repository.linkDecision(
+        taskId: 'task-1',
+        decisionRef: 'decision:release-v0.1',
+      ),
+      throwsA(
+        isA<AppFailure>()
+            .having((failure) => failure.type, 'type', AppFailureType.validation)
+            .having((failure) => failure.message, 'message', contains('provider')),
+      ),
+    );
+  });
 
   test(
     'posts accessible non-drag move, status, decision-link, and complete actions to backend facade',
