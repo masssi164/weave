@@ -11,6 +11,8 @@ Weaver is the optional personal-assistant product line inside Weave. Sprint 8 de
 
 ## Runtime profile contract
 
+The signed `WeaverRuntimeProfile` is the single source consumed by the OpenClaw-derived Weaver runtime. The runtime may render an internal `openclaw.json`, channel/plugin entries, MCP server entries, tool filters, model defaults, and sandbox settings, but those files are generated implementation artifacts. Normal members must not edit them or use the raw OpenClaw dashboard/config wizard to bypass Weave policy.
+
 A Weaver runtime profile must be generated per user and per organization. The profile contains only support-safe, auditable grants.
 
 | Profile section | Requirement |
@@ -25,6 +27,19 @@ A Weaver runtime profile must be generated per user and per organization. The pr
 | Audit | Every tool call, approval decision, denied action, and capability-bound data access emits support-safe audit evidence. |
 | Member opt-in | Runtime is disabled until the member opts in where required and the organization enables the capability. |
 | Group-chat consent | Assistant participation in shared spaces requires explicit organization policy and conversation-level consent signals. |
+
+Minimum profile fields for the next implementation slice:
+
+- profile version, signature, `runtimeProfileHash`, expiry, revocation status, and rollback pointer;
+- model provider aliases, default, fallback order, and user-selectable alias list from admin policy;
+- domain capability catalog including `chat.read`, `chat.send`, `files.read`, `calendar.read`, and `weaver.enabled`;
+- Chat domain provider binding and OpenClaw channel/plugin projection for Matrix, Teams, iMessage, Slack, Telegram, or another supported provider;
+- MCP server/tool/skill grants from Weave policy only, with personal MCPs routed through Weave approval where allowed;
+- tool and sandbox deny policy where `tools.deny` wins globally and `bundle-mcp`, gateway, cron, exec, write, and patch-style tools are disabled unless explicitly granted;
+- CredentialRefs and short-lived runtime token references only;
+- audit policy requiring `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef when applicable, and policy decision for model/channel/tool/MCP calls.
+
+Admin Chat provider changes are provider migrations, not member adapter switches: Weave checks readiness/migration, binds credentials through the Credential Broker, generates RuntimeProfile vNext, projects the selected provider into OpenClaw channel/plugin config, reloads or restarts the user runtime, and keeps member UX inside Weave.
 
 ## Capability rule
 

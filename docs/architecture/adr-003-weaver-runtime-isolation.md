@@ -18,10 +18,14 @@ The first self-hosted Weaver preflight path is per-user, short-lived containers 
 ## Required controls before enablement
 
 - per-user runtime profile and workspace identity;
+- one active user/trust boundary per runtime context/container, with inactive users represented only by stored state/profile until activated;
+- separate state, workspace, and agent directory per runtime;
 - deny-by-default egress with declared capability grants;
+- internal network access only to Weave API, Weave MCP Gateway, and allowed channel/MCP proxies;
 - filesystem isolation and no implicit host mounts;
 - lifecycle cleanup, CPU/memory/disk quotas, and stale-session reap;
-- SecretRef/OAuth broker only, never raw secrets in runtime profiles or tool results;
+- profile reload/restart on admin changes and rollback to the previous signed RuntimeProfile;
+- SecretRef/OAuth broker and short-lived runtime token only, never raw secrets in runtime profiles or tool results;
 - audit events for install, grant, invoke, deny, cleanup, and support bundle export;
 - support bundle redaction for prompts, payloads, tokens, cookies, private keys, and provider bodies.
 
