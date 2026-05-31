@@ -102,6 +102,32 @@
       "evidenceMode": "live-runtime"
     },
     {
+      "tag": "@weave-live-provider-reality-vertical",
+      "scenario": "Provider reality vertical reports domain availability honestly",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": [
+        "PROVIDER_REALITY_RESULT"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/accessibility-release-gate.md",
+          "fragments": [
+            "Sprint 11 provider-reality accessibility replacement scope",
+            "Release evidence distinguishes live-runtime checks from offline/spec checks"
+          ]
+        },
+        {
+          "path": "docs/evidence/sprint-11-manual-accessibility-evidence-template.md",
+          "fragments": [
+            "Status: evidence template pending live assistive-technology execution",
+            "This file is not pass evidence until every result cell is completed"
+          ]
+        }
+      ],
+      "evidenceMode": "live-runtime"
+    },
+    {
       "tag": "@weave-v01-home-daily-loop",
       "scenario": "Weave Home starts the daily work loop",
       "feature": "e2e/features/v0_1_dogfood_release.feature",

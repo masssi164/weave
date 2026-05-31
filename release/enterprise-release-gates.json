@@ -51,7 +51,7 @@
             "weave-live-stack-acceptance-evidence/failure-diagnostics/health-checks/operator-check.txt",
             "weave-live-stack-acceptance-evidence/failure-diagnostics/support-bundle/weave-support-*.tar.gz"
           ],
-          "mustObserveMarkers": ["AUTH_RESULT", "PROFILE_RESULT", "CHAT_RESULT", "MATRIX_RESULT", "E2EE_RESULT", "FILES_RESULT", "PROVIDER_STACK_RESULT", "CALENDAR_RESULT", "BOARDS_RESULT"],
+          "mustObserveMarkers": ["AUTH_RESULT", "PROFILE_RESULT", "CHAT_RESULT", "MATRIX_RESULT", "E2EE_RESULT", "FILES_RESULT", "PROVIDER_STACK_RESULT", "CALENDAR_RESULT", "BOARDS_RESULT", "PROVIDER_REALITY_RESULT"],
           "supportSafeExclusions": ["raw credentials", "credential-bearing URLs", "provider internals", "downstream provider error bodies", "private live logs"]
         }
       ]
