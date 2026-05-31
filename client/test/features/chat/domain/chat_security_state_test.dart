@@ -24,6 +24,17 @@ void main() {
         ChatReadinessState.e2eeEncryptedTimeline,
       );
     });
+
+    test('keeps provider and policy readiness buckets explicit', () {
+      expect(
+        ChatReadinessState.values,
+        containsAll(<ChatReadinessState>[
+          ChatReadinessState.unsupportedDevice,
+          ChatReadinessState.providerUnavailable,
+          ChatReadinessState.policyDisabled,
+        ]),
+      );
+    });
   });
 }
 

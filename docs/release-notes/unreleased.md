@@ -10,11 +10,11 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Changed
 
-- Nothing yet.
+- Chat readiness and release evidence now lock Matrix/Synapse as the current real provider path, keep non-Matrix chat providers contract-only until promoted, and document Matrix portability/E2EE boundaries.
 
 ## Fixed
 
-- Nothing yet.
+- Chat Matrix error handling and member room UI now keep load/send/read-marker failures, encrypted timeline placeholders, unsupported messages, failed sends, and retry states support-safe and accessible.
 
 ## Security
 

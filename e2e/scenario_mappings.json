@@ -22,7 +22,23 @@
         "CHAT_RESULT",
         "MATRIX_RESULT"
       ],
-      "evidenceMode": "live-runtime"
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/data/repositories/matrix_chat_repository_test.dart",
+          "fragments": [
+            "maps Matrix timeline message safety states into chat entities",
+            "send and read-marker failures remain support-safe chat failures"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/chat_room_screen_test.dart",
+          "fragments": [
+            "keeps a failed outgoing message visible with retry actions",
+            "renders encrypted and unsupported messages accessibly"
+          ]
+        }
+      ]
     },
     {
       "tag": "@weave-live-matrix-e2ee",
@@ -32,7 +48,23 @@
       "evidenceMarkers": [
         "E2EE_RESULT"
       ],
-      "evidenceMode": "live-runtime"
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/domain/chat_security_state_test.dart",
+          "fragments": [
+            "distinguishes Matrix signed-out from signed-in readiness",
+            "distinguishes E2EE unavailable and encrypted timeline states"
+          ]
+        },
+        {
+          "path": "docs/provider-replacement-and-anti-silo-contract.md",
+          "fragments": [
+            "Matrix Chat portability boundary",
+            "Matrix/Synapse is the v0.1 real-time Chat path"
+          ]
+        }
+      ]
     },
     {
       "tag": "@weave-live-files-boundary",
