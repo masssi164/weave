@@ -10,9 +10,9 @@ Executable scenario anchors:
 
 Source/quality-check anchors:
 
-- Identity/profile source of truth: `specs/03-identity-and-unified-user-profile.md:73` and `/api/me`.
-- CI/smoke/E2E source of truth: `specs/10-ci-smoke-and-e2e-contract.md:59`.
-- Spec-map guard source: `/tool/spec_map.dart` in the repository that owns the checked mapping.
+- Identity/profile specification anchor: pinned spec corpus `domains/identity-idm/spec.md` plus implementation endpoint `/api/me`.
+- CI/smoke/E2E specification anchor: pinned spec corpus `steering/devops-conformance.md` plus implementation gates in `build.gradle` and `e2e/scenario_mappings.json`.
+- Spec-map guard source: `client/tool/acceptance_contract.dart` and `e2e/scenario_mappings.json` in this implementation repository.
 - `/admin/protocol` is not a current Weave product route here; treat it only as shorthand for raw admin/protocol fallback surfaces unless a future spec defines the endpoint.
 - `/storage/power` is not a current Weave product route here; treat it only as shorthand for the manual storage/power budget gate unless a future spec defines the endpoint.
 

@@ -53,7 +53,7 @@ Start with:
 
 1. [Developer Handbook](developer-handbook.md) — local prerequisites, Java 21+ requirement, Gradle gates, client/server/admin/infra workflows, and evidence expectations.
 2. [Trunk-based PR and release workflow](gitflow-pr-workflow.md) — branch, review, label, release-note, and merge rules.
-3. [Spec-driven development for Weave](spec-driven-development.md) — repo-local specs, lifecycle, evidence gates, and agent orchestration.
+3. [Spec-driven development for Weave](spec-driven-development.md) — pinned spec corpus, conformance lifecycle, evidence gates, and agent orchestration.
 4. [AI-assisted delivery orchestration](agent-team-orchestration.md) — repo-safe roles, handoff briefs, runtime-boundary guardrails, and optimization loop.
 5. [Canonical domains](architecture/canonical-domains.md) — product-owned domain registry for identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver.
 6. [Provider portability contract](architecture/provider-portability.md) — adapter manifests, mapping tables, reports, and no-unaccounted-data-loss rules.
@@ -74,7 +74,7 @@ Start with:
 
 ## Documentation maturity map
 
-Canonical product docs:
+Implementation conformance docs and product-facing projections:
 
 - [Root README](https://github.com/masssi164/weave/blob/main/README.md)
 - [v0.1 Golden Path readiness](v0.1-golden-path.md)
@@ -119,13 +119,13 @@ Release and evidence docs:
 
 Historical/context docs:
 
-- Sprint reports and strategy notes are useful provenance, but they are secondary to the canonical product docs above.
+- Sprint reports and strategy notes are useful provenance, but they are secondary to the pinned spec corpus and current implementation conformance docs above.
 - Research notes under `docs/research/` are evidence inputs, not current product promises.
 - [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md) records future or guarded areas without promoting them as shipped.
 
-## Current product truth
+## Current product direction projection
 
-The active product direction is [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md): Weave is product-first and provider-neutral. Admin/provider setup, IDM/RBAC, readiness, whitelisting, and support-safe diagnostics come before optional Weaver personal-assistant runtime work.
+The canonical product/domain truth is the pinned Weave Specification Corpus referenced by `specs/weave-specs.lock.json`. This repo projects the active direction through [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md): Weave is product-first and provider-neutral. Admin/provider setup, IDM/RBAC, readiness, whitelisting, and support-safe diagnostics come before optional Weaver personal-assistant runtime work.
 
 Weaver remains optional, governed, auditable, support-safe, and disabled by default. Any future per-user PA runtime must be generated from Weave organization policy as an isolated OpenClaw-derived profile and follow the rule: user-rights, organization-whitelisted capabilities. See [Governed Weaver runtime security contract](governed-weaver-runtime-security-contract.md) for the runtime/model/tool-provider split, approval receipts, and support-safe evidence boundary.
 
