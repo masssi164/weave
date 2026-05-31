@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "criticalFlows": [
+    {
+      "id": "provider-setup",
+      "requiredEvidence": ["flutter-semantics", "keyboard", "text-scale", "manual-at"],
+      "releaseBlocking": true
+    },
+    {
+      "id": "provider-migration-dry-run",
+      "requiredEvidence": ["admin-summary", "member-impact-preview", "screenreader", "keyboard"],
+      "releaseBlocking": true
+    },
+    {
+      "id": "identity-offboarding",
+      "requiredEvidence": ["ownership-transfer-preview", "screenreader", "keyboard"],
+      "releaseBlocking": true
+    },
+    {
+      "id": "chat-e2ee-recovery",
+      "requiredEvidence": ["cannot-decrypt-state", "key-recovery-copy", "manual-at"],
+      "releaseBlocking": true
+    }
+  ],
+  "waiverPolicy": {
+    "exceptionalOnly": true,
+    "requiresIssue": true,
+    "requiresExpiry": true,
+    "expiredWaiverBlocksPromotion": true
+  },
+  "summary": {
+    "missingEvidenceBlocksPromotion": true,
+    "unresolvedBlockerBlocksPromotion": true,
+    "redaction": "support_safe"
+  }
+}

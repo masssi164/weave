@@ -151,3 +151,7 @@ This path does not yet provide:
 - public monitoring, metrics, or alert routing;
 - fully declarative Nextcloud OIDC bootstrap;
 - managed SaaS installer UX.
+
+## Sprint 12 restore-smoke and upgrade evidence
+
+Before promoting a release, operators must record artifact-only restore smoke evidence for Keycloak, MAS/Synapse, Nextcloud, OpenProject/Boards, LiveKit/TURN, Weave backend/admin/client assets, databases, data volumes, secrets/TLS references, and generated config. A live rehearsal is required before production-strength claims. Provider schema changes must attach dry-run, backup, rollback/archive, and post-migration readiness evidence.

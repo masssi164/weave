@@ -1,0 +1,6 @@
+{
+  "negativeFixture": true,
+  "reason": "missing fieldClass blocks silent drops",
+  "expectedOutcome": "reject",
+  "redaction": "support_safe"
+}

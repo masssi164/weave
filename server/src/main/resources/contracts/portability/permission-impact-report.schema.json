@@ -1,61 +1,47 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/portability/provider-mapping.schema.json",
-  "title": "ProviderMapping",
+  "$id": "https://weave.local/contracts/portability/permission-impact-report.schema.json",
+  "title": "PermissionImpactReport",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "mappingId",
+    "reportId",
     "domainKey",
-    "sourceProvider",
-    "targetProvider",
-    "objectMappings",
+    "impacts",
+    "approvalRequired",
     "redaction"
   ],
   "properties": {
-    "mappingId": {
+    "reportId": {
       "type": "string"
     },
     "domainKey": {
       "type": "string"
     },
-    "sourceProvider": {
-      "type": "string"
-    },
-    "targetProvider": {
-      "type": "string"
-    },
-    "objectMappings": {
+    "impacts": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "required": [
           "canonicalObject",
-          "sourceRef",
-          "targetRef",
-          "lossClass",
+          "impact",
           "fieldClass"
         ],
         "properties": {
           "canonicalObject": {
             "type": "string"
           },
-          "sourceRef": {
+          "impact": {
             "type": "string"
-          },
-          "targetRef": {
-            "type": "string"
-          },
-          "lossClass": {
-            "$ref": "loss-class.schema.json",
-            "description": "Deprecated alias retained only for v1 fixture compatibility; v2 consumers must use fieldClass."
           },
           "fieldClass": {
             "$ref": "loss-class.schema.json"
           }
         }
       }
+    },
+    "approvalRequired": {
+      "type": "boolean"
     },
     "redaction": {
       "type": "string",

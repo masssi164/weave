@@ -1,1 +1,14 @@
-{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"https://weave.local/contracts/portability/loss-class.schema.json","title":"LossClass","type":"string","enum":["lossless_canonical","lossless_extension","archive_only","lossy_with_report","blocked_nonportable","provider_unexportable"]}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/portability/loss-class.schema.json",
+  "title": "LossClass",
+  "type": "string",
+  "enum": [
+    "portable",
+    "lossy",
+    "unsupported",
+    "manual_review",
+    "vendor_locked",
+    "archive_only"
+  ]
+}

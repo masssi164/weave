@@ -69,3 +69,36 @@ Minimum dry-run evidence:
 - audit event names for dry-run and any future guarded apply.
 
 Apply remains out of scope until readiness, approval, rollback, and audit gates exist.
+
+## Sprint 12 provider portability schema v2
+
+Sprint 12 upgrades the portability vocabulary from coarse loss classes to field-level, machine-readable classes used by dry-run evidence, admin review, and release claim checks. The canonical classes are:
+
+- `portable`: the field maps to a Weave canonical object without extra admin action.
+- `lossy`: the field can be represented only with explicit loss in `LossyMappingReport`.
+- `unsupported`: the target adapter cannot represent the field and apply remains blocked unless policy permits omission.
+- `manual_review`: admin review is required before apply, usually because identity, permission, conflict, or member-impact context is incomplete.
+- `vendor_locked`: the field is provider-owned and cannot be exported or replayed as a Weave canonical value.
+- `archive_only`: the field is preserved in a support-safe archive but is not imported into the target provider.
+
+The v2 contract is intentionally evidence-first: Weave promises **no unaccounted data loss**, not lossless migration. Release claims must not market “lossless migration”; every unsupported, lossy, vendor-locked, or archive-only field must be counted in support-safe evidence before apply can proceed.
+
+### Machine-readable v2 reports
+
+The canonical schemas live under `server/src/main/resources/contracts/portability/` and are checked by `./gradlew portabilityContractCheck`:
+
+- `ProviderAdapterManifest` declares adapter capabilities, readiness checks, unsupported fields, limits, audit events, and secret boundaries.
+- `ProviderMapping` maps source provider objects to Weave canonical objects and target adapter objects with v2 field classes.
+- `ExportManifest` records object counts, content hashes, mapping references, and audit references.
+- `ImportManifest` records target import feasibility and links to dry-run evidence.
+- `ImportFeasibilityReport` classifies whether apply is feasible, feasible with manual review, or blocked.
+- `LossyMappingReport` counts lossy fields and requires approval.
+- `ConflictReport` lists conflicts that must be resolved before apply.
+- `PermissionImpactReport` explains ownership, share, role, and visibility consequences without raw provider identifiers.
+- `ArchiveManifest` lists support-safe archive references and content hashes.
+- `RollbackRetentionReport` records rollback archive retention and restore-smoke requirements.
+- `MigrationRun` and `MigrationAuditRef` bind the reports into the server-side apply gate.
+
+### Domain dry-run fixtures
+
+Redacted Sprint 12 fixtures in `specs/0006-portability-contract/` cover Files, Calendar, Boards, and Chat. Negative fixtures reject silent drops and raw provider leaks. Admin Console and release evidence may render only stable product states such as `available`, `not_configured`, `guarded`, `manual_review_required`, `blocked`, and `unavailable`; member impact previews must never expose raw provider identifiers, URLs, tokens, payloads, or downstream error bodies.

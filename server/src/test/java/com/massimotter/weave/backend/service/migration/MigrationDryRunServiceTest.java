@@ -28,16 +28,21 @@ class MigrationDryRunServiceTest {
         assertThat(response.supportSafe()).isTrue();
         assertThat(response.providerDiagnosticsRedacted()).isTrue();
         assertThat(response.replaySafe()).isTrue();
-        assertThat(response.domainMappings()).extracting("domain").containsExactly("chat", "files");
-        assertThat(response.domainMappings().get(0).weaveDomainObject()).contains("weave:chat");
-        assertThat(response.domainMappings().get(1).weaveDomainObject()).contains("weave:files");
+        assertThat(response.domainMappings()).extracting("domain").containsExactly("files", "calendar", "boards", "chat");
+        assertThat(response.domainMappings())
+                .anySatisfy(mapping -> assertThat(mapping.weaveDomainObject()).contains("weave:files"))
+                .anySatisfy(mapping -> assertThat(mapping.weaveDomainObject()).contains("weave:calendar"))
+                .anySatisfy(mapping -> assertThat(mapping.weaveDomainObject()).contains("weave:boards"))
+                .anySatisfy(mapping -> assertThat(mapping.weaveDomainObject()).contains("weave:chat"));
         assertThat(response.toString())
                 .doesNotContain("https://")
                 .doesNotContain("Authorization")
                 .doesNotContain("Bearer")
                 .doesNotContain("token");
-        assertThat(repository.findCurrent(response.jobId(), "chat", java.time.Instant.now())).isPresent();
         assertThat(repository.findCurrent(response.jobId(), "files", java.time.Instant.now())).isPresent();
+        assertThat(repository.findCurrent(response.jobId(), "calendar", java.time.Instant.now())).isPresent();
+        assertThat(repository.findCurrent(response.jobId(), "boards", java.time.Instant.now())).isPresent();
+        assertThat(repository.findCurrent(response.jobId(), "chat", java.time.Instant.now())).isPresent();
     }
 
     @Test

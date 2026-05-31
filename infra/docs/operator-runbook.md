@@ -208,3 +208,20 @@ These are still intentionally out of scope for this repo slice:
 - HA or zero-downtime upgrades
 - centralized metrics or alert routing
 - fully declarative Nextcloud bootstrap beyond the supported `install.sh` path
+
+## Sprint 12 provider-aware backup, restore, upgrade, and schema migration contract
+
+Backup/restore order for a self-hosted Weave stack is:
+
+1. freeze release promotion and capture generated config, release version, provider manifests, and support-safe readiness summary;
+2. backup secrets/TLS material through the operator secret store without embedding raw values in evidence;
+3. backup databases for Keycloak, MAS/Synapse, Nextcloud, OpenProject/Boards, LiveKit/TURN state where applicable, Weave backend/admin metadata, and provider selection/audit stores;
+4. backup data volumes for Synapse media, Nextcloud files, OpenProject attachments, Weave evidence artifacts, and static admin/client assets;
+5. archive generated config, schema versions, migration manifests, and support-safe content hashes; and
+6. run artifact-only restore smoke before promotion, then one live rehearsal before stronger production claims.
+
+Restore order reverses dependencies: secrets/TLS and generated config, databases, data volumes, identity (Keycloak), Matrix/MAS/Synapse, Nextcloud, OpenProject/Boards, LiveKit/TURN, Weave backend, Admin Console/client, then readiness checks and acceptance gates.
+
+Provider schema migrations require dry-run evidence, a backup-required marker, rollback/archive evidence, post-migration readiness checks, and an audit-linked approval. Missing stale, forged, or incompatible evidence blocks apply.
+
+Support bundles redact WOPI/JWT material, SCIM payloads, Matrix E2EE keys/plaintext, provider payload bodies, OAuth tokens, cookies, private keys, and Weaver SecretRefs. Observability minimums include health/readiness, backup freshness, certificate expiry, disk pressure, provider readiness, auth spikes, and LiveKit/TURN reachability.

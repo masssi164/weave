@@ -1,0 +1,44 @@
+{
+  "reportId": "s12-calendar-dry-run-v2",
+  "domainKey": "calendar",
+  "sourceProvider": "current-provider",
+  "targetProvider": "candidate-provider",
+  "feasibility": "feasible_with_manual_review",
+  "fieldClasses": [
+    "portable",
+    "lossy",
+    "manual_review"
+  ],
+  "objectCounts": {
+    "Object": 3
+  },
+  "contentHashes": [
+    "sha256:63616c656e646172000000000000000000000000000000000000000000000000"
+  ],
+  "lossyFields": [
+    {
+      "canonicalObject": "Calendar",
+      "field": "provider_extension",
+      "fieldClass": "manual_review",
+      "reason": "Support-safe Sprint 12 fixture; raw provider data is not embedded."
+    }
+  ],
+  "conflicts": [
+    {
+      "canonicalObject": "Calendar",
+      "reason": "Manual review required before apply."
+    }
+  ],
+  "permissionImpacts": [
+    {
+      "canonicalObject": "Calendar",
+      "impact": "Admin-visible summary only; member preview uses stable capability states.",
+      "fieldClass": "manual_review"
+    }
+  ],
+  "archiveRefs": [
+    "archive:s12:calendar:redacted"
+  ],
+  "rollbackRetentionRef": "rollback:s12:calendar:retention",
+  "redaction": "support_safe"
+}

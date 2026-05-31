@@ -8,14 +8,18 @@ SCHEMA_DIR=ROOT/'server/src/main/resources/contracts/portability'
 DOC=ROOT/'docs/architecture/no-unaccounted-data-loss.md'
 FIXTURES=ROOT/'specs/0006-portability-contract'
 LEGACY_ROOT_CONTRACTS=ROOT/'contracts'
-LOSS=['lossless_canonical','lossless_extension','archive_only','lossy_with_report','blocked_nonportable','provider_unexportable']
+LOSS=['portable','lossy','unsupported','manual_review','vendor_locked','archive_only']
 REQUIRED={
  'provider-adapter-manifest.schema.json':'ProviderAdapterManifest',
  'provider-mapping.schema.json':'ProviderMapping',
  'export-manifest.schema.json':'ExportManifest',
  'import-manifest.schema.json':'ImportManifest',
+ 'import-feasibility-report.schema.json':'ImportFeasibilityReport',
  'lossy-mapping-report.schema.json':'LossyMappingReport',
  'conflict-report.schema.json':'ConflictReport',
+ 'permission-impact-report.schema.json':'PermissionImpactReport',
+ 'archive-manifest.schema.json':'ArchiveManifest',
+ 'rollback-retention-report.schema.json':'RollbackRetentionReport',
  'migration-run.schema.json':'MigrationRun',
  'migration-audit-ref.schema.json':'MigrationAuditRef',
  'loss-class.schema.json':'LossClass',
@@ -57,8 +61,16 @@ def main():
   unsafe_raw = raw.replace('secretBoundary', '').replace('no_secrets', '')
   if re.search(r'(token|password|clientSecret)', unsafe_raw): fail(f'{name} must not require raw secret fields')
  doc=DOC.read_text(encoding='utf-8')
- for item in LOSS + list(REQUIRED.values()) + ['server/src/main/resources/contracts/portability/', 'Provider migration apply is impossible', 'support-safe identifiers']:
+ for item in LOSS + list(REQUIRED.values()) + ['provider portability schema v2', 'server/src/main/resources/contracts/portability/', 'Provider migration apply is impossible', 'support-safe identifiers', 'no-unaccounted data loss']:
   if item not in doc: fail(f'documentation missing {item}')
+ for domain in ['files','calendar','boards','chat']:
+  fixture=load(FIXTURES/f'provider-portability-v2-{domain}-dry-run.json')
+  if fixture.get('domainKey') != domain or fixture.get('redaction') != 'support_safe': fail(f'{domain} v2 dry-run fixture must be support_safe')
+  classes=fixture.get('fieldClasses', [])
+  if not classes or any(item not in LOSS for item in classes): fail(f'{domain} fixture must use v2 field classes')
+ for negative in ['provider-portability-v2-silent-drop-negative.json','provider-portability-v2-raw-provider-leak-negative.json']:
+  fixture=load(FIXTURES/negative)
+  if fixture.get('expectedOutcome') != 'reject': fail(f'{negative} must reject unsafe portability behavior')
  success=load(FIXTURES/'migration-run-dry-run-success.json')
  blocked=load(FIXTURES/'migration-run-apply-blocked.json')
  for fixture in [success, blocked]:

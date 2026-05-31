@@ -1,0 +1,44 @@
+{
+  "reportId": "s12-files-dry-run-v2",
+  "domainKey": "files",
+  "sourceProvider": "current-provider",
+  "targetProvider": "candidate-provider",
+  "feasibility": "feasible_with_manual_review",
+  "fieldClasses": [
+    "portable",
+    "manual_review",
+    "archive_only"
+  ],
+  "objectCounts": {
+    "Object": 3
+  },
+  "contentHashes": [
+    "sha256:66696c6573000000000000000000000000000000000000000000000000000000"
+  ],
+  "lossyFields": [
+    {
+      "canonicalObject": "Files",
+      "field": "provider_extension",
+      "fieldClass": "archive_only",
+      "reason": "Support-safe Sprint 12 fixture; raw provider data is not embedded."
+    }
+  ],
+  "conflicts": [
+    {
+      "canonicalObject": "Files",
+      "reason": "Manual review required before apply."
+    }
+  ],
+  "permissionImpacts": [
+    {
+      "canonicalObject": "Files",
+      "impact": "Admin-visible summary only; member preview uses stable capability states.",
+      "fieldClass": "manual_review"
+    }
+  ],
+  "archiveRefs": [
+    "archive:s12:files:redacted"
+  ],
+  "rollbackRetentionRef": "rollback:s12:files:retention",
+  "redaction": "support_safe"
+}

@@ -116,3 +116,11 @@ Record the tester, date, platform, assistive technology, result, and evidence li
 - Manual evidence is attached to the release gate issue with platform/device notes.
 - Any failed row creates or links a blocking issue and prevents release sign-off until fixed or explicitly deferred by product decision.
 - Calendar and admin/recovery rows may remain marked `blocked` only when the corresponding backend/infra live-stack gate is also explicitly blocked; do not call current release accessibility complete while those flows lack evidence.
+
+## Sprint 12 permanent release-promotion gate
+
+Accessibility evidence is now a release-promotion gate, not a waiver pattern. The machine-readable gate summary is `release/accessibility-gate.json`; manual evidence uses `docs/evidence/accessibility/sprint-12-manual-at-template.md`.
+
+Critical flows fail promotion when required evidence is missing, when a blocker is unresolved, or when a waiver is expired. Waivers are exceptional, must link to a GitHub issue, must name an expiry, and cannot silently pass RC promotion.
+
+The gate maps Flutter semantics, keyboard traversal, text-scale/reflow, Admin Console route/interactions, and manual assistive-technology observations to release flows: provider setup, provider migration dry-run/member impact preview, identity offboarding/ownership transfer, and Matrix Chat E2EE recovery/cannot-decrypt states.

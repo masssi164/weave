@@ -1,0 +1,6 @@
+{
+  "negativeFixture": true,
+  "reason": "missing signature",
+  "expectedOutcome": "reject",
+  "redaction": "support_safe"
+}

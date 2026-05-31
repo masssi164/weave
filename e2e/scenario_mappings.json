@@ -1212,6 +1212,134 @@
         }
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "feature": "e2e/features/sprint_12_provider_portability_lifecycle.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMode": "offline-spec",
+      "tag": "@weave-sprint12-portability-v2",
+      "scenario": "Admin reviews provider portability schema v2 evidence",
+      "evidenceMarkers": [
+        "SPRINT12_PORTABILITY_V2"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/provider-portability.md",
+          "fragments": [
+            "provider portability schema v2",
+            "ImportFeasibilityReport",
+            "PermissionImpactReport",
+            "RollbackRetentionReport"
+          ]
+        },
+        {
+          "path": "tools/portability_contract_check.py",
+          "fragments": [
+            "provider-portability-v2-{domain}-dry-run.json",
+            "raw-provider-leak-negative"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_12_provider_portability_lifecycle.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMode": "offline-spec",
+      "tag": "@weave-sprint12-documents-wopi-posture",
+      "scenario": "Documents stay honest until WOPI spike evidence exists",
+      "evidenceMarkers": [
+        "SPRINT12_DOCUMENTS_WOPI_POSTURE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-002-office-wopi-provider-path.md",
+          "fragments": [
+            "Nextcloud-hosted WOPI with Collabora/CODE first",
+            "Credential-bearing URLs",
+            "editing scenarios stay future/guarded"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_12_provider_portability_lifecycle.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMode": "offline-spec",
+      "tag": "@weave-sprint12-identity-lifecycle",
+      "scenario": "Identity reconcile and offboarding fail closed before destructive changes",
+      "evidenceMarkers": [
+        "SPRINT12_IDENTITY_LIFECYCLE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/identity-provisioning-strategy.md",
+          "fragments": [
+            "SCIM-compatible",
+            "Unknown groups",
+            "Destructive removal is blocked"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/identity/lifecycle/IdentityLifecycleContractsTest.java",
+          "fragments": [
+            "reconcileUsesStableIdsAndFailsClosedForUnknownGroupsOrRoles",
+            "offboardingDryRunRequiresOwnershipTransferBeforeDestructiveRemoval"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_12_provider_portability_lifecycle.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMode": "offline-spec",
+      "tag": "@weave-sprint12-weaver-preflight-disabled",
+      "scenario": "Weaver runtime and tools remain preflight-only",
+      "evidenceMarkers": [
+        "SPRINT12_WEAVER_PREFLIGHT_DISABLED"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/architecture/adr-003-weaver-runtime-isolation.md",
+          "fragments": [
+            "Docker rootless may reduce host risk",
+            "deny-by-default egress"
+          ]
+        },
+        {
+          "path": "docs/governed-weaver-runtime-security-contract.md",
+          "fragments": [
+            "Signed skill/tool manifest",
+            "SecretRef and OAuth broker rules",
+            "no marketplace"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_12_provider_portability_lifecycle.feature",
+      "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
+      "evidenceMode": "offline-spec",
+      "tag": "@weave-sprint12-release-ops-a11y",
+      "scenario": "Release promotion requires accessibility and restore evidence",
+      "evidenceMarkers": [
+        "SPRINT12_RELEASE_OPS_A11Y"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/accessibility-gate.json",
+          "fragments": [
+            "provider-migration-dry-run",
+            "expiredWaiverBlocksPromotion"
+          ]
+        },
+        {
+          "path": "infra/docs/operator-runbook.md",
+          "fragments": [
+            "provider-aware backup, restore, upgrade, and schema migration contract",
+            "artifact-only restore smoke"
+          ]
+        }
+      ]
     }
   ]
 }

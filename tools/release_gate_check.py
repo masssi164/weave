@@ -10,7 +10,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "release" / "enterprise-release-gates.json"
+ACCESSIBILITY_GATE = ROOT / "release" / "accessibility-gate.json"
 DOC = ROOT / "docs" / "enterprise-release-foundation.md"
+A11Y_DOC = ROOT / "docs" / "accessibility-release-gate.md"
 FORBIDDEN_FRAGMENTS = (
     "authorization:",
     "bearer ",
@@ -125,8 +127,25 @@ def check_contract(contract: dict[str, Any]) -> None:
         fail("credentialed-live-stack-e2e is missing required runtime markers")
 
 
+def check_accessibility_gate() -> None:
+    gate = read_json(ACCESSIBILITY_GATE)
+    flows = gate.get("criticalFlows")
+    if not isinstance(flows, list) or len(flows) < 4:
+        fail("accessibility gate must define critical release flows")
+    for required in ("provider-setup", "provider-migration-dry-run", "identity-offboarding", "chat-e2ee-recovery"):
+        if required not in {flow.get("id") for flow in flows if isinstance(flow, dict)}:
+            fail(f"accessibility gate missing critical flow {required}")
+    policy = gate.get("waiverPolicy", {})
+    if not all(policy.get(key) is True for key in ("exceptionalOnly", "requiresIssue", "requiresExpiry", "expiredWaiverBlocksPromotion")):
+        fail("accessibility waiver policy must be exceptional, issue-linked, expiring, and promotion-blocking")
+    doc = A11Y_DOC.read_text(encoding="utf-8")
+    for fragment in ("release/accessibility-gate.json", "provider migration dry-run", "identity offboarding", "Matrix Chat E2EE recovery"):
+        if fragment not in doc:
+            fail(f"accessibility release gate doc missing {fragment}")
+
+
 def check_support_safe_text() -> None:
-    for path in (CONTRACT, DOC):
+    for path in (CONTRACT, ACCESSIBILITY_GATE, DOC, A11Y_DOC):
         text = path.read_text(encoding="utf-8")
         lowered = text.lower()
         for fragment in FORBIDDEN_FRAGMENTS:
@@ -157,6 +176,7 @@ def main() -> None:
     contract = read_json(CONTRACT)
     check_contract(contract)
     check_docs(contract)
+    check_accessibility_gate()
     check_support_safe_text()
     print("release-gate-check: ok")
 

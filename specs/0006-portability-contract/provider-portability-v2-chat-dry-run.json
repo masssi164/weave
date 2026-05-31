@@ -1,0 +1,44 @@
+{
+  "reportId": "s12-chat-dry-run-v2",
+  "domainKey": "chat",
+  "sourceProvider": "current-provider",
+  "targetProvider": "candidate-provider",
+  "feasibility": "feasible_with_manual_review",
+  "fieldClasses": [
+    "portable",
+    "vendor_locked",
+    "archive_only"
+  ],
+  "objectCounts": {
+    "Object": 3
+  },
+  "contentHashes": [
+    "sha256:6368617400000000000000000000000000000000000000000000000000000000"
+  ],
+  "lossyFields": [
+    {
+      "canonicalObject": "Chat",
+      "field": "provider_extension",
+      "fieldClass": "archive_only",
+      "reason": "Support-safe Sprint 12 fixture; raw provider data is not embedded."
+    }
+  ],
+  "conflicts": [
+    {
+      "canonicalObject": "Chat",
+      "reason": "Manual review required before apply."
+    }
+  ],
+  "permissionImpacts": [
+    {
+      "canonicalObject": "Chat",
+      "impact": "Admin-visible summary only; member preview uses stable capability states.",
+      "fieldClass": "manual_review"
+    }
+  ],
+  "archiveRefs": [
+    "archive:s12:chat:redacted"
+  ],
+  "rollbackRetentionRef": "rollback:s12:chat:retention",
+  "redaction": "support_safe"
+}
