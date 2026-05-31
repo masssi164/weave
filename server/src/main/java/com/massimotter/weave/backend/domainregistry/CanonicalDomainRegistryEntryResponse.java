@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.domainregistry;
 
 import java.util.List;
+import java.util.Map;
 
 public record CanonicalDomainRegistryEntryResponse(
         String key,
@@ -14,7 +15,8 @@ public record CanonicalDomainRegistryEntryResponse(
         List<String> sourceOfTruthModes,
         List<String> portabilityRequirements,
         List<String> adapterManifestRequirements,
-        List<String> compatibilityAliases) {
+        List<String> compatibilityAliases,
+        Map<String, String> providerRealityLevelByCandidate) {
 
     public CanonicalDomainRegistryEntryResponse {
         canonicalObjects = canonicalObjects == null ? List.of() : List.copyOf(canonicalObjects);
@@ -25,5 +27,6 @@ public record CanonicalDomainRegistryEntryResponse(
         portabilityRequirements = portabilityRequirements == null ? List.of() : List.copyOf(portabilityRequirements);
         adapterManifestRequirements = adapterManifestRequirements == null ? List.of() : List.copyOf(adapterManifestRequirements);
         compatibilityAliases = compatibilityAliases == null ? List.of() : List.copyOf(compatibilityAliases);
+        providerRealityLevelByCandidate = providerRealityLevelByCandidate == null ? Map.of() : Map.copyOf(providerRealityLevelByCandidate);
     }
 }

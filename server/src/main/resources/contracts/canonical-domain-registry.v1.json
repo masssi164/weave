@@ -111,7 +111,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "people",
@@ -183,7 +184,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "spaces",
@@ -257,7 +259,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "chat",
@@ -336,7 +339,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "files",
@@ -412,7 +416,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "documents",
@@ -485,7 +490,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "calendar",
@@ -561,7 +567,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "boards",
@@ -642,7 +649,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "calls",
@@ -718,7 +726,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "decisions",
@@ -790,7 +799,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "notifications",
@@ -860,7 +870,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "health",
@@ -933,7 +944,8 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     },
     {
       "key": "weaver",
@@ -1003,7 +1015,16 @@
         "conflict_report_support",
         "secret_ref_only",
         "support_safe_diagnostics"
-      ]
+      ],
+      "provider_reality_level_by_candidate": {}
     }
+  ],
+  "provider_reality_levels": [
+    "contract_only",
+    "configured_readiness",
+    "live_adapter_read",
+    "live_adapter_write",
+    "migration_apply_ready",
+    "release_ready"
   ]
 }

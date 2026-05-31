@@ -195,8 +195,8 @@ public class ProviderStackReadinessStepDefinitions {
         assertCategoryContract(
                 "documents-collaboration",
                 Set.of("documents.view", "documents.edit", "documents.collaborate"),
-                Set.of("onlyoffice-community"),
-                Set.of("microsoft-365-office-graph"));
+                Set.of("onlyoffice"),
+                Set.of("microsoft-365-office"));
     }
 
     @Then("provider choice models include recommended self-hosted defaults and risk-aware external providers")
@@ -308,13 +308,13 @@ public class ProviderStackReadinessStepDefinitions {
         assertThat(lastJson.path("configured").asBoolean()).isFalse();
         assertThat(lastJson.path("supportSafe").asBoolean()).isTrue();
         assertThat(lastJson.path("launchMode").asText()).isEqualTo("unavailable");
-        assertThat(lastJson.path("defaultProvider").asText()).isEqualTo("onlyoffice-community");
+        assertThat(lastJson.path("defaultProvider").asText()).isEqualTo("onlyoffice");
         assertThat(lastJson.at("/capabilities/view").asBoolean()).isFalse();
         assertThat(lastJson.at("/capabilities/edit").asBoolean()).isFalse();
         assertThat(lastJson.at("/capabilities/comment").asBoolean()).isFalse();
         assertThat(lastJson.at("/capabilities/review").asBoolean()).isFalse();
         assertThat(lastJson.at("/capabilities/formFill").asBoolean()).isFalse();
-        assertThat(providerKeysFrom(lastJson.path("candidates"))).contains("onlyoffice-community", "collabora-code");
+        assertThat(providerKeysFrom(lastJson.path("candidates"))).contains("onlyoffice", "collabora");
         assertThat(iterable(lastJson.path("providerReadiness")))
                 .anySatisfy(provider -> assertThat(provider.path("failClosed").asBoolean()).isTrue());
     }

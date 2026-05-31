@@ -12,6 +12,7 @@ public record ProviderAdapterReadinessEvidenceResponse(
         @Schema(description = "True when backend/operator configuration is present for the selected adapter.") boolean configured,
         @Schema(description = "True when the backend can infer a reachable adapter without exposing raw diagnostics.") boolean reachable,
         @Schema(description = "Support-safe readiness/health state for this adapter.") String health,
+        @Schema(description = "Evidence-backed implementation maturity for this adapter candidate.") ProviderRealityLevel providerRealityLevel,
         @Schema(description = "True when unavailable provider access remains fail-closed behind Weave facades.") boolean failClosed,
         @Schema(description = "Booleans/counts/stable codes only; no endpoints, secrets, tokens, or raw upstream errors.") Map<String, Object> supportSafeDiagnostics,
         @Schema(description = "UTC timestamp for the evidence snapshot.") Instant evidenceTimestamp) {
@@ -20,6 +21,7 @@ public record ProviderAdapterReadinessEvidenceResponse(
         domain = requireText(domain, "domain");
         adapterKey = requireText(adapterKey, "adapterKey");
         health = requireText(health, "health");
+        providerRealityLevel = providerRealityLevel == null ? ProviderRealityLevel.CONTRACT_ONLY : providerRealityLevel;
         supportSafeDiagnostics = supportSafeDiagnostics == null ? Map.of() : Map.copyOf(new LinkedHashMap<>(supportSafeDiagnostics));
         evidenceTimestamp = evidenceTimestamp == null ? Instant.EPOCH : evidenceTimestamp;
     }

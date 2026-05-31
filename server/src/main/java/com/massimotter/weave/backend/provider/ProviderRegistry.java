@@ -90,6 +90,7 @@ public class ProviderRegistry {
                     status.supportSafeErrorCodes(),
                     status.redactionPolicy(),
                     status.candidates(),
+                    status.providerRealityLevel(),
                     diagnostics(status, Map.of(
                             "category", category,
                             "providerConfigSource", PROVIDER_CONFIG_SOURCE,
@@ -118,6 +119,7 @@ public class ProviderRegistry {
                     status.supportSafeErrorCodes(),
                     status.redactionPolicy(),
                     status.candidates(),
+                    status.providerRealityLevel(),
                     diagnostics(status, Map.of(
                             "category", category,
                             "providerConfigSource", PROVIDER_CONFIG_SOURCE,
@@ -145,6 +147,7 @@ public class ProviderRegistry {
                 status.supportSafeErrorCodes(),
                 status.redactionPolicy(),
                 status.candidates(),
+                status.providerRealityLevel(),
                 diagnostics(status, Map.of(
                         "category", category,
                         "providerConfigSource", PROVIDER_CONFIG_SOURCE,
@@ -163,13 +166,14 @@ public class ProviderRegistry {
                 status.module(), status.providerKey(), status.state(), status.readiness(), status.enabled(), status.configured(),
                 status.readOnly(), status.failClosed(), status.supportSafe(), status.paidFeaturesRequired(), status.summary(),
                 status.supportedCapabilities(), status.unsupportedOperations(), status.supportSafeErrorCodes(), status.redactionPolicy(),
-                status.candidates(), diagnostics(status, extra));
+                status.candidates(), status.providerRealityLevel(), diagnostics(status, extra));
     }
 
     private Map<String, Object> diagnostics(ProviderStatusResponse status, Map<String, Object> extra) {
         Map<String, Object> diagnostics = new LinkedHashMap<>(status.diagnostics());
         diagnostics.put("secretsReturned", false);
         diagnostics.put("rawProviderErrorsReturned", false);
+        diagnostics.put("providerRealityLevel", status.providerRealityLevel().value());
         diagnostics.putAll(extra);
         return diagnostics;
     }
