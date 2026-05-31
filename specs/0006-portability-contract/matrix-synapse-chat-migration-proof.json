@@ -1,0 +1,243 @@
+{
+  "proofId": "sprint-14-matrix-synapse-chat-migration-proof-v1",
+  "domainKey": "chat",
+  "sourceProvider": "matrix-synapse",
+  "targetProvider": "weave-chat-domain",
+  "adapterManifest": {
+    "adapterKey": "matrix-synapse-chat",
+    "domainKeys": [
+      "chat"
+    ],
+    "apiProfile": "Matrix Client-Server API; server-side export/read profile only",
+    "canonicalObjects": [
+      "ChatActor",
+      "ChatRoom",
+      "ChatMembership",
+      "ChatMessage",
+      "ChatMedia",
+      "ChatRelation",
+      "ChatRedaction"
+    ],
+    "capabilityKeys": [
+      "chat.read",
+      "chat.migrate.dry_run",
+      "chat.migrate.export",
+      "chat.migrate.import",
+      "chat.migrate.rollback"
+    ],
+    "readinessChecks": [
+      "matrix-api-reachable",
+      "export-permission-present",
+      "audit-sink-ready",
+      "media-retention-policy-declared",
+      "encrypted-room-detection-complete",
+      "rollback-archive-ready"
+    ],
+    "unsupportedFields": [
+      "encrypted-room-history",
+      "perfect-power-level-parity",
+      "threads-polls-widgets-bridges-federated-edge-cases",
+      "client-side-key-export-import"
+    ],
+    "migrationLimits": [
+      "no-lossless-claim",
+      "plain-message-history-only",
+      "simple-replies-reactions-only",
+      "media-copy-or-durable-reference-required",
+      "e2ee-history-coming-later"
+    ],
+    "auditEvents": [
+      "migration.dry_run",
+      "migration.apply_blocked",
+      "migration.rollback_requested"
+    ],
+    "secretBoundary": "server_only",
+    "supportSafeEvidenceRedaction": "support_safe"
+  },
+  "providerMapping": {
+    "mappingId": "mapping:s14:matrix-synapse-chat:redacted",
+    "domainKey": "chat",
+    "sourceProvider": "matrix-synapse",
+    "targetProvider": "weave-chat-domain",
+    "objectMappings": [
+      {
+        "canonicalObject": "ChatActor",
+        "sourceRef": "matrix-user:hash:2f0b8f1a",
+        "targetRef": "weave-chat-actor:sample-admin",
+        "lossClass": "portable",
+        "fieldClass": "portable"
+      },
+      {
+        "canonicalObject": "ChatRoom",
+        "sourceRef": "matrix-room:hash:7b83a2e1",
+        "targetRef": "weave-chat-room:sample-room",
+        "lossClass": "portable",
+        "fieldClass": "portable"
+      },
+      {
+        "canonicalObject": "ChatMembership",
+        "sourceRef": "matrix-membership:hash:6e1e6c4a",
+        "targetRef": "weave-chat-membership:sample-room-current",
+        "lossClass": "manual_review",
+        "fieldClass": "manual_review"
+      },
+      {
+        "canonicalObject": "ChatMessage",
+        "sourceRef": "matrix-event:hash:61236d2e",
+        "targetRef": "weave-chat-message:sample-plain-message",
+        "lossClass": "portable",
+        "fieldClass": "portable"
+      },
+      {
+        "canonicalObject": "ChatMedia",
+        "sourceRef": "matrix-media:hash:aa90d912",
+        "targetRef": "weave-chat-media:sample-attachment",
+        "lossClass": "archive_only",
+        "fieldClass": "archive_only"
+      },
+      {
+        "canonicalObject": "ChatRelation",
+        "sourceRef": "matrix-relation:hash:3ffb8412",
+        "targetRef": "weave-chat-relation:sample-reaction",
+        "lossClass": "lossy",
+        "fieldClass": "lossy"
+      },
+      {
+        "canonicalObject": "EncryptedChatHistory",
+        "sourceRef": "matrix-encrypted-room:hash:5397d821",
+        "targetRef": "coming_later:client-side-key-export-strategy",
+        "lossClass": "unsupported",
+        "fieldClass": "unsupported"
+      }
+    ],
+    "redaction": "support_safe"
+  },
+  "exportManifest": {
+    "manifestId": "export:s14:matrix-synapse-chat:redacted",
+    "domainKey": "chat",
+    "providerAdapter": "matrix-synapse-chat",
+    "objectCounts": {
+      "rooms": 2,
+      "users": 3,
+      "memberships": 5,
+      "plainMessages": 8,
+      "mediaReferences": 2,
+      "redactions": 1,
+      "simpleRelations": 2,
+      "encryptedRooms": 1
+    },
+    "contentHashes": [
+      "sha256:6d61747269782d73796e617073652d636861742d6578706f72742d73313400"
+    ],
+    "mappingRef": "mapping:s14:matrix-synapse-chat:redacted",
+    "auditRef": "audit:s14:matrix-synapse-chat:dry-run:redacted",
+    "redaction": "support_safe"
+  },
+  "importFeasibilityReport": {
+    "reportId": "feasibility:s14:matrix-synapse-chat:redacted",
+    "domainKey": "chat",
+    "sourceProvider": "matrix-synapse",
+    "targetProvider": "weave-chat-domain",
+    "feasibility": "feasible_with_manual_review",
+    "fieldClasses": [
+      "portable",
+      "lossy",
+      "unsupported",
+      "manual_review",
+      "archive_only"
+    ],
+    "blockers": [
+      "encrypted-room-history requires client-side key/export strategy before any support claim",
+      "Matrix power-level parity requires manual permission-impact approval",
+      "media durability must choose copy or explicit retained reference before apply"
+    ],
+    "redaction": "support_safe"
+  },
+  "lossyMappingReport": {
+    "reportId": "lossy:s14:matrix-synapse-chat:redacted",
+    "mappingRef": "mapping:s14:matrix-synapse-chat:redacted",
+    "losses": [
+      {
+        "canonicalObject": "ChatRelation",
+        "field": "complex-relations",
+        "lossClass": "lossy",
+        "reason": "Only simple replies and reactions with unambiguous source/target event mapping are in the MVP subset."
+      },
+      {
+        "canonicalObject": "EncryptedChatHistory",
+        "field": "message-content",
+        "lossClass": "unsupported",
+        "reason": "Server-side migration cannot decrypt Matrix E2EE history without client-side key/export support."
+      },
+      {
+        "canonicalObject": "ChatPermission",
+        "field": "power-levels",
+        "lossClass": "manual_review",
+        "reason": "Matrix power levels do not map 1:1 to Weave roles."
+      }
+    ],
+    "approvalRequired": true,
+    "redaction": "support_safe"
+  },
+  "permissionImpactReport": {
+    "reportId": "permissions:s14:matrix-synapse-chat:redacted",
+    "domainKey": "chat",
+    "impacts": [
+      {
+        "canonicalObject": "ChatMembership",
+        "impact": "Current membership can be represented; invite/ban/knock history requires admin review before cutover.",
+        "fieldClass": "manual_review"
+      },
+      {
+        "canonicalObject": "ChatPermission",
+        "impact": "Power levels are summarized for admins and never shown as raw Matrix diagnostics to members.",
+        "fieldClass": "manual_review"
+      }
+    ],
+    "approvalRequired": true,
+    "redaction": "support_safe"
+  },
+  "rollbackRetentionReport": {
+    "reportId": "rollback:s14:matrix-synapse-chat:redacted",
+    "domainKey": "chat",
+    "rollbackArchiveRef": "archive:s14:matrix-synapse-chat:redacted",
+    "retentionUntil": "2026-08-31T00:00:00Z",
+    "restoreSmokeRequired": true,
+    "redaction": "support_safe"
+  },
+  "migrationRun": {
+    "runId": "migration:s14:matrix-synapse-chat:dry-run-blocked",
+    "domainKey": "chat",
+    "state": "blocked",
+    "dryRunReportRef": "dry-run:s14:matrix-synapse-chat:redacted",
+    "providerMappingRef": "mapping:s14:matrix-synapse-chat:redacted",
+    "objectCounts": {
+      "rooms": 2,
+      "users": 3,
+      "memberships": 5,
+      "plainMessages": 8,
+      "mediaReferences": 2,
+      "redactions": 1,
+      "simpleRelations": 2,
+      "encryptedRooms": 1
+    },
+    "contentHashes": [
+      "sha256:6d61747269782d73796e617073652d636861742d72756e2d7331340000"
+    ],
+    "auditRefs": [
+      "audit:s14:matrix-synapse-chat:dry-run:redacted"
+    ],
+    "applyAllowed": false,
+    "redaction": "support_safe"
+  },
+  "memberCapabilityStates": [
+    "available",
+    "disabled_by_policy",
+    "not_configured",
+    "degraded",
+    "unavailable",
+    "coming_later"
+  ],
+  "claimBoundary": "This fixture proves classification and apply blocking for the conservative Matrix Chat MVP. It does not prove lossless migration, legal compliance, or E2EE history migration.",
+  "redaction": "support_safe"
+}

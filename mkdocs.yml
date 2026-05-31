@@ -67,6 +67,7 @@ nav:
       - Sprint 9 product-readiness waterfall evidence: sprint-9-product-readiness-waterfall.md
       - Sprint 8 closure audit: sprint-8-closure-report.md
       - Sprint 9 closure audit: sprint-9-closure-report.md
+      - Sprint 14 delivery board: project/sprint-14-delivery-board.md
       - v0.1.0-rc.2 release evidence: release-v0.1-rc2-evidence.md
       - Accessibility release gate: accessibility-release-gate.md
       - ISO 9241-110 dogfood UX gate: iso-9241-110-dogfood-ux-gate.md
@@ -79,6 +80,8 @@ nav:
       - Governed Weaver runtime security contract: governed-weaver-runtime-security-contract.md
       - Weaver security/privacy/accessibility evidence: evidence/weaver-security-privacy-accessibility-report.md
       - Provider replacement and anti-silo contract: provider-replacement-and-anti-silo-contract.md
+      - Product trust and provider-choice claim matrix: product-trust-provider-choice-claim-matrix.md
+      - Matrix Chat migration proof boundary: matrix-chat-migration-proof.md
       - Manuals and release notes integration: manuals-and-release-notes-integration.md
       - v0.1 dogfood plan: release-v0.1-dogfood-plan.md
       - v0.1 Golden Path readiness: v0.1-golden-path.md

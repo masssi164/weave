@@ -1,0 +1,73 @@
+{
+  "reportId": "s14-chat-matrix-synapse-dry-run-v1",
+  "domainKey": "chat",
+  "sourceProvider": "matrix-synapse-chat",
+  "targetProvider": "weave-chat-canonical-import",
+  "feasibility": "feasible_with_manual_review",
+  "fieldClasses": [
+    "portable",
+    "lossy",
+    "unsupported",
+    "manual_review",
+    "archive_only"
+  ],
+  "objectCounts": {
+    "MatrixRoom": 2,
+    "MatrixUser": 4,
+    "MatrixMembership": 6,
+    "MatrixPlainMessage": 12,
+    "MatrixMediaReference": 3,
+    "MatrixRedaction": 1,
+    "MatrixReaction": 2,
+    "MatrixReplyRelation": 2,
+    "MatrixEncryptedEvent": 5
+  },
+  "contentHashes": [
+    "sha256:6d61747269782d636861742d737072696e7431342d6472792d72756e000000"
+  ],
+  "lossyFields": [
+    {
+      "canonicalObject": "ChatPermissionImpact",
+      "field": "matrix_power_levels",
+      "fieldClass": "manual_review",
+      "reason": "Matrix power-level semantics do not map one-to-one to Weave role vocabulary; admin review is required before apply."
+    },
+    {
+      "canonicalObject": "ChatMessage",
+      "field": "matrix_message_edits",
+      "fieldClass": "lossy",
+      "reason": "First proof preserves plain message body and source event references; edit history remains counted and classified."
+    },
+    {
+      "canonicalObject": "EncryptedChatHistory",
+      "field": "matrix_e2ee_ciphertext_payload",
+      "fieldClass": "unsupported",
+      "reason": "Server-side Matrix migration cannot decrypt encrypted history without a client-side key/export strategy."
+    },
+    {
+      "canonicalObject": "ChatMedia",
+      "field": "mxc_media_uri",
+      "fieldClass": "archive_only",
+      "reason": "MXC references require copied media or explicit retention caveats before target import."
+    }
+  ],
+  "conflicts": [
+    {
+      "canonicalObject": "ChatRoom",
+      "reason": "Room aliases and canonical names may collide with existing target conversations; preflight must produce admin-visible decisions."
+    }
+  ],
+  "permissionImpacts": [
+    {
+      "canonicalObject": "ChatRoom",
+      "impact": "Current membership is portable; historical invite/leave/ban nuance and Matrix power levels require manual review. Member copy must use stable Weave capability states only.",
+      "fieldClass": "manual_review"
+    }
+  ],
+  "archiveRefs": [
+    "archive:s14:matrix-chat:redacted-source-events",
+    "archive:s14:matrix-chat:unsupported-e2ee-counts"
+  ],
+  "rollbackRetentionRef": "rollback:s14:matrix-chat:source-retention-required-before-cutover",
+  "redaction": "support_safe"
+}

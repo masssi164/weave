@@ -68,9 +68,42 @@ def main():
   if fixture.get('domainKey') != domain or fixture.get('redaction') != 'support_safe': fail(f'{domain} v2 dry-run fixture must be support_safe')
   classes=fixture.get('fieldClasses', [])
   if not classes or any(item not in LOSS for item in classes): fail(f'{domain} fixture must use v2 field classes')
+ matrix=load(FIXTURES/'provider-portability-v2-chat-matrix-dry-run.json')
+ if matrix.get('domainKey')!='chat' or matrix.get('sourceProvider')!='matrix-synapse-chat' or matrix.get('redaction')!='support_safe':
+  fail('Matrix Chat Sprint 14 dry-run fixture must be support_safe chat evidence for matrix-synapse-chat')
+ matrix_classes=set(matrix.get('fieldClasses', []))
+ for required in ['portable','lossy','unsupported','manual_review','archive_only']:
+  if required not in matrix_classes: fail(f'Matrix Chat fixture must classify {required} fields')
+ matrix_raw=json.dumps(matrix).lower()
+ for required in ['matrix_power_levels','matrix_e2ee_ciphertext_payload','server-side matrix migration cannot decrypt encrypted history','mxc_media_uri','stable weave capability states']:
+  if required not in matrix_raw: fail(f'Matrix Chat fixture missing required Sprint 14 evidence phrase: {required}')
+ if any(item not in LOSS for item in matrix.get('fieldClasses', [])): fail('Matrix Chat fixture must use canonical v2 field classes')
  for negative in ['provider-portability-v2-silent-drop-negative.json','provider-portability-v2-raw-provider-leak-negative.json']:
   fixture=load(FIXTURES/negative)
   if fixture.get('expectedOutcome') != 'reject': fail(f'{negative} must reject unsafe portability behavior')
+ matrix=load(FIXTURES/'matrix-synapse-chat-migration-proof.json')
+ if matrix.get('domainKey')!='chat' or matrix.get('sourceProvider')!='matrix-synapse' or matrix.get('redaction')!='support_safe':
+  fail('Matrix Synapse Chat proof must be a support_safe chat-domain fixture')
+ manifest=matrix.get('adapterManifest', {})
+ if manifest.get('adapterKey')!='matrix-synapse-chat' or manifest.get('secretBoundary')!='server_only':
+  fail('Matrix proof manifest must identify matrix-synapse-chat with server_only secret boundary')
+ raw=json.dumps(matrix).lower()
+ for forbidden in ['access_token','refresh_token','clientsecret','password','homeserverurl','mxc://','https://matrix']:
+  if forbidden in raw: fail(f'Matrix proof must not leak raw provider credential or endpoint data: {forbidden}')
+ mapping_classes=[item.get('fieldClass') for item in matrix.get('providerMapping', {}).get('objectMappings', [])]
+ for required_class in ['portable','lossy','unsupported','manual_review','archive_only']:
+  if required_class not in mapping_classes: fail(f'Matrix proof mapping missing {required_class} classification')
+ blockers=' '.join(matrix.get('importFeasibilityReport', {}).get('blockers', [])).lower()
+ if 'encrypted-room-history' not in blockers or 'client-side key/export' not in blockers:
+  fail('Matrix proof must block encrypted-room history until client-side key/export strategy exists')
+ run=matrix.get('migrationRun', {})
+ if run.get('applyAllowed') is not False or run.get('state')!='blocked' or not run.get('dryRunReportRef'):
+  fail('Matrix proof must include a blocked dry-run migration run before apply')
+ for state in ['available','disabled_by_policy','not_configured','degraded','unavailable','coming_later']:
+  if state not in matrix.get('memberCapabilityStates', []): fail(f'Matrix proof missing member capability state {state}')
+ boundary=matrix.get('claimBoundary', '').lower()
+ for phrase in ['does not prove lossless migration', 'legal compliance', 'e2ee history migration']:
+  if phrase not in boundary: fail(f'Matrix proof claim boundary missing {phrase}')
  success=load(FIXTURES/'migration-run-dry-run-success.json')
  blocked=load(FIXTURES/'migration-run-apply-blocked.json')
  for fixture in [success, blocked]:
