@@ -26,7 +26,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Migration/Operator Notes
 
-- Nothing yet.
+- Admin Console provider setup now shows domain-first reality level, evidence freshness, restart-survival evidence, and blocks provider apply/switch actions without fresh backend dry-run evidence, consequence confirmation, audit/rollback gates, and provider-neutral member impact preview.
 
 ## Known Issues
 
