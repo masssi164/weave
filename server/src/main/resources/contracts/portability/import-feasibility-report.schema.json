@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/portability/import-feasibility-report.schema.json",
+  "title": "ImportFeasibilityReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reportId",
+    "domainKey",
+    "sourceProvider",
+    "targetProvider",
+    "feasibility",
+    "fieldClasses",
+    "blockers",
+    "redaction"
+  ],
+  "properties": {
+    "reportId": {
+      "type": "string"
+    },
+    "domainKey": {
+      "type": "string"
+    },
+    "sourceProvider": {
+      "type": "string"
+    },
+    "targetProvider": {
+      "type": "string"
+    },
+    "feasibility": {
+      "type": "string",
+      "enum": [
+        "feasible",
+        "feasible_with_manual_review",
+        "blocked"
+      ]
+    },
+    "fieldClasses": {
+      "type": "array",
+      "items": {
+        "$ref": "loss-class.schema.json"
+      },
+      "minItems": 1
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "redaction": {
+      "type": "string",
+      "enum": [
+        "support_safe"
+      ]
+    }
+  }
+}

@@ -40,3 +40,26 @@ Before changing `features.chatE2ee` or enabling encrypted default rooms, land va
 6. bot/assistant/connector participation policy with consent, audit, Matrix device trust, and client identity behavior.
 
 Bot, assistant, and connector participation in encrypted rooms remains fail-closed until those gates are complete.
+
+## Sprint 12 Chat portability and E2EE product boundaries
+
+Weave controls Chat product copy, admin readiness, support-safe diagnostics, and provider adapter contracts. Matrix device trust, room keys, recovery keys, E2EE ciphertext, and provider legal-hold behavior remain provider/device/key dependent.
+
+### Export and migration states
+
+Chat export/import evidence uses stable product states only:
+
+- `metadata_only`: Weave can account for rooms, membership, timestamps, and attachment refs, but not plaintext history.
+- `archive_import_only`: content is preserved as an archive artifact and is not replayed into the target provider.
+- `blocked_e2ee_keys_missing`: apply is blocked because required keys or recovery evidence are unavailable.
+- `legal_hold_provider_only`: legal hold depends on provider/legal architecture and is not a Weave backend claim.
+
+Weave must not claim backend encrypted-room search, plaintext export, assistant access to encrypted rooms, or legal hold unless a future key/legal architecture explicitly provides it.
+
+### Support diagnostics redaction
+
+Support bundles and release evidence redact tokens, cookies, access/refresh material, recovery keys, room keys, private keys, plaintext message bodies, attachments, raw homeserver bodies, and credential-bearing URLs. Diagnostics may include support-safe counts, state names, hashes, audit refs, and readiness IDs.
+
+### Accessibility protocol
+
+Device verification, key backup/recovery, lost-device recovery, cannot-decrypt states, and blocked export states must be text-first, keyboard reachable, screenreader announced, and free of raw provider internals.

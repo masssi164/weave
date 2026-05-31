@@ -1,0 +1,6 @@
+{
+  "negativeFixture": true,
+  "reason": "raw provider URLs and payloads are forbidden",
+  "expectedOutcome": "reject",
+  "redaction": "support_safe"
+}

@@ -86,3 +86,24 @@ Admins can see policy posture, audit metadata, readiness, grants, and approval s
 - `./gradlew acceptanceContract` for mapped product-language scenarios.
 - `./gradlew specContract` for the governed Weaver runtime spec (`WEAVE-SPEC-0007`).
 - Release hardening evidence in `docs/evidence/weaver-security-privacy-accessibility-report.md` before any release claim.
+
+## Sprint 12 preflight: sandbox, registry, SecretRef, and OAuth contracts
+
+Sprint 12 keeps Weaver runtime execution disabled by default. See `docs/architecture/adr-003-weaver-runtime-isolation.md` for the isolation decision. Docker rootless is not accepted as a strong sandbox by itself; stronger gVisor/runsc or Firecracker evidence is required before broader runtime claims.
+
+### Signed skill/tool manifest
+
+Every admin-distributed skill or tool manifest must be version-pinned and include:
+
+- signature and provenance;
+- semantic version and immutable artifact digest;
+- declared capabilities, approval class, data classes, and egress destinations;
+- SecretRefs and OAuth/service-account broker requirements;
+- audit events for install, update, rollback, grant, deny, invoke, and cleanup; and
+- support-safe evidence fields for review and release promotion.
+
+Unsigned, unpinned, overbroad, undeclared-egress, raw-secret, or raw-provider-payload manifests are rejected. Install, update, rollback, capability grant, and admin approval receipts are modeled as audit-linked evidence; no marketplace or broad third-party execution is included in this sprint.
+
+### SecretRef and OAuth broker rules
+
+Runtime profiles, logs, support bundles, tool results, and PR/release evidence may contain only stable SecretRef identifiers and support-safe broker receipts. Raw secrets, client credentials, OAuth refresh tokens, cookies, provider URLs with credentials, and downstream payload bodies are forbidden. The broker must scope grants to actor, organization, tool, capability, approval receipt, and expiry.

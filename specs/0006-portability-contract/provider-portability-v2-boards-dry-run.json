@@ -1,0 +1,44 @@
+{
+  "reportId": "s12-boards-dry-run-v2",
+  "domainKey": "boards",
+  "sourceProvider": "current-provider",
+  "targetProvider": "candidate-provider",
+  "feasibility": "blocked",
+  "fieldClasses": [
+    "portable",
+    "unsupported",
+    "manual_review"
+  ],
+  "objectCounts": {
+    "Object": 3
+  },
+  "contentHashes": [
+    "sha256:626f617264730000000000000000000000000000000000000000000000000000"
+  ],
+  "lossyFields": [
+    {
+      "canonicalObject": "Boards",
+      "field": "provider_extension",
+      "fieldClass": "manual_review",
+      "reason": "Support-safe Sprint 12 fixture; raw provider data is not embedded."
+    }
+  ],
+  "conflicts": [
+    {
+      "canonicalObject": "Boards",
+      "reason": "Manual review required before apply."
+    }
+  ],
+  "permissionImpacts": [
+    {
+      "canonicalObject": "Boards",
+      "impact": "Admin-visible summary only; member preview uses stable capability states.",
+      "fieldClass": "manual_review"
+    }
+  ],
+  "archiveRefs": [
+    "archive:s12:boards:redacted"
+  ],
+  "rollbackRetentionRef": "rollback:s12:boards:retention",
+  "redaction": "support_safe"
+}

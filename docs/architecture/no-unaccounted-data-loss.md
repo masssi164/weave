@@ -4,14 +4,14 @@ Weave does not promise that every provider replacement is perfectly lossless. It
 
 ## Loss classes
 
-The `LossClass` enum is shared by every portability report.
+The Sprint 12 provider portability schema v2 `LossClass` enum is shared by every portability report.
 
-- `lossless_canonical`: represented in the target provider through a canonical Weave object or field.
-- `lossless_extension`: preserved as a support-safe extension or provider-specific sidecar.
+- `portable`: represented in the target provider through a canonical Weave object or field.
+- `lossy`: partially mapped and listed in a `LossyMappingReport` for explicit review.
+- `unsupported`: cannot be represented by the target adapter; apply is blocked unless an approved policy chooses a safe outcome.
+- `manual_review`: requires admin review before apply because identity, permission, conflict, or impact evidence is incomplete.
+- `vendor_locked`: source provider cannot export or replay it as a Weave canonical value; the report records evidence and impact.
 - `archive_only`: preserved in an archive/export bundle but not active in the target provider.
-- `lossy_with_report`: partially mapped and listed in a Lossy Mapping Report for explicit review.
-- `blocked_nonportable`: cannot be migrated; apply is blocked until an admin chooses a safe outcome.
-- `provider_unexportable`: source provider cannot export it; the report records evidence and impact.
 
 ## Contract schemas
 
@@ -21,12 +21,16 @@ Machine-readable schemas live under `server/src/main/resources/contracts/portabi
 - `ProviderMapping`
 - `ExportManifest`
 - `ImportManifest`
+- `ImportFeasibilityReport`
 - `LossyMappingReport`
 - `ConflictReport`
+- `PermissionImpactReport`
+- `ArchiveManifest`
+- `RollbackRetentionReport`
 - `MigrationRun`
 - `MigrationAuditRef`
 
-`./gradlew portabilityContractCheck` validates that each schema exists, uses the canonical loss classes, requires counts/hashes/provider mapping/audit references, and keeps redaction support-safe.
+`./gradlew portabilityContractCheck` validates that each schema exists, uses the canonical v2 loss classes, requires counts/hashes/provider mapping/audit references, and keeps redaction support-safe.
 
 ## Dry-run gate
 
@@ -35,3 +39,5 @@ Provider migration apply is impossible until a successful dry-run report exists.
 ## Support-safe redaction
 
 Portability artifacts must contain support-safe identifiers and hashes, not raw provider tokens, credentials, internal endpoints, or opaque downstream error payloads. Raw provider payloads stay server/operator-side and must be redacted before they enter evidence, member preview, issue comments, or docs.
+
+The contract phrase is no-unaccounted data loss: no loss may be hidden, unclassified, or unaudited.

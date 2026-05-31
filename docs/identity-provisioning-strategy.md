@@ -325,3 +325,31 @@ Identity strategy is ready for implementation slicing when:
 - tests prove email is never treated as primary key;
 - unknown groups/roles/providers fail closed;
 - provider-specific IDs stay out of member responses and support bundles unless explicitly redacted and admin-only.
+
+## Sprint 12 lifecycle contract: SCIM, reconcile, offboarding, and recertification
+
+Sprint 12 treats Keycloak bootstrap as a baseline, not as a full joiner/mover/leaver lifecycle. Lifecycle evidence is support-safe and SCIM-compatible, but Keycloak-native SCIM remains a gated spike-dependent path until production evidence exists.
+
+### Reconcile report
+
+- Users and groups are matched by stable provider/IDM IDs; email is display/contact metadata and must never be the primary key.
+- Unknown groups, unknown roles, weak matches, or duplicate stable IDs fail closed with `admin_action_required`.
+- Reports include subject counts, group/role drift, proposed mappings, and audit references, but no raw provider payloads.
+
+### Offboarding dry-run
+
+Before destructive removal, the dry-run must summarize:
+
+- active sessions and refresh/device consequences;
+- Matrix membership, devices, key backup/recovery, and cannot-decrypt consequences;
+- Files ownership, shares, external links, and version-retention consequences;
+- Boards ownership, assignees, watchers, and automation consequences;
+- Calendar organizer/resource consequences;
+- ownership-transfer tasks required before deletion; and
+- audit retention references.
+
+Destructive removal is blocked until ownership transfer is modeled and support-safe evidence exists.
+
+### Access recertification
+
+Release promotion requires evidence for privileged roles, external guests, stale mappings, and admin sign-off. Stale mappings block promotion until reviewed or intentionally archived.

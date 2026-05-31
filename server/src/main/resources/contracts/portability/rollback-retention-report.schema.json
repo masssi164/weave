@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weave.local/contracts/portability/rollback-retention-report.schema.json",
+  "title": "RollbackRetentionReport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reportId",
+    "domainKey",
+    "rollbackArchiveRef",
+    "retentionUntil",
+    "restoreSmokeRequired",
+    "redaction"
+  ],
+  "properties": {
+    "reportId": {
+      "type": "string"
+    },
+    "domainKey": {
+      "type": "string"
+    },
+    "rollbackArchiveRef": {
+      "type": "string"
+    },
+    "retentionUntil": {
+      "type": "string"
+    },
+    "restoreSmokeRequired": {
+      "type": "boolean",
+      "const": true
+    },
+    "redaction": {
+      "type": "string",
+      "enum": [
+        "support_safe"
+      ]
+    }
+  }
+}

@@ -80,33 +80,51 @@ public class MigrationDryRunService {
         String provider = normalizeProvider(sourceProvider);
         return List.of(
                 new MigrationDryRunResponse.DomainMappingEvidence(
+                        "files",
+                        provider + ":files/folders/shares/versions",
+                        "weave:files:paths/folders/versions/shares/owners",
+                        "target-adapter:files:objects/shares/versions",
+                        inventory.files() > 0 ? "manual_review_required" : "no-source-objects",
+                        inventory.files() > 0
+                                ? List.of("unsupported metadata, external links, missing versions, quota/rate limits may be lossy")
+                                : List.of(),
+                        List.of("path or ownership conflicts block apply until resolved"),
+                        List.of(
+                                "path conflicts receive deterministic conflict suffixes during dry-run evidence",
+                                "ACL and ownership imports require IDM identity mapping and admin consent scopes")),
+                new MigrationDryRunResponse.DomainMappingEvidence(
+                        "calendar",
+                        provider + ":calendars/events/organizers/resources",
+                        "weave:calendar:calendars/events/organizers/resources/recurrence",
+                        "target-adapter:calendar:calendars/events/participants/resources",
+                        "manual_review_required",
+                        List.of("provider-specific recurrence exceptions, alarms, room resources, and attachment links may be lossy"),
+                        List.of("organizer and resource ownership consequences require admin review"),
+                        List.of("member previews show stable calendar impact states, never raw provider event urls")),
+                new MigrationDryRunResponse.DomainMappingEvidence(
+                        "boards",
+                        provider + ":boards/lists/cards/labels/watchers",
+                        "weave:boards:projects/boards/columns/tasks/labels/watchers",
+                        "target-adapter:boards:projects/boards/tasks",
+                        "manual_review_required",
+                        List.of("automation rules, custom fields, comments, and watchers may be unsupported or archive-only"),
+                        List.of("permission and ownership drift blocks apply until transfer evidence exists"),
+                        List.of("unsupported provider actions stay admin-visible and are not surfaced as member internals")),
+                new MigrationDryRunResponse.DomainMappingEvidence(
                         "chat",
-                        provider + ":channels/messages/memberships",
+                        provider + ":channels/messages/memberships/e2ee-state",
                         "weave:chat:conversations/messages/memberships/history-policy/attachment-refs",
                         "target-adapter:chat:conversations/messages/memberships",
-                        unmappableUsers > 0 ? "requires-admin-review" : "mappable",
+                        unmappableUsers > 0 ? "manual_review_required" : "mappable",
                         inventory.messages() > 0
-                                ? List.of("provider-specific reactions, pins, bot metadata, thread semantics, and encrypted/redacted history may be lossy")
+                                ? List.of("provider-specific reactions, pins, bot metadata, thread semantics, and encrypted/redacted history may be lossy or archive-only")
                                 : List.of(),
                         unmappableUsers > 0
                                 ? List.of("identity conflicts must resolve against IDM/RBAC mapping before cutover")
                                 : List.of(),
                         List.of(
                                 "conversation ids are canonicalized before target import",
-                                "attachments re-link through Weave Files/attachment facades; raw media URLs are redacted")),
-                new MigrationDryRunResponse.DomainMappingEvidence(
-                        "files",
-                        provider + ":files/folders/shares/versions",
-                        "weave:files:paths/folders/versions/shares/owners",
-                        "target-adapter:files:objects/shares/versions",
-                        inventory.files() > 0 ? "mappable-with-review" : "no-source-objects",
-                        inventory.files() > 0
-                                ? List.of("unsupported metadata, external links, missing versions, quota/rate limits may be lossy")
-                                : List.of(),
-                        List.of(),
-                        List.of(
-                                "path conflicts receive deterministic conflict suffixes during dry-run evidence",
-                                "ACL and ownership imports require IDM identity mapping and admin consent scopes")));
+                                "attachments re-link through Weave Files/attachment facades; raw media URLs are redacted")));
     }
 
     private void persistServerEvidence(MigrationDryRunResponse response) {
@@ -141,6 +159,14 @@ public class MigrationDryRunService {
         } else if ("files".equals(domain)) {
             counts.put("File", inventory.files());
             counts.put("Workspace", inventory.workspaces());
+        } else if ("calendar".equals(domain)) {
+            counts.put("Calendar", Math.max(1, inventory.workspaces()));
+            counts.put("Event", Math.max(1, inventory.channels()));
+            counts.put("Participant", inventory.users());
+        } else if ("boards".equals(domain)) {
+            counts.put("Board", Math.max(1, inventory.workspaces()));
+            counts.put("Task", Math.max(1, inventory.channels() + inventory.files()));
+            counts.put("Watcher", inventory.users());
         } else {
             counts.put("Object", Math.max(1, inventory.workspaces() + inventory.channels() + inventory.users() + inventory.files() + inventory.messages()));
         }

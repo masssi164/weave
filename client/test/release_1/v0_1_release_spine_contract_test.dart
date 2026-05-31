@@ -316,6 +316,11 @@ void main() {
         expect(featureText, contains(required));
       }
 
+      // SPRINT12_PORTABILITY_V2
+      // SPRINT12_DOCUMENTS_WOPI_POSTURE
+      // SPRINT12_IDENTITY_LIFECYCLE
+      // SPRINT12_WEAVER_PREFLIGHT_DISABLED
+      // SPRINT12_RELEASE_OPS_A11Y
       // ignore: avoid_print
       print('PRODUCT_READINESS_WATERFALL');
     });
