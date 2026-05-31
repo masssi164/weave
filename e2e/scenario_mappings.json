@@ -956,6 +956,22 @@
             "portable-export-import-contract",
             "rollback-recovery-plan"
           ]
+        },
+        {
+          "path": "specs/0007-governed-weaver-runtime/spec.md",
+          "fragments": [
+            "The Weaver RuntimeProfile Loader renders internal `openclaw.json` and related channel/plugin/MCP/tool settings as runtime implementation detail.",
+            "Stable `channels.weave-chat` configuration with Weave API/runtime token/profile hash metadata.",
+            "Provider-change flow: Admin changes the Weave Chat domain provider"
+          ]
+        },
+        {
+          "path": "docs/architecture/weaver-openclaw-profile.md",
+          "fragments": [
+            "The signed `WeaverRuntimeProfile` is the single source consumed by the OpenClaw-derived Weaver runtime.",
+            "Matrix, Teams, iMessage, Slack, Telegram, or another supported provider are backend providerRefs",
+            "Admin Chat provider changes are provider migrations, not member adapter switches"
+          ]
         }
       ],
       "evidenceMode": "offline-spec"

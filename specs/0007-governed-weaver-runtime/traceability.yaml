@@ -7,6 +7,8 @@ github_issues:
   - 447
   - 448
   - 449
+  - 519
+  - 522
 release_notes_label: release-notes-feature
 acceptance_features:
   - e2e/features/v0_1_dogfood_release.feature
@@ -20,6 +22,8 @@ acceptance_scenarios:
   - tag: '@weave-v01-provider-switch-portability'
     evidence:
       - admin-console/src/App.test.tsx
+      - specs/0007-governed-weaver-runtime/spec.md
+      - docs/architecture/weaver-openclaw-profile.md
 evidence_gates:
   - ./gradlew specContract
   - ./gradlew acceptanceContract
