@@ -10,7 +10,7 @@ Use this page for release-affecting changes that have merged but are not include
 - Sprint 11 Live Stack acceptance now maps a provider-reality vertical for Files, Calendar, Boards, Calls, and Documents with live-runtime evidence separated from manual accessibility accounting.
 - Sprint 12 adds provider portability schema v2 fixtures and reports for Files, Calendar, Boards, and Chat, plus Office/WOPI, Weaver isolation, Weaver registry, identity lifecycle, accessibility, and operator lifecycle contracts.
 - Weaver/OpenClaw release documentation now clarifies the signed RuntimeProfile boundary: Weave projects a stable `channels.weave-chat` channel backed by Weave Chat-domain routing, model aliases, MCP/tool/skill grants, CredentialRefs and short-lived runtime token references, sandbox policy, and audit requirements into the OpenClaw-derived runtime while keeping raw OpenClaw configuration out of member UX.
-- Sprint 14 starts product-trust and provider-choice evidence with a delivery board, professional claim matrix, procurement-risk wording boundaries, and a conservative Matrix Chat migration proof fixture that keeps apply blocked until no-unaccounted-data-loss evidence exists.
+- Sprint 14 starts product-trust and provider-choice evidence with a cross-repo Weave/Weaver delivery board, professional claim matrix, procurement-risk wording boundaries, and a conservative Matrix Chat migration proof fixture that keeps apply blocked until no-unaccounted-data-loss evidence exists.
 
 ## Changed
 

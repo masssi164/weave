@@ -1,6 +1,8 @@
 # Sprint 14 delivery board: product trust and provider choice
 
-Status: active Sprint 14 execution plan. GitHub milestone: [Sprint 14 — Product Trust, Provider Choice & Operator Experience](https://github.com/masssi164/weave/milestone/14).
+Status: active Sprint 14 execution plan. GitHub milestone: [Sprint 14 — Product Trust, Provider Choice & Operator Experience](https://github.com/masssi164/weave/milestone/14). Cross-repo Weaver milestone: [Sprint 14 — Product Trust, Provider Choice & Operator Experience](https://github.com/masssi164/weaver/milestone/2).
+
+Board rule: every open issue listed on this Delivery Board is Sprint 14 scope and must be assigned to the Sprint 14 milestone in its owning repository. Use the local Sprint 14 ops script `sprint_14/scripts/add_delivery_board_issues_to_sprint14.sh` after board edits so Weave and Weaver issue metadata stay aligned.
 
 Sprint 14 makes Weave professionally explainable and evidence-backed as a provider-neutral collaboration control plane. The sprint is not a hobby/self-hosting-only scope. The self-hosted reference stack is the strongest proof path for data sovereignty, auditability, operational control, and reversibility, while provider facades keep managed, external, and hybrid providers possible behind stable Weave domains.
 
@@ -22,7 +24,9 @@ Sprint 14 makes Weave professionally explainable and evidence-backed as a provid
 | 2 | [#540](https://github.com/masssi164/weave/issues/540) provider-agnostic client UX | client/product | Depends on #536 and informs #539 member-impact preview. | Stable capability vocabulary and accessibility expectations. |
 | 3 | [#538](https://github.com/masssi164/weave/issues/538) Matrix migration proof | chat/dev/test | Depends on #537; feeds #541 and #542. | Conservative Matrix MVP contract plus future fixture outputs. |
 | 3 | [#541](https://github.com/masssi164/weave/issues/541) portability contracts | dev/server | Depends on #537/#538 and existing portability schema v2. | Reusable export/import/cutover/rollback contract updates and tests. |
-| 3 | [#519](https://github.com/masssi164/weave/issues/519) Weaver RuntimeProfile carry-over | weaver/server/admin/infra | Guarded. Keep open unless all cross-repo evidence exists; otherwise split into concrete child issues for `weave` and `weaver`. | RuntimeProfile projection, stable `channels.weave-chat`, Credential Broker references, no raw secrets. |
+| 3 | [`weave#519`](https://github.com/masssi164/weave/issues/519) Weaver RuntimeProfile carry-over | weaver/server/admin/infra | Guarded cross-repo parent. Keep open unless all cross-repo evidence exists; otherwise split into concrete child issues for `weave` and `weaver`. | RuntimeProfile projection, stable `channels.weave-chat`, Credential Broker references, no raw secrets. |
+| 3 | [`weaver#1`](https://github.com/masssi164/weaver/issues/1) governed Weaver runtime and stable `weave-chat` channel | weaver/runtime/chat/security | Child/implementation anchor for `weave#519`. Must move from Sprint 13 carry-over into Sprint 14 and remain release-blocking until the governed runtime seam is proven. | RuntimeProfile loader seam, stable `channels.weave-chat`, raw config lockdown, deny-by-default tool policy, SecretRef/runtime-token-only credential boundary, audit refs. |
+| 4 | [`weaver#9`](https://github.com/masssi164/weaver/issues/9) LM Studio container round-trip evidence | weaver/runtime/test/chat | Depends on `weaver#1` seam and local LM Studio runtime config verification. Proves the first end-to-end `weave-chat` runtime path without leaking raw provider config/secrets. | Inbound Weave Chat message → model response → outbound reply, container-visible LM Studio URL, support-safe evidence, explicit offline/skip interpretation. |
 | 4 | [#542](https://github.com/masssi164/weave/issues/542) evidence matrix | test/release | Depends on first product/research/contract outputs; blocks customer-facing overclaims. | Claim matrix with evidence classes and release-blocking gaps. |
 | 4 | [#545](https://github.com/masssi164/weave/issues/545) customer-facing claim matrix | marketing/docs | Depends on #536/#542/#544; cannot outpace evidence. | Customer wording classified by evidence/roadmap state. |
 | 5 | [#543](https://github.com/masssi164/weave/issues/543) self-hosted operator experience | devops/docs | Depends on #537/#538 for Matrix proof needs and existing infra bootstrap docs. | Reference stack/runbook and operator evidence links. |
@@ -30,7 +34,9 @@ Sprint 14 makes Weave professionally explainable and evidence-backed as a provid
 
 ## #519 decision for this sprint
 
-Do not close #519 from documentation alone. Treat it as an umbrella until all of these are implemented or split into closed child issues with evidence:
+Do not close `weave#519` from documentation alone. Treat it as the cross-repo umbrella until all of these are implemented or split into closed child issues with evidence. Current Weaver child anchors are [`weaver#1`](https://github.com/masssi164/weaver/issues/1) and [`weaver#9`](https://github.com/masssi164/weaver/issues/9), both assigned to Sprint 14.
+
+Completion criteria:
 
 1. `weave`: signed `WeaverRuntimeProfile` projection from Weave policy, model aliases, domain provider projections, tool/MCP grants, sandbox/deny policy, CredentialRefs, runtime-token references, audit policy, and profile hash.
 2. `weave`: stable `channels.weave-chat` projection backed by Weave Chat-domain routing, with providerRefs such as Matrix/Teams/Slack hidden behind backend routing and normal member UX.
