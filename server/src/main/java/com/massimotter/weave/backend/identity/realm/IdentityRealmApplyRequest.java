@@ -7,12 +7,26 @@ import java.util.List;
 public record IdentityRealmApplyRequest(
         IdentityRealmDesiredState currentState,
         IdentityRealmDesiredState desiredState,
+        String dryRunId,
+        String policySimulationRef,
         String confirmationPhrase,
         boolean approveRisky,
         boolean approveDestructive,
         List<String> retainedAdminPrimaryIdentityKeys,
         String rollbackEvidenceRef,
         String reason) {
+
+    public IdentityRealmApplyRequest(
+            IdentityRealmDesiredState currentState,
+            IdentityRealmDesiredState desiredState,
+            String confirmationPhrase,
+            boolean approveRisky,
+            boolean approveDestructive,
+            List<String> retainedAdminPrimaryIdentityKeys,
+            String rollbackEvidenceRef,
+            String reason) {
+        this(currentState, desiredState, null, null, confirmationPhrase, approveRisky, approveDestructive, retainedAdminPrimaryIdentityKeys, rollbackEvidenceRef, reason);
+    }
 
     public IdentityRealmApplyRequest {
         retainedAdminPrimaryIdentityKeys = retainedAdminPrimaryIdentityKeys == null ? List.of() : List.copyOf(retainedAdminPrimaryIdentityKeys);
