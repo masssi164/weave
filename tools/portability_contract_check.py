@@ -104,6 +104,44 @@ def main():
  boundary=matrix.get('claimBoundary', '').lower()
  for phrase in ['does not prove lossless migration', 'legal compliance', 'e2ee history migration']:
   if phrase not in boundary: fail(f'Matrix proof claim boundary missing {phrase}')
+ lifecycle_fixture=load(FIXTURES/'matrix-synapse-chat-lifecycle-fixture.json')
+ if lifecycle_fixture.get('domainKey')!='chat' or lifecycle_fixture.get('sourceProvider')!='matrix-synapse' or lifecycle_fixture.get('targetProvider')!='weave-chat-domain' or lifecycle_fixture.get('redaction')!='support_safe':
+  fail('Matrix lifecycle fixture must be support_safe chat-domain evidence for matrix-synapse to weave-chat-domain')
+ lifecycle_raw=json.dumps(lifecycle_fixture).lower()
+ for forbidden in ['access_token','refresh_token','clientsecret','password','homeserverurl','mxc://','https://matrix']:
+  if forbidden in lifecycle_raw: fail(f'Matrix lifecycle fixture must not leak raw provider credential or endpoint data: {forbidden}')
+ preflight=lifecycle_fixture.get('preflight', {})
+ if preflight.get('state')!='preflight_failed' or preflight.get('redaction')!='support_safe':
+  fail('Matrix lifecycle preflight must fail closed with support_safe redaction')
+ checks={item.get('checkKey'): item for item in preflight.get('checks', [])}
+ for required_check in ['matrix-api-reachable','export-permission-present','audit-sink-ready','media-retention-policy-declared','encrypted-room-detection-complete','rollback-archive-ready']:
+  if required_check not in checks: fail(f'Matrix lifecycle preflight missing {required_check}')
+ e2ee=checks.get('encrypted-room-detection-complete', {})
+ if e2ee.get('decision')!='blocked' or e2ee.get('fieldClass')!='unsupported' or 'client-side key/export strategy' not in e2ee.get('reason',''):
+  fail('Matrix lifecycle preflight must block unsupported encrypted-room history until client-side key/export strategy exists')
+ if checks.get('media-retention-policy-declared', {}).get('fieldClass')!='manual_review':
+  fail('Matrix lifecycle preflight must keep media retention under manual review')
+ for state in preflight.get('memberImpactStates', []):
+  if state not in ['available','disabled_by_policy','not_configured','degraded','unavailable','coming_later']:
+   fail(f'Matrix lifecycle preflight uses non-canonical member impact state {state}')
+ dry_run=lifecycle_fixture.get('dryRun', {})
+ if dry_run.get('state')!='blocked' or dry_run.get('applyAllowed') is not False or not dry_run.get('dryRunReportRef') or dry_run.get('redaction')!='support_safe':
+  fail('Matrix lifecycle dry-run must record blocked post-dry-run evidence before apply')
+ blocked_reasons=' '.join(dry_run.get('blockedReasons', [])).lower()
+ for phrase in ['encrypted-room-history', 'matrix_power_levels', 'media retention']:
+  if phrase not in blocked_reasons: fail(f'Matrix lifecycle dry-run missing blocked reason {phrase}')
+ apply_attempt=lifecycle_fixture.get('applyAttempt', {})
+ if apply_attempt.get('state')!='blocked' or apply_attempt.get('applyAllowed') is not False or apply_attempt.get('appliedObjects')!=0:
+  fail('Matrix lifecycle apply attempt must remain blocked with zero applied objects')
+ rollback=lifecycle_fixture.get('rollbackPlan', {})
+ if rollback.get('restoreSmokeRequired') is not True or rollback.get('sourceRetentionRequired') is not True or rollback.get('redaction')!='support_safe':
+  fail('Matrix lifecycle rollback plan must require source retention, restore smoke, and support_safe redaction')
+ rollback_limits=' '.join(rollback.get('limitations', [])).lower()
+ for phrase in ['cannot decrypt', 'unsupported e2ee history', 'power-level parity']:
+  if phrase not in rollback_limits: fail(f'Matrix lifecycle rollback plan missing limitation {phrase}')
+ lifecycle_boundary=lifecycle_fixture.get('claimBoundary', '').lower()
+ for phrase in ['does not prove lossless migration', 'legal compliance', 'e2ee history migration']:
+  if phrase not in lifecycle_boundary: fail(f'Matrix lifecycle claim boundary missing {phrase}')
  success=load(FIXTURES/'migration-run-dry-run-success.json')
  blocked=load(FIXTURES/'migration-run-apply-blocked.json')
  for fixture in [success, blocked]:

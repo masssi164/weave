@@ -1,6 +1,6 @@
 # Matrix Chat migration proof boundary
 
-Status: Sprint 14 contract seed for issues [#537](https://github.com/masssi164/weave/issues/537), [#538](https://github.com/masssi164/weave/issues/538), [#541](https://github.com/masssi164/weave/issues/541), and [#542](https://github.com/masssi164/weave/issues/542). This page defines the conservative proof target and is backed by the machine-readable fixture `specs/0006-portability-contract/matrix-synapse-chat-migration-proof.json`, validated by `./gradlew portabilityContractCheck`.
+Status: Sprint 14 contract seed for issues [#537](https://github.com/masssi164/weave/issues/537), [#538](https://github.com/masssi164/weave/issues/538), [#541](https://github.com/masssi164/weave/issues/541), and [#542](https://github.com/masssi164/weave/issues/542). This page defines the conservative proof target and is backed by the machine-readable fixtures `specs/0006-portability-contract/matrix-synapse-chat-migration-proof.json` and `specs/0006-portability-contract/matrix-synapse-chat-lifecycle-fixture.json`, validated by `./gradlew portabilityContractCheck`.
 
 ## Goal
 
@@ -50,7 +50,7 @@ Each dry-run or fixture proof must produce support-safe artifacts aligned with t
 | RollbackRetentionReport | Source retention, target rollback feasibility, archive retention, restore-smoke expectations. | Rollback limitations must be shown before cutover confirmation. |
 | MigrationAuditRef | Dry-run/apply/rollback request refs, actor class, timestamps, decision, profile/adapter versions. | Audit output remains support-safe. |
 
-The Sprint 14 fixture currently proves classification and apply blocking only. Its sample dry-run is intentionally `blocked` because E2EE history, power-level parity, and media durability decisions require explicit admin/operator review before any apply path can be enabled.
+The Sprint 14 fixtures currently prove classification, preflight, apply blocking, and rollback-retention evidence only. The sample dry-run and apply attempt are intentionally `blocked` because E2EE history, power-level parity, and media durability decisions require explicit admin/operator review before any apply path can be enabled. The lifecycle fixture must keep `encrypted-room-detection-complete` blocked/`unsupported`, apply attempts at zero applied objects, and rollback limited to source retention plus target cleanup/restore-smoke evidence; it must not claim lossless migration, legal compliance, or E2EE history migration.
 
 ## Admin provider-switch journey
 

@@ -7,6 +7,8 @@ artifacts:
   fixtures:
     - specs/0006-portability-contract/migration-run-dry-run-success.json
     - specs/0006-portability-contract/migration-run-apply-blocked.json
+    - specs/0006-portability-contract/matrix-synapse-chat-migration-proof.json
+    - specs/0006-portability-contract/matrix-synapse-chat-lifecycle-fixture.json
   validation:
     - tools/portability_contract_check.py
   docs:
