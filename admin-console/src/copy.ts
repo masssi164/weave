@@ -26,6 +26,9 @@ export const adminConsoleMessages = {
     replacementEmpty:
       'Run a replacement dry-run to review support-safe evidence before applying provider changes.',
     replacementStatusSuccess: 'Replacement dry-run completed',
+    weaverProjectionHeading: 'Weaver RuntimeProfile projection',
+    weaverProjectionSummary:
+      'Admin Console shows label-only chat, model, tool, skill, and MCP projections before profile regeneration. Raw provider secrets, downstream diagnostics, runtime configuration files, and credential-bearing URLs are never displayed.',
   },
 } as const;
 
