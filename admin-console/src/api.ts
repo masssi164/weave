@@ -99,6 +99,50 @@ export interface WhitelistPolicy {
   blockedCapabilities: string[];
 }
 
+export interface WeaverModelAlias {
+  alias: string;
+  provider: string;
+  model: string;
+  userSelectable: boolean;
+}
+
+export interface WeaverMcpGrant {
+  serverKey: string;
+  tools: string[];
+  approvalRequired: boolean;
+}
+
+export interface WeaverRuntimeProfileChange {
+  version: string;
+  runtimeProfileHash: string;
+  createdAt: string;
+  status: "draft" | "active" | "revoked" | "rollback_available";
+  summary: string;
+}
+
+export interface WeaverDistributionPolicy {
+  enabledByDefault: boolean;
+  chatProviderKey: string;
+  chatReadinessState: CapabilityState;
+  chatMigrationConsequences: string[];
+  profileRegenerationBlockedReasons: string[];
+  modelAliases: WeaverModelAlias[];
+  defaultModelAlias: string;
+  fallbackModelAliases: string[];
+  allowedTools: string[];
+  allowedSkills: string[];
+  mcpServers: WeaverMcpGrant[];
+  deniedTools: string[];
+  approvalRequiredFor: string[];
+  effectivePolicyPreview: string[];
+  runtimeProfileHash: string;
+  pendingRuntimeProfileHash?: string;
+  revocationState: "not_revoked" | "revocation_pending" | "revoked";
+  rollbackProfileHash?: string;
+  auditRefs: string[];
+  changeHistory: WeaverRuntimeProfileChange[];
+}
+
 export interface AuditEvent {
   id: string;
   action: string;
@@ -244,6 +288,7 @@ export interface ControlPlaneResponse {
   identityProviderReadiness: IdentityProviderReadiness;
   weaverRuntimeProjection: WeaverRuntimeProjection;
   whitelistPolicy: WhitelistPolicy;
+  weaverDistributionPolicy: WeaverDistributionPolicy;
   auditEvents: AuditEvent[];
 }
 
@@ -298,9 +343,48 @@ interface ServerControlPlaneResponse {
     secretRef?: string;
   }>;
   whitelist?: ServerWhitelistPolicy;
+  weaverDistributionPolicy?: ServerWeaverDistributionPolicy;
   identityProviderReadiness?: ServerIdentityProviderReadiness;
   weaverRuntimeProjection?: ServerWeaverRuntimeProjection;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
+}
+
+interface ServerWeaverDistributionPolicy {
+  enabledByDefault?: boolean;
+  chatProviderKey?: string;
+  chatReadinessState?: string;
+  chatMigrationConsequences?: string[];
+  profileRegenerationBlockedReasons?: string[];
+  modelAliases?: Array<{
+    alias?: string;
+    provider?: string;
+    model?: string;
+    userSelectable?: boolean;
+  }>;
+  defaultModelAlias?: string;
+  fallbackModelAliases?: string[];
+  allowedTools?: string[];
+  allowedSkills?: string[];
+  mcpServers?: Array<{
+    serverKey?: string;
+    tools?: string[];
+    approvalRequired?: boolean;
+  }>;
+  deniedTools?: string[];
+  approvalRequiredFor?: string[];
+  effectivePolicyPreview?: string[];
+  runtimeProfileHash?: string;
+  pendingRuntimeProfileHash?: string;
+  revocationState?: string;
+  rollbackProfileHash?: string;
+  auditRefs?: string[];
+  changeHistory?: Array<{
+    version?: string;
+    runtimeProfileHash?: string;
+    createdAt?: string;
+    status?: string;
+    summary?: string;
+  }>;
 }
 
 interface ServerWeaverRuntimeProjection {
@@ -440,6 +524,40 @@ export class AdminControlPlaneApi {
       },
     );
     return normalizeWhitelist(response);
+  }
+
+  async updateWeaverDistributionPolicy(
+    policy: WeaverDistributionPolicy,
+  ): Promise<WeaverDistributionPolicy> {
+    const response = await this.request<ServerWeaverDistributionPolicy>(
+      "/admin/weaver/distribution-policy",
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          ...policy,
+          reason:
+            "Updated Weaver distribution policy through Organization/Admin Console",
+        }),
+      },
+    );
+    return normalizeWeaverDistributionPolicy(response, policy);
+  }
+
+  async revokeRuntimeProfile(
+    runtimeProfileHash: string,
+    reason = "Revoked through Organization/Admin Console",
+  ): Promise<WeaverDistributionPolicy> {
+    const response = await this.request<ServerWeaverDistributionPolicy>(
+      "/admin/weaver/runtime-profiles/revocations",
+      {
+        method: "POST",
+        body: JSON.stringify({ runtimeProfileHash, reason }),
+      },
+    );
+    return normalizeWeaverDistributionPolicy(response, {
+      ...sampleControlPlane.weaverDistributionPolicy,
+      runtimeProfileHash,
+    });
   }
 
   async selectProvider(
@@ -612,6 +730,10 @@ function normalizeControlPlane(
       controlPlane.weaverRuntimeProjection,
     ),
     whitelistPolicy: normalizeWhitelist(controlPlane.whitelist),
+    weaverDistributionPolicy: normalizeWeaverDistributionPolicy(
+      controlPlane.weaverDistributionPolicy,
+      sampleWeaverDistributionPolicy,
+    ),
     auditEvents,
   };
 }
@@ -659,7 +781,8 @@ function normalizeIdentityProviderReadiness(
       readiness?.overallState ?? "admin-action-required",
     ),
     supportSafe: readiness?.supportSafe ?? false,
-    providerDiagnosticsRedacted: readiness?.providerDiagnosticsRedacted ?? false,
+    providerDiagnosticsRedacted:
+      readiness?.providerDiagnosticsRedacted ?? false,
     backendOwnedFacade: readiness?.backendOwnedFacade ?? true,
     memberClientMayConfigureIdentityProvider:
       readiness?.memberClientMayConfigureIdentityProvider ?? false,
@@ -1029,6 +1152,117 @@ function sampleDomain(
   };
 }
 
+function normalizeRuntimeProfileStatus(
+  value?: string,
+): WeaverRuntimeProfileChange["status"] {
+  switch (value) {
+    case "active":
+    case "revoked":
+    case "rollback_available":
+    case "draft":
+      return value;
+    default:
+      return "draft";
+  }
+}
+
+function normalizeRevocationState(
+  value?: string,
+): WeaverDistributionPolicy["revocationState"] {
+  switch (value) {
+    case "revocation_pending":
+    case "revoked":
+    case "not_revoked":
+      return value;
+    default:
+      return "not_revoked";
+  }
+}
+
+function normalizeWeaverDistributionPolicy(
+  policy: ServerWeaverDistributionPolicy | undefined,
+  fallback: WeaverDistributionPolicy,
+): WeaverDistributionPolicy {
+  const modelAliases = (policy?.modelAliases ?? fallback.modelAliases).map(
+    (alias) => ({
+      alias: alias.alias ?? "unnamed-alias",
+      provider: alias.provider ?? "provider-not-selected",
+      model: alias.model ?? "model-not-selected",
+      userSelectable: alias.userSelectable ?? false,
+    }),
+  );
+  const defaultAlias =
+    policy?.defaultModelAlias ??
+    fallback.defaultModelAlias ??
+    modelAliases[0]?.alias ??
+    "";
+  const allowedTools = policy?.allowedTools ?? fallback.allowedTools;
+  const allowedSkills = policy?.allowedSkills ?? fallback.allowedSkills;
+  const mcpServers = (policy?.mcpServers ?? fallback.mcpServers).map(
+    (server) => ({
+      serverKey: server.serverKey ?? "unnamed-mcp-server",
+      tools: server.tools ?? [],
+      approvalRequired: server.approvalRequired ?? true,
+    }),
+  );
+  const computedPreview = [
+    `chat.provider=${policy?.chatProviderKey ?? fallback.chatProviderKey}`,
+    `models.default=${defaultAlias}`,
+    ...allowedTools.map((tool) => `tool.allow=${tool}`),
+    ...allowedSkills.map((skill) => `skill.allow=${skill}`),
+    ...mcpServers.map(
+      (server) =>
+        `mcp.allow=${server.serverKey}:${server.tools.join("|") || "no-tools"}${
+          server.approvalRequired ? ":approval-required" : ""
+        }`,
+    ),
+  ];
+  return {
+    enabledByDefault: policy?.enabledByDefault ?? fallback.enabledByDefault,
+    chatProviderKey: policy?.chatProviderKey ?? fallback.chatProviderKey,
+    chatReadinessState: normalizeState(
+      policy?.chatReadinessState ?? fallback.chatReadinessState,
+    ),
+    chatMigrationConsequences:
+      policy?.chatMigrationConsequences ?? fallback.chatMigrationConsequences,
+    profileRegenerationBlockedReasons:
+      policy?.profileRegenerationBlockedReasons ??
+      fallback.profileRegenerationBlockedReasons,
+    modelAliases,
+    defaultModelAlias: defaultAlias,
+    fallbackModelAliases:
+      policy?.fallbackModelAliases ?? fallback.fallbackModelAliases,
+    allowedTools,
+    allowedSkills,
+    mcpServers,
+    deniedTools: policy?.deniedTools ?? fallback.deniedTools,
+    approvalRequiredFor:
+      policy?.approvalRequiredFor ?? fallback.approvalRequiredFor,
+    effectivePolicyPreview: policy
+      ? (policy.effectivePolicyPreview ?? computedPreview)
+      : fallback.effectivePolicyPreview,
+    runtimeProfileHash:
+      policy?.runtimeProfileHash ?? fallback.runtimeProfileHash,
+    pendingRuntimeProfileHash:
+      policy?.pendingRuntimeProfileHash ?? fallback.pendingRuntimeProfileHash,
+    revocationState: normalizeRevocationState(
+      policy?.revocationState ?? fallback.revocationState,
+    ),
+    rollbackProfileHash:
+      policy?.rollbackProfileHash ?? fallback.rollbackProfileHash,
+    auditRefs: policy?.auditRefs ?? fallback.auditRefs,
+    changeHistory: (policy?.changeHistory ?? fallback.changeHistory).map(
+      (change) => ({
+        version: change.version ?? "vNext",
+        runtimeProfileHash: change.runtimeProfileHash ?? "hash-missing",
+        createdAt: change.createdAt ?? "",
+        status: normalizeRuntimeProfileStatus(change.status),
+        summary: change.summary ?? "RuntimeProfile change recorded by backend.",
+      }),
+    ),
+  };
+}
+
 function normalizeWhitelist(
   whitelist?: ServerWhitelistPolicy,
 ): WhitelistPolicy {
@@ -1227,6 +1461,109 @@ function supportSafeSummary(event: ServerAuditEvent): string {
     providerKey ?? category ?? event.sourceRef ?? "admin control plane";
   return `${event.action ?? "audit"} for ${target}; payload is redacted and support-safe.`;
 }
+
+const sampleWeaverDistributionPolicy: WeaverDistributionPolicy = {
+  enabledByDefault: false,
+  chatProviderKey: "synapse-homeserver",
+  chatReadinessState: "ready",
+  chatMigrationConsequences: [
+    "Chat provider changes regenerate RuntimeProfile vNext but preserve channels.weave-chat.",
+    "Backend migration dry-run must confirm room, membership, history, attachment, and mention mapping before apply.",
+    "CredentialRefs rotate through the Credential Broker; raw channel tokens never enter the profile.",
+  ],
+  profileRegenerationBlockedReasons: [
+    "member opt-in remains disabled",
+    "admin must confirm model/tool/MCP effective policy preview",
+  ],
+  modelAliases: [
+    {
+      alias: "general-assistant",
+      provider: "weave-approved-openai",
+      model: "gpt-4.1-mini",
+      userSelectable: true,
+    },
+    {
+      alias: "sovereign-local",
+      provider: "weave-local-qwen",
+      model: "qwen3.5",
+      userSelectable: true,
+    },
+    {
+      alias: "fallback-safe",
+      provider: "weave-approved-anthropic",
+      model: "claude-3-5-haiku",
+      userSelectable: false,
+    },
+  ],
+  defaultModelAlias: "general-assistant",
+  fallbackModelAliases: ["fallback-safe", "sovereign-local"],
+  allowedTools: [
+    "chat.search_messages",
+    "files.search",
+    "calendar.search_events",
+    "notifications.create_action_request",
+  ],
+  allowedSkills: ["weave-user-help", "weave-meeting-summary"],
+  mcpServers: [
+    {
+      serverKey: "weave-facade-mcp",
+      tools: ["chat.search_messages", "files.search", "calendar.search_events"],
+      approvalRequired: false,
+    },
+    {
+      serverKey: "weave-action-request-mcp",
+      tools: ["notifications.create_action_request"],
+      approvalRequired: true,
+    },
+  ],
+  deniedTools: ["exec", "gateway.config.patch", "provider.secret_export"],
+  approvalRequiredFor: [
+    "external-send",
+    "provider-switch",
+    "destructive-action",
+    "shared-space-participation",
+  ],
+  effectivePolicyPreview: [
+    "channel=channels.weave-chat via chat.provider=synapse-homeserver",
+    "model.default=general-assistant",
+    "model.fallback=fallback-safe -> sovereign-local",
+    "tool.allow=chat.search_messages",
+    "tool.allow=files.search",
+    "tool.allow=calendar.search_events",
+    "tool.allow=notifications.create_action_request:approval-required",
+    "skill.allow=weave-user-help",
+    "skill.allow=weave-meeting-summary",
+    "mcp.allow=weave-facade-mcp",
+    "mcp.allow=weave-action-request-mcp:approval-required",
+    "tool.deny=exec,gateway.config.patch,provider.secret_export",
+  ],
+  runtimeProfileHash: "wrp_2026_05_31_active_hash",
+  pendingRuntimeProfileHash: "wrp_2026_05_31_vnext_hash",
+  revocationState: "not_revoked",
+  rollbackProfileHash: "wrp_2026_05_30_previous_hash",
+  auditRefs: [
+    "audit://weaver/profile/wrp_2026_05_31_active_hash",
+    "audit://weaver/policy-preview/2026-05-31",
+  ],
+  changeHistory: [
+    {
+      version: "v3",
+      runtimeProfileHash: "wrp_2026_05_31_active_hash",
+      createdAt: "2026-05-31T08:00:00Z",
+      status: "active",
+      summary:
+        "Active profile preserves channels.weave-chat and applies admin-approved model/tool/MCP policy.",
+    },
+    {
+      version: "vNext",
+      runtimeProfileHash: "wrp_2026_05_31_vnext_hash",
+      createdAt: "2026-05-31T09:00:00Z",
+      status: "draft",
+      summary:
+        "Draft regeneration waits for chat migration readiness and effective policy confirmation.",
+    },
+  ],
+};
 
 export const sampleControlPlane: ControlPlaneResponse = {
   organization: {
@@ -1489,6 +1826,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
     allowedCapabilities: ["chat.read", "files.read"],
     blockedCapabilities: ["provider.direct_call", "provider.secret_export"],
   },
+  weaverDistributionPolicy: sampleWeaverDistributionPolicy,
   auditEvents: [
     {
       id: "audit-1",

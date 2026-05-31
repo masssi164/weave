@@ -35,6 +35,9 @@ import {
   ProviderReplacementDryRunReport,
   ProviderSwitchApplyGates,
   sampleControlPlane,
+  WeaverDistributionPolicy,
+  WeaverMcpGrant,
+  WeaverModelAlias,
   WeaverProjectionCategory,
 } from "./api";
 import { AdminConsoleLocale, adminCopy } from "./copy";
@@ -160,6 +163,87 @@ function defaultProviderKey(category?: ProviderCategory): string {
     : category.selectedAdapter;
 }
 
+function linesFromText(value: string): string[] {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function formatModelAliases(aliases: WeaverModelAlias[]): string {
+  return aliases
+    .map(
+      (alias) =>
+        `${alias.alias}=${alias.provider}/${alias.model}${alias.userSelectable ? " selectable" : " locked"}`,
+    )
+    .join("\n");
+}
+
+function parseModelAliases(text: string): WeaverModelAlias[] {
+  return linesFromText(text).map((line) => {
+    const [left, ...rightParts] = line.split("=");
+    const right = rightParts.join("=");
+    const [providerModel, selectableToken] = right.trim().split(/\s+/, 2);
+    const [provider, ...modelParts] = providerModel.split("/");
+    return {
+      alias: left.trim(),
+      provider: provider?.trim() || "provider-not-selected",
+      model: modelParts.join("/").trim() || "model-not-selected",
+      userSelectable: selectableToken !== "locked",
+    };
+  });
+}
+
+function formatMcpServers(servers: WeaverMcpGrant[]): string {
+  return servers
+    .map(
+      (server) =>
+        `${server.serverKey}=${server.tools.join(",")}${server.approvalRequired ? " approval-required" : ""}`,
+    )
+    .join("\n");
+}
+
+function parseMcpServers(text: string): WeaverMcpGrant[] {
+  return linesFromText(text).map((line) => {
+    const [left, ...rightParts] = line.split("=");
+    const right = rightParts.join("=");
+    const approvalRequired = /approval-required/.test(right);
+    const tools = right
+      .replace(/approval-required/g, "")
+      .split(",")
+      .map((tool) => tool.trim())
+      .filter(Boolean);
+    return { serverKey: left.trim(), tools, approvalRequired };
+  });
+}
+
+function buildEffectiveWeaverPreview(
+  policy: WeaverDistributionPolicy,
+): string[] {
+  return [
+    `channel=channels.weave-chat via chat.provider=${policy.chatProviderKey}`,
+    `chat.readiness=${readableState(policy.chatReadinessState)}`,
+    `model.default=${policy.defaultModelAlias}`,
+    `model.fallback=${policy.fallbackModelAliases.join(" -> ") || "none"}`,
+    ...policy.modelAliases
+      .filter((alias) => alias.userSelectable)
+      .map((alias) => `model.user-selectable=${alias.alias}`),
+    ...policy.allowedTools.map((tool) =>
+      policy.approvalRequiredFor.some(
+        (approval) => tool.includes("create") || tool.includes("send"),
+      )
+        ? `tool.allow=${tool}:approval-required`
+        : `tool.allow=${tool}`,
+    ),
+    ...policy.allowedSkills.map((skill) => `skill.allow=${skill}`),
+    ...policy.mcpServers.map(
+      (server) =>
+        `mcp.allow=${server.serverKey}:${server.tools.join("|") || "no-tools"}${server.approvalRequired ? ":approval-required" : ""}`,
+    ),
+    `tool.deny=${policy.deniedTools.join(",") || "none"}`,
+  ];
+}
+
 interface AppProps {
   api?: AdminControlPlaneApi;
   viewerRole?: ViewerRole;
@@ -240,6 +324,33 @@ export default function App({
   const [statusMessage, setStatusMessage] = useState(
     "Admin Console is loading backend control-plane data.",
   );
+  const [weaverPolicyDraft, setWeaverPolicyDraft] = useState(
+    sampleControlPlane.weaverDistributionPolicy,
+  );
+  const [weaverChatProviderDraft, setWeaverChatProviderDraft] = useState(
+    sampleControlPlane.weaverDistributionPolicy.chatProviderKey,
+  );
+  const [weaverModelsDraft, setWeaverModelsDraft] = useState(
+    formatModelAliases(
+      sampleControlPlane.weaverDistributionPolicy.modelAliases,
+    ),
+  );
+  const [weaverDefaultModelDraft, setWeaverDefaultModelDraft] = useState(
+    sampleControlPlane.weaverDistributionPolicy.defaultModelAlias,
+  );
+  const [weaverFallbackModelsDraft, setWeaverFallbackModelsDraft] = useState(
+    sampleControlPlane.weaverDistributionPolicy.fallbackModelAliases.join("\n"),
+  );
+  const [weaverToolsDraft, setWeaverToolsDraft] = useState(
+    sampleControlPlane.weaverDistributionPolicy.allowedTools.join("\n"),
+  );
+  const [weaverSkillsDraft, setWeaverSkillsDraft] = useState(
+    sampleControlPlane.weaverDistributionPolicy.allowedSkills.join("\n"),
+  );
+  const [weaverMcpDraft, setWeaverMcpDraft] = useState(
+    formatMcpServers(sampleControlPlane.weaverDistributionPolicy.mcpServers),
+  );
+  const [weaverPolicyConfirmed, setWeaverPolicyConfirmed] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -250,6 +361,29 @@ export default function App({
         const firstCategory = response.providerCategories[0];
         setControlPlane(response);
         setPolicyDraft(response.whitelistPolicy.allowedCapabilities.join("\n"));
+        setWeaverPolicyDraft(response.weaverDistributionPolicy);
+        setWeaverChatProviderDraft(
+          response.weaverDistributionPolicy.chatProviderKey,
+        );
+        setWeaverModelsDraft(
+          formatModelAliases(response.weaverDistributionPolicy.modelAliases),
+        );
+        setWeaverDefaultModelDraft(
+          response.weaverDistributionPolicy.defaultModelAlias,
+        );
+        setWeaverFallbackModelsDraft(
+          response.weaverDistributionPolicy.fallbackModelAliases.join("\n"),
+        );
+        setWeaverToolsDraft(
+          response.weaverDistributionPolicy.allowedTools.join("\n"),
+        );
+        setWeaverSkillsDraft(
+          response.weaverDistributionPolicy.allowedSkills.join("\n"),
+        );
+        setWeaverMcpDraft(
+          formatMcpServers(response.weaverDistributionPolicy.mcpServers),
+        );
+        setWeaverPolicyConfirmed(false);
         setSelectedCategory(firstCategory?.key ?? "");
         setProviderDraft(defaultProviderKey(firstCategory));
         setChoiceModelDraft(
@@ -311,6 +445,45 @@ export default function App({
     selectedApplyBackendAllowed &&
     hasFreshProviderSelectionDryRun &&
     consequenceConfirmed;
+  const chatCategory = controlPlane.providerCategories.find(
+    (category) => category.key === "chat" || category.key === "chat-channels",
+  );
+  const weaverEffectiveDraft = useMemo(() => {
+    const draft: WeaverDistributionPolicy = {
+      ...weaverPolicyDraft,
+      chatProviderKey: weaverChatProviderDraft,
+      chatReadinessState:
+        chatCategory?.state ?? weaverPolicyDraft.chatReadinessState,
+      modelAliases: parseModelAliases(weaverModelsDraft),
+      defaultModelAlias: weaverDefaultModelDraft,
+      fallbackModelAliases: linesFromText(weaverFallbackModelsDraft),
+      allowedTools: linesFromText(weaverToolsDraft),
+      allowedSkills: linesFromText(weaverSkillsDraft),
+      mcpServers: parseMcpServers(weaverMcpDraft),
+    };
+    return {
+      ...draft,
+      effectivePolicyPreview: buildEffectiveWeaverPreview(draft),
+    };
+  }, [
+    chatCategory?.state,
+    weaverChatProviderDraft,
+    weaverDefaultModelDraft,
+    weaverFallbackModelsDraft,
+    weaverMcpDraft,
+    weaverModelsDraft,
+    weaverPolicyDraft,
+    weaverSkillsDraft,
+    weaverToolsDraft,
+  ]);
+  const weaverRegenerationBlockedReasons = [
+    ...weaverEffectiveDraft.profileRegenerationBlockedReasons,
+    ...(weaverPolicyConfirmed
+      ? []
+      : ["Effective Weaver policy preview confirmation"]),
+  ];
+  const weaverProfileRegenerationAllowed =
+    canConfigure && weaverRegenerationBlockedReasons.length === 0;
 
   function resetApplyEvidence() {
     setProviderSelectionDryRun(null);
@@ -342,6 +515,35 @@ export default function App({
     setControlPlane((current) => ({ ...current, whitelistPolicy: response }));
     setStatusMessage(
       `Whitelist policy saved with ${allowedCapabilities.length} requested capabilities.`,
+    );
+  }
+
+  async function saveWeaverDistributionPolicy() {
+    if (!canConfigure) return;
+    const response =
+      await api.updateWeaverDistributionPolicy(weaverEffectiveDraft);
+    setControlPlane((current) => ({
+      ...current,
+      weaverDistributionPolicy: response,
+    }));
+    setWeaverPolicyDraft(response);
+    setStatusMessage(
+      `Weaver distribution policy saved for Chat provider ${response.chatProviderKey}; RuntimeProfile regeneration remains ${weaverProfileRegenerationAllowed ? "ready" : "blocked pending backend gates"}.`,
+    );
+  }
+
+  async function revokeRuntimeProfile() {
+    if (!canConfigure) return;
+    const response = await api.revokeRuntimeProfile(
+      weaverPolicyDraft.runtimeProfileHash,
+    );
+    setControlPlane((current) => ({
+      ...current,
+      weaverDistributionPolicy: response,
+    }));
+    setWeaverPolicyDraft(response);
+    setStatusMessage(
+      `RuntimeProfile ${weaverPolicyDraft.runtimeProfileHash} revocation requested; audit refs: ${response.auditRefs.join(", ")}.`,
     );
   }
 
@@ -1328,6 +1530,244 @@ export default function App({
                   )}
                 </CardContent>
               </Card>
+
+              {canConfigure ? (
+                <Card
+                  component="section"
+                  aria-labelledby="weaver-distribution-policy-heading"
+                >
+                  <CardContent>
+                    <Typography
+                      id="weaver-distribution-policy-heading"
+                      variant="h2"
+                      sx={{ fontSize: "1.35rem", mb: 1 }}
+                    >
+                      Weaver distribution policy
+                    </Typography>
+                    <Alert severity="info" sx={{ mb: 2 }}>
+                      Admin Console is the source of Weaver Chat, model, tool,
+                      skill, and MCP distribution policy. RuntimeProfile
+                      regeneration is blocked until readiness, migration,
+                      effective policy, revocation, and audit consequences are
+                      visible before apply.
+                    </Alert>
+                    <Stack spacing={2}>
+                      <FormControl fullWidth>
+                        <InputLabel id="weaver-chat-provider-label">
+                          Weaver Chat-domain provider
+                        </InputLabel>
+                        <Select
+                          labelId="weaver-chat-provider-label"
+                          id="weaver-chat-provider"
+                          value={weaverChatProviderDraft}
+                          label="Weaver Chat-domain provider"
+                          onChange={(event) => {
+                            setWeaverChatProviderDraft(event.target.value);
+                            setWeaverPolicyConfirmed(false);
+                          }}
+                        >
+                          {(
+                            chatCategory?.providerCandidates ?? [
+                              weaverPolicyDraft.chatProviderKey,
+                            ]
+                          ).map((candidate) => (
+                            <MenuItem key={candidate} value={candidate}>
+                              {candidate}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                        <FormHelperText>
+                          Members keep stable channels.weave-chat; this selects
+                          backend Chat routing/providerRef for profile vNext.
+                        </FormHelperText>
+                      </FormControl>
+                      <Alert severity="warning">
+                        Chat readiness:{" "}
+                        {readableState(weaverEffectiveDraft.chatReadinessState)}
+                        . Migration consequences before regeneration:{" "}
+                        {weaverEffectiveDraft.chatMigrationConsequences.join(
+                          " ",
+                        )}
+                      </Alert>
+                      <TextField
+                        label="Model aliases (alias=provider/model selectable|locked)"
+                        value={weaverModelsDraft}
+                        onChange={(event) => {
+                          setWeaverModelsDraft(event.target.value);
+                          setWeaverPolicyConfirmed(false);
+                        }}
+                        fullWidth
+                        multiline
+                        minRows={4}
+                      />
+                      <TextField
+                        label="Default model alias"
+                        value={weaverDefaultModelDraft}
+                        onChange={(event) => {
+                          setWeaverDefaultModelDraft(event.target.value);
+                          setWeaverPolicyConfirmed(false);
+                        }}
+                        fullWidth
+                      />
+                      <TextField
+                        label="Fallback model aliases"
+                        value={weaverFallbackModelsDraft}
+                        onChange={(event) => {
+                          setWeaverFallbackModelsDraft(event.target.value);
+                          setWeaverPolicyConfirmed(false);
+                        }}
+                        fullWidth
+                        multiline
+                        minRows={2}
+                      />
+                      <TextField
+                        label="Allowed Weaver tools"
+                        value={weaverToolsDraft}
+                        onChange={(event) => {
+                          setWeaverToolsDraft(event.target.value);
+                          setWeaverPolicyConfirmed(false);
+                        }}
+                        helperText="Canonical Weave domain tools only, e.g. chat.search_messages or notifications.create_action_request."
+                        fullWidth
+                        multiline
+                        minRows={4}
+                      />
+                      <TextField
+                        label="Allowed Weaver skills"
+                        value={weaverSkillsDraft}
+                        onChange={(event) => {
+                          setWeaverSkillsDraft(event.target.value);
+                          setWeaverPolicyConfirmed(false);
+                        }}
+                        fullWidth
+                        multiline
+                        minRows={2}
+                      />
+                      <TextField
+                        label="Allowed MCP servers (server=tool1,tool2 approval-required)"
+                        value={weaverMcpDraft}
+                        onChange={(event) => {
+                          setWeaverMcpDraft(event.target.value);
+                          setWeaverPolicyConfirmed(false);
+                        }}
+                        fullWidth
+                        multiline
+                        minRows={3}
+                      />
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
+                            Effective RuntimeProfile policy preview
+                          </Typography>
+                          <List aria-label="Effective Weaver RuntimeProfile policy preview">
+                            {weaverEffectiveDraft.effectivePolicyPreview.map(
+                              (line) => (
+                                <ListItem key={line} disableGutters>
+                                  <ListItemText primary={line} />
+                                </ListItem>
+                              ),
+                            )}
+                          </List>
+                          <Typography>
+                            Denied tools win globally:{" "}
+                            {weaverEffectiveDraft.deniedTools.join(", ") ||
+                              "none"}
+                            .
+                          </Typography>
+                          <Typography>
+                            Approval required for:{" "}
+                            {weaverEffectiveDraft.approvalRequiredFor.join(
+                              ", ",
+                            )}
+                            .
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
+                            RuntimeProfile revocation and audit
+                          </Typography>
+                          <Typography>
+                            Active hash: {weaverPolicyDraft.runtimeProfileHash};
+                            pending hash:{" "}
+                            {weaverPolicyDraft.pendingRuntimeProfileHash ??
+                              "none"}
+                            ; rollback:{" "}
+                            {weaverPolicyDraft.rollbackProfileHash ??
+                              "not available"}
+                            ; revocation state:{" "}
+                            {readableState(weaverPolicyDraft.revocationState)}.
+                          </Typography>
+                          <Typography>
+                            Audit refs:{" "}
+                            {weaverPolicyDraft.auditRefs.join(", ") ||
+                              "backend audit ref required"}
+                            .
+                          </Typography>
+                          <List aria-label="RuntimeProfile change history">
+                            {weaverPolicyDraft.changeHistory.map((change) => (
+                              <ListItem
+                                key={`${change.version}-${change.runtimeProfileHash}`}
+                                disableGutters
+                              >
+                                <ListItemText
+                                  primary={`${change.version}: ${readableState(change.status)} ${change.runtimeProfileHash}`}
+                                  secondary={`${change.createdAt} — ${change.summary}`}
+                                />
+                              </ListItem>
+                            ))}
+                          </List>
+                        </CardContent>
+                      </Card>
+                      <Alert
+                        severity={
+                          weaverProfileRegenerationAllowed
+                            ? "success"
+                            : "warning"
+                        }
+                      >
+                        RuntimeProfile regeneration is{" "}
+                        {weaverProfileRegenerationAllowed ? "ready" : "blocked"}
+                        .
+                        {weaverProfileRegenerationAllowed
+                          ? " Effective policy was confirmed and backend blockers are clear."
+                          : ` Blocked by: ${weaverRegenerationBlockedReasons.join(", ")}.`}
+                      </Alert>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={weaverPolicyConfirmed}
+                            onChange={(event) =>
+                              setWeaverPolicyConfirmed(event.target.checked)
+                            }
+                          />
+                        }
+                        label="I confirm the effective Weaver policy preview, Chat migration consequences, model fallback order, tool/skill/MCP grants, revocation, and audit refs before apply."
+                      />
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={2}
+                      >
+                        <Button
+                          variant="contained"
+                          disabled={!weaverPolicyConfirmed}
+                          onClick={() => void saveWeaverDistributionPolicy()}
+                        >
+                          Save Weaver distribution policy
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          color="error"
+                          onClick={() => void revokeRuntimeProfile()}
+                        >
+                          Revoke active RuntimeProfile
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ) : null}
 
               {canConfigure ? (
                 <Card component="section" aria-labelledby="policy-heading">
