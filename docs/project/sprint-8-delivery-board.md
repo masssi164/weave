@@ -2,7 +2,7 @@
 
 Status: active delivery policy for `Sprint 8 — Canonical Domains & Portable Provider Contracts`.
 
-Sprint 8 turns the provider-neutral product direction into reviewable delivery lanes for canonical domains, portable provider contracts, Keycloak desired-state dry-run, Admin Console control-plane gates, and the OpenClaw-derived Weaver foundation. The sprint board is the execution surface; repo docs, specs, issues, PRs, and CI evidence remain the source of truth.
+Sprint 8 turns the provider-neutral product direction into reviewable delivery lanes for canonical domains, portable provider contracts, Keycloak desired-state dry-run, Admin Console control-plane gates, and the OpenClaw-derived Weaver foundation. The sprint board is the historical execution surface; repo docs, transitional specs, issues, PRs, and CI evidence are implementation evidence, while the pinned Weave Specification Corpus remains canonical product/domain truth.
 
 ## Milestone and board
 

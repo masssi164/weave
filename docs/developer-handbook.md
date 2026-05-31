@@ -117,8 +117,10 @@ A Weave sprint is not one green PR. A sprint starts from an accepted or explicit
 
 Required sprint shape:
 
-1. Recover truth from `main`, `specs/`, GitHub issues/PRs, and CI artifacts.
-2. Select or create the governing spec, then keep product-core ambiguity in `draft`/`proposed` with explicit `[NEEDS CLARIFICATION: ...]` markers.
+Sprint bootstrap and audit are file-backed by `tools/sprint_bootstrap.py`; see `docs/sprint-bootstrap-and-board-flow.md`. This is the bridge from the pinned spec corpus to GitHub milestones, issues, the Weave Delivery Board, and CI/evidence gates.
+
+1. Recover fachliche truth from the pinned spec corpus first, then implementation truth from `main`, transitional `specs/`, GitHub issues/PRs, and CI artifacts.
+2. Select or create the governing spec-corpus contract; keep product-core ambiguity in `draft`/`proposed` with explicit `[NEEDS CLARIFICATION: ...]` markers.
 3. Break the spec plan/tasks into a GitHub issue DAG with `parallel`/`sequential` labels where ordering matters.
 4. For each implementation slice, open a short-lived branch and one reviewable PR with exactly one release-notes label.
 5. Merge PRs in dependency order after green CI, required local gates, and fallback human/agent review evidence. Copilot review is optional while premium review requests are exhausted.
@@ -140,7 +142,7 @@ python3 -m pip install -r docs/requirements.txt
 make docs-check
 ```
 
-`make docs-check` runs the lightweight repository docs validator and a strict MkDocs build. `make docs-build` is available when you only need the strict MkDocs build after dependencies are installed. Keep existing docs linked from navigation or from handbook pages so product truth does not drift into orphaned Markdown.
+`make docs-check` runs the lightweight repository docs validator and a strict MkDocs build. `make docs-build` is available when you only need the strict MkDocs build after dependencies are installed. Keep existing docs linked from navigation or from handbook pages so implementation-facing product guidance does not drift into orphaned Markdown.
 
 ## Release notes workflow
 

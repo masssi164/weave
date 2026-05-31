@@ -6,7 +6,7 @@
 
 ## Summary
 
-Add a lightweight Weave-specific Spec Kit layer without importing a heavy workflow wholesale. The framework stores versioned specs in the repo, validates lifecycle metadata with a local guard, and documents repo-safe AI-assisted delivery orchestration.
+Add a lightweight Weave-specific Spec Kit layer without importing a heavy workflow wholesale. The implementation repo stores transitional conformance specs, validates lifecycle metadata with local guards, and documents repo-safe AI-assisted delivery orchestration while the pinned spec corpus remains canonical product/domain truth.
 
 ## Constitution check
 
@@ -25,7 +25,7 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 - `tools/`: deterministic spec contract guard.
 - `build.gradle`/`Makefile`: local gate wiring.
 - `.github/pull_request_template.md`: spec/evidence traceability prompt.
-- `AGENTS.md`: point contributors at repo-local specs and fallback review reality.
+- `AGENTS.md`: point contributors at the pinned spec corpus, repo conformance specs, and fallback review reality.
 
 ## Contracts and tests first
 
@@ -51,7 +51,7 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 
 - Start with framework-only spec `WEAVE-SPEC-0000`.
 - Use the next product-core slice as the first real `WEAVE-SPEC-0001` only after the product owner/team resolves required product-core questions.
-- Keep generated wiki/docs as projections, not canonical source.
+- Keep repo-local specs, generated wiki/docs, and documentation pages as conformance artifacts or projections, not canonical product/domain source.
 
 ## Risks and mitigations
 
@@ -67,6 +67,7 @@ Add a lightweight Weave-specific Spec Kit layer without importing a heavy workfl
 
 ## Final gates
 
+- `./gradlew specCorpusConformance`
 - `./gradlew specContract`
 - `./gradlew specContractTest`
 - `./gradlew docsStructureCheck`
