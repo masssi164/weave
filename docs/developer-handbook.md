@@ -117,6 +117,8 @@ A Weave sprint is not one green PR. A sprint starts from an accepted or explicit
 
 Required sprint shape:
 
+Sprint bootstrap and audit are file-backed by `tools/sprint_bootstrap.py`; see `docs/sprint-bootstrap-and-board-flow.md`. This is the bridge from the pinned spec corpus to GitHub milestones, issues, the Weave Delivery Board, and CI/evidence gates.
+
 1. Recover fachliche truth from the pinned spec corpus first, then implementation truth from `main`, transitional `specs/`, GitHub issues/PRs, and CI artifacts.
 2. Select or create the governing spec-corpus contract; keep product-core ambiguity in `draft`/`proposed` with explicit `[NEEDS CLARIFICATION: ...]` markers.
 3. Break the spec plan/tasks into a GitHub issue DAG with `parallel`/`sequential` labels where ordering matters.
