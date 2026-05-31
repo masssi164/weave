@@ -185,7 +185,7 @@ describe("Admin Console MVP", () => {
     ).toBeGreaterThan(0);
     expect(screen.getByText(/provider apply is blocked/i)).toBeInTheDocument();
     expect(
-      screen.getByText(/missing trusted backend dry-run evidence/i),
+      screen.getByText(/missing current-session dry-run evidence/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/provider source of truth/i)).toBeInTheDocument();
     expect(screen.getAllByText(/configured readiness/i).length).toBeGreaterThan(
@@ -375,6 +375,9 @@ describe("Admin Console MVP", () => {
       screen.getByText(
         /current-session dry-run evidence is missing, stale, or untrusted/i,
       ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/missing gates: missing current-session dry-run evidence/i),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("checkbox", {
@@ -696,6 +699,9 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(/missing gates: preflight passed/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/missing current-session dry-run evidence/i),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /apply selected provider/i }),

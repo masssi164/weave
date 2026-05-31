@@ -276,15 +276,17 @@ export default function App({
     [controlPlane.providerCategories, selectedCategory],
   );
 
-  const hasFreshProviderSelectionDryRun =
+  const hasMatchingProviderSelectionDryRun =
     selectedCategoryDetails !== undefined &&
     providerSelectionDryRun?.categoryKey === selectedCategoryDetails.key &&
     providerSelectionDryRun.providerKey === providerDraft &&
-    providerSelectionDryRun.choiceModel === choiceModelDraft &&
+    providerSelectionDryRun.choiceModel === choiceModelDraft;
+  const hasFreshProviderSelectionDryRun =
+    hasMatchingProviderSelectionDryRun &&
     isEvidenceFresh(providerSelectionDryRun);
-  const evidenceFailureLabel = dryRunEvidenceFailureLabel(
-    providerSelectionDryRun,
-  );
+  const evidenceFailureLabel = hasMatchingProviderSelectionDryRun
+    ? dryRunEvidenceFailureLabel(providerSelectionDryRun)
+    : "Missing current-session dry-run evidence";
   const selectedApplyBackendAllowed =
     canConfigure &&
     selectedCategoryDetails !== undefined &&
