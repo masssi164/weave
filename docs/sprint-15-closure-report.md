@@ -67,6 +67,6 @@ CI evidence must be green on PR #571 before merge.
 - [x] Backend and Admin Console proof code remains dry-run-only and support-safe.
 - [x] Claim/release wording documents organization embedding, domain facades, product boundaries, and dry-run-only boundaries.
 - [x] Local gates pass after the target-vision rescope.
-- [ ] PR #571 merged with green GitHub CI.
-- [ ] GitHub issues #558, #559, and #568 closed with this report and PR #571 links.
-- [ ] Sprint 15 milestone closed after issue closure.
+- [x] PR #571 merged with green GitHub CI as `dcb2f2db8725aa32a5f8ef10d6c771b028d14255`; push CI run `26746805501` passed.
+- [x] GitHub issues #558, #559, and #568 closed with this report and PR #571 links.
+- [x] Sprint 15 milestone closed after issue closure (`open_issues=0`, `closed_issues=13`, closed 2026-06-01T09:40:07Z).
