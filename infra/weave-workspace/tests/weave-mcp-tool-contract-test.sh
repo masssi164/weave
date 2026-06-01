@@ -37,6 +37,7 @@ jq -e '
   and .globalControls.denyUnknownTools == true
   and .globalControls.supportSafeOutputsOnly == true
   and .globalControls.secretRefOnly == true
+  and .globalControls.credentialRefOnly == true
   and .globalControls.rawProviderInternalsReturned == false
   and .globalControls.rawProviderPayloadsReturned == false
   and .globalControls.credentialBearingUrlsReturned == false
@@ -52,7 +53,7 @@ jq -e '
   and ([.canonicalDomains[].key] | index("audit_policy"))
   and ([.canonicalDomains[].key] | index("weaver_runtime_governance"))
   and ([.canonicalDomains[] | select(.key == "admin_setup_providers") | .forbiddenOutputs[]] | index("SecretRefValues"))
-  and ([.canonicalDomains[] | select(.key == "weaver_runtime_governance") | .forbiddenOutputs[]] | index("openclawJson"))
+  and ([.canonicalDomains[] | select(.key == "weaver_runtime_governance") | .forbiddenOutputs[]] | index("openclaw.json"))
   and ([.canonicalDomains[] | select(.key == "chat_comms") | .forbiddenOutputs[]] | index("mxcUris"))
   and ([.canonicalDomains[].writeToolsRequireApproval | length] | all(. > 0))
   and .sprint16ProofSlice.implementAllAdapters == false

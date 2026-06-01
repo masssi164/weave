@@ -21,6 +21,7 @@
     "denyUnknownTools": true,
     "supportSafeOutputsOnly": true,
     "secretRefOnly": true,
+    "credentialRefOnly": true,
     "rawProviderInternalsReturned": false,
     "rawProviderPayloadsReturned": false,
     "credentialBearingUrlsReturned": false,
@@ -91,7 +92,7 @@
       "toolFamilies": ["tool_allowlists", "capability_bundles", "consent_policy", "sandbox_package_projection", "runtime_audit_handoff"],
       "allowedProofTools": ["weaver.runtime_profile.preview", "weaver.tools.list_granted"],
       "writeToolsRequireApproval": ["weaver.enable_for_group", "weaver.revoke_runtime", "weaver.approve_tool_bundle"],
-      "forbiddenOutputs": ["openclawJson", "runtimeTokens", "rawMcpServerConfig", "execPolicyBypass"]
+      "forbiddenOutputs": ["openclaw.json", "runtimeTokens", "rawMcpServerConfig", "execPolicyBypass"]
     }
   ],
   "sprint16ProofSlice": {
