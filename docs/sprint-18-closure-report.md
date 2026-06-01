@@ -7,11 +7,11 @@ Date: 2026-06-01
 - Product/spec truth remains pinned by `specs/weave-specs.lock.json` and validated by `./gradlew specCorpusConformance --console=plain` against `/Users/flotterotter/code/weave-specs` at commit `24c746c674da`.
 - Sprint delivery maps to GitHub milestone 18 and issues #589, #590, #591, and #592. Evidence is carried by repo paths, gates, and PR/CI status rather than unreviewed transcript memory.
 
-## Scope delivered
+## Scope implemented / evidence status
 
-- #589 Workspace loop: the Live Stack E2E path now exercises and records a provider-neutral Space/Channel → Chat → Files → Board → Calendar → Decision loop with support-safe markers including `workspaceLoopComplete`, `workspaceLoopDecisionId`, and `workspaceLoopSupportSafe`. The evidence mapping keeps this as Weave domain/facade language and blocks RC promotion when required markers are missing.
+- #589 Workspace loop: the Live Stack E2E path now exercises and records a provider-neutral Space/Channel → Chat → Files → Board → Calendar → Decision loop with support-safe markers including `workspaceLoopComplete`, `workspaceLoopDecisionId`, and `workspaceLoopSupportSafe`. The issue remains open because current credentialed Live Stack E2E evidence on the merged `main` head is still missing.
 - #590 Bounded Matrix Chat migration proof: the Admin Control Plane and migration services now expose dry-run evidence, bounded fixture-only apply/cutover/rollback posture, no-unaccounted-data-loss reporting, release blockers, redaction/retention posture, required evidence refs, and fail-closed apply gates. Production provider cutover remains explicitly blocked.
-- #591 Accessibility and release trust: the release evidence gate now distinguishes blocked manual AT evidence from ceremonial signoff, links the Sprint 18 manual AT blocker, and upgrades claim-control checks so open blockers, missing support-safe evidence, and unsupported claims block release readiness.
+- #591 Accessibility and release trust: the release evidence gate now distinguishes blocked manual AT evidence from ceremonial signoff, links the Sprint 18 manual AT blocker, and upgrades claim-control checks so open blockers, missing support-safe evidence, and unsupported claims block release readiness. The issue remains open because actual manual assistive-technology signoff is still missing.
 - #592 Governed Weaver/MCP hardening: RuntimeProfile projection now includes signed/fetch-by-hash posture, same-user hash lookup, runtime token/ref expiry boundaries, per-user/org policy checks, internal endpoint refs, overbroad grant rejection, fail-closed MCP invocation, and support-safe audit refs without raw profile/token/provider leakage.
 
 ## Implementation evidence
@@ -33,11 +33,11 @@ Passing on 2026-06-01 before PR creation:
 - `./gradlew specCorpusConformance --console=plain`
 - `./gradlew clientCi --console=plain` after committing the Sprint 18 source diff
 
-## Issue DAG final state
+## Issue DAG current state
 
-- #589 — closed by #593: workspace loop markers, Live Stack mapping, and support-safe evidence.
+- #589 — open/reopened after #593: workspace loop code and marker mapping exist, but Sprint 18 still lacks current credentialed Live Stack E2E evidence on merge commit `5b0fc458fc75e0ccfddab2dba0c7b8b1f2553eb6`, including the expected workspace-loop marker artifact (`WORKSPACE_LOOP_RESULT`, 42-scenario evidence).
 - #590 — closed by #593: bounded fixture-only apply/cutover/rollback proof, no production cutover claim.
-- #591 — closed by #593: release trust gates plus explicit manual AT blocker evidence.
+- #591 — open/reopened after #593: release trust gates now account for the blocker, but actual manual assistive-technology signoff is still missing; blocker accounting is not release signoff.
 - #592 — closed by #593: signed/fetch-by-hash RuntimeProfile and fail-closed MCP posture.
 
 ## PR / CI / milestone status
@@ -46,8 +46,9 @@ Passing on 2026-06-01 before PR creation:
 - Merged PR: #593, `feat: prove Sprint 18 workspace migration trust loop`, with exactly one release-notes label: `release-notes-feature`.
 - Merge commit on `main`: `5b0fc458fc75e0ccfddab2dba0c7b8b1f2553eb6`.
 - PR checks at merge: 6 successful, 0 requiring attention.
-- GitHub issues #589, #590, #591, and #592 are closed.
-- GitHub milestone 18 is closed with 0 open issues and 4 closed issues.
+- Final `main` CI after #593 is green: run `26772955027`.
+- GitHub issues #590 and #592 are closed; #589 and #591 are open.
+- GitHub milestone 18 is open with 2 open issues and 2 closed issues.
 
 ## Boundaries and non-claims
 
