@@ -12,6 +12,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class WeaverRuntimeService {
+
+    private final ConcurrentMap<String, WeaverRuntimeProfileResponse> issuedProfiles = new ConcurrentHashMap<>();
 
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
@@ -66,6 +70,7 @@ public class WeaverRuntimeService {
         boolean elevatedEnabled = weaverRuntimeProperties.elevatedEnabled() && grantedCapabilities.contains("weaver.elevated_enabled");
         String profileVersion = profileVersion(userRef, allowedCapabilities);
         String expiresAt = Instant.now().plus(1, ChronoUnit.HOURS).toString();
+        String runtimeTokenExpiresAt = Instant.now().plus(10, ChronoUnit.MINUTES).toString();
         String previousProfileHash = previousProfileHash(userRef, profileVersion);
         String runtimeProfileHash = runtimeProfileHash(
                 userRef,
@@ -115,16 +120,33 @@ public class WeaverRuntimeService {
                 elevatedEnabled,
                 weaverRuntimeProperties.auditRequired(),
                 weaverRuntimeProperties.forkRequired(),
-                channelProjection(runtimeProfileHash, profileVersion, userRef),
+                channelProjection(runtimeProfileHash, profileVersion, userRef, expiresAt, runtimeTokenExpiresAt),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
-                supportSafeProfileReceipt(profileVersion, runtimeProfileHash, signature, false, "active"),
+                supportSafeProfileReceipt(profileVersion, runtimeProfileHash, signature, expiresAt, runtimeTokenExpiresAt, false, "active"),
                 "writes-delete-external-send-provider-switch require approval receipts",
                 "secretrefs-only-no-raw-provider-tokens",
                 "one-user-one-isolated-workspace-memory-session-store",
                 "Weaver is available through the governed organization profile; unavailable tools are hidden from the runtime.");
         auditGeneratedProfile(response);
+        issuedProfiles.put(runtimeProfileHash, response);
         return response;
+    }
+
+    public WeaverRuntimeProfileResponse profileByHash(Jwt jwt, String runtimeProfileHash) {
+        String userRef = supportSafeUserRef(jwt);
+        WeaverRuntimeProfileResponse issued = issuedProfiles.get(runtimeProfileHash == null ? "" : runtimeProfileHash.strip());
+        if (issued == null) {
+            return disabledProfile(userRef, "runtime-profile-hash-not-issued", "RuntimeProfile fetch-by-hash failed closed.");
+        }
+        if (!issued.userRef().equals(userRef) || issued.revoked() || Instant.parse(issued.expiresAt()).isBefore(Instant.now())) {
+            return disabledProfile(userRef, "runtime-profile-fetch-denied", "RuntimeProfile fetch-by-hash failed closed.");
+        }
+        if (!Boolean.TRUE.equals(issued.supportSafeProfileReceipt().get("signed"))
+                || !Boolean.TRUE.equals(issued.supportSafeProfileReceipt().get("fetchByHashRequired"))) {
+            return disabledProfile(userRef, "runtime-profile-signature-missing", "RuntimeProfile fetch-by-hash failed closed.");
+        }
+        return issued;
     }
 
     private WeaverRuntimeProfileResponse disabledProfile(String userRef, String posture, String impact) {
@@ -178,13 +200,15 @@ public class WeaverRuntimeService {
                 false,
                 true,
                 false,
-                channelProjection(runtimeProfileHash, profileVersion, userRef),
+                channelProjection(runtimeProfileHash, profileVersion, userRef, expiresAt, expiresAt),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
                 supportSafeProfileReceipt(
                         profileVersion,
                         runtimeProfileHash,
                         signature,
+                        expiresAt,
+                        expiresAt,
                         true,
                         posture),
                 "writes-delete-external-send-provider-switch require approval receipts",
@@ -267,27 +291,49 @@ public class WeaverRuntimeService {
         return "sha256:" + sha256(userRef + ":previous:" + profileVersion);
     }
 
-    private Map<String, Object> channelProjection(String runtimeProfileHash, String profileVersion, String userRef) {
-        return Map.of(
-                "channelId", "channels.weave-chat",
-                "domain", "chat",
-                "providerRef", "provider:chat:selected-by-admin",
-                "routingProfileVersion", profileVersion,
+    private Map<String, Object> channelProjection(
+            String runtimeProfileHash,
+            String profileVersion,
+            String userRef,
+            String expiresAt,
+            String runtimeTokenExpiresAt) {
+        String runtimeTokenRef = "credentialref://weave/runtime/short-lived/" + userRef.replace("user:", "");
+        Map<String, Object> runtimeProfileFetch = Map.of(
+                "fetchRef", "weave-runtime-profile://" + runtimeProfileHash,
                 "runtimeProfileHash", runtimeProfileHash,
-                "runtimeTokenRef", "credentialref://weave/runtime/weave-chat/" + userRef.replace("user:", ""),
-                "reloadStrategy", "reload-or-restart-stable-channel",
-                "rawProviderChannelConfigsRendered", false,
-                "memberMaySwitchProviderAdapters", false,
-                "mcpServerBindings", List.of(Map.ofEntries(
+                "profileVersion", profileVersion,
+                "expiresAt", expiresAt,
+                "previousProfileHash", previousProfileHash(userRef, profileVersion),
+                "signatureRequired", true,
+                "signatureAlgorithm", "weave-signature:v1",
+                "revocationChecked", true,
+                "supportSafe", true,
+                "rawProfileBodyReturnedToMembers", false);
+        return Map.ofEntries(
+                Map.entry("channelId", "channels.weave-chat"),
+                Map.entry("domain", "chat"),
+                Map.entry("providerRef", "provider:chat:selected-by-admin"),
+                Map.entry("routingProfileVersion", profileVersion),
+                Map.entry("runtimeProfileHash", runtimeProfileHash),
+                Map.entry("runtimeTokenRef", runtimeTokenRef),
+                Map.entry("runtimeTokenExpiresAt", runtimeTokenExpiresAt),
+                Map.entry("runtimeProfileFetch", runtimeProfileFetch),
+                Map.entry("reloadStrategy", "reload-or-restart-stable-channel"),
+                Map.entry("rawProviderChannelConfigsRendered", false),
+                Map.entry("memberMaySwitchProviderAdapters", false),
+                Map.entry("mcpServerBindings", List.of(Map.ofEntries(
                         Map.entry("serverKey", "weave-domain-tools"),
                         Map.entry("transport", "streamable-http"),
                         Map.entry("endpointRef", "internal://weave-mcp/streamable-http"),
                         Map.entry("credentialRef", "credentialref://weave/mcp/weave-domain-tools/runtime-token"),
+                        Map.entry("runtimeTokenRef", runtimeTokenRef),
+                        Map.entry("runtimeTokenExpiresAt", runtimeTokenExpiresAt),
+                        Map.entry("runtimeProfileFetchRef", "weave-runtime-profile://" + runtimeProfileHash),
                         Map.entry("enabled", false),
                         Map.entry("supportSafe", true),
                         Map.entry("rawEndpointExposed", false),
                         Map.entry("allowedTools", List.of("admin.get_readiness", "weaver.get_runtime_profile_projection", "calendar.search_events", "boards.comment")),
-                        Map.entry("approvalRequiredFor", List.of("boards.comment")))));
+                        Map.entry("approvalRequiredFor", List.of("boards.comment"))))));
     }
 
     private Map<String, Object> credentialBrokerContract(String userRef) {
@@ -318,18 +364,25 @@ public class WeaverRuntimeService {
             String profileVersion,
             String runtimeProfileHash,
             String signature,
+            String expiresAt,
+            String runtimeTokenExpiresAt,
             boolean revoked,
             String revocationStatus) {
-        return Map.of(
-                "profileVersion", profileVersion,
-                "runtimeProfileHash", runtimeProfileHash,
-                "signature", signature,
-                "signed", true,
-                "revoked", revoked,
-                "revocationStatus", revocationStatus,
-                "regeneratesOnPolicyOrProviderChange", true,
-                "containsRawSecrets", false,
-                "supportSafe", true);
+        return Map.ofEntries(
+                Map.entry("profileVersion", profileVersion),
+                Map.entry("runtimeProfileHash", runtimeProfileHash),
+                Map.entry("signature", signature),
+                Map.entry("signed", true),
+                Map.entry("fetchByHashRequired", true),
+                Map.entry("fetchRef", "weave-runtime-profile://" + runtimeProfileHash),
+                Map.entry("expiresAt", expiresAt),
+                Map.entry("runtimeTokenExpiresAt", runtimeTokenExpiresAt),
+                Map.entry("runtimeTokenExported", false),
+                Map.entry("revoked", revoked),
+                Map.entry("revocationStatus", revocationStatus),
+                Map.entry("regeneratesOnPolicyOrProviderChange", true),
+                Map.entry("containsRawSecrets", false),
+                Map.entry("supportSafe", true));
     }
 
     private String supportSafeUserRef(Jwt jwt) {

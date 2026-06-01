@@ -124,3 +124,16 @@ Accessibility evidence is now a release-promotion gate, not a waiver pattern. Th
 Critical flows fail promotion when required evidence is missing, when a blocker is unresolved, or when a waiver is expired. Waivers are exceptional, must link to a GitHub issue, must name an expiry, and cannot silently pass RC promotion.
 
 The gate maps Flutter semantics, keyboard traversal, text-scale/reflow, Admin Console route/interactions, and manual assistive-technology observations to release flows: provider setup, provider migration dry-run/member impact preview, identity offboarding/ownership transfer, and Matrix Chat E2EE recovery/cannot-decrypt states.
+
+## Sprint 18 manual assistive-technology release trust gate
+
+Issue #591 expands the release-blocking manual AT scope to the Sprint 18 member Workspace loop, admin migration apply/recovery, admin go-live claim-control, and governed Weaver approval/revocation surfaces. The machine-readable gate is `release/accessibility-gate.json`; current blocker accounting is `docs/evidence/accessibility/sprint-18-manual-at-blocker.md`.
+
+This blocker artifact is not pass evidence. It exists because the repository automation environment cannot collect a real screen-reader, keyboard-only, and text-scale session by itself. Before any Sprint 18 RC or production accessibility signoff, each row must be replaced by real reviewer evidence or by an exceptional release-owner waiver that names the owner, candidate commit/tag, tested route, assistive technology/browser or device combination, result, linked blocker, expiry, and compensating evidence.
+
+| Sprint 18 flow | Required manual evidence | Current release state |
+| --- | --- | --- |
+| member Workspace loop | VoiceOver or TalkBack, desktop keyboard/screen reader, and 200% text scale across Weave Home, channel workspace, chat, files, calendar, boards, meetings, and decisions. | Blocked by #591; do not claim Sprint 18 member workspace accessibility signoff. |
+| admin migration apply/recovery | Desktop keyboard, screen reader, and text-scale traversal of dry-run, member-impact preview, apply block, recovery, rollback, and support boundary. | Blocked by #591; do not claim production provider migration apply or lossless cutover. |
+| admin go-live claim-control | Desktop keyboard, screen reader, and reflow of release blockers, support-bundle refs, audit/export refs, release notes source, CI/Live Stack evidence, and next actions. | Blocked by #591; missing or stale evidence blocks RC/prod readiness claims. |
+| governed Weaver approval/revocation | Desktop keyboard, screen reader, and text-scale traversal of approval, denial, revocation, receipt, audit, and disabled-by-policy states. | Blocked by #591; do not claim broad Weaver availability or autonomous team writes. |

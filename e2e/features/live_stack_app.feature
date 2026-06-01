@@ -58,6 +58,14 @@ Feature: Live Stack product acceptance journey
     Then the board still uses Weave product task concepts
     And mapped accessibility evidence covers screen-reader summaries, tap targets, large text, and action-menu alternatives
 
+
+  @weave-live-workspace-loop
+  Scenario: Workspace loop links Space, Channel, Chat, Files, Board, Calendar, and Decision
+    Given a signed-in member starts from a Weave Space and channel
+    When the member records chat context, references a file, updates a board task, schedules or safely blocks a calendar event, and records a decision
+    Then the loop uses stable Weave domain language and canonical IDs
+    And support-safe evidence marks real writes and any guarded calendar block without provider leakage
+
   @weave-live-provider-reality-vertical
   Scenario: Provider reality vertical reports domain availability honestly
     Given the signed-in person uses provider-backed Weave domains

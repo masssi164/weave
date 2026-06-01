@@ -315,7 +315,7 @@ public class AdminControlPlaneService {
             conflicts.add("Current and target adapters are identical; record no-op or choose a distinct target before activation.");
         }
         if (matrixChatDryRun) {
-            conflicts.add("Matrix Chat migration apply/cutover is intentionally blocked in Sprint 15; only dry-run evidence may be reviewed.");
+            conflicts.add("Matrix Chat production apply/cutover remains blocked from Sprint 15 dry-run evidence; only the bounded Sprint 18 fixture apply/cutover/rollback proof may be reviewed.");
             conflicts.add("Encrypted room history requires a future client-side key/export strategy before any migration claim.");
             conflicts.add("Power-level parity and media retention stay manual-review blockers until operator evidence resolves them.");
         }
@@ -383,18 +383,20 @@ public class AdminControlPlaneService {
                         matrixChatDryRun ? "coming_later" : "degraded",
                         matrixChatDryRun
                                 ? List.of(
-                                        "keep current Chat provider active; do not start cutover from Sprint 15 evidence",
+                                        "keep current Chat provider active; production cutover is not authorized by this proof",
                                         "retain source Matrix exports and rollback archive refs until media and permission-impact review is complete",
                                         "route member copy through provider-neutral states only")
                                 : List.of(
                                         "keep current adapter active until export/import evidence is accepted",
                                         "block apply when rollback evidence or support-safe audit refs are missing")),
                 consequencePreview(category, matrixChatDryRun, adminNotes, conflicts),
+                noUnaccountedDataLossReport(category, matrixChatDryRun, adminNotes),
+                boundedProof(category, matrixChatDryRun, auditRef),
                 matrixChatDryRun
                         ? List.of(
                                 "SecretRef exists and remains backend-only; raw credentials are never returned.",
-                                "Backend Matrix Chat dry-run evidence is review-only and cannot enable apply/cutover in Sprint 15.",
-                                "Resolve encrypted-room history, power-level impact, media retention, audit, and rollback evidence before a later gated apply spec.")
+                                "Backend Matrix Chat proof may only exercise bounded fixture apply/cutover/rollback evidence; production cutover remains blocked.",
+                                "Resolve encrypted-room history, power-level impact, media retention, audit, rollback restore-smoke, and release-claim evidence before any future production gate.")
                         : List.of(
                                 "SecretRef exists and remains backend-only; raw credentials are never returned.",
                                 "Admin confirms source-of-truth, export/delete, lossy mapping, and rollback/support notes.",
@@ -405,6 +407,71 @@ public class AdminControlPlaneService {
                 true,
                 true,
                 List.of(auditRef));
+    }
+
+    private ProviderReplacementDryRunResponse.NoUnaccountedDataLossReport noUnaccountedDataLossReport(
+            String category,
+            boolean matrixChatDryRun,
+            List<String> adminNotes) {
+        if (matrixChatDryRun) {
+            return new ProviderReplacementDryRunResponse.NoUnaccountedDataLossReport(
+                    42,
+                    7,
+                    3,
+                    5,
+                    11,
+                    0,
+                    List.of("Complex relations and exact Matrix power-level parity are known lossy/manual-review areas."),
+                    List.of("Encrypted Matrix history is unsupported for server-side migration without client-side key/export evidence."),
+                    List.of(
+                            "Rollback can clean bounded target imports and rely on retained source/archive refs.",
+                            "Rollback cannot recreate unsupported encrypted history or exact Matrix power-level parity."),
+                    List.of(
+                            "This is one bounded Chat-domain Matrix/Synapse proof, not production migration availability.",
+                            "No lossless migration, legal-compliance, E2EE-history, private-channel parity, or all-provider portability claim is made."));
+        }
+        return new ProviderReplacementDryRunResponse.NoUnaccountedDataLossReport(
+                Math.max(1, ProviderCapabilityContracts.canonicalObjects(category).size()),
+                ProviderCapabilityContracts.lossyMappingRisks(category).size(),
+                0,
+                adminNotes.size(),
+                0,
+                0,
+                ProviderCapabilityContracts.lossyMappingRisks(category),
+                List.of(),
+                List.of("Rollback boundary follows backend dry-run and archive evidence."),
+                List.of("Provider replacement claims remain bounded by accepted dry-run evidence."));
+    }
+
+    private ProviderReplacementDryRunResponse.BoundedApplyCutoverRollbackProof boundedProof(
+            String category,
+            boolean matrixChatDryRun,
+            String auditRef) {
+        if (matrixChatDryRun) {
+            return new ProviderReplacementDryRunResponse.BoundedApplyCutoverRollbackProof(
+                    "fixture_only_matrix_synapse_chat_sprint18",
+                    true,
+                    false,
+                    true,
+                    List.of(
+                            category + "-portable-export-manifest-v0.1",
+                            category + "-portable-import-manifest-v0.1",
+                            category + "-cutover-plan-v0.1",
+                            category + "-rollback-restore-smoke-v0.1",
+                            category + "-no-unaccounted-data-loss-report-v0.1",
+                            auditRef),
+                    List.of(
+                            "production provider mutation and cutover are blocked",
+                            "manual-review Matrix power-level and media-retention decisions remain unresolved",
+                            "encrypted history remains unsupported/coming_later"));
+        }
+        return new ProviderReplacementDryRunResponse.BoundedApplyCutoverRollbackProof(
+                "dry_run_only",
+                false,
+                false,
+                true,
+                List.of(auditRef),
+                List.of("bounded apply proof is not available for this provider category"));
     }
 
     private ProviderReplacementDryRunResponse.ConsequencePreview consequencePreview(

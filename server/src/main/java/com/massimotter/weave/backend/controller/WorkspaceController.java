@@ -23,6 +23,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -125,6 +126,27 @@ public class WorkspaceController {
     })
     public WeaverRuntimeProfileResponse weaverRuntimeProfile(@AuthenticationPrincipal Jwt jwt) {
         return weaverRuntimeService.profileFor(jwt);
+    }
+
+    @GetMapping({"/api/workspace/weaver/runtime-profiles/{runtimeProfileHash}", "/api/v1/workspace/weaver/runtime-profiles/{runtimeProfileHash}"})
+    @Operation(
+            summary = "Fetch generated Weaver runtime profile by hash",
+            description = "Returns only a previously issued, signed, current, unrevoked RuntimeProfile for the authenticated user. Missing, stale, mismatched, or unsigned profile evidence fails closed without exposing raw runtime tokens, provider endpoints, or OpenClaw configuration.",
+            security = @SecurityRequirement(name = "bearer-jwt"))
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Generated Weaver runtime profile or fail-closed disabled posture.",
+                    content = @Content(schema = @Schema(implementation = WeaverRuntimeProfileResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Bearer token is missing the weave:workspace scope.",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public WeaverRuntimeProfileResponse weaverRuntimeProfileByHash(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String runtimeProfileHash) {
+        return weaverRuntimeService.profileByHash(jwt, runtimeProfileHash);
     }
 
     @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})

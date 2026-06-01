@@ -83,3 +83,13 @@ Provider-specific Matrix API errors, homeserver URLs, access tokens, power-level
 - Full Matrix power-level parity.
 - Threads, edits, polls, widgets, bridged event semantics, or all federated edge cases.
 - Slack/Teams implementation. Slack and Teams remain comparison context because their export/API paths are plan-, license-, compliance-, approval-, throttling-, and billing-constrained.
+
+## Sprint 18 bounded apply/cutover/rollback proof
+
+Sprint 18 adds a fixture-only Matrix/Synapse Chat proof path in `specs/0006-portability-contract/matrix-synapse-chat-bounded-apply-cutover-rollback-proof.json`. The boundary is deliberately narrow: it may exercise a limited target-import apply, cutover validation, rollback cleanup, and restore-smoke evidence for the named fixture slice, but it does **not** authorize production provider mutation or production Chat cutover.
+
+The proof is useful only when the backend-owned evidence contains a fresh dry-run id, support-safe audit refs, export/archive refs, a cutover plan ref, a rollback restore-smoke ref, no-unaccounted-data-loss counts, member-impact confirmation, and a release-claim boundary. Apply and cutover stay blocked when evidence is stale or missing, actor scope is invalid, audit is unavailable, rollback/export evidence is missing, manual-review decisions remain unresolved, or release wording would imply broader migration availability.
+
+The no-unaccounted-data-loss report must name supported, lossy, unsupported, manual-review, archive-only, and vendor-locked counts. For the current bounded proof, encrypted Matrix history remains unsupported/coming_later, exact Matrix power-level parity remains manual-review/lossy, and media durability may remain archive-only unless copied into Weave-controlled storage under an approved retention policy. Rollback can clean bounded target imports and rely on retained source/archive refs; it cannot recreate unsupported encrypted history or exact Matrix power-level parity.
+
+Release, Admin Console, support-bundle, and member-facing wording must keep these boundaries visible: this is one bounded Chat-domain Matrix/Synapse proof, not production migration availability, lossless migration, legal-compliance evidence, E2EE history migration, private-channel parity, or all-provider portability.

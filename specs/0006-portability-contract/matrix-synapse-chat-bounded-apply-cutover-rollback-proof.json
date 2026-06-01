@@ -1,0 +1,81 @@
+{
+  "proofId": "sprint-18-matrix-synapse-chat-bounded-apply-cutover-rollback-proof-v1",
+  "domainKey": "chat",
+  "sourceProvider": "matrix-synapse",
+  "targetProvider": "weave-chat-domain",
+  "proofBoundary": "fixture_only_matrix_synapse_chat_sprint18",
+  "productionCutoverAllowed": false,
+  "limitedApplyAllowed": true,
+  "supportSafe": true,
+  "providerDiagnosticsRedacted": true,
+  "redaction": "support_safe",
+  "lifecycle": {
+    "dryRun": {
+      "state": "dry_run_completed",
+      "dryRunReportRef": "dry-run:s18:matrix-synapse-chat:bounded:redacted",
+      "auditRefs": ["audit:s18:matrix-chat:dry-run:bounded:redacted"]
+    },
+    "limitedApply": {
+      "state": "applied",
+      "appliedObjects": 42,
+      "mutationBoundary": "fixture_target_import_only",
+      "providerMutationPerformed": false,
+      "auditRefs": ["audit:s18:matrix-chat:limited-apply:bounded:redacted"]
+    },
+    "cutover": {
+      "state": "verified",
+      "productionCutoverPerformed": false,
+      "memberFacingStateDuringSwitch": "degraded",
+      "cutoverPlanRef": "cutover:s18:matrix-synapse-chat:bounded:redacted",
+      "validationRefs": ["verify:s18:matrix-chat:bounded-target-import:redacted"]
+    },
+    "rollback": {
+      "state": "rolled_back",
+      "rollbackArchiveRef": "archive:s18:matrix-synapse-chat:bounded:redacted",
+      "rollbackRestoreSmokeRef": "restore-smoke:s18:matrix-chat:bounded:redacted",
+      "targetCleanupPlanRef": "cleanup:s18:weave-chat-import:bounded:redacted",
+      "sourceRetentionRequired": true,
+      "auditRefs": ["audit:s18:matrix-chat:rollback:bounded:redacted"]
+    }
+  },
+  "noUnaccountedDataLossReport": {
+    "supportedCount": 42,
+    "lossyCount": 7,
+    "unsupportedCount": 3,
+    "manualReviewCount": 5,
+    "archiveOnlyCount": 11,
+    "vendorLockedCount": 0,
+    "knownLosses": [
+      "Complex relations outside simple replies/reactions are lossy.",
+      "Exact Matrix power-level parity remains manual_review."
+    ],
+    "unsupportedData": [
+      "Encrypted Matrix history is unsupported for server-side migration until client-side key/export evidence exists."
+    ],
+    "archiveOnlyData": [
+      "Media references may remain archive_only unless copied into Weave-controlled storage under approved retention."
+    ],
+    "rollbackLimits": [
+      "Rollback can clean bounded target imports and relies on retained source/archive refs.",
+      "Rollback cannot recreate unsupported encrypted history or exact Matrix power-level parity."
+    ],
+    "releaseClaimBoundaries": [
+      "This proves one bounded Chat-domain Matrix/Synapse fixture path only.",
+      "It does not prove production provider migration availability, lossless migration, legal compliance, E2EE history migration, private-channel parity, or all-provider portability."
+    ]
+  },
+  "requiredGuardrails": [
+    "fresh persisted dry-run id",
+    "admin.operator scope",
+    "audit sink available",
+    "export/archive refs present",
+    "rollback restore-smoke ref present",
+    "member-impact confirmation present",
+    "manual-review decisions resolved before any future production gate"
+  ],
+  "releaseBlockers": [
+    "production provider mutation and cutover are blocked",
+    "manual-review Matrix power-level and media-retention decisions remain unresolved for production",
+    "encrypted history remains unsupported/coming_later"
+  ]
+}

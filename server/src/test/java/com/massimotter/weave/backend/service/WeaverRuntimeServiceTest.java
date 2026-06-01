@@ -91,11 +91,17 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.channelProjection())
                 .containsEntry("channelId", "channels.weave-chat")
                 .containsEntry("providerRef", "provider:chat:selected-by-admin")
+                .containsEntry("runtimeTokenExpiresAt", profile.supportSafeProfileReceipt().get("runtimeTokenExpiresAt"))
                 .containsEntry("rawProviderChannelConfigsRendered", false)
                 .containsEntry("memberMaySwitchProviderAdapters", false)
                 .containsKey("mcpServerBindings");
+        assertThat(profile.channelProjection().get("runtimeProfileFetch").toString())
+                .contains("fetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
+                .contains("signatureRequired=true", "revocationChecked=true", "rawProfileBodyReturnedToMembers=false");
         assertThat(profile.channelProjection().get("mcpServerBindings").toString())
                 .contains("weave-domain-tools", "streamable-http", "calendar.search_events", "boards.comment")
+                .contains("runtimeProfileFetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
+                .contains("runtimeTokenRef=credentialref://weave/runtime/short-lived/")
                 .doesNotContain("Bearer ", "openclaw.json", "rawMcpServerConfig");
         assertThat(profile.credentialBrokerContract())
                 .containsEntry("broker", "weave-credential-broker")
@@ -110,6 +116,9 @@ class WeaverRuntimeServiceTest {
                 .containsEntry("runtimeProfileHash", profile.runtimeProfileHash())
                 .containsEntry("signature", profile.signature())
                 .containsEntry("signed", true)
+                .containsEntry("fetchByHashRequired", true)
+                .containsEntry("fetchRef", "weave-runtime-profile://" + profile.runtimeProfileHash())
+                .containsEntry("runtimeTokenExported", false)
                 .containsEntry("revoked", false)
                 .containsEntry("supportSafe", true);
         assertThat(profile.approvalPolicy()).contains("approval receipts");
@@ -142,6 +151,29 @@ class WeaverRuntimeServiceTest {
         assertThat(regenerated.channelProjection()).containsEntry("channelId", "channels.weave-chat");
         assertThat(regenerated.channelProjection()).containsEntry("providerRef", "provider:chat:selected-by-admin");
         assertThat(regenerated.supportSafeProfileReceipt()).containsEntry("regeneratesOnPolicyOrProviderChange", true);
+    }
+
+    @Test
+    void fetchesOnlyIssuedCurrentRuntimeProfileByHashForSameUser() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var issued = service.profileFor(member);
+        var fetched = service.profileByHash(member, issued.runtimeProfileHash());
+
+        assertThat(fetched.enabled()).isTrue();
+        assertThat(fetched.runtimeProfileHash()).isEqualTo(issued.runtimeProfileHash());
+        assertThat(fetched.supportSafeProfileReceipt()).containsEntry("fetchByHashRequired", true);
+
+        var unknown = service.profileByHash(member, "sha256:not-issued");
+        assertThat(unknown.enabled()).isFalse();
+        assertThat(unknown.posture()).isEqualTo("runtime-profile-hash-not-issued");
+
+        Jwt otherMember = jwt("other@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        var mismatched = service.profileByHash(otherMember, issued.runtimeProfileHash());
+        assertThat(mismatched.enabled()).isFalse();
+        assertThat(mismatched.posture()).isEqualTo("runtime-profile-fetch-denied");
+        assertThat(mismatched.toString()).doesNotContain("Bearer ", "openclaw.json", "refresh_token", "https://matrix.weave.local");
     }
 
     private WeaverRuntimeService service(

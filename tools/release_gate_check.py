@@ -132,14 +132,36 @@ def check_accessibility_gate() -> None:
     flows = gate.get("criticalFlows")
     if not isinstance(flows, list) or len(flows) < 4:
         fail("accessibility gate must define critical release flows")
-    for required in ("provider-setup", "provider-migration-dry-run", "identity-offboarding", "chat-e2ee-recovery"):
-        if required not in {flow.get("id") for flow in flows if isinstance(flow, dict)}:
+    required_flows = (
+        "provider-setup",
+        "provider-migration-dry-run",
+        "identity-offboarding",
+        "chat-e2ee-recovery",
+        "member-workspace-loop",
+        "admin-migration-apply-recovery",
+        "admin-go-live-claim-control",
+        "governed-weaver-approval-revocation",
+    )
+    flow_ids = {flow.get("id") for flow in flows if isinstance(flow, dict)}
+    for required in required_flows:
+        if required not in flow_ids:
             fail(f"accessibility gate missing critical flow {required}")
     policy = gate.get("waiverPolicy", {})
     if not all(policy.get(key) is True for key in ("exceptionalOnly", "requiresIssue", "requiresExpiry", "expiredWaiverBlocksPromotion")):
         fail("accessibility waiver policy must be exceptional, issue-linked, expiring, and promotion-blocking")
     doc = A11Y_DOC.read_text(encoding="utf-8")
-    for fragment in ("release/accessibility-gate.json", "provider migration dry-run", "identity offboarding", "Matrix Chat E2EE recovery"):
+    for fragment in (
+        "release/accessibility-gate.json",
+        "provider migration dry-run",
+        "identity offboarding",
+        "Matrix Chat E2EE recovery",
+        "Sprint 18 manual assistive-technology release trust gate",
+        "member Workspace loop",
+        "admin migration apply/recovery",
+        "admin go-live claim-control",
+        "governed Weaver approval/revocation",
+        "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
+    ):
         if fragment not in doc:
             fail(f"accessibility release gate doc missing {fragment}")
 
