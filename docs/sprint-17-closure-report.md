@@ -38,8 +38,11 @@ Passing on 2026-06-01:
 ## PR / CI / milestone status
 
 - Branch: `s17-admin-rc-go-live-claim-control`.
-- PR: pending creation/merge from this branch.
-- GitHub issue/milestone closure: pending until PR CI is green and merged. Milestone 17 must remain open until #584/#585/#586 are closed or explicitly carried forward.
+- PR: [#587](https://github.com/masssi164/weave/pull/587), head `a131c3165a74764604df23efad2323b618fee80a`, mergeable with `release-notes-feature`.
+- GitHub CI on PR #587 is green:
+  - push CI run [26759705393](https://github.com/masssi164/weave/actions/runs/26759705393), `Gradle CI` success; release-label job skipped as expected for a push.
+  - pull-request CI run [26759719577](https://github.com/masssi164/weave/actions/runs/26759719577), `Gradle CI` success and `Release Notes Label Check` success.
+- GitHub issue/milestone closure: pending until PR #587 is merged. The PR uses closing keywords for #584, #585, and #586 so the Sprint 17 milestone can close after merge verification if no issue remains open.
 
 ## Boundaries and non-claims
 
