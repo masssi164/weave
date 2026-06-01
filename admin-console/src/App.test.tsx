@@ -283,6 +283,19 @@ describe("Admin Console MVP", () => {
     expect(
       screen.getByLabelText(/domain readiness dashboard/i),
     ).toHaveTextContent(/member preview: degraded/i);
+    expect(screen.getByText(/rc claim control/i)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/rc go-live evidence and release claim gates/i),
+    ).toHaveTextContent(/pinned specification corpus/i);
+    expect(
+      screen.getByLabelText(/rc go-live evidence and release claim gates/i),
+    ).toHaveTextContent(/accessibility evidence: degraded/i);
+    expect(
+      screen.getByLabelText(/rc go-live evidence and release claim gates/i),
+    ).toHaveTextContent(/blocks release claim: yes/i);
+    expect(
+      screen.getByLabelText(/rc go-live evidence and release claim gates/i),
+    ).toHaveTextContent(/unresolved veto\/blockers/i);
   });
 
   it("keeps admin/provider setup separate from the member client and direct providers", async () => {

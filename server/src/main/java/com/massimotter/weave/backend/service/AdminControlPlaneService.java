@@ -40,6 +40,8 @@ import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunReques
 import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunResponse;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
+import com.massimotter.weave.backend.model.admin.RcEvidenceGateReadinessResponse;
+import com.massimotter.weave.backend.model.admin.ReleaseClaimControlResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
 import com.massimotter.weave.backend.model.admin.SuiteDomainReadinessResponse;
 import com.massimotter.weave.backend.model.admin.WeaverDistributionPolicyResponse;
@@ -1478,7 +1480,62 @@ public class AdminControlPlaneService {
                 List.of("audit://admin-control-plane/go-live-readiness"),
                 true,
                 false,
-                false);
+                false,
+                releaseClaimControl(blockers));
+    }
+
+    private ReleaseClaimControlResponse releaseClaimControl(List<String> readinessBlockers) {
+        List<String> unresolvedVetoes = new ArrayList<>(readinessBlockers);
+        unresolvedVetoes.add("release-owner-rc-decision-required");
+        return new ReleaseClaimControlResponse(
+                readinessBlockers.isEmpty() ? "configured" : "admin-action-required",
+                "v0.1.0-rc.next",
+                "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
+                "merged PR release-notes labels and generated draft",
+                "support-bundle://admin-health/go-live-redacted-sample",
+                "docs/evidence/weaver-security-privacy-accessibility-report.md",
+                unresolvedVetoes,
+                List.of(
+                        new RcEvidenceGateReadinessResponse(
+                                "pinned-spec-corpus",
+                                "Pinned specification corpus",
+                                "ready",
+                                "fresh",
+                                List.of("specs/weave-specs.lock.json"),
+                                "Keep the candidate tied to the pinned corpus commit.",
+                                false),
+                        new RcEvidenceGateReadinessResponse(
+                                "conformance-gates",
+                                "Conformance and acceptance gates",
+                                "admin-action-required",
+                                "missing",
+                                List.of("./gradlew acceptanceContract", "./gradlew releaseEvidenceCheck"),
+                                "Run candidate-head gates and attach sanitized CI evidence.",
+                                true),
+                        new RcEvidenceGateReadinessResponse(
+                                "support-safe-bundle",
+                                "Support-safe evidence bundle",
+                                "ready",
+                                "fresh",
+                                List.of("support-bundle://admin-health/go-live-redacted-sample"),
+                                "Verify the bundle contains only refs, reason codes, and redacted diagnostics.",
+                                false),
+                        new RcEvidenceGateReadinessResponse(
+                                "accessibility-evidence",
+                                "Accessibility evidence",
+                                "degraded",
+                                "stale",
+                                List.of("docs/evidence/weaver-security-privacy-accessibility-report.md"),
+                                "Refresh admin apply/recovery and member-preview accessibility evidence for the candidate.",
+                                true),
+                        new RcEvidenceGateReadinessResponse(
+                                "release-notes-input",
+                                "Release notes input",
+                                "configured",
+                                "sample_only",
+                                List.of("docs/release-notes/unreleased.md"),
+                                "Generate release notes from merged PR metadata before RC tagging.",
+                                true)));
     }
 
     private WeaverRuntimeProjectionResponse weaverRuntimeProjection(ProviderRegistryResponse registry) {

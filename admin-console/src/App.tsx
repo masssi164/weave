@@ -1018,6 +1018,94 @@ export default function App({
                     <Typography>
                       Audit refs: {controlPlane.goLiveReadiness.auditRefs.join(", ") || "backend audit required"}
                     </Typography>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography
+                      id="rc-claim-control-heading"
+                      variant="h3"
+                      sx={{ fontSize: "1.1rem", mb: 1 }}
+                    >
+                      RC claim control
+                    </Typography>
+                    <Alert
+                      severity={
+                        controlPlane.goLiveReadiness.releaseClaimControl
+                          .unresolvedVetoes.length === 0 &&
+                        controlPlane.goLiveReadiness.releaseClaimControl.gates.every(
+                          (gate) => !gate.blocksReleaseClaim,
+                        )
+                          ? "success"
+                          : "warning"
+                      }
+                      sx={{ mb: 2 }}
+                    >
+                      RC claim state: {" "}
+                      {readableState(
+                        controlPlane.goLiveReadiness.releaseClaimControl
+                          .claimState,
+                      )}
+                      ; candidate: {" "}
+                      {controlPlane.goLiveReadiness.releaseClaimControl
+                        .candidateTag}
+                      . Release claims stay blocked when evidence is missing,
+                      stale, sample-only, or a Veto remains unresolved.
+                    </Alert>
+                    <List aria-label="RC go-live evidence and release claim gates">
+                      <ListItem disableGutters>
+                        <ListItemText
+                          primary="Pinned specification corpus"
+                          secondary={
+                            controlPlane.goLiveReadiness.releaseClaimControl
+                              .pinnedSpecCorpusRef
+                          }
+                        />
+                      </ListItem>
+                      <ListItem disableGutters>
+                        <ListItemText
+                          primary="Release notes source"
+                          secondary={
+                            controlPlane.goLiveReadiness.releaseClaimControl
+                              .releaseNotesSource
+                          }
+                        />
+                      </ListItem>
+                      <ListItem disableGutters>
+                        <ListItemText
+                          primary="Support bundle"
+                          secondary={
+                            controlPlane.goLiveReadiness.releaseClaimControl
+                              .supportBundleRef
+                          }
+                        />
+                      </ListItem>
+                      <ListItem disableGutters>
+                        <ListItemText
+                          primary="Accessibility evidence"
+                          secondary={
+                            controlPlane.goLiveReadiness.releaseClaimControl
+                              .accessibilityEvidenceRef
+                          }
+                        />
+                      </ListItem>
+                      <ListItem disableGutters>
+                        <ListItemText
+                          primary="Unresolved Veto/blockers"
+                          secondary={
+                            controlPlane.goLiveReadiness.releaseClaimControl
+                              .unresolvedVetoes.join(", ") || "none"
+                          }
+                        />
+                      </ListItem>
+                      {controlPlane.goLiveReadiness.releaseClaimControl.gates.map(
+                        (gate) => (
+                          <ListItem key={gate.key} disableGutters>
+                            <ListItemText
+                              primary={`${gate.label}: ${readableState(gate.state)}`}
+                              secondary={`Freshness: ${readableState(gate.evidenceFreshness)}; blocks release claim: ${gate.blocksReleaseClaim ? "yes" : "no"}; evidence: ${gate.evidenceRefs.join(", ") || "backend evidence required"}; next action: ${gate.nextAction}`}
+                            />
+                          </ListItem>
+                        ),
+                      )}
+                    </List>
                   </CardContent>
                 </Card>
               ) : null}

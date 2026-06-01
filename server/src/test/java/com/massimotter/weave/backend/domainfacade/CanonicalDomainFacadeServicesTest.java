@@ -56,6 +56,33 @@ class CanonicalDomainFacadeServicesTest {
     }
 
     @Test
+    void contractsExposeSpaceCenteredWorkspaceFlowAcrossSuiteFacades() {
+        var services = services(new InMemoryProviderSelectionRepository(), configuredProviders(), allowedCapabilities());
+
+        CanonicalDomainContract filesDocs = contract(services, "files-docs");
+        assertThat(filesDocs.adapterBoundaryOperations())
+                .contains("read_space_scoped_file_refs", "link_document_to_space_context", "attach_file_ref_to_chat_or_task");
+        assertThat(filesDocs.canonicalObjectKinds())
+                .contains("space_ref", "chat_attachment_ref", "task_attachment_ref");
+
+        CanonicalDomainContract calendarMeetings = contract(services, "calendar-meetings");
+        assertThat(calendarMeetings.adapterBoundaryOperations())
+                .contains("bind_event_to_space_context", "link_meeting_capsule_to_chat_thread", "read_space_scoped_agenda_refs");
+        assertThat(calendarMeetings.canonicalObjectKinds())
+                .contains("space_ref", "meeting_chat_ref", "agenda_ref");
+
+        CanonicalDomainContract boardsTasks = contract(services, "boards-tasks");
+        assertThat(boardsTasks.adapterBoundaryOperations())
+                .contains("read_space_scoped_tasks", "link_task_to_chat_decision_or_file", "preview_space_task_write");
+        assertThat(boardsTasks.canonicalObjectKinds())
+                .contains("space_ref", "chat_ref", "file_ref", "decision_link");
+
+        assertThat(List.of(filesDocs, calendarMeetings, boardsTasks))
+                .allSatisfy(contract -> assertThat(contract.toString().toLowerCase())
+                        .doesNotContain("matrix", "nextcloud", "webdav", "caldav", "openproject", "sharepoint", "onlyoffice"));
+    }
+
+    @Test
     void memberReadinessFailsClosedWithoutAdminSelectedMappingsAndHidesProviderDiagnostics() {
         var services = services(new InMemoryProviderSelectionRepository(), configuredProviders(), allowedCapabilities());
 
@@ -173,6 +200,14 @@ class CanonicalDomainFacadeServicesTest {
                 new CalendarMeetingsDomainFacadeService(registry, selections, capabilityService, FIXED),
                 new BoardsTasksDomainFacadeService(registry, selections, capabilityService, FIXED),
                 new IdentityAdminPolicyDomainFacadeService(registry, selections, capabilityService, FIXED));
+    }
+
+    private CanonicalDomainContract contract(List<CanonicalDomainFacade> services, String domain) {
+        return services.stream()
+                .map(CanonicalDomainFacade::contract)
+                .filter(contract -> contract.domain().equals(domain))
+                .findFirst()
+                .orElseThrow();
     }
 
     private FilesDocsDomainFacadeService filesDocs(

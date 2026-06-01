@@ -114,6 +114,74 @@ describe("AdminControlPlaneApi provider boundary", () => {
     );
   });
 
+
+  it("normalizes RC go-live release claim gates as support-safe blockers", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const body = String(input).includes("/audit/events")
+        ? []
+        : {
+            categories: [],
+            goLiveReadiness: {
+              state: "admin-action-required",
+              memberPreviewState: "degraded",
+              supportSafe: true,
+              rawProviderDiagnosticsExposed: false,
+              normalMembersMayAccessSetupControls: false,
+              releaseClaimControl: {
+                claimState: "admin-action-required",
+                candidateTag: "v0.1.0-rc.test",
+                pinnedSpecCorpusRef: "specs/weave-specs.lock.json#test",
+                releaseNotesSource: "merged PR metadata",
+                supportBundleRef: "support-bundle://redacted",
+                accessibilityEvidenceRef: "docs/evidence/admin-a11y.md",
+                unresolvedVetoes: ["release-blocker-open"],
+                gates: [
+                  {
+                    key: "acceptance",
+                    label: "Acceptance evidence",
+                    state: "degraded",
+                    evidenceFreshness: "stale",
+                    evidenceRefs: ["./gradlew acceptanceContract"],
+                    nextAction: "rerun on candidate head",
+                    blocksReleaseClaim: true,
+                  },
+                ],
+              },
+            },
+          };
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    const api = new AdminControlPlaneApi(
+      {
+        apiBaseUrl: "https://api.example.invalid/api",
+        oidcIssuerUrl: "https://auth.example.invalid",
+        oidcClientId: "weave-admin-console",
+      },
+      fetchImpl as typeof fetch,
+    );
+
+    const controlPlane = await api.getControlPlane();
+
+    expect(controlPlane.goLiveReadiness.releaseClaimControl.candidateTag).toBe(
+      "v0.1.0-rc.test",
+    );
+    expect(
+      controlPlane.goLiveReadiness.releaseClaimControl.unresolvedVetoes,
+    ).toEqual(["release-blocker-open"]);
+    expect(controlPlane.goLiveReadiness.releaseClaimControl.gates[0]).toMatchObject({
+      key: "acceptance",
+      state: "degraded",
+      evidenceFreshness: "stale",
+      blocksReleaseClaim: true,
+    });
+    expect(JSON.stringify(controlPlane.goLiveReadiness)).not.toMatch(
+      /client_secret|access_token|bearer/i,
+    );
+  });
+
   it("normalizes Weaver projection labels without exposing unsafe runtime details", async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);

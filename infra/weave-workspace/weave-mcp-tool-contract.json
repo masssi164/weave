@@ -23,7 +23,7 @@
     "rawProviderInternalsReturned": false,
     "rawProviderPayloadsReturned": false,
     "credentialBearingUrlsReturned": false,
-    "authorizationSource": "Weave capability policy and RuntimeProfile grants",
+    "authorizationSource": "Generated Weave RuntimeProfile projection carrying the capability-policy intersection; caller-supplied capability headers are ignored",
     "auditRequiredForEveryToolCall": true,
     "approvalReceiptRequiredForWriteDeleteExternalSendProviderSwitch": true
   },
