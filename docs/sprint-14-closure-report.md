@@ -79,6 +79,17 @@ WEAVE_WEAVER_PA_CHAT_LIVE=true ./gradlew test --tests 'com.massimotter.weave.bac
 # BUILD SUCCESSFUL; asserts admin-owned model provider selection and support-safe Weaver distribution projection.
 ```
 
+Post-merge `main` closure evidence:
+
+```text
+CI run https://github.com/masssi164/weave/actions/runs/26735924061
+# head=0e3eea6, workflow=CI, conclusion=success
+
+Live Stack E2E run https://github.com/masssi164/weave/actions/runs/26736542604
+# head=0e3eea6, workflow=Live Stack E2E, conclusion=success,
+# job=Bootstrap Stack And Run App E2E, completed at 2026-06-01T05:26:26Z.
+```
+
 ## Decisions and boundaries
 
 - Weave is positioned as a provider-neutral collaboration control plane, not as a hobby-only self-hosting bundle.
