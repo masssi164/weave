@@ -226,6 +226,27 @@ export interface SuiteDomainReadiness {
   rawProviderConfigExposedToMembers: boolean;
 }
 
+export interface RcEvidenceGateReadiness {
+  key: string;
+  label: string;
+  state: CapabilityState;
+  evidenceFreshness: EvidenceFreshness;
+  evidenceRefs: string[];
+  nextAction: string;
+  blocksReleaseClaim: boolean;
+}
+
+export interface ReleaseClaimControl {
+  claimState: CapabilityState;
+  candidateTag: string;
+  pinnedSpecCorpusRef: string;
+  releaseNotesSource: string;
+  supportBundleRef: string;
+  accessibilityEvidenceRef: string;
+  unresolvedVetoes: string[];
+  gates: RcEvidenceGateReadiness[];
+}
+
 export interface GoLiveReadiness {
   state: CapabilityState;
   memberPreviewState: MemberCapabilityState;
@@ -235,6 +256,7 @@ export interface GoLiveReadiness {
   supportSafe: boolean;
   normalMembersMayAccessSetupControls: boolean;
   rawProviderDiagnosticsExposed: boolean;
+  releaseClaimControl: ReleaseClaimControl;
 }
 
 export type MemberCapabilityState =
@@ -532,6 +554,26 @@ interface ServerGoLiveReadiness {
   supportSafe?: boolean;
   normalMembersMayAccessSetupControls?: boolean;
   rawProviderDiagnosticsExposed?: boolean;
+  releaseClaimControl?: ServerReleaseClaimControl;
+}
+
+interface ServerReleaseClaimControl {
+  claimState?: string;
+  candidateTag?: string;
+  pinnedSpecCorpusRef?: string;
+  releaseNotesSource?: string;
+  supportBundleRef?: string;
+  accessibilityEvidenceRef?: string;
+  unresolvedVetoes?: string[];
+  gates?: Array<{
+    key?: string;
+    label?: string;
+    state?: string;
+    evidenceFreshness?: string;
+    evidenceRefs?: string[];
+    nextAction?: string;
+    blocksReleaseClaim?: boolean;
+  }>;
 }
 
 interface ServerIdentityProviderReadiness {
@@ -946,6 +988,42 @@ function normalizeGoLiveReadiness(
       readiness?.normalMembersMayAccessSetupControls ?? false,
     rawProviderDiagnosticsExposed:
       readiness?.rawProviderDiagnosticsExposed ?? false,
+    releaseClaimControl: normalizeReleaseClaimControl(
+      readiness?.releaseClaimControl,
+    ),
+  };
+}
+
+function normalizeReleaseClaimControl(
+  claim?: ServerReleaseClaimControl,
+): ReleaseClaimControl {
+  const gates = (claim?.gates ?? []).map((gate, index) => ({
+    key: gate.key ?? `rc-evidence-gate-${index + 1}`,
+    label: gate.label ?? gate.key ?? "RC evidence gate",
+    state: normalizeState(gate.state),
+    evidenceFreshness: normalizeEvidenceFreshness(gate.evidenceFreshness),
+    evidenceRefs: gate.evidenceRefs ?? [],
+    nextAction:
+      gate.nextAction ??
+      "Attach support-safe evidence or mark a release-owner blocker before making an RC claim.",
+    blocksReleaseClaim: gate.blocksReleaseClaim ?? true,
+  }));
+  return {
+    claimState: normalizeState(claim?.claimState ?? "admin-action-required"),
+    candidateTag: claim?.candidateTag ?? "candidate-not-selected",
+    pinnedSpecCorpusRef:
+      claim?.pinnedSpecCorpusRef ??
+      "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
+    releaseNotesSource:
+      claim?.releaseNotesSource ??
+      "release notes must be generated from merged PR metadata",
+    supportBundleRef:
+      claim?.supportBundleRef ?? "support-safe evidence bundle required",
+    accessibilityEvidenceRef:
+      claim?.accessibilityEvidenceRef ??
+      "manual or scripted accessibility evidence required",
+    unresolvedVetoes: claim?.unresolvedVetoes ?? ["release-owner-rc-decision-required"],
+    gates: gates.length > 0 ? gates : sampleRcEvidenceGates,
   };
 }
 
@@ -1367,6 +1445,55 @@ function sampleDomain(
     ...overrides,
   };
 }
+
+
+const sampleRcEvidenceGates: RcEvidenceGateReadiness[] = [
+  {
+    key: "pinned-spec-corpus",
+    label: "Pinned specification corpus",
+    state: "ready",
+    evidenceFreshness: "fresh",
+    evidenceRefs: ["specs/weave-specs.lock.json"],
+    nextAction: "Keep the candidate tied to the pinned corpus commit.",
+    blocksReleaseClaim: false,
+  },
+  {
+    key: "conformance-gates",
+    label: "Conformance and acceptance gates",
+    state: "admin-action-required",
+    evidenceFreshness: "missing",
+    evidenceRefs: ["./gradlew acceptanceContract", "./gradlew releaseEvidenceCheck"],
+    nextAction: "Run candidate-head gates and attach sanitized CI evidence.",
+    blocksReleaseClaim: true,
+  },
+  {
+    key: "support-safe-bundle",
+    label: "Support-safe evidence bundle",
+    state: "ready",
+    evidenceFreshness: "fresh",
+    evidenceRefs: ["support-bundle://admin-health/go-live-redacted-sample"],
+    nextAction: "Verify the bundle contains only refs, reason codes, and redacted diagnostics.",
+    blocksReleaseClaim: false,
+  },
+  {
+    key: "accessibility-evidence",
+    label: "Accessibility evidence",
+    state: "degraded",
+    evidenceFreshness: "stale",
+    evidenceRefs: ["docs/evidence/weaver-security-privacy-accessibility-report.md"],
+    nextAction: "Refresh admin apply/recovery and member-preview accessibility evidence for the candidate.",
+    blocksReleaseClaim: true,
+  },
+  {
+    key: "release-notes-input",
+    label: "Release notes input",
+    state: "configured",
+    evidenceFreshness: "sample_only",
+    evidenceRefs: ["docs/release-notes/unreleased.md"],
+    nextAction: "Generate release notes from merged PR metadata before RC tagging.",
+    blocksReleaseClaim: true,
+  },
+];
 
 const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
   {
@@ -2079,6 +2206,21 @@ export const sampleControlPlane: ControlPlaneResponse = {
     supportSafe: true,
     normalMembersMayAccessSetupControls: false,
     rawProviderDiagnosticsExposed: false,
+    releaseClaimControl: {
+      claimState: "admin-action-required",
+      candidateTag: "v0.1.0-rc.next",
+      pinnedSpecCorpusRef:
+        "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
+      releaseNotesSource: "merged PR release-notes labels and generated draft",
+      supportBundleRef: "support-bundle://admin-health/go-live-redacted-sample",
+      accessibilityEvidenceRef:
+        "docs/evidence/weaver-security-privacy-accessibility-report.md",
+      unresolvedVetoes: [
+        "files-docs readiness degraded",
+        "boards/tasks write policy blocked",
+      ],
+      gates: sampleRcEvidenceGates,
+    },
   },
   weaverRuntimeProjection: {
     profileVersion: "weaver-runtime-profile-v1",

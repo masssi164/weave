@@ -32,7 +32,9 @@ class WeaveMcpGateway:
     def context_from_headers(self, headers: dict[str, str]) -> RuntimeContext:
         if not self.config.enabled:
             raise McpDenied("mcp-server-disabled-by-org-policy")
-        return RuntimeContext.from_headers(headers, self.config.runtime_token)
+        return RuntimeContext.from_headers(
+            headers, self.config.runtime_token, self.config.runtime_profile_projection_hmac_secret
+        )
 
     def discover_tools(self, headers: dict[str, str]) -> dict[str, Any]:
         ctx = self.context_from_headers(headers)
@@ -62,8 +64,8 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _error(self, status: int, reason: str) -> None:
-        self._send(status, {"error": reason, "supportSafe": True})
+    def _error(self, status: int, reason: str, audit_ref: str = "audit://mcp/denied/support-safe") -> None:
+        self._send(status, {"error": reason, "auditRef": audit_ref, "supportSafe": True})
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib handler name
         try:
@@ -74,7 +76,7 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self._error(404, "not-found")
         except McpDenied as error:
-            self._error(403, error.reason)
+            self._error(403, error.reason, error.audit_ref)
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler name
         try:
@@ -85,7 +87,7 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self._error(404, "not-found")
         except McpDenied as error:
-            self._error(403, error.reason)
+            self._error(403, error.reason, error.audit_ref)
         except json.JSONDecodeError:
             self._error(400, "invalid-json")
 

@@ -12,7 +12,8 @@ public record GoLiveReadinessResponse(
         List<String> auditRefs,
         boolean supportSafe,
         boolean normalMembersMayAccessSetupControls,
-        boolean rawProviderDiagnosticsExposed) {
+        boolean rawProviderDiagnosticsExposed,
+        ReleaseClaimControlResponse releaseClaimControl) {
     public GoLiveReadinessResponse {
         blockers = blockers == null ? List.of() : List.copyOf(blockers);
         adminActions = adminActions == null ? List.of() : List.copyOf(adminActions);

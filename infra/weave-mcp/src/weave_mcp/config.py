@@ -10,6 +10,7 @@ class WeaveMcpConfig:
     transport: str = "streamable-http"
     backend_base_url: str = "http://weave-backend.internal/api"
     runtime_token: str = "dev-runtime-token"
+    runtime_profile_projection_hmac_secret: str = "dev-runtime-profile-projection-secret"
     server_key: str = "weave-domain-tools"
     internal_endpoint_ref: str = "internal://weave-mcp/streamable-http"
 
@@ -20,6 +21,9 @@ class WeaveMcpConfig:
             transport=os.environ.get("WEAVE_MCP_TRANSPORT", "streamable-http"),
             backend_base_url=os.environ.get("WEAVE_BACKEND_BASE_URL", "http://weave-backend.internal/api"),
             runtime_token=os.environ.get("WEAVE_MCP_RUNTIME_TOKEN", "dev-runtime-token"),
+            runtime_profile_projection_hmac_secret=os.environ.get(
+                "WEAVE_MCP_RUNTIME_PROFILE_PROJECTION_HMAC_SECRET", "dev-runtime-profile-projection-secret"
+            ),
             server_key=os.environ.get("WEAVE_MCP_SERVER_KEY", "weave-domain-tools"),
             internal_endpoint_ref=os.environ.get("WEAVE_MCP_ENDPOINT_REF", "internal://weave-mcp/streamable-http"),
         )

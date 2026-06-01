@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..client import WeaveBackendClient
-from ..schemas.common import McpDenied, RuntimeContext, ToolDefinition, require_approval, require_capability
+from ..schemas.common import McpDenied, RuntimeContext, ToolDefinition, require_approval, require_capability, require_tool_allowed
 from ..redaction import assert_support_safe
 
 Handler = Callable[[RuntimeContext, dict[str, Any], WeaveBackendClient], dict[str, Any]]
@@ -73,7 +73,11 @@ HANDLERS: dict[str, Handler] = {
 
 def discover(ctx: RuntimeContext | None) -> list[dict[str, Any]]:
     grants = ctx.capability_grants if ctx is not None else frozenset()
-    return [definition.discovery(definition.capability in grants) for definition in TOOL_DEFINITIONS.values()]
+    allowed_tools = ctx.allowed_tools if ctx is not None else frozenset()
+    return [
+        definition.discovery(definition.capability in grants and definition.name in allowed_tools)
+        for definition in TOOL_DEFINITIONS.values()
+    ]
 
 
 def invoke(name: str, ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
@@ -81,6 +85,7 @@ def invoke(name: str, ctx: RuntimeContext, payload: dict[str, Any], client: Weav
     if definition is None:
         raise McpDenied("unknown-tool")
     require_capability(ctx, definition.capability)
+    require_tool_allowed(ctx, definition.name)
     result = HANDLERS[name](ctx, payload, client)
     assert_support_safe(result)
     return result
