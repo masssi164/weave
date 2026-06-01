@@ -31,15 +31,18 @@ Passing on 2026-06-01:
 
 ## Issue DAG final state
 
-- #584 — implementation/evidence present on branch; close after PR merge with this report and MCP gate links.
-- #585 — implementation/evidence present on branch; close after PR merge with workspace-flow gate links.
-- #586 — implementation/evidence present on branch; close after PR merge with admin go-live/RC claim-control gate links.
+- #584 — closed after PR #587 merge with this report and MCP gate links.
+- #585 — closed after PR #587 merge with workspace-flow gate links.
+- #586 — closed after PR #587 merge with admin go-live/RC claim-control gate links.
 
 ## PR / CI / milestone status
 
 - Branch: `s17-admin-rc-go-live-claim-control`.
-- PR: pending creation/merge from this branch.
-- GitHub issue/milestone closure: pending until PR CI is green and merged. Milestone 17 must remain open until #584/#585/#586 are closed or explicitly carried forward.
+- PR: [#587](https://github.com/masssi164/weave/pull/587), merged on 2026-06-01 as `5a6e82aebdbac63814670e0baddccc7d307e6b12` with `release-notes-feature`.
+- GitHub CI on PR #587 is green:
+  - push CI run [26759705393](https://github.com/masssi164/weave/actions/runs/26759705393), `Gradle CI` success; release-label job skipped as expected for a push.
+  - pull-request CI run [26759719577](https://github.com/masssi164/weave/actions/runs/26759719577), `Gradle CI` success and `Release Notes Label Check` success.
+- GitHub issue/milestone closure: #584, #585, and #586 are closed with evidence comments; Sprint 17 milestone #17 is closed with 0 open issues / 3 closed issues.
 
 ## Boundaries and non-claims
 
@@ -50,5 +53,5 @@ Passing on 2026-06-01:
 
 ## Remaining risks / carryovers
 
-- GitHub PR creation/CI/merge and issue/milestone closure remain the external closure steps.
+- Production-grade RuntimeProfile projection signing/fetch-by-hash remains future hardening beyond this local RC evidence slice.
 - Real production runtime token issuance/signing and live provider CRUD remain future work beyond this RC-shaped evidence slice.
