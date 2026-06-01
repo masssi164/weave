@@ -3,7 +3,7 @@
 Use this page for release-affecting changes that have merged but are not included in a tagged release yet.
 
 ## Added
-- Sprint 15 adds backend-owned Matrix Chat dry-run/provider-switch consequence evidence, support-safe Admin Console consequence copy, an operator runbook, and accessibility evidence template while keeping Matrix Chat apply/cutover blocked.
+- Sprint 15 adds organization-embedding and provider-neutral replacement evidence: backend-owned effective-policy/readiness boundaries, support-safe Admin Console consequence copy, Matrix Chat as the first dry-run proof slice, an operator runbook, and accessibility evidence template while keeping provider apply/cutover blocked.
 
 - Context-driven workflow primitives now have a provider-neutral, linear-first preview contract with explicit context references, blocker/evidence metadata, sample workflows, and dry-run-only governed agent participation.
 - Contextual meetings now have a fail-closed architecture contract preserving LiveKit as the active meetings provider contract while documenting encryption boundaries, consent defaults, and accessible join requirements before media controls are enabled.
@@ -12,7 +12,6 @@ Use this page for release-affecting changes that have merged but are not include
 - Sprint 12 adds provider portability schema v2 fixtures and reports for Files, Calendar, Boards, and Chat, plus Office/WOPI, Weaver isolation, Weaver registry, identity lifecycle, accessibility, and operator lifecycle contracts.
 - Weaver/OpenClaw release documentation now clarifies the signed RuntimeProfile boundary: Weave projects a stable `channels.weave-chat` channel backed by Weave Chat-domain routing, model aliases, MCP/tool/skill grants, CredentialRefs and short-lived runtime token references, sandbox policy, and audit requirements into the OpenClaw-derived runtime while keeping raw OpenClaw configuration out of member UX.
 - Sprint 14 starts product-trust and provider-choice evidence with a cross-repo Weave/Weaver delivery board, professional claim matrix, procurement-risk wording boundaries, and a conservative Matrix Chat migration proof fixture that keeps apply blocked until no-unaccounted-data-loss evidence exists.
-- Sprint 15 adds a dry-run-only Matrix Chat provider-switch evidence slice: backend consequence preview counts, member-impact copy, rollback limits, apply blockers, and Admin Console review wiring while keeping Matrix apply/cutover blocked.
 
 ## Changed
 
@@ -40,7 +39,7 @@ Use this page for release-affecting changes that have merged but are not include
 ## Migration/Operator Notes
 
 - Admin Console provider setup now shows domain-first reality level, evidence freshness, restart-survival evidence, and blocks provider apply/switch actions without fresh backend dry-run evidence, consequence confirmation, audit/rollback gates, and provider-neutral member impact preview.
-- Matrix Chat migration evidence is operator-review-only in Sprint 15: encrypted-room history remains unsupported/coming_later, power-level and media-retention parity remain manual-review blockers, and no release note may imply lossless Matrix migration or production cutover.
+- Chat provider-replacement evidence is operator-review-only in Sprint 15: encrypted Matrix history remains unsupported/coming_later, Matrix power-level and media-retention parity remain manual-review blockers, and no release note may imply lossless migration, E2EE history migration, or production cutover.
 - Self-hosted operations now define provider-aware backup, restore, upgrade, schema migration, support-bundle redaction, observability, and restore-smoke evidence expectations.
 
 ## Known Issues
