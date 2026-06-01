@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import base64
+import hashlib
+import hmac
 import threading
 import unittest
 from urllib.error import HTTPError
@@ -11,6 +13,7 @@ from weave_mcp.app import WeaveMcpGateway, serve
 from weave_mcp.config import WeaveMcpConfig
 from weave_mcp.schemas.common import McpDenied
 
+PROJECTION_HMAC_SECRET = "dev-runtime-profile-projection-secret"
 
 RUNTIME_PROFILE_PROJECTION = {
     "runtimeProfileHash": "sha256:runtime-profile",
@@ -40,7 +43,12 @@ RUNTIME_PROFILE_PROJECTION = {
 
 
 def encoded_projection(profile: dict[str, object] | None = None) -> str:
-    body = json.dumps(profile or RUNTIME_PROFILE_PROJECTION, sort_keys=True).encode("utf-8")
+    signed_profile = dict(profile or RUNTIME_PROFILE_PROJECTION)
+    signed_profile.pop("projectionSignature", None)
+    payload = json.dumps(signed_profile, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hmac.new(PROJECTION_HMAC_SECRET.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+    signed_profile["projectionSignature"] = f"hmac-sha256:{digest}"
+    body = json.dumps(signed_profile, sort_keys=True).encode("utf-8")
     return base64.urlsafe_b64encode(body).decode("utf-8").rstrip("=")
 
 
@@ -96,6 +104,23 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         with self.assertRaises(McpDenied) as raised:
             self.gateway(enabled=True).discover_tools({key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(revoked)}.items()})
         self.assertEqual(raised.exception.reason, "runtime-profile-disabled-or-revoked")
+
+    def test_malformed_or_tampered_runtime_profile_projection_fails_closed(self) -> None:
+        malformed_headers = {key.lower(): value for key, value in HEADERS.items()}
+        malformed_headers["x-weave-runtime-profile-projection"] = "not-valid-base64%%%"
+        with self.assertRaises(McpDenied) as malformed:
+            self.gateway(enabled=True).discover_tools(malformed_headers)
+        self.assertEqual(malformed.exception.reason, "invalid-runtime-profile-projection")
+
+        tampered = dict(RUNTIME_PROFILE_PROJECTION)
+        tampered["projectionSignature"] = "hmac-sha256:bad"
+        tampered_headers = {key.lower(): value for key, value in HEADERS.items()}
+        tampered_headers["x-weave-runtime-profile-projection"] = base64.urlsafe_b64encode(
+            json.dumps(tampered, sort_keys=True).encode("utf-8")
+        ).decode("utf-8").rstrip("=")
+        with self.assertRaises(McpDenied) as raised:
+            self.gateway(enabled=True).discover_tools(tampered_headers)
+        self.assertEqual(raised.exception.reason, "invalid-runtime-profile-projection-signature")
 
     def test_invocation_is_support_safe_and_write_stub_requires_approval(self) -> None:
         headers = {key.lower(): value for key, value in HEADERS.items()}

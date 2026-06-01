@@ -635,7 +635,7 @@ class ChannelWorkspacePreview {
 }
 
 String _weaveSpaceContextId(ChatConversation conversation) {
-  final input = '${conversation.id}\u001f${conversation.title}';
+  final input = conversation.id;
   var hash = 0xcbf29ce484222325;
   for (final unit in input.codeUnits) {
     hash ^= unit;

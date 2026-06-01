@@ -1028,10 +1028,11 @@ export default function App({
                     </Typography>
                     <Alert
                       severity={
-                        controlPlane.goLiveReadiness.releaseClaimControl.claimState ===
-                          "ready" &&
                         controlPlane.goLiveReadiness.releaseClaimControl
-                          .unresolvedVetoes.length === 0
+                          .unresolvedVetoes.length === 0 &&
+                        controlPlane.goLiveReadiness.releaseClaimControl.gates.every(
+                          (gate) => !gate.blocksReleaseClaim,
+                        )
                           ? "success"
                           : "warning"
                       }

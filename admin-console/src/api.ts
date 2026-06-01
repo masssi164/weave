@@ -997,8 +997,8 @@ function normalizeGoLiveReadiness(
 function normalizeReleaseClaimControl(
   claim?: ServerReleaseClaimControl,
 ): ReleaseClaimControl {
-  const gates = (claim?.gates ?? []).map((gate) => ({
-    key: gate.key ?? "rc-evidence-gate",
+  const gates = (claim?.gates ?? []).map((gate, index) => ({
+    key: gate.key ?? `rc-evidence-gate-${index + 1}`,
     label: gate.label ?? gate.key ?? "RC evidence gate",
     state: normalizeState(gate.state),
     evidenceFreshness: normalizeEvidenceFreshness(gate.evidenceFreshness),

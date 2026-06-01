@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import base64
+import binascii
+import hashlib
+import hmac
 import json
 from typing import Any
 
@@ -26,7 +29,9 @@ class RuntimeContext:
     audit_ref: str
 
     @staticmethod
-    def from_headers(headers: dict[str, str], configured_token: str) -> "RuntimeContext":
+    def from_headers(
+        headers: dict[str, str], configured_token: str, projection_hmac_secret: str
+    ) -> "RuntimeContext":
         auth = headers.get("authorization", "")
         if not configured_token or auth != f"Bearer {configured_token}":
             raise McpDenied("missing-or-invalid-runtime-token")
@@ -35,19 +40,23 @@ class RuntimeContext:
         profile = headers.get("x-weave-runtime-profile", "").strip()
         if not org_id or not user_ref or not profile:
             raise McpDenied("missing-runtime-org-user-or-profile")
-        projection = _runtime_profile_projection(headers, profile)
+        projection = _runtime_profile_projection(headers, profile, projection_hmac_secret)
         grants = frozenset(str(grant) for grant in projection.get("capabilityGrants", []))
         tools = frozenset(str(tool) for tool in projection.get("allowedTools", []))
         audit_ref = str(projection.get("auditRef", "audit://mcp/runtime-profile/support-safe"))
         return RuntimeContext(org_id, user_ref, profile, "credentialref://weave/runtime/short-lived", grants, tools, audit_ref)
 
 
-def _runtime_profile_projection(headers: dict[str, str], runtime_profile_hash: str) -> dict[str, Any]:
+def _runtime_profile_projection(
+    headers: dict[str, str], runtime_profile_hash: str, projection_hmac_secret: str
+) -> dict[str, Any]:
     """Decode the support-safe RuntimeProfile projection used by the MCP gateway.
 
     The gateway intentionally does not trust caller-supplied capability headers as
     policy. A Weave-generated profile projection is the only source for MCP tool
-    discovery/invocation decisions in this local RC evidence path.
+    discovery/invocation decisions in this local RC evidence path. The
+    projection must also carry a backend-generated HMAC signature so runtime
+    token holders cannot self-grant tools by editing the projection body.
     """
 
     raw = headers.get("x-weave-runtime-profile-projection", "").strip()
@@ -56,12 +65,13 @@ def _runtime_profile_projection(headers: dict[str, str], runtime_profile_hash: s
     try:
         padded = raw + "=" * (-len(raw) % 4)
         projection = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
-    except (ValueError, json.JSONDecodeError) as exc:
+    except (binascii.Error, UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
         raise McpDenied("invalid-runtime-profile-projection") from exc
     if not isinstance(projection, dict):
         raise McpDenied("invalid-runtime-profile-projection")
     if projection.get("runtimeProfileHash") != runtime_profile_hash:
         raise McpDenied("runtime-profile-hash-mismatch")
+    _verify_projection_signature(projection, projection_hmac_secret)
     if projection.get("enabled") is not True or projection.get("revoked") is True:
         raise McpDenied("runtime-profile-disabled-or-revoked")
     if projection.get("transport") != "streamable-http":
@@ -69,6 +79,18 @@ def _runtime_profile_projection(headers: dict[str, str], runtime_profile_hash: s
     if projection.get("serverKey") != "weave-domain-tools":
         raise McpDenied("runtime-profile-server-binding-mismatch")
     return projection
+
+
+def _verify_projection_signature(projection: dict[str, Any], projection_hmac_secret: str) -> None:
+    supplied = str(projection.get("projectionSignature", "")).strip()
+    if not projection_hmac_secret or not supplied.startswith("hmac-sha256:"):
+        raise McpDenied("missing-runtime-profile-projection-signature")
+    signed = dict(projection)
+    signed.pop("projectionSignature", None)
+    payload = json.dumps(signed, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hmac.new(projection_hmac_secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(supplied, f"hmac-sha256:{digest}"):
+        raise McpDenied("invalid-runtime-profile-projection-signature")
 
 
 @dataclass(frozen=True)

@@ -32,7 +32,9 @@ class WeaveMcpGateway:
     def context_from_headers(self, headers: dict[str, str]) -> RuntimeContext:
         if not self.config.enabled:
             raise McpDenied("mcp-server-disabled-by-org-policy")
-        return RuntimeContext.from_headers(headers, self.config.runtime_token)
+        return RuntimeContext.from_headers(
+            headers, self.config.runtime_token, self.config.runtime_profile_projection_hmac_secret
+        )
 
     def discover_tools(self, headers: dict[str, str]) -> dict[str, Any]:
         ctx = self.context_from_headers(headers)
