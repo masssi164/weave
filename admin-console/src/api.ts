@@ -180,9 +180,42 @@ export interface WeaverRuntimeProjection {
   supportSafe: boolean;
   providerDiagnosticsRedacted: boolean;
   rawRuntimeInternalsExposed: boolean;
+  disabledByDefault: boolean;
+  groupChatConsentRequired: boolean;
+  sandboxPosture: string;
   pendingRevocationRefs: string[];
   auditReceiptRefs: string[];
   items: WeaverProjectionItem[];
+}
+
+export interface SuiteDomainReadiness {
+  domain: string;
+  label: string;
+  adminReadiness: CapabilityState;
+  memberState: MemberCapabilityState;
+  selectedAdapterPosture: string;
+  sourceOfTruthMode: string;
+  providerCategoryKeys: string[];
+  canonicalObjectKinds: string[];
+  capabilityStates: string[];
+  supportSafeErrors: string[];
+  portabilityNotes: string[];
+  auditRefs: string[];
+  nextAction: string;
+  backendOwnedFacade: boolean;
+  providerMappingOwnedByServer: boolean;
+  rawProviderConfigExposedToMembers: boolean;
+}
+
+export interface GoLiveReadiness {
+  state: CapabilityState;
+  memberPreviewState: MemberCapabilityState;
+  blockers: string[];
+  adminActions: string[];
+  auditRefs: string[];
+  supportSafe: boolean;
+  normalMembersMayAccessSetupControls: boolean;
+  rawProviderDiagnosticsExposed: boolean;
 }
 
 export type MemberCapabilityState =
@@ -299,6 +332,8 @@ export interface ControlPlaneResponse {
   providerCategories: ProviderCategory[];
   identityProviderReadiness: IdentityProviderReadiness;
   weaverRuntimeProjection: WeaverRuntimeProjection;
+  suiteDomainReadiness: SuiteDomainReadiness[];
+  goLiveReadiness: GoLiveReadiness;
   whitelistPolicy: WhitelistPolicy;
   weaverDistributionPolicy: WeaverDistributionPolicy;
   auditEvents: AuditEvent[];
@@ -358,6 +393,8 @@ interface ServerControlPlaneResponse {
   weaverDistributionPolicy?: ServerWeaverDistributionPolicy;
   identityProviderReadiness?: ServerIdentityProviderReadiness;
   weaverRuntimeProjection?: ServerWeaverRuntimeProjection;
+  suiteDomainReadiness?: ServerSuiteDomainReadiness[];
+  goLiveReadiness?: ServerGoLiveReadiness;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
 }
 
@@ -407,6 +444,9 @@ interface ServerWeaverRuntimeProjection {
   supportSafe?: boolean;
   providerDiagnosticsRedacted?: boolean;
   rawRuntimeInternalsExposed?: boolean;
+  disabledByDefault?: boolean;
+  groupChatConsentRequired?: boolean;
+  sandboxPosture?: string;
   pendingRevocationRefs?: string[];
   auditReceiptRefs?: string[];
   items?: Array<{
@@ -422,6 +462,36 @@ interface ServerWeaverRuntimeProjection {
     defaultSelected?: boolean;
     fallbackOrder?: number;
   }>;
+}
+
+interface ServerSuiteDomainReadiness {
+  domain?: string;
+  label?: string;
+  adminReadiness?: string;
+  memberState?: string;
+  selectedAdapterPosture?: string;
+  sourceOfTruthMode?: string;
+  providerCategoryKeys?: string[];
+  canonicalObjectKinds?: string[];
+  capabilityStates?: string[];
+  supportSafeErrors?: string[];
+  portabilityNotes?: string[];
+  auditRefs?: string[];
+  nextAction?: string;
+  backendOwnedFacade?: boolean;
+  providerMappingOwnedByServer?: boolean;
+  rawProviderConfigExposedToMembers?: boolean;
+}
+
+interface ServerGoLiveReadiness {
+  state?: string;
+  memberPreviewState?: string;
+  blockers?: string[];
+  adminActions?: string[];
+  auditRefs?: string[];
+  supportSafe?: boolean;
+  normalMembersMayAccessSetupControls?: boolean;
+  rawProviderDiagnosticsExposed?: boolean;
 }
 
 interface ServerIdentityProviderReadiness {
@@ -741,12 +811,71 @@ function normalizeControlPlane(
     weaverRuntimeProjection: normalizeWeaverRuntimeProjection(
       controlPlane.weaverRuntimeProjection,
     ),
+    suiteDomainReadiness: normalizeSuiteDomainReadiness(
+      controlPlane.suiteDomainReadiness,
+    ),
+    goLiveReadiness: normalizeGoLiveReadiness(controlPlane.goLiveReadiness),
     whitelistPolicy: normalizeWhitelist(controlPlane.whitelist),
     weaverDistributionPolicy: normalizeWeaverDistributionPolicy(
       controlPlane.weaverDistributionPolicy,
       sampleWeaverDistributionPolicy,
     ),
     auditEvents,
+  };
+}
+
+function normalizeSuiteDomainReadiness(
+  readiness?: ServerSuiteDomainReadiness[],
+): SuiteDomainReadiness[] {
+  const domains = (readiness ?? []).map((domain) => ({
+    domain: domain.domain ?? "suite-domain",
+    label: domain.label ?? domain.domain ?? "Suite domain",
+    adminReadiness: normalizeState(domain.adminReadiness),
+    memberState:
+      normalizeMemberCapabilityState(domain.memberState) ??
+      memberStableStateFromCapability(normalizeState(domain.adminReadiness)),
+    selectedAdapterPosture:
+      domain.selectedAdapterPosture ?? "awaiting_admin_selection",
+    sourceOfTruthMode:
+      domain.sourceOfTruthMode ??
+      "backend-owned facade; provider details redacted",
+    providerCategoryKeys: domain.providerCategoryKeys ?? [],
+    canonicalObjectKinds: domain.canonicalObjectKinds ?? [],
+    capabilityStates: domain.capabilityStates ?? [],
+    supportSafeErrors: domain.supportSafeErrors ?? [
+      "support-safe-errors-required",
+    ],
+    portabilityNotes: domain.portabilityNotes ?? [],
+    auditRefs: domain.auditRefs ?? [],
+    nextAction:
+      domain.nextAction ??
+      "Resolve backend readiness evidence before member go-live.",
+    backendOwnedFacade: domain.backendOwnedFacade ?? true,
+    providerMappingOwnedByServer: domain.providerMappingOwnedByServer ?? true,
+    rawProviderConfigExposedToMembers:
+      domain.rawProviderConfigExposedToMembers ?? false,
+  }));
+  return domains.length > 0 ? domains : sampleSuiteDomainReadiness;
+}
+
+function normalizeGoLiveReadiness(
+  readiness?: ServerGoLiveReadiness,
+): GoLiveReadiness {
+  return {
+    state: normalizeState(readiness?.state ?? "admin-action-required"),
+    memberPreviewState:
+      normalizeMemberCapabilityState(readiness?.memberPreviewState) ??
+      "degraded",
+    blockers: readiness?.blockers ?? ["backend-go-live-readiness-required"],
+    adminActions: readiness?.adminActions ?? [
+      "Run backend readiness checks before member go-live.",
+    ],
+    auditRefs: readiness?.auditRefs ?? [],
+    supportSafe: readiness?.supportSafe ?? false,
+    normalMembersMayAccessSetupControls:
+      readiness?.normalMembersMayAccessSetupControls ?? false,
+    rawProviderDiagnosticsExposed:
+      readiness?.rawProviderDiagnosticsExposed ?? false,
   };
 }
 
@@ -905,6 +1034,11 @@ function normalizeWeaverRuntimeProjection(
     supportSafe: projection?.supportSafe ?? false,
     providerDiagnosticsRedacted: projection?.providerDiagnosticsRedacted ?? false,
     rawRuntimeInternalsExposed: projection?.rawRuntimeInternalsExposed ?? false,
+    disabledByDefault: projection?.disabledByDefault ?? true,
+    groupChatConsentRequired: projection?.groupChatConsentRequired ?? true,
+    sandboxPosture:
+      projection?.sandboxPosture ??
+      "sandbox-readiness-recorded-runtime-execution-disabled",
     pendingRevocationRefs: projection?.pendingRevocationRefs ?? [
       "runtime-profile-revocation-check-required",
     ],
@@ -1163,6 +1297,86 @@ function sampleDomain(
     ...overrides,
   };
 }
+
+const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
+  {
+    domain: "files-docs",
+    label: "Files and Documents",
+    adminReadiness: "degraded",
+    memberState: "degraded",
+    selectedAdapterPosture:
+      "files=nextcloud-files, documents-collaboration=collabora-wopi",
+    sourceOfTruthMode:
+      "backend-owned file/document facade with guarded editor sessions",
+    providerCategoryKeys: ["files", "documents-collaboration"],
+    canonicalObjectKinds: ["drive", "folder", "file", "document-session"],
+    capabilityStates: ["files.read", "files.write", "documents.edit"],
+    supportSafeErrors: [
+      "support-safe-error-codes-only",
+      "raw-provider-bodies-redacted",
+    ],
+    portabilityNotes: [
+      "Export manifests required before provider replacement",
+      "Credential-bearing editor URLs remain blocked from support views",
+    ],
+    auditRefs: ["receipt://suite/files-docs/readiness"],
+    nextAction:
+      "Confirm checksum, permission, and editor-launch evidence before member writes.",
+    backendOwnedFacade: true,
+    providerMappingOwnedByServer: true,
+    rawProviderConfigExposedToMembers: false,
+  },
+  {
+    domain: "boards-tasks",
+    label: "Boards and Tasks",
+    adminReadiness: "policy-blocked",
+    memberState: "disabled_by_policy",
+    selectedAdapterPosture: "boards-tasks=openproject-primary",
+    sourceOfTruthMode:
+      "local workspace writes; provider sync/write promotion gated by contract evidence",
+    providerCategoryKeys: ["boards-tasks"],
+    canonicalObjectKinds: ["board", "task", "lane", "comment"],
+    capabilityStates: ["boards.read", "boards.write", "tasks.complete"],
+    supportSafeErrors: [
+      "support-safe-error-codes-only",
+      "raw-provider-bodies-redacted",
+    ],
+    portabilityNotes: [
+      "Lossy mapping and conflict reports are required before provider-write apply",
+    ],
+    auditRefs: ["receipt://suite/boards-tasks/readiness"],
+    nextAction:
+      "Verify keyboard task flows, conflict states, and audit events before writes.",
+    backendOwnedFacade: true,
+    providerMappingOwnedByServer: true,
+    rawProviderConfigExposedToMembers: false,
+  },
+  {
+    domain: "calendar-meetings",
+    label: "Calendar",
+    adminReadiness: "degraded",
+    memberState: "degraded",
+    selectedAdapterPosture: "calendar=nextcloud-caldav",
+    sourceOfTruthMode:
+      "workspace/team/channel calendar facade; private personal calendars blocked",
+    providerCategoryKeys: ["calendar"],
+    canonicalObjectKinds: ["calendar", "event", "reminder", "conference-link"],
+    capabilityStates: ["calendar.read", "calendar.write"],
+    supportSafeErrors: [
+      "support-safe-error-codes-only",
+      "raw-provider-bodies-redacted",
+    ],
+    portabilityNotes: [
+      "Private calendar ingestion and credential profile downloads are out of scope",
+    ],
+    auditRefs: ["receipt://suite/calendar-meetings/readiness"],
+    nextAction:
+      "Confirm workspace/team/channel event readiness and private-calendar blockers.",
+    backendOwnedFacade: true,
+    providerMappingOwnedByServer: true,
+    rawProviderConfigExposedToMembers: false,
+  },
+];
 
 function normalizeRuntimeProfileStatus(
   value?: string,
@@ -1749,6 +1963,20 @@ export const sampleControlPlane: ControlPlaneResponse = {
       },
     ),
   ],
+  suiteDomainReadiness: sampleSuiteDomainReadiness,
+  goLiveReadiness: {
+    state: "admin-action-required",
+    memberPreviewState: "degraded",
+    blockers: ["files-docs:degraded", "boards-tasks:policy-blocked"],
+    adminActions: [
+      "Resolve suite readiness blockers before member go-live.",
+      "Run effective policy simulation for representative users/groups.",
+    ],
+    auditRefs: ["receipt://admin-control-plane/go-live-readiness"],
+    supportSafe: true,
+    normalMembersMayAccessSetupControls: false,
+    rawProviderDiagnosticsExposed: false,
+  },
   weaverRuntimeProjection: {
     profileVersion: "weaver-runtime-profile-v1",
     runtimeProfileHash: "sha256:profile-projection-sample",
@@ -1757,6 +1985,9 @@ export const sampleControlPlane: ControlPlaneResponse = {
     supportSafe: true,
     providerDiagnosticsRedacted: true,
     rawRuntimeInternalsExposed: false,
+    disabledByDefault: true,
+    groupChatConsentRequired: true,
+    sandboxPosture: "sandbox-readiness-recorded-runtime-execution-disabled",
     pendingRevocationRefs: ["receipt://weaver/runtime/revocation-preview"],
     auditReceiptRefs: ["receipt://weaver/runtime/profile-regeneration"],
     items: sampleWeaverProjectionItems,

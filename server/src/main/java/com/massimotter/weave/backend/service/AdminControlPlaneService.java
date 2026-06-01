@@ -28,6 +28,7 @@ import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateReques
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationResponse;
+import com.massimotter.weave.backend.model.admin.GoLiveReadinessResponse;
 import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessCardResponse;
 import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessResponse;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
@@ -39,10 +40,13 @@ import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRespon
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
+import com.massimotter.weave.backend.model.admin.SuiteDomainReadinessResponse;
 import com.massimotter.weave.backend.model.admin.WeaverDistributionPolicyResponse;
 import com.massimotter.weave.backend.model.admin.WeaverMcpGrantResponse;
 import com.massimotter.weave.backend.model.admin.WeaverModelAliasResponse;
 import com.massimotter.weave.backend.model.admin.WeaverRuntimeProfileChangeResponse;
+import com.massimotter.weave.backend.model.admin.WeaverRuntimeProjectionItemResponse;
+import com.massimotter.weave.backend.model.admin.WeaverRuntimeProjectionResponse;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
 import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
@@ -52,6 +56,7 @@ import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderState;
 import com.massimotter.weave.backend.provider.ProviderStatusResponse;
+import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -191,6 +196,8 @@ public class AdminControlPlaneService {
     public AdminControlPlaneResponse overview(Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "overview");
         ProviderRegistryResponse registry = providerRegistry.status();
+        IdentityProviderReadinessResponse identityReadiness = identityProviderReadiness(registry, jwt);
+        List<SuiteDomainReadinessResponse> suiteReadiness = suiteDomainReadiness(registry);
         return new AdminControlPlaneResponse(
                 "admin-control-plane-v1",
                 organizationId(jwt),
@@ -209,19 +216,24 @@ public class AdminControlPlaneService {
                         .toList(),
                 whitelist(jwt),
                 weaverDistributionPolicy(registry),
-                identityProviderReadiness(registry, jwt),
+                weaverRuntimeProjection(registry),
+                identityReadiness,
+                suiteReadiness,
+                goLiveReadiness(identityReadiness, suiteReadiness),
                 secretRefs(registry),
-                Map.of(
-                        "providers", "/api/providers/status",
-                        "policy", "/api/admin/policies/capability-whitelist",
-                        "audit", "/api/admin/audit/events",
-                        "readinessTest", "/api/admin/providers/readiness-tests",
-                        "providerReplacementDryRun", "/api/admin/providers/replacements/dry-run",
-                        "identityReadiness", "/api/admin/identity/readiness",
-                        "identityRealmDryRun", "/api/admin/identity/realm/dry-run",
-                        "identityRealmApply", "/api/admin/identity/realm/apply",
-                        "effectivePolicySimulation", "/api/admin/policies/effective/simulations",
-                        "providerSelections", "/api/admin/providers/selections"));
+                Map.ofEntries(
+                        Map.entry("providers", "/api/providers/status"),
+                        Map.entry("policy", "/api/admin/policies/capability-whitelist"),
+                        Map.entry("audit", "/api/admin/audit/events"),
+                        Map.entry("readinessTest", "/api/admin/providers/readiness-tests"),
+                        Map.entry("providerReplacementDryRun", "/api/admin/providers/replacements/dry-run"),
+                        Map.entry("identityReadiness", "/api/admin/identity/readiness"),
+                        Map.entry("identityRealmDryRun", "/api/admin/identity/realm/dry-run"),
+                        Map.entry("identityRealmApply", "/api/admin/identity/realm/apply"),
+                        Map.entry("effectivePolicySimulation", "/api/admin/policies/effective/simulations"),
+                        Map.entry("providerSelections", "/api/admin/providers/selections"),
+                        Map.entry("suiteReadiness", "/api/admin/control-plane#suiteDomainReadiness"),
+                        Map.entry("weaverRuntimeProjection", "/api/admin/control-plane#weaverRuntimeProjection")));
     }
 
     public IdentityProviderReadinessResponse identityProviderReadiness(Jwt jwt) {
@@ -1349,6 +1361,176 @@ public class AdminControlPlaneService {
                 readiness,
                 providerSelectionRepository.persistencePosture(),
                 selection.selectedAt());
+    }
+
+    private List<SuiteDomainReadinessResponse> suiteDomainReadiness(ProviderRegistryResponse registry) {
+        return List.of(
+                suiteDomain(CanonicalDomainDefinition.FILES_DOCS, registry,
+                        "backend-owned file/document facade with guarded editor sessions",
+                        List.of("Export manifests required before provider replacement", "Document editing remains guarded until WOPI session evidence is fresh"),
+                        "Select/test files and documents providers, then attach support-safe export/delete evidence."),
+                suiteDomain(CanonicalDomainDefinition.BOARDS_TASKS, registry,
+                        "local workspace writes; provider sync/write promotion gated by contract evidence",
+                        List.of("Provider-write apply is refused until read-sync, conflict, and rollback evidence pass", "Keyboard create/move/complete flows are required before member promotion"),
+                        "Verify board/task workspace contract, accessible workflows, conflict states, and audit events."),
+                suiteDomain(CanonicalDomainDefinition.CALENDAR_MEETINGS, registry,
+                        "workspace/team/channel calendar facade; private personal calendars blocked",
+                        List.of("Secret-free setup metadata only", "Private calendar ingestion and credential profile downloads are out of scope"),
+                        "Confirm workspace/team/channel event readiness and keep private-calendar setup blocked."));
+    }
+
+    private SuiteDomainReadinessResponse suiteDomain(
+            CanonicalDomainDefinition definition,
+            ProviderRegistryResponse registry,
+            String sourceOfTruthMode,
+            List<String> portabilityNotes,
+            String nextAction) {
+        List<String> readinessStates = definition.providerCategoryKeys().stream()
+                .map(category -> readinessFor(category, registry))
+                .filter(state -> !"unknown".equals(state))
+                .toList();
+        String adminReadiness = aggregateDomainReadiness(readinessStates);
+        return new SuiteDomainReadinessResponse(
+                definition.domain(),
+                definition.label(),
+                adminReadiness,
+                memberStateForAdminReadiness(adminReadiness),
+                selectedAdapterPosture(definition.providerCategoryKeys(), registry),
+                sourceOfTruthMode,
+                definition.providerCategoryKeys(),
+                definition.canonicalObjectKinds(),
+                Stream.concat(definition.readCapabilities().stream(), definition.writeCapabilities().stream()).toList(),
+                List.of("support-safe-error-codes-only", "raw-provider-bodies-redacted", "credential-bearing-urls-blocked"),
+                portabilityNotes,
+                List.of("audit://suite/" + definition.domain() + "/readiness"),
+                nextAction,
+                true,
+                true,
+                false,
+                Map.of(
+                        "providerCategoryCount", definition.providerCategoryKeys().size(),
+                        "supportSafe", true,
+                        "rawProviderConfigReturned", false,
+                        "memberProviderSetupControlsReturned", false));
+    }
+
+    private String aggregateDomainReadiness(List<String> states) {
+        if (states.isEmpty()) {
+            return "not_configured";
+        }
+        if (states.contains("misconfigured") || states.contains("admin-action-required")) {
+            return "admin-action-required";
+        }
+        if (states.contains("policy-blocked") || states.contains("disabled")) {
+            return "disabled";
+        }
+        if (states.contains("degraded")) {
+            return "degraded";
+        }
+        if (states.stream().allMatch(state -> state.equals("ready") || state.equals("configured"))) {
+            return "ready";
+        }
+        return "admin-action-required";
+    }
+
+    private String memberStateForAdminReadiness(String state) {
+        return switch (state) {
+            case "ready", "configured" -> "available";
+            case "disabled", "policy-blocked" -> "disabled_by_policy";
+            case "not_configured" -> "not_configured";
+            case "unsupported" -> "unavailable";
+            default -> "degraded";
+        };
+    }
+
+    private String selectedAdapterPosture(List<String> categories, ProviderRegistryResponse registry) {
+        return categories.stream()
+                .map(category -> category + "=" + registry.selectedProviderMappings().stream()
+                        .filter(selection -> selection.category().equals(category))
+                        .map(ProviderSelection::providerKey)
+                        .findFirst()
+                        .orElse("awaiting_admin_selection"))
+                .collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    private GoLiveReadinessResponse goLiveReadiness(
+            IdentityProviderReadinessResponse identityReadiness,
+            List<SuiteDomainReadinessResponse> suiteReadiness) {
+        List<String> blockers = new ArrayList<>();
+        if (!"ready".equals(identityReadiness.overallState())) {
+            blockers.add("identity-idm:" + identityReadiness.overallState());
+        }
+        suiteReadiness.stream()
+                .filter(domain -> !"ready".equals(domain.adminReadiness()))
+                .map(domain -> domain.domain() + ":" + domain.adminReadiness())
+                .forEach(blockers::add);
+        String state = blockers.isEmpty() ? "ready" : "admin-action-required";
+        return new GoLiveReadinessResponse(
+                state,
+                blockers.isEmpty() ? "available" : "degraded",
+                blockers,
+                blockers.isEmpty()
+                        ? List.of("Invite members only while audit and readiness evidence remains fresh.")
+                        : List.of("Resolve listed readiness blockers before member go-live.", "Run effective policy simulation for representative users/groups."),
+                List.of("audit://admin-control-plane/go-live-readiness"),
+                true,
+                false,
+                false);
+    }
+
+    private WeaverRuntimeProjectionResponse weaverRuntimeProjection(ProviderRegistryResponse registry) {
+        Instant generatedAt = Instant.now(clock);
+        String modelProviderKey = registry.selectedProviderMappings().stream()
+                .filter(selection -> selection.category().equals("model"))
+                .map(ProviderSelection::providerKey)
+                .findFirst()
+                .orElse("lmstudio");
+        String chatProviderKey = registry.selectedProviderMappings().stream()
+                .filter(selection -> selection.category().equals("chat"))
+                .map(ProviderSelection::providerKey)
+                .findFirst()
+                .orElse("matrix-chat");
+        return new WeaverRuntimeProjectionResponse(
+                "weaver-runtime-profile-v1",
+                "runtime-profile-hash-pending-live-regeneration",
+                generatedAt.plusSeconds(3600).toString(),
+                generatedAt.toString(),
+                true,
+                true,
+                false,
+                true,
+                true,
+                "sandbox-readiness-recorded-runtime-execution-disabled",
+                List.of(),
+                List.of("audit://weaver/runtime-profile/projection"),
+                List.of(
+                        projectionItem("chat-route", "chat", "channels.weave-chat via " + chatProviderKey, "ready", "available", "Stable chat route only; provider rooms stay behind Weave Chat.", false),
+                        projectionItem("model-alias-general", "model", "general-assistant via " + modelProviderKey, readinessFor("model", registry), "disabled_by_policy", "Alias is admin-selected but runtime remains disabled by default.", false),
+                        projectionItem("tool-calendar-search", "tool", "calendar.search_events", readinessFor("calendar", registry), "disabled_by_policy", "Read-only discovery requires weaver.calendar_read and calendar.read grants.", false),
+                        projectionItem("tool-boards-comment", "tool", "boards.comment", readinessFor("boards-tasks", registry), "disabled_by_policy", "Write-like tool requires explicit approval receipt and audit.", true),
+                        projectionItem("consent-shared-space", "mcp", "shared-space consent gate", "admin-action-required", "disabled_by_policy", "Group chat/shared-space participation requires org policy and consent evidence.", true)));
+    }
+
+    private WeaverRuntimeProjectionItemResponse projectionItem(
+            String id,
+            String category,
+            String label,
+            String state,
+            String memberImpact,
+            String policyImpact,
+            boolean approvalRequired) {
+        String safeState = "unknown".equals(state) ? "admin-action-required" : state;
+        return new WeaverRuntimeProjectionItemResponse(
+                id,
+                category,
+                label,
+                safeState,
+                memberImpact,
+                policyImpact,
+                "Projected through Weave domain policy; raw OpenClaw config, provider credentials, and downstream payloads are not exposed.",
+                List.of("audit://weaver/runtime-profile/" + id),
+                false,
+                approvalRequired);
     }
 
     private WeaverDistributionPolicyResponse weaverDistributionPolicy(ProviderRegistryResponse registry) {

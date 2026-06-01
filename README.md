@@ -102,6 +102,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 - Sprint 15 adds organization-embedding and provider-neutral replacement evidence: backend-owned effective-policy/readiness boundaries, support-safe Admin Console consequence copy, Matrix Chat as the first dry-run proof slice, an operator runbook, and accessibility evidence template while keeping provider apply/cutover blocked.
+- Sprint 16 adds a support-safe organization go-live readiness summary, suite facade readiness rows for Files/Documents, Boards/Tasks, and Calendar, and a governed Weaver RuntimeProfile projection preview while keeping provider apply/cutover and runtime execution guarded.
 
 - Context-driven workflow primitives now have a provider-neutral, linear-first preview contract with explicit context references, blocker/evidence metadata, sample workflows, and dry-run-only governed agent participation.
 - Contextual meetings now have a fail-closed architecture contract preserving LiveKit as the active meetings provider contract while documenting encryption boundaries, consent defaults, and accessible join requirements before media controls are enabled.
