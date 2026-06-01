@@ -27,7 +27,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 - Product-readiness evidence now records provider-switching, OpenClaw runtime isolation, Weaver tool approval, RBAC, redaction, scan, and support-bundle expectations as explicit release blockers.
 - Weaver runtime remains disabled-by-default behind isolation, SecretRef/OAuth broker, signed manifest, egress, audit, and support-bundle redaction contracts.
-- Stable `weave-chat` channel plugin projection and Credential Broker implementation for governed Weaver RuntimeProfiles is tracked as Sprint 13 follow-up #519; v0.1.0-rc.3 must not claim that broad runtime execution or raw OpenClaw dashboard/config access is available to members.
+- Sprint 14 delivers the stable `weave-chat` channel plugin projection and Credential Broker implementation for governed Weaver RuntimeProfiles while keeping broad runtime execution and raw OpenClaw dashboard/config access out of member UX.
 
 ## Accessibility
 
