@@ -295,7 +295,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.switchPlan.rollbackRequired").value(true))
                 .andExpect(jsonPath("$.switchPlan.memberFacingStateDuringSwitch").value("degraded"))
                 .andExpect(jsonPath("$.switchPlan.recoveryActions[*]", hasItems(containsString("keep current adapter active"), containsString("block apply"))))
-                .andExpect(jsonPath("$.memberImpactStates[*]", hasItems("usable", "disabled", "degraded", "policy-blocked")))
+                .andExpect(jsonPath("$.memberImpactStates[*]", hasItems("available", "disabled_by_policy", "degraded", "coming_later")))
                 .andExpect(content().string(not(containsString("token-that-must-not-leak"))))
                 .andExpect(content().string(not(containsString("client_secret"))))
                 .andExpect(content().string(not(containsString("secretref://"))));

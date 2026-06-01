@@ -40,6 +40,7 @@ public class MigrationDryRunService {
         String stable = request.sourceProvider() + ":" + inventory.workspaces() + ":" + inventory.channels() + ":"
                 + inventory.users() + ":" + inventory.files() + ":" + inventory.messages() + ":" + String.join(",", scopes);
         String jobId = idempotencyKeyService.key("migration:dry-run", stable);
+        boolean matrixChatDryRun = isMatrixChatProvider(request.sourceProvider());
         var response = new MigrationDryRunResponse(
                 jobId,
                 "completed",
@@ -61,10 +62,16 @@ public class MigrationDryRunService {
                         estimatedRequests,
                         estimatedRequests * 2,
                         List.of("rate_limited", "retry_after", "quota_exhausted")),
-                List.of(
-                        "Admin reviews lossy/unmappable evidence before any apply phase.",
-                        "Capability, IDM identity mapping, export/import scopes, and rollback marker must be ready.",
-                        "Member clients continue to consume Weave domain DTOs; provider internals remain admin-only."),
+                matrixChatDryRun
+                        ? List.of(
+                                "Sprint 15 Matrix Chat dry-run evidence is review-only; apply/cutover remains blocked by default.",
+                                "Encrypted-room history is unsupported until client-side key/export strategy evidence exists.",
+                                "Power-level parity, media retention, audit refs, and rollback archive refs require admin review before any later apply gate.",
+                                "Member clients continue to consume Weave domain DTOs; provider internals remain admin-only.")
+                        : List.of(
+                                "Admin reviews lossy/unmappable evidence before any apply phase.",
+                                "Capability, IDM identity mapping, export/import scopes, and rollback marker must be ready.",
+                                "Member clients continue to consume Weave domain DTOs; provider internals remain admin-only."),
                 true,
                 true,
                 true,
@@ -205,8 +212,14 @@ public class MigrationDryRunService {
         return switch (normalizeProvider(provider)) {
             case "slack" -> List.of("channels:read", "users:read", "files:read");
             case "teams" -> List.of("Channel.ReadBasic.All", "User.Read.All", "Files.Read.All");
+            case "matrix-synapse", "matrix-synapse-chat", "synapse-homeserver" -> List.of("rooms:read", "members:read", "messages:read", "media:read");
             default -> List.of("inventory:read");
         };
+    }
+
+    private boolean isMatrixChatProvider(String provider) {
+        String normalized = normalizeProvider(provider);
+        return normalized.contains("matrix") || normalized.contains("synapse");
     }
 
     private String normalizeProvider(String provider) {

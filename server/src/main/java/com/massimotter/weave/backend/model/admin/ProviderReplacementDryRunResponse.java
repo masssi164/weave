@@ -20,6 +20,7 @@ public record ProviderReplacementDryRunResponse(
         LifecycleExpectations lifecycleExpectations,
         PortableExportImportContract portableExportImportContract,
         SwitchPlan switchPlan,
+        ConsequencePreview consequencePreview,
         List<String> cutoverGates,
         List<String> memberImpactStates,
         boolean supportSafe,
@@ -74,6 +75,22 @@ public record ProviderReplacementDryRunResponse(
             List<String> recoveryActions) {
         public SwitchPlan {
             recoveryActions = recoveryActions == null ? List.of() : List.copyOf(recoveryActions);
+        }
+    }
+
+    public record ConsequencePreview(
+            int preservedCount,
+            int lossyCount,
+            int unsupportedCount,
+            int manualReviewCount,
+            int archiveOnlyCount,
+            List<String> memberImpactCopy,
+            List<String> rollbackLimits,
+            List<String> applyBlockers) {
+        public ConsequencePreview {
+            memberImpactCopy = memberImpactCopy == null ? List.of() : List.copyOf(memberImpactCopy);
+            rollbackLimits = rollbackLimits == null ? List.of() : List.copyOf(rollbackLimits);
+            applyBlockers = applyBlockers == null ? List.of() : List.copyOf(applyBlockers);
         }
     }
 }

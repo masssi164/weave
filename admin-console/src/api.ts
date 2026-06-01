@@ -191,7 +191,8 @@ export type MemberCapabilityState =
   | "not_configured"
   | "degraded"
   | "unavailable"
-  | "coming_later";
+  | "coming_later"
+  | "unsupported";
 
 export interface ProviderSelectionResult {
   category: string;
@@ -219,6 +220,16 @@ export interface ProviderReplacementDryRunReport {
   providerDiagnosticsRedacted: boolean;
   cutoverGates: string[];
   auditRefs: string[];
+  consequencePreview: {
+    preservedCount: number;
+    lossyCount: number;
+    unsupportedCount: number;
+    manualReviewCount: number;
+    archiveOnlyCount: number;
+    memberImpactCopy: string[];
+    rollbackLimits: string[];
+    applyBlockers: string[];
+  };
   lossyMappingReport: {
     canonicalObjects: string[];
     contractRisks: string[];
@@ -263,6 +274,7 @@ interface ServerProviderReplacementDryRunReport {
   providerDiagnosticsRedacted?: boolean;
   cutoverGates?: string[];
   auditRefs?: string[];
+  consequencePreview?: Partial<ProviderReplacementDryRunReport["consequencePreview"]>;
   lossyMappingReport?: Partial<
     ProviderReplacementDryRunReport["lossyMappingReport"]
   >;
@@ -1008,7 +1020,7 @@ function memberStableStateFromCapability(
     case "not_configured":
       return "not_configured";
     case "unsupported":
-      return "unavailable";
+      return "unsupported";
     default:
       return "degraded";
   }
@@ -1290,6 +1302,7 @@ function normalizeProviderReplacementDryRun(
   targetAdapter: string,
 ): ProviderReplacementDryRunReport {
   const lossyMapping = response.lossyMappingReport ?? {};
+  const consequence = response.consequencePreview ?? {};
   const lifecycle = response.lifecycleExpectations ?? {};
   const portability = response.portableExportImportContract ?? {};
   const switchPlan = response.switchPlan ?? {};
@@ -1310,6 +1323,16 @@ function normalizeProviderReplacementDryRun(
     auditRefs: response.auditRefs ?? [
       `provider-replacement-dry-run-${category.key}`,
     ],
+    consequencePreview: {
+      preservedCount: consequence.preservedCount ?? 0,
+      lossyCount: consequence.lossyCount ?? 0,
+      unsupportedCount: consequence.unsupportedCount ?? 0,
+      manualReviewCount: consequence.manualReviewCount ?? 0,
+      archiveOnlyCount: consequence.archiveOnlyCount ?? 0,
+      memberImpactCopy: consequence.memberImpactCopy ?? [],
+      rollbackLimits: consequence.rollbackLimits ?? [],
+      applyBlockers: consequence.applyBlockers ?? [],
+    },
     lossyMappingReport: {
       canonicalObjects: lossyMapping.canonicalObjects ?? [],
       contractRisks: lossyMapping.contractRisks ?? [],
@@ -1424,7 +1447,7 @@ function normalizeMemberCapabilityState(
     case "misconfigured":
       return "degraded";
     case "unsupported":
-      return "unavailable";
+      return "unsupported";
     default:
       return null;
   }

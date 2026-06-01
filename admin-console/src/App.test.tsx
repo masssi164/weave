@@ -60,6 +60,16 @@ function mockApi(
       providerDiagnosticsRedacted: true,
       cutoverGates: ["Run backend migration dry-run before apply"],
       auditRefs: ["provider-replacement-dry-run-idm-rbac"],
+      consequencePreview: {
+        preservedCount: 2,
+        lossyCount: 1,
+        unsupportedCount: 0,
+        manualReviewCount: 1,
+        archiveOnlyCount: 0,
+        memberImpactCopy: ["Members keep provider-neutral access while admins review replacement consequences."],
+        rollbackLimits: ["Rollback is bounded by provider export support."],
+        applyBlockers: ["Group owner claim needs operator approval"],
+      },
       lossyMappingReport: {
         canonicalObjects: ["IdentitySubject", "GroupMembership"],
         contractRisks: ["External claims need mapping review"],
@@ -783,6 +793,14 @@ describe("Admin Console MVP", () => {
       screen.getByText(
         /member impact states: available, degraded, disabled_by_policy/i,
       ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /consequence counts: preserved 2; lossy 1; unsupported 0; manual review 1; archive only 0/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/member consequence copy: members keep provider-neutral access/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/source of truth: backend declares source of truth/i),

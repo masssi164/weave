@@ -1,6 +1,6 @@
 # Matrix Chat migration proof boundary
 
-Status: Sprint 14 contract seed for issues [#537](https://github.com/masssi164/weave/issues/537), [#538](https://github.com/masssi164/weave/issues/538), [#541](https://github.com/masssi164/weave/issues/541), and [#542](https://github.com/masssi164/weave/issues/542). This page defines the conservative proof target and is backed by the machine-readable fixtures `specs/0006-portability-contract/matrix-synapse-chat-migration-proof.json` and `specs/0006-portability-contract/matrix-synapse-chat-lifecycle-fixture.json`, validated by `./gradlew portabilityContractCheck`.
+Status: Sprint 15 dry-run implementation boundary for issues [#558](https://github.com/masssi164/weave/issues/558)-[#570](https://github.com/masssi164/weave/issues/570), building on the Sprint 14 contract seed for issues [#537](https://github.com/masssi164/weave/issues/537), [#538](https://github.com/masssi164/weave/issues/538), [#541](https://github.com/masssi164/weave/issues/541), and [#542](https://github.com/masssi164/weave/issues/542). This page defines the conservative proof target and is backed by the machine-readable fixtures `specs/0006-portability-contract/matrix-synapse-chat-migration-proof.json` and `specs/0006-portability-contract/matrix-synapse-chat-lifecycle-fixture.json`, validated by `./gradlew portabilityContractCheck`. Sprint 15 adds backend/Admin Console consequence review only; Matrix apply/cutover remains blocked.
 
 ## Goal
 
@@ -50,7 +50,7 @@ Each dry-run or fixture proof must produce support-safe artifacts aligned with t
 | RollbackRetentionReport | Source retention, target rollback feasibility, archive retention, restore-smoke expectations. | Rollback limitations must be shown before cutover confirmation. |
 | MigrationAuditRef | Dry-run/apply/rollback request refs, actor class, timestamps, decision, profile/adapter versions. | Audit output remains support-safe. |
 
-The Sprint 14 fixtures currently prove classification, preflight, apply blocking, and rollback-retention evidence only. The sample dry-run and apply attempt are intentionally `blocked` because E2EE history, power-level parity, and media durability decisions require explicit admin/operator review before any apply path can be enabled. The lifecycle fixture must keep `encrypted-room-detection-complete` blocked/`unsupported`, apply attempts at zero applied objects, and rollback limited to source retention plus target cleanup/restore-smoke evidence; it must not claim lossless migration, legal compliance, or E2EE history migration.
+The Sprint 15 fixtures and backend dry-run path currently prove classification, preflight, support-safe consequence preview, apply blocking, and rollback-retention evidence only. The sample dry-run and apply attempt are intentionally `blocked` because E2EE history, power-level parity, and media durability decisions require explicit admin/operator review before any later apply path can be enabled. The lifecycle fixture must keep `encrypted-room-detection-complete` blocked/`unsupported`, apply attempts at zero applied objects, and rollback limited to source retention plus target cleanup/restore-smoke evidence; it must not claim lossless migration, legal compliance, E2EE history migration, or production cutover.
 
 ## Admin provider-switch journey
 
@@ -74,7 +74,7 @@ Normal members must see only Weave Chat and product-level capability states:
 - `unavailable`
 - `coming_later`
 
-Provider-specific Matrix API errors, homeserver URLs, access tokens, power-level diagnostics, media repository internals, and migration reports stay in admin/operator surfaces and support-safe evidence. Accessibility evidence must prove status and disruption copy is screen-reader-friendly, keyboard reachable, and not color-only.
+Provider-specific Matrix API errors, homeserver URLs, access tokens, power-level diagnostics, media repository internals, and migration reports stay in admin/operator surfaces and support-safe evidence. Accessibility evidence must prove status and disruption copy is screen-reader-friendly, keyboard reachable, and not color-only. Sprint 15 Admin Console evidence must display backend-returned consequence counts, rollback limits, apply blockers, member-impact copy, and audit refs; it must not create or mutate migration evidence locally.
 
 ## Non-goals for the first proof
 
