@@ -277,7 +277,17 @@ public class WeaverRuntimeService {
                 "runtimeTokenRef", "credentialref://weave/runtime/weave-chat/" + userRef.replace("user:", ""),
                 "reloadStrategy", "reload-or-restart-stable-channel",
                 "rawProviderChannelConfigsRendered", false,
-                "memberMaySwitchProviderAdapters", false);
+                "memberMaySwitchProviderAdapters", false,
+                "mcpServerBindings", List.of(Map.ofEntries(
+                        Map.entry("serverKey", "weave-domain-tools"),
+                        Map.entry("transport", "streamable-http"),
+                        Map.entry("endpointRef", "internal://weave-mcp/streamable-http"),
+                        Map.entry("credentialRef", "credentialref://weave/mcp/weave-domain-tools/runtime-token"),
+                        Map.entry("enabled", false),
+                        Map.entry("supportSafe", true),
+                        Map.entry("rawEndpointExposed", false),
+                        Map.entry("allowedTools", List.of("admin.get_readiness", "weaver.get_runtime_profile_projection", "calendar.search_events", "boards.comment")),
+                        Map.entry("approvalRequiredFor", List.of("boards.comment")))));
     }
 
     private Map<String, Object> credentialBrokerContract(String userRef) {

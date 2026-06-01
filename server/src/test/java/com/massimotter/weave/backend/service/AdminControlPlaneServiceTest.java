@@ -468,9 +468,20 @@ class AdminControlPlaneServiceTest {
         assertThat(response.weaverRuntimeProjection().disabledByDefault()).isTrue();
         assertThat(response.weaverRuntimeProjection().rawRuntimeInternalsExposed()).isFalse();
         assertThat(response.weaverRuntimeProjection().items()).extracting(item -> item.id())
-                .contains("chat-route", "tool-calendar-search", "tool-boards-comment", "consent-shared-space");
+                .contains("chat-route", "tool-calendar-search", "tool-boards-comment", "mcp-weave-domain-tools", "consent-shared-space");
+        assertThat(response.mcpServerBindings()).singleElement().satisfies(binding -> {
+            assertThat(binding.serverKey()).isEqualTo("weave-domain-tools");
+            assertThat(binding.transport()).isEqualTo("streamable-http");
+            assertThat(binding.enabled()).isFalse();
+            assertThat(binding.supportSafe()).isTrue();
+            assertThat(binding.rawEndpointExposed()).isFalse();
+            assertThat(binding.rawServerConfigExposed()).isFalse();
+            assertThat(binding.secretValuesExposed()).isFalse();
+            assertThat(binding.allowedTools()).contains("admin.get_readiness", "weaver.get_runtime_profile_projection", "calendar.search_events", "boards.comment");
+            assertThat(binding.authRef()).startsWith("credentialref://");
+        });
         assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(response))
-                .doesNotContain("openclaw.json", "Bearer ", "access_token", "rawProviderPayload");
+                .doesNotContain("openclaw.json", "Bearer ", "access_token", "rawProviderPayload", "rawMcpServerConfig");
     }
 
     @Test

@@ -92,7 +92,11 @@ class WeaverRuntimeServiceTest {
                 .containsEntry("channelId", "channels.weave-chat")
                 .containsEntry("providerRef", "provider:chat:selected-by-admin")
                 .containsEntry("rawProviderChannelConfigsRendered", false)
-                .containsEntry("memberMaySwitchProviderAdapters", false);
+                .containsEntry("memberMaySwitchProviderAdapters", false)
+                .containsKey("mcpServerBindings");
+        assertThat(profile.channelProjection().get("mcpServerBindings").toString())
+                .contains("weave-domain-tools", "streamable-http", "calendar.search_events", "boards.comment")
+                .doesNotContain("Bearer ", "openclaw.json", "rawMcpServerConfig");
         assertThat(profile.credentialBrokerContract())
                 .containsEntry("broker", "weave-credential-broker")
                 .containsEntry("shortLivedAccess", true)
