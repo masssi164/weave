@@ -22,6 +22,7 @@ public record AdminControlPlaneResponse(
         List<ProviderCategoryStatusResponse> categories,
         List<ProviderSelectionResponse> selectedProviderMappings,
         CapabilityWhitelistResponse whitelist,
+        WeaverDistributionPolicyResponse weaverDistributionPolicy,
         IdentityProviderReadinessResponse identityProviderReadiness,
         List<SecretRefResponse> secretRefs,
         Map<String, String> adminApiRoutes) {
