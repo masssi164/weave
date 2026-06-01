@@ -328,6 +328,9 @@ describe("Admin Console MVP", () => {
     expect(screen.getByText(/chat summary read tool/i)).toBeInTheDocument();
     expect(screen.getByText(/workspace triage skill package/i)).toBeInTheDocument();
     expect(screen.getByText(/approved knowledge connector/i)).toBeInTheDocument();
+    expect(screen.getByText(/admin-bound MCP server registry/i)).toBeInTheDocument();
+    expect(screen.getByText(/weave governed domain tools \(streamable-http\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/members never wire raw MCP endpoints/i)).toBeInTheDocument();
     expect(screen.getByText(/provider changes preserve the stable weave chat projection/i)).toBeInTheDocument();
     expect(screen.getByText(/user selectable: yes; default: yes; fallback order: 1/i)).toBeInTheDocument();
     expect(screen.getAllByText(/receipt:\/\/weaver\//i).length).toBeGreaterThan(0);
@@ -336,7 +339,7 @@ describe("Admin Console MVP", () => {
         name: /weaver runtimeprofile projection/i,
       }),
     ).not.toHaveTextContent(
-      /client_secret|access_token|refresh token|bearer|openclaw\.json|credential=/i,
+      /client_secret|access_token|refresh token|bearer|openclaw\.json|credential=|rawMcpServerConfig/i,
     );
   });
 

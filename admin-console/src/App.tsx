@@ -975,6 +975,113 @@ export default function App({
               </Card>
 
               {canInspectReadiness ? (
+                <Card component="section" aria-labelledby="go-live-heading">
+                  <CardContent>
+                    <Typography
+                      id="go-live-heading"
+                      variant="h2"
+                      sx={{ fontSize: "1.35rem", mb: 2 }}
+                    >
+                      Organization go-live readiness
+                    </Typography>
+                    <Alert
+                      severity={
+                        controlPlane.goLiveReadiness.state === "ready" &&
+                        controlPlane.goLiveReadiness.supportSafe &&
+                        !controlPlane.goLiveReadiness
+                          .normalMembersMayAccessSetupControls &&
+                        !controlPlane.goLiveReadiness.rawProviderDiagnosticsExposed
+                          ? "success"
+                          : "warning"
+                      }
+                      sx={{ mb: 2 }}
+                    >
+                      State: {readableState(controlPlane.goLiveReadiness.state)};
+                      member preview: {controlPlane.goLiveReadiness.memberPreviewState};
+                      setup controls exposed to normal members: {" "}
+                      {controlPlane.goLiveReadiness
+                        .normalMembersMayAccessSetupControls
+                        ? "yes"
+                        : "no"}
+                      ; raw provider diagnostics exposed: {" "}
+                      {controlPlane.goLiveReadiness.rawProviderDiagnosticsExposed
+                        ? "yes"
+                        : "no"}
+                      .
+                    </Alert>
+                    <Typography>
+                      Blockers: {controlPlane.goLiveReadiness.blockers.join(", ") || "none"}
+                    </Typography>
+                    <Typography>
+                      Admin actions: {controlPlane.goLiveReadiness.adminActions.join(" ")}
+                    </Typography>
+                    <Typography>
+                      Audit refs: {controlPlane.goLiveReadiness.auditRefs.join(", ") || "backend audit required"}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {canInspectReadiness ? (
+                <Card component="section" aria-labelledby="suite-facades-heading">
+                  <CardContent>
+                    <Typography
+                      id="suite-facades-heading"
+                      variant="h2"
+                      sx={{ fontSize: "1.35rem", mb: 2 }}
+                    >
+                      Suite facade readiness
+                    </Typography>
+                    <Typography sx={{ mb: 2 }}>
+                      Files/Documents, Boards/Tasks, and Calendar readiness is
+                      projected through provider-neutral Weave facades. The
+                      backend owns provider mappings; normal member flows never
+                      receive raw provider setup or credential-bearing config.
+                    </Typography>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2} useFlexGap sx={{ flexWrap: "wrap" }}>
+                      {controlPlane.suiteDomainReadiness.map((domain) => (
+                        <Card key={domain.domain} variant="outlined" sx={{ flex: "1 1 280px" }}>
+                          <CardContent>
+                            <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
+                              {domain.label} suite facade
+                            </Typography>
+                            <Chip
+                              sx={{ mt: 1 }}
+                              color={stateColor[domain.adminReadiness]}
+                              label={`Admin readiness: ${readableState(domain.adminReadiness)}`}
+                            />
+                            <List dense aria-label={`${domain.label} suite facade evidence`}>
+                              <ListItem disableGutters>
+                                <ListItemText primary="Member state" secondary={domain.memberState} />
+                              </ListItem>
+                              <ListItem disableGutters>
+                                <ListItemText primary="Selected adapter posture" secondary={domain.selectedAdapterPosture} />
+                              </ListItem>
+                              <ListItem disableGutters>
+                                <ListItemText primary="Source of truth" secondary={domain.sourceOfTruthMode} />
+                              </ListItem>
+                              <ListItem disableGutters>
+                                <ListItemText primary="Canonical objects" secondary={domain.canonicalObjectKinds.join(", ") || "backend contract required"} />
+                              </ListItem>
+                              <ListItem disableGutters>
+                                <ListItemText primary="Portability notes" secondary={domain.portabilityNotes.join("; ") || "none"} />
+                              </ListItem>
+                              <ListItem disableGutters>
+                                <ListItemText primary="Next action" secondary={domain.nextAction} />
+                              </ListItem>
+                            </List>
+                            <Typography variant="body2">
+                              Facade owned by backend: {domain.backendOwnedFacade ? "yes" : "no"}; server-owned mapping: {domain.providerMappingOwnedByServer ? "yes" : "no"}; raw member config exposed: {domain.rawProviderConfigExposedToMembers ? "yes" : "no"}.
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </Stack>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {canInspectReadiness ? (
                 <Card
                   component="section"
                   aria-labelledby="identity-readiness-heading"
@@ -1666,6 +1773,27 @@ export default function App({
                         multiline
                         minRows={3}
                       />
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
+                            Admin-bound MCP server registry
+                          </Typography>
+                          <Alert severity="info" sx={{ my: 1 }}>
+                            Admins bind Streamable HTTP MCP servers for Weaver here;
+                            members never wire raw MCP endpoints or runtime tokens.
+                          </Alert>
+                          <List aria-label="Admin-bound MCP server registry">
+                            {controlPlane.mcpServerBindings.map((binding) => (
+                              <ListItem key={binding.serverKey} disableGutters>
+                                <ListItemText
+                                  primary={`${binding.displayName} (${binding.transport}) — ${readableState(binding.readinessState)}`}
+                                  secondary={`Endpoint ref: ${binding.endpointRef}; enabled: ${binding.enabled ? "yes" : "no"}; tools: ${binding.allowedTools.join(", ")}; auth: ${binding.authRef}; raw endpoint exposed: ${binding.rawEndpointExposed ? "yes" : "no"}`}
+                                />
+                              </ListItem>
+                            ))}
+                          </List>
+                        </CardContent>
+                      </Card>
                       <Card variant="outlined">
                         <CardContent>
                           <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
