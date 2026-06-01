@@ -271,6 +271,31 @@ class PlatformProductContractControllerTest {
     }
 
     @Test
+    void matrixProviderReplacementDryRunKeepsPolicyBlockersForNoOpSelections() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/replacements/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "category": "chat",
+                                  "currentAdapter": "synapse-homeserver",
+                                  "targetAdapter": "synapse-homeserver",
+                                  "choiceModel": "external_existing_provider",
+                                  "secretRef": "secretref://weave/provider/matrix",
+                                  "sourceOfTruth": "selected chat provider owns message history",
+                                  "lossyMappingNotes": [],
+                                  "reason": "record no-op evidence without weakening Sprint 15 blockers"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("dry-run-blocked-for-apply"))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("identical"))))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("Sprint 15"))))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("Encrypted room history"))))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("Power-level parity"))));
+    }
+
+    @Test
     void providerReplacementDryRunRejectsRawSecretsAndUnsupportedAdapterCombinations() throws Exception {
         mockMvc.perform(post("/api/admin/providers/replacements/dry-run")
                         .with(adminJwt())

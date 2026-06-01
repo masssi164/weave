@@ -293,14 +293,15 @@ public class AdminControlPlaneService {
         String declaredSourceOfTruth = safeSourceOfTruth(request.sourceOfTruth());
         List<String> adminNotes = safeLossyMappingNotes(request.lossyMappingNotes());
         boolean matrixChatDryRun = "chat".equals(category) && (isMatrixChatAdapter(currentAdapter) || isMatrixChatAdapter(targetAdapter));
-        List<String> conflicts = currentAdapter.equalsIgnoreCase(targetAdapter)
-                ? List.of("Current and target adapters are identical; record no-op or choose a distinct target before activation.")
-                : matrixChatDryRun
-                        ? List.of(
-                                "Matrix Chat migration apply/cutover is intentionally blocked in Sprint 15; only dry-run evidence may be reviewed.",
-                                "Encrypted room history requires a future client-side key/export strategy before any migration claim.",
-                                "Power-level parity and media retention stay manual-review blockers until operator evidence resolves them.")
-                        : List.of();
+        List<String> conflicts = new ArrayList<>();
+        if (currentAdapter.equalsIgnoreCase(targetAdapter)) {
+            conflicts.add("Current and target adapters are identical; record no-op or choose a distinct target before activation.");
+        }
+        if (matrixChatDryRun) {
+            conflicts.add("Matrix Chat migration apply/cutover is intentionally blocked in Sprint 15; only dry-run evidence may be reviewed.");
+            conflicts.add("Encrypted room history requires a future client-side key/export strategy before any migration claim.");
+            conflicts.add("Power-level parity and media retention stay manual-review blockers until operator evidence resolves them.");
+        }
         boolean migrationRequired = true;
         String status = conflicts.isEmpty() ? "dry-run-ready" : matrixChatDryRun ? "dry-run-blocked-for-apply" : "requires-admin-review";
         String dryRunId = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
