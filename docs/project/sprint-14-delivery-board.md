@@ -34,16 +34,17 @@ Sprint 14 makes Weave professionally explainable and evidence-backed as a provid
 
 ## #519 decision for this sprint
 
-`weave#519` is open in Sprint 14 after acceptance review. The cross-repo runtime seam is partially evidenced: the Weaver child anchors [`weaver#1`](https://github.com/masssi164/weaver/issues/1) and [`weaver#9`](https://github.com/masssi164/weaver/issues/9) are closed, and the Weave-side projection/audit/infra evidence from PRs #520, #521, #528, #529, #530, #532, and #533 is linked from the Sprint 14 closure report. PR #553 adds the Weave-side PA Weaver chat facade and configurable HTTP bridge slice, but Sprint 14 is not complete until the delivery-board item is closed and live Weave Chat evidence proves: PA Weaver option -> send message -> Weaver -> LM Studio -> assistant response.
+`weave#519` is open in Sprint 14 after acceptance review. The cross-repo runtime seam is partially evidenced: the Weaver child anchors [`weaver#1`](https://github.com/masssi164/weaver/issues/1) and [`weaver#9`](https://github.com/masssi164/weaver/issues/9) are closed, and the Weave-side projection/audit/infra evidence from PRs #520, #521, #528, #529, #530, #532, and #533 is linked from the Sprint 14 closure report. PR #553 adds the Weave-side PA Weaver chat facade and configurable HTTP bridge slice, including service-level live Weave Chat evidence for: PA Weaver option -> send message -> governed Weaver bridge -> LM Studio -> assistant response. Sprint 14 remains open until PR #553 is merged, the delivery-board item is closed, and the GitHub milestone closure gate verifies zero open Sprint 14 issues.
 
 Current evidence status:
 
 1. `weave`: signed `WeaverRuntimeProfile` projection from Weave policy, model aliases, domain provider projections, tool/MCP grants, sandbox/deny policy, CredentialRefs, runtime-token references, audit policy, and profile hash is implemented by prior PRs.
 2. `weave`: stable `channels.weave-chat` projection is exposed through the Weave Chat-domain routing path; PR #553 keeps providerRefs hidden behind support-safe facade evidence and fails closed when the governed bridge is not configured.
 3. `weave`: Credential Broker boundary for RuntimeProfile generation and audit; profiles, logs, support bundles, and evidence contain SecretRefs and broker receipts only.
-4. `weaver`: runtime consumption of the signed profile without accepting raw OpenClaw dashboard/config as a second policy source is covered by the closed Weaver child issues.
-5. Cross-repo evidence: tests, docs, CI links, and support-safe fixtures prove no raw provider secrets or OAuth refresh tokens are projected.
-6. Remaining blocker: live Weave Chat UI/browser evidence has not yet proven the full PA Weaver option -> Weave Chat message -> governed Weaver bridge -> LM Studio -> assistant response path.
+4. `weave`: PR #553 service-level live evidence covers the full PA Weaver option -> Weave Chat message -> governed Weaver bridge -> LM Studio -> assistant response path without exposing provider URLs, tokens, provider room ids, or unsafe diagnostics.
+5. `weaver`: runtime consumption of the signed profile without accepting raw OpenClaw dashboard/config as a second policy source is covered by the closed Weaver child issues.
+6. Cross-repo evidence: tests, docs, CI links, and support-safe fixtures prove no raw provider secrets or OAuth refresh tokens are projected.
+7. Remaining blocker: merge PR #553, close `weave#519` with the merged evidence, and verify the Sprint 14 milestone has zero open issues.
 
 Historical split option, now resolved by the Sprint 13/14 merge train:
 

@@ -221,27 +221,34 @@ public class ChatFacadeService {
         conversation.add(message);
         if (conversation.isPaWeaver()) {
             ChatMessageResponse assistantMessage = completePaWeaverTurn(principal, conversation, message, timestamp);
-            Map<String, Object> assistantEvidence = assistantMessage.deliveryEvidence();
-            return new ChatMessageResponse(
-                    message.id(),
-                    message.conversationId(),
-                    message.senderRef(),
-                    message.text(),
-                    message.attachmentRefs(),
-                    message.isMine(),
-                    message.encryptedProviderContentRedacted(),
-                    message.sentAt(),
-                    Map.of(
-                            "route", "weave-chat-to-pa-weaver",
-                            "channelId", WEAVER_CHANNEL_ID,
-                            "providerRef", WEAVER_CHAT_PROVIDER_REF,
-                            "weaverReceived", assistantEvidence.get("weaverReceived"),
-                            "lmStudioResponseReceived", assistantEvidence.get("lmStudioResponseReceived"),
-                            "assistantMessageId", assistantMessage.id(),
-                            "modelRef", assistantEvidence.get("modelRef"),
-                            "supportSafe", true));
+            return withPaWeaverCompletionEvidence(message, assistantMessage);
         }
         return message;
+    }
+
+    private ChatMessageResponse withPaWeaverCompletionEvidence(
+            ChatMessageResponse userMessage,
+            ChatMessageResponse assistantMessage) {
+        Map<String, Object> assistantEvidence = assistantMessage.deliveryEvidence();
+        Map<String, Object> responseEvidence = new LinkedHashMap<>();
+        responseEvidence.put("route", "weave-chat-to-pa-weaver");
+        responseEvidence.put("channelId", WEAVER_CHANNEL_ID);
+        responseEvidence.put("providerRef", WEAVER_CHAT_PROVIDER_REF);
+        responseEvidence.put("weaverReceived", assistantEvidence.get("weaverReceived"));
+        responseEvidence.put("lmStudioResponseReceived", assistantEvidence.get("lmStudioResponseReceived"));
+        responseEvidence.put("assistantMessageId", assistantMessage.id());
+        responseEvidence.put("modelRef", assistantEvidence.get("modelRef"));
+        responseEvidence.put("supportSafe", assistantEvidence.getOrDefault("supportSafe", true));
+        return new ChatMessageResponse(
+                userMessage.id(),
+                userMessage.conversationId(),
+                userMessage.senderRef(),
+                userMessage.text(),
+                userMessage.attachmentRefs(),
+                userMessage.isMine(),
+                userMessage.encryptedProviderContentRedacted(),
+                userMessage.sentAt(),
+                responseEvidence);
     }
 
     private ChatMessageResponse completePaWeaverTurn(
@@ -303,7 +310,7 @@ public class ChatFacadeService {
                 "command", "pa_weaver_chat",
                 "conversationId", conversation.id(),
                 "channelId", WEAVER_CHANNEL_ID,
-                "providerRef", WEAVER_CHAT_PROVIDER_REF,
+                "providerRef", hasText(result.providerRef()) ? result.providerRef() : WEAVER_CHAT_PROVIDER_REF,
                 "modelRef", result.modelRef(),
                 "weaverReceived", result.weaverReceived(),
                 "lmStudioResponseReceived", result.lmStudioResponseReceived(),

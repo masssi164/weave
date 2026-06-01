@@ -67,6 +67,46 @@ class ChatFacadeServiceTest {
     }
 
     @Test
+    void paWeaverSendResponseReflectsActualCompletionEvidence() {
+        ChatFacadeService service = service(
+                new InMemoryAuditEventPublisher(),
+                request -> new WeaverPaChatTurnResult(
+                        false,
+                        false,
+                        "PA Weaver accepted the turn but the provider did not complete it.",
+                        "lmstudio/qwen/custom-runtime-model",
+                        "provider:model:custom-lmstudio",
+                        "audit://weaver/pa-chat/partial-roundtrip",
+                        Map.of(
+                                "channelId", request.channelId(),
+                                "modelRef", "lmstudio/qwen/custom-runtime-model",
+                                "rawProviderDiagnosticsExposed", false,
+                                "supportSafe", true)));
+
+        var sent = service.sendMessage(
+                jwt(List.of("member"), List.of("weave-weaver-runtime")),
+                "pa-weaver",
+                new ChatSendMessageRequest("show actual completion state", List.of()));
+        var assistantMessage = service.messages(jwt(List.of("member"), List.of("weave-weaver-runtime")), "pa-weaver")
+                .messages().stream()
+                .filter(message -> message.senderRef().equals("weaver:pa"))
+                .reduce((first, second) -> second)
+                .orElseThrow();
+
+        assertThat(assistantMessage.deliveryEvidence())
+                .containsEntry("providerRef", "provider:chat:selected-by-admin")
+                .containsEntry("weaverReceived", false)
+                .containsEntry("lmStudioResponseReceived", false)
+                .containsEntry("modelRef", "lmstudio/qwen/custom-runtime-model");
+        assertThat(sent.deliveryEvidence())
+                .containsEntry("providerRef", "provider:chat:selected-by-admin")
+                .containsEntry("weaverReceived", false)
+                .containsEntry("lmStudioResponseReceived", false)
+                .containsEntry("modelRef", "lmstudio/qwen/custom-runtime-model")
+                .containsEntry("assistantMessageId", assistantMessage.id());
+    }
+
+    @Test
     void paWeaverChatFailsClosedWhenRuntimeBridgeIsNotConfigured() {
         ChatFacadeService service = serviceWithoutConfiguredWeaverBridge();
 
@@ -142,12 +182,7 @@ class ChatFacadeServiceTest {
     }
 
     private ChatFacadeService service(InMemoryAuditEventPublisher auditPublisher) {
-        WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
-        return new ChatFacadeService(
-                properties,
-                workspaceCapabilityService(properties, weaverRuntimeProperties(true)),
-                request -> ContextAuthorizationDecision.allow("test allow"),
-                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+        return service(
                 auditPublisher,
                 request -> new WeaverPaChatTurnResult(
                         true,
@@ -161,6 +196,19 @@ class ChatFacadeServiceTest {
                                 "modelRef", request.modelRef(),
                                 "rawProviderDiagnosticsExposed", false,
                                 "supportSafe", true)));
+    }
+
+    private ChatFacadeService service(
+            InMemoryAuditEventPublisher auditPublisher,
+            WeaverPaChatClient weaverPaChatClient) {
+        WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
+        return new ChatFacadeService(
+                properties,
+                workspaceCapabilityService(properties, weaverRuntimeProperties(true)),
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+                auditPublisher,
+                weaverPaChatClient);
     }
 
     private WorkspaceCapabilityProperties workspaceCapabilityProperties() {

@@ -25,8 +25,8 @@
 | [weave#543](https://github.com/masssi164/weave/issues/543) | Self-hosted reference stack/operator experience | Ready to close | `docs/admin-operator-handbook.md`, infra README/operator docs, release-verify/operator-check/backup/restore/support-bundle paths. |
 | [weave#544](https://github.com/masssi164/weave/issues/544) | Cloud Act/GDPR/subprocessor/sovereignty risk framing | Ready to close | Procurement-risk checklist, source anchors, and legal-review caveat in claim matrix; PR #548. |
 | [weave#545](https://github.com/masssi164/weave/issues/545) | Customer-facing claim matrix | Ready to close | Customer wording/evidence table in claim matrix; PR #548. |
-| [weave#546](https://github.com/masssi164/weave/issues/546) | Sprint closure | Ready to close after this report lands | This report, zero open Sprint 14 issues, green gates. |
-| [weave#519](https://github.com/masssi164/weave/issues/519) | Weaver RuntimeProfile / `weave-chat` / Credential Broker carry-over | Closed | Weave PRs #520/#521/#528/#529/#530/#532/#533, Weaver PRs #7/#8/#10/#11/#12, closed `weaver#1` and `weaver#9`. |
+| [weave#546](https://github.com/masssi164/weave/issues/546) | Sprint closure | Ready to close after PR #553 merges and `weave#519` closes | This report, zero open Sprint 14 issues, green gates. |
+| [weave#519](https://github.com/masssi164/weave/issues/519) | Weaver RuntimeProfile / `weave-chat` / Credential Broker carry-over | Pending PR #553 merge | Weave PRs #520/#521/#528/#529/#530/#532/#533 and PR #553, Weaver PRs #7/#8/#10/#11/#12, closed `weaver#1` and `weaver#9`. |
 
 ## Merge train
 
@@ -35,6 +35,7 @@
 3. [weaver#11](https://github.com/masssi164/weaver/pull/11) — `448def6` — offline and live/container `weave-chat` LM Studio round-trip harness; closes `weaver#9`.
 4. [weaver#12](https://github.com/masssi164/weaver/pull/12) — `ada8c4b` — support-safe channel/model audit refs; closes `weaver#1` with prior Weaver RuntimeProfile PR evidence.
 5. Earlier cross-repo carry-over evidence: Weave PRs #520, #521, #528, #529, #530, #532, and #533; Weaver PRs #7, #8, and #10.
+6. Pending final Weave carry-over PR: [weave#553](https://github.com/masssi164/weave/pull/553) — PA Weaver Chat facade, configurable governed bridge, support-safe service-level live evidence for `channels.weave-chat` -> Weaver -> LM Studio -> assistant response, and review coverage ensuring the user-facing send response reflects actual completion evidence.
 
 PR #549 was closed unmerged because merged PR #550 superseded it with the Matrix lifecycle fixture and removed the conflicting duplicate branch.
 
@@ -86,5 +87,5 @@ Sprint 15 should implement from the now-evidenced contracts, not expand claims f
 - [x] Product-trust claims are checked by `productTrustClaimMatrixCheck`.
 - [x] Provider portability contracts and Matrix lifecycle fixtures are executable through `portabilityContractCheck`.
 - [x] Release/claim posture is guarded through `releaseEvidenceCheck`.
-- [x] `weave#519`, `weaver#1`, and `weaver#9` are closed with cross-repo evidence.
+- [ ] `weave#519`, `weaver#1`, and `weaver#9` are closed with cross-repo evidence. `weaver#1` and `weaver#9` are closed; `weave#519` closes after PR #553 merges and the milestone closure gate verifies zero open Sprint 14 issues.
 - [x] Closure report exists on the docs branch and is ready to merge.
