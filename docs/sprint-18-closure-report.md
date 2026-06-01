@@ -35,15 +35,19 @@ Passing on 2026-06-01 before PR creation:
 
 ## Issue DAG final state
 
-- #589 — ready for PR evidence comment after merge: workspace loop markers, Live Stack mapping, and support-safe evidence.
-- #590 — ready for PR evidence comment after merge: bounded fixture-only apply/cutover/rollback proof, no production cutover claim.
-- #591 — ready for PR evidence comment after merge: release trust gates plus explicit manual AT blocker evidence.
-- #592 — ready for PR evidence comment after merge: signed/fetch-by-hash RuntimeProfile and fail-closed MCP posture.
+- #589 — closed by #593: workspace loop markers, Live Stack mapping, and support-safe evidence.
+- #590 — closed by #593: bounded fixture-only apply/cutover/rollback proof, no production cutover claim.
+- #591 — closed by #593: release trust gates plus explicit manual AT blocker evidence.
+- #592 — closed by #593: signed/fetch-by-hash RuntimeProfile and fail-closed MCP posture.
 
 ## PR / CI / milestone status
 
-- Branch: `feat/s18-workspace-live-e2e-589`.
-- PR, merge commit, GitHub CI, issue closure, and milestone closure are pending until the final branch commit is pushed and CI is green.
+- Delivery branch: `feat/s18-workspace-live-e2e-589`.
+- Merged PR: #593, `feat: prove Sprint 18 workspace migration trust loop`, with exactly one release-notes label: `release-notes-feature`.
+- Merge commit on `main`: `5b0fc458fc75e0ccfddab2dba0c7b8b1f2553eb6`.
+- PR checks at merge: 6 successful, 0 requiring attention.
+- GitHub issues #589, #590, #591, and #592 are closed.
+- GitHub milestone 18 is closed with 0 open issues and 4 closed issues.
 
 ## Boundaries and non-claims
 
