@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import base64
 import threading
 import unittest
 from urllib.error import HTTPError
@@ -11,12 +12,44 @@ from weave_mcp.config import WeaveMcpConfig
 from weave_mcp.schemas.common import McpDenied
 
 
+RUNTIME_PROFILE_PROJECTION = {
+    "runtimeProfileHash": "sha256:runtime-profile",
+    "profileVersion": "v-local-rc-evidence",
+    "enabled": True,
+    "revoked": False,
+    "serverKey": "weave-domain-tools",
+    "transport": "streamable-http",
+    "endpointRef": "internal://weave-mcp/streamable-http",
+    "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+    "capabilityGrants": [
+        "weaver.admin_readiness_read",
+        "weaver.runtime_profile_read",
+        "weaver.calendar_read",
+        "weaver.boards_write",
+    ],
+    "allowedTools": [
+        "admin.get_readiness",
+        "weaver.get_runtime_profile_projection",
+        "calendar.search_events",
+        "boards.comment",
+    ],
+    "auditRef": "audit://mcp/runtime-profile/local-rc-evidence",
+    "supportSafe": True,
+    "rawEndpointExposed": False,
+}
+
+
+def encoded_projection(profile: dict[str, object] | None = None) -> str:
+    body = json.dumps(profile or RUNTIME_PROFILE_PROJECTION, sort_keys=True).encode("utf-8")
+    return base64.urlsafe_b64encode(body).decode("utf-8").rstrip("=")
+
+
 HEADERS = {
     "Authorization": "Bearer dev-runtime-token",
     "X-Weave-Org-Id": "org:dogfood",
     "X-Weave-User-Ref": "user:support-safe",
     "X-Weave-Runtime-Profile": "sha256:runtime-profile",
-    "X-Weave-Capabilities": "weaver.admin_readiness_read,weaver.runtime_profile_read,weaver.calendar_read,weaver.boards_write",
+    "X-Weave-Runtime-Profile-Projection": encoded_projection(),
 }
 
 
@@ -40,11 +73,29 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertTrue(tools["boards.comment"]["meta"]["approval"] == "required")
         self.assertTrue(all(tool["meta"]["transport"] == "streamable-http" for tool in tools.values()))
 
+    def test_discovery_uses_runtime_profile_projection_not_caller_grant_headers(self) -> None:
+        profile = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events"], "capabilityGrants": ["weaver.calendar_read"]}
+        headers = {key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(profile)}.items()}
+        headers["x-weave-capabilities"] = "weaver.boards_write,weaver.admin_readiness_read"
+
+        body = self.gateway().discover_tools(headers)
+        tools = {tool["name"]: tool for tool in body["tools"]}
+
+        self.assertEqual(set(tools), {"calendar.search_events"})
+
+        with self.assertRaises(McpDenied) as raised:
+            self.gateway().invoke_tool(headers, {"tool": "boards.comment", "input": {"approvalReceiptRef": "approval://board-comment/1"}})
+        self.assertEqual(raised.exception.reason, "capability-not-granted")
+
     def test_disabled_or_missing_context_fails_closed(self) -> None:
         with self.assertRaises(McpDenied):
             self.gateway(enabled=False).discover_tools({key.lower(): value for key, value in HEADERS.items()})
         with self.assertRaises(McpDenied):
             self.gateway(enabled=True).discover_tools({"authorization": "Bearer dev-runtime-token"})
+        revoked = {**RUNTIME_PROFILE_PROJECTION, "revoked": True}
+        with self.assertRaises(McpDenied) as raised:
+            self.gateway(enabled=True).discover_tools({key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(revoked)}.items()})
+        self.assertEqual(raised.exception.reason, "runtime-profile-disabled-or-revoked")
 
     def test_invocation_is_support_safe_and_write_stub_requires_approval(self) -> None:
         headers = {key.lower(): value for key, value in HEADERS.items()}
@@ -97,6 +148,10 @@ class WeaveMcpGatewayTest(unittest.TestCase):
             with self.assertRaises(HTTPError) as raised:
                 urlopen(denied, timeout=5)
             self.assertEqual(raised.exception.code, 403)
+            error = json.loads(raised.exception.read())
+            raised.exception.close()
+            self.assertEqual(error["auditRef"], "audit://mcp/denied/support-safe")
+            self.assertTrue(error["supportSafe"])
         finally:
             httpd.shutdown()
             httpd.server_close()

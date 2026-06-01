@@ -51,3 +51,13 @@ Bind, unbind, switch, and detach are admin-side actions. They must be unavailabl
 - member preview remains provider-neutral and hides provider/admin controls;
 - backend/admin API contracts remain support-safe and redacted;
 - `./gradlew specContract acceptanceContract adminCi --console=plain` passes for the slice.
+
+## RC go-live claim control
+
+For #586 and `WEAVE-RC-GATE`, the guided setup surface must include one RC go-live decision summary instead of scattering release readiness across separate checklists. The summary is owner/admin/operator-only and must join:
+
+- identity/provider setup, SecretRef/CredentialRef posture, policy preview, suite readiness, governed Weaver/MCP posture, support-bundle posture, and release blockers;
+- pinned spec corpus reference, conformance/acceptance gate evidence, generated release-notes source, support-safe bundle ref, accessibility evidence ref, unresolved Veto/blockers, audit refs, freshness, and next actions;
+- explicit release-claim control: any missing, stale, sample-only, or unresolved release-blocking gate blocks RC or production claims until a release owner records evidence or an accepted blocker.
+
+The RC summary must remain support-safe. It may show stable reason codes and evidence references, but never raw provider diagnostics, endpoint URLs, provider IDs, SecretRef values, bearer tokens, downstream bodies, raw Weaver runtime configuration, or member content. It does not authorize production cutover, live infrastructure mutation, RC tagging, or external release publication.

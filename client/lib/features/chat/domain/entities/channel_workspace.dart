@@ -548,7 +548,7 @@ class ChannelWorkspacePreview {
   factory ChannelWorkspacePreview.forConversation(
     ChatConversation conversation,
   ) {
-    final contextId = 'channel:${conversation.id}';
+    final contextId = _weaveSpaceContextId(conversation);
     return ChannelWorkspacePreview(
       channelId: conversation.id,
       channelTitle: conversation.title,
@@ -557,7 +557,7 @@ class ChannelWorkspacePreview {
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.chat,
           availability: ChannelWorkspaceSurfaceAvailability.available,
-          providerContractId: 'matrix-room',
+          providerContractId: 'weave-chat-conversation',
           contextId: contextId,
         ),
         ChannelWorkspaceSurface(
@@ -632,4 +632,14 @@ class ChannelWorkspacePreview {
   ChannelWorkspaceSurface surface(ChannelWorkspaceSurfaceKind kind) {
     return surfaces.singleWhere((surface) => surface.kind == kind);
   }
+}
+
+String _weaveSpaceContextId(ChatConversation conversation) {
+  final input = '${conversation.id}\u001f${conversation.title}';
+  var hash = 0xcbf29ce484222325;
+  for (final unit in input.codeUnits) {
+    hash ^= unit;
+    hash = (hash * 0x100000001b3) & 0xffffffffffffffff;
+  }
+  return 'space:channel-${hash.toRadixString(16).padLeft(16, '0')}';
 }

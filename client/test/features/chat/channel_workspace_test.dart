@@ -16,7 +16,9 @@ void main() {
   test('models a governed channel workspace without preview states', () {
     final preview = ChannelWorkspacePreview.forConversation(channel);
 
-    expect(preview.contextId, 'channel:!general:home.internal');
+    expect(preview.contextId, startsWith('space:channel-'));
+    expect(preview.contextId, isNot(contains('!general')));
+    expect(preview.contextId, isNot(contains('home.internal')));
     expect(preview.isChannelWorkspaceGoverned, isTrue);
     expect(preview.surfaces.map((surface) => surface.kind), [
       ChannelWorkspaceSurfaceKind.chat,
@@ -30,6 +32,10 @@ void main() {
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.chat).availability,
       ChannelWorkspaceSurfaceAvailability.available,
+    );
+    expect(
+      preview.surface(ChannelWorkspaceSurfaceKind.chat).providerContractId,
+      'weave-chat-conversation',
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.decisions).availability,
@@ -58,6 +64,14 @@ void main() {
     expect(
       preview.surfaces.map((surface) => surface.providerContractId),
       everyElement(isNot(contains('preview'))),
+    );
+    expect(
+      preview.surfaces.map((surface) => surface.providerContractId),
+      everyElement(isNot(contains('matrix'))),
+    );
+    expect(
+      preview.surfaces.map((surface) => surface.providerContractId),
+      everyElement(startsWith('weave-')),
     );
     expect(preview.meetingPreview.contextId, preview.contextId);
     expect(preview.weaverScoutPreview.contextId, preview.contextId);

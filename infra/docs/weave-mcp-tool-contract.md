@@ -1,6 +1,6 @@
 # Weave MCP tool contract
 
-Status: Sprint 16 design foundation, disabled by default.
+Status: Sprint 17 local RC evidence contract, disabled by default unless bound by a generated RuntimeProfile projection.
 
 This document records the MCP refinement for Sprint 16 without turning MCP into the product API. The Java/Kotlin backend remains the product and control-plane authority. A future MCP gateway under `infra/weave-mcp` may expose governed Weave domain tools to approved Weaver runtimes, but only as infra glue over backend-owned contracts.
 
@@ -8,7 +8,7 @@ This document records the MCP refinement for Sprint 16 without turning MCP into 
 
 Keep the Sprint 16 machine-readable contract under `infra/weave-workspace` because that operator/runtime area already owns Weaver lifecycle evidence and internal network boundaries. Use `infra/weave-mcp/` for any future Python FastMCP server package so the runnable MCP gateway stays clearly separated from workspace contracts and local lifecycle fixtures.
 
-FastMCP with Python `@tool` remains an implementation candidate only. Its architecture principle is `MCP = governed tool projection over Weave APIs`: validate typed input, derive org/user/runtime context, check RuntimeProfile grants plus effective policy, call backend facade APIs, redact output, and emit audit evidence.
+FastMCP with Python `@tool` remains an implementation candidate only. Its architecture principle is `MCP = governed tool projection over Weave APIs`: validate typed input, derive org/user/runtime context from a Weave-generated RuntimeProfile projection, call backend facade APIs, redact output, and emit audit evidence. Caller-supplied capability headers are not policy input.
 
 ## Authority boundary
 
@@ -16,7 +16,7 @@ FastMCP with Python `@tool` remains an implementation candidate only. Its archit
 - MCP exposes governed actions for approved runtimes; it does not replace backend APIs.
 - Runtime containers must not call provider APIs directly.
 - Normal members must not configure providers, secrets, endpoint URLs, or raw OpenClaw/MCP server config through MCP.
-- All tool calls are deny-by-default, audited, and filtered by Weave capability policy plus RuntimeProfile grants.
+- All tool calls are deny-by-default, audited, and filtered by the generated RuntimeProfile projection, which carries the Weave capability-policy intersection as support-safe grants and allowed tool names.
 
 ## Canonical MCP domains
 

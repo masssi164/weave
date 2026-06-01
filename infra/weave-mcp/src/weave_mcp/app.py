@@ -62,8 +62,8 @@ class _Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _error(self, status: int, reason: str) -> None:
-        self._send(status, {"error": reason, "supportSafe": True})
+    def _error(self, status: int, reason: str, audit_ref: str = "audit://mcp/denied/support-safe") -> None:
+        self._send(status, {"error": reason, "auditRef": audit_ref, "supportSafe": True})
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib handler name
         try:
@@ -74,7 +74,7 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self._error(404, "not-found")
         except McpDenied as error:
-            self._error(403, error.reason)
+            self._error(403, error.reason, error.audit_ref)
 
     def do_POST(self) -> None:  # noqa: N802 - stdlib handler name
         try:
@@ -85,7 +85,7 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self._error(404, "not-found")
         except McpDenied as error:
-            self._error(403, error.reason)
+            self._error(403, error.reason, error.audit_ref)
         except json.JSONDecodeError:
             self._error(400, "invalid-json")
 

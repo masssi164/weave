@@ -1068,7 +1068,8 @@
           "fragments": [
             "Guided setup assistant",
             "Readiness dashboard",
-            "support-safe audit evidence"
+            "support-safe audit evidence",
+            "RC go-live claim control"
           ]
         }
       ],

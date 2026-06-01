@@ -465,6 +465,14 @@ class AdminControlPlaneServiceTest {
         });
         assertThat(response.goLiveReadiness().supportSafe()).isTrue();
         assertThat(response.goLiveReadiness().normalMembersMayAccessSetupControls()).isFalse();
+        assertThat(response.goLiveReadiness().releaseClaimControl().pinnedSpecCorpusRef())
+                .contains("specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2");
+        assertThat(response.goLiveReadiness().releaseClaimControl().gates()).extracting(gate -> gate.key())
+                .contains("pinned-spec-corpus", "conformance-gates", "accessibility-evidence", "release-notes-input");
+        assertThat(response.goLiveReadiness().releaseClaimControl().gates()).anySatisfy(gate -> {
+            assertThat(gate.key()).isEqualTo("conformance-gates");
+            assertThat(gate.blocksReleaseClaim()).isTrue();
+        });
         assertThat(response.weaverRuntimeProjection().disabledByDefault()).isTrue();
         assertThat(response.weaverRuntimeProjection().rawRuntimeInternalsExposed()).isFalse();
         assertThat(response.weaverRuntimeProjection().items()).extracting(item -> item.id())
