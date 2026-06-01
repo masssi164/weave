@@ -1429,6 +1429,12 @@ export default function App({
                         {dryRunReport.memberImpactStates.join(", ")}
                       </Typography>
                       <Typography>
+                        Consequence counts: preserved {dryRunReport.consequencePreview.preservedCount}; lossy {dryRunReport.consequencePreview.lossyCount}; unsupported {dryRunReport.consequencePreview.unsupportedCount}; manual review {dryRunReport.consequencePreview.manualReviewCount}; archive only {dryRunReport.consequencePreview.archiveOnlyCount}.
+                      </Typography>
+                      <Typography>
+                        Member consequence copy: {dryRunReport.consequencePreview.memberImpactCopy.join(" ") || "backend dry-run reports member impact without provider internals"}
+                      </Typography>
+                      <Typography>
                         Source of truth:{" "}
                         {dryRunReport.lifecycleExpectations.sourceOfTruthPolicy}
                       </Typography>
@@ -1472,6 +1478,12 @@ export default function App({
                           dryRunReport.lifecycleExpectations
                             .rollbackSupportBoundary
                         }
+                      </Typography>
+                      <Typography>
+                        Rollback limits: {dryRunReport.consequencePreview.rollbackLimits.join("; ") || "reported by backend dry-run"}
+                      </Typography>
+                      <Typography>
+                        Apply blockers: {dryRunReport.consequencePreview.applyBlockers.join("; ") || "none reported by backend dry-run"}
                       </Typography>
                       <Typography>
                         Portable export/import:{" "}

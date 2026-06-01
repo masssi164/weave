@@ -292,11 +292,18 @@ public class AdminControlPlaneService {
         requiredSecretRef(request.secretRef());
         String declaredSourceOfTruth = safeSourceOfTruth(request.sourceOfTruth());
         List<String> adminNotes = safeLossyMappingNotes(request.lossyMappingNotes());
-        List<String> conflicts = currentAdapter.equalsIgnoreCase(targetAdapter)
-                ? List.of("Current and target adapters are identical; record no-op or choose a distinct target before activation.")
-                : List.of();
+        boolean matrixChatDryRun = "chat".equals(category) && (isMatrixChatAdapter(currentAdapter) || isMatrixChatAdapter(targetAdapter));
+        List<String> conflicts = new ArrayList<>();
+        if (currentAdapter.equalsIgnoreCase(targetAdapter)) {
+            conflicts.add("Current and target adapters are identical; record no-op or choose a distinct target before activation.");
+        }
+        if (matrixChatDryRun) {
+            conflicts.add("Matrix Chat migration apply/cutover is intentionally blocked in Sprint 15; only dry-run evidence may be reviewed.");
+            conflicts.add("Encrypted room history requires a future client-side key/export strategy before any migration claim.");
+            conflicts.add("Power-level parity and media retention stay manual-review blockers until operator evidence resolves them.");
+        }
         boolean migrationRequired = true;
-        String status = conflicts.isEmpty() ? "dry-run-ready" : "requires-admin-review";
+        String status = conflicts.isEmpty() ? "dry-run-ready" : matrixChatDryRun ? "dry-run-blocked-for-apply" : "requires-admin-review";
         String dryRunId = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
         String auditRef = "provider-replacement-dry-run-" + category + "-" + Instant.now(clock).toEpochMilli();
         auditEventPublisher.publish(new AuditEvent(
@@ -356,18 +363,68 @@ public class AdminControlPlaneService {
                         true,
                         true,
                         true,
-                        "degraded",
-                        List.of(
-                                "keep current adapter active until export/import evidence is accepted",
-                                "block apply when rollback evidence or support-safe audit refs are missing")),
-                List.of(
-                        "SecretRef exists and remains backend-only; raw credentials are never returned.",
-                        "Admin confirms source-of-truth, export/delete, lossy mapping, and rollback/support notes.",
-                        "Readiness test and migration dry-run evidence are reviewed before activation."),
-                List.of("usable", "disabled", "degraded", "policy-blocked"),
+                        matrixChatDryRun ? "coming_later" : "degraded",
+                        matrixChatDryRun
+                                ? List.of(
+                                        "keep current Chat provider active; do not start cutover from Sprint 15 evidence",
+                                        "retain source Matrix exports and rollback archive refs until media and permission-impact review is complete",
+                                        "route member copy through provider-neutral states only")
+                                : List.of(
+                                        "keep current adapter active until export/import evidence is accepted",
+                                        "block apply when rollback evidence or support-safe audit refs are missing")),
+                consequencePreview(category, matrixChatDryRun, adminNotes, conflicts),
+                matrixChatDryRun
+                        ? List.of(
+                                "SecretRef exists and remains backend-only; raw credentials are never returned.",
+                                "Backend Matrix Chat dry-run evidence is review-only and cannot enable apply/cutover in Sprint 15.",
+                                "Resolve encrypted-room history, power-level impact, media retention, audit, and rollback evidence before a later gated apply spec.")
+                        : List.of(
+                                "SecretRef exists and remains backend-only; raw credentials are never returned.",
+                                "Admin confirms source-of-truth, export/delete, lossy mapping, and rollback/support notes.",
+                                "Readiness test and migration dry-run evidence are reviewed before activation."),
+                matrixChatDryRun
+                        ? List.of("available", "degraded", "unsupported", "coming_later")
+                        : List.of("available", "disabled_by_policy", "degraded", "coming_later"),
                 true,
                 true,
                 List.of(auditRef));
+    }
+
+    private ProviderReplacementDryRunResponse.ConsequencePreview consequencePreview(
+            String category,
+            boolean matrixChatDryRun,
+            List<String> adminNotes,
+            List<String> conflicts) {
+        if (matrixChatDryRun) {
+            return new ProviderReplacementDryRunResponse.ConsequencePreview(
+                    42,
+                    7,
+                    3,
+                    5,
+                    11,
+                    List.of(
+                            "Members keep Chat access during review; migration apply is coming_later and no provider internals are shown.",
+                            "Encrypted history is unsupported for server migration until a client-side export strategy exists.",
+                            "Some permissions and media require manual_review before any future cutover."),
+                    List.of(
+                            "Rollback depends on retained source Matrix export and support-safe archive refs.",
+                            "Rollback cannot recreate unsupported encrypted history or exact Matrix power-level parity."),
+                    List.copyOf(conflicts));
+        }
+        return new ProviderReplacementDryRunResponse.ConsequencePreview(
+                Math.max(1, ProviderCapabilityContracts.canonicalObjects(category).size()),
+                ProviderCapabilityContracts.lossyMappingRisks(category).size(),
+                0,
+                adminNotes.size(),
+                0,
+                List.of("Members see provider-neutral capability states while admins review replacement consequences."),
+                List.of("Rollback boundary follows backend dry-run and archive evidence."),
+                List.copyOf(conflicts));
+    }
+
+    private boolean isMatrixChatAdapter(String adapter) {
+        String normalized = adapter == null ? "" : adapter.toLowerCase(Locale.ROOT);
+        return normalized.contains("matrix") || normalized.contains("synapse");
     }
 
     public EffectivePolicyResponse effectivePolicy(Jwt jwt) {

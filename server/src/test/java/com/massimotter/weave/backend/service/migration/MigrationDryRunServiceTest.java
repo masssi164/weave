@@ -46,6 +46,43 @@ class MigrationDryRunServiceTest {
     }
 
     @Test
+    void matrixChatDryRunEmitsBlockedSupportSafeEvidence() {
+        var repository = new InMemoryMigrationRunEvidenceRepository();
+        var service = new MigrationDryRunService(new IdempotencyKeyService(), repository);
+
+        var response = service.dryRun(new MigrationDryRunRequest(
+                "matrix-synapse",
+                new MigrationDryRunRequest.SourceInventory(
+                        2,
+                        4,
+                        8,
+                        6,
+                        120,
+                        List.of("rooms:read", "members:read", "messages:read", "media:read"))));
+
+        assertThat(response.sourceProvider()).isEqualTo("matrix-synapse");
+        assertThat(response.consentRequirements().missingScopes()).isEmpty();
+        assertThat(response.cutoverGates()).anySatisfy(gate -> assertThat(gate).contains("Sprint 15 Matrix Chat dry-run evidence is review-only"));
+        assertThat(response.cutoverGates()).anySatisfy(gate -> assertThat(gate).contains("Encrypted-room history is unsupported"));
+        assertThat(response.domainMappings()).filteredOn(mapping -> mapping.domain().equals("chat"))
+                .singleElement()
+                .satisfies(mapping -> {
+                    assertThat(mapping.sourceObject()).contains("matrix-synapse:channels/messages/memberships/e2ee-state");
+                    assertThat(mapping.lossyFields()).anySatisfy(field -> assertThat(field).contains("encrypted/redacted history"));
+                    assertThat(mapping.assumptions()).anySatisfy(assumption -> assertThat(assumption).contains("raw media URLs are redacted"));
+                });
+        assertThat(repository.findCurrent(response.jobId(), "chat", java.time.Instant.now()))
+                .get()
+                .satisfies(evidence -> {
+                    assertThat(evidence.adminApproved()).isFalse();
+                    assertThat(evidence.artifactRefs()).containsKeys("dryRunReportRef", "rollbackArchiveRef", "memberImpactPreviewRef");
+                    assertThat(evidence.providerDiagnostics()).containsExactly("support-safe migration dry-run evidence");
+                });
+        assertThat(response.toString().toLowerCase(Locale.ROOT))
+                .doesNotContain("mxc://", "access_token", "homeserverurl", "https://matrix");
+    }
+
+    @Test
     void providerNormalizationIsLocaleStable() {
         Locale previous = Locale.getDefault();
         try {

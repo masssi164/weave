@@ -243,7 +243,7 @@ class PlatformProductContractControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mode").value("dry-run"))
-                .andExpect(jsonPath("$.status").value("dry-run-ready"))
+                .andExpect(jsonPath("$.status").value("dry-run-blocked-for-apply"))
                 .andExpect(jsonPath("$.category").value("chat"))
                 .andExpect(jsonPath("$.currentAdapter").value("synapse-homeserver"))
                 .andExpect(jsonPath("$.targetAdapter").value("slack"))
@@ -255,7 +255,9 @@ class PlatformProductContractControllerTest {
                 .andExpect(jsonPath("$.lossyMappingReport.contractRisks", hasItem(containsString("Slack"))))
                 .andExpect(jsonPath("$.lifecycleExpectations.exportExpectation", containsString("export")))
                 .andExpect(jsonPath("$.lifecycleExpectations.deprovisionExpectation", containsString("deprovision")))
-                .andExpect(jsonPath("$.memberImpactStates", hasItem("policy-blocked")))
+                .andExpect(jsonPath("$.memberImpactStates", hasItem("coming_later")))
+                .andExpect(jsonPath("$.consequencePreview.unsupportedCount").value(3))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("Sprint 15"))))
                 .andExpect(jsonPath("$.auditRefs[0]", containsString("provider-replacement-dry-run-chat")))
                 .andExpect(content().string(not(containsString("raw-token"))))
                 .andExpect(content().string(not(containsString("tenant.example.invalid"))))
@@ -266,6 +268,31 @@ class PlatformProductContractControllerTest {
                 .andExpect(content().string(containsString("provider.replacement.dry_run")))
                 .andExpect(content().string(not(containsString("raw-token"))))
                 .andExpect(content().string(not(containsString("tenant.example.invalid"))));
+    }
+
+    @Test
+    void matrixProviderReplacementDryRunKeepsPolicyBlockersForNoOpSelections() throws Exception {
+        mockMvc.perform(post("/api/admin/providers/replacements/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "category": "chat",
+                                  "currentAdapter": "synapse-homeserver",
+                                  "targetAdapter": "synapse-homeserver",
+                                  "choiceModel": "external_existing_provider",
+                                  "secretRef": "secretref://weave/provider/matrix",
+                                  "sourceOfTruth": "selected chat provider owns message history",
+                                  "lossyMappingNotes": [],
+                                  "reason": "record no-op evidence without weakening Sprint 15 blockers"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("dry-run-blocked-for-apply"))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("identical"))))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("Sprint 15"))))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("Encrypted room history"))))
+                .andExpect(jsonPath("$.consequencePreview.applyBlockers", hasItem(containsString("Power-level parity"))));
     }
 
     @Test

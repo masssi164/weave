@@ -45,6 +45,8 @@ The Admin Console setup cockpit is domain-first: each card starts with the Weave
 
 Before applying or switching a provider, run a backend dry-run for the selected domain, adapter, and choice model. Apply remains blocked unless the current Admin Console session holds a fresh backend-issued dry-run evidence ref, the backend gates report admin/operator scope, audit sink availability, rollback/archive refs, source/target readiness, export snapshots, loss/conflict handling, and the operator explicitly confirms member impact and rollback consequences. Missing, stale, or client-only/forged dry-run evidence must stop the UI before it calls the apply endpoint.
 
+For Matrix Chat Sprint 15, the dry-run is review-only: the backend returns consequence counts, member-impact copy, rollback limits, audit refs, and explicit apply blockers, but Matrix apply/cutover remains blocked by default. Operators must follow [Matrix Chat Sprint 15 dry-run policy](matrix-chat-sprint15-dry-run-policy.md): no raw Matrix endpoints, `mxc://` values, tokens, homeserver details, provider internals, or raw diagnostics may enter Admin Console evidence, support bundles, issues, or release artifacts.
+
 Rollback decision points are: keep the current adapter active until export/import and rollback evidence pass; archive provider mapping refs before cutover; use only support-safe audit refs in support bundles; and keep the member preview provider-neutral (`available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`) during and after the switch.
 
 For Weaver chat/model routing, admins select the `model` provider category through the Admin Control Plane, for example `lmstudio` with a `SecretRef`/Credential Broker handle. The member Chat path stays `pa-weaver` inside Weave Chat; members do not configure model endpoints, raw model ids, TLS policy, tokens, or provider rooms. If the selected model endpoint uses a private development CA such as mkcert, mount the CA certificate into the runtime/container read-only and point the HTTP client trust configuration at it (for curl-based probes, `CURL_CA_BUNDLE=/path/in/container/rootCA.pem`). Do not use `--insecure`, disabled certificate validation, or equivalent flags as final evidence; they are temporary diagnostics only.
@@ -131,6 +133,12 @@ Readiness states must be support-safe and action-oriented. Member contracts enco
 Workspace/Admin Health is the operator control plane for this posture. The client readiness cockpit summarizes overall posture, category health, support-safe evidence, member/admin boundaries, and the next operator action from backend-owned readiness snapshots. Category rows should state member impact and policy state without leaking provider internals; provider adapter evidence remains admin-only.
 
 Audit records should cover admin changes, denied access, provider writes, readiness transitions, SecretRef rotations, mapping-loss events, and support-bundle generation.
+
+## Matrix Chat provider-switch dry-runs
+
+Sprint 15 Matrix Chat provider-switch evidence is review-only. Operators may run backend-owned dry-runs and inspect Admin Console consequence previews, but Matrix apply/cutover remains blocked until a separate future gate promotes it. Use only SecretRefs and support-safe object/count evidence; never paste raw homeserver URLs, `mxc://` values, provider tokens, room IDs, access tokens, or downstream diagnostics into requests, issues, support bundles, or release artifacts.
+
+Required review evidence before any future promotion includes consequence counts, member-impact copy using provider-neutral states, power-level permission-impact decisions, media retention/archive policy, rollback limits, and audit refs. Encrypted Matrix history stays `unsupported`/`coming_later` until a client-side key/export strategy is specified and tested. The detailed Sprint 15 runbook and accessibility evidence template live in [Matrix Chat Sprint 15 dry-run policy](matrix-chat-sprint15-dry-run-policy.md).
 
 ## Infra and bootstrap
 

@@ -3,6 +3,7 @@
 Use this page for release-affecting changes that have merged but are not included in a tagged release yet.
 
 ## Added
+- Sprint 15 adds organization-embedding and provider-neutral replacement evidence: backend-owned effective-policy/readiness boundaries, support-safe Admin Console consequence copy, Matrix Chat as the first dry-run proof slice, an operator runbook, and accessibility evidence template while keeping provider apply/cutover blocked.
 
 - Context-driven workflow primitives now have a provider-neutral, linear-first preview contract with explicit context references, blocker/evidence metadata, sample workflows, and dry-run-only governed agent participation.
 - Contextual meetings now have a fail-closed architecture contract preserving LiveKit as the active meetings provider contract while documenting encryption boundaries, consent defaults, and accessible join requirements before media controls are enabled.
@@ -38,6 +39,7 @@ Use this page for release-affecting changes that have merged but are not include
 ## Migration/Operator Notes
 
 - Admin Console provider setup now shows domain-first reality level, evidence freshness, restart-survival evidence, and blocks provider apply/switch actions without fresh backend dry-run evidence, consequence confirmation, audit/rollback gates, and provider-neutral member impact preview.
+- Chat provider-replacement evidence is operator-review-only in Sprint 15: encrypted Matrix history remains unsupported/coming_later, Matrix power-level and media-retention parity remain manual-review blockers, and no release note may imply lossless migration, E2EE history migration, or production cutover.
 - Self-hosted operations now define provider-aware backup, restore, upgrade, schema migration, support-bundle redaction, observability, and restore-smoke evidence expectations.
 
 ## Known Issues
