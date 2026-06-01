@@ -26,9 +26,10 @@ assert_contains() {
 jq -e '
   .schema == "weave-mcp-tool-contract-v1"
   and .status == "design-foundation-disabled"
-  and .placement.area == "infra/weave-workspace"
-  and (.placement.futurePackageCandidates | index("infra/weave-workspace/weave-mcp"))
+  and .placement.contractArea == "infra/weave-workspace"
+  and .placement.futureServerPackage == "infra/weave-mcp"
   and (.placement.implementationHint | test("FastMCP"))
+  and (.placement.architecturePrinciple | test("governed tool projection over Weave APIs"))
   and .authorityBoundary.productAuthority == "weave-backend"
   and .authorityBoundary.canonicalApiRemainsAuthoritative == true
   and .authorityBoundary.runtimeDirectProviderAccessAllowed == false

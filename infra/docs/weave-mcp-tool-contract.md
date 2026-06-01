@@ -2,13 +2,13 @@
 
 Status: Sprint 16 design foundation, disabled by default.
 
-This document records the MCP refinement for Sprint 16 without turning MCP into the product API. The Java/Kotlin backend remains the product and control-plane authority. A future MCP gateway under `infra/weave-workspace` may expose governed Weave domain tools to approved Weaver runtimes, but only as infra glue over backend-owned contracts.
+This document records the MCP refinement for Sprint 16 without turning MCP into the product API. The Java/Kotlin backend remains the product and control-plane authority. A future MCP gateway under `infra/weave-mcp` may expose governed Weave domain tools to approved Weaver runtimes, but only as infra glue over backend-owned contracts.
 
 ## Placement
 
-Use `infra/weave-workspace` for the first contract because it is the operator/runtime area that already owns Weaver lifecycle evidence and internal network boundaries. Candidate future package names are `infra/weave-workspace/weave-mcp` or `infra/weave-workspace/mcp-gateway`.
+Keep the Sprint 16 machine-readable contract under `infra/weave-workspace` because that operator/runtime area already owns Weaver lifecycle evidence and internal network boundaries. Use `infra/weave-mcp/` for any future Python FastMCP server package so the runnable MCP gateway stays clearly separated from workspace contracts and local lifecycle fixtures.
 
-FastMCP with Python `@tool` remains an implementation candidate only. Sprint 16 should not commit the product architecture to a Python MCP server until the backend facade, policy, audit, and RuntimeProfile contracts prove the shape.
+FastMCP with Python `@tool` remains an implementation candidate only. Its architecture principle is `MCP = governed tool projection over Weave APIs`: validate typed input, derive org/user/runtime context, check RuntimeProfile grants plus effective policy, call backend facade APIs, redact output, and emit audit evidence.
 
 ## Authority boundary
 
@@ -49,6 +49,6 @@ Do not build every provider adapter in Sprint 16. The safe proof slice is:
 1. keep backend-owned Admin Console/readiness and suite facade contracts as the source of truth;
 2. record the MCP contract and test its fail-closed, support-safe domain shape;
 3. project Weaver RuntimeProfile/tool governance from those domains while disabled by default;
-4. optionally add one or two mock/in-memory proof tools later only after the backend contract is stable.
+4. if a runnable proof is added later, place it under `infra/weave-mcp/` with read-only tools such as `admin.get_readiness`, `weaver.get_runtime_profile_projection`, and one suite-domain search, plus an approval-required write stub that fails closed without an approval receipt.
 
 This is a scope adjustment to the Weaver/runtime and suite-facade design foundation, not a runtime launch or production MCP gateway claim.

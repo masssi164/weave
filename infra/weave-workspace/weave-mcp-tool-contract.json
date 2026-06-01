@@ -2,12 +2,10 @@
   "schema": "weave-mcp-tool-contract-v1",
   "status": "design-foundation-disabled",
   "placement": {
-    "area": "infra/weave-workspace",
-    "futurePackageCandidates": [
-      "infra/weave-workspace/weave-mcp",
-      "infra/weave-workspace/mcp-gateway"
-    ],
-    "implementationHint": "FastMCP Python @tool is an implementation candidate, not product API authority"
+    "contractArea": "infra/weave-workspace",
+    "futureServerPackage": "infra/weave-mcp",
+    "implementationHint": "FastMCP Python @tool is an implementation candidate under infra/weave-mcp, not product API authority",
+    "architecturePrinciple": "MCP = governed tool projection over Weave APIs"
   },
   "authorityBoundary": {
     "productAuthority": "weave-backend",
