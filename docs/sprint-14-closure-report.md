@@ -82,12 +82,18 @@ WEAVE_WEAVER_PA_CHAT_LIVE=true ./gradlew test --tests 'com.massimotter.weave.bac
 Post-merge `main` closure evidence:
 
 ```text
-CI run https://github.com/masssi164/weave/actions/runs/26735924061
-# head=0e3eea6, workflow=CI, conclusion=success
+CI run https://github.com/masssi164/weave/actions/runs/26738067087
+# head=e4af279, workflow=CI, conclusion=success
 
-Live Stack E2E run https://github.com/masssi164/weave/actions/runs/26736542604
-# head=0e3eea6, workflow=Live Stack E2E, conclusion=success,
-# job=Bootstrap Stack And Run App E2E, completed at 2026-06-01T05:26:26Z.
+Live Stack E2E run https://github.com/masssi164/weave/actions/runs/26738076622
+# head=e4af279, workflow=Live Stack E2E, conclusion=success,
+# artifact=weave-live-stack-acceptance-evidence, id=7324563895, size=26917, expired=false.
+# manifest: valid=true, scenarioCount=41, mappingCount=41,
+# liveRuntimeMappingCount=8, offlineSpecMappingCount=33,
+# runtimeEvidenceCollected=true, findings=[].
+# observed markers: AUTH_RESULT, PROFILE_RESULT, CHAT_RESULT, MATRIX_RESULT,
+# E2EE_RESULT, FILES_RESULT, PROVIDER_STACK_RESULT, CALENDAR_RESULT,
+# BOARDS_RESULT, PROVIDER_REALITY_RESULT.
 ```
 
 ## Decisions and boundaries
