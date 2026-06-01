@@ -122,23 +122,6 @@ public class ChatFacadeService {
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
             AuditEventPublisher auditEventPublisher,
-            WeaverPaChatClient weaverPaChatClient) {
-        this(
-                workspaceCapabilityProperties,
-                workspaceCapabilityService,
-                contextAuthorizationPort,
-                contextAuthorizationProperties,
-                auditEventPublisher,
-                new InMemoryProviderSelectionRepository(),
-                weaverPaChatClient);
-    }
-
-    public ChatFacadeService(
-            WorkspaceCapabilityProperties workspaceCapabilityProperties,
-            WorkspaceCapabilityService workspaceCapabilityService,
-            ContextAuthorizationPort contextAuthorizationPort,
-            ContextAuthorizationProperties contextAuthorizationProperties,
-            AuditEventPublisher auditEventPublisher,
             ObjectProvider<ProviderSelectionRepository> providerSelectionRepository,
             WeaverPaChatClient weaverPaChatClient) {
         this(
@@ -148,6 +131,23 @@ public class ChatFacadeService {
                 contextAuthorizationProperties,
                 auditEventPublisher,
                 providerSelectionRepository == null ? null : providerSelectionRepository.getIfAvailable(),
+                weaverPaChatClient);
+    }
+
+    public ChatFacadeService(
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            AuditEventPublisher auditEventPublisher,
+            WeaverPaChatClient weaverPaChatClient) {
+        this(
+                workspaceCapabilityProperties,
+                workspaceCapabilityService,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                auditEventPublisher,
+                new InMemoryProviderSelectionRepository(),
                 weaverPaChatClient);
     }
 
@@ -1003,7 +1003,7 @@ public class ChatFacadeService {
                 "msg-seed-pa-weaver",
                 paWeaver.id(),
                 "weaver:pa",
-                "PA Weaver is available through Weave Chat. Messages route through channels.weave-chat; provider routing remains backend-owned.",
+                "PA Weaver uses Weave Chat when the governed runtime bridge is enabled. Messages route through channels.weave-chat; provider routing remains backend-owned.",
                 List.of(),
                 false,
                 false,

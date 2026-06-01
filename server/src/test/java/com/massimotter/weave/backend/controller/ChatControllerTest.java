@@ -1,5 +1,6 @@
 package com.massimotter.weave.backend.controller;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
@@ -37,13 +38,18 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
+import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
+import com.massimotter.weave.backend.provider.ProviderSelection;
+import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.service.ChatFacadeService;
 import com.massimotter.weave.backend.service.WeaverPaChatClient;
+import com.massimotter.weave.backend.service.WeaverPaChatTurnRequest;
 import com.massimotter.weave.backend.service.WeaverPaChatTurnResult;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
@@ -111,22 +117,44 @@ class ChatControllerTest {
     @MockBean
     private ChatDomainFacadeService chatDomainFacadeService;
 
+    private static final AtomicReference<WeaverPaChatTurnRequest> LAST_PA_WEAVER_REQUEST = new AtomicReference<>();
+
     @TestConfiguration
     static class PaWeaverTestClientConfiguration {
         @Bean
+        ProviderSelectionRepository providerSelectionRepository() {
+            InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+            selections.save(new ProviderSelection(
+                    "model",
+                    "custom-lmstudio",
+                    "recommended_self_hosted_default",
+                    "secretref://weave/provider/custom-lmstudio",
+                    "actor:admin",
+                    Instant.parse("2026-05-25T10:00:00Z"),
+                    true,
+                    true,
+                    false,
+                    List.of()));
+            return selections;
+        }
+
+        @Bean
         WeaverPaChatClient weaverPaChatClient() {
-            return request -> new WeaverPaChatTurnResult(
-                    true,
-                    true,
-                    "PA Weaver returned a test LM Studio answer through channels.weave-chat.",
-                    request.modelRef(),
-                    "provider:model:lmstudio",
-                    "audit://weaver/pa-chat/test-roundtrip",
-                    Map.of(
-                            "channelId", request.channelId(),
-                            "modelRef", request.modelRef(),
-                            "rawProviderDiagnosticsExposed", false,
-                            "supportSafe", true));
+            return request -> {
+                LAST_PA_WEAVER_REQUEST.set(request);
+                return new WeaverPaChatTurnResult(
+                        true,
+                        true,
+                        "PA Weaver returned a test LM Studio answer through channels.weave-chat.",
+                        request.modelRef(),
+                        request.providerRef(),
+                        "audit://weaver/pa-chat/test-roundtrip",
+                        Map.of(
+                                "channelId", request.channelId(),
+                                "modelRef", request.modelRef(),
+                                "rawProviderDiagnosticsExposed", false,
+                                "supportSafe", true));
+            };
         }
     }
 
@@ -231,6 +259,7 @@ class ChatControllerTest {
     void paWeaverChatRoutesMemberMessageToWeaverAndStoresLmStudioResponse() throws Exception {
         allowChatPermission(ContextPermission.EDIT);
         allowChatPermission(ContextPermission.VIEW);
+        LAST_PA_WEAVER_REQUEST.set(null);
 
         mockMvc.perform(post("/api/chat/conversations/pa-weaver/messages")
                         .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
@@ -246,6 +275,10 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.deliveryEvidence.modelRef").value("lmstudio/qwen/qwen3.5-9b"))
                 .andExpect(content().string(not(containsString("secretref://"))))
                 .andExpect(content().string(not(containsString("access_token"))));
+
+        assertThat(LAST_PA_WEAVER_REQUEST.get()).isNotNull();
+        assertThat(LAST_PA_WEAVER_REQUEST.get().providerRef()).isEqualTo("provider:model:custom-lmstudio");
+        assertThat(LAST_PA_WEAVER_REQUEST.get().channelId()).isEqualTo("channels.weave-chat");
 
         mockMvc.perform(get("/api/chat/conversations/pa-weaver/messages")
                         .with(workspaceJwt("member", List.of("weave-weaver-runtime", "weave-weaver-pilot"))))
