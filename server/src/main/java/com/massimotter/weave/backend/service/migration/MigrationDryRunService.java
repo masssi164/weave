@@ -190,7 +190,11 @@ public class MigrationDryRunService {
         refs.put("lossyMappingReportRef", prefix + "lossy-mapping-report");
         refs.put("conflictReportRef", prefix + "conflict-report");
         refs.put("memberImpactPreviewRef", prefix + "member-impact-preview");
+        refs.put("cutoverPlanRef", prefix + "cutover-plan");
         refs.put("rollbackArchiveRef", prefix + "rollback-archive");
+        refs.put("rollbackRestoreSmokeRef", prefix + "rollback-restore-smoke");
+        refs.put("noUnaccountedDataLossReportRef", prefix + "no-unaccounted-data-loss-report");
+        refs.put("releaseClaimBoundaryRef", prefix + "release-claim-boundary");
         refs.put("postApplyVerificationRef", prefix + "post-apply-verification");
         return refs;
     }

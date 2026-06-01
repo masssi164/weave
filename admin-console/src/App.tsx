@@ -1681,6 +1681,24 @@ export default function App({
                         Apply blockers: {dryRunReport.consequencePreview.applyBlockers.join("; ") || "none reported by backend dry-run"}
                       </Typography>
                       <Typography>
+                        No-unaccounted-data-loss report: supported {dryRunReport.noUnaccountedDataLossReport?.supportedCount ?? dryRunReport.consequencePreview.preservedCount}; known loss {dryRunReport.noUnaccountedDataLossReport?.lossyCount ?? dryRunReport.consequencePreview.lossyCount}; unsupported {dryRunReport.noUnaccountedDataLossReport?.unsupportedCount ?? dryRunReport.consequencePreview.unsupportedCount}; manual review {dryRunReport.noUnaccountedDataLossReport?.manualReviewCount ?? dryRunReport.consequencePreview.manualReviewCount}; archive only {dryRunReport.noUnaccountedDataLossReport?.archiveOnlyCount ?? dryRunReport.consequencePreview.archiveOnlyCount}; vendor locked {dryRunReport.noUnaccountedDataLossReport?.vendorLockedCount ?? 0}.
+                      </Typography>
+                      <Typography>
+                        Known-loss and unsupported data: {[
+                          ...(dryRunReport.noUnaccountedDataLossReport?.knownLosses ?? []),
+                          ...(dryRunReport.noUnaccountedDataLossReport?.unsupportedData ?? []),
+                        ].join("; ") || "none reported by backend dry-run"}
+                      </Typography>
+                      <Typography>
+                        Bounded proof: {dryRunReport.boundedProof?.proofBoundary ?? "dry_run_only"}; limited apply {dryRunReport.boundedProof?.limitedApplyAllowed ? "allowed" : "blocked"}; production cutover {dryRunReport.boundedProof?.productionCutoverAllowed ? "allowed" : "blocked"}; rollback restore-smoke {dryRunReport.boundedProof?.rollbackRestoreSmokeRequired ?? true ? "required" : "not required"}.
+                      </Typography>
+                      <Typography>
+                        Release claim boundaries: {dryRunReport.noUnaccountedDataLossReport?.releaseClaimBoundaries?.join("; ") || "bounded by backend evidence"}
+                      </Typography>
+                      <Typography>
+                        Release blockers: {dryRunReport.boundedProof?.releaseBlockers?.join("; ") || "none reported by backend dry-run"}
+                      </Typography>
+                      <Typography>
                         Portable export/import:{" "}
                         {
                           dryRunReport.portableExportImportContract

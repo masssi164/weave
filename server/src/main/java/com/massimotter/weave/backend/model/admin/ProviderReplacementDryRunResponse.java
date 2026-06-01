@@ -21,6 +21,8 @@ public record ProviderReplacementDryRunResponse(
         PortableExportImportContract portableExportImportContract,
         SwitchPlan switchPlan,
         ConsequencePreview consequencePreview,
+        NoUnaccountedDataLossReport noUnaccountedDataLossReport,
+        BoundedApplyCutoverRollbackProof boundedProof,
         List<String> cutoverGates,
         List<String> memberImpactStates,
         boolean supportSafe,
@@ -75,6 +77,38 @@ public record ProviderReplacementDryRunResponse(
             List<String> recoveryActions) {
         public SwitchPlan {
             recoveryActions = recoveryActions == null ? List.of() : List.copyOf(recoveryActions);
+        }
+    }
+
+    public record NoUnaccountedDataLossReport(
+            int supportedCount,
+            int lossyCount,
+            int unsupportedCount,
+            int manualReviewCount,
+            int archiveOnlyCount,
+            int vendorLockedCount,
+            List<String> knownLosses,
+            List<String> unsupportedData,
+            List<String> rollbackLimits,
+            List<String> releaseClaimBoundaries) {
+        public NoUnaccountedDataLossReport {
+            knownLosses = knownLosses == null ? List.of() : List.copyOf(knownLosses);
+            unsupportedData = unsupportedData == null ? List.of() : List.copyOf(unsupportedData);
+            rollbackLimits = rollbackLimits == null ? List.of() : List.copyOf(rollbackLimits);
+            releaseClaimBoundaries = releaseClaimBoundaries == null ? List.of() : List.copyOf(releaseClaimBoundaries);
+        }
+    }
+
+    public record BoundedApplyCutoverRollbackProof(
+            String proofBoundary,
+            boolean limitedApplyAllowed,
+            boolean productionCutoverAllowed,
+            boolean rollbackRestoreSmokeRequired,
+            List<String> requiredEvidenceRefs,
+            List<String> releaseBlockers) {
+        public BoundedApplyCutoverRollbackProof {
+            requiredEvidenceRefs = requiredEvidenceRefs == null ? List.of() : List.copyOf(requiredEvidenceRefs);
+            releaseBlockers = releaseBlockers == null ? List.of() : List.copyOf(releaseBlockers);
         }
     }
 

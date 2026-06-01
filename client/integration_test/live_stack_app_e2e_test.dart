@@ -543,6 +543,36 @@ void main() {
         'fileName=$seededFileName',
       );
 
+      final workspaceLoopFileRef = 'file:$seededFileName';
+      final workspaceLoopChatMessage = _decodeHttpJson(
+        await providerHttpClient.post(
+          config.apiUri('/api/chat/conversations/channel-general/messages'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(<String, Object>{
+            'text':
+                'Workspace loop evidence: file reference is ready for board, calendar, and decision follow-up.',
+            'attachmentRefs': <String>[workspaceLoopFileRef],
+          }),
+        ),
+        operation: 'send workspace loop chat message',
+      );
+      final workspaceLoopChatMessageId = _jsonString(
+        workspaceLoopChatMessage['id'],
+      );
+      final workspaceLoopConversationId = _jsonString(
+        workspaceLoopChatMessage['conversationId'],
+      );
+      final workspaceLoopChatUsesCanonicalIds =
+          workspaceLoopConversationId == 'channel-general' &&
+          workspaceLoopChatMessageId.startsWith('msg-') &&
+          _jsonList(
+            workspaceLoopChatMessage['attachmentRefs'],
+          ).contains(workspaceLoopFileRef);
+
       final calendarRepository = container.read(calendarRepositoryProvider);
       final calendarScopes = await calendarRepository.loadScopes();
       final workspaceScopes = calendarScopes.scopes
@@ -845,6 +875,118 @@ void main() {
         'nonDragMutationWorked=$boardsNonDragMutationWorked',
       );
 
+      final workspaceLoopCalendarRef = calendarManageEventsAllowed
+          ? 'calendar:$calendarEventId'
+          : 'calendar:policy-blocked';
+      final createdDecision = _decodeHttpJson(
+        await liveHttpClient.post(
+          config.apiUri('/api/chat/conversations/channel-general/decisions'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode(<String, Object>{
+            'title': 'Accept workspace loop evidence for Sprint 18',
+            'status': 'accepted',
+            'risks': <String>[
+              'Live provider writes can be unavailable; blocked writes stay explicit.',
+            ],
+            'openQuestions': <String>[
+              calendarManageEventsAllowed
+                  ? 'None for the evidenced calendar path.'
+                  : 'Calendar write remains blocked by capability policy.',
+            ],
+            'followUpRefs': <String>[
+              workspaceLoopCalendarRef,
+              'evidence:workspace-loop-live-stack',
+            ],
+            'references': <Map<String, String>>[
+              <String, String>{
+                'type': 'chat-message',
+                'ref': 'message:$workspaceLoopChatMessageId',
+                'label': 'Workspace loop chat context',
+                'excerpt':
+                    'File reference is ready for board, calendar, and decision follow-up.',
+              },
+              <String, String>{
+                'type': 'file',
+                'ref': workspaceLoopFileRef,
+                'label': 'Uploaded workspace loop file',
+                'excerpt': seededFileName,
+              },
+              <String, String>{
+                'type': 'task',
+                'ref': 'task:$taskId',
+                'label': 'Completed non-drag board task',
+                'excerpt':
+                    'Board task reached completed status through the backend facade.',
+              },
+            ],
+          }),
+        ),
+        operation: 'create workspace loop decision',
+      );
+      final decisionsSnapshot = _decodeHttpJson(
+        await liveHttpClient.get(
+          config.apiUri('/api/chat/conversations/channel-general/decisions'),
+          headers: <String, String>{
+            'Accept': 'application/json',
+            'Authorization': 'Bearer ${appSession.accessToken}',
+          },
+        ),
+        operation: 'read workspace loop decisions',
+      );
+      final workspaceLoopDecisionId = _jsonString(createdDecision['id']);
+      final workspaceLoopDecisionContextId = _jsonString(
+        createdDecision['contextId'],
+      );
+      final workspaceLoopDecisionRefs = _jsonListOfMaps(
+        createdDecision['references'],
+      );
+      final workspaceLoopDecisionStored = _jsonListOfMaps(
+        decisionsSnapshot['records'],
+      ).any((record) => record['id'] == workspaceLoopDecisionId);
+      final workspaceLoopSupportSafe =
+          createdDecision['supportSafe'] == true &&
+          _supportSafeEvidenceValue(<String, Object?>{
+            'contextId': workspaceLoopDecisionContextId,
+            'conversationId': workspaceLoopConversationId,
+            'chatMessageId': workspaceLoopChatMessageId,
+            'fileRef': workspaceLoopFileRef,
+            'taskId': taskId,
+            'calendarRef': workspaceLoopCalendarRef,
+            'decisionId': workspaceLoopDecisionId,
+          });
+      final workspaceLoopComplete =
+          workspaceLoopDecisionContextId == 'workspace-default' &&
+          workspaceLoopConversationId == 'channel-general' &&
+          workspaceLoopChatUsesCanonicalIds &&
+          matchedFiles.isNotEmpty &&
+          boardsNonDragMutationWorked &&
+          calendarWritePathValid &&
+          workspaceLoopDecisionId.startsWith('decision-') &&
+          workspaceLoopDecisionRefs.length == 3 &&
+          workspaceLoopDecisionStored &&
+          workspaceLoopSupportSafe;
+      // ignore: avoid_print
+      print(
+        'WORKSPACE_LOOP_RESULT contextId=$workspaceLoopDecisionContextId '
+        'spaceId=$workspaceLoopDecisionContextId '
+        'conversationId=$workspaceLoopConversationId '
+        'chatMessageId=$workspaceLoopChatMessageId '
+        'fileRef=$workspaceLoopFileRef '
+        'boardTaskId=$taskId '
+        'calendarRef=$workspaceLoopCalendarRef '
+        'calendarWrite=${calendarManageEventsAllowed ? 'real-write' : 'blocked-by-capability-policy'} '
+        'decisionId=$workspaceLoopDecisionId '
+        'realWrites=chat,file,board,decision '
+        'canonicalIds=$workspaceLoopChatUsesCanonicalIds '
+        'decisionStored=$workspaceLoopDecisionStored '
+        'supportSafe=$workspaceLoopSupportSafe '
+        'complete=$workspaceLoopComplete',
+      );
+
       final organizationManifest = _decodeHttpJson(
         await liveHttpClient.get(
           config.apiUri('/api/v1/organization/manifest'),
@@ -926,6 +1068,7 @@ void main() {
           !profileReadinessOk ||
           !boardsProviderNeutral ||
           !boardsNonDragMutationWorked ||
+          !workspaceLoopComplete ||
           !providerRealityBacksLivePaths ||
           !callsAvailableOrHonestUnavailable ||
           !documentsAvailableOrHonestUnavailable ||
@@ -977,6 +1120,9 @@ void main() {
           'boardsProviderNeutral=$boardsProviderNeutral '
           'boardsNonDragMutationWorked=$boardsNonDragMutationWorked '
           'boardsTaskId=$taskId '
+          'workspaceLoopComplete=$workspaceLoopComplete '
+          'workspaceLoopDecisionId=$workspaceLoopDecisionId '
+          'workspaceLoopSupportSafe=$workspaceLoopSupportSafe '
           'providerRealityBacksLivePaths=$providerRealityBacksLivePaths '
           'callsAvailableOrHonestUnavailable=$callsAvailableOrHonestUnavailable '
           'documentsAvailableOrHonestUnavailable=$documentsAvailableOrHonestUnavailable '
@@ -1015,6 +1161,8 @@ void main() {
       expect(profileReadinessOk, isTrue);
       expect(boardsProviderNeutral, isTrue);
       expect(boardsNonDragMutationWorked, isTrue);
+      expect(workspaceLoopComplete, isTrue);
+      expect(workspaceLoopSupportSafe, isTrue);
       expect(providerRealityBacksLivePaths, isTrue);
       expect(callsAvailableOrHonestUnavailable, isTrue);
       expect(documentsAvailableOrHonestUnavailable, isTrue);
@@ -1104,6 +1252,17 @@ List<Map<String, dynamic>> _jsonListOfMaps(Object? value) {
 }
 
 String _jsonString(Object? value) => value is String ? value : '';
+
+List<Object?> _jsonList(Object? value) =>
+    value is List ? value : const <Object?>[];
+
+bool _supportSafeEvidenceValue(Object? value) {
+  final encoded = jsonEncode(value);
+  return !RegExp(
+    r'(Authorization|Bearer|token|secret|password|https?://|/api/v3/|/work_packages/|/projects/|SecretRef|secretref://)',
+    caseSensitive: false,
+  ).hasMatch(encoded);
+}
 
 String _capabilityEvidence(Map<String, dynamic> capability) {
   final enabled = capability['enabled'] == true;

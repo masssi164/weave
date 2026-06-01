@@ -35,14 +35,19 @@ class MigrationApplyGateServiceTest {
 
     @Test
     void blocksApplyWhenServerEvidenceLacksArtifactsIdentityMappingAuditSinkOrApproval() {
-        repository.save(evidence("approved", Map.of(
-                "dryRunReportRef", "dry-run:boards:001",
-                "exportSnapshotRef", "export:boards:001",
-                "importPlanRef", "import:boards:001",
-                "providerMappingRef", "mapping:boards:001",
-                "memberImpactPreviewRef", "impact:boards:001",
-                "rollbackArchiveRef", "rollback:boards:001",
-                "postApplyVerificationRef", "verify:boards:001"), false, false, false));
+        Map<String, String> partialRefs = new LinkedHashMap<>();
+        partialRefs.put("dryRunReportRef", "dry-run:boards:001");
+        partialRefs.put("exportSnapshotRef", "export:boards:001");
+        partialRefs.put("importPlanRef", "import:boards:001");
+        partialRefs.put("providerMappingRef", "mapping:boards:001");
+        partialRefs.put("memberImpactPreviewRef", "impact:boards:001");
+        partialRefs.put("cutoverPlanRef", "cutover:boards:001");
+        partialRefs.put("rollbackArchiveRef", "rollback:boards:001");
+        partialRefs.put("rollbackRestoreSmokeRef", "restore-smoke:boards:001");
+        partialRefs.put("noUnaccountedDataLossReportRef", "no-loss:boards:001");
+        partialRefs.put("releaseClaimBoundaryRef", "claim-boundary:boards:001");
+        partialRefs.put("postApplyVerificationRef", "verify:boards:001");
+        repository.save(evidence("approved", partialRefs, false, false, false));
 
         var response = service.evaluate(completeRequest("approved"));
 
@@ -160,7 +165,11 @@ class MigrationApplyGateServiceTest {
         refs.put("conflictReportRef", "conflict:boards:001");
         refs.put("memberImpactPreviewRef", "impact:boards:001");
         refs.put("adminApprovalRef", "approval:boards:001");
+        refs.put("cutoverPlanRef", "cutover:boards:001");
         refs.put("rollbackArchiveRef", "rollback:boards:001");
+        refs.put("rollbackRestoreSmokeRef", "restore-smoke:boards:001");
+        refs.put("noUnaccountedDataLossReportRef", "no-loss:boards:001");
+        refs.put("releaseClaimBoundaryRef", "claim-boundary:boards:001");
         refs.put("postApplyVerificationRef", "verify:boards:001");
         return refs;
     }

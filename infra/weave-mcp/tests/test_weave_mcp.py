@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import threading
 import unittest
+from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -15,15 +16,24 @@ from weave_mcp.schemas.common import McpDenied
 
 PROJECTION_HMAC_SECRET = "dev-runtime-profile-projection-secret"
 
+
+def future_iso(minutes: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat().replace("+00:00", "Z")
+
+
 RUNTIME_PROFILE_PROJECTION = {
     "runtimeProfileHash": "sha256:runtime-profile",
+    "runtimeProfileFetchRef": "weave-runtime-profile://sha256:runtime-profile",
     "profileVersion": "v-local-rc-evidence",
+    "expiresAt": future_iso(60),
     "enabled": True,
     "revoked": False,
     "serverKey": "weave-domain-tools",
     "transport": "streamable-http",
     "endpointRef": "internal://weave-mcp/streamable-http",
     "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+    "runtimeTokenRef": "credentialref://weave/runtime/short-lived/local-rc-evidence",
+    "runtimeTokenExpiresAt": future_iso(10),
     "capabilityGrants": [
         "weaver.admin_readiness_read",
         "weaver.runtime_profile_read",
@@ -104,6 +114,18 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         with self.assertRaises(McpDenied) as raised:
             self.gateway(enabled=True).discover_tools({key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(revoked)}.items()})
         self.assertEqual(raised.exception.reason, "runtime-profile-disabled-or-revoked")
+        self.assertEqual(raised.exception.audit_ref, "audit://mcp/runtime-profile/local-rc-evidence")
+
+    def test_stale_or_overbroad_runtime_profile_projection_fails_closed(self) -> None:
+        stale = {**RUNTIME_PROFILE_PROJECTION, "expiresAt": future_iso(-1), "runtimeTokenExpiresAt": future_iso(-2)}
+        with self.assertRaises(McpDenied) as expired:
+            self.gateway(enabled=True).discover_tools({key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(stale)}.items()})
+        self.assertEqual(expired.exception.reason, "runtime-profile-expired-or-stale")
+
+        overbroad = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events", "shell.exec"]}
+        with self.assertRaises(McpDenied) as denied:
+            self.gateway(enabled=True).discover_tools({key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(overbroad)}.items()})
+        self.assertEqual(denied.exception.reason, "runtime-profile-overbroad-tool-grant")
 
     def test_malformed_or_tampered_runtime_profile_projection_fails_closed(self) -> None:
         malformed_headers = {key.lower(): value for key, value in HEADERS.items()}

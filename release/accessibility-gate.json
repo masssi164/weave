@@ -3,23 +3,113 @@
   "criticalFlows": [
     {
       "id": "provider-setup",
-      "requiredEvidence": ["flutter-semantics", "keyboard", "text-scale", "manual-at"],
+      "requiredEvidence": [
+        "flutter-semantics",
+        "keyboard",
+        "text-scale",
+        "manual-at"
+      ],
       "releaseBlocking": true
     },
     {
       "id": "provider-migration-dry-run",
-      "requiredEvidence": ["admin-summary", "member-impact-preview", "screenreader", "keyboard"],
+      "requiredEvidence": [
+        "admin-summary",
+        "member-impact-preview",
+        "screenreader",
+        "keyboard"
+      ],
       "releaseBlocking": true
     },
     {
       "id": "identity-offboarding",
-      "requiredEvidence": ["ownership-transfer-preview", "screenreader", "keyboard"],
+      "requiredEvidence": [
+        "ownership-transfer-preview",
+        "screenreader",
+        "keyboard"
+      ],
       "releaseBlocking": true
     },
     {
       "id": "chat-e2ee-recovery",
-      "requiredEvidence": ["cannot-decrypt-state", "key-recovery-copy", "manual-at"],
+      "requiredEvidence": [
+        "cannot-decrypt-state",
+        "key-recovery-copy",
+        "manual-at"
+      ],
       "releaseBlocking": true
+    },
+    {
+      "id": "member-workspace-loop",
+      "requiredEvidence": [
+        "manual-at",
+        "screenreader",
+        "keyboard",
+        "text-scale"
+      ],
+      "releaseBlocking": true,
+      "currentBlocker": {
+        "issue": "#591",
+        "status": "blocked",
+        "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
+        "expires": "before Sprint 18 RC promotion",
+        "summary": "Member Workspace loop manual AT is blocked until real reviewer evidence replaces docs/evidence/accessibility/sprint-18-manual-at-blocker.md."
+      }
+    },
+    {
+      "id": "admin-migration-apply-recovery",
+      "requiredEvidence": [
+        "manual-at",
+        "screenreader",
+        "keyboard",
+        "text-scale",
+        "support-safe-recovery-copy"
+      ],
+      "releaseBlocking": true,
+      "currentBlocker": {
+        "issue": "#591",
+        "status": "blocked",
+        "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
+        "expires": "before Sprint 18 RC promotion",
+        "summary": "Admin migration apply/recovery manual AT is blocked; production provider apply/cutover claims remain unavailable."
+      }
+    },
+    {
+      "id": "admin-go-live-claim-control",
+      "requiredEvidence": [
+        "manual-at",
+        "screenreader",
+        "keyboard",
+        "claim-control",
+        "support-bundle",
+        "audit-export-evidence"
+      ],
+      "releaseBlocking": true,
+      "currentBlocker": {
+        "issue": "#591",
+        "status": "blocked",
+        "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
+        "expires": "before Sprint 18 RC promotion",
+        "summary": "Admin go-live claim-control manual AT is blocked; missing/stale CI, Live Stack, release notes, accessibility, support bundle, audit/export, migration, Weaver, or blocker evidence blocks RC/prod claims."
+      }
+    },
+    {
+      "id": "governed-weaver-approval-revocation",
+      "requiredEvidence": [
+        "manual-at",
+        "screenreader",
+        "keyboard",
+        "text-scale",
+        "audit-receipt"
+      ],
+      "releaseBlocking": true,
+      "currentBlocker": {
+        "issue": "#591",
+        "status": "blocked",
+        "artifact": "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
+        "expires": "before Sprint 18 RC promotion",
+        "summary": "Governed Weaver approval/revocation manual AT is blocked; broad Weaver availability and autonomous team writes remain unsupported."
+      }
     }
   ],
   "waiverPolicy": {

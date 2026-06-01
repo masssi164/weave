@@ -61,3 +61,5 @@ For #586 and `WEAVE-RC-GATE`, the guided setup surface must include one RC go-li
 - explicit release-claim control: any missing, stale, sample-only, or unresolved release-blocking gate blocks RC or production claims until a release owner records evidence or an accepted blocker.
 
 The RC summary must remain support-safe. It may show stable reason codes and evidence references, but never raw provider diagnostics, endpoint URLs, provider IDs, SecretRef values, bearer tokens, downstream bodies, raw Weaver runtime configuration, or member content. It does not authorize production cutover, live infrastructure mutation, RC tagging, or external release publication.
+
+Support-bundle, audit, export/import, release-note, CI, Live Stack, accessibility, migration, and Weaver entries are evidence pointers with freshness and blocker state. A pointer is not a readiness claim by itself: missing, stale, sample-only, non-support-safe, or unresolved blocker evidence must render the RC summary blocked until a release owner records current evidence or an accepted issue-linked waiver.

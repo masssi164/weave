@@ -6,7 +6,18 @@ import binascii
 import hashlib
 import hmac
 import json
+from datetime import datetime, timezone
 from typing import Any
+
+
+GOVERNED_MCP_TOOL_ALLOWLIST = frozenset(
+    {
+        "admin.get_readiness",
+        "weaver.get_runtime_profile_projection",
+        "calendar.search_events",
+        "boards.comment",
+    }
+)
 
 
 class McpDenied(PermissionError):
@@ -44,7 +55,8 @@ class RuntimeContext:
         grants = frozenset(str(grant) for grant in projection.get("capabilityGrants", []))
         tools = frozenset(str(tool) for tool in projection.get("allowedTools", []))
         audit_ref = str(projection.get("auditRef", "audit://mcp/runtime-profile/support-safe"))
-        return RuntimeContext(org_id, user_ref, profile, "credentialref://weave/runtime/short-lived", grants, tools, audit_ref)
+        token_ref = str(projection.get("runtimeTokenRef", "")).strip()
+        return RuntimeContext(org_id, user_ref, profile, token_ref, grants, tools, audit_ref)
 
 
 def _runtime_profile_projection(
@@ -72,13 +84,51 @@ def _runtime_profile_projection(
     if projection.get("runtimeProfileHash") != runtime_profile_hash:
         raise McpDenied("runtime-profile-hash-mismatch")
     _verify_projection_signature(projection, projection_hmac_secret)
+    audit_ref = str(projection.get("auditRef", "audit://mcp/runtime-profile/support-safe"))
     if projection.get("enabled") is not True or projection.get("revoked") is True:
-        raise McpDenied("runtime-profile-disabled-or-revoked")
+        raise McpDenied("runtime-profile-disabled-or-revoked", audit_ref)
+    _require_support_safe_fetch_by_hash(projection, runtime_profile_hash, audit_ref)
     if projection.get("transport") != "streamable-http":
-        raise McpDenied("unsupported-runtime-profile-transport")
+        raise McpDenied("unsupported-runtime-profile-transport", audit_ref)
     if projection.get("serverKey") != "weave-domain-tools":
-        raise McpDenied("runtime-profile-server-binding-mismatch")
+        raise McpDenied("runtime-profile-server-binding-mismatch", audit_ref)
+    allowed_tools = projection.get("allowedTools", [])
+    if not isinstance(allowed_tools, list) or any(str(tool) not in GOVERNED_MCP_TOOL_ALLOWLIST for tool in allowed_tools):
+        raise McpDenied("runtime-profile-overbroad-tool-grant", audit_ref)
     return projection
+
+
+def _require_support_safe_fetch_by_hash(projection: dict[str, Any], runtime_profile_hash: str, audit_ref: str) -> None:
+    fetch_ref = str(projection.get("runtimeProfileFetchRef", "")).strip()
+    if fetch_ref != f"weave-runtime-profile://{runtime_profile_hash}":
+        raise McpDenied("runtime-profile-fetch-ref-mismatch", audit_ref)
+    token_ref = str(projection.get("runtimeTokenRef", "")).strip()
+    if not token_ref.startswith("credentialref://weave/runtime/"):
+        raise McpDenied("runtime-token-ref-missing-or-unsafe", audit_ref)
+    endpoint_ref = str(projection.get("endpointRef", "")).strip()
+    if endpoint_ref != "internal://weave-mcp/streamable-http":
+        raise McpDenied("runtime-profile-endpoint-ref-unsafe", audit_ref)
+    if projection.get("rawEndpointExposed") is not False or projection.get("supportSafe") is not True:
+        raise McpDenied("runtime-profile-support-safety-missing", audit_ref)
+    expires_at = _parse_support_safe_instant(str(projection.get("expiresAt", "")), "runtime-profile-expired-or-stale", audit_ref)
+    token_expires_at = _parse_support_safe_instant(
+        str(projection.get("runtimeTokenExpiresAt", "")), "runtime-token-expired-or-stale", audit_ref
+    )
+    now = datetime.now(timezone.utc)
+    if expires_at <= now:
+        raise McpDenied("runtime-profile-expired-or-stale", audit_ref)
+    if token_expires_at <= now or token_expires_at > expires_at:
+        raise McpDenied("runtime-token-expired-or-stale", audit_ref)
+
+
+def _parse_support_safe_instant(value: str, reason: str, audit_ref: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise McpDenied(reason, audit_ref) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _verify_projection_signature(projection: dict[str, Any], projection_hmac_secret: str) -> None:

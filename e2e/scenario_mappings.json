@@ -134,6 +134,32 @@
       "evidenceMode": "live-runtime"
     },
     {
+      "tag": "@weave-live-workspace-loop",
+      "scenario": "Workspace loop links Space, Channel, Chat, Files, Board, Calendar, and Decision",
+      "feature": "e2e/features/live_stack_app.feature",
+      "executableTest": "client/integration_test/live_stack_app_e2e_test.dart",
+      "evidenceMarkers": [
+        "WORKSPACE_LOOP_RESULT"
+      ],
+      "evidenceMode": "live-runtime",
+      "additionalEvidence": [
+        {
+          "path": "docs/v0.1-golden-path.md",
+          "fragments": [
+            "The member enters a channel workspace and uses Weave product surfaces: chat, files, boards/tasks, calendar, meetings, decisions, and read-only Weaver scout where policy allows.",
+            "Release evidence states whether a capability is available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later.",
+            "Evidence artifacts must be sanitized: no secrets, tokens, cookies, private keys, credential-bearing URLs, raw provider bodies, or full private live logs."
+          ]
+        },
+        {
+          "path": "docs/quality-and-evidence.md",
+          "fragments": [
+            "Missing required markers such as `BOARDS_RESULT` block RC promotion until a green rerun or explicit release-owner waiver exists."
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-live-provider-reality-vertical",
       "scenario": "Provider reality vertical reports domain availability honestly",
       "feature": "e2e/features/live_stack_app.feature",

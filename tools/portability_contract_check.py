@@ -142,6 +142,26 @@ def main():
  lifecycle_boundary=lifecycle_fixture.get('claimBoundary', '').lower()
  for phrase in ['does not prove lossless migration', 'legal compliance', 'e2ee history migration']:
   if phrase not in lifecycle_boundary: fail(f'Matrix lifecycle claim boundary missing {phrase}')
+
+ bounded=load(FIXTURES/'matrix-synapse-chat-bounded-apply-cutover-rollback-proof.json')
+ if bounded.get('domainKey')!='chat' or bounded.get('sourceProvider')!='matrix-synapse' or bounded.get('redaction')!='support_safe':
+  fail('Matrix bounded apply/cutover/rollback proof must be support_safe chat-domain evidence')
+ bounded_raw=json.dumps(bounded).lower()
+ for forbidden in ['access_token','refresh_token','clientsecret','password','homeserverurl','mxc://','https://matrix']:
+  if forbidden in bounded_raw: fail(f'Matrix bounded proof must not leak raw provider credential or endpoint data: {forbidden}')
+ if bounded.get('limitedApplyAllowed') is not True or bounded.get('productionCutoverAllowed') is not False:
+  fail('Matrix bounded proof must allow only limited fixture apply and block production cutover')
+ lifecycle=bounded.get('lifecycle', {})
+ if lifecycle.get('limitedApply', {}).get('providerMutationPerformed') is not False:
+  fail('Matrix bounded proof must not perform provider mutation')
+ if lifecycle.get('rollback', {}).get('state')!='rolled_back' or not lifecycle.get('rollback', {}).get('rollbackRestoreSmokeRef'):
+  fail('Matrix bounded proof must include rollback restore-smoke evidence')
+ no_loss=bounded.get('noUnaccountedDataLossReport', {})
+ for field in ['supportedCount','lossyCount','unsupportedCount','manualReviewCount','archiveOnlyCount','vendorLockedCount']:
+  if field not in no_loss: fail(f'Matrix bounded no-unaccounted-data-loss report missing {field}')
+ for phrase in ['does not prove production provider migration availability', 'lossless migration', 'e2ee history migration']:
+  if phrase not in ' '.join(no_loss.get('releaseClaimBoundaries', [])).lower(): fail(f'Matrix bounded proof claim boundary missing {phrase}')
+
  success=load(FIXTURES/'migration-run-dry-run-success.json')
  blocked=load(FIXTURES/'migration-run-apply-blocked.json')
  for fixture in [success, blocked]:

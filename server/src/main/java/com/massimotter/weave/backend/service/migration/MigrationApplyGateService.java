@@ -37,7 +37,11 @@ public class MigrationApplyGateService {
             "conflictReportRef",
             "memberImpactPreviewRef",
             "adminApprovalRef",
+            "cutoverPlanRef",
             "rollbackArchiveRef",
+            "rollbackRestoreSmokeRef",
+            "noUnaccountedDataLossReportRef",
+            "releaseClaimBoundaryRef",
             "postApplyVerificationRef");
     private static final Pattern UNSAFE = Pattern.compile(
             "(?i)(https?://|token|password|passwd|client[_-]?secret|authorization|bearer|cookie|private[_-]?key|secretref://|credential)");
@@ -146,7 +150,7 @@ public class MigrationApplyGateService {
                 lifecycle,
                 evidence.objectCounts(),
                 evidence.contentHashes(),
-                evidence.auditRefs(),
+                evidence.auditRefs().stream().map(this::redact).toList(),
                 orderedArtifactRefs(evidence).stream().filter(value -> !blank(value)).map(this::redact).toList(),
                 evidence.providerDiagnostics().stream().map(this::redact).toList(),
                 "support_safe");
@@ -163,12 +167,12 @@ public class MigrationApplyGateService {
     private List<String> nextActions(boolean applyAllowed, List<String> missing) {
         if (applyAllowed) {
             return List.of(
-                    "Proceed only through the feature-gated migration apply path.",
-                    "Keep audit publication and rollback/archive evidence attached to the run.");
+                    "Proceed only through the feature-gated bounded apply path; this is not production cutover authorization.",
+                    "Keep audit publication, no-unaccounted-data-loss, cutover, rollback/archive, and restore-smoke evidence attached to the run.");
         }
         List<String> actions = new ArrayList<>();
         if (!missing.isEmpty()) {
-            actions.add("Attach missing export/import, dry-run, lossy/conflict, impact, approval, rollback, and verification artifacts.");
+            actions.add("Attach missing export/import, dry-run, lossy/conflict, impact, approval, cutover, no-unaccounted-data-loss, rollback, restore-smoke, release-claim-boundary, and verification artifacts.");
         }
         actions.add("Resolve identity mapping and audit-sink blockers before any apply mutation.");
         actions.add("Expose only the support-safe evidence bundle to admins and reviewers.");

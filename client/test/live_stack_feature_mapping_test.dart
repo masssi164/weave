@@ -31,6 +31,7 @@ void main() {
         'Provider stack readiness stays backend-owned and support-safe',
         'Calendar scopes are readable and event writes obey capability policy',
         'Boards workspace supports accessible non-drag task work',
+        'Workspace loop links Space, Channel, Chat, Files, Board, Calendar, and Decision',
         'Provider reality vertical reports domain availability honestly',
         'Admin reviews provider portability schema v2 evidence',
         'Documents stay honest until WOPI spike evidence exists',

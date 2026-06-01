@@ -333,6 +333,26 @@ export interface ProviderReplacementDryRunReport {
     memberFacingStateDuringSwitch: MemberCapabilityState;
     recoveryActions: string[];
   };
+  noUnaccountedDataLossReport: {
+    supportedCount: number;
+    lossyCount: number;
+    unsupportedCount: number;
+    manualReviewCount: number;
+    archiveOnlyCount: number;
+    vendorLockedCount: number;
+    knownLosses: string[];
+    unsupportedData: string[];
+    rollbackLimits: string[];
+    releaseClaimBoundaries: string[];
+  };
+  boundedProof: {
+    proofBoundary: string;
+    limitedApplyAllowed: boolean;
+    productionCutoverAllowed: boolean;
+    rollbackRestoreSmokeRequired: boolean;
+    requiredEvidenceRefs: string[];
+    releaseBlockers: string[];
+  };
 }
 
 interface ServerProviderReplacementDryRunReport {
@@ -359,6 +379,10 @@ interface ServerProviderReplacementDryRunReport {
     ProviderReplacementDryRunReport["portableExportImportContract"]
   >;
   switchPlan?: Partial<ProviderReplacementDryRunReport["switchPlan"]>;
+  noUnaccountedDataLossReport?: Partial<
+    ProviderReplacementDryRunReport["noUnaccountedDataLossReport"]
+  >;
+  boundedProof?: Partial<ProviderReplacementDryRunReport["boundedProof"]>;
 }
 
 export interface ControlPlaneResponse {
@@ -1717,6 +1741,8 @@ function normalizeProviderReplacementDryRun(
   const lifecycle = response.lifecycleExpectations ?? {};
   const portability = response.portableExportImportContract ?? {};
   const switchPlan = response.switchPlan ?? {};
+  const noLoss = response.noUnaccountedDataLossReport ?? {};
+  const boundedProof = response.boundedProof ?? {};
   return {
     dryRunId: response.dryRunId ?? `${category.key}-replacement-dry-run`,
     status: response.status ?? "dry_run_ready",
@@ -1801,6 +1827,34 @@ function normalizeProviderReplacementDryRun(
       recoveryActions: switchPlan.recoveryActions ?? [
         "keep current adapter active until export/import evidence is accepted",
         "block apply when rollback evidence or support-safe audit refs are missing",
+      ],
+    },
+    noUnaccountedDataLossReport: {
+      supportedCount: noLoss.supportedCount ?? consequence.preservedCount ?? 0,
+      lossyCount: noLoss.lossyCount ?? consequence.lossyCount ?? 0,
+      unsupportedCount:
+        noLoss.unsupportedCount ?? consequence.unsupportedCount ?? 0,
+      manualReviewCount:
+        noLoss.manualReviewCount ?? consequence.manualReviewCount ?? 0,
+      archiveOnlyCount:
+        noLoss.archiveOnlyCount ?? consequence.archiveOnlyCount ?? 0,
+      vendorLockedCount: noLoss.vendorLockedCount ?? 0,
+      knownLosses: noLoss.knownLosses ?? [],
+      unsupportedData: noLoss.unsupportedData ?? [],
+      rollbackLimits: noLoss.rollbackLimits ?? consequence.rollbackLimits ?? [],
+      releaseClaimBoundaries: noLoss.releaseClaimBoundaries ?? [
+        "Provider replacement claims remain bounded by accepted dry-run evidence.",
+      ],
+    },
+    boundedProof: {
+      proofBoundary: boundedProof.proofBoundary ?? "dry_run_only",
+      limitedApplyAllowed: boundedProof.limitedApplyAllowed ?? false,
+      productionCutoverAllowed: boundedProof.productionCutoverAllowed ?? false,
+      rollbackRestoreSmokeRequired:
+        boundedProof.rollbackRestoreSmokeRequired ?? true,
+      requiredEvidenceRefs: boundedProof.requiredEvidenceRefs ?? [],
+      releaseBlockers: boundedProof.releaseBlockers ?? [
+        "bounded apply/cutover/rollback proof is not available for this dry-run",
       ],
     },
   };
