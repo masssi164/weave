@@ -1776,6 +1776,27 @@ export default function App({
                       <Card variant="outlined">
                         <CardContent>
                           <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
+                            Admin-bound MCP server registry
+                          </Typography>
+                          <Alert severity="info" sx={{ my: 1 }}>
+                            Admins bind Streamable HTTP MCP servers for Weaver here;
+                            members never wire raw MCP endpoints or runtime tokens.
+                          </Alert>
+                          <List aria-label="Admin-bound MCP server registry">
+                            {controlPlane.mcpServerBindings.map((binding) => (
+                              <ListItem key={binding.serverKey} disableGutters>
+                                <ListItemText
+                                  primary={`${binding.displayName} (${binding.transport}) — ${readableState(binding.readinessState)}`}
+                                  secondary={`Endpoint ref: ${binding.endpointRef}; enabled: ${binding.enabled ? "yes" : "no"}; tools: ${binding.allowedTools.join(", ")}; auth: ${binding.authRef}; raw endpoint exposed: ${binding.rawEndpointExposed ? "yes" : "no"}`}
+                                />
+                              </ListItem>
+                            ))}
+                          </List>
+                        </CardContent>
+                      </Card>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="h3" sx={{ fontSize: "1.05rem" }}>
                             Effective RuntimeProfile policy preview
                           </Typography>
                           <List aria-label="Effective Weaver RuntimeProfile policy preview">

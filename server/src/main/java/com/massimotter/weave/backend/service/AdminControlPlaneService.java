@@ -31,6 +31,7 @@ import com.massimotter.weave.backend.model.admin.EffectivePolicySimulationRespon
 import com.massimotter.weave.backend.model.admin.GoLiveReadinessResponse;
 import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessCardResponse;
 import com.massimotter.weave.backend.model.admin.IdentityProviderReadinessResponse;
+import com.massimotter.weave.backend.model.admin.McpServerBindingResponse;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapRequest;
 import com.massimotter.weave.backend.model.admin.OrganizationBootstrapResponse;
 import com.massimotter.weave.backend.model.admin.ProviderReadinessTestRequest;
@@ -221,6 +222,7 @@ public class AdminControlPlaneService {
                 suiteReadiness,
                 goLiveReadiness(identityReadiness, suiteReadiness),
                 secretRefs(registry),
+                mcpServerBindings(registry),
                 Map.ofEntries(
                         Map.entry("providers", "/api/providers/status"),
                         Map.entry("policy", "/api/admin/policies/capability-whitelist"),
@@ -233,6 +235,7 @@ public class AdminControlPlaneService {
                         Map.entry("effectivePolicySimulation", "/api/admin/policies/effective/simulations"),
                         Map.entry("providerSelections", "/api/admin/providers/selections"),
                         Map.entry("suiteReadiness", "/api/admin/control-plane#suiteDomainReadiness"),
+                        Map.entry("mcpServerBindings", "/api/admin/control-plane#mcpServerBindings"),
                         Map.entry("weaverRuntimeProjection", "/api/admin/control-plane#weaverRuntimeProjection")));
     }
 
@@ -1508,6 +1511,7 @@ public class AdminControlPlaneService {
                         projectionItem("model-alias-general", "model", "general-assistant via " + modelProviderKey, readinessFor("model", registry), "disabled_by_policy", "Alias is admin-selected but runtime remains disabled by default.", false),
                         projectionItem("tool-calendar-search", "tool", "calendar.search_events", readinessFor("calendar", registry), "disabled_by_policy", "Read-only discovery requires weaver.calendar_read and calendar.read grants.", false),
                         projectionItem("tool-boards-comment", "tool", "boards.comment", readinessFor("boards-tasks", registry), "disabled_by_policy", "Write-like tool requires explicit approval receipt and audit.", true),
+                        projectionItem("mcp-weave-domain-tools", "mcp", "weave-domain-tools via streamable-http", "configured", "disabled_by_policy", "Admin-bound MCP server is discoverable only to granted RuntimeProfiles and remains disabled until org policy enables Weaver.", true),
                         projectionItem("consent-shared-space", "mcp", "shared-space consent gate", "admin-action-required", "disabled_by_policy", "Group chat/shared-space participation requires org policy and consent evidence.", true)));
     }
 
@@ -1590,6 +1594,26 @@ public class AdminControlPlaneService {
                 .map(value -> value.readiness().value())
                 .findFirst()
                 .orElse("unknown");
+    }
+
+    private List<McpServerBindingResponse> mcpServerBindings(ProviderRegistryResponse registry) {
+        return List.of(new McpServerBindingResponse(
+                "weave-domain-tools",
+                "Weave governed domain tools",
+                "streamable-http",
+                "internal://weave-mcp/streamable-http",
+                "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+                List.of("admin.get_readiness", "weaver.get_runtime_profile_projection", "calendar.search_events", "boards.comment"),
+                List.of("weaver.admin_readiness_read", "weaver.runtime_profile_read", "weaver.calendar_read", "weaver.boards_write"),
+                true,
+                false,
+                "disabled-by-default",
+                true,
+                false,
+                false,
+                false,
+                List.of("audit://weaver/mcp/weave-domain-tools/binding-preview"),
+                List.of("Enable only after org policy, runtime grants, Streamable HTTP auth, and approval receipts are configured.")));
     }
 
     private List<SecretRefResponse> secretRefs(ProviderRegistryResponse registry) {

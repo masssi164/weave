@@ -112,6 +112,25 @@ export interface WeaverMcpGrant {
   approvalRequired: boolean;
 }
 
+export interface McpServerBinding {
+  serverKey: string;
+  displayName: string;
+  transport: "streamable-http";
+  endpointRef: string;
+  authRef: string;
+  allowedTools: string[];
+  allowedCapabilities: string[];
+  approvalRequiredForWrites: boolean;
+  enabled: boolean;
+  readinessState: CapabilityState;
+  supportSafe: boolean;
+  rawEndpointExposed: boolean;
+  rawServerConfigExposed: boolean;
+  secretValuesExposed: boolean;
+  auditRefs: string[];
+  nextActions: string[];
+}
+
 export interface WeaverRuntimeProfileChange {
   version: string;
   runtimeProfileHash: string;
@@ -336,6 +355,7 @@ export interface ControlPlaneResponse {
   goLiveReadiness: GoLiveReadiness;
   whitelistPolicy: WhitelistPolicy;
   weaverDistributionPolicy: WeaverDistributionPolicy;
+  mcpServerBindings: McpServerBinding[];
   auditEvents: AuditEvent[];
 }
 
@@ -396,6 +416,26 @@ interface ServerControlPlaneResponse {
   suiteDomainReadiness?: ServerSuiteDomainReadiness[];
   goLiveReadiness?: ServerGoLiveReadiness;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
+  mcpServerBindings?: ServerMcpServerBinding[];
+}
+
+interface ServerMcpServerBinding {
+  serverKey?: string;
+  displayName?: string;
+  transport?: string;
+  endpointRef?: string;
+  authRef?: string;
+  allowedTools?: string[];
+  allowedCapabilities?: string[];
+  approvalRequiredForWrites?: boolean;
+  enabled?: boolean;
+  readinessState?: string;
+  supportSafe?: boolean;
+  rawEndpointExposed?: boolean;
+  rawServerConfigExposed?: boolean;
+  secretValuesExposed?: boolean;
+  auditRefs?: string[];
+  nextActions?: string[];
 }
 
 interface ServerWeaverDistributionPolicy {
@@ -820,8 +860,38 @@ function normalizeControlPlane(
       controlPlane.weaverDistributionPolicy,
       sampleWeaverDistributionPolicy,
     ),
+    mcpServerBindings: normalizeMcpServerBindings(controlPlane.mcpServerBindings),
     auditEvents,
   };
+}
+
+function normalizeMcpServerBindings(
+  bindings?: ServerMcpServerBinding[],
+): McpServerBinding[] {
+  const normalized = (bindings ?? []).map((binding) => ({
+    serverKey: binding.serverKey ?? "weave-domain-tools",
+    displayName: binding.displayName ?? binding.serverKey ?? "Weave domain tools",
+    transport: "streamable-http" as const,
+    endpointRef: binding.endpointRef ?? "internal://weave-mcp/streamable-http",
+    authRef:
+      binding.authRef ??
+      "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+    allowedTools: binding.allowedTools ?? [],
+    allowedCapabilities: binding.allowedCapabilities ?? [],
+    approvalRequiredForWrites: binding.approvalRequiredForWrites ?? true,
+    enabled: binding.enabled ?? false,
+    readinessState: normalizeState(binding.readinessState),
+    supportSafe: binding.supportSafe ?? true,
+    rawEndpointExposed: binding.rawEndpointExposed ?? false,
+    rawServerConfigExposed: binding.rawServerConfigExposed ?? false,
+    secretValuesExposed: binding.secretValuesExposed ?? false,
+    auditRefs: binding.auditRefs ?? [],
+    nextActions:
+      binding.nextActions ?? [
+        "Enable only after org policy, runtime grants, Streamable HTTP auth, and approvals are configured.",
+      ],
+  }));
+  return normalized.length > 0 ? normalized : sampleMcpServerBindings;
 }
 
 function normalizeSuiteDomainReadiness(
@@ -1699,6 +1769,39 @@ function supportSafeSummary(event: ServerAuditEvent): string {
   return `${event.action ?? "audit"} for ${target}; payload is redacted and support-safe.`;
 }
 
+export const sampleMcpServerBindings: McpServerBinding[] = [
+  {
+    serverKey: "weave-domain-tools",
+    displayName: "Weave governed domain tools",
+    transport: "streamable-http",
+    endpointRef: "internal://weave-mcp/streamable-http",
+    authRef: "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+    allowedTools: [
+      "admin.get_readiness",
+      "weaver.get_runtime_profile_projection",
+      "calendar.search_events",
+      "boards.comment",
+    ],
+    allowedCapabilities: [
+      "weaver.admin_readiness_read",
+      "weaver.runtime_profile_read",
+      "weaver.calendar_read",
+      "weaver.boards_write",
+    ],
+    approvalRequiredForWrites: true,
+    enabled: false,
+    readinessState: "disabled",
+    supportSafe: true,
+    rawEndpointExposed: false,
+    rawServerConfigExposed: false,
+    secretValuesExposed: false,
+    auditRefs: ["audit://weaver/mcp/weave-domain-tools/binding-preview"],
+    nextActions: [
+      "Enable only after org policy, runtime grants, Streamable HTTP auth, and approval receipts are configured.",
+    ],
+  },
+];
+
 const sampleWeaverDistributionPolicy: WeaverDistributionPolicy = {
   enabledByDefault: false,
   chatProviderKey: "synapse-homeserver",
@@ -2081,6 +2184,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
     blockedCapabilities: ["provider.direct_call", "provider.secret_export"],
   },
   weaverDistributionPolicy: sampleWeaverDistributionPolicy,
+  mcpServerBindings: sampleMcpServerBindings,
   auditEvents: [
     {
       id: "audit-1",
