@@ -9,7 +9,7 @@ Date: 2026-06-01
 
 ## Scope implemented / evidence status
 
-- #589 Workspace loop: the Live Stack E2E path now exercises and records a provider-neutral Space/Channel → Chat → Files → Board → Calendar → Decision loop with support-safe markers including `workspaceLoopComplete`, `workspaceLoopDecisionId`, and `workspaceLoopSupportSafe`. The issue remains open because current credentialed Live Stack E2E evidence on the merged `main` head is still missing.
+- #589 Workspace loop: the Live Stack E2E path now exercises and records a provider-neutral Space/Channel → Chat → Files → Board → Calendar → Decision loop with support-safe markers including `workspaceLoopComplete`, `workspaceLoopDecisionId`, and `workspaceLoopSupportSafe`. The reopened evidence gap is now closed by current credentialed Live Stack E2E run `26774077031` on `main` commit `12b259658350df7accc10b4623294c34ddbf2e5a`; the `weave-live-stack-acceptance-evidence` artifact records 42 mapped scenarios, collected runtime evidence, `WORKSPACE_LOOP_RESULT:seen`, and support-safe workspace-loop fields (`complete=true`, `supportSafe=true`, `canonicalIds=true`, `decisionStored=true`).
 - #590 Bounded Matrix Chat migration proof: the Admin Control Plane and migration services now expose dry-run evidence, bounded fixture-only apply/cutover/rollback posture, no-unaccounted-data-loss reporting, release blockers, redaction/retention posture, required evidence refs, and fail-closed apply gates. Production provider cutover remains explicitly blocked.
 - #591 Accessibility and release trust: the release evidence gate now distinguishes blocked manual AT evidence from ceremonial signoff, links the Sprint 18 manual AT blocker, and upgrades claim-control checks so open blockers, missing support-safe evidence, and unsupported claims block release readiness. The issue remains open because actual manual assistive-technology signoff is still missing.
 - #592 Governed Weaver/MCP hardening: RuntimeProfile projection now includes signed/fetch-by-hash posture, same-user hash lookup, runtime token/ref expiry boundaries, per-user/org policy checks, internal endpoint refs, overbroad grant rejection, fail-closed MCP invocation, and support-safe audit refs without raw profile/token/provider leakage.
@@ -35,7 +35,7 @@ Passing on 2026-06-01 before PR creation:
 
 ## Issue DAG current state
 
-- #589 — open/reopened after #593: workspace loop code and marker mapping exist, but Sprint 18 still lacks current credentialed Live Stack E2E evidence on merge commit `5b0fc458fc75e0ccfddab2dba0c7b8b1f2553eb6`, including the expected workspace-loop marker artifact (`WORKSPACE_LOOP_RESULT`, 42-scenario evidence).
+- #589 — closed after current Live Stack evidence: run `26774077031` passed on `main` commit `12b259658350df7accc10b4623294c34ddbf2e5a`; artifact `weave-live-stack-acceptance-evidence` includes 42 mapped scenarios, collected runtime evidence, and `WORKSPACE_LOOP_RESULT:seen` with support-safe workspace-loop fields.
 - #590 — closed by #593: bounded fixture-only apply/cutover/rollback proof, no production cutover claim.
 - #591 — open/reopened after #593: release trust gates now account for the blocker, but actual manual assistive-technology signoff is still missing; blocker accounting is not release signoff.
 - #592 — closed by #593: signed/fetch-by-hash RuntimeProfile and fail-closed MCP posture.
@@ -44,11 +44,15 @@ Passing on 2026-06-01 before PR creation:
 
 - Delivery branch: `feat/s18-workspace-live-e2e-589`.
 - Merged PR: #593, `feat: prove Sprint 18 workspace migration trust loop`, with exactly one release-notes label: `release-notes-feature`.
-- Merge commit on `main`: `5b0fc458fc75e0ccfddab2dba0c7b8b1f2553eb6`.
+- Merged PR: #594, `docs: correct Sprint 18 closure blockers`, with exactly one release-notes label: `release-notes-skip`.
+- Sprint 18 source merge commit on `main`: `5b0fc458fc75e0ccfddab2dba0c7b8b1f2553eb6`.
+- Current closure-report merge commit on `main`: `12b259658350df7accc10b4623294c34ddbf2e5a`.
 - PR checks at merge: 6 successful, 0 requiring attention.
 - Final `main` CI after #593 is green: run `26772955027`.
-- GitHub issues #590 and #592 are closed; #589 and #591 are open.
-- GitHub milestone 18 is open with 2 open issues and 2 closed issues.
+- `main` CI after #594 is green: run `26774061338`.
+- Current credentialed Live Stack E2E after #594 is green: run `26774077031`.
+- GitHub issues #589, #590, and #592 are closed; #591 is open.
+- GitHub milestone 18 is open with 1 open issue and 3 closed issues.
 
 ## Boundaries and non-claims
 
@@ -59,6 +63,6 @@ Passing on 2026-06-01 before PR creation:
 
 ## Remaining risks / carryovers
 
-- Actual manual AT evidence must be collected before public/production release signoff.
+- Actual manual AT evidence for #591 must be collected before Sprint 18 milestone closure or public/production release signoff.
 - Production Matrix cutover requires explicit Massimo approval and fresh live-provider evidence beyond this bounded Sprint 18 proof.
 - Broader runtime rollout still requires production-grade isolation evidence before stronger sandbox claims.
