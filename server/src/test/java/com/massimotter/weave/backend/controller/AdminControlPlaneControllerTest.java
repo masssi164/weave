@@ -222,11 +222,14 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.denyByDefaultPolicy").value(true))
                 .andExpect(jsonPath("$.memberClientMayConfigureProviders").value(false))
                 .andExpect(jsonPath("$.categories[*].category", hasItems(
-                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "weaver")))
+                        "identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "model", "weaver")))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].selectedByAdmin", hasItems(true)))
                 .andExpect(jsonPath("$.categories[?(@.category == 'chat')].selectedProviderKey", hasItems("synapse-homeserver")))
                 .andExpect(jsonPath("$.selectedProviderMappings[*].category", hasItems("identity-idm", "chat", "files")))
                 .andExpect(jsonPath("$.selectedProviderMappings[*].supportSafe", hasItems(true)))
+                .andExpect(jsonPath("$.weaverDistributionPolicy.modelAliases[0].provider").value("lmstudio"))
+                .andExpect(jsonPath("$.weaverDistributionPolicy.modelAliases[0].model").value("lmstudio/qwen/qwen3.5-9b"))
+                .andExpect(jsonPath("$.weaverDistributionPolicy.effectivePolicyPreview[*]", hasItems("credentialRef=credentialref://weave/channels/weave-chat/runtime-token")))
                 .andExpect(jsonPath("$.whitelist.denyByDefault").value(true))
                 .andExpect(jsonPath("$.whitelist.normalMembersMayAuthorPolicy").value(false))
                 .andExpect(jsonPath("$.whitelist.stableMemberImpactStates[*]", hasItems("ready", "disabled", "degraded", "policy-blocked")))
@@ -710,6 +713,16 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.applied").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.migrationDryRunRequired").value(true));
+
+        mockMvc.perform(post("/api/admin/providers/selections")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"category\":\"model\",\"providerKey\":\"lmstudio\",\"choiceModel\":\"recommended_self_hosted_default\",\"secretRef\":\"secretref://weave/provider/lmstudio\",\"reason\":\"route Weaver chat through local LM Studio\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.category").value("model"))
+                .andExpect(jsonPath("$.providerKey").value("lmstudio"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.secretRef").value("secretref://weave/provider/lmstudio"));
 
         mockMvc.perform(post("/api/admin/providers/readiness-tests")
                         .with(adminJwt())

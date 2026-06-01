@@ -36,6 +36,9 @@ import com.massimotter.weave.backend.model.chat.WeaverApprovalReceiptResponse;
 import com.massimotter.weave.backend.model.chat.WeaverScoutSourceResponse;
 import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryRequest;
 import com.massimotter.weave.backend.model.chat.WeaverScoutSummaryResponse;
+import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
+import com.massimotter.weave.backend.provider.ProviderSelection;
+import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -46,6 +49,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -59,6 +63,7 @@ public class ChatFacadeService {
     private static final String SOURCE = "weave-chat-domain-facade";
     private static final String PA_WEAVER_CONVERSATION_ID = "pa-weaver";
     private static final String WEAVER_CHANNEL_ID = "channels.weave-chat";
+    private static final String DEFAULT_MODEL_PROVIDER_KEY = "lmstudio";
     private static final String WEAVER_CHAT_PROVIDER_REF = "provider:chat:selected-by-admin";
     private static final String WEAVER_LMSTUDIO_MODEL_REF = "lmstudio/qwen/qwen3.5-9b";
 
@@ -68,6 +73,7 @@ public class ChatFacadeService {
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final AuditEventPublisher auditEventPublisher;
     private final WeaverPaChatClient weaverPaChatClient;
+    private final ProviderSelectionRepository providerSelectionRepository;
     private final ConcurrentMap<String, ConversationState> conversations = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, CopyOnWriteArrayList<DecisionLedgerRecordResponse>> decisions = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, CopyOnWriteArrayList<MeetingCapsuleResponse>> meetingCapsules = new ConcurrentHashMap<>();
@@ -83,6 +89,7 @@ public class ChatFacadeService {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 new InMemoryAuditEventPublisher(),
+                new InMemoryProviderSelectionRepository(),
                 request -> {
                     throw new WeaverPaChatUnavailableException(
                             "PA Weaver chat bridge is not configured; refusing to synthesize LM Studio evidence.");
@@ -101,6 +108,7 @@ public class ChatFacadeService {
                 contextAuthorizationPort,
                 contextAuthorizationProperties,
                 auditEventPublisher,
+                new InMemoryProviderSelectionRepository(),
                 request -> {
                     throw new WeaverPaChatUnavailableException(
                             "PA Weaver chat bridge is not configured; refusing to synthesize LM Studio evidence.");
@@ -115,11 +123,50 @@ public class ChatFacadeService {
             ContextAuthorizationProperties contextAuthorizationProperties,
             AuditEventPublisher auditEventPublisher,
             WeaverPaChatClient weaverPaChatClient) {
+        this(
+                workspaceCapabilityProperties,
+                workspaceCapabilityService,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                auditEventPublisher,
+                new InMemoryProviderSelectionRepository(),
+                weaverPaChatClient);
+    }
+
+    public ChatFacadeService(
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            AuditEventPublisher auditEventPublisher,
+            ObjectProvider<ProviderSelectionRepository> providerSelectionRepository,
+            WeaverPaChatClient weaverPaChatClient) {
+        this(
+                workspaceCapabilityProperties,
+                workspaceCapabilityService,
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                auditEventPublisher,
+                providerSelectionRepository == null ? null : providerSelectionRepository.getIfAvailable(),
+                weaverPaChatClient);
+    }
+
+    public ChatFacadeService(
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            AuditEventPublisher auditEventPublisher,
+            ProviderSelectionRepository providerSelectionRepository,
+            WeaverPaChatClient weaverPaChatClient) {
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.auditEventPublisher = auditEventPublisher;
+        this.providerSelectionRepository = providerSelectionRepository == null
+                ? new InMemoryProviderSelectionRepository()
+                : providerSelectionRepository;
         this.weaverPaChatClient = weaverPaChatClient == null
                 ? request -> {
                     throw new WeaverPaChatUnavailableException(
@@ -264,10 +311,11 @@ public class ChatFacadeService {
                     principal.principalRef(),
                     userMessage.text(),
                     WEAVER_CHANNEL_ID,
-                    WEAVER_CHAT_PROVIDER_REF,
+                    selectedModelProviderRef(),
                     WEAVER_LMSTUDIO_MODEL_REF,
                     Map.of(
                             "contextId", conversation.contextId(),
+                            "chatProviderRef", WEAVER_CHAT_PROVIDER_REF,
                             "supportSafe", true,
                             "rawProviderContentIncluded", false)));
         } catch (WeaverPaChatUnavailableException exception) {
@@ -878,6 +926,13 @@ public class ChatFacadeService {
                 || value.contains("apikey")
                 || value.contains("api-key")
                 || value.contains("cookie");
+    }
+
+    private String selectedModelProviderRef() {
+        return "provider:model:" + providerSelectionRepository.findByCategory("model")
+                .map(ProviderSelection::providerKey)
+                .filter(this::hasText)
+                .orElse(DEFAULT_MODEL_PROVIDER_KEY);
     }
 
     private void publishAudit(

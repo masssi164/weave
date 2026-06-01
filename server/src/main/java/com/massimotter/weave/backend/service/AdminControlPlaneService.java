@@ -39,6 +39,10 @@ import com.massimotter.weave.backend.model.admin.ProviderReplacementDryRunRespon
 import com.massimotter.weave.backend.model.admin.ProviderSelectionRequest;
 import com.massimotter.weave.backend.model.admin.ProviderSelectionResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
+import com.massimotter.weave.backend.model.admin.WeaverDistributionPolicyResponse;
+import com.massimotter.weave.backend.model.admin.WeaverMcpGrantResponse;
+import com.massimotter.weave.backend.model.admin.WeaverModelAliasResponse;
+import com.massimotter.weave.backend.model.admin.WeaverRuntimeProfileChangeResponse;
 import com.massimotter.weave.backend.provider.ProviderCapabilityContracts;
 import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
@@ -204,6 +208,7 @@ public class AdminControlPlaneService {
                         .map(selection -> toSelectionResponse(selection, false, readinessFor(selection.category(), registry)))
                         .toList(),
                 whitelist(jwt),
+                weaverDistributionPolicy(registry),
                 identityProviderReadiness(registry, jwt),
                 secretRefs(registry),
                 Map.of(
@@ -1287,6 +1292,57 @@ public class AdminControlPlaneService {
                 readiness,
                 providerSelectionRepository.persistencePosture(),
                 selection.selectedAt());
+    }
+
+    private WeaverDistributionPolicyResponse weaverDistributionPolicy(ProviderRegistryResponse registry) {
+        String modelProviderKey = registry.selectedProviderMappings().stream()
+                .filter(selection -> selection.category().equals("model"))
+                .map(ProviderSelection::providerKey)
+                .findFirst()
+                .orElse("lmstudio");
+        String chatProviderKey = registry.selectedProviderMappings().stream()
+                .filter(selection -> selection.category().equals("chat"))
+                .map(ProviderSelection::providerKey)
+                .findFirst()
+                .orElse("matrix-chat");
+        String readiness = readinessFor("model", registry);
+        if ("unknown".equals(readiness)) {
+            readiness = "admin-action-required";
+        }
+        return new WeaverDistributionPolicyResponse(
+                false,
+                chatProviderKey,
+                readiness,
+                List.of("Changing the model provider regenerates the Weaver RuntimeProfile projection and requires live completion evidence before member rollout."),
+                List.of("runtime profile generation remains blocked until weaver.enabled is explicitly granted by organization policy"),
+                List.of(new WeaverModelAliasResponse(
+                        "general-assistant",
+                        modelProviderKey,
+                        "lmstudio/qwen/qwen3.5-9b",
+                        true)),
+                "general-assistant",
+                List.of(),
+                List.of("chat.search_messages"),
+                List.of("workspace-triage"),
+                List.of(new WeaverMcpGrantResponse("weave-chat", List.of("reply"), true)),
+                List.of("shell.exec", "provider.raw_config.read"),
+                List.of("chat.reply", "external.send"),
+                List.of(
+                        "chat.provider=" + chatProviderKey,
+                        "model.provider=" + modelProviderKey,
+                        "models.default=general-assistant",
+                        "credentialRef=credentialref://weave/channels/weave-chat/runtime-token"),
+                "runtime-profile-hash-pending-live-regeneration",
+                null,
+                "not_revoked",
+                null,
+                List.of("audit://weaver/pa-chat/bridge-roundtrip"),
+                List.of(new WeaverRuntimeProfileChangeResponse(
+                        "sprint-14-pa-chat",
+                        "runtime-profile-hash-pending-live-regeneration",
+                        Instant.now(clock).toString(),
+                        "draft",
+                        "Admin-selected model provider is projected into Weaver aliases without exposing provider secrets to members.")));
     }
 
     private String readinessFor(String category, ProviderRegistryResponse registry) {

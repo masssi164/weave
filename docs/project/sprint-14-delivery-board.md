@@ -42,9 +42,11 @@ Current evidence status:
 2. `weave`: stable `channels.weave-chat` projection is exposed through the Weave Chat-domain routing path; PR #553 keeps providerRefs hidden behind support-safe facade evidence and fails closed when the governed bridge is not configured.
 3. `weave`: Credential Broker boundary for RuntimeProfile generation and audit; profiles, logs, support bundles, and evidence contain SecretRefs and broker receipts only.
 4. `weave`: PR #553 service-level live evidence covers the full PA Weaver option -> Weave Chat message -> governed Weaver bridge -> LM Studio -> assistant response path without exposing provider URLs, tokens, provider room ids, or unsafe diagnostics.
-5. `weaver`: runtime consumption of the signed profile without accepting raw OpenClaw dashboard/config as a second policy source is covered by the closed Weaver child issues.
-6. Cross-repo evidence: tests, docs, CI links, and support-safe fixtures prove no raw provider secrets or OAuth refresh tokens are projected.
-7. Remaining blocker: merge PR #553, close `weave#519` with the merged evidence, and verify the Sprint 14 milestone has zero open issues.
+5. `weave`: Admin Control Plane now exposes and accepts the admin-owned `model` provider category; `weaverDistributionPolicy.modelAliases[0]` projects `lmstudio` / `lmstudio/qwen/qwen3.5-9b` with `credentialref://weave/channels/weave-chat/runtime-token`, so model-provider switching is not a member-client setting.
+6. `weave`: container trust for the local HTTPS LM Studio endpoint was verified with the mkcert root CA mounted read-only and `CURL_CA_BUNDLE=/tmp/mkcert-rootCA.pem`; unsafe TLS-disable flags are not part of the final evidence path.
+7. `weaver`: runtime consumption of the signed profile without accepting raw OpenClaw dashboard/config as a second policy source is covered by the closed Weaver child issues.
+8. Cross-repo evidence: tests, docs, CI links, and support-safe fixtures prove no raw provider secrets or OAuth refresh tokens are projected.
+9. Remaining blocker: merge PR #553, close `weave#519` with the merged evidence, and verify the Sprint 14 milestone has zero open issues.
 
 Historical split option, now resolved by the Sprint 13/14 merge train:
 

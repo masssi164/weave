@@ -36,6 +36,7 @@ Provider categories are first-class product concepts:
 - boards/tasks;
 - meetings/calls;
 - documents/collaboration;
+- model provider;
 - Weaver runtime (disabled by default until later governed policy work).
 
 Record provider posture as `recommended_self_hosted_default`, `external_existing_provider`, or `managed_cloud_provider`. Provider-specific risk notes belong in admin/operator surfaces, not normal member UX.
@@ -45,6 +46,8 @@ The Admin Console setup cockpit is domain-first: each card starts with the Weave
 Before applying or switching a provider, run a backend dry-run for the selected domain, adapter, and choice model. Apply remains blocked unless the current Admin Console session holds a fresh backend-issued dry-run evidence ref, the backend gates report admin/operator scope, audit sink availability, rollback/archive refs, source/target readiness, export snapshots, loss/conflict handling, and the operator explicitly confirms member impact and rollback consequences. Missing, stale, or client-only/forged dry-run evidence must stop the UI before it calls the apply endpoint.
 
 Rollback decision points are: keep the current adapter active until export/import and rollback evidence pass; archive provider mapping refs before cutover; use only support-safe audit refs in support bundles; and keep the member preview provider-neutral (`available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`) during and after the switch.
+
+For Weaver chat/model routing, admins select the `model` provider category through the Admin Control Plane, for example `lmstudio` with a `SecretRef`/Credential Broker handle. The member Chat path stays `pa-weaver` inside Weave Chat; members do not configure model endpoints, raw model ids, TLS policy, tokens, or provider rooms. If the selected model endpoint uses a private development CA such as mkcert, mount the CA certificate into the runtime/container read-only and point the HTTP client trust configuration at it (for curl-based probes, `CURL_CA_BUNDLE=/path/in/container/rootCA.pem`). Do not use `--insecure`, disabled certificate validation, or equivalent flags as final evidence; they are temporary diagnostics only.
 
 ## Provider URLs and SecretRefs
 

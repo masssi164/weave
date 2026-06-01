@@ -114,6 +114,14 @@ final class ProviderCategoryHealthMapper {
                         Set.of(),
                         selections,
                         evidenceTimestamp),
+                providerCategory(
+                        "model",
+                        "model provider",
+                        "Model provider selection is admin-owned and surfaced to members only through support-safe Weaver aliases.",
+                        safeProviders,
+                        Set.of(),
+                        selections,
+                        evidenceTimestamp),
                 capabilityCategory(
                         "weaver",
                         "Weaver",

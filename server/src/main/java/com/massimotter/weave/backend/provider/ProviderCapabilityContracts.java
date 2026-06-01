@@ -120,7 +120,16 @@ public final class ProviderCapabilityContracts {
                     "organization policy owns runtime/tool allowlist; user rights constrain every Weaver action",
                     List.of("tool scope", "secret handling", "sandboxing", "group-chat consent", "step-up approvals"),
                     "export runtime profile and audit receipts; delete runtime workspace per retention policy",
-                    "Weaver enablement requires policy dry-run, sandbox profile, and audit/receipt proof")));
+                    "Weaver enablement requires policy dry-run, sandbox profile, and audit/receipt proof")),
+            Map.entry("model", new Definition(
+                    List.of("model.chat_completion", "model.embedding", "model.admin_select"),
+                    List.of("lmstudio", "lmstudio-openai-compatible"),
+                    List.of("ollama-openai-compatible", "generic-openai-compatible", "openai", "anthropic"),
+                    List.of("ModelProvider", "ModelAlias", "CompletionRequest", "CompletionResponse", "ProviderCredentialRef"),
+                    "Admin-selected model provider owns inference; Weave owns support-safe aliases, routing, credentials by reference, and member impact states",
+                    List.of("model behavior drift", "context-window differences", "tool-call support", "data residency", "rate limits"),
+                    "export model alias policy and audit receipts; revoke credential refs through Credential Broker",
+                    "model provider replacement requires readiness proof, credential-ref validation, and support-safe live completion evidence")));
 
     private ProviderCapabilityContracts() {
     }
@@ -148,7 +157,7 @@ public final class ProviderCapabilityContracts {
     public static ProviderRealityLevel defaultRealityLevel(String category) {
         return switch (category) {
             case "identity-idm", "chat", "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
-            case "meetings-calls" -> ProviderRealityLevel.CONFIGURED_READINESS;
+            case "meetings-calls", "model" -> ProviderRealityLevel.CONFIGURED_READINESS;
             case "documents-collaboration", "weaver" -> ProviderRealityLevel.CONTRACT_ONLY;
             default -> ProviderRealityLevel.CONTRACT_ONLY;
         };

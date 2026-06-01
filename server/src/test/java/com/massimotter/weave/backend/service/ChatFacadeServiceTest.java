@@ -14,9 +14,12 @@ import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceRequest;
 import com.massimotter.weave.backend.model.chat.MeetingCapsuleCreateRequest;
+import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
+import com.massimotter.weave.backend.provider.ProviderSelection;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2ResourceServerProperties;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -104,6 +107,56 @@ class ChatFacadeServiceTest {
                 .containsEntry("lmStudioResponseReceived", false)
                 .containsEntry("modelRef", "lmstudio/qwen/custom-runtime-model")
                 .containsEntry("assistantMessageId", assistantMessage.id());
+    }
+
+    @Test
+    void paWeaverBridgeRequestUsesAdminSelectedModelProvider() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(new ProviderSelection(
+                "model",
+                "custom-lmstudio",
+                "recommended_self_hosted_default",
+                "secretref://weave/provider/custom-lmstudio",
+                "actor:admin",
+                Instant.parse("2026-05-25T10:00:00Z"),
+                true,
+                true,
+                false,
+                List.of()));
+        AtomicReference<WeaverPaChatTurnRequest> capturedRequest = new AtomicReference<>();
+        WorkspaceCapabilityProperties properties = workspaceCapabilityProperties();
+        ChatFacadeService service = new ChatFacadeService(
+                properties,
+                workspaceCapabilityService(properties, weaverRuntimeProperties(true)),
+                request -> ContextAuthorizationDecision.allow("test allow"),
+                new ContextAuthorizationProperties(null, null, null, null, null, null, null, null),
+                new InMemoryAuditEventPublisher(),
+                selections,
+                request -> {
+                    capturedRequest.set(request);
+                    return new WeaverPaChatTurnResult(
+                            true,
+                            true,
+                            "PA Weaver returned through the admin-selected model provider.",
+                            request.modelRef(),
+                            request.providerRef(),
+                            "audit://weaver/pa-chat/test-roundtrip",
+                            Map.of(
+                                    "channelId", request.channelId(),
+                                    "modelRef", request.modelRef(),
+                                    "rawProviderDiagnosticsExposed", false,
+                                    "supportSafe", true));
+                });
+
+        service.sendMessage(
+                jwt(List.of("member"), List.of("weave-weaver-runtime")),
+                "pa-weaver",
+                new ChatSendMessageRequest("use selected provider", List.of()));
+
+        assertThat(capturedRequest.get().providerRef()).isEqualTo("provider:model:custom-lmstudio");
+        assertThat(capturedRequest.get().supportSafeContext())
+                .containsEntry("chatProviderRef", "provider:chat:selected-by-admin")
+                .containsEntry("rawProviderContentIncluded", false);
     }
 
     @Test

@@ -58,6 +58,27 @@ node scripts/run-vitest.mjs src/weaver/runtime-profile.test.ts
 pnpm docs:check-mdx docs/weaver-runtime-profile.md
 ```
 
+PR #553 live PA Weaver recheck after Massimo's acceptance correction:
+
+```text
+docker run --rm \
+  -v "$HOME/Library/Application Support/mkcert/rootCA.pem:/tmp/mkcert-rootCA.pem:ro" \
+  -e CURL_CA_BUNDLE=/tmp/mkcert-rootCA.pem \
+  curlimages/curl:8.11.1 -sS https://lmstudio.home.internal/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen/qwen3.5-9b","messages":[{"role":"system","content":"Reply in one short sentence."},{"role":"user","content":"Weave live verification: say READY."}],"temperature":0,"max_tokens":32}'
+# HTTP call completed from a Docker container with mkcert CA trust; model=qwen/qwen3.5-9b returned a chat completion id and content.
+
+WEAVE_WEAVER_PA_CHAT_LIVE=true ./gradlew test --tests 'com.massimotter.weave.backend.service.ChatFacadeServiceLiveWeaverRoundTripTest'
+# BUILD SUCCESSFUL; asserts pa-weaver -> channels.weave-chat -> governed bridge -> LM Studio -> assistant response,
+# mode=live, liveCall=completed, source=lmstudio-openai-compatible,
+# weaverReceived=true, lmStudioResponseReceived=true, rawProviderDiagnosticsExposed=false.
+
+./gradlew test --tests 'com.massimotter.weave.backend.controller.AdminControlPlaneControllerTest.adminControlPlaneOverviewIsSupportSafeAndProviderNeutral' \
+  --tests 'com.massimotter.weave.backend.controller.AdminControlPlaneControllerTest.adminReadinessTestsAndPolicyUpdatesAreAuditedAndRedacted'
+# BUILD SUCCESSFUL; asserts admin-owned model provider selection and support-safe Weaver distribution projection.
+```
+
 ## Decisions and boundaries
 
 - Weave is positioned as a provider-neutral collaboration control plane, not as a hobby-only self-hosting bundle.

@@ -15,13 +15,14 @@ public final class ProviderCategoryCatalog {
             "boards-tasks", new Category("boards-tasks", "boards/tasks", Set.of(ProviderModule.BOARDS), true),
             "meetings-calls", new Category("meetings-calls", "meetings/calls", Set.of(ProviderModule.MEETINGS), false),
             "documents-collaboration", new Category("documents-collaboration", "documents/collaboration", Set.of(ProviderModule.OFFICE, ProviderModule.FORMS, ProviderModule.CONTACTS), false),
-            "weaver", new Category("weaver", "Weaver", Set.of(), true));
+            "weaver", new Category("weaver", "Weaver", Set.of(), true),
+            "model", new Category("model", "model provider", Set.of(), true));
 
     private ProviderCategoryCatalog() {
     }
 
     public static List<String> categoryKeys() {
-        return List.of("identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "weaver");
+        return List.of("identity-idm", "chat", "files", "calendar", "boards-tasks", "meetings-calls", "documents-collaboration", "model", "weaver");
     }
 
     public static Optional<Category> category(String key) {
