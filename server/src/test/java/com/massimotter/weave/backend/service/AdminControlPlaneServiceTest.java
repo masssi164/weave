@@ -430,6 +430,50 @@ class AdminControlPlaneServiceTest {
     }
 
     @Test
+    void overviewIncludesSprint16SuiteGoLiveAndWeaverProjectionContracts() throws Exception {
+        WorkspaceCapabilityService workspaceCapabilityService = workspaceCapabilityService();
+        InMemoryProviderSelectionRepository selectionRepository = new InMemoryProviderSelectionRepository();
+        selectionRepository.save(new ProviderSelection(
+                "chat",
+                "synapse-homeserver",
+                "recommended_self_hosted_default",
+                "secretref://weave/provider/synapse-homeserver",
+                "actor:admin-123",
+                Instant.parse("2026-05-31T08:00:00Z"),
+                true,
+                true,
+                false,
+                List.of()));
+        ProviderRegistry providerRegistry = new ProviderRegistry(List.of(), workspaceCapabilityService, selectionRepository);
+        AdminControlPlaneService service = new AdminControlPlaneService(
+                providerRegistry,
+                workspaceCapabilityService,
+                selectionRepository,
+                new InMemoryOrganizationBootstrapRepository(),
+                new InMemoryAuditEventPublisher(),
+                Clock.fixed(Instant.parse("2026-05-31T08:00:00Z"), ZoneOffset.UTC));
+
+        var response = service.overview(jwt("admin"));
+
+        assertThat(response.suiteDomainReadiness()).extracting(domain -> domain.domain())
+                .containsExactly("files-docs", "boards-tasks", "calendar-meetings");
+        assertThat(response.suiteDomainReadiness()).allSatisfy(domain -> {
+            assertThat(domain.backendOwnedFacade()).isTrue();
+            assertThat(domain.providerMappingOwnedByServer()).isTrue();
+            assertThat(domain.rawProviderConfigExposedToMembers()).isFalse();
+            assertThat(domain.supportSafeErrors()).contains("raw-provider-bodies-redacted");
+        });
+        assertThat(response.goLiveReadiness().supportSafe()).isTrue();
+        assertThat(response.goLiveReadiness().normalMembersMayAccessSetupControls()).isFalse();
+        assertThat(response.weaverRuntimeProjection().disabledByDefault()).isTrue();
+        assertThat(response.weaverRuntimeProjection().rawRuntimeInternalsExposed()).isFalse();
+        assertThat(response.weaverRuntimeProjection().items()).extracting(item -> item.id())
+                .contains("chat-route", "tool-calendar-search", "tool-boards-comment", "consent-shared-space");
+        assertThat(new ObjectMapper().findAndRegisterModules().writeValueAsString(response))
+                .doesNotContain("openclaw.json", "Bearer ", "access_token", "rawProviderPayload");
+    }
+
+    @Test
     void checkedInApplyFixtureIsSupportSafeDecisionOnlyEvidence() throws Exception {
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         try (InputStream input = getClass().getResourceAsStream("/identity-realm-apply/guarded-safe-accepted.json")) {

@@ -23,12 +23,16 @@ public record AdminControlPlaneResponse(
         List<ProviderSelectionResponse> selectedProviderMappings,
         CapabilityWhitelistResponse whitelist,
         WeaverDistributionPolicyResponse weaverDistributionPolicy,
+        WeaverRuntimeProjectionResponse weaverRuntimeProjection,
         IdentityProviderReadinessResponse identityProviderReadiness,
+        List<SuiteDomainReadinessResponse> suiteDomainReadiness,
+        GoLiveReadinessResponse goLiveReadiness,
         List<SecretRefResponse> secretRefs,
         Map<String, String> adminApiRoutes) {
     public AdminControlPlaneResponse {
         categories = categories == null ? List.of() : List.copyOf(categories);
         selectedProviderMappings = selectedProviderMappings == null ? List.of() : List.copyOf(selectedProviderMappings);
+        suiteDomainReadiness = suiteDomainReadiness == null ? List.of() : List.copyOf(suiteDomainReadiness);
         secretRefs = secretRefs == null ? List.of() : List.copyOf(secretRefs);
         adminApiRoutes = adminApiRoutes == null ? Map.of() : Map.copyOf(adminApiRoutes);
     }
