@@ -102,7 +102,7 @@ void main() {
     expect(repository.markRoomReadCalls, 1);
   });
 
-  testWidgets('renders accessible channel workspace tabs with gated surfaces', (
+  testWidgets('renders accessible Space control room tabs with safe states', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
@@ -118,7 +118,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Project workspace'), findsOneWidget);
+    expect(find.text('Project Space control room'), findsOneWidget);
     expect(find.text('Chat'), findsOneWidget);
     expect(find.text('Files'), findsOneWidget);
     expect(find.text('Boards'), findsOneWidget);
@@ -128,7 +128,7 @@ void main() {
       find.byWidgetPredicate(
         (widget) =>
             widget is Semantics &&
-            widget.properties.label == 'Channel workspace tabs for Project',
+            widget.properties.label == 'Space control room tabs for Project',
       ),
       findsOneWidget,
     );
@@ -136,28 +136,35 @@ void main() {
     await tester.tap(find.text('Files'));
     await tester.pumpAndSettle();
     expect(find.text('Channel files'), findsOneWidget);
-    expect(find.text('Admin setup required'), findsOneWidget);
+    expect(find.text('not_configured'), findsOneWidget);
     expect(
-      find.textContaining('not enabled for this workspace yet'),
+      find.textContaining('No Space files are linked yet'),
       findsOneWidget,
     );
+    expect(find.textContaining('Object weave:space-channel-'), findsOneWidget);
+    expect(find.textContaining('files-link-not-configured'), findsOneWidget);
     expect(find.textContaining('Provider seam'), findsNothing);
 
     await tester.tap(find.text('Boards'));
     await tester.pumpAndSettle();
     expect(find.text('Channel boards and tasks'), findsOneWidget);
-    expect(find.text('Admin setup required'), findsOneWidget);
+    expect(find.text('degraded'), findsOneWidget);
+    expect(find.textContaining('task freshness is degraded'), findsOneWidget);
+    expect(find.textContaining('board-degraded'), findsOneWidget);
     expect(find.textContaining('provider'), findsNothing);
 
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
     expect(find.text('Channel calendar'), findsOneWidget);
-    expect(find.text('Unavailable until enabled'), findsOneWidget);
+    expect(find.text('disabled_by_policy'), findsOneWidget);
+    expect(find.textContaining('Calendar writes are blocked'), findsOneWidget);
+    expect(find.textContaining('calendar-policy-block'), findsOneWidget);
     expect(find.textContaining('Provider seam'), findsNothing);
 
     await tester.tap(find.text('Meetings'));
     await tester.pumpAndSettle();
     expect(find.text('Channel meetings'), findsOneWidget);
+    expect(find.text('coming_later'), findsOneWidget);
     expect(find.text('Meeting readiness is fail-closed'), findsOneWidget);
     expect(
       find.textContaining(
@@ -354,7 +361,7 @@ void main() {
     expect(find.text('Archived messages'), findsAtLeastNWidgets(1));
     expect(find.text('Hey there'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.more_vert));
+    await _openMessageActions(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Restore to timeline'));
     await tester.pumpAndSettle();
@@ -681,7 +688,7 @@ void main() {
     );
     semantics.dispose();
 
-    await tester.tap(find.byIcon(Icons.more_vert));
+    await _openMessageActions(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Archive'));
     await tester.pumpAndSettle();
@@ -747,7 +754,7 @@ void main() {
     expect(find.text('Archived'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.more_vert));
+    await _openMessageActions(tester);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Restore to timeline'));
     await tester.pumpAndSettle();
@@ -795,4 +802,16 @@ bool _hasSemanticTapAction(WidgetTester tester, Finder finder, String label) {
       .isNotEmpty;
   return (hasExpectedLabel || hasButtonText) &&
       data.hasAction(SemanticsAction.tap);
+}
+
+Future<void> _openMessageActions(WidgetTester tester) async {
+  final finder = find.byWidgetPredicate(
+    (widget) =>
+        widget is PopupMenuButton && widget.tooltip == 'Message actions',
+  );
+  final renderBox = tester.renderObject<RenderBox>(finder.last);
+  final target = renderBox.localToGlobal(
+    Offset(renderBox.size.width - 24, renderBox.size.height / 2),
+  );
+  await tester.tapAt(target);
 }

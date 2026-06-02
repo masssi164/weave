@@ -102,7 +102,7 @@ void main() {
           channelWorkspace,
           isNot(contains('ChannelWorkspaceSurfaceAvailability.preview')),
         );
-        expect(channelWorkspace, contains('adminSetupRequired'));
+        expect(channelWorkspace, contains('notConfigured'));
         expect(channelWorkspace, contains('disabledByPolicy'));
         expect(agentPolicy, isNot(contains('previewOnly')));
         expect(agentPolicy, contains('disabledByPolicy'));

@@ -698,20 +698,40 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String channelWorkspaceSummaryTitle(String channelName) {
-    return 'Arbeitsraum $channelName';
+    return 'Space-Kontrollraum $channelName';
   }
 
   @override
   String get channelWorkspaceSummaryDescription =>
-      'Dieser Channel ist ein Arbeitsraum mit Tabs für Chat, Dateien, Boards, Kalender und Meetings, wenn der Arbeitsbereich sie aktiviert hat.';
+      'Eine Space-Identität verbindet Chat, Dateien, Board, Kalender und Entscheidungen mit support-sicheren Nachweisreferenzen.';
 
   @override
   String get channelWorkspaceGovernanceNote =>
-      'Kontext bleibt ausdrücklich: kein verstecktes dauerhaftes Mitlesen und kein Admin-Setup für normale Mitglieder.';
+      'Kontext bleibt ausdrücklich: kein verstecktes dauerhaftes Mitlesen, keine Setup-Interna und keine rohen Diagnosen in Mitgliederansichten.';
+
+  @override
+  String channelWorkspaceRouteLabel(String routePath) {
+    return 'Route $routePath';
+  }
+
+  @override
+  String channelWorkspaceSpaceIdLabel(String spaceId) {
+    return 'Space-ID $spaceId';
+  }
+
+  @override
+  String channelWorkspaceEvidenceLabel(String evidenceRef) {
+    return 'Nachweis $evidenceRef';
+  }
+
+  @override
+  String channelWorkspaceSurfaceObjectLabel(String objectRef) {
+    return 'Objekt $objectRef';
+  }
 
   @override
   String channelWorkspaceTabsSemanticLabel(String channelName) {
-    return 'Channel-Arbeitsraum-Tabs für $channelName';
+    return 'Space-Kontrollraum-Tabs für $channelName';
   }
 
   @override
@@ -750,15 +770,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get channelWorkspaceFilesDescription =>
-      'Channel-Dateien sind für diesen Workspace noch nicht aktiviert. Bitte einen Workspace-Owner oder Admin, die Einrichtung abzuschließen; der Chat bleibt verfügbar.';
+      'Noch keine Space-Dateien verknüpft. Chat- und Entscheidungsnachweise bleiben verfügbar, während der Dateien-Einstieg dieselbe Space-ID behält.';
 
   @override
   String get channelWorkspaceBoardsDescription =>
-      'Channel-Boards und Aufgaben sind für diesen Workspace noch nicht aktiviert. Bitte einen Workspace-Owner oder Admin, die Einrichtung abzuschließen; der Chat bleibt verfügbar.';
+      'Board-Kontext nutzt dieselbe Space-ID, aber die Aufgaben-Aktualität ist eingeschränkt, bis der Workspace-Refresh erfolgreich ist.';
 
   @override
   String get channelWorkspaceCalendarDescription =>
-      'Channel-Termine bleiben gesperrt, bis die Kalender-Scope-Fähigkeit für diesen Arbeitsbereich verfügbar ist.';
+      'Kalender-Schreibvorgänge sind hier durch Workspace-Policy blockiert; vorhandene Space-Nachweise bleiben ohne Implementierungsdetails sichtbar.';
 
   @override
   String get channelWorkspaceMeetingsDescription =>
@@ -819,10 +839,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'Die Meeting-Fähigkeit ist noch nicht aktiviert.';
 
   @override
-  String get channelWorkspaceStatusAvailable => 'Verfügbar';
+  String get channelWorkspaceStatusAvailable => 'available';
 
   @override
-  String get channelWorkspaceStatusGated => 'Nicht verfügbar, bis aktiviert';
+  String get channelWorkspaceStatusNotConfigured => 'not_configured';
+
+  @override
+  String get channelWorkspaceStatusUnavailable => 'unavailable';
+
+  @override
+  String get channelWorkspaceStatusComingLater => 'coming_later';
 
   @override
   String channelWorkspaceExplicitContextNote(String channelName) {
@@ -3833,15 +3859,10 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get channelWorkspaceStatusAdminSetupRequired =>
-      'Admin-Einrichtung nötig';
+  String get channelWorkspaceStatusDisabledByPolicy => 'disabled_by_policy';
 
   @override
-  String get channelWorkspaceStatusDisabledByPolicy =>
-      'Durch Policy deaktiviert';
-
-  @override
-  String get channelWorkspaceStatusDegraded => 'Eingeschränkt';
+  String get channelWorkspaceStatusDegraded => 'degraded';
 
   @override
   String get agentCapabilityAvailabilityDisabledByPolicy =>

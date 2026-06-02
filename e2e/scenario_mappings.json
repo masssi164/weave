@@ -146,7 +146,8 @@
         {
           "path": "docs/v0.1-golden-path.md",
           "fragments": [
-            "The member enters a channel workspace and uses Weave product surfaces: chat, files, boards/tasks, calendar, meetings, decisions, and read-only Weaver scout where policy allows.",
+            "The member enters a Space control room and uses one canonical Space identity across Weave product surfaces: chat, files, boards/tasks, calendar, decisions, and read-only Weaver scout where policy allows.",
+            "Ready as a dogfood Workspace control room: one support-safe Space ID links chat, files, board, calendar, and decision evidence without claiming full domain parity",
             "Release evidence states whether a capability is available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later.",
             "Evidence artifacts must be sanitized: no secrets, tokens, cookies, private keys, credential-bearing URLs, raw provider bodies, or full private live logs."
           ]
@@ -714,13 +715,30 @@
     },
     {
       "tag": "@weave-v01-channel-workspace",
-      "scenario": "A channel is the primary workspace surface",
+      "scenario": "A Space control room is the primary workspace surface",
       "feature": "e2e/features/v0_1_dogfood_release.feature",
       "executableTest": "client/test/release_1/v0_1_release_spine_contract_test.dart",
       "evidenceMarkers": [
-        "V01_CHANNEL_WORKSPACE"
+        "V01_CHANNEL_WORKSPACE",
+        "V01_SPACE_CONTROL_ROOM"
       ],
       "additionalEvidence": [
+        {
+          "path": "client/test/features/chat/channel_workspace_test.dart",
+          "fragments": [
+            "models a governed Space control room without preview states",
+            "startsWith('/spaces/space-channel-')",
+            "surface.hasSupportSafeEvidence"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/chat_room_screen_test.dart",
+          "fragments": [
+            "renders accessible Space control room tabs with safe states",
+            "Space control room tabs for Project",
+            "calendar-policy-block"
+          ]
+        },
         {
           "path": "server/src/test/java/com/massimotter/weave/backend/controller/ChatControllerTest.java",
           "fragments": [
@@ -732,9 +750,9 @@
         {
           "path": "docs/release-v0.1-dogfood-plan.md",
           "fragments": [
+            "One member-visible Space control room route anchors Chat, Decisions, Files, Board, and Calendar to one support-safe Space ID.",
             "Tabs for Chat, Decisions, Files, Board, Calendar, Meetings, and read-only Weaver scout",
-            "Backend facade only",
-            "read-only Weaver scout"
+            "Support-safe evidence refs record the Space identity, linked domain objects, and final Decision state"
           ]
         }
       ],

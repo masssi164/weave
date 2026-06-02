@@ -388,7 +388,8 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
     Widget buildChatTimelineBody() {
       return LayoutBuilder(
         builder: (context, constraints) {
-          const compactContextPreview = false;
+          final compactContextPreview = constraints.maxHeight < 320;
+          final showRoomGovernancePreview = constraints.maxHeight >= 220;
 
           return Column(
             children: [
@@ -444,7 +445,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen> {
                     ),
                   ],
                 ),
-              if (!_loading && !_showingArchivedMessages)
+              if (!_loading &&
+                  !_showingArchivedMessages &&
+                  showRoomGovernancePreview)
                 ConstrainedBox(
                   constraints: BoxConstraints(
                     maxHeight: constraints.maxHeight >= 480
@@ -857,6 +860,9 @@ class _ChannelWorkspaceSummary extends StatelessWidget {
       label:
           '${l10n.channelWorkspaceSummaryTitle(workspace.channelTitle)}. '
           '${l10n.channelWorkspaceSummaryDescription}. '
+          '${l10n.channelWorkspaceRouteLabel(workspace.routePath)}. '
+          '${l10n.channelWorkspaceSpaceIdLabel(workspace.contextId)}. '
+          '${l10n.channelWorkspaceEvidenceLabel(workspace.spaceEvidenceRef)}. '
           '${l10n.channelWorkspaceGovernanceNote}',
       child: ExcludeSemantics(
         child: Card(
@@ -869,7 +875,7 @@ class _ChannelWorkspaceSummary extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -891,25 +897,10 @@ class _ChannelWorkspaceSummary extends StatelessWidget {
                             ),
                             style: theme.textTheme.titleMedium,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            l10n.channelWorkspaceSummaryDescription,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
                         ],
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  l10n.channelWorkspaceGovernanceNote,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
                 ),
               ],
             ),
@@ -971,6 +962,8 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
       title,
       status,
       body,
+      l10n.channelWorkspaceSurfaceObjectLabel(surface.canonicalObjectRef),
+      l10n.channelWorkspaceEvidenceLabel(surface.supportSafeEvidenceRef),
       l10n.channelWorkspaceExplicitContextNote(workspace.channelTitle),
     ].join('. ');
 
@@ -1019,12 +1012,28 @@ class _ChannelWorkspaceSurfacePanel extends StatelessWidget {
                     children: [
                       Chip(
                         avatar: Icon(
-                          surface.isGated
+                          surface.isUnavailable
                               ? Icons.lock_outline
                               : Icons.visibility_outlined,
                           size: 18,
                         ),
                         label: Text(status),
+                      ),
+                      Chip(
+                        avatar: const Icon(Icons.tag_outlined, size: 18),
+                        label: Text(
+                          l10n.channelWorkspaceSurfaceObjectLabel(
+                            surface.canonicalObjectRef,
+                          ),
+                        ),
+                      ),
+                      Chip(
+                        avatar: const Icon(Icons.verified_outlined, size: 18),
+                        label: Text(
+                          l10n.channelWorkspaceEvidenceLabel(
+                            surface.supportSafeEvidenceRef,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -1134,14 +1143,16 @@ String _channelSurfaceStatusLabel(
   return switch (availability) {
     ChannelWorkspaceSurfaceAvailability.available =>
       l10n.channelWorkspaceStatusAvailable,
-    ChannelWorkspaceSurfaceAvailability.adminSetupRequired =>
-      l10n.channelWorkspaceStatusAdminSetupRequired,
     ChannelWorkspaceSurfaceAvailability.disabledByPolicy =>
       l10n.channelWorkspaceStatusDisabledByPolicy,
+    ChannelWorkspaceSurfaceAvailability.notConfigured =>
+      l10n.channelWorkspaceStatusNotConfigured,
     ChannelWorkspaceSurfaceAvailability.degraded =>
       l10n.channelWorkspaceStatusDegraded,
-    ChannelWorkspaceSurfaceAvailability.gated =>
-      l10n.channelWorkspaceStatusGated,
+    ChannelWorkspaceSurfaceAvailability.unavailable =>
+      l10n.channelWorkspaceStatusUnavailable,
+    ChannelWorkspaceSurfaceAvailability.comingLater =>
+      l10n.channelWorkspaceStatusComingLater,
   };
 }
 
@@ -1442,7 +1453,7 @@ class _ChannelMeetingsPreviewPanel extends StatelessWidget {
     final meeting = workspace.meetingPreview;
     final semanticsLabel = [
       l10n.channelWorkspaceMeetingsTitle,
-      l10n.channelWorkspaceStatusGated,
+      l10n.channelWorkspaceStatusComingLater,
       l10n.channelWorkspaceMeetingsDescription,
       l10n.channelWorkspaceMeetingsCapabilityBody,
       l10n.channelWorkspaceMeetingsPrivacyBody(workspace.channelTitle),
@@ -1503,7 +1514,7 @@ class _ChannelMeetingsPreviewPanel extends StatelessWidget {
                         children: [
                           Chip(
                             avatar: const Icon(Icons.lock_outline, size: 18),
-                            label: Text(l10n.channelWorkspaceStatusGated),
+                            label: Text(l10n.channelWorkspaceStatusComingLater),
                           ),
                           Chip(
                             avatar: const Icon(

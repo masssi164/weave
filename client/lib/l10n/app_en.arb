@@ -688,7 +688,7 @@
   "@chatStaleRoomsRetryButton": {
     "description": "Button label for retrying a stale chat room list refresh"
   },
-  "channelWorkspaceSummaryTitle": "{channelName} workspace",
+  "channelWorkspaceSummaryTitle": "{channelName} Space control room",
   "@channelWorkspaceSummaryTitle": {
     "description": "Title for the channel workspace summary card",
     "placeholders": {
@@ -697,15 +697,51 @@
       }
     }
   },
-  "channelWorkspaceSummaryDescription": "This channel is a work room with tabs for chat, files, boards, calendar, and meetings where the workspace has enabled them.",
+  "channelWorkspaceSummaryDescription": "One Space identity connects chat, files, board, calendar, and decisions with support-safe evidence refs.",
   "@channelWorkspaceSummaryDescription": {
     "description": "Description for the channel workspace summary card"
   },
-  "channelWorkspaceGovernanceNote": "Context stays explicit: no hidden continuous room reading and no ordinary member access to admin setup.",
+  "channelWorkspaceGovernanceNote": "Context stays explicit: no hidden continuous room reading, no setup internals, and no raw diagnostics in member views.",
   "@channelWorkspaceGovernanceNote": {
     "description": "Governance note for channel workspace tabs"
   },
-  "channelWorkspaceTabsSemanticLabel": "Channel workspace tabs for {channelName}",
+  "channelWorkspaceRouteLabel": "Route {routePath}",
+  "@channelWorkspaceRouteLabel": {
+    "description": "Support-safe route label for a Space control room",
+    "placeholders": {
+      "routePath": {
+        "type": "String"
+      }
+    }
+  },
+  "channelWorkspaceSpaceIdLabel": "Space ID {spaceId}",
+  "@channelWorkspaceSpaceIdLabel": {
+    "description": "Support-safe canonical Space identifier label",
+    "placeholders": {
+      "spaceId": {
+        "type": "String"
+      }
+    }
+  },
+  "channelWorkspaceEvidenceLabel": "Evidence {evidenceRef}",
+  "@channelWorkspaceEvidenceLabel": {
+    "description": "Support-safe evidence reference label",
+    "placeholders": {
+      "evidenceRef": {
+        "type": "String"
+      }
+    }
+  },
+  "channelWorkspaceSurfaceObjectLabel": "Object {objectRef}",
+  "@channelWorkspaceSurfaceObjectLabel": {
+    "description": "Support-safe canonical object reference label for a Space control room surface",
+    "placeholders": {
+      "objectRef": {
+        "type": "String"
+      }
+    }
+  },
+  "channelWorkspaceTabsSemanticLabel": "Space control room tabs for {channelName}",
   "@channelWorkspaceTabsSemanticLabel": {
     "description": "Semantic label for the channel workspace tab list",
     "placeholders": {
@@ -758,15 +794,15 @@
   "@channelWorkspaceChatDescription": {
     "description": "Description for the channel chat surface"
   },
-  "channelWorkspaceFilesDescription": "Channel files are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.",
+  "channelWorkspaceFilesDescription": "No Space files are linked yet. Chat and decision evidence remain available while the Files entry point keeps the same Space ID.",
   "@channelWorkspaceFilesDescription": {
     "description": "Description for unavailable channel files state"
   },
-  "channelWorkspaceBoardsDescription": "Channel boards and tasks are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.",
+  "channelWorkspaceBoardsDescription": "Board context uses the same Space ID, but task freshness is degraded until the workspace refresh succeeds.",
   "@channelWorkspaceBoardsDescription": {
     "description": "Description for unavailable channel boards/tasks state"
   },
-  "channelWorkspaceCalendarDescription": "Channel events stay gated until calendar scope capability is available for this workspace.",
+  "channelWorkspaceCalendarDescription": "Calendar writes are blocked by workspace policy here; existing Space evidence stays visible without exposing implementation details.",
   "@channelWorkspaceCalendarDescription": {
     "description": "Description for the gated channel calendar placeholder"
   },
@@ -839,13 +875,21 @@
   "@channelWorkspaceMeetingsBackendUnavailableReason": {
     "description": "Disabled reason for meeting controls when backend capability is absent"
   },
-  "channelWorkspaceStatusAvailable": "Available",
+  "channelWorkspaceStatusAvailable": "available",
   "@channelWorkspaceStatusAvailable": {
     "description": "Status label for an available channel workspace surface"
   },
-  "channelWorkspaceStatusGated": "Unavailable until enabled",
-  "@channelWorkspaceStatusGated": {
-    "description": "Status label for a gated channel workspace surface"
+  "channelWorkspaceStatusNotConfigured": "not_configured",
+  "@channelWorkspaceStatusNotConfigured": {
+    "description": "Member-safe status label for a Space control room surface that has no configured capability yet"
+  },
+  "channelWorkspaceStatusUnavailable": "unavailable",
+  "@channelWorkspaceStatusUnavailable": {
+    "description": "Member-safe status label for an unavailable Space control room surface"
+  },
+  "channelWorkspaceStatusComingLater": "coming_later",
+  "@channelWorkspaceStatusComingLater": {
+    "description": "Member-safe status label for a Space control room surface intentionally outside current release scope"
   },
   "channelWorkspaceExplicitContextNote": "Only explicit context from {channelName} is shown here; Weave does not continuously read the room in the background.",
   "@channelWorkspaceExplicitContextNote": {
@@ -4529,15 +4573,11 @@
       }
     }
   },
-  "channelWorkspaceStatusAdminSetupRequired": "Admin setup required",
-  "@channelWorkspaceStatusAdminSetupRequired": {
-    "description": "Status chip for a channel workspace surface that requires admin setup"
-  },
-  "channelWorkspaceStatusDisabledByPolicy": "Disabled by policy",
+  "channelWorkspaceStatusDisabledByPolicy": "disabled_by_policy",
   "@channelWorkspaceStatusDisabledByPolicy": {
     "description": "Status chip for a channel workspace surface disabled by policy"
   },
-  "channelWorkspaceStatusDegraded": "Degraded",
+  "channelWorkspaceStatusDegraded": "degraded",
   "@channelWorkspaceStatusDegraded": {
     "description": "Status chip for a degraded channel workspace surface"
   },
