@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "sprint": 20,
+  "title": "North-Star Release Trust & Operator Readiness",
+  "candidate": {
+    "commit": "3ab9b3eaa09539f62200963c5bd5aeac01a7847c",
+    "tag": "v0.1.0-rc.1",
+    "evidenceClass": "current-head candidate evidence, not a production release claim"
+  },
+  "score": {
+    "current": 82,
+    "target": 85,
+    "hardExitThreshold": 80,
+    "status": "above-hard-exit-threshold-blocked-below-85-by-manual-at",
+    "rationale": "Current-head local CI/offline gates and GitHub Live Stack E2E run 26828148937 passed on the candidate commit. Real manual assistive-technology signoff remains missing and cannot receive pass credit, so the score is above the hard exit threshold but below the 85 target."
+  },
+  "dimensions": [
+    {
+      "id": "product-flow",
+      "label": "Product flow: member starts and completes daily work",
+      "weight": 15,
+      "score": 14,
+      "evidenceClass": "current-head offline/spec and local CI evidence",
+      "evidence": [
+        "./gradlew ci --console=plain passed locally on 3ab9b3eaa09539f62200963c5bd5aeac01a7847c at 2026-06-02T14:59:39Z",
+        "client/test/features/chat/chat_room_screen_test.dart",
+        "client/test/release_1/v0_1_release_spine_contract_test.dart",
+        "e2e/scenario_mappings.json marker V01_SPACE_CONTROL_ROOM"
+      ],
+      "blockers": [
+        "Manual AT coverage and current-head live runtime credit still depend on #591 and Live Stack E2E."
+      ]
+    },
+    {
+      "id": "current-head-release-evidence",
+      "label": "Current-head release evidence",
+      "weight": 12,
+      "score": 11,
+      "evidenceClass": "current-head local CI plus passed GitHub live workflow",
+      "evidence": [
+        "./gradlew ci --console=plain passed locally on current head and wrote build/evidence/ci-summary.json",
+        "GitHub Live Stack E2E run 26828148937 passed on 3ab9b3eaa09539f62200963c5bd5aeac01a7847c",
+        "Live artifact 7361726575 `weave-live-stack-acceptance-evidence` contains release-evidence-manifest.json with 42/42 mappings, 9 live-runtime scenarios, runtimeEvidenceCollected=true, findings=[], supportSafe=true",
+        "python3 tools/release_readiness_check.py ... --ci-summary build/evidence/ci-summary.json --live-evidence-dir weave-live-stack-acceptance-evidence reported RC readiness: ready when run against the downloaded support-safe artifact"
+      ],
+      "blockers": [
+        "Manual AT signoff remains #591; release-blocker GitHub state must be reconciled separately from local release-blockers.json."
+      ]
+    },
+    {
+      "id": "manual-at-accessibility",
+      "label": "Manual AT and accessibility signoff",
+      "weight": 12,
+      "score": 2,
+      "evidenceClass": "blocked manual evidence with current automated/accessibility support evidence only",
+      "evidence": [
+        "GitHub issue #591 remains open and release-blocking.",
+        "docs/evidence/accessibility/sprint-18-manual-at-blocker.md records the missing manual AT evidence boundary.",
+        "release/accessibility-gate.json keeps manual AT promotion blocked."
+      ],
+      "blockers": [
+        "Owner: Massimo or delegated human AT reviewer. Smallest next action: execute the #591 checklist for member Space loop, admin migration apply/recovery, go-live claim-control, and governed Weaver approval/revocation on exact candidate build and record reviewer/date/AT/browser/device/results."
+      ]
+    },
+    {
+      "id": "provider-portability",
+      "label": "Provider portability and cutover honesty",
+      "weight": 11,
+      "score": 9,
+      "evidenceClass": "current-head offline/spec and contract evidence",
+      "evidence": [
+        "./gradlew portabilityContractCheck passed in local current-head CI.",
+        "./gradlew serverCi and ./gradlew adminCi passed in local current-head CI.",
+        "server provider replacement dry-run tests cover backend-owned support-safe consequences and Matrix Chat cutover blocking.",
+        "docs/product-trust-provider-choice-claim-matrix.md bounds provider portability claims."
+      ],
+      "blockers": [
+        "Manual AT evidence for admin migration consequence/apply block/recovery remains part of #591 before release promotion."
+      ]
+    },
+    {
+      "id": "space-control-room",
+      "label": "Space control room dogfoodability",
+      "weight": 10,
+      "score": 9,
+      "evidenceClass": "current-head offline/spec and local client CI evidence",
+      "evidence": [
+        "./gradlew clientCi and ./gradlew acceptanceContract passed in local current-head CI.",
+        "e2e/scenario_mappings.json maps @weave-v01-channel-workspace with V01_SPACE_CONTROL_ROOM.",
+        "client tests cover accessible Space control room tabs, decisions, non-drag board work, and stable states."
+      ],
+      "blockers": [
+        "Manual AT coverage for Home/Space controls remains #591 before release promotion."
+      ]
+    },
+    {
+      "id": "governed-weaver-runtime-safety",
+      "label": "Governed Weaver runtime safety",
+      "weight": 10,
+      "score": 8,
+      "evidenceClass": "current-head offline/spec, backend, admin, and infra contract evidence",
+      "evidence": [
+        "./gradlew serverCi passed in local current-head CI.",
+        "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+        "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java",
+        "infra/weave-workspace/tests/weaver-runtime-lifecycle-contract-test.sh",
+        "docs/governed-weaver-runtime-security-contract.md"
+      ],
+      "blockers": [
+        "No broad autonomous AI/runtime execution claim; manual AT evidence for Weaver approval/revocation surfaces remains #591."
+      ]
+    },
+    {
+      "id": "claim-control",
+      "label": "Production and public claim control",
+      "weight": 10,
+      "score": 9,
+      "evidenceClass": "current-head local release evidence and claim-control checks",
+      "evidence": [
+        "./gradlew releaseEvidenceCheck passed in local current-head CI.",
+        "docs/product-trust-provider-choice-claim-matrix.md",
+        "tools/release_trust_claim_control_check.py",
+        "release/accessibility-gate.json"
+      ],
+      "blockers": [
+        "No production release, public release claim, provider cutover, or manual AT pass claim is authorized by this sprint evidence."
+      ]
+    },
+    {
+      "id": "operator-readiness",
+      "label": "Backup, restore, and operator readiness",
+      "weight": 10,
+      "score": 8,
+      "evidenceClass": "current-head fixture/offline operator evidence",
+      "evidence": [
+        "./gradlew infraStatic passed in local current-head CI.",
+        "infra/weave-workspace/tests/restore-smoke-artifacts-test.sh",
+        "infra/weave-workspace/tests/support-bundle-redaction-test.sh",
+        "infra/weave-workspace/backup.sh",
+        "infra/weave-workspace/restore-smoke.sh",
+        "infra/weave-workspace/support-bundle.sh"
+      ],
+      "blockers": [
+        "Stronger dogfood operator-readiness credit requires an approved non-production backup plus restore-smoke rehearsal naming environment, command, commit, result, and artifact refs."
+      ]
+    },
+    {
+      "id": "scenario-live-e2e-coverage",
+      "label": "Scenario and live-E2E coverage",
+      "weight": 10,
+      "score": 9,
+      "evidenceClass": "42/42 mapping plus current-head live runtime evidence",
+      "evidence": [
+        "./gradlew acceptanceContract passed with 42 scenarios: 9 live-runtime and 33 offline-spec.",
+        "GitHub Live Stack E2E run 26828148937 passed on current-head candidate commit 3ab9b3eaa09539f62200963c5bd5aeac01a7847c.",
+        "Live manifest observed AUTH_RESULT, PROFILE_RESULT, CHAT_RESULT, MATRIX_RESULT, E2EE_RESULT, FILES_RESULT, PROVIDER_STACK_RESULT, CALENDAR_RESULT, BOARDS_RESULT, WORKSPACE_LOOP_RESULT, and PROVIDER_REALITY_RESULT."
+      ],
+      "blockers": [
+        "Manual AT evidence is still missing; live evidence does not count as manual AT pass evidence."
+      ]
+    }
+  ],
+  "blockingIssues": [
+    {
+      "number": 591,
+      "url": "https://github.com/masssi164/weave/issues/591",
+      "state": "open",
+      "reason": "Real manual assistive-technology release signoff and claim-control evidence is missing."
+    },
+    {
+      "number": 608,
+      "url": "https://github.com/masssi164/weave/issues/608",
+      "state": "open",
+      "reason": "Sprint 20 release-trust epic cannot close until #591 and current-head Live Stack evidence are reconciled."
+    },
+    {
+      "number": 613,
+      "url": "https://github.com/masssi164/weave/issues/613",
+      "state": "open",
+      "reason": "Scoreboard published as PR evidence; hard-exit score is now above 80 after Live Stack E2E pass, but final sprint closure remains blocked by #591/manual AT and PR/issue reconciliation."
+    }
+  ],
+  "nonClaims": [
+    "No production release or public release claim is made.",
+    "No manual AT pass evidence is claimed.",
+    "No production provider cutover, provider apply, live infra mutation, destructive restore, history rewrite, or raw provider/runtime evidence disclosure is authorized.",
+    "Historical Sprint 18/19/RC evidence remains historical unless rerun on the exact candidate commit."
+  ]
+}
