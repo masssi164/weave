@@ -47,13 +47,12 @@
       "display_name": "Identity",
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
+        "Subject",
         "IdentitySource",
-        "IdentityAccount",
         "Group",
         "Role",
-        "ServicePrincipal",
-        "GuestIdentity",
-        "DeprovisioningEvent"
+        "CapabilityProfile",
+        "LoginSession"
       ],
       "capability_keys": [
         "identity.read",
@@ -121,12 +120,12 @@
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
         "Person",
+        "Membership",
         "Profile",
         "ContactMethod",
-        "AvatarRef",
-        "OrganizationUnit",
-        "ExternalContact",
-        "IdentityAccountLink"
+        "Team",
+        "Guest",
+        "ServiceAccountRef"
       ],
       "capability_keys": [
         "people.read",
@@ -194,14 +193,13 @@
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
         "Space",
-        "SpaceType",
         "SpaceMembership",
-        "SpaceRole",
-        "DomainBinding",
-        "ContextPolicy",
-        "DefaultSurface",
-        "ContextArchive",
-        "ProviderBindingMap"
+        "RoleBinding",
+        "LinkedChannel",
+        "LinkedBoard",
+        "LinkedCalendar",
+        "LinkedFileRoot",
+        "DecisionLedgerRef"
       ],
       "capability_keys": [
         "spaces.read",
@@ -422,13 +420,12 @@
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
         "Document",
-        "EditorSession",
-        "EditorProvider",
-        "Lock",
-        "CoAuthoringState",
-        "VersionRef",
-        "WopiLaunchContract",
-        "GuardedUnavailableState"
+        "EditSession",
+        "Comment",
+        "Suggestion",
+        "CoauthorPresence",
+        "Version",
+        "Export"
       ],
       "capability_keys": [
         "documents.read",
@@ -573,17 +570,10 @@
         "Task",
         "Status",
         "Assignee",
-        "Watcher",
         "Comment",
         "AttachmentRef",
         "Dependency",
-        "Label",
-        "CustomField",
-        "Estimate",
-        "Priority",
-        "Milestone",
-        "Sprint",
-        "WorkflowRule"
+        "CustomField"
       ],
       "capability_keys": [
         "boards.read",
@@ -651,16 +641,12 @@
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
         "Meeting",
-        "MeetingRoom",
-        "Participant",
-        "JoinGrant",
         "MediaSession",
+        "Participant",
+        "TokenGrant",
         "Recording",
-        "Transcript",
         "Caption",
-        "MeetingChatRef",
-        "ConsentRecord",
-        "RetentionPolicy"
+        "ConsentRecord"
       ],
       "capability_keys": [
         "calls.read",
@@ -728,11 +714,11 @@
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
         "Decision",
-        "SourceRef",
+        "Proposal",
+        "Approval",
+        "Rationale",
+        "DecisionLink",
         "EvidenceRef",
-        "Status",
-        "AuditRef",
-        "DecisionOwner",
         "Supersession"
       ],
       "capability_keys": [
@@ -801,10 +787,11 @@
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
         "Notification",
-        "ActionRequest",
-        "ApprovalRequest",
+        "Preference",
+        "Channel",
         "Digest",
-        "ReadState"
+        "DeliveryAttempt",
+        "Subscription"
       ],
       "capability_keys": [
         "notifications.read",
@@ -871,14 +858,13 @@
       "display_name": "Health",
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
-        "ProviderReadiness",
-        "RiskNote",
-        "SupportBundleRef",
-        "MigrationRunRef",
-        "SecretRef",
-        "PolicyImpact",
-        "ReadinessDiagnostic",
-        "NextAction"
+        "ReadinessCard",
+        "Diagnostic",
+        "SupportBundle",
+        "BackupJob",
+        "RestoreDrill",
+        "EvidenceItem",
+        "AuditRef"
       ],
       "capability_keys": [
         "health.read",

@@ -114,18 +114,18 @@ class CanonicalDomainRegistryContractTest {
     void sprintNineFoundationalDomainsExposeProductReadyCanonicalObjects() {
         CanonicalDomainRegistryResponse registry = CanonicalDomainRegistry.snapshot();
 
-        assertThat(objects(registry, "spaces")).contains("Space", "DomainBinding", "SpaceMembership", "SpaceRole", "ProviderBindingMap");
-        assertThat(objects(registry, "people")).contains("Person", "ContactMethod", "AvatarRef", "OrganizationUnit", "ExternalContact", "IdentityAccountLink");
-        assertThat(objects(registry, "notifications")).contains("Notification", "ActionRequest", "ApprovalRequest", "Digest", "ReadState");
-        assertThat(objects(registry, "decisions")).contains("Decision", "SourceRef", "EvidenceRef");
-        assertThat(objects(registry, "health")).contains("ProviderReadiness", "RiskNote", "SupportBundleRef", "MigrationRunRef", "SecretRef");
+        assertThat(objects(registry, "spaces")).contains("Space", "SpaceMembership", "RoleBinding", "LinkedChannel", "LinkedBoard", "LinkedCalendar", "LinkedFileRoot", "DecisionLedgerRef");
+        assertThat(objects(registry, "people")).contains("Person", "Membership", "Profile", "ContactMethod", "Team", "Guest", "ServiceAccountRef");
+        assertThat(objects(registry, "notifications")).contains("Notification", "Preference", "Channel", "Digest", "DeliveryAttempt", "Subscription");
+        assertThat(objects(registry, "decisions")).contains("Decision", "Proposal", "Approval", "Rationale", "DecisionLink", "EvidenceRef", "Supersession");
+        assertThat(objects(registry, "health")).contains("ReadinessCard", "Diagnostic", "SupportBundle", "BackupJob", "RestoreDrill", "EvidenceItem", "AuditRef");
         assertThat(objects(registry, "chat")).contains("WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport");
         assertThat(objects(registry, "files")).contains("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef");
-        assertThat(objects(registry, "documents")).contains("Document", "EditorSession", "EditorProvider", "CoAuthoringState", "VersionRef", "WopiLaunchContract");
+        assertThat(objects(registry, "documents")).contains("Document", "EditSession", "Comment", "Suggestion", "CoauthorPresence", "Version", "Export");
         assertThat(objects(registry, "calendar")).contains("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef");
         assertThat(objects(registry, "weaver")).contains("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile");
-        assertThat(objects(registry, "boards")).contains("Board", "List", "Task", "Status", "Assignee", "Watcher", "Comment", "AttachmentRef", "Dependency", "Label", "CustomField", "Estimate", "Priority", "Milestone", "Sprint", "WorkflowRule");
-        assertThat(objects(registry, "calls")).contains("Meeting", "MeetingRoom", "Participant", "JoinGrant", "MediaSession", "Recording", "Transcript", "Caption", "MeetingChatRef", "ConsentRecord", "RetentionPolicy");
+        assertThat(objects(registry, "boards")).contains("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField");
+        assertThat(objects(registry, "calls")).contains("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord");
     }
 
     @Test

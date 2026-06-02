@@ -286,7 +286,7 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.targetAdapter").value("authentik"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
-                .andExpect(jsonPath("$.lossyMappingReport.canonicalObjects[*]", hasItems("UserAccount", "Group", "CapabilityPolicy")))
+                .andExpect(jsonPath("$.lossyMappingReport.canonicalObjects[*]", hasItems("Subject", "Group", "CapabilityProfile")))
                 .andExpect(jsonPath("$.lifecycleExpectations.sourceOfTruthPolicy", containsString("authoritative IdP")))
                 .andExpect(jsonPath("$.portableExportImportContract.exportManifestRef").value("identity-idm-portable-export-manifest-v0.1"))
                 .andExpect(jsonPath("$.portableExportImportContract.importManifestRef").value("identity-idm-portable-import-manifest-v0.1"))
