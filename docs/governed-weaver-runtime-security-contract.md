@@ -80,7 +80,7 @@ The initial registry exposes stable, versioned, domain-scoped names only through
 | `notifications.create_action_request` | external-send | `weaver.notifications_write` | required |
 | `boards.comment` | write | `weaver.boards_write` | required |
 
-Discovery filters by the generated runtime profile's grants. Blocked tools are not discoverable and unauthorized invocation is blocked and audited. Results are redacted before returning to the runtime.
+Discovery filters by the generated runtime profile's grants. Invocation additionally fails closed unless the signed profile matches the same user, is not revoked, has an unexpired runtime token, has consent for the requested scope, and carries the exact scoped tool grant. Blocked tools are not discoverable and unauthorized, revoked, expired-token, missing-consent, overbroad-grant, or missing-approval paths are blocked and audited with support-safe refs. Bounded assistance results may cite canonical `space:`, `decision:`, and `board-task:` refs; raw provider payloads, private prompts/content, provider room IDs, and credential material are redacted before returning to the runtime.
 
 ## OpenClaw fork and supply-chain posture
 

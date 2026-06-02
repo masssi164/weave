@@ -8,7 +8,7 @@ Status: Sprint 8/9 contract evidence seed for issues #446-#449.
 | --- | --- |
 | Provider switching threat covered | Provider switching remains admin/operator-only and approval-gated; see `docs/admin-suite-readiness-setup-contract.md` and `@weave-v01-provider-switch-portability`. |
 | OpenClaw runtime isolation covered | `docs/governed-weaver-runtime-security-contract.md` defines per-user workspace, memory, session, and no-cross-user isolation. |
-| Weaver tools and approvals covered | `WeaverToolRegistryTest` proves grant-filtered discovery, blocked unauthorized calls, approval-required writes, redaction, and audit. |
+| Weaver tools and approvals covered | `WeaverToolRegistryTest` proves grant-filtered discovery, signed same-user profile enforcement, revoked/expired-token/missing-consent/overbroad-grant denials, scoped tool grants, approval-required writes, canonical Space/Decision/Board refs, redaction, and audit. |
 | No raw provider tokens | Runtime profile exposes `secretrefs-only-no-raw-provider-tokens`; tool results redact raw provider payloads. |
 | SecretRefs everywhere | Product contract requires SecretRefs only for runtime profile, support bundles, logs, docs, and release evidence. |
 | RBAC control-plane actions | Runtime profile generation intersects IDM/RBAC capability policy with admin allowlists and remains disabled by default. |
@@ -41,7 +41,7 @@ Before release readiness is claimed, the bundle must include:
 - Keycloak dry-run sample reference;
 - Calls/LiveKit readiness artifact reference;
 - OpenClaw-derived fork URL, pinned upstream commit/tag, image digest, SBOM ref, and scan refs;
-- Weaver tool approval proof showing policy version, receipt ref, audit ref, and redacted tool/result payload.
+- Weaver bounded-assistance approval proof showing signed profile version/hash, policy version, consent/scope decision, receipt ref, audit ref, canonical Space/Decision/Board refs, and redacted tool/result payload.
 
 Current PR evidence:
 

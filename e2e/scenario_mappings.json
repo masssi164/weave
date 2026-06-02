@@ -696,15 +696,17 @@
           "fragments": [
             "Tool registry v1",
             "Discovery filters by the generated runtime profile's grants",
-            "Write-like actions require approval receipts before invocation"
+            "Invocation additionally fails closed unless the signed profile matches the same user",
+            "Bounded assistance results may cite canonical `space:`, `decision:`, and `board-task:` refs"
           ]
         },
         {
           "path": "docs/evidence/weaver-security-privacy-accessibility-report.md",
           "fragments": [
             "grant-filtered discovery",
+            "signed same-user profile enforcement",
             "approval-required writes",
-            "Weaver tool approval proof"
+            "Weaver bounded-assistance approval proof"
           ]
         }
       ],

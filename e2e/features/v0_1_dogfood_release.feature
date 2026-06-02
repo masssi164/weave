@@ -105,10 +105,10 @@ Feature: Weave v0.1 dogfood production release
   Scenario: Weaver discovers and invokes only approved domain tools
     Given an admin has approved Weaver tools by domain capability
     When a member runtime discovers tools and requests a write-like tool invocation
-    Then the runtime sees only domain-scoped tools granted by its profile
-    And blocked tools are hidden or denied with support-safe audit evidence
+    Then the runtime sees only domain-scoped tools granted by its signed profile and same-user lookup
+    And blocked tools, revoked profiles, expired runtime tokens, missing consent, and overbroad grants are denied with support-safe audit evidence
     And write, delete, external-send, and provider-switch actions require approval receipts before invocation
-    And tool results are redacted before returning to the runtime
+    And bounded assistance results may cite Space, Decision, and Board canonical refs without raw provider payloads or private content
 
   @weave-v01-channel-workspace
   Scenario: A channel is the primary workspace surface
