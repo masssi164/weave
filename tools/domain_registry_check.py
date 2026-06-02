@@ -10,7 +10,14 @@ REQUIRED_KEYS=['identity','people','spaces','chat','files','documents','calendar
 MEMBER=['available','disabled_by_policy','not_configured','degraded','unavailable','coming_later']
 ADMIN=['provider_not_configured','secret_missing','ready','degraded','dry_run_required','lossy_mapping_pending','apply_blocked','migration_ready']
 MANIFEST=['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary']
-REALITY=['contract_only','configured_readiness','live_adapter_read','live_adapter_write','migration_apply_ready','release_ready']
+REALITY=['contract_only','configured','live_read','live_write','migration_dry_run','migration_apply_ready','rollback_ready','release_ready']
+REQUIRED_CANONICAL={
+ 'chat':{'WeaveSpace','WeaveConversation','WeaveMessage','WeaveThread','WeaveReaction','WeaveAttachment','WeaveMembership','WeaveHistoryPolicy','ProviderRef','MigrationReceipt','RollbackReceipt','LossyFieldReport'},
+ 'files':{'WeaveDrive','WeaveFolder','WeaveFile','WeaveVersion','WeaveShare','WeavePermission','WeaveLock','WeaveQuota','ProviderRef'},
+ 'calendar':{'WeaveCalendar','WeaveEvent','WeaveRecurrence','WeaveAttendee','WeaveResource','WeaveAvailability','ProviderRef'},
+ 'weaver':{'WeaverRuntimeProfile','WeaverRuntimeInstance','WeaverUserWorkspace','WeaverToolGrant','WeaverApprovalReceipt','WeaverAuditEvent','WeaverCustomizationProfile'},
+}
+OLD_REALITY={'configured_readiness','live_adapter_read','live_adapter_write'}
 def fail(m):
  print(f'domain-registry-check: {m}', file=sys.stderr); raise SystemExit(1)
 def load(p):
@@ -49,7 +56,10 @@ def main():
   reality=d.get('providerRealityLevelByCandidate')
   if not isinstance(reality,dict): fail(f'{key} providerRealityLevelByCandidate must be an object')
   if set(reality.keys())!=set(d['providerCandidates']): fail(f'{key} provider reality candidates must match providerCandidates')
+  missing_required=REQUIRED_CANONICAL.get(key,set())-set(d['canonicalObjects'])
+  if missing_required: fail(f'{key} canonicalObjects missing Sprint 21 required object(s): '+', '.join(sorted(missing_required)))
   for candidate,level in reality.items():
+   if level in OLD_REALITY: fail(f'{key} provider candidate {candidate!r} uses rejected old reality level {level!r}')
    if level not in REALITY: fail(f'{key} provider candidate {candidate!r} has invalid reality level {level!r}')
   for alias in d['compatibilityAliases']:
    if '/' in alias: fail(f'{key} alias {alias!r} must use canonical hyphen/camel compatibility syntax, not slash-style display text')

@@ -251,7 +251,7 @@ class PlatformProductContractControllerTest {
                 .andExpect(jsonPath("$.migrationDryRunRequired").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providerDiagnosticsRedacted").value(true))
-                .andExpect(jsonPath("$.lossyMappingReport.canonicalObjects", hasItem("Message")))
+                .andExpect(jsonPath("$.lossyMappingReport.canonicalObjects", hasItem("WeaveMessage")))
                 .andExpect(jsonPath("$.lossyMappingReport.contractRisks", hasItem(containsString("Slack"))))
                 .andExpect(jsonPath("$.lifecycleExpectations.exportExpectation", containsString("export")))
                 .andExpect(jsonPath("$.lifecycleExpectations.deprovisionExpectation", containsString("deprovision")))

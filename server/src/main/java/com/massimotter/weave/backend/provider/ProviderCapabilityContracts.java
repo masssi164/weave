@@ -26,7 +26,7 @@ public final class ProviderCapabilityContracts {
                     List.of("chat.read", "chat.send", "chat.channels"),
                     List.of("matrix-chat", "synapse-homeserver"),
                     List.of("microsoft-teams", "slack", "nextcloud-talk"),
-                    List.of("Space", "Conversation", "Message", "Thread", "Reaction", "Attachment", "Membership", "Presence"),
+                    List.of("WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"),
                     "selected chat provider owns message history; Matrix Chat is the current real release provider path and non-Matrix chat providers remain contract-only until promoted by adapter evidence",
                     List.of("Slack broadcast/thread semantics", "Teams channel permissions", "Matrix E2EE recovery", "rich cards/adaptive blocks", "attachment retention"),
                     "export conversation/message/attachment provenance or document provider export boundary; delete/deprovision follows provider and retention policy",
@@ -35,7 +35,7 @@ public final class ProviderCapabilityContracts {
                     List.of("files.read", "files.upload", "files.download", "files.delete"),
                     List.of("nextcloud-files"),
                     List.of("sharepoint", "onedrive", "s3-compatible", "smb"),
-                    List.of("Drive", "Node", "Folder", "File", "Version", "Share", "Permission", "Lock", "EditSession"),
+                    List.of("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"),
                     "selected storage provider owns file bytes and native permissions; Weave owns canonical references and member impact states",
                     List.of("public links", "provider-specific shares", "version history", "locks", "external users", "storage quotas"),
                     "export file tree, permissions, versions where available; delete follows provider and retention policy",
@@ -44,7 +44,7 @@ public final class ProviderCapabilityContracts {
                     List.of("calendar.read", "calendar.manage_events", "calendar.thread_refs"),
                     List.of("nextcloud-caldav"),
                     List.of("microsoft-graph-calendar", "google-workspace-calendar", "generic-caldav", "weave-calendar"),
-                    List.of("Calendar", "Event", "Attendee", "Recurrence", "Availability", "Resource"),
+                    List.of("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"),
                     "workspace/team/channel calendar source is selected by admin; private personal calendars are not the default product source",
                     List.of("RRULE fidelity", "time zones", "resource booking", "attendee response semantics", "online meeting links"),
                     "export iCalendar-compatible events where possible; deletion follows calendar retention and legal hold policy",
@@ -116,7 +116,7 @@ public final class ProviderCapabilityContracts {
                     List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
                     List.of("openclaw-derived-profile"),
                     List.of(),
-                    List.of("RuntimeProfile", "ToolCapability", "ApprovalReceipt", "AuditEvent"),
+                    List.of("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"),
                     "organization policy owns runtime/tool allowlist; user rights constrain every Weaver action",
                     List.of("tool scope", "secret handling", "sandboxing", "group-chat consent", "step-up approvals"),
                     "export runtime profile and audit receipts; delete runtime workspace per retention policy",
@@ -157,7 +157,7 @@ public final class ProviderCapabilityContracts {
     public static ProviderRealityLevel defaultRealityLevel(String category) {
         return switch (category) {
             case "identity-idm", "chat", "files", "calendar", "boards-tasks", "admin-control-plane", "release-evidence", "manuals-help", "decisions-evidence" -> ProviderRealityLevel.RELEASE_READY;
-            case "meetings-calls", "model" -> ProviderRealityLevel.CONFIGURED_READINESS;
+            case "meetings-calls", "model" -> ProviderRealityLevel.CONFIGURED;
             case "documents-collaboration", "weaver" -> ProviderRealityLevel.CONTRACT_ONLY;
             default -> ProviderRealityLevel.CONTRACT_ONLY;
         };

@@ -268,20 +268,18 @@
       "display_name": "Chat",
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
-        "Conversation",
-        "Message",
-        "Thread",
-        "Reaction",
-        "Mention",
-        "AttachmentRef",
-        "Membership",
-        "ReadReceipt",
-        "EditEvent",
-        "DeleteEvent",
-        "RetentionPolicy",
-        "EncryptionState",
-        "Presence",
-        "HistoryPolicy"
+        "WeaveSpace",
+        "WeaveConversation",
+        "WeaveMessage",
+        "WeaveThread",
+        "WeaveReaction",
+        "WeaveAttachment",
+        "WeaveMembership",
+        "WeaveHistoryPolicy",
+        "ProviderRef",
+        "MigrationReceipt",
+        "RollbackReceipt",
+        "LossyFieldReport"
       ],
       "capability_keys": [
         "chat.read",
@@ -348,17 +346,15 @@
       "display_name": "Files",
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
-        "Drive",
-        "Node",
-        "Folder",
-        "File",
-        "FileVersion",
-        "BlobRef",
-        "Permission",
-        "ShareLink",
-        "Lock",
-        "TrashEntry",
-        "Checksum"
+        "WeaveDrive",
+        "WeaveFolder",
+        "WeaveFile",
+        "WeaveVersion",
+        "WeaveShare",
+        "WeavePermission",
+        "WeaveLock",
+        "WeaveQuota",
+        "ProviderRef"
       ],
       "capability_keys": [
         "files.read",
@@ -499,17 +495,13 @@
       "display_name": "Calendar",
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
-        "Calendar",
-        "Event",
-        "Occurrence",
-        "RecurrenceRule",
-        "RecurrenceException",
-        "Attendee",
-        "Resource",
-        "Reminder",
-        "TimeZone",
-        "ConferenceLink",
-        "Availability"
+        "WeaveCalendar",
+        "WeaveEvent",
+        "WeaveRecurrence",
+        "WeaveAttendee",
+        "WeaveResource",
+        "WeaveAvailability",
+        "ProviderRef"
       ],
       "capability_keys": [
         "calendar.read",
@@ -953,11 +945,13 @@
       "display_name": "Weaver",
       "purpose": "Provider-neutral Weave-owned domain contract.",
       "canonical_objects": [
-        "RuntimeProfile",
-        "ToolCapability",
-        "ApprovalReceipt",
-        "AuditEvent",
-        "SandboxProfile"
+        "WeaverRuntimeProfile",
+        "WeaverRuntimeInstance",
+        "WeaverUserWorkspace",
+        "WeaverToolGrant",
+        "WeaverApprovalReceipt",
+        "WeaverAuditEvent",
+        "WeaverCustomizationProfile"
       ],
       "capability_keys": [
         "weaver.read",
@@ -1021,10 +1015,12 @@
   ],
   "provider_reality_levels": [
     "contract_only",
-    "configured_readiness",
-    "live_adapter_read",
-    "live_adapter_write",
+    "configured",
+    "live_read",
+    "live_write",
+    "migration_dry_run",
     "migration_apply_ready",
+    "rollback_ready",
     "release_ready"
   ]
 }

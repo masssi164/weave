@@ -148,7 +148,7 @@ public class ProviderCoreConfiguration {
                 List.of("meetings-provider-not-configured", "meetings-provider-disabled", "meetings-provider-unavailable", "meetings-token-unavailable"),
                 "support-safe: no LiveKit API keys, API secrets, bearer tokens, room tokens, credential-bearing URLs, or raw provider errors",
                 List.of("livekit", "jitsi", "zoom", "microsoft-teams-meetings", "google-meet", "external-meeting-link"),
-                ProviderRealityLevel.CONFIGURED_READINESS,
+                ProviderRealityLevel.CONFIGURED,
                 Map.of(
                         "activeProvider", "livekit",
                         "livekitUrlConfigured", liveKit.urlConfigured(),

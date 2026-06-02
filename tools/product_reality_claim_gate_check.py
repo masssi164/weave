@@ -71,7 +71,24 @@ ALLOWED_CONTEXT_HINTS = (
     "release-ready remains blocked",
 )
 
-SCAN_PATHS = [README, PRODUCT_LINE, CLAIM_MATRIX, RELEASE_NOTES, FOUNDATION]
+SCAN_PATHS = [
+    README,
+    PRODUCT_LINE,
+    CLAIM_MATRIX,
+    RELEASE_NOTES,
+    FOUNDATION,
+    ROOT / "docs" / "release-v0.1-rc3-evidence.md",
+    ROOT / "docs" / "admin-operator-handbook.md",
+    ROOT / "docs" / "domain-registry-v1.md",
+    ROOT / "server" / "src" / "main" / "java" / "com" / "massimotter" / "weave" / "backend" / "service" / "WeaverRuntimeService.java",
+    ROOT / "client" / "test" / "features" / "settings" / "settings_screen_test.dart",
+]
+
+OLD_REALITY_LEVELS = [
+    "configured_readiness",
+    "live_adapter_read",
+    "live_adapter_write",
+]
 
 
 def fail(message: str) -> None:
@@ -109,6 +126,10 @@ def main() -> None:
         fail("allowed claim is missing or changed")
     if gates.get("realityLevels") != EXPECTED_LEVELS:
         fail("realityLevels must match the exact ordered Sprint 21 list")
+    serialized_gates = json.dumps(gates)
+    for old_level in OLD_REALITY_LEVELS:
+        if old_level in serialized_gates:
+            fail(f"release gates still contain rejected old reality level {old_level}")
     if gates.get("onlyCustomerReadyLevel") != "release_ready":
         fail("onlyCustomerReadyLevel must be release_ready")
     missing_forbidden = set(REQUIRED_FORBIDDEN) - set(gates.get("forbiddenClaimsUntilEvidence", []))
@@ -152,6 +173,9 @@ def main() -> None:
 
     for path in SCAN_PATHS:
         text = read(path)
+        for old_level in OLD_REALITY_LEVELS:
+            if old_level in text:
+                fail(f"{path.relative_to(ROOT)} contains rejected old reality level {old_level}")
         for line_number, line in enumerate(text.splitlines(), start=1):
             normalized = re.sub(r"\s+", " ", line).strip()
             for claim in REQUIRED_FORBIDDEN:

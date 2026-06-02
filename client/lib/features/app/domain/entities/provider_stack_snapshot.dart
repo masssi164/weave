@@ -19,10 +19,12 @@ enum ProviderCategoryReadiness {
 
 enum ProviderRealityLevel {
   contractOnly,
-  configuredReadiness,
-  liveAdapterRead,
-  liveAdapterWrite,
+  configured,
+  liveRead,
+  liveWrite,
+  migrationDryRun,
   migrationApplyReady,
+  rollbackReady,
   releaseReady,
   unknown,
 }

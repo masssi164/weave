@@ -7,10 +7,12 @@ import java.util.Comparator;
 @Schema(description = "Evidence-backed implementation maturity for provider candidates. Contract-only providers are never member-available.")
 public enum ProviderRealityLevel {
     CONTRACT_ONLY("contract_only", 0),
-    CONFIGURED_READINESS("configured_readiness", 10),
-    LIVE_ADAPTER_READ("live_adapter_read", 20),
-    LIVE_ADAPTER_WRITE("live_adapter_write", 30),
+    CONFIGURED("configured", 10),
+    LIVE_READ("live_read", 20),
+    LIVE_WRITE("live_write", 30),
+    MIGRATION_DRY_RUN("migration_dry_run", 35),
     MIGRATION_APPLY_READY("migration_apply_ready", 40),
+    ROLLBACK_READY("rollback_ready", 45),
     RELEASE_READY("release_ready", 50);
 
     private static final Comparator<ProviderRealityLevel> PRIORITY_COMPARATOR = Comparator.comparingInt(ProviderRealityLevel::priority);

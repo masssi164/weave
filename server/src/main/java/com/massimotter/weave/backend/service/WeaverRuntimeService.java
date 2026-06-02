@@ -127,7 +127,7 @@ public class WeaverRuntimeService {
                 "writes-delete-external-send-provider-switch require approval receipts",
                 "secretrefs-only-no-raw-provider-tokens",
                 "one-user-one-isolated-workspace-memory-session-store",
-                "Weaver is available through the governed organization profile; unavailable tools are hidden from the runtime.");
+                "Weaver runtime profile is governed by organization policy; unavailable tools are hidden from the runtime.");
         auditGeneratedProfile(response);
         issuedProfiles.put(runtimeProfileHash, response);
         return response;
