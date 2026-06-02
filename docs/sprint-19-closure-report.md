@@ -24,6 +24,8 @@ Date: 2026-06-02
 
 ## Gates and CI evidence
 
+Evidence classification: the PR-train runs below are **historical evidence** valid for the cited commit/run. Current-head release/public-readiness is not claimed by this report; fresh current-head Live Stack E2E, RC evidence, and Sprint 18 #591 manual assistive-technology signoff are still required where release claims depend on them.
+
 Local gates recorded during the PR train:
 
 - #600 / #602: release evidence and claim-control gates in PR CI; final `main` CI passed in run `26797477161` on merge commit `5cc2e2ec3d159473eaba6f535b0649b935d553ac`.
@@ -31,6 +33,7 @@ Local gates recorded during the PR train:
 - #601 / #604: `cd server && ./gradlew test --tests 'com.massimotter.weave.backend.weaver.WeaverToolRegistryTest' --console=plain` and broader PR CI; final `main` CI passed in run `26798756120` on merge commit `681bd40ffbe49c405584f13a60a059730907d7e2`.
 - #598 / #605: `./gradlew clientCi serverCi acceptanceContract --console=plain`; PR checks passed with `Gradle CI` and `Release Notes Label Check` before merge.
 - Final `main` CI after #605: run `26799896715` passed on merge commit `39fcdb7c6841d3ecfe24a22bf2faf5761a5f8aaf` with `Gradle CI` successful.
+- Post-report `main` CI at milestone closure: run `26801136050` passed on merge commit `be7be46ef1b65708b177eab14e978b00108ab7b4` with `Gradle CI` successful. This is historical CI evidence valid for that commit, not fresh release/public-readiness evidence.
 
 ## Issue DAG final state
 
@@ -51,7 +54,8 @@ Dependency shape:
 - Merged PR: #603 `feat: prove chat cross-domain provider impact`, label `release-notes-feature`, merge commit `b6a0a0269ba714ad20480b5e973089ab67d1337d`.
 - Merged PR: #604 `feat: govern bounded Weaver assistance`, label `release-notes-feature`, merge commit `681bd40ffbe49c405584f13a60a059730907d7e2`.
 - Merged PR: #605 `feat: make Space control room dogfoodable`, label `release-notes-feature`, merge commit `39fcdb7c6841d3ecfe24a22bf2faf5761a5f8aaf`.
-- GitHub milestone 19 is open with 0 open issues and 4 closed issues while this closure-report branch is in review; it can be closed after this report exists on `origin/main` and post-report CI is green.
+- Merged PR: #606 `docs: add Sprint 19 closure report`, label `release-notes-skip`, merge commit `be7be46ef1b65708b177eab14e978b00108ab7b4`.
+- GitHub milestone 19 is closed with 0 open issues and 4 closed issues after the closure report exists on `origin/main` and post-report CI is green.
 - Closure report path: `docs/sprint-19-closure-report.md`.
 
 ## Boundaries and non-claims
