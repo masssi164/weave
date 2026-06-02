@@ -392,6 +392,7 @@ public class AdminControlPlaneService {
                 consequencePreview(category, matrixChatDryRun, adminNotes, conflicts),
                 noUnaccountedDataLossReport(category, matrixChatDryRun, adminNotes),
                 boundedProof(category, matrixChatDryRun, auditRef),
+                crossDomainImpact(category, matrixChatDryRun, auditRef),
                 matrixChatDryRun
                         ? List.of(
                                 "SecretRef exists and remains backend-only; raw credentials are never returned.",
@@ -407,6 +408,64 @@ public class AdminControlPlaneService {
                 true,
                 true,
                 List.of(auditRef));
+    }
+
+    private List<ProviderReplacementDryRunResponse.CrossDomainImpactItem> crossDomainImpact(
+            String category,
+            boolean matrixChatDryRun,
+            String auditRef) {
+        if (!matrixChatDryRun) {
+            return List.of(new ProviderReplacementDryRunResponse.CrossDomainImpactItem(
+                    category,
+                    "weave:" + category + ":provider-replacement-scope",
+                    "manual_review",
+                    "Backend dry-run must classify provider replacement impact before any apply or cutover claim.",
+                    List.of(auditRef, category + "-portable-export-manifest-v0.1", category + "-portable-import-manifest-v0.1"),
+                    List.of("cross-domain provider impact report is required before apply.")));
+        }
+        return List.of(
+                new ProviderReplacementDryRunResponse.CrossDomainImpactItem(
+                        "chat",
+                        "weave:chat:conversation/sprint19-matrix-room",
+                        "portable",
+                        "Conversation metadata, current membership, simple replies, and canonical message refs are portable inside the bounded fixture.",
+                        List.of("impact:s19:chat:matrix-room:portable", "specs/0006-portability-contract/matrix-synapse-chat-cross-domain-impact-proof.json"),
+                        List.of()),
+                new ProviderReplacementDryRunResponse.CrossDomainImpactItem(
+                        "files",
+                        "weave:files:attachment-ref/sprint19-channel-media",
+                        "archive_only",
+                        "Matrix media references stay archive-only unless copied into Weave-controlled storage under an approved retention policy.",
+                        List.of("impact:s19:files:attachment-retention", "docs/matrix-chat-migration-proof.md"),
+                        List.of("media retention decision and rollback archive refs are required before cutover.")),
+                new ProviderReplacementDryRunResponse.CrossDomainImpactItem(
+                        "boards",
+                        "weave:boards:task-comment-link/sprint19-linked-decision",
+                        "manual_review",
+                        "Task/comment/watchers linked from Chat require manual review because Matrix sender roles do not map 1:1 to board permissions.",
+                        List.of("impact:s19:boards:task-comment-watchers", "docs/matrix-chat-migration-proof.md"),
+                        List.of("manual-review decision is required for board watcher and attachment relation impact.")),
+                new ProviderReplacementDryRunResponse.CrossDomainImpactItem(
+                        "calendar",
+                        "weave:calendar:event-link/sprint19-room-meeting",
+                        "lossy",
+                        "Meeting links and recurrence/resource metadata can be preserved only as support-safe refs when provider-specific room state has no canonical equivalent.",
+                        List.of("impact:s19:calendar:meeting-link-recurrence", "docs/matrix-chat-migration-proof.md"),
+                        List.of("calendar recurrence/resource lossy mapping must be accepted before cutover.")),
+                new ProviderReplacementDryRunResponse.CrossDomainImpactItem(
+                        "decisions",
+                        "weave:decisions:evidence-link/sprint19-chat-rationale",
+                        "unsupported",
+                        "Encrypted or redacted Chat rationale cannot be promoted into Decisions evidence by server-side migration and remains unsupported.",
+                        List.of("impact:s19:decisions:encrypted-rationale", "docs/evidence/accessibility/sprint-18-manual-at-blocker.md"),
+                        List.of("unsupported encrypted rationale blocks lossless migration and production replacement claims.")),
+                new ProviderReplacementDryRunResponse.CrossDomainImpactItem(
+                        "chat",
+                        "weave:chat:provider-extension/sprint19-federated-widget",
+                        "vendor_locked",
+                        "Provider-specific widgets and federated extension state stay vendor-locked and cannot be represented as portable Weave domain data.",
+                        List.of("impact:s19:chat:vendor-locked-widget", "specs/0006-portability-contract/matrix-synapse-chat-cross-domain-impact-proof.json"),
+                        List.of("vendor-locked extension state blocks all-provider portability claims.")));
     }
 
     private ProviderReplacementDryRunResponse.NoUnaccountedDataLossReport noUnaccountedDataLossReport(

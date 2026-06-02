@@ -293,6 +293,8 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.portableExportImportContract.portabilityGuarantee", containsString("documented portable export/import contract")))
                 .andExpect(jsonPath("$.portableExportImportContract.excludedAutomation[*]", hasItems(containsString("full automated cross-provider migration"))))
                 .andExpect(jsonPath("$.portableExportImportContract.evidenceRefs[*]", hasItems("provider-switch-preflight", "portable-export-import-contract", "rollback-recovery-plan")))
+                .andExpect(jsonPath("$.crossDomainImpact[0].mappingClass").value("manual_review"))
+                .andExpect(jsonPath("$.crossDomainImpact[0].evidenceRefs[*]", hasItems("identity-idm-portable-export-manifest-v0.1")))
                 .andExpect(jsonPath("$.switchPlan.planRef").value("identity-idm-switch-plan-v0.1"))
                 .andExpect(jsonPath("$.switchPlan.preflightRequired").value(true))
                 .andExpect(jsonPath("$.switchPlan.cutoverWindowRequired").value(true))
@@ -303,6 +305,38 @@ class AdminControlPlaneControllerTest {
                 .andExpect(content().string(not(containsString("token-that-must-not-leak"))))
                 .andExpect(content().string(not(containsString("client_secret"))))
                 .andExpect(content().string(not(containsString("secretref://"))));
+    }
+
+    @Test
+    void matrixChatReplacementDryRunShowsCrossDomainImpactAndBlocksCutoverClaims() throws Exception {
+        String request = """
+                {
+                  "category": "chat",
+                  "currentAdapter": "synapse-homeserver",
+                  "targetAdapter": "slack",
+                  "choiceModel": "external_existing_provider",
+                  "secretRef": "secretref://weave/provider/slack",
+                  "sourceOfTruth": "Weave Chat remains source of truth until bounded evidence is accepted.",
+                  "lossyMappingNotes": ["support-safe Chat impact review only"],
+                  "portableExportImportRequired": true,
+                  "reason": "cross-domain impact proof without raw provider diagnostics"
+                }
+                """;
+
+        mockMvc.perform(post("/api/admin/providers/replacements/dry-run")
+                        .with(adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("dry-run-blocked-for-apply"))
+                .andExpect(jsonPath("$.boundedProof.productionCutoverAllowed").value(false))
+                .andExpect(jsonPath("$.crossDomainImpact[*].domainKey", hasItems("chat", "files", "boards", "calendar", "decisions")))
+                .andExpect(jsonPath("$.crossDomainImpact[*].mappingClass", hasItems("portable", "archive_only", "manual_review", "lossy", "unsupported", "vendor_locked")))
+                .andExpect(jsonPath("$.crossDomainImpact[?(@.domainKey == 'files')].applyBlockers[0]", hasItems(containsString("rollback archive refs"))))
+                .andExpect(jsonPath("$.noUnaccountedDataLossReport.releaseClaimBoundaries[*]", hasItems(containsString("No lossless migration"))))
+                .andExpect(content().string(not(containsString("secretref://"))))
+                .andExpect(content().string(not(containsString("client_secret"))))
+                .andExpect(content().string(not(containsString("Authorization: Bearer"))));
     }
 
     @Test

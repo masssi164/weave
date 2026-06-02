@@ -43,6 +43,10 @@ public class MigrationApplyGateService {
             "noUnaccountedDataLossReportRef",
             "releaseClaimBoundaryRef",
             "postApplyVerificationRef");
+    private static final List<String> CHAT_CROSS_DOMAIN_REQUIRED_ARTIFACTS = List.of(
+            "crossDomainImpactReportRef",
+            "crossDomainManualReviewDecisionRef",
+            "crossDomainRollbackRetentionRef");
     private static final Pattern UNSAFE = Pattern.compile(
             "(?i)(https?://|token|password|passwd|client[_-]?secret|authorization|bearer|cookie|private[_-]?key|secretref://|credential)");
     private static final Pattern SHA_256 = Pattern.compile("^sha256:[a-f0-9]{64}$");
@@ -102,7 +106,7 @@ public class MigrationApplyGateService {
                 finalApplyAllowed,
                 true,
                 true,
-                REQUIRED_ARTIFACTS,
+                requiredArtifacts(request.domainKey()),
                 missing,
                 List.copyOf(blockers),
                 nextActions(finalApplyAllowed, missing),
@@ -118,10 +122,10 @@ public class MigrationApplyGateService {
                 false,
                 true,
                 true,
-                REQUIRED_ARTIFACTS,
-                REQUIRED_ARTIFACTS,
+                requiredArtifacts(request.domainKey()),
+                requiredArtifacts(request.domainKey()),
                 blockers,
-                nextActions(false, REQUIRED_ARTIFACTS),
+                nextActions(false, requiredArtifacts(request.domainKey())),
                 new MigrationApplyGateResponse.SupportSafeEvidenceBundle(
                         request.runId(),
                         request.domainKey(),
@@ -136,9 +140,18 @@ public class MigrationApplyGateService {
 
     private List<String> missingArtifacts(MigrationRunEvidence evidence) {
         Map<String, String> refs = evidence.artifactRefs();
-        return REQUIRED_ARTIFACTS.stream()
+        return requiredArtifacts(evidence.domainKey()).stream()
                 .filter(name -> blank(refs.get(name)))
                 .toList();
+    }
+
+    private List<String> requiredArtifacts(String domainKey) {
+        if ("chat".equals(domainKey)) {
+            List<String> required = new ArrayList<>(REQUIRED_ARTIFACTS);
+            required.addAll(CHAT_CROSS_DOMAIN_REQUIRED_ARTIFACTS);
+            return List.copyOf(required);
+        }
+        return REQUIRED_ARTIFACTS;
     }
 
     private MigrationApplyGateResponse.SupportSafeEvidenceBundle evidenceBundle(
@@ -158,7 +171,7 @@ public class MigrationApplyGateService {
 
     private List<String> orderedArtifactRefs(MigrationRunEvidence evidence) {
         Map<String, String> refs = new LinkedHashMap<>();
-        for (String requiredArtifact : REQUIRED_ARTIFACTS) {
+        for (String requiredArtifact : requiredArtifacts(evidence.domainKey())) {
             refs.put(requiredArtifact, evidence.artifactRefs().get(requiredArtifact));
         }
         return refs.values().stream().filter(value -> value != null && !value.isBlank()).toList();
@@ -173,6 +186,9 @@ public class MigrationApplyGateService {
         List<String> actions = new ArrayList<>();
         if (!missing.isEmpty()) {
             actions.add("Attach missing export/import, dry-run, lossy/conflict, impact, approval, cutover, no-unaccounted-data-loss, rollback, restore-smoke, release-claim-boundary, and verification artifacts.");
+            if (missing.stream().anyMatch(name -> name.startsWith("crossDomain"))) {
+                actions.add("Attach the Chat cross-domain impact report, manual-review decisions, and rollback-retention evidence before any apply or cutover claim.");
+            }
         }
         actions.add("Resolve identity mapping and audit-sink blockers before any apply mutation.");
         actions.add("Expose only the support-safe evidence bundle to admins and reviewers.");

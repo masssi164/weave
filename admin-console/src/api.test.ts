@@ -65,6 +65,16 @@ describe("AdminControlPlaneApi provider boundary", () => {
                 exportExpectation: "export first",
                 deleteExpectation: "delete after cutover",
               },
+              crossDomainImpact: [
+                {
+                  domainKey: "calendar",
+                  canonicalObjectRef: "weave:calendar:event-link/test",
+                  mappingClass: "lossy",
+                  consequenceSummary: "Meeting links lose provider-specific room metadata.",
+                  evidenceRefs: ["impact:test:calendar"],
+                  applyBlockers: ["lossy calendar decision required"],
+                },
+              ],
             }
           : path.includes("/readiness-tests")
             ? { providerKey: "slack", state: "ready", readiness: "ready" }
@@ -103,6 +113,12 @@ describe("AdminControlPlaneApi provider boundary", () => {
       "disabled_by_policy",
       "degraded",
     ]);
+    expect(report.crossDomainImpact[0]).toMatchObject({
+      domainKey: "calendar",
+      mappingClass: "lossy",
+      evidenceRefs: ["impact:test:calendar"],
+      applyBlockers: ["lossy calendar decision required"],
+    });
     expect(calls).toEqual([
       "https://api.example.invalid/api/admin/providers/selections",
       "https://api.example.invalid/api/admin/identity/readiness",

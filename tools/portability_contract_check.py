@@ -162,6 +162,32 @@ def main():
  for phrase in ['does not prove production provider migration availability', 'lossless migration', 'e2ee history migration']:
   if phrase not in ' '.join(no_loss.get('releaseClaimBoundaries', [])).lower(): fail(f'Matrix bounded proof claim boundary missing {phrase}')
 
+ cross_domain=load(FIXTURES/'matrix-synapse-chat-cross-domain-impact-proof.json')
+ if cross_domain.get('domainKey')!='chat' or cross_domain.get('sourceProvider')!='matrix-synapse' or cross_domain.get('redaction')!='support_safe':
+  fail('Matrix cross-domain impact proof must be support_safe chat-domain evidence')
+ cross_domain_raw=json.dumps(cross_domain).lower()
+ for forbidden in ['access_token','refresh_token','clientsecret','password','homeserverurl','mxc://','https://matrix','secretref://']:
+  if forbidden in cross_domain_raw: fail(f'Matrix cross-domain impact proof must not leak raw provider credential or endpoint data: {forbidden}')
+ impacts=cross_domain.get('crossDomainImpact', [])
+ domains={item.get('domainKey') for item in impacts}
+ for domain in ['chat','files','boards','calendar','decisions']:
+  if domain not in domains: fail(f'Matrix cross-domain impact proof missing {domain} impact')
+ impact_classes={item.get('mappingClass') for item in impacts}
+ for required_class in ['portable','lossy','unsupported','manual_review','vendor_locked','archive_only']:
+  if required_class not in impact_classes: fail(f'Matrix cross-domain impact proof missing {required_class} impact class')
+ for item in impacts:
+  if item.get('mappingClass') not in LOSS: fail('Matrix cross-domain impact proof uses non-canonical mapping class')
+  if not item.get('canonicalObjectRef') or not item.get('consequenceSummary') or not item.get('evidenceRefs'):
+   fail('Matrix cross-domain impact items must include canonical refs, consequence summary, and evidence refs')
+ gate=cross_domain.get('applyCutoverGate', {})
+ if gate.get('applyAllowed') is not False or gate.get('cutoverAllowed') is not False:
+  fail('Matrix cross-domain impact proof must keep apply/cutover blocked')
+ for required_artifact in ['crossDomainImpactReportRef','crossDomainManualReviewDecisionRef','crossDomainRollbackRetentionRef']:
+  if required_artifact not in gate.get('requiredArtifacts', []): fail(f'Matrix cross-domain gate missing {required_artifact}')
+ boundary=cross_domain.get('claimBoundary', '').lower()
+ for phrase in ['does not prove production provider replacement', 'lossless migration', 'e2ee history migration', 'all-provider portability']:
+  if phrase not in boundary: fail(f'Matrix cross-domain impact proof claim boundary missing {phrase}')
+
  success=load(FIXTURES/'migration-run-dry-run-success.json')
  blocked=load(FIXTURES/'migration-run-apply-blocked.json')
  for fixture in [success, blocked]:

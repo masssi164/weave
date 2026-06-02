@@ -353,6 +353,14 @@ export interface ProviderReplacementDryRunReport {
     requiredEvidenceRefs: string[];
     releaseBlockers: string[];
   };
+  crossDomainImpact: Array<{
+    domainKey: string;
+    canonicalObjectRef: string;
+    mappingClass: string;
+    consequenceSummary: string;
+    evidenceRefs: string[];
+    applyBlockers: string[];
+  }>;
 }
 
 interface ServerProviderReplacementDryRunReport {
@@ -383,6 +391,14 @@ interface ServerProviderReplacementDryRunReport {
     ProviderReplacementDryRunReport["noUnaccountedDataLossReport"]
   >;
   boundedProof?: Partial<ProviderReplacementDryRunReport["boundedProof"]>;
+  crossDomainImpact?: Array<{
+    domainKey?: string;
+    canonicalObjectRef?: string;
+    mappingClass?: string;
+    consequenceSummary?: string;
+    evidenceRefs?: string[];
+    applyBlockers?: string[];
+  }>;
 }
 
 export interface ControlPlaneResponse {
@@ -1756,6 +1772,7 @@ function normalizeProviderReplacementDryRun(
   const switchPlan = response.switchPlan ?? {};
   const noLoss = response.noUnaccountedDataLossReport ?? {};
   const boundedProof = response.boundedProof ?? {};
+  const crossDomainImpact = response.crossDomainImpact ?? [];
   return {
     dryRunId: response.dryRunId ?? `${category.key}-replacement-dry-run`,
     status: response.status ?? "dry_run_ready",
@@ -1870,7 +1887,33 @@ function normalizeProviderReplacementDryRun(
         "bounded apply/cutover/rollback proof is not available for this dry-run",
       ],
     },
+    crossDomainImpact: crossDomainImpact.map((item, index) => ({
+      domainKey: item.domainKey ?? category.key,
+      canonicalObjectRef:
+        item.canonicalObjectRef ??
+        `weave:${category.key}:cross-domain-impact-${index + 1}`,
+      mappingClass: normalizeMappingClass(item.mappingClass),
+      consequenceSummary:
+        item.consequenceSummary ??
+        "Backend dry-run must classify cross-domain provider impact before apply.",
+      evidenceRefs: item.evidenceRefs ?? [],
+      applyBlockers: item.applyBlockers ?? [],
+    })),
   };
+}
+
+function normalizeMappingClass(value?: string): string {
+  const normalized = value?.trim();
+  return normalized && [
+    "portable",
+    "lossy",
+    "unsupported",
+    "manual_review",
+    "vendor_locked",
+    "archive_only",
+  ].includes(normalized)
+    ? normalized
+    : "manual_review";
 }
 
 function normalizeIdentityMemberImpact(

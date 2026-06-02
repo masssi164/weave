@@ -129,6 +129,16 @@ function mockApi(
         requiredEvidenceRefs: ["provider-replacement-dry-run-idm-rbac"],
         releaseBlockers: ["bounded apply/cutover/rollback proof is not available for this dry-run"],
       },
+      crossDomainImpact: [
+        {
+          domainKey: "files",
+          canonicalObjectRef: "weave:files:attachment-ref/test",
+          mappingClass: "archive_only",
+          consequenceSummary: "Attachment refs require rollback-retention review.",
+          evidenceRefs: ["impact:test:files"],
+          applyBlockers: ["rollback retention decision required"],
+        },
+      ],
     }),
     testProviderReadiness: vi.fn().mockResolvedValue({
       providerKey: "keycloak-realm",
@@ -837,6 +847,10 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(/member consequence copy: members keep provider-neutral access/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/cross-domain impact/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/files: archive_only; weave:files:attachment-ref\/test/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/source of truth: backend declares source of truth/i),
