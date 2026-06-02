@@ -4,6 +4,8 @@ Status: active product direction, 2026-05-24.
 
 ## Decision lock
 
+Sprint 21 update: [Product reality foundation](product-reality-foundation.md) is the active release-claim and proof-order gate for the next sprint sequence. Claim boundary: it narrows release/customer-ready wording to named `release_ready` evidence and moves human validation after automated provider-switch, rollback, Weaver runtime, and restore proof.
+
 Weave is planned product-first, not agent-first.
 
 Weave is a provider-neutral organization operating layer and integration suite. It lets an organization keep existing systems for identity, chat, files, calendar, boards/tasks, documents, meetings, decisions, help/manuals, release evidence, and collaboration while presenting them through coherent Weave product concepts.

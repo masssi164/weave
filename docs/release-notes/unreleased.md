@@ -9,6 +9,7 @@ Use this page for release-affecting changes that have merged but are not include
 ## Changed
 
 - Public docs and README evidence pointers now identify `v0.1.0-rc.3` as the latest published prerelease and link the RC3 evidence audit.
+- Sprint 21 product-reality gates now require free/self-hosted provider proof, explicit reality levels, and automated claim blocking before any customer-ready, Weaver-available, provider-interchangeable, production-rollback, or release-ready wording.
 
 ## Fixed
 
