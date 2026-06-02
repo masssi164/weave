@@ -693,20 +693,40 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String channelWorkspaceSummaryTitle(String channelName) {
-    return '$channelName workspace';
+    return '$channelName Space control room';
   }
 
   @override
   String get channelWorkspaceSummaryDescription =>
-      'This channel is a work room with tabs for chat, files, boards, calendar, and meetings where the workspace has enabled them.';
+      'One Space identity connects chat, files, board, calendar, and decisions with support-safe evidence refs.';
 
   @override
   String get channelWorkspaceGovernanceNote =>
-      'Context stays explicit: no hidden continuous room reading and no ordinary member access to admin setup.';
+      'Context stays explicit: no hidden continuous room reading, no setup internals, and no raw diagnostics in member views.';
+
+  @override
+  String channelWorkspaceRouteLabel(String routePath) {
+    return 'Route $routePath';
+  }
+
+  @override
+  String channelWorkspaceSpaceIdLabel(String spaceId) {
+    return 'Space ID $spaceId';
+  }
+
+  @override
+  String channelWorkspaceEvidenceLabel(String evidenceRef) {
+    return 'Evidence $evidenceRef';
+  }
+
+  @override
+  String channelWorkspaceSurfaceObjectLabel(String objectRef) {
+    return 'Object $objectRef';
+  }
 
   @override
   String channelWorkspaceTabsSemanticLabel(String channelName) {
-    return 'Channel workspace tabs for $channelName';
+    return 'Space control room tabs for $channelName';
   }
 
   @override
@@ -745,15 +765,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get channelWorkspaceFilesDescription =>
-      'Channel files are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.';
+      'No Space files are linked yet. Chat and decision evidence remain available while the Files entry point keeps the same Space ID.';
 
   @override
   String get channelWorkspaceBoardsDescription =>
-      'Channel boards and tasks are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.';
+      'Board context uses the same Space ID, but task freshness is degraded until the workspace refresh succeeds.';
 
   @override
   String get channelWorkspaceCalendarDescription =>
-      'Channel events stay gated until calendar scope capability is available for this workspace.';
+      'Calendar writes are blocked by workspace policy here; existing Space evidence stays visible without exposing implementation details.';
 
   @override
   String get channelWorkspaceMeetingsDescription =>
@@ -814,10 +834,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Meeting capability is not enabled yet.';
 
   @override
-  String get channelWorkspaceStatusAvailable => 'Available';
+  String get channelWorkspaceStatusAvailable => 'available';
 
   @override
-  String get channelWorkspaceStatusGated => 'Unavailable until enabled';
+  String get channelWorkspaceStatusNotConfigured => 'not_configured';
+
+  @override
+  String get channelWorkspaceStatusUnavailable => 'unavailable';
+
+  @override
+  String get channelWorkspaceStatusComingLater => 'coming_later';
 
   @override
   String channelWorkspaceExplicitContextNote(String channelName) {
@@ -3783,13 +3809,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get channelWorkspaceStatusAdminSetupRequired => 'Admin setup required';
+  String get channelWorkspaceStatusDisabledByPolicy => 'disabled_by_policy';
 
   @override
-  String get channelWorkspaceStatusDisabledByPolicy => 'Disabled by policy';
-
-  @override
-  String get channelWorkspaceStatusDegraded => 'Degraded';
+  String get channelWorkspaceStatusDegraded => 'degraded';
 
   @override
   String get agentCapabilityAvailabilityDisabledByPolicy =>

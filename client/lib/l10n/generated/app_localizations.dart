@@ -1214,25 +1214,49 @@ abstract class AppLocalizations {
   /// Title for the channel workspace summary card
   ///
   /// In en, this message translates to:
-  /// **'{channelName} workspace'**
+  /// **'{channelName} Space control room'**
   String channelWorkspaceSummaryTitle(String channelName);
 
   /// Description for the channel workspace summary card
   ///
   /// In en, this message translates to:
-  /// **'This channel is a work room with tabs for chat, files, boards, calendar, and meetings where the workspace has enabled them.'**
+  /// **'One Space identity connects chat, files, board, calendar, and decisions with support-safe evidence refs.'**
   String get channelWorkspaceSummaryDescription;
 
   /// Governance note for channel workspace tabs
   ///
   /// In en, this message translates to:
-  /// **'Context stays explicit: no hidden continuous room reading and no ordinary member access to admin setup.'**
+  /// **'Context stays explicit: no hidden continuous room reading, no setup internals, and no raw diagnostics in member views.'**
   String get channelWorkspaceGovernanceNote;
+
+  /// Support-safe route label for a Space control room
+  ///
+  /// In en, this message translates to:
+  /// **'Route {routePath}'**
+  String channelWorkspaceRouteLabel(String routePath);
+
+  /// Support-safe canonical Space identifier label
+  ///
+  /// In en, this message translates to:
+  /// **'Space ID {spaceId}'**
+  String channelWorkspaceSpaceIdLabel(String spaceId);
+
+  /// Support-safe evidence reference label
+  ///
+  /// In en, this message translates to:
+  /// **'Evidence {evidenceRef}'**
+  String channelWorkspaceEvidenceLabel(String evidenceRef);
+
+  /// Support-safe canonical object reference label for a Space control room surface
+  ///
+  /// In en, this message translates to:
+  /// **'Object {objectRef}'**
+  String channelWorkspaceSurfaceObjectLabel(String objectRef);
 
   /// Semantic label for the channel workspace tab list
   ///
   /// In en, this message translates to:
-  /// **'Channel workspace tabs for {channelName}'**
+  /// **'Space control room tabs for {channelName}'**
   String channelWorkspaceTabsSemanticLabel(String channelName);
 
   /// Channel workspace chat tab label
@@ -1304,19 +1328,19 @@ abstract class AppLocalizations {
   /// Description for unavailable channel files state
   ///
   /// In en, this message translates to:
-  /// **'Channel files are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.'**
+  /// **'No Space files are linked yet. Chat and decision evidence remain available while the Files entry point keeps the same Space ID.'**
   String get channelWorkspaceFilesDescription;
 
   /// Description for unavailable channel boards/tasks state
   ///
   /// In en, this message translates to:
-  /// **'Channel boards and tasks are not enabled for this workspace yet. Ask a workspace owner or admin to finish setup; chat remains available.'**
+  /// **'Board context uses the same Space ID, but task freshness is degraded until the workspace refresh succeeds.'**
   String get channelWorkspaceBoardsDescription;
 
   /// Description for the gated channel calendar placeholder
   ///
   /// In en, this message translates to:
-  /// **'Channel events stay gated until calendar scope capability is available for this workspace.'**
+  /// **'Calendar writes are blocked by workspace policy here; existing Space evidence stays visible without exposing implementation details.'**
   String get channelWorkspaceCalendarDescription;
 
   /// Description for unavailable channel meetings state
@@ -1418,14 +1442,26 @@ abstract class AppLocalizations {
   /// Status label for an available channel workspace surface
   ///
   /// In en, this message translates to:
-  /// **'Available'**
+  /// **'available'**
   String get channelWorkspaceStatusAvailable;
 
-  /// Status label for a gated channel workspace surface
+  /// Member-safe status label for a Space control room surface that has no configured capability yet
   ///
   /// In en, this message translates to:
-  /// **'Unavailable until enabled'**
-  String get channelWorkspaceStatusGated;
+  /// **'not_configured'**
+  String get channelWorkspaceStatusNotConfigured;
+
+  /// Member-safe status label for an unavailable Space control room surface
+  ///
+  /// In en, this message translates to:
+  /// **'unavailable'**
+  String get channelWorkspaceStatusUnavailable;
+
+  /// Member-safe status label for a Space control room surface intentionally outside current release scope
+  ///
+  /// In en, this message translates to:
+  /// **'coming_later'**
+  String get channelWorkspaceStatusComingLater;
 
   /// Privacy/context note for a channel workspace surface
   ///
@@ -6161,22 +6197,16 @@ abstract class AppLocalizations {
     String actionsState,
   );
 
-  /// Status chip for a channel workspace surface that requires admin setup
-  ///
-  /// In en, this message translates to:
-  /// **'Admin setup required'**
-  String get channelWorkspaceStatusAdminSetupRequired;
-
   /// Status chip for a channel workspace surface disabled by policy
   ///
   /// In en, this message translates to:
-  /// **'Disabled by policy'**
+  /// **'disabled_by_policy'**
   String get channelWorkspaceStatusDisabledByPolicy;
 
   /// Status chip for a degraded channel workspace surface
   ///
   /// In en, this message translates to:
-  /// **'Degraded'**
+  /// **'degraded'**
   String get channelWorkspaceStatusDegraded;
 
   /// Availability chip for an agent capability disabled by workspace policy

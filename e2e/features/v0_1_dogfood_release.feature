@@ -111,12 +111,12 @@ Feature: Weave v0.1 dogfood production release
     And bounded assistance results may cite Space, Decision, and Board canonical refs without raw provider payloads or private content
 
   @weave-v01-channel-workspace
-  Scenario: A channel is the primary workspace surface
-    Given a workspace member enters a project channel
-    When they navigate the channel workspace
-    Then chat, decisions, files, board, calendar, meetings, and Weaver scout are available as first-class tabs
-    And provider details stay behind Weave-owned product surfaces
-    And Weaver scout stays read-only, source-cited, and receipt-gated for any future write path
+  Scenario: A Space control room is the primary workspace surface
+    Given a workspace member enters a project Space control room
+    When they navigate from the same Space identity to chat, files, board, calendar, and decisions
+    Then the route exposes first-class tabs with support-safe canonical IDs and evidence refs
+    And empty, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and evidence-linked states use provider-neutral wording
+    And Sprint 19 evidence proves a dogfood Workspace control room without claiming full domain parity or broad autonomous AI availability
 
   @weave-v01-chat-domain-facade
   Scenario: Chat uses a canonical backend domain facade

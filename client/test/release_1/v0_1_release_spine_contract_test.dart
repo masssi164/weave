@@ -26,6 +26,7 @@ void main() {
     test('documents dogfood-production scope without preview claims', () {
       // V01_HOME_DAILY_LOOP
       // V01_CHANNEL_WORKSPACE
+      // V01_SPACE_CONTROL_ROOM
       // V01_BOARD_WRITE_AUDIT
       // V01_MEETING_CAPSULE
       // V01_DECISION_LEDGER
@@ -37,7 +38,8 @@ void main() {
         'Ship Weave as a daily work tool',
         'not as a demo stack',
         'Weave Home',
-        'Channels as workspaces',
+        'Space control room',
+        'one support-safe Space ID',
         'Boards with user writes',
         'Meeting Capsule',
         'Decision Ledger',
@@ -61,6 +63,7 @@ void main() {
       for (final marker in <String>[
         'V01_HOME_DAILY_LOOP',
         'V01_CHANNEL_WORKSPACE',
+        'V01_SPACE_CONTROL_ROOM',
         'V01_BOARD_WRITE_AUDIT',
         'V01_MEETING_CAPSULE',
         'V01_DECISION_LEDGER',
@@ -81,6 +84,8 @@ void main() {
         'provider-neutral organization operating layer',
         'organization URL, invite link, or deep link',
         'personal messages, channels/workspaces, upcoming work, decisions, and health impact',
+        'The member enters a Space control room and uses one canonical Space identity across Weave product surfaces',
+        'one support-safe Space ID links chat, files, board, calendar, and decision evidence without claiming full domain parity',
         'available, disabled_by_policy, not_configured, degraded, unavailable, or coming_later',
         'Live E2E is standard release evidence on the dedicated self-hosted live runner',
         'not gated by a solar or power-budget exception',

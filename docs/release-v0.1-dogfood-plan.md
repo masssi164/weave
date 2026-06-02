@@ -76,7 +76,7 @@ Deliverables:
 Required scenario groups:
 
 - Weave Home.
-- Channel workspace navigation.
+- Space control room navigation from one canonical Space identity.
 - Files.
 - Calendar.
 - Boards writes with audit.
@@ -101,11 +101,13 @@ Exit gate:
 - Recent decisions.
 - Actionable health warnings.
 
-### Channels as workspaces
+### Space control room
 
-- Tabs for Chat, Decisions, Files, Board, Calendar, Meetings, and read-only Weaver scout.
+- One member-visible Space control room route anchors Chat, Decisions, Files, Board, and Calendar to one support-safe Space ID.
+- Tabs for Chat, Decisions, Files, Board, Calendar, Meetings, and read-only Weaver scout, with Meetings/Weaver treated as governed or coming_later where evidence requires it.
 - Keyboard and screen-reader navigation across tabs.
-- Empty/error/recovery states that explain what to do next.
+- Empty, disabled_by_policy, not_configured, degraded, unavailable, coming_later, and evidence-linked states that explain what is safe now without provider-shaped wording.
+- Support-safe evidence refs record the Space identity, linked domain objects, and final Decision state without raw provider identifiers, diagnostics, URLs, or private content.
 
 ### Files
 

@@ -12,10 +12,11 @@ enum ChannelWorkspaceSurfaceKind {
 
 enum ChannelWorkspaceSurfaceAvailability {
   available,
-  adminSetupRequired,
   disabledByPolicy,
+  notConfigured,
   degraded,
-  gated,
+  unavailable,
+  comingLater,
 }
 
 class ChannelWorkspaceSurface {
@@ -24,12 +25,16 @@ class ChannelWorkspaceSurface {
     required this.availability,
     required this.providerContractId,
     required this.contextId,
+    required this.canonicalObjectRef,
+    required this.supportSafeEvidenceRef,
   });
 
   final ChannelWorkspaceSurfaceKind kind;
   final ChannelWorkspaceSurfaceAvailability availability;
   final String providerContractId;
   final String contextId;
+  final String canonicalObjectRef;
+  final String supportSafeEvidenceRef;
 
   bool get isAvailable =>
       availability == ChannelWorkspaceSurfaceAvailability.available;
@@ -37,10 +42,24 @@ class ChannelWorkspaceSurface {
   bool get isUnavailable => !isAvailable;
 
   bool get isGated =>
-      availability == ChannelWorkspaceSurfaceAvailability.gated ||
-      availability == ChannelWorkspaceSurfaceAvailability.adminSetupRequired ||
+      availability == ChannelWorkspaceSurfaceAvailability.unavailable ||
+      availability == ChannelWorkspaceSurfaceAvailability.notConfigured ||
       availability == ChannelWorkspaceSurfaceAvailability.disabledByPolicy ||
-      availability == ChannelWorkspaceSurfaceAvailability.degraded;
+      availability == ChannelWorkspaceSurfaceAvailability.degraded ||
+      availability == ChannelWorkspaceSurfaceAvailability.comingLater;
+
+  bool get isComingLater =>
+      availability == ChannelWorkspaceSurfaceAvailability.comingLater;
+
+  bool get hasSupportSafeEvidence =>
+      canonicalObjectRef.isNotEmpty &&
+      supportSafeEvidenceRef.isNotEmpty &&
+      canonicalObjectRef.startsWith('weave:') &&
+      supportSafeEvidenceRef.startsWith('evidence:') &&
+      !canonicalObjectRef.contains('!') &&
+      !supportSafeEvidenceRef.contains('!') &&
+      !canonicalObjectRef.contains('home.internal') &&
+      !supportSafeEvidenceRef.contains('home.internal');
 }
 
 enum ChannelMeetingContextItemKind {
@@ -537,6 +556,9 @@ class ChannelWorkspacePreview {
     required this.channelId,
     required this.channelTitle,
     required this.contextId,
+    required this.routePath,
+    required this.spaceEvidenceRef,
+    required this.finalDecisionEvidenceRef,
     required this.surfaces,
     required this.meetingPreview,
     required this.weaverScoutPreview,
@@ -549,52 +571,71 @@ class ChannelWorkspacePreview {
     ChatConversation conversation,
   ) {
     final contextId = _weaveSpaceContextId(conversation);
+    final spaceSlug = _weaveSpaceSlug(contextId);
     return ChannelWorkspacePreview(
       channelId: conversation.id,
       channelTitle: conversation.title,
       contextId: contextId,
+      routePath: '/spaces/$spaceSlug/control-room',
+      spaceEvidenceRef: 'evidence:$spaceSlug:space-identity',
+      finalDecisionEvidenceRef: 'evidence:$spaceSlug:decision-final-state',
       surfaces: [
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.chat,
           availability: ChannelWorkspaceSurfaceAvailability.available,
           providerContractId: 'weave-chat-conversation',
           contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:chat-thread',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:chat-context-seen',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.decisions,
           availability: ChannelWorkspaceSurfaceAvailability.available,
           providerContractId: 'weave-decision-ledger-channel',
           contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:decision-ledger',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:decision-final-state',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.files,
-          availability: ChannelWorkspaceSurfaceAvailability.adminSetupRequired,
+          availability: ChannelWorkspaceSurfaceAvailability.notConfigured,
           providerContractId: 'weave-files-channel-link',
           contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:files-folder',
+          supportSafeEvidenceRef:
+              'evidence:$spaceSlug:files-link-not-configured',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.boards,
-          availability: ChannelWorkspaceSurfaceAvailability.adminSetupRequired,
+          availability: ChannelWorkspaceSurfaceAvailability.degraded,
           providerContractId: 'weave-boards-channel-link',
           contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:board-lane',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:board-degraded',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.calendar,
-          availability: ChannelWorkspaceSurfaceAvailability.gated,
+          availability: ChannelWorkspaceSurfaceAvailability.disabledByPolicy,
           providerContractId: 'weave-calendar-channel-scope',
           contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:calendar-scope',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:calendar-policy-block',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.meetings,
-          availability: ChannelWorkspaceSurfaceAvailability.gated,
+          availability: ChannelWorkspaceSurfaceAvailability.comingLater,
           providerContractId: 'weave-meetings-channel-capability',
           contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:meeting-capsule',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:meeting-coming-later',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.weaver,
-          availability: ChannelWorkspaceSurfaceAvailability.gated,
+          availability: ChannelWorkspaceSurfaceAvailability.disabledByPolicy,
           providerContractId: 'weave-weaver-channel-scout',
           contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:weaver-scout',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:weaver-policy-disabled',
         ),
       ],
       meetingPreview: ChannelMeetingPreview.forConversation(
@@ -614,6 +655,9 @@ class ChannelWorkspacePreview {
   final String channelId;
   final String channelTitle;
   final String contextId;
+  final String routePath;
+  final String spaceEvidenceRef;
+  final String finalDecisionEvidenceRef;
   final List<ChannelWorkspaceSurface> surfaces;
   final ChannelMeetingPreview meetingPreview;
   final ChannelWeaverScoutPreview weaverScoutPreview;
@@ -625,6 +669,10 @@ class ChannelWorkspacePreview {
       explicitContextOnly &&
       !backgroundRoomReadingEnabled &&
       !adminSetupExposedToMembers &&
+      routePath.startsWith('/spaces/') &&
+      spaceEvidenceRef.startsWith('evidence:') &&
+      finalDecisionEvidenceRef.startsWith('evidence:') &&
+      surfaces.every((surface) => surface.hasSupportSafeEvidence) &&
       // Sprint 4 exposes Weaver as a governed read-only scout; keep the
       // workspace-level predicate fail-closed if that invariant regresses.
       weaverScoutPreview.isGovernedReadOnlyScout;
@@ -632,6 +680,10 @@ class ChannelWorkspacePreview {
   ChannelWorkspaceSurface surface(ChannelWorkspaceSurfaceKind kind) {
     return surfaces.singleWhere((surface) => surface.kind == kind);
   }
+}
+
+String _weaveSpaceSlug(String contextId) {
+  return contextId.replaceAll(':', '-');
 }
 
 String _weaveSpaceContextId(ChatConversation conversation) {

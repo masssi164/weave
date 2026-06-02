@@ -50,7 +50,7 @@ void main() {
         'IDM roles and groups decide capability profiles before Weaver runtime',
         'Weaver runtime profiles are generated from organization policy',
         'Weaver discovers and invokes only approved domain tools',
-        'A channel is the primary workspace surface',
+        'A Space control room is the primary workspace surface',
         'Chat uses a canonical backend domain facade',
         'A user board write is authorized and audited',
         'A meeting capsule keeps work connected',

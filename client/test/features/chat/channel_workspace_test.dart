@@ -13,12 +13,18 @@ void main() {
     isDirectMessage: false,
   );
 
-  test('models a governed channel workspace without preview states', () {
+  test('models a governed Space control room without preview states', () {
     final preview = ChannelWorkspacePreview.forConversation(channel);
 
     expect(preview.contextId, startsWith('space:channel-'));
     expect(preview.contextId, isNot(contains('!general')));
     expect(preview.contextId, isNot(contains('home.internal')));
+    expect(preview.routePath, startsWith('/spaces/space-channel-'));
+    expect(preview.spaceEvidenceRef, startsWith('evidence:space-channel-'));
+    expect(
+      preview.finalDecisionEvidenceRef,
+      startsWith('evidence:space-channel-'),
+    );
     expect(preview.isChannelWorkspaceGoverned, isTrue);
     expect(preview.surfaces.map((surface) => surface.kind), [
       ChannelWorkspaceSurfaceKind.chat,
@@ -43,15 +49,15 @@ void main() {
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.files).availability,
-      ChannelWorkspaceSurfaceAvailability.adminSetupRequired,
+      ChannelWorkspaceSurfaceAvailability.notConfigured,
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.boards).availability,
-      ChannelWorkspaceSurfaceAvailability.adminSetupRequired,
+      ChannelWorkspaceSurfaceAvailability.degraded,
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.calendar).availability,
-      ChannelWorkspaceSurfaceAvailability.gated,
+      ChannelWorkspaceSurfaceAvailability.disabledByPolicy,
     );
     expect(
       preview.surface(ChannelWorkspaceSurfaceKind.meetings).providerContractId,
@@ -72,6 +78,26 @@ void main() {
     expect(
       preview.surfaces.map((surface) => surface.providerContractId),
       everyElement(startsWith('weave-')),
+    );
+    expect(
+      preview.surfaces.map((surface) => surface.canonicalObjectRef),
+      everyElement(startsWith('weave:space-channel-')),
+    );
+    expect(
+      preview.surfaces.map((surface) => surface.supportSafeEvidenceRef),
+      everyElement(startsWith('evidence:space-channel-')),
+    );
+    expect(
+      preview.surfaces.every((surface) => surface.hasSupportSafeEvidence),
+      isTrue,
+    );
+    expect(
+      preview.surfaces.map((surface) => surface.canonicalObjectRef),
+      everyElement(isNot(contains('!general'))),
+    );
+    expect(
+      preview.surfaces.map((surface) => surface.supportSafeEvidenceRef),
+      everyElement(isNot(contains('home.internal'))),
     );
     expect(preview.meetingPreview.contextId, preview.contextId);
     expect(preview.weaverScoutPreview.contextId, preview.contextId);
