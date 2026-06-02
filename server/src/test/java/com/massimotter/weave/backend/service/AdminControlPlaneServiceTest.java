@@ -465,10 +465,22 @@ class AdminControlPlaneServiceTest {
         });
         assertThat(response.goLiveReadiness().supportSafe()).isTrue();
         assertThat(response.goLiveReadiness().normalMembersMayAccessSetupControls()).isFalse();
+        assertThat(response.goLiveReadiness().releaseClaimControl().claimState())
+                .isEqualTo("admin-action-required");
         assertThat(response.goLiveReadiness().releaseClaimControl().pinnedSpecCorpusRef())
                 .contains("specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2");
+        assertThat(response.goLiveReadiness().releaseClaimControl().accessibilityEvidenceRef())
+                .contains("docs/evidence/accessibility/sprint-18-manual-at-blocker.md#591");
+        assertThat(response.goLiveReadiness().releaseClaimControl().unresolvedVetoes())
+                .contains("#591-manual-assistive-technology-signoff-open", "release-owner-rc-decision-required");
         assertThat(response.goLiveReadiness().releaseClaimControl().gates()).extracting(gate -> gate.key())
-                .contains("pinned-spec-corpus", "conformance-gates", "accessibility-evidence", "release-notes-input");
+                .contains("pinned-spec-corpus", "sprint-18-manual-at-signoff", "conformance-gates", "accessibility-evidence", "release-notes-input");
+        assertThat(response.goLiveReadiness().releaseClaimControl().gates()).anySatisfy(gate -> {
+            assertThat(gate.key()).isEqualTo("sprint-18-manual-at-signoff");
+            assertThat(gate.blocksReleaseClaim()).isTrue();
+            assertThat(gate.evidenceRefs()).contains("https://github.com/masssi164/weave/issues/591");
+            assertThat(gate.nextAction()).contains("Sprint 19 dogfood work may proceed");
+        });
         assertThat(response.goLiveReadiness().releaseClaimControl().gates()).anySatisfy(gate -> {
             assertThat(gate.key()).isEqualTo("conformance-gates");
             assertThat(gate.blocksReleaseClaim()).isTrue();

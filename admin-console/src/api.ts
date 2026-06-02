@@ -1482,6 +1482,19 @@ const sampleRcEvidenceGates: RcEvidenceGateReadiness[] = [
     blocksReleaseClaim: false,
   },
   {
+    key: "sprint-18-manual-at-signoff",
+    label: "Sprint 18 manual AT signoff (#591)",
+    state: "admin-action-required",
+    evidenceFreshness: "missing",
+    evidenceRefs: [
+      "https://github.com/masssi164/weave/issues/591",
+      "docs/evidence/accessibility/sprint-18-manual-at-blocker.md",
+    ],
+    nextAction:
+      "Keep public/final release claims blocked until real manual assistive-technology evidence or an accepted issue-linked split exists; Sprint 19 dogfood work may proceed.",
+    blocksReleaseClaim: true,
+  },
+  {
     key: "conformance-gates",
     label: "Conformance and acceptance gates",
     state: "admin-action-required",
@@ -2268,8 +2281,9 @@ export const sampleControlPlane: ControlPlaneResponse = {
       releaseNotesSource: "merged PR release-notes labels and generated draft",
       supportBundleRef: "support-bundle://admin-health/go-live-redacted-sample",
       accessibilityEvidenceRef:
-        "docs/evidence/weaver-security-privacy-accessibility-report.md",
+        "docs/evidence/accessibility/sprint-18-manual-at-blocker.md#591",
       unresolvedVetoes: [
+        "#591-manual-assistive-technology-signoff-open",
         "files-docs readiness degraded",
         "boards/tasks write policy blocked",
       ],

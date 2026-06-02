@@ -1553,14 +1553,15 @@ public class AdminControlPlaneService {
 
     private ReleaseClaimControlResponse releaseClaimControl(List<String> readinessBlockers) {
         List<String> unresolvedVetoes = new ArrayList<>(readinessBlockers);
+        unresolvedVetoes.add("#591-manual-assistive-technology-signoff-open");
         unresolvedVetoes.add("release-owner-rc-decision-required");
         return new ReleaseClaimControlResponse(
-                readinessBlockers.isEmpty() ? "configured" : "admin-action-required",
+                "admin-action-required",
                 "v0.1.0-rc.next",
                 "specs/weave-specs.lock.json#24c746c674da7d98e5c6abc1f1abac033a8774f2",
                 "merged PR release-notes labels and generated draft",
                 "support-bundle://admin-health/go-live-redacted-sample",
-                "docs/evidence/weaver-security-privacy-accessibility-report.md",
+                "docs/evidence/accessibility/sprint-18-manual-at-blocker.md#591",
                 unresolvedVetoes,
                 List.of(
                         new RcEvidenceGateReadinessResponse(
@@ -1571,6 +1572,14 @@ public class AdminControlPlaneService {
                                 List.of("specs/weave-specs.lock.json"),
                                 "Keep the candidate tied to the pinned corpus commit.",
                                 false),
+                        new RcEvidenceGateReadinessResponse(
+                                "sprint-18-manual-at-signoff",
+                                "Sprint 18 manual AT signoff (#591)",
+                                "admin-action-required",
+                                "missing",
+                                List.of("https://github.com/masssi164/weave/issues/591", "docs/evidence/accessibility/sprint-18-manual-at-blocker.md"),
+                                "Keep public/final release claims blocked until real manual assistive-technology evidence or an accepted issue-linked split exists; Sprint 19 dogfood work may proceed.",
+                                true),
                         new RcEvidenceGateReadinessResponse(
                                 "conformance-gates",
                                 "Conformance and acceptance gates",
@@ -1592,8 +1601,8 @@ public class AdminControlPlaneService {
                                 "Accessibility evidence",
                                 "degraded",
                                 "stale",
-                                List.of("docs/evidence/weaver-security-privacy-accessibility-report.md"),
-                                "Refresh admin apply/recovery and member-preview accessibility evidence for the candidate.",
+                                List.of("docs/evidence/accessibility/sprint-18-manual-at-blocker.md", "docs/evidence/weaver-security-privacy-accessibility-report.md"),
+                                "Refresh manual AT evidence for admin go-live, Workspace, migration, and governed Weaver surfaces before public/final release claims.",
                                 true),
                         new RcEvidenceGateReadinessResponse(
                                 "release-notes-input",
