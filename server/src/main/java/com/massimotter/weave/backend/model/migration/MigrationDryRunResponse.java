@@ -36,6 +36,7 @@ public record MigrationDryRunResponse(
             String weaveDomainObject,
             String targetAdapterObject,
             String mappingStatus,
+            String mappingClass,
             List<String> lossyFields,
             List<String> conflicts,
             List<String> assumptions) {

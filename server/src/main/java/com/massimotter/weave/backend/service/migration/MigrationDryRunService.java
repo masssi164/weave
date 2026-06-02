@@ -92,6 +92,7 @@ public class MigrationDryRunService {
                         "weave:files:paths/folders/versions/shares/owners",
                         "target-adapter:files:objects/shares/versions",
                         inventory.files() > 0 ? "manual_review_required" : "no-source-objects",
+                        inventory.files() > 0 ? "archive_only" : "portable",
                         inventory.files() > 0
                                 ? List.of("unsupported metadata, external links, missing versions, quota/rate limits may be lossy")
                                 : List.of(),
@@ -105,6 +106,7 @@ public class MigrationDryRunService {
                         "weave:calendar:calendars/events/organizers/resources/recurrence",
                         "target-adapter:calendar:calendars/events/participants/resources",
                         "manual_review_required",
+                        "lossy",
                         List.of("provider-specific recurrence exceptions, alarms, room resources, and attachment links may be lossy"),
                         List.of("organizer and resource ownership consequences require admin review"),
                         List.of("member previews show stable calendar impact states, never raw provider event urls")),
@@ -114,6 +116,7 @@ public class MigrationDryRunService {
                         "weave:boards:projects/boards/columns/tasks/labels/watchers",
                         "target-adapter:boards:projects/boards/tasks",
                         "manual_review_required",
+                        "manual_review",
                         List.of("automation rules, custom fields, comments, and watchers may be unsupported or archive-only"),
                         List.of("permission and ownership drift blocks apply until transfer evidence exists"),
                         List.of("unsupported provider actions stay admin-visible and are not surfaced as member internals")),
@@ -123,6 +126,7 @@ public class MigrationDryRunService {
                         "weave:chat:conversations/messages/memberships/history-policy/attachment-refs",
                         "target-adapter:chat:conversations/messages/memberships",
                         unmappableUsers > 0 ? "manual_review_required" : "mappable",
+                        "portable",
                         inventory.messages() > 0
                                 ? List.of("provider-specific reactions, pins, bot metadata, thread semantics, and encrypted/redacted history may be lossy or archive-only")
                                 : List.of(),

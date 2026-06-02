@@ -29,6 +29,8 @@ class MigrationDryRunServiceTest {
         assertThat(response.providerDiagnosticsRedacted()).isTrue();
         assertThat(response.replaySafe()).isTrue();
         assertThat(response.domainMappings()).extracting("domain").containsExactly("files", "calendar", "boards", "chat");
+        assertThat(response.domainMappings()).extracting("mappingClass")
+                .contains("portable", "lossy", "manual_review", "archive_only");
         assertThat(response.domainMappings())
                 .anySatisfy(mapping -> assertThat(mapping.weaveDomainObject()).contains("weave:files"))
                 .anySatisfy(mapping -> assertThat(mapping.weaveDomainObject()).contains("weave:calendar"))
@@ -68,6 +70,7 @@ class MigrationDryRunServiceTest {
                 .singleElement()
                 .satisfies(mapping -> {
                     assertThat(mapping.sourceObject()).contains("matrix-synapse:channels/messages/memberships/e2ee-state");
+                    assertThat(mapping.mappingClass()).isEqualTo("portable");
                     assertThat(mapping.lossyFields()).anySatisfy(field -> assertThat(field).contains("encrypted/redacted history"));
                     assertThat(mapping.assumptions()).anySatisfy(assumption -> assertThat(assumption).contains("raw media URLs are redacted"));
                 });

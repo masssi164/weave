@@ -23,15 +23,31 @@ public record ProviderReplacementDryRunResponse(
         ConsequencePreview consequencePreview,
         NoUnaccountedDataLossReport noUnaccountedDataLossReport,
         BoundedApplyCutoverRollbackProof boundedProof,
+        List<CrossDomainImpactItem> crossDomainImpact,
         List<String> cutoverGates,
         List<String> memberImpactStates,
         boolean supportSafe,
         boolean providerDiagnosticsRedacted,
         List<String> auditRefs) {
     public ProviderReplacementDryRunResponse {
+        crossDomainImpact = crossDomainImpact == null ? List.of() : List.copyOf(crossDomainImpact);
         cutoverGates = cutoverGates == null ? List.of() : List.copyOf(cutoverGates);
         memberImpactStates = memberImpactStates == null ? List.of() : List.copyOf(memberImpactStates);
         auditRefs = auditRefs == null ? List.of() : List.copyOf(auditRefs);
+    }
+
+    @Schema(description = "Support-safe cross-domain provider impact item with canonical portability class.")
+    public record CrossDomainImpactItem(
+            String domainKey,
+            String canonicalObjectRef,
+            String mappingClass,
+            String consequenceSummary,
+            List<String> evidenceRefs,
+            List<String> applyBlockers) {
+        public CrossDomainImpactItem {
+            evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
+            applyBlockers = applyBlockers == null ? List.of() : List.copyOf(applyBlockers);
+        }
     }
 
     public record LossyMappingReport(

@@ -1626,6 +1626,30 @@ export default function App({
                       <Typography>
                         Consequence counts: preserved {dryRunReport.consequencePreview.preservedCount}; lossy {dryRunReport.consequencePreview.lossyCount}; unsupported {dryRunReport.consequencePreview.unsupportedCount}; manual review {dryRunReport.consequencePreview.manualReviewCount}; archive only {dryRunReport.consequencePreview.archiveOnlyCount}.
                       </Typography>
+                      {dryRunReport.crossDomainImpact.length > 0 ? (
+                        <Box>
+                          <Typography variant="subtitle2">
+                            Cross-domain impact
+                          </Typography>
+                          <ul>
+                            {dryRunReport.crossDomainImpact.map((impact) => (
+                              <li
+                                key={`${impact.domainKey}-${impact.canonicalObjectRef}`}
+                              >
+                                {impact.domainKey}: {impact.mappingClass};{" "}
+                                {impact.canonicalObjectRef};{" "}
+                                {impact.consequenceSummary} Evidence: {" "}
+                                {impact.evidenceRefs.join(", ") ||
+                                  "backend dry-run evidence required"}
+                                . Blockers: {" "}
+                                {impact.applyBlockers.join("; ") ||
+                                  "none for this item"}
+                                .
+                              </li>
+                            ))}
+                          </ul>
+                        </Box>
+                      ) : null}
                       <Typography>
                         Member consequence copy: {dryRunReport.consequencePreview.memberImpactCopy.join(" ") || "backend dry-run reports member impact without provider internals"}
                       </Typography>

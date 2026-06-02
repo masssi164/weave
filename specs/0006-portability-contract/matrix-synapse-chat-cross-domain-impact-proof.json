@@ -1,0 +1,92 @@
+{
+  "proofId": "sprint-19-matrix-synapse-chat-cross-domain-impact-proof-v1",
+  "domainKey": "chat",
+  "sourceProvider": "matrix-synapse",
+  "targetProvider": "weave-chat-domain",
+  "proofBoundary": "fixture_only_matrix_synapse_chat_cross_domain_sprint19",
+  "redaction": "support_safe",
+  "supportSafe": true,
+  "providerDiagnosticsRedacted": true,
+  "productionCutoverAllowed": false,
+  "losslessMigrationClaimAllowed": false,
+  "e2eeHistoryMigrationClaimAllowed": false,
+  "requiredMappingClasses": [
+    "portable",
+    "lossy",
+    "unsupported",
+    "manual_review",
+    "vendor_locked",
+    "archive_only"
+  ],
+  "crossDomainImpact": [
+    {
+      "domainKey": "chat",
+      "canonicalObjectRef": "weave:chat:conversation/sprint19-matrix-room",
+      "mappingClass": "portable",
+      "consequenceSummary": "Conversation metadata, current membership, simple replies, and canonical message refs are portable inside the bounded fixture.",
+      "evidenceRefs": ["impact:s19:chat:matrix-room:portable"],
+      "applyBlockers": []
+    },
+    {
+      "domainKey": "files",
+      "canonicalObjectRef": "weave:files:attachment-ref/sprint19-channel-media",
+      "mappingClass": "archive_only",
+      "consequenceSummary": "Matrix media references stay archive-only unless copied into Weave-controlled storage under an approved retention policy.",
+      "evidenceRefs": ["impact:s19:files:attachment-retention"],
+      "applyBlockers": ["media retention decision and rollback archive refs are required before cutover"]
+    },
+    {
+      "domainKey": "boards",
+      "canonicalObjectRef": "weave:boards:task-comment-link/sprint19-linked-decision",
+      "mappingClass": "manual_review",
+      "consequenceSummary": "Task/comment/watchers linked from Chat require manual review because Matrix sender roles do not map one-to-one to board permissions.",
+      "evidenceRefs": ["impact:s19:boards:task-comment-watchers"],
+      "applyBlockers": ["manual-review decision is required for board watcher and attachment relation impact"]
+    },
+    {
+      "domainKey": "calendar",
+      "canonicalObjectRef": "weave:calendar:event-link/sprint19-room-meeting",
+      "mappingClass": "lossy",
+      "consequenceSummary": "Meeting links and recurrence/resource metadata can be preserved only as support-safe refs when provider-specific room state has no canonical equivalent.",
+      "evidenceRefs": ["impact:s19:calendar:meeting-link-recurrence"],
+      "applyBlockers": ["calendar recurrence/resource lossy mapping must be accepted before cutover"]
+    },
+    {
+      "domainKey": "decisions",
+      "canonicalObjectRef": "weave:decisions:evidence-link/sprint19-chat-rationale",
+      "mappingClass": "unsupported",
+      "consequenceSummary": "Encrypted or redacted Chat rationale cannot be promoted into Decisions evidence by server-side migration and remains unsupported.",
+      "evidenceRefs": ["impact:s19:decisions:encrypted-rationale"],
+      "applyBlockers": ["unsupported encrypted rationale blocks lossless migration and production replacement claims"]
+    },
+    {
+      "domainKey": "chat",
+      "canonicalObjectRef": "weave:chat:provider-extension/sprint19-federated-widget",
+      "mappingClass": "vendor_locked",
+      "consequenceSummary": "Provider-specific widgets and federated extension state stay vendor-locked and cannot be represented as portable Weave domain data.",
+      "evidenceRefs": ["impact:s19:chat:vendor-locked-widget"],
+      "applyBlockers": ["vendor-locked extension state blocks all-provider portability claims"]
+    }
+  ],
+  "applyCutoverGate": {
+    "applyAllowed": false,
+    "cutoverAllowed": false,
+    "requiredArtifacts": [
+      "crossDomainImpactReportRef",
+      "crossDomainManualReviewDecisionRef",
+      "crossDomainRollbackRetentionRef",
+      "noUnaccountedDataLossReportRef",
+      "releaseClaimBoundaryRef"
+    ],
+    "missingArtifactsBlockApply": true,
+    "manualReviewDecisionsRequired": true,
+    "rollbackRetentionRequired": true,
+    "blockers": [
+      "manual-review decisions for boards and media retention are unresolved",
+      "archive-only media requires rollback retention evidence",
+      "unsupported encrypted rationale blocks lossless migration",
+      "production provider replacement and cutover remain blocked"
+    ]
+  },
+  "claimBoundary": "This Sprint 19 fixture proves support-safe cross-domain impact reporting for one Matrix/Synapse Chat replacement rehearsal only. It does not prove production provider replacement, lossless migration, E2EE history migration, legal-compliance evidence, private-channel parity, or all-provider portability."
+}

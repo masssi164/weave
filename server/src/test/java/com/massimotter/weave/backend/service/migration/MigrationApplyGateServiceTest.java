@@ -85,6 +85,50 @@ class MigrationApplyGateServiceTest {
     }
 
     @Test
+    void chatApplyRequiresCrossDomainImpactManualReviewAndRollbackRetentionEvidence() {
+        Map<String, String> refs = completeArtifactRefs("chat");
+        refs.remove("crossDomainImpactReportRef");
+        refs.remove("crossDomainManualReviewDecisionRef");
+        refs.remove("crossDomainRollbackRetentionRef");
+        repository.save(evidence("migration-chat-001", "chat", "approved", refs, true, true, true));
+
+        var response = service.evaluate(new MigrationApplyGateRequest(
+                "migration-chat-001",
+                "chat",
+                "approved",
+                "dry-run:chat:001",
+                "export:chat:001",
+                "import:chat:001",
+                "mapping:chat:001",
+                "lossy:chat:001",
+                "conflict:chat:001",
+                "impact:chat:001",
+                "approval:chat:001",
+                "rollback:chat:001",
+                "verify:chat:001",
+                Map.of("Conversation", 1),
+                List.of("sha256:2222222222222222222222222222222222222222222222222222222222222222"),
+                List.of("audit:migration.dry_run:chat:001"),
+                true,
+                true,
+                true,
+                List.of("support-safe diagnostic")));
+
+        assertThat(response.applyAllowed()).isFalse();
+        assertThat(response.lifecycle()).isEqualTo("blocked");
+        assertThat(response.requiredArtifacts()).contains(
+                "crossDomainImpactReportRef",
+                "crossDomainManualReviewDecisionRef",
+                "crossDomainRollbackRetentionRef");
+        assertThat(response.missingArtifacts()).contains(
+                "crossDomainImpactReportRef",
+                "crossDomainManualReviewDecisionRef",
+                "crossDomainRollbackRetentionRef");
+        assertThat(response.nextActions())
+                .anySatisfy(action -> assertThat(action).contains("Chat cross-domain impact report"));
+    }
+
+    @Test
     void staleServerEvidenceFailsClosed() {
         Instant now = Instant.now();
         repository.save(new MigrationRunEvidence(
@@ -138,10 +182,15 @@ class MigrationApplyGateServiceTest {
 
     private MigrationRunEvidence evidence(String lifecycle, Map<String, String> artifactRefs,
             boolean identityMappingComplete, boolean auditSinkAvailable, boolean adminApproved) {
+        return evidence("migration-boards-001", "boards", lifecycle, artifactRefs, identityMappingComplete, auditSinkAvailable, adminApproved);
+    }
+
+    private MigrationRunEvidence evidence(String runId, String domainKey, String lifecycle, Map<String, String> artifactRefs,
+            boolean identityMappingComplete, boolean auditSinkAvailable, boolean adminApproved) {
         Instant now = Instant.now();
         return new MigrationRunEvidence(
-                "migration-boards-001",
-                "boards",
+                runId,
+                domainKey,
                 lifecycle,
                 Map.of("Board", 1, "Task", 12),
                 List.of("sha256:2222222222222222222222222222222222222222222222222222222222222222"),
@@ -156,21 +205,30 @@ class MigrationApplyGateServiceTest {
     }
 
     private Map<String, String> completeArtifactRefs() {
+        return completeArtifactRefs("boards");
+    }
+
+    private Map<String, String> completeArtifactRefs(String domain) {
         Map<String, String> refs = new LinkedHashMap<>();
-        refs.put("dryRunReportRef", "dry-run:boards:001");
-        refs.put("exportSnapshotRef", "export:boards:001");
-        refs.put("importPlanRef", "import:boards:001");
-        refs.put("providerMappingRef", "mapping:boards:001");
-        refs.put("lossyMappingReportRef", "lossy:boards:001");
-        refs.put("conflictReportRef", "conflict:boards:001");
-        refs.put("memberImpactPreviewRef", "impact:boards:001");
-        refs.put("adminApprovalRef", "approval:boards:001");
-        refs.put("cutoverPlanRef", "cutover:boards:001");
-        refs.put("rollbackArchiveRef", "rollback:boards:001");
-        refs.put("rollbackRestoreSmokeRef", "restore-smoke:boards:001");
-        refs.put("noUnaccountedDataLossReportRef", "no-loss:boards:001");
-        refs.put("releaseClaimBoundaryRef", "claim-boundary:boards:001");
-        refs.put("postApplyVerificationRef", "verify:boards:001");
+        refs.put("dryRunReportRef", "dry-run:" + domain + ":001");
+        refs.put("exportSnapshotRef", "export:" + domain + ":001");
+        refs.put("importPlanRef", "import:" + domain + ":001");
+        refs.put("providerMappingRef", "mapping:" + domain + ":001");
+        refs.put("lossyMappingReportRef", "lossy:" + domain + ":001");
+        refs.put("conflictReportRef", "conflict:" + domain + ":001");
+        refs.put("memberImpactPreviewRef", "impact:" + domain + ":001");
+        refs.put("adminApprovalRef", "approval:" + domain + ":001");
+        refs.put("cutoverPlanRef", "cutover:" + domain + ":001");
+        refs.put("rollbackArchiveRef", "rollback:" + domain + ":001");
+        refs.put("rollbackRestoreSmokeRef", "restore-smoke:" + domain + ":001");
+        refs.put("noUnaccountedDataLossReportRef", "no-loss:" + domain + ":001");
+        refs.put("releaseClaimBoundaryRef", "claim-boundary:" + domain + ":001");
+        refs.put("postApplyVerificationRef", "verify:" + domain + ":001");
+        if ("chat".equals(domain)) {
+            refs.put("crossDomainImpactReportRef", "impact:chat:cross-domain:001");
+            refs.put("crossDomainManualReviewDecisionRef", "manual-review:chat:cross-domain:001");
+            refs.put("crossDomainRollbackRetentionRef", "rollback-retention:chat:cross-domain:001");
+        }
         return refs;
     }
 
