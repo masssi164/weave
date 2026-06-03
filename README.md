@@ -102,7 +102,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Added
 
-- No post-`v0.1.0-rc.3` release-note additions yet.
+- Sprint 22 adds a CI-safe free provider lab gate, manifests, fixture evidence, and operator runbook for Keycloak, Authentik, Matrix/Synapse, Zulip, Nextcloud, MinIO, Radicale, OpenProject, and the Docker Runtime boundary without claiming provider interchangeability or release readiness.
 
 ## Changed
 
