@@ -17,6 +17,7 @@ REGISTRY = ROOT / "specs" / "0004-domain-registry" / "canonical-domain-registry-
 SERVER_REGISTRY = ROOT / "server" / "src" / "main" / "resources" / "canonical-domain-registry-v1.json"
 PRODUCT_REALITY = ROOT / "release" / "product-reality-gates.json"
 PROVIDER_FIXTURE = ROOT / "fixtures" / "provider-lab" / "chat-fixture.json"
+SCOREBOARD = ROOT / "release" / "provider-lab" / "sprint-23-entry-scoreboard.json"
 
 EXPECTED_OBJECTS = [
     "WeaveSpace",
@@ -159,6 +160,23 @@ def main() -> None:
         missing = set(EXPECTED_OBJECTS) - values
         if missing:
             fail(f"{source_name} missing Chat canonical object(s): {', '.join(sorted(missing))}")
+
+    scoreboard = load(SCOREBOARD)
+    if scoreboard.get("scoreboardKind") != "weave-sprint-23-entry-scoreboard":
+        fail("Sprint 23 entry scoreboard kind mismatch")
+    if scoreboard.get("sprint23EntryGate") != "green":
+        fail("Sprint 23 entry scoreboard must be green")
+    if scoreboard.get("openReleaseBlockers") != []:
+        fail("Sprint 23 entry scoreboard must have no open release blockers")
+    fields = scoreboard.get("fields", {})
+    for field in ["labHealth", "manifestValidity", "fixtureCompleteness", "supportBundleRedaction", "claimSafety"]:
+        if fields.get(field) != "green":
+            fail(f"Sprint 23 entry scoreboard field {field} must be green")
+    evidence = scoreboard.get("evidence", {})
+    if evidence.get("fixture") != "fixtures/provider-lab/chat-fixture.json":
+        fail("Sprint 23 entry scoreboard must point at fixtures/provider-lab/chat-fixture.json")
+    if evidence.get("gateCommand") != "./gradlew providerLabCheck":
+        fail("Sprint 23 entry scoreboard must name ./gradlew providerLabCheck")
 
     provider_fixture = load(PROVIDER_FIXTURE)
     expected_statuses = set(provider_fixture.get("expectedHistoryStatuses", []))
