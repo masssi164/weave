@@ -1502,7 +1502,7 @@
       "executableTest": "tools/local_forgejo_runner_readiness_check.py",
       "evidenceMode": "offline-spec",
       "tag": "@sprint27-local-forgejo-runner-readiness",
-      "scenario": "Runner readiness blocks current local dispatch and defines the future allowed transition",
+      "scenario": "Runner readiness records the real local runner and keeps dispatch gated",
       "evidenceMarkers": [
         "LOCAL_FORGEJO_RUNNER_READINESS_PROOF"
       ],
@@ -1511,7 +1511,7 @@
           "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
           "fragments": [
             "weave-local-forgejo-runner-readiness-v1",
-            "awaiting_main_local_signal",
+            "local-forgejo-actions",
             "runner_registered",
             "dispatch_allowed"
           ]
@@ -1539,7 +1539,7 @@
       "executableTest": "tools/local_forgejo_e2e_handoff_check.py",
       "evidenceMode": "offline-spec",
       "tag": "@sprint27-local-forgejo-e2e-handoff",
-      "scenario": "E2E evidence remains blocked until the real local runner and pipeline signals exist",
+      "scenario": "E2E evidence remains blocked until pipeline, stack, and E2E signals exist",
       "evidenceMarkers": [
         "LOCAL_FORGEJO_E2E_HANDOFF_PROOF"
       ],
@@ -1548,7 +1548,7 @@
           "path": "release/provider-lab/local-forgejo-e2e/local-stack-e2e-handoff.fixture.json",
           "fragments": [
             "weave-local-forgejo-e2e-handoff-v1",
-            "blocked_awaiting_local_runner_and_pipeline_signal",
+            "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal",
             "weave_e2e_passed"
           ]
         },
@@ -1565,7 +1565,7 @@
           "fragments": [
             "localInfraReality",
             "~/server",
-            "awaiting_main_local_signal"
+            "runner_registered"
           ]
         }
       ]

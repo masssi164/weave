@@ -127,25 +127,28 @@ def main() -> None:
     if states["dispatch_allowed"].get("requiresAdminApproval") is not True:
         fail("dispatch_allowed still requires explicit admin approval")
     current = fixture.get("currentLocalObservation", {})
-    if current.get("state") != "awaiting_main_local_signal":
-        fail("current local proof must wait for concise main ~/server signal")
+    if current.get("state") != "runner_registered":
+        fail("current local proof must record verified runner_registered signal")
+    signals = current.get("supportSafeSignals", {})
     for name in ["service_exists", "config_path_exists", "registered", "running", "secret_refs_present"]:
-        if name not in current.get("requiredConciseSignal", []):
-            fail(f"current local proof missing concise signal {name}")
+        if signals.get(name) is not True:
+            fail(f"current local proof missing true concise signal {name}")
+    if signals.get("secret_values_logged") is not False:
+        fail("current local proof must state secret values were not logged")
     forbidden_ops = fixture.get("approvalBoundary", {}).get("forbiddenWithoutExplicitApproval", [])
     for op in ["mutate ~/server", "register runner", "create secret", "dispatch live workflow"]:
         if op not in forbidden_ops:
             fail(f"approval boundary missing {op}")
     assert_support_safe(fixture, "runner-readiness fixture")
-    assert_fragments(DOC, ["customer-owned Forgejo Actions runner under `~/server`", "awaiting_main_local_signal", "runner_registered", "dispatch_allowed", "service_exists"])
-    assert_fragments(FEATURE, ["@sprint27-local-forgejo-runner-readiness", "awaiting_main_local_signal", "runner_registered", "dispatch_allowed", "not GitHub repository secrets"])
+    assert_fragments(DOC, ["customer-owned Forgejo Actions runner under `~/server`", "local-forgejo-actions", "runner_registered", "dispatch_allowed", "service_exists"])
+    assert_fragments(FEATURE, ["@sprint27-local-forgejo-runner-readiness", "runner_registered", "dispatch_allowed", "not GitHub repository secrets"])
     assert_fragments(MAPPING, ["@sprint27-local-forgejo-runner-readiness", "LOCAL_FORGEJO_RUNNER_READINESS_PROOF", str(FIXTURE.relative_to(ROOT))])
     assert_fragments(CORE, ["EvaluateRunnerReadiness", "RunnerMissing", "RunnerRegistered", "RunnerOffline", "ReadinessDispatchAllowed"])
     assert_fragments(TEST, ["TestEvaluateRunnerReadinessStates", "runner_secret_missing", "dispatch_allowed"])
     bootstrapper = load(BOOTSTRAPPER_FIXTURE)
     if bootstrapper.get("downstreamReadinessContractRef") != str(FIXTURE.relative_to(ROOT)):
         fail("bootstrapper fixture must point to runner readiness contract")
-    print("local-forgejo-runner-readiness-check: ok issue=662 current=awaiting_main_local_signal future=dispatch_allowed")
+    print("local-forgejo-runner-readiness-check: ok issue=662 current=runner_registered future=dispatch_allowed")
     print("LOCAL_FORGEJO_RUNNER_READINESS_PROOF")
 
 

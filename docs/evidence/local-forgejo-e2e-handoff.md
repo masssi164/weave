@@ -1,6 +1,6 @@
 # Local Forgejo deployed-stack E2E handoff
 
-Status: Sprint 27 / #665 blocked handoff contract.
+Status: Sprint 27 / #665 blocked handoff contract. The real local runner exists/runs; pipeline/deployed-stack/E2E signals remain pending.
 
 ## Scope
 
@@ -9,7 +9,7 @@ Status: Sprint 27 / #665 blocked handoff contract.
 ## Required upstream evidence
 
 - Bootstrapper plan: `release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json`.
-- Real runner readiness: `release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json` plus the concise `~/server` signal from main/operator local DevOps work.
+- Real runner readiness: `release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json` plus the verified concise `~/server` signal from main/operator local DevOps work.
 - Deployable domain plan from #664.
 - Pipeline dispatch/status `PipelineRunRef` from #663.
 
@@ -17,8 +17,13 @@ Status: Sprint 27 / #665 blocked handoff contract.
 
 The handoff accepts only yes/no or opaque-ref evidence:
 
+Satisfied upstream runner signals:
+
 - `service_exists`, `config_path_exists`, `registered`, and `running` for the `~/server` Forgejo runner.
 - `secret_refs_present` for required names; values stay hidden.
+
+Still required before #665 can claim E2E:
+
 - `pipeline_terminal_success` for the selected `weave-admin-setup-e2e` workflow.
 - `stack_readiness_passed` for the deployed local stack.
 - `weave_e2e_passed` for Weave E2E.
@@ -27,4 +32,4 @@ No raw logs, registration tokens, secret values, provider payloads, credential-b
 
 ## Current claim boundary
 
-The current repo artifact is `blocked_awaiting_local_runner_and_pipeline_signal`. It may prove that #665 has a support-safe handoff contract. It must not claim live pipeline success, deployed-stack readiness, Weave E2E success, production cutover, or release readiness.
+The current repo artifact is `blocked_awaiting_pipeline_deployed_stack_and_e2e_signal`. It may prove that #665 has a support-safe handoff contract and that the real local runner prerequisite is present. It must not claim live pipeline success, deployed-stack readiness, Weave E2E success, production cutover, or release readiness.

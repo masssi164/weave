@@ -2,12 +2,12 @@ Feature: Sprint 27 local Forgejo runner readiness
   The local Forgejo path blocks dispatch until runner and SecretRef readiness are support-safe.
 
   @sprint27-local-forgejo-runner-readiness
-  Scenario: Runner readiness blocks current local dispatch and defines the future allowed transition
+  Scenario: Runner readiness records the real local runner and keeps dispatch gated
     Given the bootstrapper selected providerKey local-forgejo-actions for workflow weave-admin-setup-e2e
     And the local readiness source of truth is a Forgejo Actions runner service/config under ~/server plus customer-owned SecretRefs, not GitHub repository secrets
-    When the repo proof has no concise ~/server service/config/registered/running signal
-    Then dispatch is blocked before provider mutation as awaiting_main_local_signal
-    And the Admin Console may display missing runner-readiness names without values
-    When the local proof observes runner_registered with required SecretRef names present and the concise ~/server signal is present
+    When the local proof observes runner_registered with service_exists, config_path_exists, registered, running, and secret_refs_present
+    Then the runner existence part of #662 is satisfied without exposing values
+    And dispatch remains blocked until the deployable plan, PipelineProvider contract, and explicit admin approval exist
+    When those future gates are present
     Then the state can transition to dispatch_allowed only after explicit admin approval
     And no secret value, raw CI log, provider payload, credential-bearing URL, tenant URL, or member content is persisted

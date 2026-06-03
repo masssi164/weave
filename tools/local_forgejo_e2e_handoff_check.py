@@ -28,11 +28,6 @@ FORBIDDEN_PATTERNS = [
     ]
 ]
 REQUIRED_SIGNALS = {
-    "service_exists",
-    "config_path_exists",
-    "registered",
-    "running",
-    "secret_refs_present",
     "pipeline_terminal_success",
     "stack_readiness_passed",
     "weave_e2e_passed",
@@ -87,13 +82,19 @@ def main() -> None:
     fixture = load(FIXTURE)
     if fixture.get("artifactKind") != "weave-local-forgejo-e2e-handoff-v1" or fixture.get("issue") != 665:
         fail("fixture kind/issue mismatch")
-    if fixture.get("status") != "blocked_awaiting_local_runner_and_pipeline_signal":
-        fail("#665 fixture must remain blocked until live local signals exist")
+    if fixture.get("status") != "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal":
+        fail("#665 fixture must remain blocked until pipeline, deployed-stack, and E2E signals exist")
     if set(fixture.get("requiredConciseLocalSignals", [])) != REQUIRED_SIGNALS:
         fail("fixture required concise signals mismatch")
     upstream = fixture.get("requiredUpstreamEvidence", {})
     if upstream.get("runnerReadinessRef") != str(RUNNER_FIXTURE.relative_to(ROOT)):
         fail("#665 fixture must depend on #662 runner readiness")
+    runner_status = fixture.get("runnerSignalStatus", {})
+    for name in ["service_exists", "config_path_exists", "registered", "running", "secret_refs_present"]:
+        if runner_status.get(name) is not True:
+            fail(f"runner signal status missing {name}=true")
+    if runner_status.get("secret_values_logged") is not False:
+        fail("runner signal status must state secret values were not logged")
     boundary = fixture.get("currentClaimBoundary", {})
     for name in ["localRunnerRequired", "pipelineDispatchRequired", "deployedStackRequired", "weaveE2eRequired"]:
         if boundary.get(name) is not True:
@@ -101,10 +102,10 @@ def main() -> None:
     if boundary.get("releaseReadyClaimAllowed") is not False:
         fail("#665 blocked handoff must not allow release-ready claim")
     assert_support_safe(fixture, "e2e handoff fixture")
-    assert_fragments(DOC, ["blocked_awaiting_local_runner_and_pipeline_signal", "concise `~/server` signal", "weave_e2e_passed"])
-    assert_fragments(FEATURE, ["@sprint27-local-forgejo-e2e-handoff", "blocked_awaiting_local_runner_and_pipeline_signal", "pipeline_terminal_success"])
+    assert_fragments(DOC, ["blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "concise `~/server` signal", "weave_e2e_passed"])
+    assert_fragments(FEATURE, ["@sprint27-local-forgejo-e2e-handoff", "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "pipeline_terminal_success"])
     assert_fragments(MAPPING, ["@sprint27-local-forgejo-e2e-handoff", "LOCAL_FORGEJO_E2E_HANDOFF_PROOF", str(FIXTURE.relative_to(ROOT))])
-    print("local-forgejo-e2e-handoff-check: ok issue=665 status=blocked_awaiting_local_runner_and_pipeline_signal")
+    print("local-forgejo-e2e-handoff-check: ok issue=665 status=blocked_awaiting_pipeline_deployed_stack_and_e2e_signal")
     print("LOCAL_FORGEJO_E2E_HANDOFF_PROOF")
 
 

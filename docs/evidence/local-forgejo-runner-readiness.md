@@ -1,6 +1,6 @@
 # Local Forgejo runner readiness proof
 
-Status: Sprint 27 / #662 implementation slice.
+Status: Sprint 27 / #662 implementation slice. Local runner signal verified support-safely by main/operator flow.
 
 ## Scope
 
@@ -28,7 +28,20 @@ Main/operator local DevOps work owns creation and verification of the real runne
 - `running`: runner is running/online.
 - `secret_refs_present`: required SecretRef/variable names exist; values are not displayed.
 
-Do not paste raw logs, runner registration tokens, secret values, provider URLs, or credential-bearing links. If the signal is unavailable, repo evidence must stay blocked as `awaiting_main_local_signal`.
+Do not paste raw logs, runner registration tokens, secret values, provider URLs, or credential-bearing links. If the signal regresses or is unavailable, repo evidence must return to a blocked runner state.
+
+## Current support-safe local observation
+
+Main/operator local DevOps verification reports that `~/server` now contains and runs a real Forgejo Actions runner:
+
+- Services exist: `forgejo-runner` and `forgejo-runner-dind`.
+- Runner image family: `data.forgejo.org/forgejo/runner:12`; DIND image family: `docker:27-dind`.
+- Runner name: `local-forgejo-actions`.
+- Labels: `ubuntu-latest` and `docker`.
+- Registration is stored through environment/SecretRef names only; values are not printed or committed.
+- Support-safe state: service/config exist, runner is registered, runner is running, and poller launched.
+
+This satisfies the runner existence part of #662. It does not prove #663 dispatch/status, #664 deployable plan, #665 deployed stack, or Weave E2E.
 
 ## Workflow/ref contract
 
@@ -49,4 +62,4 @@ This repo-side proof must not duplicate local infra mutation. Main/operator work
 
 ## Claim boundary
 
-This slice may claim that Weave has a support-safe runner readiness contract and that repo-side dispatch is blocked until the concise `~/server` runner signal is present. It must not claim that secrets were created, Forgejo workflow dispatch works, local stack deployment completed, or E2E passed.
+This slice may claim that Weave has a support-safe runner readiness contract and that the concise `~/server` runner signal is now present. It must not claim that Forgejo workflow dispatch works, local stack deployment completed, or E2E passed.

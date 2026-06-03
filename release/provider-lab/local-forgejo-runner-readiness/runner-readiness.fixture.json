@@ -39,13 +39,14 @@
       "missingNamesDisplayed": [
         "FORGEJO_ACTIONS_RUNNER_REGISTRATION"
       ],
-      "supportSafeSummary": "No supported Forgejo Actions runner registration is present."
+      "supportSafeSummary": "No supported Forgejo Actions runner registration is present; this is now a regression state for the local proof."
     },
     {
       "code": "runner_registered",
       "dispatchAllowed": false,
       "nextState": "dispatch_allowed_after_secret_refs_present_and_admin_approval",
-      "supportSafeSummary": "Runner registration exists in ~/server; SecretRef names and admin approval still gate dispatch."
+      "supportSafeSummary": "Runner service/config exists under ~/server and runner is registered/running; deployable plan, PipelineProvider contract, and explicit admin approval still gate dispatch.",
+      "currentLocalState": true
     },
     {
       "code": "runner_offline",
@@ -68,23 +69,28 @@
     }
   ],
   "currentLocalObservation": {
-    "state": "awaiting_main_local_signal",
+    "state": "runner_registered",
     "dispatchAllowed": false,
-    "requiredConciseSignal": [
-      "service_exists",
-      "config_path_exists",
-      "registered",
-      "running",
-      "secret_refs_present"
+    "supportSafeSignals": {
+      "service_exists": true,
+      "config_path_exists": true,
+      "registered": true,
+      "running": true,
+      "secret_refs_present": true,
+      "secret_values_logged": false
+    },
+    "runnerName": "local-forgejo-actions",
+    "runnerLabels": [
+      "ubuntu-latest",
+      "docker"
     ],
-    "forbiddenEvidence": [
-      "raw logs",
-      "registration token",
-      "secret values",
-      "credential-bearing URLs"
+    "nextRequiredForDispatch": [
+      "issue-664-deployable-plan",
+      "issue-663-pipeline-provider-dispatch-contract",
+      "explicit-admin-dispatch-approval"
     ],
     "evidenceRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
-    "localDiagnosticRef": "support-safe ~/server service/config yes-no signal only"
+    "localDiagnosticRef": "support-safe ~/server service/config/registered/running yes-no signal only"
   },
   "approvalBoundary": {
     "forbiddenWithoutExplicitApproval": [
@@ -117,6 +123,23 @@
       "secretValuesLogged": false
     },
     "verificationOwner": "main/operator local DevOps flow",
-    "repoBoundary": "This repository records only support-safe yes/no readiness signals; it must not mutate ~/server or persist runner registration token values."
+    "repoBoundary": "This repository records only support-safe yes/no readiness signals; it must not mutate ~/server or persist runner registration token values.",
+    "observedSupportSafeState": {
+      "service": "forgejo-runner",
+      "sidecarService": "forgejo-runner-dind",
+      "runnerImageRef": "data.forgejo.org/forgejo/runner:12",
+      "dindImageRef": "docker:27-dind",
+      "runnerName": "local-forgejo-actions",
+      "labels": [
+        "ubuntu-latest",
+        "docker"
+      ],
+      "runnerDeclared": true,
+      "pollerLaunched": true,
+      "registrationMethod": "offline Forgejo CLI as uid 1000",
+      "registrationSecretStorageRef": "~/server .env SecretRef names only",
+      "secretValuesLogged": false,
+      "providerVersionObserved": "14.0.2+gitea-1.22.0"
+    }
   }
 }
