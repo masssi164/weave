@@ -24,6 +24,13 @@ func run(args []string) error {
 		usage()
 		return nil
 	}
+	if isHelp(args[0]) {
+		usage()
+		return nil
+	}
+	if len(args) > 1 && isHelp(args[1]) {
+		return commandUsage(args[0])
+	}
 	switch args[0] {
 	case "app":
 		return app()
@@ -40,6 +47,35 @@ func run(args []string) error {
 	default:
 		usage()
 		return fmt.Errorf("unknown command %q", args[0])
+	}
+}
+
+func isHelp(arg string) bool {
+	return arg == "--help" || arg == "-h" || arg == "help"
+}
+
+func commandUsage(command string) error {
+	switch command {
+	case "app":
+		fmt.Println(`weave-setup app - accessible guided terminal app mode
+
+Runs the local first-run setup as a text-only, keyboard-first flow. It prompts for
+repository/worktree selection, target CI/CD backend, non-secret provider variables,
+and required secret-name hints. It never accepts secret values.`)
+		return nil
+	case "detect":
+		fs := flag.NewFlagSet("detect", flag.ContinueOnError)
+		fs.String("repo", ".", "repository path")
+		fs.Bool("json", false, "emit JSON")
+		fs.Usage()
+		return nil
+	case "validate", "plan", "init", "commit", "push":
+		fs, _ := newPlanFlagSet(command)
+		fs.Usage()
+		return nil
+	default:
+		usage()
+		return fmt.Errorf("unknown command %q", command)
 	}
 }
 
@@ -76,32 +112,20 @@ func detect(args []string) error {
 }
 
 func planLike(commandName string, args []string, write, commit, push bool) error {
-	fs := flag.NewFlagSet(commandName, flag.ExitOnError)
-	repo := fs.String("repo", ".", "existing repository path")
-	clone := fs.String("clone-url", "", "clone URL instead of existing repo")
-	worktree := fs.String("worktree", "", "chosen worktree path")
-	storage := fs.String("storage", "", "chosen storage location")
-	target := fs.String("target", "forgejo", "CI/CD target: forgejo, github-actions, gitlab-ci, azure-devops")
-	remoteName := fs.String("remote-name", "", "selected target remote name")
-	remoteURL := fs.String("remote-url", "", "selected target remote URL without credentials")
-	branch := fs.String("branch", "", "selected target branch")
-	vars := fs.String("var", "", "comma-separated non-secret KEY=VALUE provider variables")
-	secretNames := fs.String("secret-name", "", "comma-separated required secret-name hints; values are forbidden")
-	allowConflict := fs.Bool("allow-existing-ci-conflict", false, "allow existing CI files for another target")
-	yesPush := fs.Bool("yes-push", false, "required for push command")
+	fs, flags := newPlanFlagSet(commandName)
 	_ = fs.Parse(args)
-	if *worktree == "" {
-		*worktree = *repo
+	if *flags.worktree == "" {
+		*flags.worktree = *flags.repo
 	}
-	if *clone != "" {
-		if _, err := os.Stat(*worktree); os.IsNotExist(err) {
-			if err := bootstrap.CloneRepository(*clone, *worktree); err != nil {
+	if *flags.clone != "" {
+		if _, err := os.Stat(*flags.worktree); os.IsNotExist(err) {
+			if err := bootstrap.CloneRepository(*flags.clone, *flags.worktree); err != nil {
 				return err
 			}
 		}
 	}
-	req := bootstrap.Request{ExistingRepoPath: *repo, CloneURL: *clone, WorktreePath: *worktree, StorageLocation: *storage, Target: bootstrap.TargetConfig{Target: bootstrap.ProviderTarget(*target), RemoteName: *remoteName, RemoteURL: *remoteURL, Branch: *branch, ProviderVariables: parsePairs(*vars), RequiredSecretNames: parseList(*secretNames)}, AllowExistingCIConflict: *allowConflict}
-	if *clone != "" {
+	req := bootstrap.Request{ExistingRepoPath: *flags.repo, CloneURL: *flags.clone, WorktreePath: *flags.worktree, StorageLocation: *flags.storage, Target: bootstrap.TargetConfig{Target: bootstrap.ProviderTarget(*flags.target), RemoteName: *flags.remoteName, RemoteURL: *flags.remoteURL, Branch: *flags.branch, ProviderVariables: parsePairs(*flags.vars), RequiredSecretNames: parseList(*flags.secretNames)}, AllowExistingCIConflict: *flags.allowConflict}
+	if *flags.clone != "" {
 		req.ExistingRepoPath = ""
 	}
 	result, err := bootstrap.BuildPlan(req, time.Unix(0, 0).UTC())
@@ -112,7 +136,7 @@ func planLike(commandName string, args []string, write, commit, push bool) error
 		fmt.Println("validation ok: support-safe bootstrap plan can be generated")
 		return nil
 	}
-	if push && !*yesPush {
+	if push && !*flags.yesPush {
 		return fmt.Errorf("push requires --yes-push to avoid accidental remote mutation")
 	}
 	if commit || push {
@@ -138,6 +162,40 @@ func planLike(commandName string, args []string, write, commit, push bool) error
 		}
 	}
 	return nil
+}
+
+type planFlags struct {
+	repo          *string
+	clone         *string
+	worktree      *string
+	storage       *string
+	target        *string
+	remoteName    *string
+	remoteURL     *string
+	branch        *string
+	vars          *string
+	secretNames   *string
+	allowConflict *bool
+	yesPush       *bool
+}
+
+func newPlanFlagSet(commandName string) (*flag.FlagSet, planFlags) {
+	fs := flag.NewFlagSet(commandName, flag.ExitOnError)
+	flags := planFlags{
+		repo:          fs.String("repo", ".", "existing repository path"),
+		clone:         fs.String("clone-url", "", "clone URL instead of existing repo"),
+		worktree:      fs.String("worktree", "", "chosen worktree path"),
+		storage:       fs.String("storage", "", "chosen storage location"),
+		target:        fs.String("target", "forgejo", "CI/CD target: forgejo, github-actions, gitlab-ci, azure-devops"),
+		remoteName:    fs.String("remote-name", "", "selected target remote name"),
+		remoteURL:     fs.String("remote-url", "", "selected target remote URL without credentials"),
+		branch:        fs.String("branch", "", "selected target branch"),
+		vars:          fs.String("var", "", "comma-separated non-secret KEY=VALUE provider variables"),
+		secretNames:   fs.String("secret-name", "", "comma-separated required secret-name hints; values are forbidden"),
+		allowConflict: fs.Bool("allow-existing-ci-conflict", false, "allow existing CI files for another target"),
+		yesPush:       fs.Bool("yes-push", false, "required for push command"),
+	}
+	return fs, flags
 }
 
 func app() error {
