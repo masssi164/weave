@@ -47,7 +47,7 @@ REQUIRED_DOMAINS = {
 }
 
 REQUIRED_CANONICAL = {
-    "chat": {"WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"},
+    "chat": {"WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"},
     "files": {"WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"},
     "calendar": {"WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"},
     "weaver": {"WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"},

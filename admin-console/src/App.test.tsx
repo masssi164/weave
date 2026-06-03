@@ -251,7 +251,7 @@ describe("Admin Console MVP", () => {
       screen.getByText(/missing current-session dry-run evidence/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/provider source of truth/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/configured/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("configured").length).toBeGreaterThan(0);
     expect(screen.getByText(/backend-owned facade/i)).toBeInTheDocument();
     expect(screen.getByText(/Stable states:/i)).toHaveTextContent(
       /admin action required/i,
