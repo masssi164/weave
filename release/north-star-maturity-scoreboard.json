@@ -3,9 +3,10 @@
   "sprint": 20,
   "title": "North-Star Release Trust & Operator Readiness",
   "candidate": {
-    "commit": "e39c06c4d2315bb741df79a67e744196b249a205",
+    "commit": "3b351e8efc333bb8b6e4755dca5b39b84a62c715",
     "tag": "v0.1.0-rc.1",
-    "evidenceClass": "post-closure main scoreboard head; GitHub CI is current-head, Live Stack E2E is last successful Sprint 20 candidate evidence from 3b351e8"
+    "postClosureMainHead": "e39c06c4d2315bb741df79a67e744196b249a205",
+    "evidenceClass": "RC candidate run; GitHub CI is post-closure main head, Live Stack E2E is last successful Sprint 20 candidate evidence from 3b351e8"
   },
   "score": {
     "current": 82,
