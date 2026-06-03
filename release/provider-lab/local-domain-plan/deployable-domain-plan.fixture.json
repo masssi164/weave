@@ -1,0 +1,224 @@
+{
+  "artifactKind": "weave-local-domain-adapter-deployable-plan-v1",
+  "issue": 664,
+  "supportSafe": true,
+  "providerKey": "local-forgejo-actions",
+  "workflowRef": "weave-admin-setup-e2e",
+  "planStatus": "deployable_after_runner_and_admin_approval",
+  "inputs": {
+    "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
+    "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+    "selectionMode": "domain-led-existing-or-self-hosted"
+  },
+  "domains": [
+    {
+      "domainKey": "server-backend",
+      "displayName": "Server/backend",
+      "selectedAdapter": "self-hosted-weave-server",
+      "selectionKind": "self_hosted_default",
+      "requiredSecretRefs": [
+        "WEAVE_SERVER_SIGNING_KEY",
+        "WEAVE_SERVER_DATABASE_PASSWORD"
+      ],
+      "requiredVariables": [
+        "WEAVE_SERVER_PUBLIC_ORIGIN_REF"
+      ],
+      "readinessChecks": [
+        "server_health_ready",
+        "audit_sink_ready"
+      ],
+      "rollbackRefs": [
+        "server_previous_image_ref",
+        "database_snapshot_ref"
+      ],
+      "evidenceRefs": [
+        "server_health_ref",
+        "audit_ref"
+      ]
+    },
+    {
+      "domainKey": "infra-stack",
+      "displayName": "Infrastructure stack",
+      "selectedAdapter": "local-opentofu-compose",
+      "selectionKind": "self_hosted_default",
+      "requiredSecretRefs": [
+        "WEAVE_INFRA_STATE_SECRET"
+      ],
+      "requiredVariables": [
+        "WEAVE_INFRA_WORKSPACE_REF"
+      ],
+      "readinessChecks": [
+        "tofu_plan_clean",
+        "compose_services_declared"
+      ],
+      "rollbackRefs": [
+        "tofu_state_backup_ref",
+        "compose_previous_config_ref"
+      ],
+      "evidenceRefs": [
+        "infra_plan_ref",
+        "support_bundle_ref"
+      ]
+    },
+    {
+      "domainKey": "identity",
+      "displayName": "Identity",
+      "selectedAdapter": "existing-oidc-or-self-hosted-keycloak",
+      "selectionKind": "existing_or_self_hosted",
+      "requiredSecretRefs": [
+        "WEAVE_OIDC_CLIENT_SECRET"
+      ],
+      "requiredVariables": [
+        "WEAVE_OIDC_ISSUER_REF",
+        "WEAVE_OIDC_CLIENT_ID"
+      ],
+      "readinessChecks": [
+        "oidc_discovery_ready",
+        "admin_realm_ready"
+      ],
+      "rollbackRefs": [
+        "identity_previous_client_ref"
+      ],
+      "evidenceRefs": [
+        "identity_readiness_ref"
+      ]
+    },
+    {
+      "domainKey": "chat",
+      "displayName": "Chat",
+      "selectedAdapter": "existing-matrix-or-self-hosted-synapse",
+      "selectionKind": "existing_or_self_hosted",
+      "requiredSecretRefs": [
+        "WEAVE_MATRIX_APPLICATION_SERVICE_TOKEN"
+      ],
+      "requiredVariables": [
+        "WEAVE_MATRIX_HOMESERVER_REF"
+      ],
+      "readinessChecks": [
+        "matrix_login_ready",
+        "room_create_ready"
+      ],
+      "rollbackRefs": [
+        "chat_bridge_previous_config_ref"
+      ],
+      "evidenceRefs": [
+        "chat_readiness_ref"
+      ]
+    },
+    {
+      "domainKey": "files",
+      "displayName": "Files",
+      "selectedAdapter": "existing-webdav-or-self-hosted-nextcloud",
+      "selectionKind": "existing_or_self_hosted",
+      "requiredSecretRefs": [
+        "WEAVE_FILES_SERVICE_PASSWORD"
+      ],
+      "requiredVariables": [
+        "WEAVE_FILES_ENDPOINT_REF"
+      ],
+      "readinessChecks": [
+        "files_upload_ready",
+        "files_download_ready"
+      ],
+      "rollbackRefs": [
+        "files_previous_config_ref"
+      ],
+      "evidenceRefs": [
+        "files_readiness_ref"
+      ]
+    },
+    {
+      "domainKey": "calendar",
+      "displayName": "Calendar",
+      "selectedAdapter": "existing-caldav-or-self-hosted-nextcloud",
+      "selectionKind": "existing_or_self_hosted",
+      "requiredSecretRefs": [
+        "WEAVE_CALENDAR_SERVICE_PASSWORD"
+      ],
+      "requiredVariables": [
+        "WEAVE_CALENDAR_ENDPOINT_REF"
+      ],
+      "readinessChecks": [
+        "calendar_read_ready",
+        "calendar_write_policy_ready"
+      ],
+      "rollbackRefs": [
+        "calendar_previous_config_ref"
+      ],
+      "evidenceRefs": [
+        "calendar_readiness_ref"
+      ]
+    },
+    {
+      "domainKey": "boards-tasks",
+      "displayName": "Boards/tasks",
+      "selectedAdapter": "weave-native-boards",
+      "selectionKind": "self_hosted_default",
+      "requiredSecretRefs": [
+        "WEAVE_BOARDS_DATABASE_PASSWORD"
+      ],
+      "requiredVariables": [
+        "WEAVE_BOARDS_WORKSPACE_REF"
+      ],
+      "readinessChecks": [
+        "board_create_ready",
+        "task_move_ready"
+      ],
+      "rollbackRefs": [
+        "boards_previous_schema_ref"
+      ],
+      "evidenceRefs": [
+        "boards_readiness_ref"
+      ]
+    },
+    {
+      "domainKey": "health-readiness",
+      "displayName": "Health/readiness",
+      "selectedAdapter": "weave-readiness-facade",
+      "selectionKind": "self_hosted_default",
+      "requiredSecretRefs": [
+        "WEAVE_HEALTH_SIGNING_KEY"
+      ],
+      "requiredVariables": [
+        "WEAVE_HEALTH_EVIDENCE_BUCKET_REF"
+      ],
+      "readinessChecks": [
+        "readiness_facade_ready",
+        "support_bundle_redaction_ready"
+      ],
+      "rollbackRefs": [
+        "health_previous_policy_ref"
+      ],
+      "evidenceRefs": [
+        "health_readiness_ref",
+        "redaction_evidence_ref"
+      ]
+    }
+  ],
+  "failClosedCases": [
+    "unsupported_adapter",
+    "missing_secret_ref",
+    "missing_required_variable",
+    "raw_secret_value_supplied",
+    "loss_report_missing",
+    "rollback_ref_missing",
+    "runner_signal_missing",
+    "admin_approval_missing"
+  ],
+  "generatedPlanShape": {
+    "deterministicOrdering": "canonical-domain-matrix-order",
+    "containsSecretValues": false,
+    "containsProviderUrls": false,
+    "containsMemberContent": false,
+    "workflowInputRef": "support_safe_domain_plan_ref"
+  },
+  "forbiddenPersistence": [
+    "secretValue",
+    "tokenValue",
+    "rawCiLog",
+    "rawProviderPayload",
+    "credentialBearingUrl",
+    "tenantUrl",
+    "memberContent"
+  ]
+}
