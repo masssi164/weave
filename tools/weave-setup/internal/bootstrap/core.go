@@ -326,6 +326,44 @@ func sortedMap(in map[string]string) map[string]string {
 	return out
 }
 
+type RunnerServiceState string
+
+const (
+	RunnerMissing    RunnerServiceState = "runner_missing"
+	RunnerRegistered RunnerServiceState = "runner_registered"
+	RunnerOffline    RunnerServiceState = "runner_offline"
+)
+
+type RunnerReadinessStatus string
+
+const (
+	ReadinessBlockedRunnerMissing RunnerReadinessStatus = "runner_missing"
+	ReadinessRunnerRegistered     RunnerReadinessStatus = "runner_registered"
+	ReadinessBlockedRunnerOffline RunnerReadinessStatus = "runner_offline"
+	ReadinessBlockedSecretMissing RunnerReadinessStatus = "runner_secret_missing"
+	ReadinessDispatchAllowed      RunnerReadinessStatus = "dispatch_allowed"
+)
+
+type RunnerReadinessInput struct {
+	ProviderKey                  string
+	WorkflowRef                  string
+	RunnerState                  RunnerServiceState
+	LocalServerServiceExists     bool
+	LocalServerConfigPathExists  bool
+	RequiredSecretNames          []string
+	PresentSecretNames           []string
+	CustomerOwnedSecretMechanism string
+}
+
+type RunnerReadinessResult struct {
+	ProviderKey        string                `json:"providerKey"`
+	WorkflowRef        string                `json:"workflowRef"`
+	Status             RunnerReadinessStatus `json:"status"`
+	MissingNames       []string              `json:"missingNames,omitempty"`
+	DispatchAllowed    bool                  `json:"dispatchAllowed"`
+	SupportSafeSummary string                `json:"supportSafeSummary"`
+}
+
 type RepositoryState struct {
 	IsGitRepo                  bool
 	Dirty                      bool
@@ -333,6 +371,53 @@ type RepositoryState struct {
 	Branches                   []string
 	RunnerRegistrationPresent  bool
 	RequiredSecretNamesPresent []string
+}
+
+func EvaluateRunnerReadiness(input RunnerReadinessInput) RunnerReadinessResult {
+	providerKey := input.ProviderKey
+	if providerKey == "" {
+		providerKey = "local-forgejo-actions"
+	}
+	workflowRef := input.WorkflowRef
+	if workflowRef == "" {
+		workflowRef = "weave-admin-setup-e2e"
+	}
+	result := RunnerReadinessResult{ProviderKey: providerKey, WorkflowRef: workflowRef, DispatchAllowed: false}
+	switch input.RunnerState {
+	case RunnerRegistered:
+		// continue below to SecretRef validation
+	case RunnerOffline:
+		result.Status = ReadinessBlockedRunnerOffline
+		result.SupportSafeSummary = "Runner registration exists but is not online; dispatch is blocked before provider mutation."
+		return result
+	default:
+		result.Status = ReadinessBlockedRunnerMissing
+		result.MissingNames = []string{"FORGEJO_ACTIONS_RUNNER_REGISTRATION"}
+		result.SupportSafeSummary = "Runner readiness is missing; register a customer-owned Forgejo Actions runner before dispatch."
+		return result
+	}
+	if !input.LocalServerServiceExists || !input.LocalServerConfigPathExists {
+		result.Status = ReadinessBlockedRunnerMissing
+		result.MissingNames = []string{"FORGEJO_ACTIONS_RUNNER_REGISTRATION", "~/server Forgejo runner service/config signal"}
+		result.SupportSafeSummary = "Runner registration must be backed by a support-safe ~/server service and config-path signal before dispatch."
+		return result
+	}
+	if len(input.RequiredSecretNames) == 0 {
+		result.Status = ReadinessRunnerRegistered
+		result.SupportSafeSummary = "Runner registration is backed by the local service/config signal; SecretRef names and explicit admin approval are still required before dispatch."
+		return result
+	}
+	missing := missingNames(input.RequiredSecretNames, input.PresentSecretNames)
+	if len(missing) > 0 {
+		result.Status = ReadinessBlockedSecretMissing
+		result.MissingNames = missing
+		result.SupportSafeSummary = "Required SecretRef or variable names are missing; values stay outside Weave evidence."
+		return result
+	}
+	result.Status = ReadinessDispatchAllowed
+	result.DispatchAllowed = true
+	result.SupportSafeSummary = "Runner and required SecretRef names are ready; dispatch still requires explicit admin approval."
+	return result
 }
 
 func ValidateRepositoryState(state RepositoryState, target TargetConfig) error {
@@ -360,6 +445,17 @@ func ValidateRepositoryState(state RepositoryState, target TargetConfig) error {
 }
 
 func ValidateRemoteURL(raw string) error { return validateRemoteURL(raw) }
+
+func missingNames(required []string, present []string) []string {
+	missing := make([]string, 0)
+	for _, name := range required {
+		if !contains(present, name) {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
 
 func contains(values []string, needle string) bool {
 	for _, value := range values {

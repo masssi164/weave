@@ -8,13 +8,26 @@
     "storageLocation": "customer-selected-storage-ref"
   },
   "detection": {
-    "githubActions": [".github/workflows/example.yml"],
-    "gitlabCi": [".gitlab-ci.yml"],
-    "azurePipelines": ["azure-pipelines.yml"],
-    "forgejoGitea": [".forgejo/workflows/setup.yml"]
+    "githubActions": [
+      ".github/workflows/example.yml"
+    ],
+    "gitlabCi": [
+      ".gitlab-ci.yml"
+    ],
+    "azurePipelines": [
+      "azure-pipelines.yml"
+    ],
+    "forgejoGitea": [
+      ".forgejo/workflows/setup.yml"
+    ]
   },
   "targetRules": {
-    "supportedTargets": ["forgejo", "github-actions", "gitlab-ci", "azure-devops"],
+    "supportedTargets": [
+      "forgejo",
+      "github-actions",
+      "gitlab-ci",
+      "azure-devops"
+    ],
     "forgejoRequiresGitHubSecrets": false,
     "githubSecretsOnlyWhenTargetIsGitHubActionsOrExplicitBridge": true,
     "pushOnlySelectedTarget": true,
@@ -32,5 +45,6 @@
     "credentialBearingUrl",
     "tenantUrl",
     "memberContent"
-  ]
+  ],
+  "downstreamReadinessContractRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json"
 }

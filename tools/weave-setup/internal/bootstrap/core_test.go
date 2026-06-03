@@ -197,3 +197,40 @@ func TestWorkflowPlanUsesJSONMarshalling(t *testing.T) {
 		t.Fatalf("workflow fields changed during marshal: %+v", workflow)
 	}
 }
+
+func TestEvaluateRunnerReadinessStates(t *testing.T) {
+	base := RunnerReadinessInput{ProviderKey: "local-forgejo-actions", WorkflowRef: "weave-admin-setup-e2e", RequiredSecretNames: []string{"WEAVE_FORGEJO_TOKEN", "WEAVE_FORGEJO_API_URL"}}
+	got := EvaluateRunnerReadiness(base)
+	if got.Status != ReadinessBlockedRunnerMissing || got.DispatchAllowed || !contains(got.MissingNames, "FORGEJO_ACTIONS_RUNNER_REGISTRATION") {
+		t.Fatalf("runner_missing result mismatch: %+v", got)
+	}
+	got = EvaluateRunnerReadiness(RunnerReadinessInput{RunnerState: RunnerOffline})
+	if got.Status != ReadinessBlockedRunnerOffline || got.DispatchAllowed {
+		t.Fatalf("runner_offline result mismatch: %+v", got)
+	}
+	withRunner := base
+	withRunner.RunnerState = RunnerRegistered
+	withRunner.PresentSecretNames = []string{"WEAVE_FORGEJO_TOKEN"}
+	got = EvaluateRunnerReadiness(withRunner)
+	if got.Status != ReadinessBlockedRunnerMissing || got.DispatchAllowed || !contains(got.MissingNames, "~/server Forgejo runner service/config signal") {
+		t.Fatalf("missing local ~/server signal result mismatch: %+v", got)
+	}
+	withRunner.LocalServerServiceExists = true
+	withRunner.LocalServerConfigPathExists = true
+	registeredOnly := withRunner
+	registeredOnly.RequiredSecretNames = nil
+	registeredOnly.PresentSecretNames = nil
+	got = EvaluateRunnerReadiness(registeredOnly)
+	if got.Status != ReadinessRunnerRegistered || got.DispatchAllowed {
+		t.Fatalf("runner_registered result mismatch: %+v", got)
+	}
+	got = EvaluateRunnerReadiness(withRunner)
+	if got.Status != ReadinessBlockedSecretMissing || got.DispatchAllowed || strings.Join(got.MissingNames, ",") != "WEAVE_FORGEJO_API_URL" {
+		t.Fatalf("runner_secret_missing result mismatch: %+v", got)
+	}
+	withRunner.PresentSecretNames = []string{"WEAVE_FORGEJO_API_URL", "WEAVE_FORGEJO_TOKEN"}
+	got = EvaluateRunnerReadiness(withRunner)
+	if got.Status != ReadinessDispatchAllowed || !got.DispatchAllowed || got.ProviderKey != "local-forgejo-actions" || got.WorkflowRef != "weave-admin-setup-e2e" {
+		t.Fatalf("dispatch_allowed result mismatch: %+v", got)
+	}
+}
