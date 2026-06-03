@@ -18,6 +18,7 @@ REDACTION_REPORT = ROOT / "release" / "provider-lab" / "support-redaction-report
 SCOREBOARD = ROOT / "release" / "provider-lab" / "sprint-23-entry-scoreboard.json"
 HEALTH_REPORT = ROOT / "release" / "provider-lab" / "health-report.sample.json"
 COMPOSE = ROOT / "infra" / "provider-lab" / "docker-compose.yml"
+RUNBOOK = ROOT / "docs" / "free-provider-lab.md"
 
 LEVELS = [
     "contract_only",
@@ -199,6 +200,25 @@ def validate_redaction_report() -> dict[str, Any]:
     return report
 
 
+def validate_compose_topology() -> None:
+    try:
+        compose_text = COMPOSE.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        fail(f"missing {COMPOSE.relative_to(ROOT)}")
+    runbook_text = RUNBOOK.read_text(encoding="utf-8") if RUNBOOK.exists() else ""
+    if "zulip/zulip:" in compose_text:
+        fail("Zulip must not use the legacy zulip/zulip Docker Hub image")
+    if "ghcr.io/zulip/zulip-server:" not in compose_text:
+        fail("Zulip profile must use the current ghcr.io/zulip/zulip-server image")
+    if re.search(r"zulip:\n(?:.*\n){0,8}\s+profiles:\s+\[\"zulip\"\]", compose_text) is None:
+        fail("Zulip service must remain profile-gated because Docker deployment needs documented bootstrap")
+    if "/var/run/docker.sock" in compose_text:
+        fail("provider lab compose must not mount the host Docker socket")
+    for phrase in ["synapse-config", "zulip-init", "Zulip one-command parity", "reproducible provider lab smoke/fixture environment"]:
+        if phrase not in runbook_text:
+            fail(f"provider lab runbook must document {phrase!r}")
+
+
 def build_health(manifests: list[dict[str, Any]]) -> dict[str, Any]:
     checked_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     return {
@@ -246,6 +266,7 @@ def main() -> None:
     args = parser.parse_args()
 
     manifests = validate_manifests()
+    validate_compose_topology()
     fixture = validate_fixture()
     redaction = validate_redaction_report()
     health = build_health(manifests)
