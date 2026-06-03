@@ -1,0 +1,154 @@
+{
+  "artifactKind": "weave-admin-cicd-pipeline-provider-manifest-v1",
+  "issue": 659,
+  "supportSafe": true,
+  "canonicalSetupSurface": "Admin Console",
+  "executionBackend": "customer-owned CI/CD",
+  "providers": [
+    {
+      "providerKey": "github-actions",
+      "providerFamily": "github-actions",
+      "displayName": "GitHub Actions",
+      "supportTier": "contract_fixture",
+      "trigger": {
+        "manualDispatch": true,
+        "workflowRefRequired": true,
+        "branchOrRefInput": true,
+        "environmentApproval": true,
+        "dryRunInput": true,
+        "idempotencyKey": true,
+        "triggerAuthRefType": "SecretRef"
+      },
+      "status": {
+        "polling": true,
+        "webhook": true,
+        "terminalStates": ["success", "failed", "cancelled", "timed_out"],
+        "unknownStatusBehavior": "fail_closed_after_timeout",
+        "correlationFields": ["providerKey", "workflowRef", "runRef", "correlationRef"],
+        "rawLogRedactionRequired": true
+      },
+      "approval": {
+        "nativeEnvironmentApproval": true,
+        "adminConsoleApproval": true,
+        "serviceConnectionApproval": false
+      },
+      "operations": {
+        "cancel": true,
+        "retry": true,
+        "rollbackSupport": "domain_contract_required",
+        "rateLimitPolicy": "backoff_and_fail_closed"
+      }
+    },
+    {
+      "providerKey": "azure-devops",
+      "providerFamily": "azure-devops-pipelines",
+      "displayName": "Azure DevOps Pipelines",
+      "supportTier": "contract_fixture",
+      "trigger": {
+        "manualDispatch": true,
+        "workflowRefRequired": true,
+        "branchOrRefInput": true,
+        "environmentApproval": true,
+        "dryRunInput": true,
+        "idempotencyKey": true,
+        "triggerAuthRefType": "SecretRef"
+      },
+      "status": {
+        "polling": true,
+        "webhook": true,
+        "terminalStates": ["succeeded", "failed", "cancelled"],
+        "unknownStatusBehavior": "fail_closed_after_timeout",
+        "correlationFields": ["providerKey", "pipelineRef", "runRef", "correlationRef"],
+        "rawLogRedactionRequired": true
+      },
+      "approval": {
+        "nativeEnvironmentApproval": true,
+        "adminConsoleApproval": true,
+        "serviceConnectionApproval": true
+      },
+      "operations": {
+        "cancel": true,
+        "retry": true,
+        "rollbackSupport": "domain_contract_required",
+        "rateLimitPolicy": "retry_after_or_fail_closed"
+      }
+    },
+    {
+      "providerKey": "local-forgejo-actions",
+      "providerFamily": "forgejo-actions",
+      "displayName": "Forgejo Actions / act_runner",
+      "supportTier": "local_e2e_target",
+      "trigger": {
+        "manualDispatch": true,
+        "workflowRefRequired": true,
+        "branchOrRefInput": true,
+        "environmentApproval": false,
+        "dryRunInput": true,
+        "idempotencyKey": true,
+        "triggerAuthRefType": "SecretRef"
+      },
+      "status": {
+        "polling": true,
+        "webhook": true,
+        "terminalStates": ["success", "failure", "cancelled", "skipped"],
+        "unknownStatusBehavior": "fail_closed_after_timeout",
+        "correlationFields": ["providerKey", "workflowRef", "runRef", "correlationRef"],
+        "rawLogRedactionRequired": true
+      },
+      "approval": {
+        "nativeEnvironmentApproval": false,
+        "adminConsoleApproval": true,
+        "serviceConnectionApproval": false
+      },
+      "operations": {
+        "cancel": true,
+        "retry": true,
+        "rollbackSupport": "domain_contract_required",
+        "rateLimitPolicy": "backoff_and_fail_closed"
+      }
+    },
+    {
+      "providerKey": "woodpecker-ci",
+      "providerFamily": "woodpecker-ci",
+      "displayName": "Woodpecker CI",
+      "supportTier": "self_hosted_contract_fixture",
+      "trigger": {
+        "manualDispatch": true,
+        "workflowRefRequired": true,
+        "branchOrRefInput": true,
+        "environmentApproval": false,
+        "dryRunInput": true,
+        "idempotencyKey": true,
+        "triggerAuthRefType": "SecretRef"
+      },
+      "status": {
+        "polling": true,
+        "webhook": true,
+        "terminalStates": ["success", "failure", "killed", "error"],
+        "unknownStatusBehavior": "fail_closed_after_timeout",
+        "correlationFields": ["providerKey", "pipelineRef", "runRef", "correlationRef"],
+        "rawLogRedactionRequired": true
+      },
+      "approval": {
+        "nativeEnvironmentApproval": false,
+        "adminConsoleApproval": true,
+        "serviceConnectionApproval": false
+      },
+      "operations": {
+        "cancel": true,
+        "retry": true,
+        "rollbackSupport": "domain_contract_required",
+        "rateLimitPolicy": "backoff_and_fail_closed"
+      }
+    }
+  ],
+  "forbiddenFields": [
+    "secretValue",
+    "tokenValue",
+    "rawCiLog",
+    "rawProviderPayload",
+    "credentialBearingUrl",
+    "tenantUrl",
+    "memberContent"
+  ]
+}
