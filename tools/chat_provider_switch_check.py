@@ -178,7 +178,7 @@ def validate_migration_proof(artifact: dict[str, Any], coverage: dict[str, Any])
     if receipt_statuses != required_statuses or validation_statuses != required_statuses:
         fail("migration proof must report every required history status")
     if artifact.get("attachmentValidationReport", {}).get("failed") != 0:
-        fail("attachment validation report must not hide failed attachments")
+        fail("attachment validation report must have zero failed attachments in the Sprint 23 fixture gate")
     ui = artifact.get("uiValidationTranscript", {})
     if ui.get("visibleDomain") != "Chat" or ui.get("activeProvider") != "zulip" or ui.get("providerSetupHiddenFromMember") is not True:
         fail("migration UI transcript must show stable member Chat domain after Zulip activation")
@@ -206,6 +206,8 @@ def validate_rollback_proof(artifact: dict[str, Any], coverage: dict[str, Any]) 
         fail("rollback proof must not claim production mutation")
     if not receipt.get("conflictSummaryRef") or not receipt.get("limitations"):
         fail("RollbackReceipt must reference conflicts and limitations")
+    if not receipt.get("uiValidationTranscriptRef"):
+        fail("RollbackReceipt must reference UI validation evidence")
     validate_provider_refs({"fixtureId": "rollback proof", "providerRefs": receipt.get("providerRefs", [])}, coverage)
     classifications = {item.get("historyStatus") for item in artifact.get("conflictReport", {}).get("classifications", [])}
     for required_status in ["conflict", "partially_preserved", "metadata_only", "unsupported"]:
@@ -217,6 +219,8 @@ def validate_rollback_proof(artifact: dict[str, Any], coverage: dict[str, Any]) 
     audit_links = {link for event in artifact.get("auditLog", []) for link in event.get("links", [])}
     if receipt.get("conflictSummaryRef") not in audit_links:
         fail("rollback audit log must link conflict report")
+    if receipt.get("uiValidationTranscriptRef") not in audit_links:
+        fail("rollback audit log must link UI validation transcript")
 
 
 def validate_claim_gate(artifact: dict[str, Any]) -> None:

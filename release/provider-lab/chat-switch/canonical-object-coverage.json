@@ -3,6 +3,7 @@
   "artifactKind": "weave-chat-switch-canonical-object-coverage",
   "sprint": "Sprint 23 — Chat Provider Switch",
   "issue": 629,
+  "issues": [629],
   "sourceProviders": ["matrix-synapse"],
   "targetProviders": ["zulip"],
   "redaction": "support_safe",
