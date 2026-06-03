@@ -109,6 +109,15 @@ def main() -> None:
         fail(f"fixture readiness states mismatch: {sorted(states)}")
     if states["runner_missing"].get("dispatchAllowed") is not False:
         fail("runner_missing must block dispatch")
+    local_infra = fixture.get("localInfraReality", {})
+    if local_infra.get("rootRef") != "~/server" or local_infra.get("required") is not True:
+        fail("fixture must require real ~/server Forgejo runner service/config reality")
+    required_signal = local_infra.get("requiredSignal", {})
+    for name in ["forgejoRunnerServiceExists", "forgejoRunnerConfigPathExists", "runnerRegistered", "runnerRunning"]:
+        if required_signal.get(name) is not True:
+            fail(f"fixture localInfraReality.requiredSignal missing {name}=true")
+    if required_signal.get("secretValuesLogged") is not False:
+        fail("fixture must forbid logging secret values in local signal")
     if states["runner_registered"].get("nextState") != "dispatch_allowed_after_secret_refs_present_and_admin_approval":
         fail("runner_registered transition must still require SecretRefs and admin approval")
     if states["runner_offline"].get("dispatchAllowed") is not False:
@@ -117,22 +126,26 @@ def main() -> None:
         fail("runner_secret_missing must display missing names only")
     if states["dispatch_allowed"].get("requiresAdminApproval") is not True:
         fail("dispatch_allowed still requires explicit admin approval")
-    if fixture.get("currentLocalObservation", {}).get("state") != "runner_missing":
-        fail("current local proof must remain runner_missing")
+    current = fixture.get("currentLocalObservation", {})
+    if current.get("state") != "awaiting_main_local_signal":
+        fail("current local proof must wait for concise main ~/server signal")
+    for name in ["service_exists", "config_path_exists", "registered", "running", "secret_refs_present"]:
+        if name not in current.get("requiredConciseSignal", []):
+            fail(f"current local proof missing concise signal {name}")
     forbidden_ops = fixture.get("approvalBoundary", {}).get("forbiddenWithoutExplicitApproval", [])
     for op in ["mutate ~/server", "register runner", "create secret", "dispatch live workflow"]:
         if op not in forbidden_ops:
             fail(f"approval boundary missing {op}")
     assert_support_safe(fixture, "runner-readiness fixture")
-    assert_fragments(DOC, ["customer-owned Forgejo Actions runner", "runner_missing", "runner_registered", "dispatch_allowed", "Do not mutate `~/server`"])
-    assert_fragments(FEATURE, ["@sprint27-local-forgejo-runner-readiness", "runner_missing", "runner_registered", "dispatch_allowed", "not GitHub repository secrets"])
+    assert_fragments(DOC, ["customer-owned Forgejo Actions runner under `~/server`", "awaiting_main_local_signal", "runner_registered", "dispatch_allowed", "service_exists"])
+    assert_fragments(FEATURE, ["@sprint27-local-forgejo-runner-readiness", "awaiting_main_local_signal", "runner_registered", "dispatch_allowed", "not GitHub repository secrets"])
     assert_fragments(MAPPING, ["@sprint27-local-forgejo-runner-readiness", "LOCAL_FORGEJO_RUNNER_READINESS_PROOF", str(FIXTURE.relative_to(ROOT))])
     assert_fragments(CORE, ["EvaluateRunnerReadiness", "RunnerMissing", "RunnerRegistered", "RunnerOffline", "ReadinessDispatchAllowed"])
     assert_fragments(TEST, ["TestEvaluateRunnerReadinessStates", "runner_secret_missing", "dispatch_allowed"])
     bootstrapper = load(BOOTSTRAPPER_FIXTURE)
     if bootstrapper.get("downstreamReadinessContractRef") != str(FIXTURE.relative_to(ROOT)):
         fail("bootstrapper fixture must point to runner readiness contract")
-    print("local-forgejo-runner-readiness-check: ok issue=662 current=runner_missing future=dispatch_allowed")
+    print("local-forgejo-runner-readiness-check: ok issue=662 current=awaiting_main_local_signal future=dispatch_allowed")
     print("LOCAL_FORGEJO_RUNNER_READINESS_PROOF")
 
 

@@ -5,7 +5,9 @@
   "providerKey": "local-forgejo-actions",
   "workflowRef": "weave-admin-setup-e2e",
   "sourceOfTruth": "customer-owned Forgejo Actions runner plus SecretRef mechanism",
-  "notSourceOfTruth": ["GitHub repository secrets"],
+  "notSourceOfTruth": [
+    "GitHub repository secrets"
+  ],
   "readinessInputs": {
     "runnerRegistrationNameRef": "FORGEJO_ACTIONS_RUNNER_REGISTRATION",
     "requiredSecretRefs": [
@@ -17,20 +19,33 @@
       "WEAVE_FORGEJO_SSH_PORT"
     ],
     "requiredWorkflowRef": "weave-admin-setup-e2e",
-    "correlationFields": ["providerKey", "workflowRef", "runRef", "correlationRef"]
+    "correlationFields": [
+      "providerKey",
+      "workflowRef",
+      "runRef",
+      "correlationRef"
+    ],
+    "localServerSignal": [
+      "forgejoRunnerServiceExists",
+      "forgejoRunnerConfigPathExists",
+      "runnerRegistered",
+      "runnerRunning"
+    ]
   },
   "states": [
     {
       "code": "runner_missing",
       "dispatchAllowed": false,
-      "missingNamesDisplayed": ["FORGEJO_ACTIONS_RUNNER_REGISTRATION"],
+      "missingNamesDisplayed": [
+        "FORGEJO_ACTIONS_RUNNER_REGISTRATION"
+      ],
       "supportSafeSummary": "No supported Forgejo Actions runner registration is present."
     },
     {
       "code": "runner_registered",
       "dispatchAllowed": false,
       "nextState": "dispatch_allowed_after_secret_refs_present_and_admin_approval",
-      "supportSafeSummary": "Runner registration exists; SecretRef names and admin approval still gate dispatch."
+      "supportSafeSummary": "Runner registration exists in ~/server; SecretRef names and admin approval still gate dispatch."
     },
     {
       "code": "runner_offline",
@@ -40,21 +55,36 @@
     {
       "code": "runner_secret_missing",
       "dispatchAllowed": false,
-      "missingNamesDisplayed": ["WEAVE_FORGEJO_TOKEN"],
+      "missingNamesDisplayed": [
+        "WEAVE_FORGEJO_TOKEN"
+      ],
       "supportSafeSummary": "Required SecretRef or variable name is missing; values stay hidden."
     },
     {
       "code": "dispatch_allowed",
       "dispatchAllowed": true,
       "requiresAdminApproval": true,
-      "supportSafeSummary": "Runner and required SecretRef names are ready; dispatch still requires explicit admin approval."
+      "supportSafeSummary": "~/server runner service/config, registration, running state, and required SecretRef names are ready; dispatch still requires explicit admin approval."
     }
   ],
   "currentLocalObservation": {
-    "state": "runner_missing",
+    "state": "awaiting_main_local_signal",
     "dispatchAllowed": false,
+    "requiredConciseSignal": [
+      "service_exists",
+      "config_path_exists",
+      "registered",
+      "running",
+      "secret_refs_present"
+    ],
+    "forbiddenEvidence": [
+      "raw logs",
+      "registration token",
+      "secret values",
+      "credential-bearing URLs"
+    ],
     "evidenceRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
-    "localDiagnosticRef": "support-safe service-name check only"
+    "localDiagnosticRef": "support-safe ~/server service/config yes-no signal only"
   },
   "approvalBoundary": {
     "forbiddenWithoutExplicitApproval": [
@@ -75,5 +105,18 @@
     "credentialBearingUrl",
     "tenantUrl",
     "memberContent"
-  ]
+  ],
+  "localInfraReality": {
+    "required": true,
+    "rootRef": "~/server",
+    "requiredSignal": {
+      "forgejoRunnerServiceExists": true,
+      "forgejoRunnerConfigPathExists": true,
+      "runnerRegistered": true,
+      "runnerRunning": true,
+      "secretValuesLogged": false
+    },
+    "verificationOwner": "main/operator local DevOps flow",
+    "repoBoundary": "This repository records only support-safe yes/no readiness signals; it must not mutate ~/server or persist runner registration token values."
+  }
 }

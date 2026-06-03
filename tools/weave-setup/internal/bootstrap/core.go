@@ -347,6 +347,8 @@ type RunnerReadinessInput struct {
 	ProviderKey                  string
 	WorkflowRef                  string
 	RunnerState                  RunnerServiceState
+	LocalServerServiceExists     bool
+	LocalServerConfigPathExists  bool
 	RequiredSecretNames          []string
 	PresentSecretNames           []string
 	CustomerOwnedSecretMechanism string
@@ -391,6 +393,12 @@ func EvaluateRunnerReadiness(input RunnerReadinessInput) RunnerReadinessResult {
 		result.Status = ReadinessBlockedRunnerMissing
 		result.MissingNames = []string{"FORGEJO_ACTIONS_RUNNER_REGISTRATION"}
 		result.SupportSafeSummary = "Runner readiness is missing; register a customer-owned Forgejo Actions runner before dispatch."
+		return result
+	}
+	if !input.LocalServerServiceExists || !input.LocalServerConfigPathExists {
+		result.Status = ReadinessBlockedRunnerMissing
+		result.MissingNames = []string{"FORGEJO_ACTIONS_RUNNER_REGISTRATION", "~/server Forgejo runner service/config signal"}
+		result.SupportSafeSummary = "Runner registration must be backed by a support-safe ~/server service and config-path signal before dispatch."
 		return result
 	}
 	missing := missingNames(input.RequiredSecretNames, input.PresentSecretNames)

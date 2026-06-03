@@ -1,0 +1,44 @@
+{
+  "artifactKind": "weave-local-forgejo-e2e-handoff-v1",
+  "issue": 665,
+  "supportSafe": true,
+  "providerKey": "local-forgejo-actions",
+  "workflowRef": "weave-admin-setup-e2e",
+  "status": "blocked_awaiting_local_runner_and_pipeline_signal",
+  "requiredUpstreamEvidence": {
+    "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
+    "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+    "deployablePlanRef": "pending-issue-664-deployable-plan",
+    "pipelineRunRef": "pending-issue-663-pipeline-run-ref"
+  },
+  "requiredConciseLocalSignals": [
+    "service_exists",
+    "config_path_exists",
+    "registered",
+    "running",
+    "secret_refs_present",
+    "pipeline_terminal_success",
+    "stack_readiness_passed",
+    "weave_e2e_passed"
+  ],
+  "correlationFields": ["bootstrapPlanRef", "providerKey", "workflowRef", "pipelineRunRef", "stackReadinessRef", "e2eEvidenceRef"],
+  "currentClaimBoundary": {
+    "localRunnerRequired": true,
+    "pipelineDispatchRequired": true,
+    "deployedStackRequired": true,
+    "weaveE2eRequired": true,
+    "releaseReadyClaimAllowed": false,
+    "supportSafeSummary": "Post-run Weave E2E is blocked until the real ~/server runner, pipeline run, deployed stack readiness, and Weave E2E concise signals are present."
+  },
+  "forbiddenEvidence": [
+    "secretValue",
+    "tokenValue",
+    "rawCiLog",
+    "rawProviderPayload",
+    "credentialBearingUrl",
+    "tenantUrl",
+    "memberContent",
+    "rawRunnerLog",
+    "runnerRegistrationToken"
+  ]
+}

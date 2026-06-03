@@ -1511,7 +1511,7 @@
           "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
           "fragments": [
             "weave-local-forgejo-runner-readiness-v1",
-            "runner_missing",
+            "awaiting_main_local_signal",
             "runner_registered",
             "dispatch_allowed"
           ]
@@ -1519,8 +1519,8 @@
         {
           "path": "docs/evidence/local-forgejo-runner-readiness.md",
           "fragments": [
-            "customer-owned Forgejo Actions runner",
-            "Do not mutate `~/server`",
+            "customer-owned Forgejo Actions runner under `~/server`",
+            "service_exists",
             "Workflow ref"
           ]
         },
@@ -1530,6 +1530,42 @@
             "EvaluateRunnerReadiness",
             "RunnerMissing",
             "ReadinessDispatchAllowed"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_forgejo_e2e_handoff.feature",
+      "executableTest": "tools/local_forgejo_e2e_handoff_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-forgejo-e2e-handoff",
+      "scenario": "E2E evidence remains blocked until the real local runner and pipeline signals exist",
+      "evidenceMarkers": [
+        "LOCAL_FORGEJO_E2E_HANDOFF_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/local-forgejo-e2e/local-stack-e2e-handoff.fixture.json",
+          "fragments": [
+            "weave-local-forgejo-e2e-handoff-v1",
+            "blocked_awaiting_local_runner_and_pipeline_signal",
+            "weave_e2e_passed"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-forgejo-e2e-handoff.md",
+          "fragments": [
+            "concise `~/server` signal",
+            "pipeline_terminal_success",
+            "weave_e2e_passed"
+          ]
+        },
+        {
+          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+          "fragments": [
+            "localInfraReality",
+            "~/server",
+            "awaiting_main_local_signal"
           ]
         }
       ]
