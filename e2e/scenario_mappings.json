@@ -1458,6 +1458,117 @@
           ]
         }
       ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_cicd_bootstrapper.feature",
+      "executableTest": "tools/local_cicd_bootstrapper_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-cicd-bootstrapper",
+      "scenario": "Operator selects Forgejo without persisting GitHub secrets",
+      "evidenceMarkers": [
+        "LOCAL_CICD_BOOTSTRAPPER_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "tools/weave-setup/internal/bootstrap/core.go",
+          "fragments": [
+            "TargetForgejo",
+            "TargetGitHub",
+            "Detect",
+            "BuildPlan",
+            "GitHubSecretsRequired"
+          ]
+        },
+        {
+          "path": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
+          "fragments": [
+            "weave-local-cicd-bootstrap-plan-v1",
+            "forgejoRequiresGitHubSecrets",
+            "pushOnlySelectedTarget"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-cicd-bootstrapper.md",
+          "fragments": [
+            "Go-built executable",
+            "GitHub repository secrets are backend-specific",
+            "weave-setup app"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_forgejo_runner_readiness.feature",
+      "executableTest": "tools/local_forgejo_runner_readiness_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-forgejo-runner-readiness",
+      "scenario": "Runner readiness records the real local runner and keeps dispatch gated",
+      "evidenceMarkers": [
+        "LOCAL_FORGEJO_RUNNER_READINESS_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+          "fragments": [
+            "weave-local-forgejo-runner-readiness-v1",
+            "local-forgejo-actions",
+            "runner_registered",
+            "dispatch_allowed"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-forgejo-runner-readiness.md",
+          "fragments": [
+            "customer-owned Forgejo Actions runner under `~/server`",
+            "service_exists",
+            "Workflow ref"
+          ]
+        },
+        {
+          "path": "tools/weave-setup/internal/bootstrap/core.go",
+          "fragments": [
+            "EvaluateRunnerReadiness",
+            "RunnerMissing",
+            "ReadinessDispatchAllowed"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_forgejo_e2e_handoff.feature",
+      "executableTest": "tools/local_forgejo_e2e_handoff_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-forgejo-e2e-handoff",
+      "scenario": "E2E evidence remains blocked until pipeline, stack, and E2E signals exist",
+      "evidenceMarkers": [
+        "LOCAL_FORGEJO_E2E_HANDOFF_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/local-forgejo-e2e/local-stack-e2e-handoff.fixture.json",
+          "fragments": [
+            "weave-local-forgejo-e2e-handoff-v1",
+            "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal",
+            "weave_e2e_passed"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-forgejo-e2e-handoff.md",
+          "fragments": [
+            "concise `~/server` signal",
+            "pipeline_terminal_success",
+            "weave_e2e_passed"
+          ]
+        },
+        {
+          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+          "fragments": [
+            "localInfraReality",
+            "~/server",
+            "runner_registered"
+          ]
+        }
+      ]
     }
   ]
 }
