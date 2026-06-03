@@ -1,0 +1,37 @@
+{
+  "artifactKind": "weave-weaver-runtime-sprint-25-tool-approval-gate-proof",
+  "supportSafe": true,
+  "issue": 637,
+  "scenarios": {
+    "readOnlyAllowed": "passed",
+    "writeWithoutApproval": "approval_required",
+    "writeWithApproval": "ok",
+    "revokedToolBlocked": "runtime_profile_revoked",
+    "expiredTokenBlocked": "runtime_token_expired",
+    "overbroadGrantBlocked": "overbroad_grant",
+    "missingConsentBlocked": "consent_required"
+  },
+  "approvalReceipt": {
+    "requiredFields": [
+      "receiptRef",
+      "actorRef",
+      "action",
+      "scopeRefs",
+      "policyVersion",
+      "expiresAt",
+      "auditRef"
+    ],
+    "validatedBeforeInvocation": true,
+    "auditRefRecorded": true
+  },
+  "permittedWriteAudit": {
+    "decision": "invoked",
+    "approvalReceiptValidated": true,
+    "approvalReceiptAuditRefRecorded": true,
+    "supportSafe": true
+  },
+  "evidenceRefs": [
+    "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java#requiresApprovalReceiptForWriteLikeToolsBeforeInvocation",
+    "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java#failsClosedForUnsignedRevokedExpiredMismatchedConsentAndOverbroadGovernance"
+  ]
+}

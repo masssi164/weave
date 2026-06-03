@@ -33,6 +33,10 @@ public class WeaverRuntimeService {
 
     private final ConcurrentMap<String, WeaverRuntimeProfileResponse> issuedProfiles = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, WeaverRuntimeInstance> runtimeInstances = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> latestProfileHashByUser = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> profileFingerprintByUser = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Integer> profileSequenceByUser = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Map<String, Object>> customizationByUser = new ConcurrentHashMap<>();
 
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
@@ -77,10 +81,11 @@ public class WeaverRuntimeService {
         List<String> toolAllowlist = weaverRuntimeProperties.toolAllowlist();
         boolean execEnabled = weaverRuntimeProperties.execEnabled() && grantedCapabilities.contains("weaver.exec_enabled");
         boolean elevatedEnabled = weaverRuntimeProperties.elevatedEnabled() && grantedCapabilities.contains("weaver.elevated_enabled");
-        String profileVersion = profileVersion(userRef, allowedCapabilities);
+        Map<String, Object> customization = customizationByUser.getOrDefault(userRef, Map.of());
+        String profileVersion = profileVersion(userRef, profileFingerprint(allowedCapabilities, pluginAllowlist, toolAllowlist, execEnabled, elevatedEnabled, customization));
         String expiresAt = Instant.now().plus(1, ChronoUnit.HOURS).toString();
         String runtimeTokenExpiresAt = Instant.now().plus(10, ChronoUnit.MINUTES).toString();
-        String previousProfileHash = previousProfileHash(userRef, profileVersion);
+        String previousProfileHash = latestProfileHashByUser.getOrDefault(userRef, "none");
         String runtimeProfileHash = runtimeProfileHash(
                 userRef,
                 profileVersion,
@@ -129,7 +134,7 @@ public class WeaverRuntimeService {
                 elevatedEnabled,
                 weaverRuntimeProperties.auditRequired(),
                 weaverRuntimeProperties.forkRequired(),
-                channelProjection(runtimeProfileHash, profileVersion, userRef, expiresAt, runtimeTokenExpiresAt),
+                channelProjection(runtimeProfileHash, profileVersion, previousProfileHash, userRef, expiresAt, runtimeTokenExpiresAt),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
                 supportSafeProfileReceipt(profileVersion, runtimeProfileHash, signature, expiresAt, runtimeTokenExpiresAt, false, "active"),
@@ -139,7 +144,34 @@ public class WeaverRuntimeService {
                 "Weaver runtime profile is governed by organization policy; unavailable tools are hidden from the runtime.");
         auditGeneratedProfile(response);
         issuedProfiles.put(runtimeProfileHash, response);
+        latestProfileHashByUser.put(userRef, runtimeProfileHash);
         return response;
+    }
+
+    public WeaverRuntimeCustomizationDecision applyRuntimeCustomization(Jwt jwt, Map<String, Object> requestedCustomization) {
+        String userRef = supportSafeUserRef(jwt);
+        Map<String, Object> request = requestedCustomization == null ? Map.of() : Map.copyOf(requestedCustomization);
+        String denial = customizationDenial(request);
+        if (denial != null) {
+            auditCustomization(userRef, denial, false, request.keySet().stream().sorted().toList(), "blocked");
+            return new WeaverRuntimeCustomizationDecision(false, denial, null, "Forbidden Weaver customization attempt was blocked by admin policy.");
+        }
+        customizationByUser.put(userRef, request);
+        WeaverRuntimeProfileResponse profile = profileFor(jwt);
+        auditCustomization(userRef, "allowed_user_customization", true, request.keySet().stream().sorted().toList(), profile.runtimeProfileHash());
+        return new WeaverRuntimeCustomizationDecision(true, "allowed_user_customization", profile, "Customization accepted inside organization policy boundaries.");
+    }
+
+    public WeaverRuntimeProfileResponse rollbackRuntimeProfile(Jwt jwt, String rollbackProfileHash) {
+        String userRef = supportSafeUserRef(jwt);
+        WeaverRuntimeProfileResponse rollback = issuedProfiles.get(rollbackProfileHash == null ? "" : rollbackProfileHash.strip());
+        if (rollback == null || !rollback.userRef().equals(userRef) || rollback.revoked()) {
+            auditRollback(userRef, rollbackProfileHash, "rollback_denied");
+            return disabledProfile(userRef, "runtime-profile-rollback-denied", "RuntimeProfile rollback failed closed.");
+        }
+        latestProfileHashByUser.put(userRef, rollback.runtimeProfileHash());
+        auditRollback(userRef, rollback.runtimeProfileHash(), "rollback_restored");
+        return rollback;
     }
 
     public WeaverRuntimeProfileResponse profileByHash(Jwt jwt, String runtimeProfileHash) {
@@ -319,7 +351,7 @@ public class WeaverRuntimeService {
                 false,
                 true,
                 false,
-                channelProjection(runtimeProfileHash, profileVersion, userRef, expiresAt, expiresAt),
+                channelProjection(runtimeProfileHash, profileVersion, "none", userRef, expiresAt, expiresAt),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
                 supportSafeProfileReceipt(
@@ -428,9 +460,58 @@ public class WeaverRuntimeService {
         return weaverRuntimeProperties.workspaceRootTemplate().replace("{userId}", userRef.replace("user:", ""));
     }
 
-    private String profileVersion(String userRef, List<String> allowedCapabilities) {
-        return "v" + sha256(String.join("|", userRef, allowedCapabilities.toString(), weaverRuntimeProperties.baselineProfile()))
-                .substring(0, 16);
+    private String profileFingerprint(
+            List<String> allowedCapabilities,
+            List<String> pluginAllowlist,
+            List<String> toolAllowlist,
+            boolean execEnabled,
+            boolean elevatedEnabled,
+            Map<String, Object> customization) {
+        return sha256(String.join("|",
+                allowedCapabilities.toString(),
+                pluginAllowlist.toString(),
+                toolAllowlist.toString(),
+                Boolean.toString(execEnabled),
+                Boolean.toString(elevatedEnabled),
+                weaverRuntimeProperties.baselineProfile(),
+                weaverRuntimeProperties.image(),
+                weaverRuntimeProperties.workspaceRootTemplate(),
+                weaverRuntimeProperties.isolatedAgentDirectory(),
+                weaverRuntimeProperties.dockerNetworkMode(),
+                customization.toString()));
+    }
+
+    private String profileVersion(String userRef, String fingerprint) {
+        String previous = profileFingerprintByUser.put(userRef, fingerprint);
+        if (!fingerprint.equals(previous)) {
+            profileSequenceByUser.merge(userRef, 1, Integer::sum);
+        }
+        int sequence = profileSequenceByUser.getOrDefault(userRef, 1);
+        return "v" + sequence + "-" + fingerprint.substring(0, 12);
+    }
+
+    private String customizationDenial(Map<String, Object> request) {
+        for (String key : request.keySet()) {
+            String normalized = key == null ? "" : key.toLowerCase(Locale.ROOT).replace("_", "-");
+            String compact = normalized.replace("-", "");
+            Map<String, String> forbiddenReasons = Map.ofEntries(
+                    Map.entry("rawopenclawconfig", "admin_policy_forbids_raw_openclaw_config"),
+                    Map.entry("openclawjson", "admin_policy_forbids_raw_openclaw_config"),
+                    Map.entry("arbitrarymcpserver", "admin_policy_forbids_arbitrary_mcp_server"),
+                    Map.entry("ownsecret", "admin_policy_forbids_own_secrets"),
+                    Map.entry("ownsecrets", "admin_policy_forbids_own_secrets"),
+                    Map.entry("unlimitedtools", "admin_policy_forbids_unlimited_tools"),
+                    Map.entry("uncheckedplugin", "admin_policy_forbids_unchecked_plugins"),
+                    Map.entry("uncheckedplugins", "admin_policy_forbids_unchecked_plugins"),
+                    Map.entry("teamwideaction", "admin_policy_forbids_team_wide_action"),
+                    Map.entry("providersecret", "admin_policy_forbids_own_secrets"),
+                    Map.entry("execenabled", "admin_policy_forbids_exec_enabled"),
+                    Map.entry("maxdataaccess", "admin_policy_forbids_max_data_access"));
+            if (forbiddenReasons.containsKey(compact)) {
+                return forbiddenReasons.get(compact);
+            }
+        }
+        return null;
     }
 
     private String runtimeProfileHash(
@@ -481,13 +562,10 @@ public class WeaverRuntimeService {
         return "weave-signature:v1:" + sha256(runtimeProfileHash + ":" + profileVersion + ":support-safe");
     }
 
-    private String previousProfileHash(String userRef, String profileVersion) {
-        return "sha256:" + sha256(userRef + ":previous:" + profileVersion);
-    }
-
     private Map<String, Object> channelProjection(
             String runtimeProfileHash,
             String profileVersion,
+            String previousProfileHash,
             String userRef,
             String expiresAt,
             String runtimeTokenExpiresAt) {
@@ -497,7 +575,7 @@ public class WeaverRuntimeService {
                 "runtimeProfileHash", runtimeProfileHash,
                 "profileVersion", profileVersion,
                 "expiresAt", expiresAt,
-                "previousProfileHash", previousProfileHash(userRef, profileVersion),
+                "previousProfileHash", previousProfileHash,
                 "signatureRequired", true,
                 "signatureAlgorithm", "weave-signature:v1",
                 "revocationChecked", true,
@@ -629,6 +707,46 @@ public class WeaverRuntimeService {
                         Map.entry("supportSafe", true))));
     }
 
+    private void auditCustomization(String userRef, String reason, boolean accepted, List<String> requestedFields, String profileRef) {
+        auditEventPublisher.publish(new AuditEvent(
+                "tenant:workspace",
+                null,
+                userRef,
+                "weaver-runtime-policy",
+                AuditAction.ADMIN_POLICY_UPDATED,
+                Instant.now(),
+                "weaver-customization:" + userRef,
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.ofEntries(
+                        Map.entry("user", userRef),
+                        Map.entry("action", "runtime-profile.customization"),
+                        Map.entry("domain", "weaver-runtime"),
+                        Map.entry("decision", accepted ? "accepted" : "blocked"),
+                        Map.entry("policyReason", reason),
+                        Map.entry("requestedFields", requestedFields),
+                        Map.entry("profileRef", profileRef),
+                        Map.entry("supportSafe", true))));
+    }
+
+    private void auditRollback(String userRef, String runtimeProfileHash, String decision) {
+        auditEventPublisher.publish(new AuditEvent(
+                "tenant:workspace",
+                null,
+                userRef,
+                "weaver-runtime-policy",
+                AuditAction.WEAVER_RUNTIME_PROFILE_ROLLED_BACK,
+                Instant.now(),
+                "weaver-profile:" + userRef + ":rollback",
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.ofEntries(
+                        Map.entry("user", userRef),
+                        Map.entry("runtimeProfileHash", runtimeProfileHash == null ? "none" : runtimeProfileHash),
+                        Map.entry("action", "profile.rollback"),
+                        Map.entry("domain", "weaver-runtime"),
+                        Map.entry("decision", decision),
+                        Map.entry("supportSafe", true))));
+    }
+
     public record WeaverRuntimeInstance(
             String userRef,
             String containerId,
@@ -672,5 +790,12 @@ public class WeaverRuntimeService {
             String actualRuntimeProfileHash,
             String desiredPolicyVersion,
             String actualPolicyVersion) {
+    }
+
+    public record WeaverRuntimeCustomizationDecision(
+            boolean accepted,
+            String policyReason,
+            WeaverRuntimeProfileResponse profile,
+            String memberImpact) {
     }
 }

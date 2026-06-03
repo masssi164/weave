@@ -77,7 +77,7 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.signature()).startsWith("weave-signature:v1:");
         assertThat(profile.revoked()).isFalse();
         assertThat(profile.revocationStatus()).isEqualTo("active");
-        assertThat(profile.previousProfileHash()).startsWith("sha256:");
+        assertThat(profile.previousProfileHash()).isEqualTo("none");
         assertThat(profile.workspacePath()).startsWith("/var/lib/weave/weaver/");
         assertThat(profile.isolatedAgentDirectory()).isEqualTo(".weaver/agents");
         assertThat(profile.dockerNetworkMode()).isEqualTo("none");
@@ -151,6 +151,54 @@ class WeaverRuntimeServiceTest {
         assertThat(regenerated.channelProjection()).containsEntry("channelId", "channels.weave-chat");
         assertThat(regenerated.channelProjection()).containsEntry("providerRef", "provider:chat:selected-by-admin");
         assertThat(regenerated.supportSafeProfileReceipt()).containsEntry("regeneratesOnPolicyOrProviderChange", true);
+    }
+
+    @Test
+    void versionsProfileCustomizationsAndRollsBackToPreviousProfile() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverRuntimeService service = service(true, runtimeProperties(true), audit);
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var base = service.profileFor(member);
+        var customized = service.applyRuntimeCustomization(member, Map.of(
+                "displayName", "Otter Weaver",
+                "style", "concise",
+                "language", "en",
+                "memoryOptIn", true));
+
+        assertThat(customized.accepted()).isTrue();
+        assertThat(customized.profile().profileVersion()).isNotEqualTo(base.profileVersion());
+        assertThat(customized.profile().runtimeProfileHash()).isNotEqualTo(base.runtimeProfileHash());
+        assertThat(customized.profile().previousProfileHash()).isEqualTo(base.runtimeProfileHash());
+
+        var rolledBack = service.rollbackRuntimeProfile(member, base.runtimeProfileHash());
+
+        assertThat(rolledBack.runtimeProfileHash()).isEqualTo(base.runtimeProfileHash());
+        assertThat(rolledBack.profileVersion()).isEqualTo(base.profileVersion());
+        assertThat(audit.events()).extracting(event -> event.action())
+                .contains(AuditAction.ADMIN_POLICY_UPDATED, AuditAction.WEAVER_RUNTIME_PROFILE_ROLLED_BACK);
+        assertThat(audit.events().toString()).doesNotContain("member@example.invalid", "openclaw.json", "Bearer ");
+    }
+
+    @Test
+    void blocksForbiddenCustomizationAttemptsAndAuditsPolicyReason() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverRuntimeService service = service(true, runtimeProperties(true), audit);
+
+        var decision = service.applyRuntimeCustomization(
+                jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime")),
+                Map.of("rawOpenClawConfig", "openclaw.json {\"apiKey\":\"sk-secret\"}"));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.policyReason()).isEqualTo("admin_policy_forbids_raw_openclaw_config");
+        assertThat(decision.profile()).isNull();
+        assertThat(audit.events()).hasSize(1);
+        assertThat(audit.events().get(0).action()).isEqualTo(AuditAction.ADMIN_POLICY_UPDATED);
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("decision", "blocked")
+                .containsEntry("policyReason", "admin_policy_forbids_raw_openclaw_config")
+                .containsEntry("supportSafe", true);
+        assertThat(audit.events().toString()).doesNotContain("sk-secret", "Bearer ", "refresh_token");
     }
 
     @Test

@@ -1,0 +1,35 @@
+{
+  "artifactKind": "weave-weaver-runtime-sprint-25-profile-customization-proof",
+  "supportSafe": true,
+  "issue": 635,
+  "profileChange": {
+    "baseProfileVersion": "v1-baseline",
+    "customizedProfileVersion": "v2-customization",
+    "baseProfileHash": "sha256:sprint25baseprofile000000000000000000000000000000000000000000000000",
+    "customizedProfileHash": "sha256:sprint25customprofile00000000000000000000000000000000000000000000",
+    "previousProfileHash": "sha256:sprint25baseprofile000000000000000000000000000000000000000000000000",
+    "versionIncremented": true,
+    "hashChanged": true
+  },
+  "allowedCustomizationFields": [
+    "displayName",
+    "style",
+    "language",
+    "answerStyle",
+    "workingHours",
+    "notifications",
+    "personalNotes",
+    "memoryOptIn",
+    "allowedSkills",
+    "workspaceStructure"
+  ],
+  "rollback": {
+    "rollbackProfileHash": "sha256:sprint25baseprofile000000000000000000000000000000000000000000000000",
+    "restoredProfileVersion": "v1-baseline",
+    "auditAction": "weaver.runtime_profile.rolled_back",
+    "restored": true
+  },
+  "evidenceRefs": [
+    "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java#versionsProfileCustomizationsAndRollsBackToPreviousProfile"
+  ]
+}

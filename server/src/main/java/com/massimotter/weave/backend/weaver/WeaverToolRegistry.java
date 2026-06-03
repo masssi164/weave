@@ -52,25 +52,35 @@ public class WeaverToolRegistry {
                     "auditRef", auditRef(request.toolName(), "scoped_grant_missing")));
             return blocked(request.toolName(), "scoped_grant_missing", "Tool is not included in the signed scoped grant.");
         }
-        if (definition.writeLike() && (request.approvalReceiptRef() == null || request.approvalReceiptRef().isBlank())) {
-            audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "approval_required", Map.of(
-                    "domain", definition.domain(),
-                    "auditRef", auditRef(request.toolName(), "approval_required")));
-            return new WeaverToolInvocationResult(
-                    request.toolName(),
-                    "approval_required",
-                    true,
-                    true,
-                    Map.of(
-                            "approvalPolicy", definition.approvalRequirement().name(),
-                            "auditRef", auditRef(request.toolName(), "approval_required")),
-                    "This action requires an approval receipt before Weaver may continue.");
+        boolean approvalReceiptValidated = false;
+        if (definition.writeLike()) {
+            WeaverApprovalReceipt approvalReceipt = request.approvalReceipt();
+            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName())) {
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "approval_required", Map.of(
+                        "domain", definition.domain(),
+                        "approvalReceiptValidated", false,
+                        "auditRef", auditRef(request.toolName(), "approval_required")));
+                return new WeaverToolInvocationResult(
+                        request.toolName(),
+                        "approval_required",
+                        true,
+                        true,
+                        Map.of(
+                                "approvalPolicy", definition.approvalRequirement().name(),
+                                "approvalReceiptValidated", false,
+                                "auditRef", auditRef(request.toolName(), "approval_required")),
+                        "This action requires a valid approval receipt before Weaver may continue.");
+            }
+            approvalReceiptValidated = true;
         }
         audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "invoked", Map.of(
                 "domain", definition.domain(),
                 "mode", definition.mode().name(),
                 "consentGranted", true,
                 "approvalReceiptRef", request.approvalReceiptRef() == null ? "none" : request.approvalReceiptRef(),
+                "approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef(),
+                "approvalReceiptPolicyVersion", request.approvalReceipt() == null ? "none" : request.approvalReceipt().policyVersion(),
+                "approvalReceiptValidated", approvalReceiptValidated,
                 "auditRef", auditRef(request.toolName(), "invoked")));
         return new WeaverToolInvocationResult(
                 request.toolName(),
@@ -81,6 +91,7 @@ public class WeaverToolRegistry {
                         "domain", definition.domain(),
                         "result", "support-safe-placeholder",
                         "canonicalRefs", canonicalRefs(request.input()),
+                        "approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef(),
                         "rawProviderPayload", "redacted",
                         "auditRef", auditRef(request.toolName(), "invoked")),
                 "Tool invocation went through a Weave domain capability boundary; raw provider APIs are not exposed.");

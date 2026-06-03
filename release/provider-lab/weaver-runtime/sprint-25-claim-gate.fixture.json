@@ -1,0 +1,31 @@
+{
+  "artifactKind": "weave-weaver-runtime-sprint-25-claim-gate",
+  "supportSafe": true,
+  "acceptedClaim": {
+    "claim": "Sprint 25 proves support-safe Weaver customization in provider-lab evidence: RuntimeProfile versions change for allowed personal settings, forbidden customization is blocked by admin policy, write-like domain tools require validated ApprovalReceipts, rollback restores a previous profile hash, and user-personalized availability claims remain scoped to these artifacts.",
+    "expectedOutcome": "accept"
+  },
+  "rejectedClaims": [
+    {
+      "claim": "Weaver customization is customer-ready for all organizations.",
+      "expectedOutcome": "reject",
+      "reason": "No production PA/customer-ready evidence is claimed."
+    },
+    {
+      "claim": "Members may edit raw OpenClaw config, add arbitrary MCP servers, or bring their own secrets.",
+      "expectedOutcome": "reject",
+      "reason": "Admin policy boundaries block those attempts."
+    },
+    {
+      "claim": "Weaver can write to tools without approval receipts.",
+      "expectedOutcome": "reject",
+      "reason": "Write-like tools require validated ApprovalReceipts."
+    },
+    {
+      "claim": "Sprint 25 proves Teams, Slack, or public production provider rollout.",
+      "expectedOutcome": "reject",
+      "reason": "Provider-specific rollout is outside Sprint 25 evidence."
+    }
+  ],
+  "claimBoundary": "Provider-lab Sprint 25 evidence only. The gate requires profile version proof, policy-boundary proof, tool-approval proof, and rollback proof before scoped user-personalized Weaver wording. It does not claim production PA availability, customer-ready Weaver, raw OpenClaw config access, arbitrary MCP/plugin execution, raw memory, raw secrets, or public release readiness."
+}
