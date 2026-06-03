@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-chat-switch-canonical-object-coverage",
+  "sprint": "Sprint 23 — Chat Provider Switch",
+  "issue": 629,
+  "sourceProviders": ["matrix-synapse"],
+  "targetProviders": ["zulip"],
+  "redaction": "support_safe",
+  "claimBoundary": "This artifact proves Sprint 23 chat-switch object coverage and support-safe provider reference rules for the Matrix/Synapse to Zulip fixture path only. It does not prove lossless migration, production apply, production rollback, provider interchangeability, E2EE history migration, or release readiness.",
+  "canonicalObjects": [
+    {
+      "name": "WeaveSpace",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["rooms.space_id"],
+      "zulipFixtureFields": ["realm.stream_groups"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "WeaveConversation",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["rooms.room_id", "rooms.canonical_alias"],
+      "zulipFixtureFields": ["streams.stream_id", "streams.name"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "WeaveMessage",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["events.event_id", "events.type", "events.content_hash"],
+      "zulipFixtureFields": ["messages.id", "messages.type", "messages.content_hash"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "WeaveThread",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["events.m.relates_to.thread"],
+      "zulipFixtureFields": ["messages.topic"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "WeaveReaction",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["events.m.reaction"],
+      "zulipFixtureFields": ["emoji_reactions"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "WeaveAttachment",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["events.m.file", "events.m.image", "content_uri_hash"],
+      "zulipFixtureFields": ["uploads.metadata_hash"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "WeaveMembership",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["events.m.room.member", "power_levels"],
+      "zulipFixtureFields": ["subscriptions", "user_groups"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "WeaveHistoryPolicy",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["retention", "e2ee_history_status"],
+      "zulipFixtureFields": ["retention_policy", "history_public_to_subscribers"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "ProviderRef",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "../weave-specs/domains/chat/spec.md"],
+      "matrixFixtureFields": ["providerRef.opaqueId", "providerRef.providerId", "providerRef.redacted"],
+      "zulipFixtureFields": ["providerRef.opaqueId", "providerRef.providerId", "providerRef.redacted"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "MigrationReceipt",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "specs/0006-portability-contract/spec.md"],
+      "matrixFixtureFields": ["migrationReceipt.sourceProvider", "migrationReceipt.objectCounts", "migrationReceipt.auditRefs"],
+      "zulipFixtureFields": ["migrationReceipt.targetProvider", "migrationReceipt.historyStatuses", "migrationReceipt.lossyFieldReportRef"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "RollbackReceipt",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "specs/0006-portability-contract/spec.md"],
+      "matrixFixtureFields": ["rollbackReceipt.restoredProvider", "rollbackReceipt.conflictSummary"],
+      "zulipFixtureFields": ["rollbackReceipt.sourceProvider", "rollbackReceipt.limitations"],
+      "lossyFieldReportRequiredOnDrop": true
+    },
+    {
+      "name": "LossyFieldReport",
+      "sourceRefs": ["specs/0004-domain-registry/canonical-domain-registry-v1.json", "specs/0006-portability-contract/spec.md"],
+      "matrixFixtureFields": ["lossyFieldReport.entries", "lossyFieldReport.lossClass"],
+      "zulipFixtureFields": ["lossyFieldReport.entries", "lossyFieldReport.historyStatus"],
+      "lossyFieldReportRequiredOnDrop": true
+    }
+  ],
+  "providerRefPolicy": {
+    "redaction": "support_safe",
+    "allowedFields": ["providerId", "providerObjectType", "opaqueId", "contentHash", "historyStatus", "redacted"],
+    "forbiddenFields": ["url", "homeserverUrl", "apiUrl", "accessToken", "refreshToken", "password", "secret", "rawPayload", "messageBody", "attachmentContent"],
+    "opaqueIdPattern": "^opaque:(matrix-synapse|zulip):[a-z0-9-]+:[a-f0-9]{12}$"
+  },
+  "requiredHistoryStatuses": ["preserved", "partially_preserved", "archive_only", "unsupported", "unexportable", "conflict", "metadata_only"]
+}

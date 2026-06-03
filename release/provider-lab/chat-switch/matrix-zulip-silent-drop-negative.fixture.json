@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-chat-switch-lossy-field-report-fixture",
+  "fixtureId": "matrix-zulip-silent-drop-negative",
+  "expectedOutcome": "reject",
+  "redaction": "support_safe",
+  "sourceProvider": "matrix-synapse",
+  "targetProvider": "zulip",
+  "providerRefs": [
+    {"providerId": "matrix-synapse", "providerObjectType": "room", "opaqueId": "opaque:matrix-synapse:room:7f3a91c04e2b", "contentHash": "sha256:matrix-room-alpha", "historyStatus": "preserved", "redacted": true}
+  ],
+  "droppedOrChangedFields": [
+    {"canonicalObject": "WeaveReaction", "field": "events.m.reaction", "targetField": "emoji_reactions", "lossClass": "lossy", "historyStatus": "partially_preserved", "reason": "Provider-specific reaction sender metadata changes shape."}
+  ],
+  "lossyFieldReport": {
+    "reportId": "lossy-field-report:sprint23:matrix-zulip:negative-001",
+    "entries": []
+  }
+}
