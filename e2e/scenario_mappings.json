@@ -1605,6 +1605,43 @@
           ]
         }
       ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_forgejo_pipeline_provider.feature",
+      "executableTest": "tools/local_forgejo_pipeline_provider_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-forgejo-pipeline-provider",
+      "scenario": "Local Forgejo PipelineProvider gates dispatch and observes support-safe run status",
+      "evidenceMarkers": [
+        "LOCAL_FORGEJO_PIPELINE_PROVIDER_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json",
+          "fragments": [
+            "weave-local-forgejo-pipeline-provider-v1",
+            "PipelineProvider",
+            "PipelineRunRef",
+            "approval_missing"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-forgejo-pipeline-provider.md",
+          "fragments": [
+            "PipelineProvider",
+            "Live dispatch boundary",
+            "explicit admin approval"
+          ]
+        },
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/cicd/LocalForgejoPipelineProvider.java",
+          "fragments": [
+            "LocalForgejoPipelineProvider",
+            "requestDispatch",
+            "observe"
+          ]
+        }
+      ]
     }
   ]
 }

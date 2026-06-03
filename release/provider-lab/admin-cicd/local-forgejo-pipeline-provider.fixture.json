@@ -1,0 +1,133 @@
+{
+  "artifactKind": "weave-local-forgejo-pipeline-provider-v1",
+  "issue": 663,
+  "supportSafe": true,
+  "providerKey": "local-forgejo-actions",
+  "providerFamily": "forgejo-actions",
+  "workflowRef": "weave-admin-setup-e2e",
+  "backendOwnedAbstraction": "com.massimotter.weave.backend.cicd.PipelineProvider",
+  "implementation": "com.massimotter.weave.backend.cicd.LocalForgejoPipelineProvider",
+  "manifest": {
+    "manualDispatch": true,
+    "polling": true,
+    "webhook": true,
+    "cancellationSupported": true,
+    "retrySupported": true,
+    "triggerAuthRefType": "SecretRef",
+    "rawLogRedactionRequired": true
+  },
+  "requiredInputs": {
+    "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
+    "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+    "domainPlanRef": "release/provider-lab/local-domain-plan/deployable-domain-plan.fixture.json",
+    "requiredSecretRefs": [
+      "WEAVE_FORGEJO_TOKEN",
+      "WEAVE_SERVER_SIGNING_KEY",
+      "WEAVE_INFRA_STATE_SECRET"
+    ],
+    "requiredVariables": [
+      "WEAVE_FORGEJO_BASE_URL",
+      "WEAVE_FORGEJO_API_URL",
+      "WEAVE_FORGEJO_USERNAME",
+      "WEAVE_FORGEJO_SSH_HOST",
+      "WEAVE_FORGEJO_SSH_PORT"
+    ]
+  },
+  "setupStates": [
+    "provider_discovery",
+    "ci_cd_registration",
+    "domain_selection",
+    "adapter_question",
+    "preflight",
+    "admin_approval",
+    "trigger_requested",
+    "run_observing",
+    "evidence_complete",
+    "blocked",
+    "failure"
+  ],
+  "preflightCases": [
+    {
+      "case": "runner_missing",
+      "dispatchAllowed": false,
+      "missingNamesDisplayed": [
+        "FORGEJO_ACTIONS_RUNNER_REGISTRATION"
+      ]
+    },
+    {
+      "case": "runner_offline",
+      "dispatchAllowed": false,
+      "missingNamesDisplayed": []
+    },
+    {
+      "case": "runner_secret_missing",
+      "dispatchAllowed": false,
+      "missingNamesDisplayed": [
+        "WEAVE_FORGEJO_TOKEN"
+      ]
+    },
+    {
+      "case": "approval_missing",
+      "dispatchAllowed": false,
+      "nextActionCode": "capture_admin_approval"
+    },
+    {
+      "case": "dispatch_allowed",
+      "dispatchAllowed": true,
+      "nextActionCode": "request_provider_dispatch"
+    }
+  ],
+  "pipelineRunRef": {
+    "providerKey": "local-forgejo-actions",
+    "workflowRef": "weave-admin-setup-e2e",
+    "runRef": "forgejo-run-support-safe-correlation-pending-provider-call",
+    "status": "queued",
+    "correlationRef": "support-safe-correlation",
+    "auditRef": "audit://admin-cicd/local-forgejo/dispatch-requested",
+    "evidenceRef": "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json",
+    "nextActionCode": "observe_run_status",
+    "supportSafeSummary": "Dispatch requested through support-safe provider abstraction; provider internals stay hidden.",
+    "dto": "PipelineRunRef"
+  },
+  "statusTransitions": [
+    "queued",
+    "running",
+    "evidence_complete",
+    "failed",
+    "cancelled",
+    "timed_out",
+    "rate_limited",
+    "unknown"
+  ],
+  "auditEvents": [
+    "preflight",
+    "approval_required",
+    "dispatch_requested",
+    "status_observed",
+    "terminal_state"
+  ],
+  "failClosedCases": [
+    "runner_missing",
+    "runner_offline",
+    "runner_secret_missing",
+    "approval_missing",
+    "unknown_status_timeout",
+    "rate_limit_exhausted",
+    "raw_value_supplied"
+  ],
+  "liveDispatchBoundary": {
+    "liveDispatchPerformed": false,
+    "requiresExplicitMainAction": true,
+    "smallestNextAction": "Ask main to dispatch weave-admin-setup-e2e on local Forgejo and return only queued/running/terminal status plus opaque run ref."
+  },
+  "forbiddenPersistence": [
+    "secretValue",
+    "tokenValue",
+    "rawCiLog",
+    "rawProviderPayload",
+    "credentialBearingUrl",
+    "tenantUrl",
+    "memberContent",
+    "runnerRegistrationToken"
+  ]
+}
