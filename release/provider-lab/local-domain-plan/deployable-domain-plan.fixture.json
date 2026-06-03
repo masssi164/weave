@@ -34,6 +34,9 @@
       "evidenceRefs": [
         "server_health_ref",
         "audit_ref"
+      ],
+      "lossReportRefs": [
+        "server-backend_loss_report_ref"
       ]
     },
     {
@@ -58,6 +61,9 @@
       "evidenceRefs": [
         "infra_plan_ref",
         "support_bundle_ref"
+      ],
+      "lossReportRefs": [
+        "infra-stack_loss_report_ref"
       ]
     },
     {
@@ -81,6 +87,9 @@
       ],
       "evidenceRefs": [
         "identity_readiness_ref"
+      ],
+      "lossReportRefs": [
+        "identity_loss_report_ref"
       ]
     },
     {
@@ -103,6 +112,9 @@
       ],
       "evidenceRefs": [
         "chat_readiness_ref"
+      ],
+      "lossReportRefs": [
+        "chat_loss_report_ref"
       ]
     },
     {
@@ -125,6 +137,9 @@
       ],
       "evidenceRefs": [
         "files_readiness_ref"
+      ],
+      "lossReportRefs": [
+        "files_loss_report_ref"
       ]
     },
     {
@@ -147,6 +162,9 @@
       ],
       "evidenceRefs": [
         "calendar_readiness_ref"
+      ],
+      "lossReportRefs": [
+        "calendar_loss_report_ref"
       ]
     },
     {
@@ -169,6 +187,9 @@
       ],
       "evidenceRefs": [
         "boards_readiness_ref"
+      ],
+      "lossReportRefs": [
+        "boards-tasks_loss_report_ref"
       ]
     },
     {
@@ -192,6 +213,9 @@
       "evidenceRefs": [
         "health_readiness_ref",
         "redaction_evidence_ref"
+      ],
+      "lossReportRefs": [
+        "health-readiness_loss_report_ref"
       ]
     }
   ],

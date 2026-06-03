@@ -47,6 +47,16 @@ FORBIDDEN_PATTERNS = [
         r"-----begin\s+(rsa|dsa|ec|openssh|private)\s+private\s+key-----",
     ]
 ]
+FORBIDDEN_FIELD_NAMES = {
+    "secretValue",
+    "tokenValue",
+    "rawCiLog",
+    "rawProviderPayload",
+    "credentialBearingUrl",
+    "tenantUrl",
+    "memberContent",
+    "runnerRegistrationToken",
+}
 
 
 def fail(message: str) -> None:
@@ -74,7 +84,10 @@ def load(path: Path) -> dict[str, Any]:
 def assert_support_safe(value: Any, label: str, path: tuple[str, ...] = ()) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
-            assert_support_safe(child, label, (*path, key))
+            child_path = (*path, key)
+            if key in FORBIDDEN_FIELD_NAMES and child_path != ("forbiddenPersistence",):
+                fail(f"{label} contains forbidden field {'.'.join(child_path)}")
+            assert_support_safe(child, label, child_path)
         return
     if isinstance(value, list):
         for index, child in enumerate(value):
@@ -105,18 +118,31 @@ def main() -> None:
     domains = fixture.get("domains", [])
     if not isinstance(domains, list):
         fail("domains must be a list")
-    by_key = {item.get("domainKey"): item for item in domains if isinstance(item, dict)}
-    if list(by_key) != REQUIRED_DOMAIN_ORDER:
-        fail(f"domain order mismatch: {list(by_key)}")
+    domain_keys: list[str] = []
+    by_key: dict[str, Any] = {}
+    for index, item in enumerate(domains):
+        if not isinstance(item, dict):
+            fail(f"domains[{index}] must be an object")
+        key = item.get("domainKey")
+        if not isinstance(key, str) or not key:
+            fail(f"domains[{index}] missing domainKey")
+        if key in by_key:
+            fail(f"duplicate domainKey {key}")
+        domain_keys.append(key)
+        by_key[key] = item
+    if domain_keys != REQUIRED_DOMAIN_ORDER:
+        fail(f"domain order mismatch: {domain_keys}")
     for key, domain in by_key.items():
         if domain.get("selectionKind") not in {"existing_or_self_hosted", "self_hosted_default"}:
             fail(f"{key} has invalid selectionKind")
-        for field in ["requiredSecretRefs", "requiredVariables", "readinessChecks", "rollbackRefs", "evidenceRefs"]:
+        for field in ["requiredSecretRefs", "requiredVariables", "readinessChecks", "rollbackRefs", "lossReportRefs", "evidenceRefs"]:
             values = domain.get(field)
             if not isinstance(values, list) or not values or not all(isinstance(v, str) and v for v in values):
                 fail(f"{key} missing non-empty {field}")
     if set(fixture.get("failClosedCases", [])) != REQUIRED_FAIL_CLOSED:
         fail("fail-closed cases mismatch")
+    if "loss_report_missing" in fixture.get("failClosedCases", []) and not all(domain.get("lossReportRefs") for domain in domains):
+        fail("loss_report_missing must be backed by per-domain lossReportRefs")
     shape = fixture.get("generatedPlanShape", {})
     for name in ["containsSecretValues", "containsProviderUrls", "containsMemberContent"]:
         if shape.get(name) is not False:
