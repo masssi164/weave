@@ -1496,6 +1496,43 @@
           ]
         }
       ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_forgejo_runner_readiness.feature",
+      "executableTest": "tools/local_forgejo_runner_readiness_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-forgejo-runner-readiness",
+      "scenario": "Runner readiness blocks current local dispatch and defines the future allowed transition",
+      "evidenceMarkers": [
+        "LOCAL_FORGEJO_RUNNER_READINESS_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+          "fragments": [
+            "weave-local-forgejo-runner-readiness-v1",
+            "runner_missing",
+            "runner_registered",
+            "dispatch_allowed"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-forgejo-runner-readiness.md",
+          "fragments": [
+            "customer-owned Forgejo Actions runner",
+            "Do not mutate `~/server`",
+            "Workflow ref"
+          ]
+        },
+        {
+          "path": "tools/weave-setup/internal/bootstrap/core.go",
+          "fragments": [
+            "EvaluateRunnerReadiness",
+            "RunnerMissing",
+            "ReadinessDispatchAllowed"
+          ]
+        }
+      ]
     }
   ]
 }
