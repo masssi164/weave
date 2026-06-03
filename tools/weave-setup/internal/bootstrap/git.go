@@ -42,8 +42,30 @@ func (g GitRunner) Commit(files []GeneratedFile, message string) error {
 	if _, err := g.run(args...); err != nil {
 		return err
 	}
-	_, err := g.run("commit", "-m", message)
+	hasChanges, err := g.hasStagedChanges()
+	if err != nil {
+		return err
+	}
+	if !hasChanges {
+		return nil
+	}
+	_, err = g.run("commit", "-m", message)
 	return err
+}
+
+func (g GitRunner) hasStagedChanges() (bool, error) {
+	cmd := exec.Command("git", "diff", "--cached", "--quiet")
+	cmd.Dir = g.Dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err == nil {
+		return false, nil
+	}
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+		return true, nil
+	}
+	return false, fmt.Errorf("git diff --cached --quiet failed: %w: %s", err, strings.TrimSpace(stderr.String()))
 }
 
 func (g GitRunner) Push(remote, branch string) error {

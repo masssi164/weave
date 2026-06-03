@@ -30,13 +30,13 @@ func run(args []string) error {
 	case "detect":
 		return detect(args[1:])
 	case "validate":
-		return planLike(args[1:], false, false, false)
+		return planLike(args[0], args[1:], false, false, false)
 	case "plan", "init":
-		return planLike(args[1:], true, false, false)
+		return planLike(args[0], args[1:], true, false, false)
 	case "commit":
-		return planLike(args[1:], true, true, false)
+		return planLike(args[0], args[1:], true, true, false)
 	case "push":
-		return planLike(args[1:], true, true, true)
+		return planLike(args[0], args[1:], true, true, true)
 	default:
 		usage()
 		return fmt.Errorf("unknown command %q", args[0])
@@ -75,8 +75,8 @@ func detect(args []string) error {
 	return nil
 }
 
-func planLike(args []string, write, commit, push bool) error {
-	fs := flag.NewFlagSet("plan", flag.ExitOnError)
+func planLike(commandName string, args []string, write, commit, push bool) error {
+	fs := flag.NewFlagSet(commandName, flag.ExitOnError)
 	repo := fs.String("repo", ".", "existing repository path")
 	clone := fs.String("clone-url", "", "clone URL instead of existing repo")
 	worktree := fs.String("worktree", "", "chosen worktree path")

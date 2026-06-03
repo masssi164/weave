@@ -22,10 +22,9 @@ FORBIDDEN_VALUE_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
     for pattern in [
         r"bearer\s+[a-z0-9._-]+",
-        r"ghp_[a-z0-9_]{12,}",
-        r"token\s*[:=]\s*[^\s,}\"]+",
-        r"secret\s*[:=]\s*[^\s,}\"]+",
-        r"password\s*[:=]\s*[^\s,}\"]+",
+        r"gh[pousr]_[a-z0-9_]{12,}",
+        r"(token|secret|password|private[_-]?key)\s*[:=]\s*[^\s,}\"]+",
+        r"-----begin\s+(rsa|dsa|ec|openssh|private)\s+private\s+key-----",
     ]
 ]
 

@@ -170,3 +170,30 @@ func TestValidateRepositoryStateConflictCases(t *testing.T) {
 		t.Fatalf("expected missing required secret name")
 	}
 }
+
+func TestRemoteURLAllowsAtInHTTPSPathButRejectsUserinfo(t *testing.T) {
+	if err := ValidateRemoteURL("https://example.invalid/org@team/repo.git"); err != nil {
+		t.Fatalf("expected @ in https path to be valid: %v", err)
+	}
+	if err := ValidateRemoteURL("https://user@example.invalid/org/repo.git"); err == nil {
+		t.Fatalf("expected https userinfo to be rejected")
+	}
+}
+
+func TestWorkflowPlanUsesJSONMarshalling(t *testing.T) {
+	repo := t.TempDir()
+	req := validRequest(repo)
+	req.Target.RemoteName = "forgejo:quoted"
+	req.Target.Branch = "feature/with space"
+	result, err := BuildPlan(req, time.Unix(0, 0).UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow WorkflowPlan
+	if err := json.Unmarshal(result.Files[1].Content, &workflow); err != nil {
+		t.Fatalf("workflow plan should be deterministic JSON: %v\n%s", err, result.Files[1].Content)
+	}
+	if workflow.RemoteName != req.Target.RemoteName || workflow.Branch != req.Target.Branch {
+		t.Fatalf("workflow fields changed during marshal: %+v", workflow)
+	}
+}
