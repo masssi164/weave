@@ -39,7 +39,7 @@ The release closed the stale RC3 draft blocker #557 after refreshing the candida
 ### Changed
 
 - Release evidence now separates offline contract/spec gates from credentialed Live Stack E2E evidence and keeps release promotion blocked without explicit green evidence or release-owner waiver.
-- Provider portability wording uses conservative states (`contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, `release_ready`) to prevent overclaiming.
+- Provider portability wording uses conservative states (`contract_only`, `configured`, `live_read`, `live_write`, `migration_apply_ready`, `release_ready`) to prevent overclaiming.
 - Matrix/Synapse remains the current real Chat provider path; other chat providers remain contract-only until separately promoted.
 
 ### Fixed

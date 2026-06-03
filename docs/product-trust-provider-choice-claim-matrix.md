@@ -20,6 +20,7 @@ Claim states and member-facing impact copy must use stable vocabulary: `availabl
 
 Use this framing:
 
+- Weave builds provider-neutral domains and proves them first with free self-hosted providers.
 - Weave is a **provider-neutral collaboration control plane** for organizations that need real provider choice, admin governance, auditability, reversibility, and consistent member UX.
 - The reference self-hosted stack is the strongest proof path for data sovereignty and operational control, but Weave's product architecture is domain/provider-neutral rather than self-hosting-only.
 - Weave reduces lock-in by separating member experience, admin policy, identity, credentials, audit, and provider implementation behind stable domain facades.
@@ -30,12 +31,14 @@ Avoid this wording until explicitly evidenced and reviewed:
 - GDPR-proof, Cloud-Act-proof, guaranteed compliant, legally sovereign, or compliant by default.
 - No vendor lock-in without scope. Prefer "reduces lock-in" or "makes switching operationally testable".
 - Lossless migration unless fixture evidence proves exact behavior for a named provider, domain, version, and subset.
+- Providers are interchangeable, Weaver is available, a PA runs per user, history remains fully preserved, rollback works in production, or v0.1 is release-ready, unless the exact claim is framed as forbidden/blocked or is backed by `release_ready` evidence for the named scope.
 - Sovereign cloud unless legally and operationally defined for a concrete deployment.
 
 ## Claim matrix
 
 | Public/customer claim | Approved wording | Evidence class | Current evidence | Release/customer-copy state |
 | --- | --- | --- | --- | --- |
+| Product reality foundation | "Weave builds provider-neutral domains and proves them first with free self-hosted providers." | Claim matrix entry + architecture/spec projection evidence | Product reality foundation, `release/product-reality-gates.json`, and `./gradlew productRealityClaimGateCheck`. | Claim boundary: usable as the governing proof-order claim; customer-ready wording still requires `release_ready` evidence for the named domain/provider scope. |
 | Provider-neutral control plane | "Weave models collaboration domains behind governed provider facades." | Architecture evidence | Product line plan, domain context map, canonical domain registry, provider replacement contract. | Usable with architecture link. |
 | Consistent member UX across providers | "Members see stable Weave capability states while providers are managed by admins/operators." | Architecture + client/accessibility evidence | Product line plan, user/admin handbooks, client capability-state tests from prior sprints. | Usable; do not imply every provider swap is implemented. |
 | Data sovereignty | "Self-hosted/reference deployments make operational control over data location, keys, logs, backups, and exports testable." | Operator docs + public-source research | Control-plane infra bootstrap, admin/operator handbook, Sprint 14 risk framing. | Usable as design/operational-control claim; not a legal guarantee. |

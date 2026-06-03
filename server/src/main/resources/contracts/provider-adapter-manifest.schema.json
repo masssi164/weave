@@ -11,7 +11,11 @@
     "canonical_object_coverage",
     "source_of_truth_modes",
     "secret_refs",
-    "support_safe_diagnostics"
+    "support_safe_diagnostics",
+    "reality_level_by_domain",
+    "history_posture",
+    "risk_notes",
+    "secret_storage_posture"
   ],
   "properties": {
     "adapter_key": {
@@ -96,6 +100,50 @@
     },
     "support_safe_diagnostics": {
       "$ref": "#/$defs/redaction"
+    },
+    "reality_level_by_domain": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "contract_only",
+          "configured",
+          "live_read",
+          "live_write",
+          "migration_dry_run",
+          "migration_apply_ready",
+          "rollback_ready",
+          "release_ready"
+        ]
+      }
+    },
+    "history_posture": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "no_history",
+        "partial_history",
+        "history_export_supported",
+        "history_import_supported",
+        "history_preserved_with_receipts"
+      ]
+    },
+    "risk_notes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "secret_storage_posture": {
+      "type": "string",
+      "enum": [
+        "no_secrets",
+        "server_secret_ref_only",
+        "operator_vault_ref_only"
+      ]
     }
   },
   "$defs": {

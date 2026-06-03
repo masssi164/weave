@@ -72,7 +72,7 @@ public record ProviderStatusResponse(
             return ProviderRealityLevel.CONTRACT_ONLY;
         }
         if (configured && (state == ProviderState.READY || state == ProviderState.CONFIGURED || state == ProviderState.DEGRADED)) {
-            return ProviderRealityLevel.CONFIGURED_READINESS;
+            return ProviderRealityLevel.CONFIGURED;
         }
         return ProviderRealityLevel.CONTRACT_ONLY;
     }

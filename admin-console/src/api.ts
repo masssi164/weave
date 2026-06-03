@@ -10,10 +10,14 @@ export type CapabilityState =
   | "configured";
 
 export type ProviderRealityLevel =
-  | "sample_only"
-  | "configured_readiness"
-  | "adapter_runtime_verified"
-  | "live_mutation_guarded";
+  | "contract_only"
+  | "configured"
+  | "live_read"
+  | "live_write"
+  | "migration_dry_run"
+  | "migration_apply_ready"
+  | "rollback_ready"
+  | "release_ready";
 
 export type EvidenceFreshness = "fresh" | "stale" | "missing" | "sample_only";
 
@@ -1281,13 +1285,17 @@ function normalizeProviderSelectionResult(
 
 function normalizeRealityLevel(value?: string): ProviderRealityLevel {
   switch (value) {
-    case "adapter_runtime_verified":
-    case "live_mutation_guarded":
-    case "sample_only":
+    case "contract_only":
+    case "configured":
+    case "live_read":
+    case "live_write":
+    case "migration_dry_run":
+    case "migration_apply_ready":
+    case "rollback_ready":
+    case "release_ready":
       return value;
-    case "configured_readiness":
     default:
-      return "configured_readiness";
+      return "contract_only";
   }
 }
 
@@ -1467,7 +1475,7 @@ function sampleDomain(
     bootstrapSuggestionOnly: false,
     choiceModel: "recommended_self_hosted_default",
     providerCandidates: candidates,
-    realityLevel: "configured_readiness",
+    realityLevel: "configured",
     evidenceFreshness: overrides.dryRunEvidenceExpiresAt
       ? normalizeEvidenceFreshness(undefined, overrides.dryRunEvidenceExpiresAt)
       : "fresh",

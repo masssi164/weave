@@ -15,7 +15,11 @@
     "migrationLimits",
     "auditEvents",
     "secretBoundary",
-    "supportSafeEvidenceRedaction"
+    "supportSafeEvidenceRedaction",
+    "realityLevelByDomain",
+    "historyPosture",
+    "riskNotes",
+    "secretStoragePosture"
   ],
   "properties": {
     "adapterKey": {
@@ -90,6 +94,50 @@
       "type": "string",
       "enum": [
         "support_safe"
+      ]
+    },
+    "realityLevelByDomain": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "contract_only",
+          "configured",
+          "live_read",
+          "live_write",
+          "migration_dry_run",
+          "migration_apply_ready",
+          "rollback_ready",
+          "release_ready"
+        ]
+      }
+    },
+    "historyPosture": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "no_history",
+        "partial_history",
+        "history_export_supported",
+        "history_import_supported",
+        "history_preserved_with_receipts"
+      ]
+    },
+    "riskNotes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "secretStoragePosture": {
+      "type": "string",
+      "enum": [
+        "no_secrets",
+        "server_secret_ref_only",
+        "operator_vault_ref_only"
       ]
     }
   }

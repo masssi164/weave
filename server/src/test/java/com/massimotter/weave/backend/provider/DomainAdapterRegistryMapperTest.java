@@ -11,11 +11,11 @@ import org.junit.jupiter.api.Test;
 class DomainAdapterRegistryMapperTest {
 
     private static final Map<String, List<String>> CORE_DOMAIN_OBJECTS = Map.of(
-            "chat", List.of("Space", "Conversation", "Message", "Thread", "Reaction", "Attachment", "Membership", "Presence"),
-            "files", List.of("Drive", "Node", "Folder", "File", "Version", "Share", "Permission", "Lock", "EditSession"),
-            "calendar", List.of("Calendar", "Event", "Attendee", "Recurrence", "Availability", "Resource"),
-            "boards-tasks", List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "Attachment", "Dependency", "CustomField"),
-            "meetings-calls", List.of("Meeting", "Participant", "Recording", "Captions", "MediaSession"));
+            "chat", List.of("WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"),
+            "files", List.of("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"),
+            "calendar", List.of("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"),
+            "boards-tasks", List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField"),
+            "meetings-calls", List.of("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord"));
 
     private static final Map<String, List<String>> MIXED_PROVIDER_POSTURE = Map.of(
             "identity-idm", List.of("keycloak-realm", "entra-id", "generic-oidc", "generic-saml"),
@@ -114,7 +114,7 @@ class DomainAdapterRegistryMapperTest {
         var contract = ProviderCapabilityContracts.contract("chat", Set.of(ProviderModule.MATRIX));
 
         assertThat(contract.stableMemberImpactStates()).containsExactly("usable", "disabled", "degraded", "policy-blocked");
-        assertThat(contract.canonicalObjects()).contains("Conversation", "Message", "Membership");
+        assertThat(contract.canonicalObjects()).contains("WeaveConversation", "WeaveMessage", "WeaveMembership");
         assertThat(contract.externalAdapters()).contains("microsoft-teams", "slack");
         assertThat(contract.lossyMappingRisks()).contains("Slack broadcast/thread semantics", "Teams channel permissions");
         assertThat(contract.sourceOfTruth()).contains("selected chat provider owns message history");
@@ -188,8 +188,8 @@ class DomainAdapterRegistryMapperTest {
     @Test
     void providerRealityLevelPriorityComparatorIsExplicitAndNotEnumOrdinalDependent() {
         assertThat(ProviderRealityLevel.priorityComparator().compare(
-                ProviderRealityLevel.LIVE_ADAPTER_WRITE,
-                ProviderRealityLevel.LIVE_ADAPTER_READ)).isPositive();
+                ProviderRealityLevel.LIVE_WRITE,
+                ProviderRealityLevel.LIVE_READ)).isPositive();
         assertThat(ProviderRealityLevel.RELEASE_READY.priority()).isGreaterThan(ProviderRealityLevel.MIGRATION_APPLY_READY.priority());
     }
 

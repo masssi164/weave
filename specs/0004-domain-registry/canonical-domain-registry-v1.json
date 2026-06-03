@@ -318,13 +318,18 @@
       "displayName": "Chat",
       "purpose": "Conversations, threads, messages, reactions, presence, and attachments as contextual communication.",
       "canonicalObjects": [
-        "Conversation",
-        "Message",
-        "Thread",
-        "Reaction",
-        "Attachment",
-        "Presence",
-        "Membership"
+        "WeaveSpace",
+        "WeaveConversation",
+        "WeaveMessage",
+        "WeaveThread",
+        "WeaveReaction",
+        "WeaveAttachment",
+        "WeaveMembership",
+        "WeaveHistoryPolicy",
+        "ProviderRef",
+        "MigrationReceipt",
+        "RollbackReceipt",
+        "LossyFieldReport"
       ],
       "capabilityKeys": [
         "chat.read",
@@ -405,14 +410,15 @@
       "displayName": "Files",
       "purpose": "File storage, folders, binary transfer, permissions, versions, and share state.",
       "canonicalObjects": [
-        "Drive",
-        "Folder",
-        "File",
-        "Version",
-        "Permission",
-        "Share",
-        "Lock",
-        "StorageQuota"
+        "WeaveDrive",
+        "WeaveFolder",
+        "WeaveFile",
+        "WeaveVersion",
+        "WeaveShare",
+        "WeavePermission",
+        "WeaveLock",
+        "WeaveQuota",
+        "ProviderRef"
       ],
       "capabilityKeys": [
         "files.read",
@@ -488,8 +494,8 @@
         "nextcloud-files": "release_ready",
         "sharepoint": "contract_only",
         "onedrive": "contract_only",
-        "s3-compatible": "live_adapter_write",
-        "smb": "live_adapter_write"
+        "s3-compatible": "live_write",
+        "smb": "live_write"
       }
     },
     {
@@ -585,13 +591,13 @@
       "displayName": "Calendar",
       "purpose": "Team/channel calendars, events, availability, resources, and meeting bindings.",
       "canonicalObjects": [
-        "Calendar",
-        "Event",
-        "Attendee",
-        "Recurrence",
-        "Availability",
-        "Resource",
-        "MeetingRef"
+        "WeaveCalendar",
+        "WeaveEvent",
+        "WeaveRecurrence",
+        "WeaveAttendee",
+        "WeaveResource",
+        "WeaveAvailability",
+        "ProviderRef"
       ],
       "capabilityKeys": [
         "calendar.read",
@@ -663,7 +669,7 @@
         "nextcloud-caldav": "release_ready",
         "microsoft-graph-calendar": "contract_only",
         "google-workspace-calendar": "contract_only",
-        "generic-caldav": "live_adapter_read",
+        "generic-caldav": "live_read",
         "weave-calendar": "contract_only"
       }
     },
@@ -757,7 +763,7 @@
         "placeholder-boards": "contract_only",
         "jira": "contract_only",
         "microsoft-planner": "contract_only",
-        "nextcloud-deck": "live_adapter_read",
+        "nextcloud-deck": "live_read",
         "vikunja": "contract_only"
       }
     },
@@ -845,7 +851,7 @@
         "external_link_ownership"
       ],
       "providerRealityLevelByCandidate": {
-        "livekit": "configured_readiness",
+        "livekit": "configured",
         "jitsi": "contract_only",
         "zoom": "contract_only",
         "microsoft-teams-meetings": "contract_only",
@@ -1123,13 +1129,13 @@
       "displayName": "Weaver",
       "purpose": "Optional per-user OpenClaw-derived assistant runtime governed by organization policy, member opt-in, tool grants, sandboxing, and audit.",
       "canonicalObjects": [
-        "RuntimeProfile",
-        "ToolGrant",
-        "SkillPackage",
-        "Sandbox",
-        "ApprovalPolicy",
-        "AuditEvent",
-        "OptInState"
+        "WeaverRuntimeProfile",
+        "WeaverRuntimeInstance",
+        "WeaverUserWorkspace",
+        "WeaverToolGrant",
+        "WeaverApprovalReceipt",
+        "WeaverAuditEvent",
+        "WeaverCustomizationProfile"
       ],
       "capabilityKeys": [
         "weaver.profile.read",
@@ -1202,10 +1208,12 @@
   ],
   "providerRealityLevels": [
     "contract_only",
-    "configured_readiness",
-    "live_adapter_read",
-    "live_adapter_write",
+    "configured",
+    "live_read",
+    "live_write",
+    "migration_dry_run",
     "migration_apply_ready",
+    "rollback_ready",
     "release_ready"
   ]
 }

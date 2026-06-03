@@ -1090,14 +1090,18 @@ ProviderRealityLevel _providerRealityLevel(String value) {
   switch (value) {
     case 'contract_only':
       return ProviderRealityLevel.contractOnly;
-    case 'configured_readiness':
-      return ProviderRealityLevel.configuredReadiness;
-    case 'live_adapter_read':
-      return ProviderRealityLevel.liveAdapterRead;
-    case 'live_adapter_write':
-      return ProviderRealityLevel.liveAdapterWrite;
+    case 'configured':
+      return ProviderRealityLevel.configured;
+    case 'live_read':
+      return ProviderRealityLevel.liveRead;
+    case 'live_write':
+      return ProviderRealityLevel.liveWrite;
+    case 'migration_dry_run':
+      return ProviderRealityLevel.migrationDryRun;
     case 'migration_apply_ready':
       return ProviderRealityLevel.migrationApplyReady;
+    case 'rollback_ready':
+      return ProviderRealityLevel.rollbackReady;
     case 'release_ready':
       return ProviderRealityLevel.releaseReady;
     default:

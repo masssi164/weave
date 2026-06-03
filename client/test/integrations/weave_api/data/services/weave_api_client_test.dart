@@ -648,7 +648,7 @@ void main() {
                   'supportSafeErrorCodes': ['PROVIDER_DISABLED'],
                   'redactionPolicy': 'no raw provider errors',
                   'candidates': ['ONLYOFFICE Docs Community'],
-                  'providerRealityLevel': 'contract_only',
+                  'providerRealityLevel': 'migration_dry_run',
                 },
                 {
                   'module': 'meetings',
@@ -667,7 +667,7 @@ void main() {
                   'supportSafeErrorCodes': ['meetings-token-unavailable'],
                   'redactionPolicy': 'booleans only',
                   'candidates': ['livekit'],
-                  'providerRealityLevel': 'configured_readiness',
+                  'providerRealityLevel': 'rollback_ready',
                   'diagnostics': {
                     'activeProvider': 'livekit',
                     'livekitUrlConfigured': true,
@@ -790,7 +790,7 @@ void main() {
         expect(snapshot.providers.first.failClosed, isTrue);
         expect(
           snapshot.providers.first.providerRealityLevel,
-          ProviderRealityLevel.contractOnly,
+          ProviderRealityLevel.migrationDryRun,
         );
         expect(snapshot.providers.first.available, isFalse);
         final meetings = snapshot.providers.singleWhere(
@@ -799,7 +799,7 @@ void main() {
         expect(meetings.providerKey, 'livekit');
         expect(
           meetings.providerRealityLevel,
-          ProviderRealityLevel.configuredReadiness,
+          ProviderRealityLevel.rollbackReady,
         );
         expect(meetings.available, isFalse);
         expect(meetings.diagnostics['livekitUrlConfigured'], isTrue);

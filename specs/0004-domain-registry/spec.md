@@ -48,7 +48,7 @@ Weave needs a stable, provider-neutral registry of product domains so server, ad
 - **FR-004**: Member-facing states MUST remain provider-neutral and MUST NOT require raw provider names, URLs, tokens, or downstream error payloads.
 - **FR-005**: Portability artifacts MUST include no-unaccounted-data-loss loss classes and migration run lifecycle states.
 - **FR-006**: The validation gate MUST fail when required domains, states, aliases, or portability schemas are missing.
-- **FR-007**: Every provider candidate MUST declare one of `contract_only`, `configured_readiness`, `live_adapter_read`, `live_adapter_write`, `migration_apply_ready`, or `release_ready`; `contract_only` candidates MUST NOT produce member state `available`.
+- **FR-007**: Every provider candidate MUST declare exactly one of `contract_only`, `configured`, `live_read`, `live_write`, `migration_dry_run`, `migration_apply_ready`, `rollback_ready`, or `release_ready`; `contract_only` candidates MUST NOT produce member state `available` and only `release_ready` may be described as customer-ready.
 
 ## Acceptance and evidence mapping
 

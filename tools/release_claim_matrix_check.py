@@ -24,10 +24,12 @@ REQUIRED_CLAIMS = {
 }
 REQUIRED_REALITY_LEVELS = [
     "contract_only",
-    "configured_readiness",
-    "live_adapter_read",
-    "live_adapter_write",
+    "configured",
+    "live_read",
+    "live_write",
+    "migration_dry_run",
     "migration_apply_ready",
+    "rollback_ready",
     "release_ready",
 ]
 FORBIDDEN_READY_CLAIMS = [
