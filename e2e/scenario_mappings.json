@@ -1458,6 +1458,44 @@
           ]
         }
       ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_cicd_bootstrapper.feature",
+      "executableTest": "tools/local_cicd_bootstrapper_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-cicd-bootstrapper",
+      "scenario": "Operator selects Forgejo without persisting GitHub secrets",
+      "evidenceMarkers": [
+        "LOCAL_CICD_BOOTSTRAPPER_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "tools/weave-setup/internal/bootstrap/core.go",
+          "fragments": [
+            "TargetForgejo",
+            "TargetGitHub",
+            "Detect",
+            "BuildPlan",
+            "GitHubSecretsRequired"
+          ]
+        },
+        {
+          "path": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
+          "fragments": [
+            "weave-local-cicd-bootstrap-plan-v1",
+            "forgejoRequiresGitHubSecrets",
+            "pushOnlySelectedTarget"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-cicd-bootstrapper.md",
+          "fragments": [
+            "Go-built executable",
+            "GitHub repository secrets are backend-specific",
+            "weave-setup app"
+          ]
+        }
+      ]
     }
   ]
 }
