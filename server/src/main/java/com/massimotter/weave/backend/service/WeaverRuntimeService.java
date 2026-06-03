@@ -12,18 +12,27 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
 @Service
 public class WeaverRuntimeService {
 
+    private static final String MANAGED_BY = "weave-weaver-runtime-reconciler";
+    private static final Pattern UNSAFE_DIAGNOSTIC = Pattern.compile(
+            "(?i)(bearer\\s+[^\\s]+|refresh_token[=:][^\\s,}]+|api[_-]?key[=:][^\\s,}]+|secret[=:][^\\s,}]+|openclaw\\.json|memory://[^\\s,}]+|/memory/[^\\s,}]+)");
+
     private final ConcurrentMap<String, WeaverRuntimeProfileResponse> issuedProfiles = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, WeaverRuntimeInstance> runtimeInstances = new ConcurrentHashMap<>();
 
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
@@ -149,6 +158,116 @@ public class WeaverRuntimeService {
         return issued;
     }
 
+    public WeaverRuntimeInstance provisionRuntime(WeaverRuntimeProfileResponse profile, String orgRef, String policyVersion) {
+        if (profile == null || !profile.enabled() || profile.revoked()) {
+            throw new IllegalArgumentException("Only active Weaver RuntimeProfiles can be provisioned.");
+        }
+        Map<String, String> labels = runtimeLabels(profile, orgRef, policyVersion);
+        WeaverRuntimeInstance instance = new WeaverRuntimeInstance(
+                profile.userRef(),
+                containerId(profile.userRef(), profile.runtimeProfileHash(), policyVersion),
+                "running",
+                profile.runtimeProfileHash(),
+                policyVersion,
+                profile.containerImage(),
+                profile.workspacePath(),
+                labels,
+                Instant.now().toString(),
+                null);
+        runtimeInstances.put(profile.userRef(), instance);
+        return instance;
+    }
+
+    public WeaverRuntimeInstance deactivateRuntime(String userRef, String reason) {
+        WeaverRuntimeInstance current = runtimeInstances.get(userRef);
+        if (current == null) {
+            return new WeaverRuntimeInstance(userRef, "none", "stopped", "none", "none", "", "", Map.of(), Instant.now().toString(), reason);
+        }
+        WeaverRuntimeInstance stopped = current.withState("stopped", reason);
+        runtimeInstances.put(userRef, stopped);
+        return stopped;
+    }
+
+    public List<WeaverRuntimeInstance> runtimeInstances() {
+        return List.copyOf(runtimeInstances.values());
+    }
+
+    public boolean canReadWorkspace(Jwt jwt, String workspacePath) {
+        if (workspacePath == null || workspacePath.isBlank()) {
+            return false;
+        }
+        String expected = workspacePath(supportSafeUserRef(jwt));
+        return workspacePath.equals(expected) || workspacePath.startsWith(expected + "/");
+    }
+
+    public List<WeaverRuntimeReconcileDecision> reconcile(
+            String orgRef,
+            List<WeaverRuntimeDesiredState> desiredStates,
+            List<WeaverRuntimeInstance> actualInstances) {
+        Map<String, WeaverRuntimeInstance> actualByUser = new LinkedHashMap<>();
+        for (WeaverRuntimeInstance instance : actualInstances == null ? List.<WeaverRuntimeInstance>of() : actualInstances) {
+            actualByUser.put(instance.userRef(), instance);
+        }
+        List<WeaverRuntimeReconcileDecision> decisions = new ArrayList<>();
+        for (WeaverRuntimeDesiredState desired : desiredStates == null ? List.<WeaverRuntimeDesiredState>of() : desiredStates) {
+            WeaverRuntimeInstance actual = actualByUser.remove(desired.userRef());
+            WeaverRuntimeReconcileDecision decision = decide(orgRef, desired, actual);
+            decisions.add(decision);
+            auditReconcileDecision(decision);
+        }
+        for (WeaverRuntimeInstance orphan : actualByUser.values()) {
+            WeaverRuntimeDesiredState desired = new WeaverRuntimeDesiredState(
+                    orphan.userRef(), false, "revoked", orphan.runtimeProfileHash(), orphan.policyVersion(), orphan.containerImage(), orphan.workspacePath());
+            WeaverRuntimeReconcileDecision decision = decide(orgRef, desired, orphan);
+            decisions.add(decision);
+            auditReconcileDecision(decision);
+        }
+        return List.copyOf(decisions);
+    }
+
+    public Map<String, Object> supportSafeRuntimeBundle(List<WeaverRuntimeInstance> instances, Map<String, String> diagnostics) {
+        List<Map<String, Object>> redactedInstances = (instances == null ? List.<WeaverRuntimeInstance>of() : instances).stream()
+                .map(instance -> Map.<String, Object>ofEntries(
+                        Map.entry("userRef", instance.userRef()),
+                        Map.entry("containerId", instance.containerId()),
+                        Map.entry("state", instance.state()),
+                        Map.entry("runtimeProfileHash", instance.runtimeProfileHash()),
+                        Map.entry("policyVersion", instance.policyVersion()),
+                        Map.entry("workspacePath", instance.workspacePath()),
+                        Map.entry("labels", instance.labels()),
+                        Map.entry("supportSafe", true)))
+                .toList();
+        Map<String, String> redactedDiagnostics = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : (diagnostics == null ? Map.<String, String>of() : diagnostics).entrySet()) {
+            String key = entry.getKey() == null ? "diagnostic" : entry.getKey().toLowerCase(Locale.ROOT);
+            if (key.contains("memory") || key.contains("secret") || key.contains("token") || key.contains("openclaw")) {
+                redactedDiagnostics.put(key, "[redacted]");
+            } else {
+                redactedDiagnostics.put(key, redactDiagnostic(entry.getValue()));
+            }
+        }
+        return Map.ofEntries(
+                Map.entry("artifactKind", "weave-weaver-runtime-support-bundle"),
+                Map.entry("redaction", "support_safe"),
+                Map.entry("rawWeaverMemoryExported", false),
+                Map.entry("rawOpenClawConfigExported", false),
+                Map.entry("rawProviderSecretsExported", false),
+                Map.entry("rawProviderPayloadsExported", false),
+                Map.entry("instances", redactedInstances),
+                Map.entry("diagnostics", redactedDiagnostics));
+    }
+
+    public WeaverRuntimeDesiredState desiredStateFromProfile(WeaverRuntimeProfileResponse profile, String policyVersion) {
+        return new WeaverRuntimeDesiredState(
+                profile.userRef(),
+                profile.enabled() && !profile.revoked(),
+                profile.revocationStatus(),
+                profile.runtimeProfileHash(),
+                policyVersion,
+                profile.containerImage(),
+                profile.workspacePath());
+    }
+
     private WeaverRuntimeProfileResponse disabledProfile(String userRef, String posture, String impact) {
         String profileVersion = "disabled-0";
         String expiresAt = Instant.now().plus(15, ChronoUnit.MINUTES).toString();
@@ -215,6 +334,81 @@ public class WeaverRuntimeService {
                 "secretrefs-only-no-raw-provider-tokens",
                 "disabled-runtime-has-no-workspace-memory-session-store",
                 impact);
+    }
+
+    private Map<String, String> runtimeLabels(WeaverRuntimeProfileResponse profile, String orgRef, String policyVersion) {
+        return Map.ofEntries(
+                Map.entry("weave.org", orgRef == null || orgRef.isBlank() ? "org:unknown" : orgRef),
+                Map.entry("weave.user", profile.userRef()),
+                Map.entry("weave.profile_hash", profile.runtimeProfileHash()),
+                Map.entry("weave.policy_version", policyVersion == null || policyVersion.isBlank() ? "policy:unknown" : policyVersion),
+                Map.entry("weave.managed_by", MANAGED_BY));
+    }
+
+    private String containerId(String userRef, String runtimeProfileHash, String policyVersion) {
+        return "weaver-" + sha256(String.join("|", userRef, runtimeProfileHash, policyVersion == null ? "" : policyVersion)).substring(0, 20);
+    }
+
+    private WeaverRuntimeReconcileDecision decide(
+            String orgRef,
+            WeaverRuntimeDesiredState desired,
+            WeaverRuntimeInstance actual) {
+        String desiredState = desired.active() ? "running" : "stopped";
+        String actualState = actual == null ? "missing" : actual.state();
+        String action;
+        String outcome;
+        if (!desired.active() && actual == null) {
+            action = "noop";
+            outcome = "already-stopped";
+        } else if (!desired.active()) {
+            action = "revoke";
+            outcome = "stop-container";
+        } else if (actual == null || !"running".equals(actual.state())) {
+            action = "create";
+            outcome = "start-container";
+        } else if (!desired.runtimeProfileHash().equals(actual.runtimeProfileHash())
+                || !desired.policyVersion().equals(actual.policyVersion())
+                || !desired.workspacePath().equals(actual.workspacePath())) {
+            action = "update";
+            outcome = "replace-drifted-container";
+        } else {
+            action = "noop";
+            outcome = "in-sync";
+        }
+        return new WeaverRuntimeReconcileDecision(
+                desired.userRef(), orgRef, desiredState, actualState, action, outcome, desired.runtimeProfileHash(),
+                actual == null ? "none" : actual.runtimeProfileHash(), desired.policyVersion(), actual == null ? "none" : actual.policyVersion());
+    }
+
+    private String redactDiagnostic(String value) {
+        if (value == null) {
+            return "";
+        }
+        return UNSAFE_DIAGNOSTIC.matcher(value).replaceAll("[redacted]");
+    }
+
+    private void auditReconcileDecision(WeaverRuntimeReconcileDecision decision) {
+        auditEventPublisher.publish(new AuditEvent(
+                "tenant:workspace",
+                null,
+                decision.userRef(),
+                "weaver-runtime-reconciler",
+                AuditAction.WEAVER_RUNTIME_RECONCILED,
+                Instant.now(),
+                "weaver-runtime:" + decision.userRef(),
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.ofEntries(
+                        Map.entry("user", decision.userRef()),
+                        Map.entry("desiredState", decision.desiredState()),
+                        Map.entry("actualState", decision.actualState()),
+                        Map.entry("action", decision.action()),
+                        Map.entry("outcome", decision.outcome()),
+                        Map.entry("desiredRuntimeProfileHash", decision.desiredRuntimeProfileHash()),
+                        Map.entry("actualRuntimeProfileHash", decision.actualRuntimeProfileHash()),
+                        Map.entry("desiredPolicyVersion", decision.desiredPolicyVersion()),
+                        Map.entry("actualPolicyVersion", decision.actualPolicyVersion()),
+                        Map.entry("managedBy", MANAGED_BY),
+                        Map.entry("supportSafe", true))));
     }
 
     private List<String> allowedCapabilities(List<String> grantedCapabilities) {
@@ -433,5 +627,50 @@ public class WeaverRuntimeService {
                         Map.entry("execEnabled", response.execEnabled()),
                         Map.entry("elevatedEnabled", response.elevatedEnabled()),
                         Map.entry("supportSafe", true))));
+    }
+
+    public record WeaverRuntimeInstance(
+            String userRef,
+            String containerId,
+            String state,
+            String runtimeProfileHash,
+            String policyVersion,
+            String containerImage,
+            String workspacePath,
+            Map<String, String> labels,
+            String startedAt,
+            String stoppedReason) {
+
+        public WeaverRuntimeInstance {
+            labels = Map.copyOf(labels == null ? Map.of() : labels);
+        }
+
+        WeaverRuntimeInstance withState(String state, String reason) {
+            return new WeaverRuntimeInstance(
+                    userRef, containerId, state, runtimeProfileHash, policyVersion, containerImage, workspacePath, labels, startedAt, reason);
+        }
+    }
+
+    public record WeaverRuntimeDesiredState(
+            String userRef,
+            boolean active,
+            String revocationStatus,
+            String runtimeProfileHash,
+            String policyVersion,
+            String containerImage,
+            String workspacePath) {
+    }
+
+    public record WeaverRuntimeReconcileDecision(
+            String userRef,
+            String orgRef,
+            String desiredState,
+            String actualState,
+            String action,
+            String outcome,
+            String desiredRuntimeProfileHash,
+            String actualRuntimeProfileHash,
+            String desiredPolicyVersion,
+            String actualPolicyVersion) {
     }
 }

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-weaver-runtime-per-user-isolation-proof",
+  "supportSafe": true,
+  "issue": 633,
+  "scope": "provider-lab fixture and server contract tests only",
+  "checkedAt": "2026-06-03T08:30:00Z",
+  "workspaceIsolation": {
+    "aliceWorkspace": "/var/lib/weave/weaver/alice-fixture",
+    "bobWorkspace": "/var/lib/weave/weaver/bob-fixture",
+    "aliceReadsAlice": "allowed",
+    "aliceReadsBob": "blocked",
+    "bobReadsAlice": "blocked"
+  },
+  "profileIsolation": {
+    "sameUserFetchByHash": "allowed",
+    "crossUserFetchByHash": "blocked",
+    "revokedOrExpiredProfile": "blocked"
+  },
+  "supportBundleRedaction": {
+    "redaction": "support_safe",
+    "rawWeaverMemoryExported": false,
+    "rawOpenClawConfigExported": false,
+    "rawProviderSecretsExported": false,
+    "rawProviderPayloadsExported": false,
+    "forbiddenSamplesRejected": [
+      "weaver memory prompt",
+      "openclaw.json",
+      "authorization credential",
+      "oauth refresh credential",
+      "raw provider payload"
+    ]
+  },
+  "adminDisablement": {
+    "aliceRuntimeStopped": true,
+    "bobRuntimeUnaffected": true,
+    "memoryOrSecretsLeakedAfterDisable": false
+  },
+  "claimBoundary": "Isolation evidence covers support-safe server/runtime factory fixtures; it does not claim production sandbox strength or customer-ready autonomous PA execution."
+}

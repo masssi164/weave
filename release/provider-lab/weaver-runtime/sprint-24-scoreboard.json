@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-weaver-runtime-sprint-24-scoreboard",
+  "supportSafe": true,
+  "checkedAt": "2026-06-03T08:30:00Z",
+  "fields": {
+    "runtimeLifecycle": "green",
+    "reconciliation": "green",
+    "perUserIsolation": "green",
+    "supportBundleRedaction": "green",
+    "claimSafety": "green"
+  },
+  "issues": {
+    "631": "green",
+    "632": "green",
+    "633": "green",
+    "634": "green"
+  },
+  "dockerRuntimeRealityLevel": "configured",
+  "sprint24ExitGate": "green",
+  "openReleaseBlockers": [],
+  "claimBoundary": "Sprint 24 is green only for support-safe provider-lab runtime factory evidence, not production/customer-ready Weaver."
+}
