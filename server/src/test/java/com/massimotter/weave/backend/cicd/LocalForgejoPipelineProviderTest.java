@@ -15,6 +15,8 @@ class LocalForgejoPipelineProviderTest {
         assertThat(manifest.providerKey()).isEqualTo("local-forgejo-actions");
         assertThat(manifest.workflowRef()).isEqualTo("weave-admin-setup-e2e");
         assertThat(manifest.requiredSecretRefs()).contains("WEAVE_FORGEJO_TOKEN");
+        assertThat(manifest.cancellationSupported()).isFalse();
+        assertThat(manifest.retrySupported()).isFalse();
         assertThat(manifest.failClosedCases()).contains("runner_missing", "runner_secret_missing", "approval_missing", "unknown_status_timeout");
     }
 
@@ -38,6 +40,10 @@ class LocalForgejoPipelineProviderTest {
 
     @Test
     void preflightRequiresSecretRefsVariablesAndApprovalBeforeDispatch() {
+        PipelineRunRef approvalBlocked = provider.requestDispatch(new PipelineDispatchRequest(new PipelinePreflightRequest(true, true, allSecrets(), allVariables(), false, false, "support_safe_domain_plan_ref"), "approval-needed", "idem-approval"));
+        assertThat(approvalBlocked.status()).isEqualTo(PipelineRunStatus.APPROVAL_REQUIRED);
+        assertThat(approvalBlocked.nextActionCode()).isEqualTo("capture_admin_approval");
+
         PipelinePreflightResult missing = provider.preflight(new PipelinePreflightRequest(true, true, List.of("WEAVE_FORGEJO_TOKEN"), List.of("WEAVE_FORGEJO_BASE_URL"), false, false, "support_safe_domain_plan_ref"));
         assertThat(missing.reasonCode()).isEqualTo("runner_secret_missing");
         assertThat(missing.missingNames()).contains("WEAVE_INFRA_STATE_SECRET", "WEAVE_FORGEJO_API_URL");
@@ -64,6 +70,16 @@ class LocalForgejoPipelineProviderTest {
         assertThat(complete.status()).isEqualTo(PipelineRunStatus.EVIDENCE_COMPLETE);
         assertThat(complete.nextActionCode()).isEqualTo("collect_deployed_stack_e2e_evidence");
         assertThat(complete.supportSafeSummary()).doesNotContain("payload", "log:", "http://", "https://");
+
+        PipelineRunRef rateLimited = provider.observe(queued, PipelineObservedStatus.RATE_LIMITED);
+        assertThat(rateLimited.nextActionCode()).isEqualTo("backoff_and_retry_observation");
+        PipelineRunRef unknown = provider.observe(queued, PipelineObservedStatus.UNKNOWN);
+        assertThat(unknown.nextActionCode()).isEqualTo("fail_closed_unknown_status_timeout");
+    }
+
+    @Test
+    void redactorBlocksPemPrivateKeys() {
+        assertThat(SupportSafePipelineRedactor.containsUnsafeValue("-----BEGIN OPENSSH PRIVATE KEY-----")).isTrue();
     }
 
     private static List<String> allSecrets() {

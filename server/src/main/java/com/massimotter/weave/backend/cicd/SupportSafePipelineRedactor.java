@@ -8,7 +8,8 @@ public final class SupportSafePipelineRedactor {
             Pattern.compile("(?i)gh[pousr]_[a-z0-9_]{12,}"),
             Pattern.compile("(?i)(token|secret|password|private[_-]?key)\\s*[:=]\\s*[^\\s,}\\\"]+"),
             Pattern.compile("(?i)https?://[^\\s)\\\"]+"),
-            Pattern.compile("(?i)ssh://[^\\s)\\\"]+")
+            Pattern.compile("(?i)ssh://[^\\s)\\\"]+"),
+            Pattern.compile("(?i)-----begin\\s+(rsa|dsa|ec|openssh|private)\\s+private\\s+key-----")
     };
 
     private SupportSafePipelineRedactor() {}

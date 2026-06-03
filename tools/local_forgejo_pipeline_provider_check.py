@@ -44,6 +44,16 @@ FORBIDDEN_PATTERNS = [
         r"-----begin\s+(rsa|dsa|ec|openssh|private)\s+private\s+key-----",
     ]
 ]
+FORBIDDEN_FIELD_NAMES = {
+    "secretValue",
+    "tokenValue",
+    "rawCiLog",
+    "rawProviderPayload",
+    "credentialBearingUrl",
+    "tenantUrl",
+    "memberContent",
+    "runnerRegistrationToken",
+}
 
 
 def fail(message: str) -> None:
@@ -71,7 +81,10 @@ def load(path: Path) -> dict[str, Any]:
 def assert_support_safe(value: Any, label: str, path: tuple[str, ...] = ()) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
-            assert_support_safe(child, label, (*path, key))
+            child_path = (*path, key)
+            if key in FORBIDDEN_FIELD_NAMES and child_path != ("forbiddenPersistence",):
+                fail(f"{label} contains forbidden field {'.'.join(child_path)}")
+            assert_support_safe(child, label, child_path)
         return
     if isinstance(value, list):
         for index, child in enumerate(value):

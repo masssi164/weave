@@ -31,8 +31,8 @@ public final class LocalForgejoPipelineProvider implements PipelineProvider {
                 true,
                 true,
                 true,
-                true,
-                true,
+                false,
+                false,
                 REQUIRED_SECRETS,
                 REQUIRED_VARIABLES,
                 List.of("runner_missing", "runner_offline", "runner_secret_missing", "approval_missing", "unknown_status_timeout", "rate_limit_exhausted", "raw_value_supplied")
@@ -82,7 +82,9 @@ public final class LocalForgejoPipelineProvider implements PipelineProvider {
     public PipelineRunRef requestDispatch(PipelineDispatchRequest request) {
         PipelinePreflightResult result = preflight(request.preflight());
         if (!result.dispatchAllowed()) {
-            return new PipelineRunRef(PROVIDER_KEY, WORKFLOW_REF, "none-trigger-blocked-before-dispatch", PipelineRunStatus.BLOCKED, request.correlationRef(), result.auditRef(), result.evidenceRef(), result.reasonCode(), result.supportSafeSummary());
+            PipelineRunStatus blockedStatus = "approval_missing".equals(result.reasonCode()) ? PipelineRunStatus.APPROVAL_REQUIRED : PipelineRunStatus.BLOCKED;
+            String nextAction = "approval_missing".equals(result.reasonCode()) ? "capture_admin_approval" : result.reasonCode();
+            return new PipelineRunRef(PROVIDER_KEY, WORKFLOW_REF, "none-trigger-blocked-before-dispatch", blockedStatus, request.correlationRef(), result.auditRef(), result.evidenceRef(), nextAction, result.supportSafeSummary());
         }
         String runRef = "forgejo-run-" + safeRef(request.correlationRef()) + "-pending-provider-call";
         return new PipelineRunRef(PROVIDER_KEY, WORKFLOW_REF, runRef, PipelineRunStatus.QUEUED, request.correlationRef(), "audit://admin-cicd/local-forgejo/dispatch-requested", "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json", "observe_run_status", "Dispatch requested through support-safe provider abstraction; provider internals stay hidden.");
@@ -100,7 +102,14 @@ public final class LocalForgejoPipelineProvider implements PipelineProvider {
             case RATE_LIMITED -> PipelineRunStatus.RATE_LIMITED;
             case UNKNOWN -> PipelineRunStatus.UNKNOWN;
         };
-        String nextAction = status == PipelineRunStatus.EVIDENCE_COMPLETE ? "collect_deployed_stack_e2e_evidence" : "continue_support_safe_observation";
+        String nextAction = switch (status) {
+            case EVIDENCE_COMPLETE -> "collect_deployed_stack_e2e_evidence";
+            case RATE_LIMITED -> "backoff_and_retry_observation";
+            case TIMED_OUT, UNKNOWN -> "fail_closed_unknown_status_timeout";
+            case FAILED -> "collect_redacted_failure_summary";
+            case CANCELLED -> "record_cancelled_terminal_state";
+            default -> "continue_support_safe_observation";
+        };
         return new PipelineRunRef(runRef.providerKey(), runRef.workflowRef(), runRef.runRef(), status, runRef.correlationRef(), "audit://admin-cicd/local-forgejo/status-observed", runRef.evidenceRef(), nextAction, "Observed support-safe pipeline status with redacted provider diagnostics.");
     }
 
