@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "fixtureKind": "weave-provider-lab-chat-fixture",
+  "fixtureId": "sprint-22-chat-provider-switch-foundation",
+  "safeForSupportLogs": true,
+  "counts": {
+    "spaces": 2,
+    "channels": 3,
+    "people": 3,
+    "messages": 50,
+    "threads": 5,
+    "reactions": 10,
+    "attachments": 5,
+    "editedMessages": 3,
+    "deletedMessages": 2,
+    "pinnedDecisions": 1,
+    "e2eeUnsupportedHistoryFixtures": 1
+  },
+  "people": [
+    {"id": "person-admin", "displayName": "Admin", "role": "admin"},
+    {"id": "person-alice", "displayName": "Alice", "role": "member"},
+    {"id": "person-bob", "displayName": "Bob", "role": "member"}
+  ],
+  "spaces": [
+    {"id": "space-alpha", "channelIds": ["channel-alpha-general", "channel-alpha-release"]},
+    {"id": "space-beta", "channelIds": ["channel-beta-general"]}
+  ],
+  "expectedHistoryStatuses": [
+    "preserved",
+    "partially_preserved",
+    "archive_only",
+    "unsupported",
+    "unexportable",
+    "conflict",
+    "metadata_only"
+  ],
+  "supportSafeContentPolicy": {
+    "messageBodiesIncludedInLogs": false,
+    "attachmentContentsIncludedInLogs": false,
+    "providerRoomIdsIncludedInLogs": false
+  },
+  "records": {
+    "messages": ["msg-001", "msg-002", "msg-003", "msg-004", "msg-005", "msg-006", "msg-007", "msg-008", "msg-009", "msg-010", "msg-011", "msg-012", "msg-013", "msg-014", "msg-015", "msg-016", "msg-017", "msg-018", "msg-019", "msg-020", "msg-021", "msg-022", "msg-023", "msg-024", "msg-025", "msg-026", "msg-027", "msg-028", "msg-029", "msg-030", "msg-031", "msg-032", "msg-033", "msg-034", "msg-035", "msg-036", "msg-037", "msg-038", "msg-039", "msg-040", "msg-041", "msg-042", "msg-043", "msg-044", "msg-045", "msg-046", "msg-047", "msg-048", "msg-049", "msg-050"],
+    "threads": ["thread-001", "thread-002", "thread-003", "thread-004", "thread-005"],
+    "reactions": ["reaction-001", "reaction-002", "reaction-003", "reaction-004", "reaction-005", "reaction-006", "reaction-007", "reaction-008", "reaction-009", "reaction-010"],
+    "attachments": ["attachment-metadata-001", "attachment-metadata-002", "attachment-metadata-003", "attachment-metadata-004", "attachment-metadata-005"],
+    "editedMessages": ["msg-003", "msg-017", "msg-044"],
+    "deletedMessages": ["msg-011", "msg-032"],
+    "pinnedDecisions": ["decision-001"],
+    "e2eeUnsupportedHistoryFixtures": ["history-e2ee-unsupported-001"]
+  }
+}

@@ -37,10 +37,12 @@ Unknown provider states fail closed into a support-safe admin state and a stable
 Every provider candidate has a stable `providerRealityLevel` in the canonical registry:
 
 - `contract_only`
-- `configured_readiness`
-- `live_adapter_read`
-- `live_adapter_write`
+- `configured`
+- `live_read`
+- `live_write`
+- `migration_dry_run`
 - `migration_apply_ready`
+- `rollback_ready`
 - `release_ready`
 
 Member capability states are derived from policy, readiness, admin selection, and reality level. A `contract_only` provider must never produce member state `available`; Admin Console and support bundles must instead show the remediation needed to promote the candidate without exposing URLs, tenant IDs, credentials, provider-internal IDs, or raw downstream bodies.

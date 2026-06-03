@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "reportKind": "weave-provider-lab-health-report",
+  "supportSafe": true,
+  "checkedAt": "2026-06-03T02:01:37Z",
+  "providers": [
+    {
+      "providerKey": "authentik",
+      "domain": "identity",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "docker-runtime",
+      "domain": "weaver",
+      "realityLevel": "contract_only",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "keycloak",
+      "domain": "identity",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "matrix-synapse",
+      "domain": "chat",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "minio-s3",
+      "domain": "files",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "nextcloud",
+      "domain": "files",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "nextcloud-caldav",
+      "domain": "calendar",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "openproject",
+      "domain": "boards",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "radicale",
+      "domain": "calendar",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    },
+    {
+      "providerKey": "zulip",
+      "domain": "chat",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "supportEvidenceRedacted": true
+    }
+  ]
+}

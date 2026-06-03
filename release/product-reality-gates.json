@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "status": "sprint-21-foundation",
+  "releasePrinciple": "No statement is release-capable unless proven by E2E/runtime/migration/rollback evidence.",
+  "allowedClaim": "Weave builds provider-neutral domains and proves them first with free self-hosted providers.",
+  "realityLevels": [
+    "contract_only",
+    "configured",
+    "live_read",
+    "live_write",
+    "migration_dry_run",
+    "migration_apply_ready",
+    "rollback_ready",
+    "release_ready"
+  ],
+  "onlyCustomerReadyLevel": "release_ready",
+  "forbiddenClaimsUntilEvidence": [
+    "Providers are interchangeable",
+    "Weaver is available",
+    "A PA runs per user",
+    "History remains fully preserved",
+    "Rollback works in production",
+    "v0.1 is release-ready"
+  ],
+  "providerLab": [
+    {
+      "domain": "identity",
+      "providers": ["keycloak", "authentik"],
+      "minimumSprint21RealityLevel": "contract_only"
+    },
+    {
+      "domain": "chat",
+      "providers": ["matrix-synapse", "zulip"],
+      "minimumSprint21RealityLevel": "contract_only"
+    },
+    {
+      "domain": "files",
+      "providers": ["nextcloud", "minio-s3"],
+      "minimumSprint21RealityLevel": "contract_only"
+    },
+    {
+      "domain": "calendar",
+      "providers": ["nextcloud-caldav", "radicale"],
+      "minimumSprint21RealityLevel": "contract_only"
+    },
+    {
+      "domain": "boards",
+      "providers": ["openproject"],
+      "minimumSprint21RealityLevel": "contract_only"
+    },
+    {
+      "domain": "weaver",
+      "providers": ["docker-runtime"],
+      "minimumSprint21RealityLevel": "contract_only"
+    }
+  ],
+  "canonicalObjects": {
+    "chat": ["WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"],
+    "files": ["WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"],
+    "calendar": ["WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"],
+    "weaver": ["WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"]
+  },
+  "humanValidationSprint": "Human-in-the-Loop Release Validation",
+  "humanValidationPrerequisite": "All automated E2E/runtime/migration/rollback/restore/support-safe gates are green before human testers validate."
+}

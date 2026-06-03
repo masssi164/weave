@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-chat-switch-sprint-23-claim-gate",
+  "sprint": "Sprint 23 — Chat Provider Switch",
+  "issues": [630],
+  "redaction": "support_safe",
+  "chatRealityLevel": "migration_apply_ready",
+  "releaseReady": false,
+  "scoreboard": {
+    "scoreboardKind": "weave-sprint-23-chat-switch-scoreboard",
+    "chatProviderSwitch": "green",
+    "matrixToZulipDryRunApply": "green",
+    "zulipToMatrixRollbackHonesty": "green",
+    "canonicalObjectCoverage": "green",
+    "providerRefRedaction": "green",
+    "claimSafety": "green",
+    "releaseReady": "blocked"
+  },
+  "requiredEvidenceRefs": [
+    "release/provider-lab/chat-switch/canonical-object-coverage.json",
+    "release/provider-lab/chat-switch/matrix-zulip-migration-proof.fixture.json",
+    "release/provider-lab/chat-switch/matrix-zulip-lossy-field-report.fixture.json",
+    "release/provider-lab/chat-switch/zulip-matrix-rollback-proof.fixture.json"
+  ],
+  "acceptedScopedClaim": {
+    "claim": "Sprint 23 proves a CI-safe provider-lab Matrix/Synapse to Zulip Chat switch fixture with stable Weave domain IDs, explicit LossyFieldReport coverage, rollback-honesty classification, support-safe ProviderRefs, and blocked release-ready wording.",
+    "mustReference": [
+      "MigrationReceipt",
+      "LossyFieldReport",
+      "RollbackReceipt",
+      "UI validation transcript"
+    ],
+    "expectedOutcome": "accept"
+  },
+  "rejectedGenericClaim": {
+    "claim": "Providers are interchangeable and chat rollback works in production with fully preserved history.",
+    "expectedOutcome": "reject",
+    "reasons": [
+      "generic provider interchangeability is forbidden",
+      "production rollback is blocked",
+      "full-history preservation is not proven"
+    ]
+  },
+  "openBlockers": [
+    "production provider mutation and rollback remain blocked until release_ready evidence exists",
+    "E2EE history migration remains unsupported/coming_later",
+    "commercial chat adapters are out of scope for Sprint 23",
+    "lossless all-provider portability remains unproven"
+  ],
+  "claimBoundary": "Sprint 23 can state only the named Matrix/Synapse to Zulip provider-lab fixture scope. It must not claim provider interchangeability, production apply, production rollback, customer-ready or release-ready status, lossless migration, full-history preservation, or E2EE history migration."
+}

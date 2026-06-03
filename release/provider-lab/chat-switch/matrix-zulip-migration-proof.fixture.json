@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-chat-switch-matrix-zulip-migration-proof",
+  "sprint": "Sprint 23 — Chat Provider Switch",
+  "issues": [627],
+  "redaction": "support_safe",
+  "supportSafe": true,
+  "sourceProvider": "matrix-synapse",
+  "targetProvider": "zulip",
+  "domainBefore": {
+    "domainKey": "chat",
+    "weaveSpaceId": "weave-space:provider-lab-main",
+    "weaveConversationId": "weave-conversation:ops-announcements",
+    "activeProvider": "matrix-synapse"
+  },
+  "migrationReceipt": {
+    "receiptId": "migration-receipt:s23:matrix-zulip:dry-run-apply:redacted",
+    "state": "applied_in_provider_lab_fixture",
+    "productionMutationPerformed": false,
+    "sourceProvider": "matrix-synapse",
+    "targetProvider": "zulip",
+    "startedAtUtc": "2026-06-03T06:00:00Z",
+    "completedAtUtc": "2026-06-03T06:04:00Z",
+    "weaveDomainIdsStable": true,
+    "providerRefs": [
+      {
+        "providerId": "matrix-synapse",
+        "providerObjectType": "room",
+        "opaqueId": "opaque:matrix-synapse:room:7b83a2e1c4d5",
+        "contentHash": "sha256:6d61747269782d726f6f6d2d726564616374656400",
+        "historyStatus": "preserved",
+        "redacted": true
+      },
+      {
+        "providerId": "zulip",
+        "providerObjectType": "stream",
+        "opaqueId": "opaque:zulip:stream:8f92b6c1d3e4",
+        "contentHash": "sha256:7a756c69702d73747265616d2d726564616374656400",
+        "historyStatus": "preserved",
+        "redacted": true
+      }
+    ],
+    "objectCounts": {
+      "spaces": 1,
+      "conversations": 4,
+      "messages": 50,
+      "threads": 7,
+      "reactions": 13,
+      "attachments": 6,
+      "memberships": 11,
+      "historyPolicies": 3
+    },
+    "historyStatuses": [
+      "preserved",
+      "partially_preserved",
+      "archive_only",
+      "unsupported",
+      "unexportable",
+      "conflict",
+      "metadata_only"
+    ],
+    "lossyFieldReportRef": "lossy-field-report:s23:matrix-zulip:redacted",
+    "attachmentValidationReportRef": "attachment-validation:s23:matrix-zulip:redacted",
+    "uiValidationTranscriptRef": "ui-validation:s23:chat-domain-stable-after-zulip-active:redacted",
+    "auditRefs": [
+      "audit:s23:chat-switch:dry-run:redacted",
+      "audit:s23:chat-switch:apply-fixture:redacted",
+      "audit:s23:chat-switch:provider-active-zulip:redacted"
+    ]
+  },
+  "historyValidation": [
+    {
+      "canonicalObject": "WeaveMessage",
+      "field": "bodyHash",
+      "historyStatus": "preserved",
+      "evidenceRef": "migration-receipt:s23:matrix-zulip:dry-run-apply:redacted"
+    },
+    {
+      "canonicalObject": "WeaveThread",
+      "field": "replyTopology",
+      "historyStatus": "partially_preserved",
+      "evidenceRef": "lossy-field-report:s23:matrix-zulip:redacted"
+    },
+    {
+      "canonicalObject": "WeaveAttachment",
+      "field": "binaryContent",
+      "historyStatus": "archive_only",
+      "evidenceRef": "attachment-validation:s23:matrix-zulip:redacted"
+    },
+    {
+      "canonicalObject": "WeaveHistoryPolicy",
+      "field": "e2eeHistory",
+      "historyStatus": "unsupported",
+      "evidenceRef": "lossy-field-report:s23:matrix-zulip:redacted"
+    },
+    {
+      "canonicalObject": "WeaveReaction",
+      "field": "redactedReactionSender",
+      "historyStatus": "unexportable",
+      "evidenceRef": "lossy-field-report:s23:matrix-zulip:redacted"
+    },
+    {
+      "canonicalObject": "WeaveMessage",
+      "field": "lateEditDuringCutover",
+      "historyStatus": "conflict",
+      "evidenceRef": "audit:s23:chat-switch:provider-active-zulip:redacted"
+    },
+    {
+      "canonicalObject": "WeaveMembership",
+      "field": "historicalPowerLevels",
+      "historyStatus": "metadata_only",
+      "evidenceRef": "lossy-field-report:s23:matrix-zulip:redacted"
+    }
+  ],
+  "lossyFieldReport": {
+    "reportId": "lossy-field-report:s23:matrix-zulip:redacted",
+    "redaction": "support_safe",
+    "entries": [
+      {
+        "canonicalObject": "WeaveThread",
+        "field": "replyTopology",
+        "lossClass": "lossy",
+        "historyStatus": "partially_preserved",
+        "reason": "Matrix relation nesting is flattened into Zulip topics for the provider-lab fixture."
+      },
+      {
+        "canonicalObject": "WeaveAttachment",
+        "field": "binaryContent",
+        "lossClass": "archive_only",
+        "historyStatus": "archive_only",
+        "reason": "Attachment bytes stay behind retained archive refs unless copied into Weave-controlled storage by a future release gate."
+      },
+      {
+        "canonicalObject": "WeaveHistoryPolicy",
+        "field": "e2eeHistory",
+        "lossClass": "unsupported",
+        "historyStatus": "unsupported",
+        "reason": "Server-side provider switching cannot decrypt encrypted Matrix history."
+      },
+      {
+        "canonicalObject": "WeaveReaction",
+        "field": "redactedReactionSender",
+        "lossClass": "manual_review",
+        "historyStatus": "unexportable",
+        "reason": "The source fixture marks the sender unavailable after redaction."
+      },
+      {
+        "canonicalObject": "WeaveMembership",
+        "field": "historicalPowerLevels",
+        "lossClass": "manual_review",
+        "historyStatus": "metadata_only",
+        "reason": "Power-level history is summarized for admin review, not exposed as raw provider payload."
+      }
+    ]
+  },
+  "attachmentValidationReport": {
+    "reportId": "attachment-validation:s23:matrix-zulip:redacted",
+    "validatedAttachments": 6,
+    "copiedToTarget": 3,
+    "archiveOnly": 3,
+    "failed": 0,
+    "redaction": "support_safe"
+  },
+  "uiValidationTranscript": {
+    "transcriptId": "ui-validation:s23:chat-domain-stable-after-zulip-active:redacted",
+    "memberRoute": "/chat/weave-conversation:ops-announcements",
+    "visibleDomain": "Chat",
+    "activeProviderState": "available",
+    "activeProvider": "zulip",
+    "weaveSpaceIdStable": true,
+    "weaveConversationIdStable": true,
+    "providerSetupHiddenFromMember": true,
+    "redaction": "support_safe"
+  },
+  "auditLog": [
+    {
+      "auditRef": "audit:s23:chat-switch:dry-run:redacted",
+      "event": "chat.provider_switch.dry_run",
+      "links": ["lossy-field-report:s23:matrix-zulip:redacted"]
+    },
+    {
+      "auditRef": "audit:s23:chat-switch:apply-fixture:redacted",
+      "event": "chat.provider_switch.apply_fixture",
+      "links": ["migration-receipt:s23:matrix-zulip:dry-run-apply:redacted", "attachment-validation:s23:matrix-zulip:redacted"]
+    },
+    {
+      "auditRef": "audit:s23:chat-switch:provider-active-zulip:redacted",
+      "event": "chat.provider_switch.active_provider_changed",
+      "links": ["ui-validation:s23:chat-domain-stable-after-zulip-active:redacted"]
+    }
+  ],
+  "domainAfter": {
+    "domainKey": "chat",
+    "weaveSpaceId": "weave-space:provider-lab-main",
+    "weaveConversationId": "weave-conversation:ops-announcements",
+    "activeProvider": "zulip"
+  },
+  "claimBoundary": "This fixture proves a CI-safe provider-lab Matrix/Synapse to Zulip dry-run/apply evidence path only. It does not prove production apply, lossless migration, full-history preservation, E2EE history migration, provider interchangeability, or release readiness."
+}

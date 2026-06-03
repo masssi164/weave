@@ -269,10 +269,12 @@ final class ProviderCategoryHealthMapper {
     private static String realityLevelRemediation(ProviderRealityLevel realityLevel) {
         return switch (realityLevel) {
             case CONTRACT_ONLY -> "Contract-only candidate: keep member state unavailable/coming_later until adapter code, readiness evidence, and policy gates exist.";
-            case CONFIGURED_READINESS -> "Configuration/readiness candidate: finish backend adapter proof before claiming live member availability.";
-            case LIVE_ADAPTER_READ -> "Read adapter exists: prove write/delete boundaries, audit, and support-bundle redaction before broad availability.";
-            case LIVE_ADAPTER_WRITE -> "Read/write adapter exists: complete migration dry-run/apply evidence and rollback/retention notes before replacement claims.";
-            case MIGRATION_APPLY_READY -> "Migration apply is ready: complete release gate evidence before general availability claims.";
+            case CONFIGURED -> "Configuration/readiness candidate: finish backend adapter proof before claiming live member availability.";
+            case LIVE_READ -> "Read adapter exists: prove write/delete boundaries, audit, and support-bundle redaction before broad availability.";
+            case LIVE_WRITE -> "Read/write adapter exists: complete migration dry-run evidence before apply or rollback claims.";
+            case MIGRATION_DRY_RUN -> "Migration dry-run is ready: prove apply safety before replacement claims.";
+            case MIGRATION_APPLY_READY -> "Migration apply is ready: complete rollback evidence before availability claims.";
+            case ROLLBACK_READY -> "Rollback is ready: complete release gate evidence before general availability claims.";
             case RELEASE_READY -> "Release-ready provider: keep policy, readiness, support-safe diagnostics, and release evidence current.";
         };
     }

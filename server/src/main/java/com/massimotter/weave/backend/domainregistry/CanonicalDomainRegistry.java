@@ -36,10 +36,12 @@ public final class CanonicalDomainRegistry {
 
     public static final List<String> PROVIDER_REALITY_LEVELS = List.of(
             "contract_only",
-            "configured_readiness",
-            "live_adapter_read",
-            "live_adapter_write",
+            "configured",
+            "live_read",
+            "live_write",
+            "migration_dry_run",
             "migration_apply_ready",
+            "rollback_ready",
             "release_ready");
 
     private static final List<String> STANDARD_CAPABILITIES = List.of(
@@ -93,43 +95,43 @@ public final class CanonicalDomainRegistry {
     public static List<CanonicalDomainRegistryEntryResponse> domains() {
         return List.of(
                 domain("identity", "Identity", "Authentication, identity sources, accounts, groups, roles, service principals, and deprovisioning boundaries.",
-                        List.of("IdentitySource", "IdentityAccount", "Group", "Role", "ServicePrincipal", "GuestIdentity", "DeprovisioningEvent"),
+                        List.of("Subject", "IdentitySource", "Group", "Role", "CapabilityProfile", "LoginSession"),
                         List.of("identity-idm")),
                 domain("people", "People", "Provider-neutral people/profile directory separate from authentication credentials and email primary keys.",
-                        List.of("Person", "Profile", "ContactMethod", "AvatarRef", "OrganizationUnit", "ExternalContact", "IdentityAccountLink"),
+                        List.of("Person", "Membership", "Profile", "ContactMethod", "Team", "Guest", "ServiceAccountRef"),
                         List.of()),
                 domain("spaces", "Spaces", "Cross-domain work context anchor binding chat, files, calendar, boards, calls, decisions, and Weaver context.",
-                        List.of("Space", "SpaceType", "SpaceMembership", "SpaceRole", "DomainBinding", "ContextPolicy", "DefaultSurface", "ContextArchive", "ProviderBindingMap"),
+                        List.of("Space", "SpaceMembership", "RoleBinding", "LinkedChannel", "LinkedBoard", "LinkedCalendar", "LinkedFileRoot", "DecisionLedgerRef"),
                         List.of()),
                 domain("chat", "Chat", "Conversation, message, membership, history, attachment, and presence facade independent from the selected chat adapter.",
-                        List.of("Conversation", "Message", "Thread", "Reaction", "Mention", "AttachmentRef", "Membership", "ReadReceipt", "EditEvent", "DeleteEvent", "RetentionPolicy", "EncryptionState", "Presence", "HistoryPolicy"),
+                        List.of("WeaveSpace", "WeaveConversation", "WeaveMessage", "WeaveThread", "WeaveReaction", "WeaveAttachment", "WeaveMembership", "WeaveHistoryPolicy", "ProviderRef", "MigrationReceipt", "RollbackReceipt", "LossyFieldReport"),
                         List.of()),
                 domain("files", "Files", "Storage, file tree, versions, shares, permissions, locks, checksums, trash, and binary portability facade.",
-                        List.of("Drive", "Node", "Folder", "File", "FileVersion", "BlobRef", "Permission", "ShareLink", "Lock", "TrashEntry", "Checksum"),
+                        List.of("WeaveDrive", "WeaveFolder", "WeaveFile", "WeaveVersion", "WeaveShare", "WeavePermission", "WeaveLock", "WeaveQuota", "ProviderRef"),
                         List.of()),
                 domain("documents", "Documents", "Document collaboration sessions, editor launch, comments, format fidelity, locks, and storage/editor boundaries.",
-                        List.of("Document", "EditorSession", "EditorProvider", "Lock", "CoAuthoringState", "VersionRef", "WopiLaunchContract", "GuardedUnavailableState"),
+                        List.of("Document", "EditSession", "Comment", "Suggestion", "CoauthorPresence", "Version", "Export"),
                         List.of("documents-collaboration")),
                 domain("calendar", "Calendar", "Workspace and shared calendar facade for events, occurrence series, recurrence exceptions, attendees, availability, and resources.",
-                        List.of("Calendar", "Event", "Occurrence", "RecurrenceRule", "RecurrenceException", "Attendee", "Resource", "Reminder", "TimeZone", "ConferenceLink", "Availability"),
+                        List.of("WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee", "WeaveResource", "WeaveAvailability", "ProviderRef"),
                         List.of()),
                 domain("boards", "Boards & Tasks", "Provider-neutral boards/tasks workflow contract for boards, lists, tasks, statuses, assignments, and workflow rules.",
-                        List.of("Board", "List", "Task", "Status", "Assignee", "Watcher", "Comment", "AttachmentRef", "Dependency", "Label", "CustomField", "Estimate", "Priority", "Milestone", "Sprint", "WorkflowRule"),
+                        List.of("Board", "List", "Task", "Status", "Assignee", "Comment", "AttachmentRef", "Dependency", "CustomField"),
                         List.of("boards-tasks")),
                 domain("calls", "Calls & Meetings", "Meeting/call room, media-session, participant, recording, transcript, captions, consent, retention, and join-grant facade.",
-                        List.of("Meeting", "MeetingRoom", "Participant", "JoinGrant", "MediaSession", "Recording", "Transcript", "Caption", "MeetingChatRef", "ConsentRecord", "RetentionPolicy"),
+                        List.of("Meeting", "MediaSession", "Participant", "TokenGrant", "Recording", "Caption", "ConsentRecord"),
                         List.of("meetings-calls")),
                 domain("decisions", "Decisions", "Weave-owned decisions and evidence references across chat, files, boards, calls, and calendar.",
-                        List.of("Decision", "SourceRef", "EvidenceRef", "Status", "AuditRef", "DecisionOwner", "Supersession"),
+                        List.of("Decision", "Proposal", "Approval", "Rationale", "DecisionLink", "EvidenceRef", "Supersession"),
                         List.of("decisions-evidence")),
                 domain("notifications", "Notifications", "Provider-switch-safe notifications, action requests, approval requests, digests, and read state.",
-                        List.of("Notification", "ActionRequest", "ApprovalRequest", "Digest", "ReadState"),
+                        List.of("Notification", "Preference", "Channel", "Digest", "DeliveryAttempt", "Subscription"),
                         List.of()),
                 domain("health", "Health", "Support-safe provider readiness, risk notes, support bundle references, migration runs, and secret reference state.",
-                        List.of("ProviderReadiness", "RiskNote", "SupportBundleRef", "MigrationRunRef", "SecretRef", "PolicyImpact", "ReadinessDiagnostic", "NextAction"),
+                        List.of("ReadinessCard", "Diagnostic", "SupportBundle", "BackupJob", "RestoreDrill", "EvidenceItem", "AuditRef"),
                         List.of("admin-control-plane", "release-evidence", "manuals-help")),
                 domain("weaver", "Weaver", "Optional governed per-user PA runtime domain, disabled by default and controlled by organization policy.",
-                        List.of("RuntimeProfile", "ToolCapability", "ApprovalReceipt", "AuditEvent", "SandboxProfile"),
+                        List.of("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"),
                         List.of()));
     }
 
@@ -174,23 +176,23 @@ public final class CanonicalDomainRegistry {
                     "nextcloud-files", "release_ready",
                     "sharepoint", "contract_only",
                     "onedrive", "contract_only",
-                    "s3-compatible", "live_adapter_write",
-                    "smb", "live_adapter_write");
+                    "s3-compatible", "live_write",
+                    "smb", "live_write");
             case "calendar" -> Map.of(
                     "nextcloud-caldav", "release_ready",
                     "microsoft-graph-calendar", "contract_only",
                     "google-workspace-calendar", "contract_only",
-                    "generic-caldav", "live_adapter_read",
+                    "generic-caldav", "live_read",
                     "weave-calendar", "contract_only");
             case "boards" -> Map.of(
                     "openproject-primary", "release_ready",
                     "placeholder-boards", "contract_only",
                     "jira", "contract_only",
                     "microsoft-planner", "contract_only",
-                    "nextcloud-deck", "live_adapter_read",
+                    "nextcloud-deck", "live_read",
                     "vikunja", "contract_only");
             case "calls" -> Map.of(
-                    "livekit", "configured_readiness",
+                    "livekit", "configured",
                     "jitsi", "contract_only",
                     "zoom", "contract_only",
                     "microsoft-teams-meetings", "contract_only",

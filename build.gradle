@@ -39,6 +39,9 @@ registerRootCommandTask('domainRegistryCheck', ['python3', 'tools/domain_registr
 registerRootCommandTask('spaceAnchorCheck', ['python3', 'tools/space_anchor_check.py'], 'Validate the Space anchor contract fixture.')
 registerRootCommandTask('portabilityContractCheck', ['python3', 'tools/portability_contract_check.py'], 'Validate provider portability and no-unaccounted-data-loss migration schemas.')
 registerRootCommandTask('productTrustClaimMatrixCheck', ['python3', 'tools/product_trust_claim_matrix_check.py'], 'Validate Sprint 14 product-trust claim matrix evidence boundaries and overclaim guards.')
+registerRootCommandTask('productRealityClaimGateCheck', ['python3', 'tools/product_reality_claim_gate_check.py'], 'Validate Sprint 21 product-reality levels and forbidden release-claim gates.')
+registerRootCommandTask('providerLabCheck', ['python3', 'tools/provider_lab_check.py'], 'Validate Sprint 22 free-provider-lab manifests, fixture completeness, redaction evidence, and Sprint 23 entry gate scoreboard.')
+registerRootCommandTask('chatProviderSwitchCheck', ['python3', 'tools/chat_provider_switch_check.py'], 'Validate Sprint 23 Chat Provider Switch canonical object coverage, LossyFieldReport enforcement, and ProviderRef redaction fixtures.')
 registerRootCommandTask('specContractTest', ['python3', 'tools/spec_contract_check_test.py'], 'Run fixture tests for the repo-local Weave spec contract guard.')
 registerRootCommandTask('androidReleaseIdentityCheck', ['python3', 'tools/android_release_identity_check.py'], 'Validate Android package identity and release-signing fail-safe posture.')
 registerRootCommandTask('adminDependencyPolicyCheck', ['python3', 'tools/admin_console_dependency_policy_check.py'], 'Validate Admin Console dependency pins and lockfile policy.')
@@ -73,7 +76,7 @@ tasks.register('releaseReadinessCheck', Exec) {
     commandLine execCommand(args)
     outputs.upToDateWhen { false }
 }
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes structure, README markers, provider reality, product-trust and release-trust claim matrices, labels, generator fixture evidence, Sprint 5 project-readiness closure evidence, Sprint 6 enterprise release gates, and RC readiness fixtures.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes structure, README markers, provider reality, product-reality, Sprint 22 provider-lab gate, Sprint 23 chat-switch contract fixtures, product-trust and release-trust claim matrices, labels, generator fixture evidence, Sprint 5 project-readiness closure evidence, Sprint 6 enterprise release gates, and RC readiness fixtures.')
 
 tasks.register('docsCheck') {
     group = 'verification'
@@ -113,6 +116,7 @@ ext.ciEvidenceGates = [
     'spaceAnchorCheck',
     'portabilityContractCheck',
     'productTrustClaimMatrixCheck',
+    'productRealityClaimGateCheck',
     'androidReleaseIdentityCheck',
     'adminDependencyPolicyCheck',
     'releaseEvidenceCheck',
@@ -219,8 +223,12 @@ List<String> artifactPathsForGate(String gateName) {
             return ['docs/space-anchor-contract.md', 'specs/0005-spaces-anchor/space-anchor-fixture.json', 'tools/space_anchor_check.py']
         case 'portabilityContractCheck':
             return ['server/src/main/resources/contracts/portability', 'specs/0006-portability-contract', 'tools/portability_contract_check.py']
+        case 'chatProviderSwitchCheck':
+            return ['release/provider-lab/chat-switch', 'fixtures/provider-lab/chat-fixture.json', 'tools/chat_provider_switch_check.py']
         case 'productTrustClaimMatrixCheck':
             return ['docs/product-trust-provider-choice-claim-matrix.md', 'tools/product_trust_claim_matrix_check.py']
+        case 'productRealityClaimGateCheck':
+            return ['docs/product-reality-foundation.md', 'release/product-reality-gates.json', 'tools/product_reality_claim_gate_check.py']
         case 'releaseEvidenceCheck':
             return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md']
         case 'projectReadinessEvidenceCheck':

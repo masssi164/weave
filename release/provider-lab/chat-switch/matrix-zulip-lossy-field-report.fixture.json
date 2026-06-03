@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-chat-switch-lossy-field-report-fixture",
+  "fixtureId": "matrix-zulip-lossy-field-report-positive",
+  "expectedOutcome": "accept",
+  "redaction": "support_safe",
+  "sourceProvider": "matrix-synapse",
+  "targetProvider": "zulip",
+  "providerRefs": [
+    {"providerId": "matrix-synapse", "providerObjectType": "room", "opaqueId": "opaque:matrix-synapse:room:7f3a91c04e2b", "contentHash": "sha256:matrix-room-alpha", "historyStatus": "preserved", "redacted": true},
+    {"providerId": "zulip", "providerObjectType": "stream", "opaqueId": "opaque:zulip:stream:8b6c12d90a44", "contentHash": "sha256:zulip-stream-alpha", "historyStatus": "preserved", "redacted": true}
+  ],
+  "droppedOrChangedFields": [
+    {"canonicalObject": "WeaveThread", "field": "events.m.relates_to.thread", "targetField": "messages.topic", "lossClass": "lossy", "historyStatus": "partially_preserved", "reason": "Zulip topics preserve thread grouping but not Matrix relation metadata."},
+    {"canonicalObject": "WeaveMembership", "field": "power_levels", "targetField": "user_groups", "lossClass": "manual_review", "historyStatus": "metadata_only", "reason": "Matrix power levels require admin review before Zulip role/group mapping."},
+    {"canonicalObject": "WeaveHistoryPolicy", "field": "e2ee_history_status", "targetField": null, "lossClass": "unsupported", "historyStatus": "unsupported", "reason": "Encrypted Matrix history remains unsupported until client-side key/export evidence exists."},
+    {"canonicalObject": "WeaveAttachment", "field": "content_uri_hash", "targetField": "uploads.metadata_hash", "lossClass": "archive_only", "historyStatus": "archive_only", "reason": "Attachment contents are not included in support logs; only metadata hash is carried."}
+  ],
+  "lossyFieldReport": {
+    "reportId": "lossy-field-report:sprint23:matrix-zulip:fixture-001",
+    "entries": [
+      {"canonicalObject": "WeaveThread", "field": "events.m.relates_to.thread", "lossClass": "lossy", "historyStatus": "partially_preserved"},
+      {"canonicalObject": "WeaveMembership", "field": "power_levels", "lossClass": "manual_review", "historyStatus": "metadata_only"},
+      {"canonicalObject": "WeaveHistoryPolicy", "field": "e2ee_history_status", "lossClass": "unsupported", "historyStatus": "unsupported"},
+      {"canonicalObject": "WeaveAttachment", "field": "content_uri_hash", "lossClass": "archive_only", "historyStatus": "archive_only"}
+    ]
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "manifestKind": "weave-provider-lab-provider-manifest",
+  "providerKey": "matrix-synapse",
+  "displayName": "Matrix/Synapse",
+  "domain": "chat",
+  "realityLevel": "configured",
+  "capabilityFlags": [
+    "chat.read",
+    "chat.send",
+    "threads.partial",
+    "reactions",
+    "attachments.metadata"
+  ],
+  "historyHonesty": {
+    "preservationClaim": "fixture_expected_statuses_only",
+    "statuses": [
+      "preserved",
+      "partially_preserved",
+      "archive_only",
+      "unsupported",
+      "unexportable",
+      "conflict",
+      "metadata_only"
+    ],
+    "fullHistoryPreserved": false,
+    "notes": "Matrix E2EE history is archive_only or blocked for Sprint 22 fixture proof; rollback remains partial until Sprint 23 migration evidence."
+  },
+  "rollback": {
+    "claim": "partial",
+    "rollbackReady": false,
+    "notes": "Rollback remains blocked until named migration apply and rollback evidence exists."
+  },
+  "migrationLimits": {
+    "applyClaimed": false,
+    "releaseReadyClaimed": false,
+    "knownLossyFields": [
+      "provider_specific_permissions",
+      "provider_specific_history_metadata"
+    ]
+  },
+  "secretStorage": {
+    "source": "local_env_or_credential_broker_reference",
+    "checkedInSecrets": false,
+    "credentialBearingUrlsAllowedInEvidence": false
+  },
+  "supportEvidence": {
+    "redacted": true,
+    "allowedFields": [
+      "providerKey",
+      "domain",
+      "realityLevel",
+      "capabilityFlags",
+      "historyHonesty.statuses",
+      "rollback.claim",
+      "checkedAt"
+    ],
+    "forbiddenFields": [
+      "tokens",
+      "passwords",
+      "cookies",
+      "privateUrls",
+      "rawProviderPayloads",
+      "rawProviderErrors"
+    ]
+  }
+}

@@ -181,8 +181,7 @@ _workspaceCapabilitySnapshotWithWeaver() {
         capability: WorkspaceCapability.weaver,
         readiness: WorkspaceCapabilityReadiness.ready,
         policyState: WorkspaceCapabilityPolicyState.allowed,
-        memberImpact:
-            'Mein Weaver is available with workspace-approved choices.',
+        memberImpact: 'Mein Weaver follows workspace-approved choices.',
         grantedCapabilities: [
           'weaver.enabled',
           'weaver.model_alias.fast_local',
