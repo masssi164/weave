@@ -23,6 +23,7 @@ public enum AuditAction {
     WEAVER_RUNTIME_PROFILE_GENERATED("weaver.runtime_profile.generated"),
     WEAVER_RUNTIME_PROFILE_REVOKED("weaver.runtime_profile.revoked"),
     WEAVER_RUNTIME_PROFILE_ROLLED_BACK("weaver.runtime_profile.rolled_back"),
+    WEAVER_RUNTIME_RECONCILED("weaver.runtime.reconciled"),
     WEAVER_RUNTIME_RELOAD_DECIDED("weaver.runtime.reload_decided"),
     WEAVER_MODEL_DECISION_RECORDED("weaver.model.decision_recorded"),
     WEAVER_CHANNEL_DECISION_RECORDED("weaver.channel.decision_recorded"),

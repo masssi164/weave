@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-weaver-runtime-desired-state-reconciliation-proof",
+  "supportSafe": true,
+  "issue": 632,
+  "scope": "deterministic provider-lab fixture only",
+  "checkedAt": "2026-06-03T08:30:00Z",
+  "decisions": [
+    {
+      "userRef": "user:alice-fixture",
+      "desiredState": "running",
+      "actualState": "missing",
+      "action": "create",
+      "outcome": "start-container",
+      "desiredRuntimeProfileHash": "sha256:alice-runtime-profile-fixture",
+      "actualRuntimeProfileHash": "none",
+      "desiredPolicyVersion": "policy:sprint-24-runtime-factory",
+      "actualPolicyVersion": "none"
+    },
+    {
+      "userRef": "user:bob-fixture",
+      "desiredState": "running",
+      "actualState": "running",
+      "action": "update",
+      "outcome": "replace-drifted-container",
+      "desiredRuntimeProfileHash": "sha256:bob-runtime-profile-fixture",
+      "actualRuntimeProfileHash": "sha256:bob-old-profile",
+      "desiredPolicyVersion": "policy:sprint-24-runtime-factory",
+      "actualPolicyVersion": "policy:sprint-23"
+    },
+    {
+      "userRef": "user:carol-fixture",
+      "desiredState": "stopped",
+      "actualState": "running",
+      "action": "revoke",
+      "outcome": "stop-container",
+      "desiredRuntimeProfileHash": "sha256:carol-runtime-profile-fixture",
+      "actualRuntimeProfileHash": "sha256:carol-runtime-profile-fixture",
+      "desiredPolicyVersion": "policy:sprint-24-runtime-factory",
+      "actualPolicyVersion": "policy:sprint-24-runtime-factory"
+    }
+  ],
+  "auditRequiredFields": [
+    "desiredState",
+    "actualState",
+    "action",
+    "outcome"
+  ],
+  "auditRefs": [
+    "audit://weaver-runtime/reconciler/create-alice",
+    "audit://weaver-runtime/reconciler/update-bob",
+    "audit://weaver-runtime/reconciler/revoke-carol"
+  ],
+  "claimBoundary": "Reconciler repair evidence is limited to deterministic provider-lab fixtures and support-safe audit refs."
+}
