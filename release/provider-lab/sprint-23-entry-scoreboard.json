@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "scoreboardKind": "weave-sprint-23-entry-scoreboard",
+  "sprint": "Sprint 22 — Free Provider Lab",
+  "targetNextSprint": "Sprint 23 — Chat Provider Switch",
+  "sprint23EntryGate": "green",
+  "openReleaseBlockers": [],
+  "fields": {
+    "labHealth": "green",
+    "manifestValidity": "green",
+    "fixtureCompleteness": "green",
+    "supportBundleRedaction": "green",
+    "claimSafety": "green"
+  },
+  "evidence": {
+    "labCompose": "infra/provider-lab/docker-compose.yml",
+    "healthReport": "release/provider-lab/health-report.sample.json",
+    "manifestDirectory": "release/provider-lab/manifests",
+    "fixture": "fixtures/provider-lab/chat-fixture.json",
+    "redactionReport": "release/provider-lab/support-redaction-report.json",
+    "gateCommand": "./gradlew providerLabCheck"
+  },
+  "claimBoundary": "Sprint 22 proves reproducible free/self-hosted lab configuration, manifest shape, fixture completeness, and support-safe entry gating. It does not claim provider interchangeability, migration apply readiness, production rollback, Weaver availability, or customer-ready release status."
+}

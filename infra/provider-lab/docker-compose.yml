@@ -1,0 +1,211 @@
+name: weave-provider-lab
+
+x-lab-common: &lab-common
+  restart: unless-stopped
+  networks:
+    - provider-lab
+  labels:
+    com.massimotter.weave.lab: "sprint-22"
+
+services:
+  keycloak:
+    <<: *lab-common
+    image: quay.io/keycloak/keycloak:26.1
+    command: ["start-dev", "--health-enabled=true"]
+    environment:
+      KEYCLOAK_ADMIN: ${WEAVE_LAB_KEYCLOAK_ADMIN:-weave-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${WEAVE_LAB_KEYCLOAK_PASSWORD:-weave-lab-change-me}
+    ports:
+      - "127.0.0.1:18080:8080"
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+
+  authentik-postgres:
+    <<: *lab-common
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: ${WEAVE_LAB_AUTHENTIK_DB_PASSWORD:-weave-lab-change-me}
+    volumes:
+      - authentik-postgres-data:/var/lib/postgresql/data
+
+  authentik-redis:
+    <<: *lab-common
+    image: redis:7-alpine
+    volumes:
+      - authentik-redis-data:/data
+
+  authentik:
+    <<: *lab-common
+    image: ghcr.io/goauthentik/server:2025.2
+    command: ["server"]
+    depends_on:
+      - authentik-postgres
+      - authentik-redis
+    environment:
+      AUTHENTIK_SECRET_KEY: ${WEAVE_LAB_AUTHENTIK_SECRET_KEY:-weave-lab-dev-secret-change-me}
+      AUTHENTIK_POSTGRESQL__HOST: authentik-postgres
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${WEAVE_LAB_AUTHENTIK_DB_PASSWORD:-weave-lab-change-me}
+      AUTHENTIK_REDIS__HOST: authentik-redis
+    ports:
+      - "127.0.0.1:19000:9000"
+    volumes:
+      - authentik-media:/media
+
+  synapse-postgres:
+    <<: *lab-common
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: synapse
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: ${WEAVE_LAB_SYNAPSE_DB_PASSWORD:-weave-lab-change-me}
+    volumes:
+      - synapse-postgres-data:/var/lib/postgresql/data
+
+  matrix-synapse:
+    <<: *lab-common
+    image: matrixdotorg/synapse:v1.126.0
+    depends_on:
+      - synapse-postgres
+    environment:
+      SYNAPSE_SERVER_NAME: ${WEAVE_LAB_SYNAPSE_SERVER_NAME:-weave-lab.local}
+      SYNAPSE_REPORT_STATS: "no"
+    ports:
+      - "127.0.0.1:18008:8008"
+    volumes:
+      - synapse-data:/data
+
+  zulip-postgres:
+    <<: *lab-common
+    image: postgres:16-alpine
+    profiles: ["zulip"]
+    environment:
+      POSTGRES_DB: zulip
+      POSTGRES_USER: zulip
+      POSTGRES_PASSWORD: ${WEAVE_LAB_ZULIP_DB_PASSWORD:-weave-lab-change-me}
+    volumes:
+      - zulip-postgres-data:/var/lib/postgresql/data
+
+  zulip:
+    <<: *lab-common
+    image: ghcr.io/zulip/zulip-server:12.0-1
+    profiles: ["zulip"]
+    depends_on:
+      - zulip-postgres
+      - zulip-redis
+      - zulip-memcached
+    environment:
+      DB_HOST: zulip-postgres
+      DB_HOST_PORT: "5432"
+      DB_USER: zulip
+      SETTING_REDIS_HOST: zulip-redis
+      SETTING_MEMCACHED_LOCATION: zulip-memcached:11211
+      SECRETS_email_password: ${WEAVE_LAB_ZULIP_EMAIL_PASSWORD:-weave-lab-change-me}
+      SECRETS_postgres_password: ${WEAVE_LAB_ZULIP_DB_PASSWORD:-weave-lab-change-me}
+      SECRETS_secret_key: ${WEAVE_LAB_ZULIP_SECRET_KEY:-weave-lab-dev-secret-change-me}
+      SSL_CERTIFICATE_GENERATION: self-signed
+      ZULIP_AUTH_BACKENDS: EmailAuthBackend
+    ports:
+      - "127.0.0.1:19999:9991"
+    volumes:
+      - zulip-data:/var/lib/zulip
+
+  zulip-memcached:
+    <<: *lab-common
+    image: memcached:1.6-alpine
+    profiles: ["zulip"]
+
+  zulip-redis:
+    <<: *lab-common
+    image: redis:7-alpine
+    profiles: ["zulip"]
+
+  nextcloud-db:
+    <<: *lab-common
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${WEAVE_LAB_NEXTCLOUD_DB_PASSWORD:-weave-lab-change-me}
+    volumes:
+      - nextcloud-db-data:/var/lib/postgresql/data
+
+  nextcloud:
+    <<: *lab-common
+    image: nextcloud:31-apache
+    depends_on:
+      - nextcloud-db
+    environment:
+      POSTGRES_HOST: nextcloud-db
+      POSTGRES_DB: nextcloud
+      POSTGRES_USER: nextcloud
+      POSTGRES_PASSWORD: ${WEAVE_LAB_NEXTCLOUD_DB_PASSWORD:-weave-lab-change-me}
+      NEXTCLOUD_ADMIN_USER: ${WEAVE_LAB_NEXTCLOUD_ADMIN:-weave-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${WEAVE_LAB_NEXTCLOUD_PASSWORD:-weave-lab-change-me}
+    ports:
+      - "127.0.0.1:18081:80"
+    volumes:
+      - nextcloud-data:/var/www/html
+
+  minio:
+    <<: *lab-common
+    image: minio/minio:RELEASE.2025-02-18T16-25-55Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${WEAVE_LAB_MINIO_ROOT_USER:-weavelabadmin}
+      MINIO_ROOT_PASSWORD: ${WEAVE_LAB_MINIO_ROOT_PASSWORD:-weave-lab-change-me}
+    ports:
+      - "127.0.0.1:19002:9000"
+      - "127.0.0.1:19003:9001"
+    volumes:
+      - minio-data:/data
+
+  radicale:
+    <<: *lab-common
+    image: tomsquest/docker-radicale:3.5.4.0
+    ports:
+      - "127.0.0.1:15232:5232"
+    volumes:
+      - radicale-data:/data
+
+  openproject:
+    <<: *lab-common
+    image: openproject/openproject:15
+    environment:
+      OPENPROJECT_SECRET_KEY_BASE: ${WEAVE_LAB_OPENPROJECT_SECRET_KEY_BASE:-weave-lab-dev-secret-change-me}
+      OPENPROJECT_HOST__NAME: localhost:18082
+      OPENPROJECT_HTTPS: "false"
+    ports:
+      - "127.0.0.1:18082:80"
+    volumes:
+      - openproject-data:/var/openproject/assets
+      - openproject-pgdata:/var/openproject/pgdata
+
+  docker-runtime-boundary:
+    <<: *lab-common
+    image: docker:28-cli
+    command: ["sh", "-c", "while true; do sleep 3600; done"]
+    environment:
+      WEAVE_LAB_RUNTIME_BOUNDARY: per-user-runtime-proof-placeholder
+
+networks:
+  provider-lab:
+    name: weave-provider-lab
+
+volumes:
+  keycloak-data:
+  authentik-postgres-data:
+  authentik-redis-data:
+  authentik-media:
+  synapse-postgres-data:
+  synapse-data:
+  zulip-postgres-data:
+  zulip-data:
+  nextcloud-db-data:
+  nextcloud-data:
+  minio-data:
+  radicale-data:
+  openproject-data:
+  openproject-pgdata:

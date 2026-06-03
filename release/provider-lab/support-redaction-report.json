@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "reportKind": "weave-provider-lab-support-redaction-report",
+  "supportSafe": true,
+  "artifactPaths": [
+    "release/provider-lab/health-report.sample.json",
+    "fixtures/provider-lab/chat-fixture.json"
+  ],
+  "redactedFields": [
+    "tokens",
+    "passwords",
+    "cookies",
+    "privateUrls",
+    "rawProviderPayloads",
+    "rawProviderErrors",
+    "providerRoomIds",
+    "messageBodies",
+    "attachmentContents"
+  ],
+  "notes": "Sprint 22 artifacts expose provider keys, domains, reality levels, stable fixture IDs, counts, and status categories only. They do not include secrets, raw provider payloads, message bodies, private file contents, or credential-bearing URLs."
+}
