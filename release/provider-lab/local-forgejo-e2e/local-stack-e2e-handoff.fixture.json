@@ -9,7 +9,7 @@
     "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
     "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
     "deployablePlanRef": "pending-issue-664-deployable-plan",
-    "pipelineRunRef": "pending-issue-663-pipeline-run-ref"
+    "pipelineRunRef": "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json"
   },
   "requiredConciseLocalSignals": [
     "pipeline_terminal_success",
