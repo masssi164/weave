@@ -38,6 +38,7 @@ void main() {
         'Identity reconcile and offboarding fail closed before destructive changes',
         'Weaver runtime and tools remain preflight-only',
         'Release promotion requires accessibility and restore evidence',
+        'Admin sees missing Forgejo runner registration before pipeline dispatch',
         'Weave Home starts the daily work loop',
         'A normal member sees a user-ready organization flow',
         'Admin sees provider categories before member use',

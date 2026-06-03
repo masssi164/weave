@@ -1421,6 +1421,43 @@
           ]
         }
       ]
+    },
+    {
+      "feature": "e2e/features/sprint_26_admin_cicd_setup.feature",
+      "executableTest": "tools/admin_cicd_orchestration_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint26-admin-cicd-setup",
+      "scenario": "Admin sees missing Forgejo runner registration before pipeline dispatch",
+      "evidenceMarkers": [
+        "SPRINT26_ADMIN_CICD_SETUP_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "specs/admin-ci-cd-orchestration-contract.md",
+          "fragments": [
+            "The Organization/Admin Console is the canonical setup surface",
+            "PipelineProviderManifest v1",
+            "PipelineRunRef v1",
+            "Local Forgejo proof seam"
+          ]
+        },
+        {
+          "path": "release/provider-lab/admin-cicd/local-forgejo-setup-proof.fixture.json",
+          "fragments": [
+            "FORGEJO_ACTIONS_RUNNER_REGISTRATION",
+            "runner_missing",
+            "none-trigger-blocked-before-dispatch"
+          ]
+        },
+        {
+          "path": "release/provider-lab/admin-cicd/admin-console-copy.fixture.json",
+          "fragments": [
+            "Setup is blocked until required CI/CD names exist.",
+            "values stay hidden",
+            "Runner readiness is missing."
+          ]
+        }
+      ]
     }
   ]
 }
