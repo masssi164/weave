@@ -217,6 +217,13 @@ func TestEvaluateRunnerReadinessStates(t *testing.T) {
 	}
 	withRunner.LocalServerServiceExists = true
 	withRunner.LocalServerConfigPathExists = true
+	registeredOnly := withRunner
+	registeredOnly.RequiredSecretNames = nil
+	registeredOnly.PresentSecretNames = nil
+	got = EvaluateRunnerReadiness(registeredOnly)
+	if got.Status != ReadinessRunnerRegistered || got.DispatchAllowed {
+		t.Fatalf("runner_registered result mismatch: %+v", got)
+	}
 	got = EvaluateRunnerReadiness(withRunner)
 	if got.Status != ReadinessBlockedSecretMissing || got.DispatchAllowed || strings.Join(got.MissingNames, ",") != "WEAVE_FORGEJO_API_URL" {
 		t.Fatalf("runner_secret_missing result mismatch: %+v", got)

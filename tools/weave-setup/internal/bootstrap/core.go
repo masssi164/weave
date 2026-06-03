@@ -338,6 +338,7 @@ type RunnerReadinessStatus string
 
 const (
 	ReadinessBlockedRunnerMissing RunnerReadinessStatus = "runner_missing"
+	ReadinessRunnerRegistered     RunnerReadinessStatus = "runner_registered"
 	ReadinessBlockedRunnerOffline RunnerReadinessStatus = "runner_offline"
 	ReadinessBlockedSecretMissing RunnerReadinessStatus = "runner_secret_missing"
 	ReadinessDispatchAllowed      RunnerReadinessStatus = "dispatch_allowed"
@@ -399,6 +400,11 @@ func EvaluateRunnerReadiness(input RunnerReadinessInput) RunnerReadinessResult {
 		result.Status = ReadinessBlockedRunnerMissing
 		result.MissingNames = []string{"FORGEJO_ACTIONS_RUNNER_REGISTRATION", "~/server Forgejo runner service/config signal"}
 		result.SupportSafeSummary = "Runner registration must be backed by a support-safe ~/server service and config-path signal before dispatch."
+		return result
+	}
+	if len(input.RequiredSecretNames) == 0 {
+		result.Status = ReadinessRunnerRegistered
+		result.SupportSafeSummary = "Runner registration is backed by the local service/config signal; SecretRef names and explicit admin approval are still required before dispatch."
 		return result
 	}
 	missing := missingNames(input.RequiredSecretNames, input.PresentSecretNames)
