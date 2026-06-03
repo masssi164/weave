@@ -10,8 +10,8 @@ Status: Sprint 27 / #665 blocked handoff contract. The real local runner exists/
 
 - Bootstrapper plan: `release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json`.
 - Real runner readiness: `release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json` plus the verified concise `~/server` signal from main/operator local DevOps work.
-- Deployable domain plan from #664.
-- Pipeline dispatch/status `PipelineRunRef` from #663.
+- Deployable domain plan from #664: pending mainline evidence artifact.
+- Pipeline dispatch/status `PipelineRunRef` from #663: pending mainline evidence artifact.
 
 ## Required concise local signals
 
@@ -29,6 +29,15 @@ Still required before #665 can claim E2E:
 - `weave_e2e_passed` for Weave E2E.
 
 No raw logs, registration tokens, secret values, provider payloads, credential-bearing URLs, tenant URLs, or member content may be copied into the repo, issues, PRs, release evidence, or support bundles.
+
+
+## Mainline dependency boundary
+
+`origin/main` currently contains the #666 bootstrapper merge but not the #662/#663/#664 evidence artifacts. GitHub reports #668, #669, and #670 as merged, but their bases are stacked feature branches rather than `main`; their artifacts are therefore not available to this #665 handoff on `origin/main` yet.
+
+## Live evidence boundary
+
+A read-only local probe under `~/server` found no checked-in `.forgejo`/`.gitea` workflow file named for `weave-admin-setup-e2e`; no file contents, logs, env, URLs, tokens, or secrets were read. Creating or dispatching that workflow is a live local Forgejo/stack mutation and needs explicit operator approval.
 
 ## Current claim boundary
 

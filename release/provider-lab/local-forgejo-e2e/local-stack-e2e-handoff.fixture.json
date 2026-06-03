@@ -8,8 +8,8 @@
   "requiredUpstreamEvidence": {
     "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
     "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
-    "deployablePlanRef": "pending-issue-664-deployable-plan",
-    "pipelineRunRef": "pending-issue-663-pipeline-run-ref"
+    "deployablePlanRef": "pending-mainline-issue-664-deployable-plan",
+    "pipelineRunRef": "pending-mainline-issue-663-pipeline-run-ref"
   },
   "requiredConciseLocalSignals": [
     "pipeline_terminal_success",
@@ -51,5 +51,20 @@
     "running": true,
     "secret_refs_present": true,
     "secret_values_logged": false
+  },
+  "liveEvidenceBoundary": {
+    "localProbePerformed": "read_only_file_presence_under_home_server",
+    "forgejoWorkflowFileObserved": false,
+    "liveDispatchPerformed": false,
+    "requiresExplicitApprovalBeforeMutation": true,
+    "smallestApprovalNeeded": "Dispatch or create the local Forgejo weave-admin-setup-e2e workflow and run deployed-stack E2E using existing customer-owned SecretRefs; return only opaque run ref plus pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed booleans."
+  },
+  "mainlineDependencyStatus": {
+    "originMainHead": "865e730",
+    "localCicdBootstrapperIssue666PresentOnMain": true,
+    "localForgejoRunnerReadinessIssue662PresentOnMain": false,
+    "deployableDomainPlanIssue664PresentOnMain": false,
+    "pipelineProviderIssue663PresentOnMain": false,
+    "note": "GitHub PRs #668, #669, and #670 are MERGED, but their base branches are stacked feature branches rather than main; their evidence artifacts are not present on origin/main yet."
   }
 }
