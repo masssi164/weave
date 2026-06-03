@@ -42,6 +42,7 @@ void main() {
         'Operator selects Forgejo without persisting GitHub secrets',
         'Runner readiness records the real local runner and keeps dispatch gated',
         'E2E evidence remains blocked until pipeline, stack, and E2E signals exist',
+        'Domain choices produce a support-safe Forgejo deployable plan',
         'Weave Home starts the daily work loop',
         'A normal member sees a user-ready organization flow',
         'Admin sees provider categories before member use',

@@ -1569,6 +1569,42 @@
           ]
         }
       ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_domain_adapter_plan.feature",
+      "executableTest": "tools/local_domain_adapter_plan_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-domain-adapter-plan",
+      "scenario": "Domain choices produce a support-safe Forgejo deployable plan",
+      "evidenceMarkers": [
+        "LOCAL_DOMAIN_ADAPTER_PLAN_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/local-domain-plan/deployable-domain-plan.fixture.json",
+          "fragments": [
+            "weave-local-domain-adapter-deployable-plan-v1",
+            "server-backend",
+            "health-readiness",
+            "support_safe_domain_plan_ref"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-domain-adapter-deployable-plan.md",
+          "fragments": [
+            "Server/backend",
+            "Infrastructure stack",
+            "Fail-closed cases"
+          ]
+        },
+        {
+          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+          "fragments": [
+            "runner_registered",
+            "local-forgejo-actions"
+          ]
+        }
+      ]
     }
   ]
 }
