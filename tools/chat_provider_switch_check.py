@@ -13,6 +13,9 @@ ARTIFACT_DIR = ROOT / "release" / "provider-lab" / "chat-switch"
 COVERAGE = ARTIFACT_DIR / "canonical-object-coverage.json"
 POSITIVE = ARTIFACT_DIR / "matrix-zulip-lossy-field-report.fixture.json"
 NEGATIVE = ARTIFACT_DIR / "matrix-zulip-silent-drop-negative.fixture.json"
+MIGRATION_PROOF = ARTIFACT_DIR / "matrix-zulip-migration-proof.fixture.json"
+ROLLBACK_PROOF = ARTIFACT_DIR / "zulip-matrix-rollback-proof.fixture.json"
+CLAIM_GATE = ARTIFACT_DIR / "sprint-23-claim-gate.fixture.json"
 REGISTRY = ROOT / "specs" / "0004-domain-registry" / "canonical-domain-registry-v1.json"
 SERVER_REGISTRY = ROOT / "server" / "src" / "main" / "resources" / "canonical-domain-registry-v1.json"
 PRODUCT_REALITY = ROOT / "release" / "product-reality-gates.json"
@@ -56,6 +59,14 @@ FORBIDDEN_RAW_PATTERNS = [
     r"https://zulip",
     r"mxc://",
 ]
+REQUIRED_EVIDENCE_REFS = {
+    "release/provider-lab/chat-switch/canonical-object-coverage.json",
+    "release/provider-lab/chat-switch/matrix-zulip-migration-proof.fixture.json",
+    "release/provider-lab/chat-switch/matrix-zulip-lossy-field-report.fixture.json",
+    "release/provider-lab/chat-switch/zulip-matrix-rollback-proof.fixture.json",
+}
+REQUIRED_CLAIM_EVIDENCE_TERMS = {"MigrationReceipt", "LossyFieldReport", "RollbackReceipt", "UI validation transcript"}
+REJECTED_GENERIC_TERMS = {"interchangeable", "production", "fully preserved"}
 
 
 def fail(message: str) -> None:
@@ -133,6 +144,114 @@ def validate_fixture(fixture: dict[str, Any], coverage: dict[str, Any]) -> bool:
     return not missing
 
 
+def assert_domain_stable(artifact: dict[str, Any], label: str) -> None:
+    before = artifact.get("domainBefore", {})
+    after = artifact.get("domainAfter", {})
+    for field in ["domainKey", "weaveSpaceId", "weaveConversationId"]:
+        if before.get(field) != after.get(field):
+            fail(f"{label} must keep {field} stable")
+
+
+def validate_migration_proof(artifact: dict[str, Any], coverage: dict[str, Any]) -> None:
+    assert_support_safe(json.dumps(artifact), "matrix-zulip-migration-proof")
+    if artifact.get("artifactKind") != "weave-chat-switch-matrix-zulip-migration-proof":
+        fail("migration proof artifact kind mismatch")
+    if artifact.get("redaction") != "support_safe" or artifact.get("supportSafe") is not True:
+        fail("migration proof must be support_safe")
+    if artifact.get("sourceProvider") != "matrix-synapse" or artifact.get("targetProvider") != "zulip":
+        fail("migration proof must be Matrix/Synapse to Zulip scoped")
+    assert_domain_stable(artifact, "migration proof")
+    if artifact.get("domainAfter", {}).get("activeProvider") != "zulip":
+        fail("migration proof must end with Zulip active")
+    receipt = artifact.get("migrationReceipt", {})
+    if receipt.get("weaveDomainIdsStable") is not True:
+        fail("MigrationReceipt must assert stable Weave domain IDs")
+    if receipt.get("productionMutationPerformed") is not False:
+        fail("migration proof must not claim production mutation")
+    for required in ["lossyFieldReportRef", "attachmentValidationReportRef", "uiValidationTranscriptRef"]:
+        if not receipt.get(required):
+            fail(f"MigrationReceipt missing {required}")
+    validate_provider_refs({"fixtureId": "migration proof", "providerRefs": receipt.get("providerRefs", [])}, coverage)
+    required_statuses = set(coverage.get("requiredHistoryStatuses", []))
+    receipt_statuses = set(receipt.get("historyStatuses", []))
+    validation_statuses = {item.get("historyStatus") for item in artifact.get("historyValidation", [])}
+    if receipt_statuses != required_statuses or validation_statuses != required_statuses:
+        fail("migration proof must report every required history status")
+    if artifact.get("attachmentValidationReport", {}).get("failed") != 0:
+        fail("attachment validation report must not hide failed attachments")
+    ui = artifact.get("uiValidationTranscript", {})
+    if ui.get("visibleDomain") != "Chat" or ui.get("activeProvider") != "zulip" or ui.get("providerSetupHiddenFromMember") is not True:
+        fail("migration UI transcript must show stable member Chat domain after Zulip activation")
+    audit_links = {link for event in artifact.get("auditLog", []) for link in event.get("links", [])}
+    for required_ref in [receipt.get("lossyFieldReportRef"), receipt.get("attachmentValidationReportRef"), receipt.get("uiValidationTranscriptRef")]:
+        if required_ref not in audit_links:
+            fail(f"migration audit log must link {required_ref}")
+
+
+def validate_rollback_proof(artifact: dict[str, Any], coverage: dict[str, Any]) -> None:
+    assert_support_safe(json.dumps(artifact), "zulip-matrix-rollback-proof")
+    if artifact.get("artifactKind") != "weave-chat-switch-zulip-matrix-rollback-proof":
+        fail("rollback proof artifact kind mismatch")
+    if artifact.get("redaction") != "support_safe" or artifact.get("supportSafe") is not True:
+        fail("rollback proof must be support_safe")
+    if artifact.get("sourceProvider") != "zulip" or artifact.get("targetProvider") != "matrix-synapse":
+        fail("rollback proof must be Zulip to Matrix/Synapse scoped")
+    assert_domain_stable(artifact, "rollback proof")
+    if artifact.get("domainAfter", {}).get("activeProvider") != "matrix-synapse":
+        fail("rollback proof must end with Matrix/Synapse active")
+    receipt = artifact.get("rollbackReceipt", {})
+    if receipt.get("weaveDomainIdsStable") is not True:
+        fail("RollbackReceipt must assert stable Weave domain IDs")
+    if receipt.get("productionMutationPerformed") is not False:
+        fail("rollback proof must not claim production mutation")
+    if not receipt.get("conflictSummaryRef") or not receipt.get("limitations"):
+        fail("RollbackReceipt must reference conflicts and limitations")
+    validate_provider_refs({"fixtureId": "rollback proof", "providerRefs": receipt.get("providerRefs", [])}, coverage)
+    classifications = {item.get("historyStatus") for item in artifact.get("conflictReport", {}).get("classifications", [])}
+    for required_status in ["conflict", "partially_preserved", "metadata_only", "unsupported"]:
+        if required_status not in classifications:
+            fail(f"rollback conflict report missing {required_status}")
+    ui = artifact.get("uiValidationTranscript", {})
+    if ui.get("visibleDomain") != "Chat" or ui.get("activeProvider") != "matrix-synapse" or ui.get("oldHistoryVisible") is not True:
+        fail("rollback UI transcript must show stable member Chat domain after Matrix restore")
+    audit_links = {link for event in artifact.get("auditLog", []) for link in event.get("links", [])}
+    if receipt.get("conflictSummaryRef") not in audit_links:
+        fail("rollback audit log must link conflict report")
+
+
+def validate_claim_gate(artifact: dict[str, Any]) -> None:
+    assert_support_safe(json.dumps(artifact), "sprint-23-claim-gate")
+    if artifact.get("artifactKind") != "weave-chat-switch-sprint-23-claim-gate":
+        fail("claim gate artifact kind mismatch")
+    if artifact.get("redaction") != "support_safe":
+        fail("claim gate must be support_safe")
+    if artifact.get("chatRealityLevel") != "migration_apply_ready" or artifact.get("releaseReady") is not False:
+        fail("Sprint 23 scoreboard must stay at migration_apply_ready and blocked releaseReady")
+    scoreboard = artifact.get("scoreboard", {})
+    if scoreboard.get("scoreboardKind") != "weave-sprint-23-chat-switch-scoreboard":
+        fail("Sprint 23 chat scoreboard kind mismatch")
+    for field in ["chatProviderSwitch", "matrixToZulipDryRunApply", "zulipToMatrixRollbackHonesty", "canonicalObjectCoverage", "providerRefRedaction", "claimSafety"]:
+        if scoreboard.get(field) != "green":
+            fail(f"Sprint 23 chat scoreboard field {field} must be green")
+    if scoreboard.get("releaseReady") != "blocked":
+        fail("Sprint 23 releaseReady must remain blocked")
+    if set(artifact.get("requiredEvidenceRefs", [])) != REQUIRED_EVIDENCE_REFS:
+        fail("claim gate must require migration, lossy, rollback, and coverage evidence refs")
+    accepted = artifact.get("acceptedScopedClaim", {})
+    if accepted.get("expectedOutcome") != "accept" or set(accepted.get("mustReference", [])) != REQUIRED_CLAIM_EVIDENCE_TERMS:
+        fail("scoped chat switch claim must pass only with required evidence terms")
+    rejected = artifact.get("rejectedGenericClaim", {})
+    rejected_claim = rejected.get("claim", "").lower()
+    if rejected.get("expectedOutcome") != "reject" or not all(term in rejected_claim for term in REJECTED_GENERIC_TERMS):
+        fail("generic provider interchangeability/production/full-history claim must be rejected")
+    if not artifact.get("openBlockers"):
+        fail("claim gate must list open blockers")
+    boundary = artifact.get("claimBoundary", "").lower()
+    for phrase in ["provider interchangeability", "production apply", "production rollback", "release-ready", "lossless migration", "full-history preservation", "e2ee history migration"]:
+        if phrase not in boundary:
+            fail(f"claim gate boundary missing {phrase}")
+
+
 def main() -> None:
     coverage = load(COVERAGE)
     if coverage.get("artifactKind") != "weave-chat-switch-canonical-object-coverage":
@@ -196,11 +315,20 @@ def main() -> None:
     if validate_fixture(negative, coverage):
         fail("negative silent-drop fixture unexpectedly passed; missing LossyFieldReport entry must reject")
 
+    migration_proof = load(MIGRATION_PROOF)
+    validate_migration_proof(migration_proof, coverage)
+
+    rollback_proof = load(ROLLBACK_PROOF)
+    validate_rollback_proof(rollback_proof, coverage)
+
+    claim_gate = load(CLAIM_GATE)
+    validate_claim_gate(claim_gate)
+
     boundary = coverage.get("claimBoundary", "").lower()
     for phrase in ["does not prove lossless migration", "production apply", "production rollback", "provider interchangeability", "e2ee history migration", "release readiness"]:
         if phrase not in boundary:
             fail(f"claim boundary missing {phrase}")
-    print("chat-provider-switch-check: ok objects=12 positive=accept negative=reject providerRefs=support_safe")
+    print("chat-provider-switch-check: ok objects=12 positive=accept negative=reject migration=matrix-to-zulip rollback=zulip-to-matrix claims=scoped providerRefs=support_safe")
 
 
 if __name__ == "__main__":

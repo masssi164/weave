@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-chat-switch-zulip-matrix-rollback-proof",
+  "sprint": "Sprint 23 — Chat Provider Switch",
+  "issues": [628],
+  "redaction": "support_safe",
+  "supportSafe": true,
+  "sourceProvider": "zulip",
+  "targetProvider": "matrix-synapse",
+  "domainBefore": {
+    "domainKey": "chat",
+    "weaveSpaceId": "weave-space:provider-lab-main",
+    "weaveConversationId": "weave-conversation:ops-announcements",
+    "activeProvider": "zulip"
+  },
+  "rollbackReceipt": {
+    "receiptId": "rollback-receipt:s23:zulip-matrix:redacted",
+    "state": "rolled_back_in_provider_lab_fixture",
+    "productionMutationPerformed": false,
+    "sourceProvider": "zulip",
+    "restoredProvider": "matrix-synapse",
+    "commandRef": "provider-lab:chat-switch:rollback:redacted",
+    "startedAtUtc": "2026-06-03T06:10:00Z",
+    "completedAtUtc": "2026-06-03T06:13:00Z",
+    "weaveDomainIdsStable": true,
+    "providerRefs": [
+      {
+        "providerId": "zulip",
+        "providerObjectType": "stream",
+        "opaqueId": "opaque:zulip:stream:8f92b6c1d3e4",
+        "contentHash": "sha256:7a756c69702d73747265616d2d726564616374656400",
+        "historyStatus": "partially_preserved",
+        "redacted": true
+      },
+      {
+        "providerId": "matrix-synapse",
+        "providerObjectType": "room",
+        "opaqueId": "opaque:matrix-synapse:room:7b83a2e1c4d5",
+        "contentHash": "sha256:6d61747269782d726f6f6d2d726564616374656400",
+        "historyStatus": "preserved",
+        "redacted": true
+      }
+    ],
+    "conflictSummaryRef": "conflict-report:s23:zulip-matrix:redacted",
+    "limitations": [
+      "Rollback is provider-lab fixture evidence, not a production rollback claim.",
+      "Messages created only in the target provider during the switch window are classified instead of hidden.",
+      "Unsupported encrypted history remains unsupported and cannot be reconstructed by rollback."
+    ],
+    "uiValidationTranscriptRef": "ui-validation:s23:chat-domain-stable-after-matrix-rollback:redacted",
+    "auditRefs": [
+      "audit:s23:chat-switch:rollback-requested:redacted",
+      "audit:s23:chat-switch:rollback-completed:redacted",
+      "audit:s23:chat-switch:provider-active-matrix:redacted"
+    ]
+  },
+  "conflictReport": {
+    "reportId": "conflict-report:s23:zulip-matrix:redacted",
+    "redaction": "support_safe",
+    "classifications": [
+      {
+        "canonicalObject": "WeaveMessage",
+        "field": "lateTargetMessage",
+        "historyStatus": "conflict",
+        "resolution": "kept as conflict marker with admin review reference"
+      },
+      {
+        "canonicalObject": "WeaveThread",
+        "field": "topicMapping",
+        "historyStatus": "partially_preserved",
+        "resolution": "restored Matrix room with thread summary note"
+      },
+      {
+        "canonicalObject": "WeaveMembership",
+        "field": "historicalRoleChange",
+        "historyStatus": "metadata_only",
+        "resolution": "role-change metadata retained without raw provider payload"
+      },
+      {
+        "canonicalObject": "WeaveHistoryPolicy",
+        "field": "e2eeHistory",
+        "historyStatus": "unsupported",
+        "resolution": "reported as unsupported/coming_later"
+      }
+    ]
+  },
+  "uiValidationTranscript": {
+    "transcriptId": "ui-validation:s23:chat-domain-stable-after-matrix-rollback:redacted",
+    "memberRoute": "/chat/weave-conversation:ops-announcements",
+    "visibleDomain": "Chat",
+    "activeProviderState": "available",
+    "activeProvider": "matrix-synapse",
+    "weaveSpaceIdStable": true,
+    "weaveConversationIdStable": true,
+    "oldHistoryVisible": true,
+    "providerSetupHiddenFromMember": true,
+    "redaction": "support_safe"
+  },
+  "auditLog": [
+    {
+      "auditRef": "audit:s23:chat-switch:rollback-requested:redacted",
+      "event": "chat.provider_switch.rollback_requested",
+      "links": ["rollback-receipt:s23:zulip-matrix:redacted"]
+    },
+    {
+      "auditRef": "audit:s23:chat-switch:rollback-completed:redacted",
+      "event": "chat.provider_switch.rollback_completed",
+      "links": ["conflict-report:s23:zulip-matrix:redacted"]
+    },
+    {
+      "auditRef": "audit:s23:chat-switch:provider-active-matrix:redacted",
+      "event": "chat.provider_switch.active_provider_changed",
+      "links": ["ui-validation:s23:chat-domain-stable-after-matrix-rollback:redacted"]
+    }
+  ],
+  "domainAfter": {
+    "domainKey": "chat",
+    "weaveSpaceId": "weave-space:provider-lab-main",
+    "weaveConversationId": "weave-conversation:ops-announcements",
+    "activeProvider": "matrix-synapse"
+  },
+  "claimBoundary": "This fixture proves provider-lab rollback honesty and stable Weave Chat navigation only. It does not prove production rollback, destructive production mutation, lossless restoration, provider interchangeability, E2EE history migration, or release readiness."
+}
