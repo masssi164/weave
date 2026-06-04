@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.cicd;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +29,9 @@ class LocalForgejoPipelineProviderTest {
         assertThat(result.reasonCode()).isEqualTo("runner_missing");
         assertThat(result.missingNames()).containsExactly("FORGEJO_ACTIONS_RUNNER_REGISTRATION");
         assertThat(result.supportSafeSummary()).doesNotContain("token", "http://", "https://");
+
+        PipelineRunRef blockedRun = provider.requestDispatch(new PipelineDispatchRequest(new PipelinePreflightRequest(false, false, List.of(), List.of(), false, false, "support_safe_domain_plan_ref"), "runner-missing", "idem-runner"));
+        assertThat(blockedRun.nextActionCode()).isEqualTo("register_runner_before_trigger");
     }
 
     @Test
@@ -47,6 +51,10 @@ class LocalForgejoPipelineProviderTest {
         PipelinePreflightResult missing = provider.preflight(new PipelinePreflightRequest(true, true, List.of("WEAVE_FORGEJO_TOKEN"), List.of("WEAVE_FORGEJO_BASE_URL"), false, false, "support_safe_domain_plan_ref"));
         assertThat(missing.reasonCode()).isEqualTo("runner_secret_missing");
         assertThat(missing.missingNames()).contains("WEAVE_INFRA_STATE_SECRET", "WEAVE_FORGEJO_API_URL");
+
+        PipelineRunRef missingBlocked = provider.requestDispatch(new PipelineDispatchRequest(new PipelinePreflightRequest(true, true, Arrays.asList("WEAVE_FORGEJO_TOKEN", null, " "), Arrays.asList("WEAVE_FORGEJO_BASE_URL", null), false, false, "support_safe_domain_plan_ref"), "missing-secretrefs", "idem-missing"));
+        assertThat(missingBlocked.status()).isEqualTo(PipelineRunStatus.BLOCKED);
+        assertThat(missingBlocked.nextActionCode()).isEqualTo("configure_secretrefs_before_trigger");
 
         PipelinePreflightResult approval = provider.preflight(new PipelinePreflightRequest(true, true, allSecrets(), allVariables(), false, false, "support_safe_domain_plan_ref"));
         assertThat(approval.state()).isEqualTo(PipelineSetupState.ADMIN_APPROVAL);
@@ -79,6 +87,7 @@ class LocalForgejoPipelineProviderTest {
 
     @Test
     void redactorBlocksPemPrivateKeys() {
+        assertThat(SupportSafePipelineRedactor.containsUnsafeValue("-----BEGIN PRIVATE KEY-----")).isTrue();
         assertThat(SupportSafePipelineRedactor.containsUnsafeValue("-----BEGIN OPENSSH PRIVATE KEY-----")).isTrue();
     }
 

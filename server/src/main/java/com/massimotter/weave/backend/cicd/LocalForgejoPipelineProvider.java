@@ -83,7 +83,7 @@ public final class LocalForgejoPipelineProvider implements PipelineProvider {
         PipelinePreflightResult result = preflight(request.preflight());
         if (!result.dispatchAllowed()) {
             PipelineRunStatus blockedStatus = "approval_missing".equals(result.reasonCode()) ? PipelineRunStatus.APPROVAL_REQUIRED : PipelineRunStatus.BLOCKED;
-            String nextAction = "approval_missing".equals(result.reasonCode()) ? "capture_admin_approval" : result.reasonCode();
+            String nextAction = nextActionForBlockedPreflight(result.reasonCode());
             return new PipelineRunRef(PROVIDER_KEY, WORKFLOW_REF, "none-trigger-blocked-before-dispatch", blockedStatus, request.correlationRef(), result.auditRef(), result.evidenceRef(), nextAction, result.supportSafeSummary());
         }
         String runRef = "forgejo-run-" + safeRef(request.correlationRef()) + "-pending-provider-call";
@@ -118,7 +118,14 @@ public final class LocalForgejoPipelineProvider implements PipelineProvider {
     }
 
     private static List<String> missingNames(List<String> presentNames, List<String> requiredNames) {
-        Set<String> present = new TreeSet<>(presentNames == null ? List.of() : presentNames);
+        Set<String> present = new TreeSet<>();
+        if (presentNames != null) {
+            for (String name : presentNames) {
+                if (name != null && !name.isBlank()) {
+                    present.add(name);
+                }
+            }
+        }
         List<String> missing = new ArrayList<>();
         for (String required : requiredNames) {
             if (!present.contains(required)) {
@@ -126,6 +133,17 @@ public final class LocalForgejoPipelineProvider implements PipelineProvider {
             }
         }
         return missing;
+    }
+
+    private static String nextActionForBlockedPreflight(String reasonCode) {
+        return switch (reasonCode) {
+            case "approval_missing" -> "capture_admin_approval";
+            case "runner_missing" -> "register_runner_before_trigger";
+            case "runner_offline" -> "start_runner_before_trigger";
+            case "runner_secret_missing" -> "configure_secretrefs_before_trigger";
+            case "raw_value_supplied" -> "replace_raw_values_with_secretrefs";
+            default -> "resolve_preflight_block_before_trigger";
+        };
     }
 
     private static String safeRef(String raw) {

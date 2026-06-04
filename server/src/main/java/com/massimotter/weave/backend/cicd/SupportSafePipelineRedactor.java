@@ -9,7 +9,7 @@ public final class SupportSafePipelineRedactor {
             Pattern.compile("(?i)(token|secret|password|private[_-]?key)\\s*[:=]\\s*[^\\s,}\\\"]+"),
             Pattern.compile("(?i)https?://[^\\s)\\\"]+"),
             Pattern.compile("(?i)ssh://[^\\s)\\\"]+"),
-            Pattern.compile("(?i)-----begin\\s+(rsa|dsa|ec|openssh|private)\\s+private\\s+key-----")
+            Pattern.compile("(?i)-----begin\\s+((rsa|dsa|ec|openssh)\\s+)?private\\s+key-----")
     };
 
     private SupportSafePipelineRedactor() {}

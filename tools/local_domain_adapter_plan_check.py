@@ -44,7 +44,7 @@ FORBIDDEN_PATTERNS = [
         r"(token|secret|password|private[_-]?key)\s*[:=]\s*[^\s,}\"]+",
         r"https?://[^\s)\"]+",
         r"ssh://[^\s)\"]+",
-        r"-----begin\s+(rsa|dsa|ec|openssh|private)\s+private\s+key-----",
+        r"-----begin\s+((rsa|dsa|ec|openssh)\s+)?private\s+key-----",
     ]
 ]
 FORBIDDEN_FIELD_NAMES = {
