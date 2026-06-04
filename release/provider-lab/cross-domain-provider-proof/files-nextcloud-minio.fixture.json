@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-sprint-27-files-boundary-proof-v1",
+  "issue": 644,
+  "supportSafe": true,
+  "domain": "files",
+  "sourceProviderKey": "nextcloud",
+  "targetProviderKey": "minio-s3",
+  "realityLevel": "migration_dry_run",
+  "canonicalObjects": [
+    "WeaveDrive",
+    "WeaveFolder",
+    "WeaveFile",
+    "WeaveVersion",
+    "WeaveShare",
+    "WeavePermission",
+    "WeaveLock",
+    "WeaveQuota",
+    "ProviderRef"
+  ],
+  "fixtureRef": "files-fixture-sprint-27-redacted",
+  "preservedFields": [
+    "WeaveDrive.id",
+    "WeaveFolder.pathHash",
+    "WeaveFile.objectHash",
+    "WeaveFile.mimeType",
+    "WeaveFile.sizeBytes",
+    "WeaveVersion.sequence",
+    "WeavePermission.principalRef",
+    "WeavePermission.role",
+    "WeaveQuota.usedBytes",
+    "ProviderRef.sourceObjectHash"
+  ],
+  "lossyFields": [
+    {
+      "field": "WeaveShare.publicLinkPolicy",
+      "source": "nextcloud-share-link",
+      "target": "minio-presigned-url-policy",
+      "classification": "partially_preserved",
+      "adminImpact": "Share intent is mapped, but provider-specific link lifecycle and password policy must be reissued."
+    },
+    {
+      "field": "WeaveLock.lockOwnerDisplayName",
+      "source": "nextcloud-webdav-lock-owner",
+      "target": "s3-object-lock-metadata",
+      "classification": "metadata_only",
+      "adminImpact": "Lock provenance is retained without target-enforced collaborative WebDAV lock semantics."
+    },
+    {
+      "field": "WeaveVersion.providerNativeRestoreToken",
+      "source": "nextcloud-version-token",
+      "target": "minio-version-id",
+      "classification": "unsupported",
+      "adminImpact": "Version order and hashes are preserved; native restore tokens cannot be reused across providers."
+    }
+  ],
+  "permissionValidation": {
+    "aclMapped": true,
+    "externalShareRiskVisible": true,
+    "silentPermissionDropsAllowed": false
+  },
+  "rollbackBoundary": {
+    "rollbackReady": false,
+    "reason": "Sprint 27 files proof is dry-run mapping evidence, not an applied migration."
+  },
+  "evidenceMarkers": ["SPRINT27_FILES_PROVIDER_BOUNDARY_PROOF"]
+}

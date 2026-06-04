@@ -48,6 +48,9 @@ registerRootCommandTask('adminCicdOrchestrationCheck', ['python3', 'tools/admin_
 registerRootCommandTask('localCicdBootstrapperCheck', ['python3', 'tools/local_cicd_bootstrapper_check.py'], 'Validate Sprint 27 local CI/CD bootstrapper executable, fixtures, and acceptance mapping.')
 registerRootCommandTask('localForgejoRunnerReadinessCheck', ['python3', 'tools/local_forgejo_runner_readiness_check.py'], 'Validate Sprint 27 local Forgejo runner readiness fixtures and acceptance mapping.')
 registerRootCommandTask('localForgejoE2eHandoffCheck', ['python3', 'tools/local_forgejo_e2e_handoff_check.py'], 'Validate Sprint 27 local Forgejo deployed-stack E2E handoff fixtures and acceptance mapping.')
+registerRootCommandTask('localDomainAdapterPlanCheck', ['python3', 'tools/local_domain_adapter_plan_check.py'], 'Validate Sprint 27 local domain-adapter deployable plan fixtures and acceptance mapping.')
+registerRootCommandTask('localForgejoPipelineProviderCheck', ['python3', 'tools/local_forgejo_pipeline_provider_check.py'], 'Validate Sprint 27 local Forgejo PipelineProvider fixtures and acceptance mapping.')
+registerRootCommandTask('crossDomainProviderProofCheck', ['python3', 'tools/cross_domain_provider_proof_check.py'], 'Validate Sprint 27 Calendar, Files, Identity provider-boundary fixtures, scoreboard, claim gate, and acceptance mapping.')
 registerRootCommandTask('specContractTest', ['python3', 'tools/spec_contract_check_test.py'], 'Run fixture tests for the repo-local Weave spec contract guard.')
 registerRootCommandTask('androidReleaseIdentityCheck', ['python3', 'tools/android_release_identity_check.py'], 'Validate Android package identity and release-signing fail-safe posture.')
 registerRootCommandTask('adminDependencyPolicyCheck', ['python3', 'tools/admin_console_dependency_policy_check.py'], 'Validate Admin Console dependency pins and lockfile policy.')
@@ -82,7 +85,7 @@ tasks.register('releaseReadinessCheck', Exec) {
     commandLine execCommand(args)
     outputs.upToDateWhen { false }
 }
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/weaver_runtime_factory_check.py && python3 tools/weaver_customization_check.py && python3 tools/admin_cicd_orchestration_check.py && python3 tools/local_cicd_bootstrapper_check.py && python3 tools/local_forgejo_runner_readiness_check.py && python3 tools/local_forgejo_e2e_handoff_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes structure, README markers, provider reality, product-reality, Sprint 22 provider-lab gate, Sprint 23 chat-switch contract fixtures, Sprint 24 Weaver runtime factory fixtures, product-trust and release-trust claim matrices, labels, generator fixture evidence, Sprint 5 project-readiness closure evidence, Sprint 6 enterprise release gates, and RC readiness fixtures.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/weaver_runtime_factory_check.py && python3 tools/weaver_customization_check.py && python3 tools/admin_cicd_orchestration_check.py && python3 tools/local_cicd_bootstrapper_check.py && python3 tools/local_forgejo_runner_readiness_check.py && python3 tools/local_forgejo_e2e_handoff_check.py && python3 tools/local_domain_adapter_plan_check.py && python3 tools/local_forgejo_pipeline_provider_check.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes structure, README markers, provider reality, product-reality, Sprint 22 provider-lab gate, Sprint 23 chat-switch contract fixtures, Sprint 24/25 Weaver fixtures, Sprint 27 setup-flow and cross-domain provider-proof fixtures, product-trust and release-trust claim matrices, labels, generator fixture evidence, Sprint 5 project-readiness closure evidence, Sprint 6 enterprise release gates, and RC readiness fixtures.')
 
 tasks.register('docsCheck') {
     group = 'verification'
@@ -129,6 +132,9 @@ ext.ciEvidenceGates = [
     'localCicdBootstrapperCheck',
     'localForgejoRunnerReadinessCheck',
     'localForgejoE2eHandoffCheck',
+    'localDomainAdapterPlanCheck',
+    'localForgejoPipelineProviderCheck',
+    'crossDomainProviderProofCheck',
     'androidReleaseIdentityCheck',
     'adminDependencyPolicyCheck',
     'releaseEvidenceCheck',
@@ -253,6 +259,8 @@ List<String> artifactPathsForGate(String gateName) {
             return ['release/enterprise-release-gates.json', 'docs/enterprise-release-foundation.md']
         case 'releaseReadinessFixtureTest':
             return ['tools/release_readiness_check.py', 'tools/fixtures/rc_readiness/green']
+        case 'crossDomainProviderProofCheck':
+            return ['release/provider-lab/cross-domain-provider-proof', 'docs/evidence/sprint-27-cross-domain-provider-proof.md', 'tools/cross_domain_provider_proof_check.py']
         default:
             return []
     }
@@ -326,7 +334,7 @@ tasks.register('ci') {
     dependsOn 'doctor', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck'
 }
 
-['acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
+['acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
     }

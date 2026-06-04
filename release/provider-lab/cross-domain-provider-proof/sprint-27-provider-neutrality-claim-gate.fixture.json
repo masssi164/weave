@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-sprint-27-provider-neutrality-claim-gate-v1",
+  "issue": 646,
+  "supportSafe": true,
+  "acceptedClaim": {
+    "claim": "Sprint 27 proves support-safe migration_dry_run provider-boundary evidence for Calendar Nextcloud CalDAV to Radicale, Files Nextcloud to MinIO S3, and Identity Keycloak to Authentik, with setup-flow evidence named separately and broad provider-neutrality wording still blocked."
+  },
+  "requiredDomainEvidence": [
+    "release/provider-lab/cross-domain-provider-proof/calendar-nextcloud-radicale.fixture.json",
+    "release/provider-lab/cross-domain-provider-proof/files-nextcloud-minio.fixture.json",
+    "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json"
+  ],
+  "setupFlowEvidenceSeparated": true,
+  "setupFlowEvidenceRefs": [
+    "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
+    "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+    "release/provider-lab/local-domain-plan/deployable-domain-plan.fixture.json",
+    "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json"
+  ],
+  "separateIssue665Boundary": "Deployed-stack E2E handoff remains separate release evidence and does not block Calendar, Files, Identity aggregate proof.",
+  "rejectedClaims": [
+    {
+      "claim": "Chat switch evidence alone proves Weave providers are interchangeable.",
+      "reason": "Blocked: Calendar, Files, Identity, setup-flow, rollback, restore, and release-ready evidence must be named separately."
+    },
+    {
+      "claim": "Sprint 27 makes Weave customer-ready or v0.1 release-ready.",
+      "reason": "Blocked: these fixtures are migration_dry_run/provider-lab evidence only."
+    },
+    {
+      "claim": "Nextcloud, Radicale, MinIO, Keycloak, and Authentik can be swapped losslessly in production.",
+      "reason": "Blocked: lossy fields and rollback limits are explicitly reported."
+    }
+  ],
+  "scoreboardRef": "release/provider-lab/cross-domain-provider-proof/sprint-27-cross-domain-scoreboard.json",
+  "evidenceMarkers": ["SPRINT27_PROVIDER_NEUTRALITY_CLAIM_GATE"]
+}
