@@ -412,6 +412,7 @@ maybe_use_reverse_proxy_container_route() {
     docker network inspect weave_network -f '{{range .Containers}}{{if eq .Name "weave-proxy"}}{{println .IPv4Address}}{{end}}{{end}}' 2>/dev/null | cut -d/ -f1 || true
   } | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
   if [[ -z "${proxy_ip}" ]]; then
+    log "Reverse proxy route diagnostics: containers=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^weave-' | paste -sd, - || true) networks=$(docker network ls --format '{{.Name}}' 2>/dev/null | grep '^weave' | paste -sd, - || true)"
     fail "Reverse proxy container IP could not be resolved for local public Weave hostnames."
   fi
 
