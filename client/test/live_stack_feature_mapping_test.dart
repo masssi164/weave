@@ -44,6 +44,7 @@ void main() {
         'Weaver user consents to an approved tool action with an audit receipt',
         'Admin handles provider-switch manual review without changing member language',
         'Admin preflights deploy-new, attach-existing, and hybrid modes before mutation',
+        'Weave Control, Admin Console, and Client keep separate responsibilities',
         'Deploy-new proof requires pipeline, server/infra readiness, Weave Control, and client-bootstrap handoff',
         'Attach-existing proof binds existing systems without redeploying them',
         'Hybrid setup keeps per-domain mutation boundaries separate',
