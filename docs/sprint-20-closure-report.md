@@ -107,8 +107,8 @@ Result: **above the hard exit threshold and Sprint 20 is closed, but blocked bel
    - Smallest non-agent release-promotion action: an external human AT reviewer executes the #591 checklist on the exact candidate build and records support-safe results.
 
 2. #609 `epic(workspace): prove the daily Space control room as a current-head product loop`
-   - Depends on current-head Live Stack for release-grade live credit and #591 for manual AT release signoff.
-   - State: **closed for Sprint 20; offline/spec, local CI, and current-head live evidence satisfied; manual release-promotion evidence remains #591**.
+   - Depends on exact-candidate Live Stack for release-grade live credit and #591 for manual AT release signoff.
+   - State: **closed for Sprint 20; offline/spec, local CI, and candidate live evidence satisfied; manual release-promotion evidence remains #591**.
    - Evidence: `clientCi`, `acceptanceContract`, Space control-room tests, `V01_SPACE_CONTROL_ROOM` mapping.
 
 3. #610 `epic(operator): make backup restore and support bundles deterministic`
