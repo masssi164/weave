@@ -1,0 +1,23 @@
+{
+  "artifactKind": "weave-support-bundle-redaction-report-v1",
+  "issue": 640,
+  "supportSafe": true,
+  "createdAt": "2026-06-04T02:10:00Z",
+  "bundleRef": "fixture-support-bundle-redacted",
+  "scannerVersion": "support-bundle.sh:redaction-v1",
+  "checks": [
+    {"name": "tokens_and_authorization_headers", "status": "passed"},
+    {"name": "cookies", "status": "passed"},
+    {"name": "private_keys", "status": "passed"},
+    {"name": "secret_refs", "status": "passed"},
+    {"name": "provider_urls", "status": "passed"},
+    {"name": "private_messages_file_contents_weaver_memory", "status": "excluded_by_bundle_scope"},
+    {"name": "negative_fixture_detects_unsafe_content", "status": "passed"}
+  ],
+  "findings": [],
+  "unsafeContentDetected": false,
+  "limitations": [
+    "Support bundles are diagnostics only and cannot restore data.",
+    "Operators must review site-specific logs before external sharing."
+  ]
+}

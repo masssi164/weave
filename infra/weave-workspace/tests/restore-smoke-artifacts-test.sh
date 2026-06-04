@@ -36,6 +36,17 @@ output="$(WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash "${SCRIPT}" "${backup_dir
   echo "${output}" >&2
   exit 1
 }
+[[ -s "${backup_dir}/RestoreReceipt.json" ]] || { echo "restore-smoke did not write RestoreReceipt.json" >&2; exit 1; }
+python3 - "${backup_dir}/RestoreReceipt.json" <<'PY'
+import json
+import sys
+receipt = json.load(open(sys.argv[1], encoding='utf-8'))
+assert receipt['artifactKind'] == 'weave-restore-receipt-v1'
+assert receipt['validationMode'] == 'artifacts_only'
+assert receipt['destroyStep']['performed'] is False
+assert receipt['provesRestoredDomainData'] is False
+assert receipt['releaseEligible'] is False
+PY
 
 rm "${backup_dir}/postgres.sql"
 if WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true bash "${SCRIPT}" "${backup_dir}" >/tmp/restore-smoke-missing.out 2>&1; then
