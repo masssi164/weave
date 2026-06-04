@@ -6,19 +6,20 @@ Status: WEAVE-SPEC-0001 issue #387 contract.
 
 The Admin-Suite is the owner/admin/operator control plane for organization setup, provider readiness, policy, diagnostics, and repair. Normal members enter an already-provisioned organization and consume only provider-neutral capability states from the organization manifest.
 
-This contract extends the [Admin-provisioned first use boundary](admin-provisioned-first-use.md) and [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md) for WEAVE-SPEC-0001. It does not add member-facing provider setup and it does not claim full provider migration automation; portable switch/export/import details remain in the provider replacement contract.
+This contract extends the [Admin-provisioned first use boundary](admin-provisioned-first-use.md), [Weave Control bootstrap-to-client contract](weave-control-bootstrap-to-client-contract.md), and [Weave product line and Weaver integration plan](product-line-and-weaver-plan.md) for WEAVE-SPEC-0001. It does not add member-facing provider setup and it does not claim full provider migration automation; portable switch/export/import details remain in the provider replacement contract.
 
 ## Guided setup assistant
 
 The Admin-Suite setup assistant must lead an owner/admin through these steps before member go-live:
 
-1. Choose or confirm WEAVE-SPEC-0001 provider domains: IDM/RBAC, Chat/Channels, Files/Docs, Boards/Tasks, Calendar/Events, Meetings, and Forms/Contacts.
-2. Bind the selected adapter through backend admin APIs only; never call provider admin APIs directly from the browser client.
-3. Keep secrets as `SecretRef` handles and reject raw secrets, bearer tokens, credential-bearing URLs, raw downstream payloads, or provider diagnostics in form fields and evidence.
-4. Run dry-run/preflight validation before apply.
-5. Show an effective member preview using only `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.
-6. Explain consequences, recovery path, and rollback/support boundary before any irreversible bind, unbind, switch, detach, or policy change.
-7. Write support-safe audit evidence for every setup, readiness, and policy action.
+1. Choose or confirm WEAVE-SPEC-0001 provider domains: IDM/RBAC, Chat/Channels, Files/Docs, Boards/Tasks, Calendar/Events, Meetings, Forms/Contacts, and optional governed Weaver.
+2. Select the setup mode for each domain: `deploy_new`, `attach_existing`, or `hybrid` aggregate. The selected mode is admin/operator-only and must not appear as a normal-member setup choice.
+3. Bind the selected adapter through backend admin APIs only; never call provider admin APIs directly from the browser client.
+4. Keep secrets as `SecretRef` handles and reject raw secrets, bearer tokens, credential-bearing URLs, raw downstream payloads, or provider diagnostics in form fields and evidence.
+5. Run dry-run/preflight validation before apply.
+6. Show an effective member preview using only `available`, `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later`.
+7. Explain consequences, recovery path, and rollback/support boundary before any irreversible bind, unbind, switch, detach, or policy change.
+8. Write support-safe audit evidence for every setup, readiness, and policy action.
 
 ## Readiness dashboard
 

@@ -14,6 +14,9 @@ void main() {
 
       final forbiddenFragments = <String>[
         '/admin/control-plane',
+        'deploy_new',
+        'attach_existing',
+        'hybrid setup',
         '/admin/identity/readiness',
         '/identity/readiness',
         '/admin/providers',
@@ -22,6 +25,8 @@ void main() {
         'secretref://',
         'SecretRef inventory',
         'provider replacement dry-run',
+        'Forgejo pipeline',
+        'OIDC client setup',
       ];
 
       for (final file in libFiles) {

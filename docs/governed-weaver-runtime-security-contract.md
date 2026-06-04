@@ -2,7 +2,7 @@
 
 Status: active contract for issues #433 and #446-#449.
 
-Weaver is an optional per-user personal-assistant runtime. It is generated from Weave organization policy and the member's normal rights; it is not a second, uncontrolled agent policy plane.
+Weaver is an optional per-user personal-assistant runtime. It is generated from Weave organization policy and the member's normal rights; it is not a second, uncontrolled agent policy plane. Sprint 30 keeps Weaver inside the [Weave Control bootstrap-to-client contract](weave-control-bootstrap-to-client-contract.md): disabled by default, per-organization/per-user governed, sandboxed, allowlisted, approval-gated, auditable, revocable, and support-safe before any availability claim.
 
 ## Control-plane boundary
 
@@ -38,7 +38,7 @@ Runtime provisioning is fail-closed unless all gates pass:
 4. The member has opted in where the policy requires opt-in.
 5. The runtime profile intersects user rights with the admin capability/tool allowlist.
 
-If any gate fails, member surfaces show only `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later` impact states and never expose provider diagnostics.
+If any gate fails, member surfaces show only `disabled_by_policy`, `not_configured`, `degraded`, `unavailable`, or `coming_later` impact states and never expose provider diagnostics. Admin/operator surfaces may show policy-denied, approval-required, revoked, unavailable, or not-configured states with support-safe refs; they must not expose prompts, private memory, member content, tokens, raw provider payloads, credential URLs, raw runtime configuration, or raw downstream errors.
 
 ## Isolation boundary
 
