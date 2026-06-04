@@ -1,0 +1,22 @@
+{
+  "artifactKind": "weave-restore-receipt-v1",
+  "issue": 639,
+  "supportSafe": true,
+  "createdAt": "2026-06-04T02:05:00Z",
+  "backupManifestRef": "release/provider-lab/operator-recovery/backup-manifest.fixture.json",
+  "restoreRunId": "fixture-artifact-preflight-20260604T020500Z",
+  "validationMode": "artifacts_only",
+  "status": "artifact_preflight_passed_not_restore_proof",
+  "destroyStep": {"performed": false, "reason": "No approved disposable live restore environment was available to this PR."},
+  "checks": [
+    {"name": "backup_artifacts_present", "status": "passed"},
+    {"name": "post_restore_operator_check", "status": "not_run"},
+    {"name": "domain_data_recovered", "status": "not_proven"}
+  ],
+  "provesRestoredDomainData": false,
+  "releaseEligible": false,
+  "limitations": [
+    "This fixture is deliberately not a live restore receipt.",
+    "Release promotion remains blocked until an approved disposable stack records destroy=true and proves restored domain data."
+  ]
+}
