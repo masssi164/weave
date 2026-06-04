@@ -95,6 +95,7 @@ jobs:
             && command -v unzip >/dev/null 2>&1 \
             && command -v zstd >/dev/null 2>&1 \
             && pkg-config --exists gtk+-3.0 \
+            && pkg-config --exists libsecret-1 \
             && pkg-config --exists webkit2gtk-4.1; then
             echo "local_forgejo_prerequisites=preinstalled"
             exit 0
@@ -111,6 +112,7 @@ jobs:
             iproute2 \
             jq \
             libgtk-3-dev \
+            libsecret-1-dev \
             libwebkit2gtk-4.1-dev \
             make \
             ninja-build \
