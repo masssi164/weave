@@ -104,10 +104,7 @@ void main() {
         controlText,
         contains('Weave Server stays separately deployable or attachable'),
       );
-      expect(
-        controlText,
-        contains('Members never configure CI/CD targets'),
-      );
+      expect(controlText, contains('Members never configure CI/CD targets'));
       expect(
         controlText,
         contains('GitHub-only Live Stack evidence is not a substitute'),
