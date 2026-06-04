@@ -40,9 +40,8 @@ resource "docker_container" "this" {
   }
 
   upload {
-    file        = "/etc/caddy/Caddyfile"
-    source      = var.caddyfile_path
-    source_hash = filesha256(var.caddyfile_path)
+    file   = "/etc/caddy/Caddyfile"
+    source = var.caddyfile_path
   }
 
   upload {
