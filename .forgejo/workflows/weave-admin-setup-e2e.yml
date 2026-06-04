@@ -180,8 +180,12 @@ jobs:
             gateway_ip="$(ip route | awk '/default/ && $3 ~ /^[0-9]+([.][0-9]+){3}$/ {print $3; exit}')"
           fi
           if [ -z "$gateway_ip" ]; then
-            echo "unable_to_resolve_host_docker_internal_gateway=true"
-            exit 2
+            if docker info --format '{{ .OSType }}' >/dev/null 2>&1; then
+              gateway_ip="127.0.0.1"
+            else
+              echo "unable_to_resolve_host_docker_internal_gateway=true"
+              exit 2
+            fi
           fi
           echo "WEAVE_LOOPBACK_RESOLVE_HOST=$gateway_ip" >> "$GITHUB_ENV"
           line="$gateway_ip weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"

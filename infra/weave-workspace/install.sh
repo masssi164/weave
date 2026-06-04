@@ -17,6 +17,7 @@ readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/
 readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
 readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
+readonly LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
 readonly TEST_USER_EMAIL="test@weave.local"
 readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_host
@@ -543,7 +544,7 @@ curl_nextcloud_actor_calendar_status() {
   local -a args=(--silent --show-error)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:${LOOPBACK_HOST}")
+  args+=(--resolve "${host_port}:${LOOPBACK_RESOLVE_HOST}")
   if [[ "${TF_VAR_public_scheme}" == "https" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then
     args+=(--cacert "${TF_VAR_caddy_tls_ca_file}")
   fi

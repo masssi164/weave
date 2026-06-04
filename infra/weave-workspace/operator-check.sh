@@ -8,6 +8,7 @@ BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
 APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
 SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
+readonly LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
 
 log() {
   printf '%s\n' "$*"
@@ -83,7 +84,7 @@ curl_common_args() {
   local -a args=(--silent --show-error --fail)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:${LOOPBACK_HOST}")
+  args+=(--resolve "${host_port}:${LOOPBACK_RESOLVE_HOST}")
 
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
     args+=(--cacert "${WEAVE_TLS_CA_FILE}")
@@ -153,7 +154,7 @@ curl_status() {
   local -a args=(--silent --show-error)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:${LOOPBACK_HOST}")
+  args+=(--resolve "${host_port}:${LOOPBACK_RESOLVE_HOST}")
 
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
     args+=(--cacert "${WEAVE_TLS_CA_FILE}")
@@ -190,7 +191,7 @@ curl_auth_status() {
   local -a args=(--silent --show-error)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:${LOOPBACK_HOST}")
+  args+=(--resolve "${host_port}:${LOOPBACK_RESOLVE_HOST}")
 
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
     args+=(--cacert "${WEAVE_TLS_CA_FILE}")
