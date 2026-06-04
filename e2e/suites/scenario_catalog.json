@@ -860,7 +860,7 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "blocked handoff honesty",
-        "stack and E2E signal requirements"
+        "deployment handoff and separate client-lane signal requirements"
       ]
     },
     {
@@ -1189,6 +1189,29 @@
       ]
     },
     {
+      "tag": "@weave-control-admin-console-client-responsibility-split",
+      "suiteId": "weave-control-setup-modes",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "identity-idm",
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Weave Control bootstrap/ops boundary",
+        "Admin Console organization policy/readiness boundary",
+        "Client member-only handoff boundary",
+        "future Weaver governance without v0.1 runtime claim"
+      ],
+      "scenario": "Weave Control, Admin Console, and Client keep separate responsibilities"
+    },
+    {
       "tag": "@weave-control-deploy-new-local-forgejo-e2e-boundary",
       "suiteId": "weave-control-setup-modes",
       "personas": [
@@ -1202,12 +1225,14 @@
       ],
       "testLevel": "offline-contract",
       "assertionFocus": [
-        "deploy_new local Forgejo boundary",
+        "deploy_new local Forgejo deployment handoff boundary",
         "pipeline_terminal_success",
-        "stack_readiness_passed",
-        "weave_e2e_passed",
-        "GitHub-only evidence is not a substitute"
-      ]
+        "server_infra_readiness_passed",
+        "weave_control_ready",
+        "client_bootstrap_handoff_ready",
+        "separate client E2E evidence is not collected on the Forgejo deployment runner"
+      ],
+      "scenario": "Deploy-new proof requires pipeline, server/infra readiness, Weave Control, and client-bootstrap handoff"
     },
     {
       "tag": "@weave-control-attach-existing-preflight-boundary",
@@ -1273,7 +1298,8 @@
         "organization URL/invite/deep link entry",
         "SSO member join",
         "no provider/OIDC/CI/CD/SecretRef diagnostics in member app",
-        "member_provider_neutral_join_passed claim boundary"
+        "member_provider_neutral_join_passed claim boundary",
+        "weave_client_e2e_passed claim boundary"
       ]
     }
   ]

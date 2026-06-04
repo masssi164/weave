@@ -1539,7 +1539,7 @@
       "executableTest": "tools/local_forgejo_e2e_handoff_check.py",
       "evidenceMode": "offline-spec",
       "tag": "@sprint27-local-forgejo-e2e-handoff",
-      "scenario": "E2E evidence remains blocked until pipeline, stack, and E2E signals exist",
+      "scenario": "Direct local handoff and client evidence pass while Forgejo-runner terminal proof remains explicit",
       "evidenceMarkers": [
         "LOCAL_FORGEJO_E2E_HANDOFF_PROOF"
       ],
@@ -1548,8 +1548,9 @@
           "path": "release/provider-lab/local-forgejo-e2e/local-stack-e2e-handoff.fixture.json",
           "fragments": [
             "weave-local-forgejo-e2e-handoff-v1",
-            "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal",
-            "weave_e2e_passed"
+            "local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch",
+            "currentSeparateClientLane",
+            "weaveClientE2ePassed"
           ]
         },
         {
@@ -1557,7 +1558,8 @@
           "fragments": [
             "concise `~/server` signal",
             "pipeline_terminal_success",
-            "weave_e2e_passed"
+            "local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch",
+            "forgejo_runner_workflow_terminal_success"
           ]
         },
         {
@@ -1930,7 +1932,7 @@
             "`deploy_new`",
             "`attach_existing`",
             "`hybrid`",
-            "GitHub-only Live Stack evidence is not a substitute"
+            "Flutter/App E2E is a separate client lane"
           ]
         },
         {
@@ -1938,16 +1940,57 @@
           "fragments": [
             "dispatch_preflight_only",
             "pipeline_terminal_success",
-            "stack_readiness_passed",
-            "weave_e2e_passed",
-            "member_provider_neutral_join_passed"
+            "server_infra_readiness_passed",
+            "weave_control_ready",
+            "client_bootstrap_handoff_ready",
+            "member_provider_neutral_join_passed",
+            "weave_client_e2e_passed"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-control-admin-console-client-responsibility-split",
+      "scenario": "Weave Control, Admin Console, and Client keep separate responsibilities",
+      "feature": "e2e/features/weave_control_modes.feature",
+      "executableTest": "tools/weave_control_modes_check.py",
+      "evidenceMarkers": [
+        "WEAVE_CONTROL_RESPONSIBILITY_SPLIT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/weave-control-bootstrap-to-client-contract.md",
+          "fragments": [
+            "| Weave Control |",
+            "| Admin Console |",
+            "| Weave App / Client |",
+            "future organization capability and governance surface"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-forgejo-e2e-handoff.md",
+          "fragments": [
+            "Responsibility split evidence",
+            "Forgejo deployment runner must stay client-free",
+            "No v0.1 Spec 0001 Weaver/AI runtime claim"
+          ]
+        },
+        {
+          "path": "release/provider-lab/weave-control-modes/weave-control-mode-matrix.fixture.json",
+          "fragments": [
+            "responsibilitySurfaces",
+            "weave_control",
+            "admin_console",
+            "weave_app_client",
+            "v0_1_spec_0001_runtime_claim"
           ]
         }
       ]
     },
     {
       "tag": "@weave-control-deploy-new-local-forgejo-e2e-boundary",
-      "scenario": "Deploy-new proof requires pipeline, stack readiness, and Weave E2E",
+      "scenario": "Deploy-new proof requires pipeline, server/infra readiness, Weave Control, and client-bootstrap handoff",
       "feature": "e2e/features/weave_control_modes.feature",
       "executableTest": "tools/weave_control_modes_check.py",
       "evidenceMarkers": [
@@ -1961,7 +2004,7 @@
             "`deploy_new`",
             "`attach_existing`",
             "`hybrid`",
-            "GitHub-only Live Stack evidence is not a substitute"
+            "Flutter/App E2E is a separate client lane"
           ]
         },
         {
@@ -1969,9 +2012,11 @@
           "fragments": [
             "dispatch_preflight_only",
             "pipeline_terminal_success",
-            "stack_readiness_passed",
-            "weave_e2e_passed",
-            "member_provider_neutral_join_passed"
+            "server_infra_readiness_passed",
+            "weave_control_ready",
+            "client_bootstrap_handoff_ready",
+            "member_provider_neutral_join_passed",
+            "weave_client_e2e_passed"
           ]
         }
       ]
@@ -1992,7 +2037,7 @@
             "`deploy_new`",
             "`attach_existing`",
             "`hybrid`",
-            "GitHub-only Live Stack evidence is not a substitute"
+            "Flutter/App E2E is a separate client lane"
           ]
         },
         {
@@ -2000,9 +2045,11 @@
           "fragments": [
             "dispatch_preflight_only",
             "pipeline_terminal_success",
-            "stack_readiness_passed",
-            "weave_e2e_passed",
-            "member_provider_neutral_join_passed"
+            "server_infra_readiness_passed",
+            "weave_control_ready",
+            "client_bootstrap_handoff_ready",
+            "member_provider_neutral_join_passed",
+            "weave_client_e2e_passed"
           ]
         }
       ]
@@ -2023,7 +2070,7 @@
             "`deploy_new`",
             "`attach_existing`",
             "`hybrid`",
-            "GitHub-only Live Stack evidence is not a substitute"
+            "Flutter/App E2E is a separate client lane"
           ]
         },
         {
@@ -2031,9 +2078,11 @@
           "fragments": [
             "dispatch_preflight_only",
             "pipeline_terminal_success",
-            "stack_readiness_passed",
-            "weave_e2e_passed",
-            "member_provider_neutral_join_passed"
+            "server_infra_readiness_passed",
+            "weave_control_ready",
+            "client_bootstrap_handoff_ready",
+            "member_provider_neutral_join_passed",
+            "weave_client_e2e_passed"
           ]
         }
       ]
@@ -2054,7 +2103,7 @@
             "`deploy_new`",
             "`attach_existing`",
             "`hybrid`",
-            "GitHub-only Live Stack evidence is not a substitute"
+            "Flutter/App E2E is a separate client lane"
           ]
         },
         {
@@ -2062,9 +2111,11 @@
           "fragments": [
             "dispatch_preflight_only",
             "pipeline_terminal_success",
-            "stack_readiness_passed",
-            "weave_e2e_passed",
-            "member_provider_neutral_join_passed"
+            "server_infra_readiness_passed",
+            "weave_control_ready",
+            "client_bootstrap_handoff_ready",
+            "member_provider_neutral_join_passed",
+            "weave_client_e2e_passed"
           ]
         }
       ]

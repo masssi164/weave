@@ -1,12 +1,15 @@
-Feature: Sprint 27 local Forgejo deployed-stack E2E handoff
-  The local setup proof reaches Weave E2E only after real runner, pipeline, stack, and E2E signals exist.
+Feature: Sprint 27 local Forgejo deployment handoff and separate client evidence
+  The local setup proof reaches deployment handoff only after real runner, pipeline, Weave Control, server, infra, and client-bootstrap signals exist. App/client E2E is a separate lane against the handoff target, not part of the Forgejo deployment runner.
 
   @sprint27-local-forgejo-e2e-handoff
-  Scenario: E2E evidence remains blocked until pipeline, stack, and E2E signals exist
+  Scenario: Direct local handoff and client evidence pass while Forgejo-runner terminal proof remains explicit
     Given the bootstrapper produced a support-safe local Forgejo plan
     And runner readiness has the concise ~/server service/config/registered/running signal
-    When no pipeline terminal-success, deployed-stack readiness, and Weave E2E signal has been provided
-    Then the #665 handoff remains blocked_awaiting_pipeline_deployed_stack_and_e2e_signal
+    And a direct local stack install plus operator-check passed on the current working tree
+    And separate client-lane evidence passed against the handoff target
+    Then the #665 artifact records local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch
     And no secret value, runner registration token, raw CI log, provider payload, credential-bearing URL, tenant URL, or member content is persisted
-    When future evidence includes pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed
-    Then the evidence can be correlated by support-safe refs without claiming production cutover
+    When strict Forgejo-runner closure is required
+    Then a current forgejo_runner_workflow_terminal_success ref is still required before claiming local Forgejo workflow completion
+    And the Forgejo deployment workflow may emit pipeline_terminal_success, server_infra_readiness_passed, weave_control_ready, and client_bootstrap_handoff_ready only
+    And separate client-lane evidence emits member_provider_neutral_join_passed and weave_client_e2e_passed against the handoff target

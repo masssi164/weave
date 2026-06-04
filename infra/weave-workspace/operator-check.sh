@@ -9,7 +9,7 @@ APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
 SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 readonly LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
-readonly PUBLIC_PROXY_PORT="${WEAVE_PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port:-443}}"
+PUBLIC_PROXY_PORT="${WEAVE_PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port:-}}"
 
 log() {
   printf '%s\n' "$*"
@@ -587,6 +587,7 @@ require_command curl
 require_command docker
 require_command jq
 load_bootstrap_env
+PUBLIC_PROXY_PORT="${WEAVE_PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port:-443}}"
 # shellcheck disable=SC1090
 source "${SYNAPSE_VOLUME_HELPER}"
 

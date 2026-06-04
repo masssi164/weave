@@ -17,6 +17,7 @@ MAPPING = ROOT / "e2e" / "scenario_mappings.json"
 RUNNER_FIXTURE = ROOT / "release" / "provider-lab" / "local-forgejo-runner-readiness" / "runner-readiness.fixture.json"
 DEPLOYABLE_PLAN_FIXTURE = ROOT / "release" / "provider-lab" / "local-domain-plan" / "deployable-domain-plan.fixture.json"
 PIPELINE_PROVIDER_FIXTURE = ROOT / "release" / "provider-lab" / "admin-cicd" / "local-forgejo-pipeline-provider.fixture.json"
+WORKFLOW = ROOT / ".forgejo" / "workflows" / "weave-admin-setup-e2e.yml"
 
 FORBIDDEN_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
@@ -41,16 +42,40 @@ FORBIDDEN_FIELD_NAMES = {
 }
 REQUIRED_SIGNALS = {
     "pipeline_terminal_success",
-    "stack_readiness_passed",
-    "weave_e2e_passed",
+    "server_infra_readiness_passed",
+    "weave_control_ready",
+    "client_bootstrap_handoff_ready",
+    "member_provider_neutral_join_passed",
+    "weave_client_e2e_passed",
 }
 REQUIRED_FAILURE_CASES = {
     "missing_test_credential",
-    "stack_not_ready",
-    "e2e_failed",
+    "server_infra_not_ready",
+    "client_e2e_failed",
     "timeout",
     "evidence_redaction_failed",
 }
+FORGEJO_WORKFLOW_FORBIDDEN_FRAGMENTS = [
+    "flutter",
+    "chromium",
+    "xvfb",
+    "libgtk-3-dev",
+    "member_provider_neutral_join_passed=",
+    "weave_client_e2e_passed=",
+    '"member_provider_neutral_join_passed":',
+    '"weave_client_e2e_passed":',
+]
+FORGEJO_WORKFLOW_REQUIRED_FRAGMENTS = [
+    "name: Weave Control Local Deployment",
+    "Deploy Weave Control, server, and infra",
+    "pipeline_terminal_success",
+    "server_infra_readiness_passed",
+    "weave_control_ready",
+    "client_bootstrap_handoff_ready",
+    "separateClientLaneEvidence",
+    "handoff_hold_seconds",
+    "Hold deployed handoff open for external client lane",
+]
 
 
 def fail(message: str) -> None:
@@ -104,8 +129,9 @@ def main() -> None:
     fixture = load(FIXTURE)
     if fixture.get("artifactKind") != "weave-local-forgejo-e2e-handoff-v1" or fixture.get("issue") != 665:
         fail("fixture kind/issue mismatch")
-    if fixture.get("status") != "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal":
-        fail("#665 fixture must remain blocked until pipeline, deployed-stack, and E2E signals exist")
+    expected_status = "local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch"
+    if fixture.get("status") != expected_status:
+        fail(f"#665 fixture status mismatch: {fixture.get('status')!r}")
     if set(fixture.get("requiredConciseLocalSignals", [])) != REQUIRED_SIGNALS:
         fail("fixture required concise signals mismatch")
     upstream = fixture.get("requiredUpstreamEvidence", {})
@@ -122,8 +148,11 @@ def main() -> None:
     admin_state = fixture.get("adminConsoleEvidenceState", {})
     if admin_state.get("rawDetailsDisplayed") is not False:
         fail("Admin Console evidence state must not display raw details")
-    if set(admin_state.get("blockedUntilSignals", [])) != REQUIRED_SIGNALS:
-        fail("Admin Console evidence state must block until all #665 concise signals")
+    admin_blockers = set(admin_state.get("blockedUntilSignals", []))
+    if not REQUIRED_SIGNALS.issubset(admin_blockers):
+        fail("Admin Console evidence state must include all #665 concise signals")
+    if "forgejo_runner_workflow_terminal_success_if_required" not in admin_blockers:
+        fail("Admin Console evidence state must keep strict Forgejo-runner proof explicit")
     failure_cases = fixture.get("failureCases", [])
     if {case.get("case") for case in failure_cases if isinstance(case, dict)} != REQUIRED_FAILURE_CASES:
         fail("#665 failure-case coverage mismatch")
@@ -146,31 +175,71 @@ def main() -> None:
     if runner_status.get("secret_values_logged") is not False:
         fail("runner signal status must state secret values were not logged")
     boundary = fixture.get("currentClaimBoundary", {})
-    for name in ["localRunnerRequired", "pipelineDispatchRequired", "deployedStackRequired", "weaveE2eRequired"]:
+    for name in [
+        "localRunnerRequired",
+        "pipelineDispatchRequiredForForgejoRunnerProof",
+        "serverInfraDeploymentPassedDirectly",
+        "weaveControlHandoffPassedDirectly",
+        "separateClientE2ePassed",
+    ]:
         if boundary.get(name) is not True:
             fail(f"claim boundary missing {name}=true")
-    if boundary.get("releaseReadyClaimAllowed") is not False:
-        fail("#665 blocked handoff must not allow release-ready claim")
+    for name in ["forgejoRunnerWorkflowTerminalSuccess", "releaseReadyClaimAllowed", "issueClosureClaimAllowed"]:
+        if boundary.get(name) is not False:
+            fail(f"claim boundary must keep {name}=false")
     preflight = fixture.get("currentLocalForgejoPreflight", {})
     for key in ["repoTargetObserved", "workflowTargetObserved", "dispatchAccepted", "dispatchPreflightTerminalSuccess"]:
         if preflight.get(key) is not True:
             fail(f"current local Forgejo preflight must record {key}=true")
-    for key in ["deployedStackPipelineTerminalSuccess", "stackReadinessPassed", "weaveE2ePassed"]:
+    for key in ["localDeploymentPipelineTerminalSuccess", "serverInfraReadinessPassed", "weaveControlReady", "clientBootstrapHandoffReady", "memberProviderNeutralJoinPassed", "weaveClientE2ePassed", "forgejoRunnerWorkflowTerminalSuccess"]:
         if preflight.get(key) is not False:
-            fail(f"current local Forgejo preflight must keep {key}=false until deployed-stack E2E exists")
-    if preflight.get("claimBoundary") != "dispatch_preflight_only":
-        fail("current local Forgejo preflight must remain dispatch_preflight_only")
+            fail(f"current local Forgejo preflight must keep {key}=false until a current Forgejo-runner workflow terminal ref exists")
+    if preflight.get("claimBoundary") != "dispatch_preflight_plus_direct_local_proofs":
+        fail("current local Forgejo preflight must distinguish preflight from direct local proofs")
+    direct = fixture.get("currentLocalDirectProof", {})
+    for key in ["serverInfraReadinessPassed", "weaveControlReady", "clientBootstrapHandoffReady", "operatorCheckPassed"]:
+        if direct.get(key) is not True:
+            fail(f"direct local proof must record {key}=true")
+    if direct.get("rawLogsPersisted") is not False:
+        fail("direct local proof must not persist raw logs")
+    client_lane = fixture.get("currentSeparateClientLane", {})
+    for key in ["makeFailMaskingFixed", "memberProviderNeutralJoinPassed", "weaveClientE2ePassed"]:
+        if client_lane.get(key) is not True:
+            fail(f"separate client lane must record {key}=true")
+    for marker in ["AUTH_RESULT", "PROFILE_RESULT", "CHAT_RESULT", "MATRIX_RESULT", "E2EE_RESULT", "FILES_RESULT", "CALENDAR_RESULT", "BOARDS_RESULT", "WORKSPACE_LOOP_RESULT", "PROVIDER_REALITY_RESULT"]:
+        if marker not in client_lane.get("observedMarkers", []):
+            fail(f"separate client lane missing observed marker {marker}")
+    if client_lane.get("rawLogsPersisted") is not False:
+        fail("separate client lane must not persist raw logs")
     live_boundary = fixture.get("liveEvidenceBoundary", {})
     if live_boundary.get("liveDispatchPerformed") is not True or live_boundary.get("requiresExplicitApprovalBeforeMutation") is not True:
         fail("live dispatch boundary must record approved preflight and keep explicit approval for stack mutation")
+    if live_boundary.get("directLocalDeploymentProofPerformed") is not True or live_boundary.get("separateClientE2eProofPerformed") is not True:
+        fail("live evidence boundary must record direct deployment and separate client proofs")
+    if live_boundary.get("forgejoRunnerWorkflowTerminalSuccessRecorded") is not False:
+        fail("live evidence boundary must not claim current Forgejo-runner terminal success")
+    if live_boundary.get("forgejoWorkflowSupportsExternalClientHandoffHold") is not True:
+        fail("live evidence boundary must record workflow handoff-hold support for the separate client lane")
+    if live_boundary.get("handoffHoldInput") != "handoff_hold_seconds":
+        fail("live evidence boundary handoff hold input mismatch")
     for key in ["forgejoRepositoryTargetObserved", "forgejoWorkflowFileObserved", "dispatchPreflightPerformed", "dispatchPreflightTerminalSuccess"]:
         if live_boundary.get(key) is not True:
             fail(f"live evidence boundary must record {key}=true")
+    workflow_text = read(WORKFLOW)
+    workflow_lower = workflow_text.lower()
+    for fragment in FORGEJO_WORKFLOW_FORBIDDEN_FRAGMENTS:
+        if fragment.lower() in workflow_lower:
+            fail(f"Forgejo deployment workflow must not emit/install client-lane or Flutter evidence fragment {fragment!r}")
+    for fragment in FORGEJO_WORKFLOW_REQUIRED_FRAGMENTS:
+        if fragment not in workflow_text:
+            fail(f"Forgejo deployment workflow missing deployment-handoff fragment {fragment!r}")
+
     assert_support_safe(fixture, "e2e handoff fixture")
-    assert_fragments(DOC, ["blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "concise `~/server` signal", "dispatch_preflight_only", "local-forgejo-actions-run-7", "weave_e2e_passed", "Admin Console readiness/evidence state", "Failure cases", "Live evidence boundary"])
-    assert_fragments(FEATURE, ["@sprint27-local-forgejo-e2e-handoff", "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "pipeline_terminal_success"])
+    assert_fragments(DOC, [expected_status, "concise `~/server` signal", "dispatch_preflight_only", "local-forgejo-actions-run-7", "weave_client_e2e_passed", "forgejo_runner_workflow_terminal_success", "Forgejo deployment runner must stay client-free", "Responsibility split evidence", "No v0.1 Spec 0001 Weaver/AI runtime claim", "Admin Console readiness/evidence state", "Failure cases", "Activity boundary"])
+    assert_fragments(ROOT / "docs" / "weave-control-bootstrap-to-client-contract.md", ["```mermaid", "Admin selects deploy_new in Weave Control", "Receive deployment handoff target from Weave Control"])
+    assert_fragments(FEATURE, ["@sprint27-local-forgejo-e2e-handoff", expected_status, "pipeline_terminal_success", "forgejo_runner_workflow_terminal_success"])
     assert_fragments(MAPPING, ["@sprint27-local-forgejo-e2e-handoff", "LOCAL_FORGEJO_E2E_HANDOFF_PROOF", str(FIXTURE.relative_to(ROOT))])
-    print("local-forgejo-e2e-handoff-check: ok issue=665 status=blocked_awaiting_pipeline_deployed_stack_and_e2e_signal")
+    print(f"local-forgejo-e2e-handoff-check: ok issue=665 status={expected_status}")
     print("LOCAL_FORGEJO_E2E_HANDOFF_PROOF")
 
 

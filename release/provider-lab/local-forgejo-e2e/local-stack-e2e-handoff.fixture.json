@@ -4,7 +4,7 @@
   "supportSafe": true,
   "providerKey": "local-forgejo-actions",
   "workflowRef": "weave-admin-setup-e2e",
-  "status": "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal",
+  "status": "local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch",
   "requiredUpstreamEvidence": {
     "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
     "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
@@ -13,24 +13,31 @@
   },
   "requiredConciseLocalSignals": [
     "pipeline_terminal_success",
-    "stack_readiness_passed",
-    "weave_e2e_passed"
+    "server_infra_readiness_passed",
+    "weave_control_ready",
+    "client_bootstrap_handoff_ready",
+    "member_provider_neutral_join_passed",
+    "weave_client_e2e_passed"
   ],
   "correlationFields": [
     "bootstrapPlanRef",
     "providerKey",
     "workflowRef",
     "pipelineRunRef",
-    "stackReadinessRef",
-    "e2eEvidenceRef"
+    "serverInfraReadinessRef",
+    "weaveControlHandoffRef",
+    "clientE2eEvidenceRef"
   ],
   "currentClaimBoundary": {
     "localRunnerRequired": true,
-    "pipelineDispatchRequired": true,
-    "deployedStackRequired": true,
-    "weaveE2eRequired": true,
+    "pipelineDispatchRequiredForForgejoRunnerProof": true,
+    "serverInfraDeploymentPassedDirectly": true,
+    "weaveControlHandoffPassedDirectly": true,
+    "separateClientE2ePassed": true,
+    "forgejoRunnerWorkflowTerminalSuccess": false,
     "releaseReadyClaimAllowed": false,
-    "supportSafeSummary": "Post-run Weave E2E is blocked until deployed-stack pipeline success, deployed stack readiness, and Weave E2E concise signals are present. Mainline upstream prerequisites and a local dispatch/preflight success are present; deployed-stack readiness and Weave E2E are not claimed."
+    "issueClosureClaimAllowed": false,
+    "supportSafeSummary": "Direct local deployment handoff and separate app/client E2E passed against the current working tree. A true Forgejo-runner workflow terminal-success ref has not been produced from these uncommitted changes; the workflow now supports a bounded handoff_hold_seconds window for a separate client lane before cleanup, so #665 closure remains pending until committed, pushed, dispatch-run, and correlated."
   },
   "currentLocalForgejoPreflight": {
     "repoTargetObserved": true,
@@ -38,10 +45,14 @@
     "dispatchAccepted": true,
     "supportSafeRunRef": "local-forgejo-actions-run-7",
     "dispatchPreflightTerminalSuccess": true,
-    "deployedStackPipelineTerminalSuccess": false,
-    "stackReadinessPassed": false,
-    "weaveE2ePassed": false,
-    "claimBoundary": "dispatch_preflight_only"
+    "claimBoundary": "dispatch_preflight_plus_direct_local_proofs",
+    "localDeploymentPipelineTerminalSuccess": false,
+    "serverInfraReadinessPassed": false,
+    "weaveControlReady": false,
+    "clientBootstrapHandoffReady": false,
+    "memberProviderNeutralJoinPassed": false,
+    "weaveClientE2ePassed": false,
+    "forgejoRunnerWorkflowTerminalSuccess": false
   },
   "forbiddenEvidence": [
     "secretValue",
@@ -74,15 +85,23 @@
     "postDispatchAllowedFields": [
       "PipelineRunRef",
       "terminalStatus",
-      "stackReadinessRef",
-      "e2eEvidenceRef",
-      "supportSafeSummary"
+      "serverInfraReadinessRef",
+      "weaveControlHandoffRef",
+      "clientE2eEvidenceRef",
+      "supportSafeSummary",
+      "directLocalProofRef",
+      "separateClientLaneEvidenceRef",
+      "handoffHoldSeconds"
     ],
     "rawDetailsDisplayed": false,
     "blockedUntilSignals": [
       "pipeline_terminal_success",
-      "stack_readiness_passed",
-      "weave_e2e_passed"
+      "server_infra_readiness_passed",
+      "weave_control_ready",
+      "client_bootstrap_handoff_ready",
+      "member_provider_neutral_join_passed",
+      "weave_client_e2e_passed",
+      "forgejo_runner_workflow_terminal_success_if_required"
     ]
   },
   "failureCases": [
@@ -93,16 +112,16 @@
       "supportSafeSummary": "Show missing SecretRef name only; do not display or persist secret values."
     },
     {
-      "case": "stack_not_ready",
+      "case": "server_infra_not_ready",
       "status": "blocked",
-      "nextActionCode": "inspect_stack_readiness_ref",
-      "supportSafeSummary": "Persist only readiness failure code and evidence ref, not endpoint URLs or logs."
+      "nextActionCode": "inspect_server_infra_readiness_ref",
+      "supportSafeSummary": "Persist only server/infra readiness failure code and evidence ref, not endpoint URLs or logs."
     },
     {
-      "case": "e2e_failed",
+      "case": "client_e2e_failed",
       "status": "failed",
-      "nextActionCode": "rerun_weave_e2e_after_fix",
-      "supportSafeSummary": "Persist sanitized marker summary only; no raw member content or provider payloads."
+      "nextActionCode": "rerun_separate_weave_client_e2e_after_fix",
+      "supportSafeSummary": "Persist sanitized client-lane marker summary only; no raw member content or provider payloads."
     },
     {
       "case": "timeout",
@@ -126,7 +145,15 @@
     "dispatchPreflightTerminalSuccess": true,
     "liveDispatchPerformed": true,
     "requiresExplicitApprovalBeforeMutation": true,
-    "smallestApprovalNeeded": "Extend the existing local Forgejo weave-admin-setup-e2e workflow from dispatch/preflight into deployed-stack execution, then run deployed-stack E2E using existing customer-owned SecretRefs; return only opaque run ref plus pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed booleans."
+    "smallestApprovalNeeded": "Extend the existing local Forgejo weave-admin-setup-e2e workflow from dispatch/preflight into Weave Control, server, and infra deployment; return only opaque run ref plus pipeline_terminal_success, server_infra_readiness_passed, weave_control_ready, and client_bootstrap_handoff_ready booleans. Run app/client E2E separately against the handoff target.",
+    "directLocalDeploymentProofPerformed": true,
+    "separateClientE2eProofPerformed": true,
+    "forgejoRunnerWorkflowTerminalSuccessRecorded": false,
+    "smallestRemainingProofNeeded": "Commit/push the updated weave-admin-setup-e2e workflow to local Forgejo, dispatch it with a bounded handoff_hold_seconds value, record the support-safe terminal runner ref, run the separate client lane against that runner-deployed handoff target, then teardown.",
+    "forgejoWorkflowSupportsExternalClientHandoffHold": true,
+    "handoffHoldInput": "handoff_hold_seconds",
+    "handoffHoldDefaultSeconds": 0,
+    "handoffHoldMaxSeconds": 7200
   },
   "mainlineDependencyStatus": {
     "originMainHead": "ae596b6",
@@ -134,6 +161,39 @@
     "localForgejoRunnerReadinessIssue662PresentOnMain": true,
     "deployableDomainPlanIssue664PresentOnMain": true,
     "pipelineProviderIssue663PresentOnMain": true,
-    "note": "Mainline upstream artifacts and the local Forgejo dispatch/preflight target are present, but #665 remains blocked until deployed-stack pipeline terminal success, deployed-stack readiness, and Weave E2E concise evidence are provided."
+    "note": "Mainline upstream artifacts and local dispatch/preflight target are present. Current working tree direct local deployment handoff and separate client E2E passed; a Forgejo-runner workflow terminal ref for these uncommitted changes is not recorded."
+  },
+  "currentLocalDirectProof": {
+    "supportSafeRunRef": "local-direct-weave-stack-proof-current-working-tree",
+    "deploymentCommandRef": "infra/weave-workspace/install.sh",
+    "readinessCommandRef": "infra/weave-workspace/operator-check.sh",
+    "serverInfraReadinessPassed": true,
+    "weaveControlReady": true,
+    "clientBootstrapHandoffReady": true,
+    "operatorCheckPassed": true,
+    "rawLogsPersisted": false,
+    "supportSafeSummary": "Local stack install completed and operator-check reported Operator checks passed."
+  },
+  "currentSeparateClientLane": {
+    "supportSafeRunRef": "local-client-integration-test-current-working-tree",
+    "commandRef": "client/Makefile integration-test",
+    "makeFailMaskingFixed": true,
+    "memberProviderNeutralJoinPassed": true,
+    "weaveClientE2ePassed": true,
+    "observedMarkers": [
+      "AUTH_RESULT",
+      "PROFILE_RESULT",
+      "CHAT_RESULT",
+      "MATRIX_RESULT",
+      "E2EE_RESULT",
+      "FILES_RESULT",
+      "CALENDAR_RESULT",
+      "BOARDS_RESULT",
+      "WORKSPACE_LOOP_RESULT",
+      "PROVIDER_REALITY_RESULT"
+    ],
+    "e2eePostureBoundary": "Encrypted Matrix wire event required; recoveryRequired is accepted only as honest posture, not as a healthy-recovery claim.",
+    "rawLogsPersisted": false,
+    "supportSafeSummary": "Separate client lane passed with real auth, profile, Matrix chat/E2EE, files, calendar policy, boards, workspace-loop, and provider-reality markers."
   }
 }

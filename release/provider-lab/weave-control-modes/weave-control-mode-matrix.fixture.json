@@ -1,24 +1,44 @@
 {
   "artifactKind": "weave-control-mode-matrix-v1",
-  "issues": [681, 685],
+  "issues": [
+    681,
+    685
+  ],
   "supportSafe": true,
   "modes": [
     {
       "mode": "deploy_new",
       "allowedMutationBoundary": "only resources named in approved plan after dry-run, consequence copy, rollback boundary, and approval receipt",
-      "evidenceRefs": ["plan_ref", "pipeline_run_ref", "stack_readiness_ref", "weave_e2e_ref", "audit_ref", "support_bundle_ref"],
+      "evidenceRefs": [
+        "plan_ref",
+        "pipeline_run_ref",
+        "server_infra_readiness_ref",
+        "weave_control_handoff_ref",
+        "client_e2e_ref",
+        "audit_ref",
+        "support_bundle_ref"
+      ],
       "memberResult": "provider-neutral capability states only"
     },
     {
       "mode": "attach_existing",
       "allowedMutationBoundary": "no provider redeploy, destructive migration, or credential rotation unless separately approved",
-      "evidenceRefs": ["attach_preflight_ref", "secretref_posture_ref", "health_readiness_ref", "next_action_code_ref"],
+      "evidenceRefs": [
+        "attach_preflight_ref",
+        "secretref_posture_ref",
+        "health_readiness_ref",
+        "next_action_code_ref"
+      ],
       "memberResult": "provider-neutral capability states only"
     },
     {
       "mode": "hybrid",
       "allowedMutationBoundary": "per-domain deploy_new or attach_existing boundary remains separate; unsupported combinations fail closed",
-      "evidenceRefs": ["per_domain_mode_refs", "aggregate_member_preview_ref", "release_claim_boundary_ref"],
+      "evidenceRefs": [
+        "per_domain_mode_refs",
+        "aggregate_member_preview_ref",
+        "release_claim_boundary_ref"
+      ],
       "memberResult": "one coherent provider-neutral organization manifest"
     }
   ],
@@ -27,14 +47,21 @@
     "credentialBearingUrlsAccepted": false,
     "unsupportedCombinationResult": "unsupported_hybrid_combination",
     "mutationBeforeApprovalAllowed": false,
-    "requiredAdminCopy": ["SecretRef/CredentialRef posture", "consequence copy", "rollback/support boundary", "blocked claims"]
+    "requiredAdminCopy": [
+      "SecretRef/CredentialRef posture",
+      "consequence copy",
+      "rollback/support boundary",
+      "blocked claims"
+    ]
   },
   "claimStates": {
-    "dispatch_preflight_only": "Workflow dispatch/preflight exists but terminal pipeline, stack readiness, and Weave E2E are not all proved.",
+    "dispatch_preflight_only": "Workflow dispatch/preflight exists but local deployment handoff and separate client E2E are not all proved.",
     "pipeline_terminal_success": "Selected execution target reached a terminal success state.",
-    "stack_readiness_passed": "The selected deployed or attached stack produced support-safe readiness evidence.",
-    "weave_e2e_passed": "Weave E2E passed against the selected target stack.",
-    "member_provider_neutral_join_passed": "A normal member joined through organization URL, invite link, or deep link and saw provider-neutral product surfaces."
+    "server_infra_readiness_passed": "The selected local server and provider/infra stack produced support-safe readiness evidence.",
+    "weave_control_ready": "Weave Control is reachable and can surface setup, readiness, and support-safe evidence for the selected target.",
+    "client_bootstrap_handoff_ready": "Weave Control produced the organization/invite/deep-link handoff needed by the installed app/client.",
+    "member_provider_neutral_join_passed": "A normal member joined through organization URL, invite link, or deep link and saw provider-neutral product surfaces.",
+    "weave_client_e2e_passed": "The separate app/client E2E lane passed against the selected deployment target."
   },
   "forbiddenEvidence": [
     "raw_secret_value",
@@ -45,5 +72,67 @@
     "raw_provider_error",
     "raw_ci_log",
     "member_content"
-  ]
+  ],
+  "responsibilitySurfaces": {
+    "weave_control": {
+      "owns": [
+        "bootstrap_ops_plan",
+        "preflight",
+        "approved_mutation_dispatch",
+        "stack_readiness",
+        "client_handoff_target",
+        "support_safe_deployment_evidence"
+      ],
+      "forbidden": [
+        "app_client_e2e_execution",
+        "member_content",
+        "raw_ci_logs",
+        "raw_secret_values",
+        "raw_provider_payloads"
+      ]
+    },
+    "admin_console": {
+      "owns": [
+        "organization_provider_policy_management",
+        "idm_rbac",
+        "readiness_diagnostics",
+        "whitelists",
+        "audit_refs",
+        "future_weaver_governance_controls"
+      ],
+      "forbidden": [
+        "raw_provider_payloads",
+        "raw_runtime_config",
+        "raw_ci_logs",
+        "secret_values"
+      ]
+    },
+    "weave_app_client": {
+      "owns": [
+        "sso_invite_deeplink_entry",
+        "provider_neutral_product_surfaces",
+        "member_capability_states",
+        "separate_app_client_e2e_proof"
+      ],
+      "forbidden": [
+        "provider_setup",
+        "secretrefs",
+        "endpoint_rotation",
+        "bootstrap_diagnostics",
+        "cicd_targets",
+        "weaver_runtime_administration"
+      ]
+    },
+    "weaver": {
+      "owns": [
+        "future_governed_organization_capability_planning"
+      ],
+      "forbidden": [
+        "v0_1_spec_0001_runtime_claim",
+        "default_pa_availability",
+        "raw_openclaw_config",
+        "autonomous_runtime_claim"
+      ]
+    }
+  }
 }
