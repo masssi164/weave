@@ -173,14 +173,15 @@ jobs:
       - name: Ensure local Weave hostnames resolve inside the runner
         run: |
           set -euo pipefail
-          gateway_ip="$(getent hosts host.docker.internal | awk '{print $1; exit}')"
+          gateway_ip="$(getent hosts host.docker.internal | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ || $1 ~ /:/ {print $1; exit}')"
           if [ -z "$gateway_ip" ]; then
-            gateway_ip="$(ip route | awk '/default/ {print $3; exit}')"
+            gateway_ip="$(ip route | awk '/default/ && $3 ~ /^[0-9]+([.][0-9]+){3}$/ {print $3; exit}')"
           fi
           if [ -z "$gateway_ip" ]; then
             echo "unable_to_resolve_host_docker_internal_gateway=true"
             exit 2
           fi
+          echo "WEAVE_LOOPBACK_RESOLVE_HOST=$gateway_ip" >> "$GITHUB_ENV"
           line="$gateway_ip weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
           if ! grep -Eq '(^|[[:space:]])api[.]weave[.]local([[:space:]]|$)' /etc/hosts \
             || ! grep -Eq '(^|[[:space:]])auth[.]weave[.]local([[:space:]]|$)' /etc/hosts; then
