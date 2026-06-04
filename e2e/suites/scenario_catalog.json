@@ -1,0 +1,1159 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Professional E2E suite catalog for Weave acceptance scenarios. It classifies every mapped Gherkin scenario by suite, persona, bounded domains, execution lane, and evidence posture so product coverage is deliberate rather than ad-hoc.",
+  "sourceOfTruth": {
+    "specCorpusLock": "specs/weave-specs.lock.json",
+    "specCorpusManifest": "../weave-specs/generated/manifest.json",
+    "featuresRoot": "e2e/features",
+    "scenarioMappings": "e2e/scenario_mappings.json"
+  },
+  "requiredDomains": [
+    "identity-idm",
+    "spaces",
+    "chat",
+    "files",
+    "calendar",
+    "boards-tasks",
+    "documents-office",
+    "meetings-calls",
+    "decisions-evidence",
+    "admin-health-ops",
+    "weaver-governed-pa",
+    "provider-portability",
+    "operator-release"
+  ],
+  "suites": [
+    {
+      "id": "member-live-critical-path",
+      "name": "Member live-stack critical path",
+      "evidenceMode": "live-runtime",
+      "executionLane": "credentialed-live-stack",
+      "description": "Sparse release-grade runtime proof for sign-in, shell restoration, provider-owned facades, and critical member work surfaces."
+    },
+    {
+      "id": "v0-1-dogfood-release-spine",
+      "name": "v0.1 dogfood production release spine",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Product release-scope assertions backed by deterministic widget, server, admin, docs, and fixture evidence."
+    },
+    {
+      "id": "spec-0001-org-embedding",
+      "name": "Spec 0001 organization embedding acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Organization join, capability state, admin readiness, provider switch, and Weaver exclusion acceptance from the pinned corpus projection."
+    },
+    {
+      "id": "admin-provider-portability-lifecycle",
+      "name": "Admin/provider portability lifecycle",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Admin dry-runs, provider replacement truthfulness, identity lifecycle, WOPI posture, Weaver preflight, and release-gate supportability."
+    },
+    {
+      "id": "operator-ci-cd-and-local-e2e-readiness",
+      "name": "Operator CI/CD and local E2E readiness",
+      "evidenceMode": "offline-spec",
+      "executionLane": "operator-fixture-contract",
+      "description": "Forgejo pipeline/runner/bootstrap/deployed-stack handoff readiness with support-safe evidence and no persisted GitHub secrets."
+    },
+    {
+      "id": "cross-domain-provider-proof",
+      "name": "Cross-domain provider proof",
+      "evidenceMode": "offline-spec",
+      "executionLane": "provider-proof-fixture-contract",
+      "description": "Calendar, files, identity, commercial adapter, and provider-neutral claim boundaries beyond the current live Chat proof."
+    },
+    {
+      "id": "product-e2e-scenario-layer",
+      "name": "Product E2E scenario layer",
+      "evidenceMode": "offline-spec",
+      "executionLane": "scenario-first-offline-contract",
+      "description": "Scenario-first product and business flow coverage that must exist before runtime implementation expands."
+    }
+  ],
+  "scenarios": [
+    {
+      "tag": "@weave-live-auth-shell",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "identity-idm",
+        "spaces",
+        "admin-health-ops"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "authenticated shell restore",
+        "profile facade",
+        "support-safe evidence"
+      ]
+    },
+    {
+      "tag": "@weave-live-matrix-content",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "spaces"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "canonical chat facade",
+        "send/read message",
+        "support-safe Matrix boundary"
+      ]
+    },
+    {
+      "tag": "@weave-live-matrix-e2ee",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "honest E2EE posture",
+        "non-decorative security state"
+      ]
+    },
+    {
+      "tag": "@weave-live-files-boundary",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "files"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "upload/list/download/cleanup",
+        "Weave-owned files boundary"
+      ]
+    },
+    {
+      "tag": "@weave-live-provider-stack-readiness",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "backend-owned readiness",
+        "member forbidden from provider registry",
+        "redacted diagnostics"
+      ]
+    },
+    {
+      "tag": "@weave-live-calendar-threadrefs",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "calendar",
+        "spaces"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "calendar read/write policy",
+        "thread references"
+      ]
+    },
+    {
+      "tag": "@weave-live-boards-workspace-nondrag",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "boards-tasks",
+        "spaces"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "accessible non-drag task work",
+        "audit-ready board actions"
+      ]
+    },
+    {
+      "tag": "@weave-live-workspace-loop",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "boards-tasks",
+        "calendar",
+        "decisions-evidence"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "one Space identity across domains",
+        "capability states",
+        "sanitized evidence"
+      ]
+    },
+    {
+      "tag": "@weave-live-provider-reality-vertical",
+      "suiteId": "member-live-critical-path",
+      "personas": [
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "live-e2e",
+      "assertionFocus": [
+        "honest provider availability",
+        "release evidence boundaries"
+      ]
+    },
+    {
+      "tag": "@weave-v01-home-daily-loop",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "calendar",
+        "boards-tasks",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "daily work loop",
+        "release-scope copy"
+      ]
+    },
+    {
+      "tag": "@weave-v01-user-ready-organization-flow",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "identity-idm",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "admin-provisioned first use",
+        "no raw provider setup"
+      ]
+    },
+    {
+      "tag": "@weave-v01-admin-provider-categories",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "provider categories",
+        "dogfood defaults as choices"
+      ]
+    },
+    {
+      "tag": "@weave-v01-org-manifest-client-admin-split",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "member manifest",
+        "admin console boundary"
+      ]
+    },
+    {
+      "tag": "@weave-v01-admin-health-policy-enforcement",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "readiness policy",
+        "member impact states"
+      ]
+    },
+    {
+      "tag": "@weave-v01-org-control-plane-provider-facade",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "server-owned policy",
+        "audit"
+      ]
+    },
+    {
+      "tag": "@weave-v01-canonical-provider-neutral-models",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "provider-portability",
+        "chat",
+        "files",
+        "calendar",
+        "boards-tasks"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "canonical feature models",
+        "self-hosted and external mapping"
+      ]
+    },
+    {
+      "tag": "@weave-v01-member-provider-neutral-states",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "stable capability states",
+        "no provider details"
+      ]
+    },
+    {
+      "tag": "@weave-v01-admin-policy-decides-capabilities",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "deny-by-default policy",
+        "capability availability"
+      ]
+    },
+    {
+      "tag": "@weave-v01-idm-rbac-capability-policy",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops",
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "IDM roles/groups",
+        "capability profiles before Weaver"
+      ]
+    },
+    {
+      "tag": "@weave-v01-governed-weaver-runtime-policy",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "runtime generated from policy",
+        "disabled by default"
+      ]
+    },
+    {
+      "tag": "@weave-v01-governed-weaver-tool-registry",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "approved domain tools only",
+        "organization whitelist"
+      ]
+    },
+    {
+      "tag": "@weave-v01-channel-workspace",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "boards-tasks",
+        "calendar",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Space control room",
+        "cross-domain tabs"
+      ]
+    },
+    {
+      "tag": "@weave-v01-chat-domain-facade",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "chat",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "canonical backend facade",
+        "provider mapping boundary"
+      ]
+    },
+    {
+      "tag": "@weave-v01-board-write-audit",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "boards-tasks",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "authorized board write",
+        "audit"
+      ]
+    },
+    {
+      "tag": "@weave-v01-meeting-capsule",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls",
+        "calendar",
+        "chat",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "meeting capsule",
+        "follow-up links"
+      ]
+    },
+    {
+      "tag": "@weave-v01-decision-ledger",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "decision records",
+        "linked evidence"
+      ]
+    },
+    {
+      "tag": "@weave-v01-operator-release-path",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "deploy/verify/backup/restore/diagnose",
+        "support-safe ops"
+      ]
+    },
+    {
+      "tag": "@weave-v01-infra-control-plane-bootstrap",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "operator",
+        "admin"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "infra bootstrap",
+        "backend control plane"
+      ]
+    },
+    {
+      "tag": "@weave-v01-admin-console-mvp",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "identity-idm",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "separate admin console",
+        "provider policy"
+      ]
+    },
+    {
+      "tag": "@weave-v01-provider-switch-portability",
+      "suiteId": "v0-1-dogfood-release-spine",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "portable export/import evidence",
+        "dry-run boundaries"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-member-join-invite-sso-passkey",
+      "suiteId": "spec-0001-org-embedding",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "identity-idm",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "invite SSO/passkey join",
+        "configured organization"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-stable-member-capabilities",
+      "suiteId": "spec-0001-org-embedding",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "stable capabilities after joining",
+        "impact states"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-admin-readiness-setup",
+      "suiteId": "spec-0001-org-embedding",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "identity-idm",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "domain setup",
+        "readiness evidence"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-provider-switch-evidence",
+      "suiteId": "spec-0001-org-embedding",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "spec acceptance vs live migration",
+        "switch evidence"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-weaver-ai-runtime-excluded",
+      "suiteId": "spec-0001-org-embedding",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Weaver excluded from Spec 0001",
+        "no premature runtime claim"
+      ]
+    },
+    {
+      "tag": "@weave-sprint8-domain-control-plane-evidence",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "identity-idm",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "domain validation",
+        "identity dry-run",
+        "provider-neutral member states"
+      ]
+    },
+    {
+      "tag": "@weave-product-readiness-waterfall",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "admin",
+        "member",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "identity-idm",
+        "provider-portability",
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "readiness waterfall",
+        "ordered product proof"
+      ]
+    },
+    {
+      "tag": "@weave-sprint12-portability-v2",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "portability schema v2",
+        "reviewable evidence"
+      ]
+    },
+    {
+      "tag": "@weave-sprint12-documents-wopi-posture",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "documents-office",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "WOPI spike boundary",
+        "honest documents posture"
+      ]
+    },
+    {
+      "tag": "@weave-sprint12-identity-lifecycle",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "identity reconcile",
+        "offboarding fail-closed"
+      ]
+    },
+    {
+      "tag": "@weave-sprint12-weaver-preflight-disabled",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "preflight-only Weaver",
+        "disabled runtime/tools"
+      ]
+    },
+    {
+      "tag": "@weave-sprint12-release-ops-a11y",
+      "suiteId": "admin-provider-portability-lifecycle",
+      "personas": [
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "accessibility evidence",
+        "restore evidence",
+        "release promotion"
+      ]
+    },
+    {
+      "tag": "@sprint26-admin-cicd-setup",
+      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "runner missing state",
+        "pipeline dispatch gated"
+      ]
+    },
+    {
+      "tag": "@sprint27-local-cicd-bootstrapper",
+      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Forgejo selection",
+        "no persisted GitHub secrets"
+      ]
+    },
+    {
+      "tag": "@sprint27-local-forgejo-runner-readiness",
+      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "local runner readiness",
+        "dispatch gated"
+      ]
+    },
+    {
+      "tag": "@sprint27-local-forgejo-e2e-handoff",
+      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "blocked handoff honesty",
+        "stack and E2E signal requirements"
+      ]
+    },
+    {
+      "tag": "@sprint27-local-domain-adapter-plan",
+      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
+      "personas": [
+        "operator",
+        "admin"
+      ],
+      "domains": [
+        "operator-release",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "support-safe deployable plan",
+        "domain choices"
+      ]
+    },
+    {
+      "tag": "@sprint27-local-forgejo-pipeline-provider",
+      "suiteId": "operator-ci-cd-and-local-e2e-readiness",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "PipelineProvider dispatch gates",
+        "support-safe run status"
+      ]
+    },
+    {
+      "tag": "@sprint27-calendar-provider-boundary",
+      "suiteId": "cross-domain-provider-proof",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "calendar",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "preserved/lossy calendar fields",
+        "switch proof"
+      ]
+    },
+    {
+      "tag": "@sprint27-files-provider-boundary",
+      "suiteId": "cross-domain-provider-proof",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "files",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "metadata permissions",
+        "lossy files cases"
+      ]
+    },
+    {
+      "tag": "@sprint27-identity-provider-boundary",
+      "suiteId": "cross-domain-provider-proof",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "mapping risk boundaries",
+        "no secrets"
+      ]
+    },
+    {
+      "tag": "@sprint27-provider-neutrality-claim-gate",
+      "suiteId": "cross-domain-provider-proof",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "provider neutrality claim gate",
+        "scoped evidence"
+      ]
+    },
+    {
+      "tag": "@sprint28-commercial-adapter-readiness",
+      "suiteId": "cross-domain-provider-proof",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "chat",
+        "documents-office"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Teams/Slack readiness-only",
+        "implementation-start guard"
+      ]
+    },
+    {
+      "tag": "@weave-product-org-domain-verification-provisioning",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "domain verification",
+        "provisioning preview",
+        "go-live blocked until readiness evidence",
+        "secret-safe identity evidence"
+      ]
+    },
+    {
+      "tag": "@weave-product-member-degraded-capability-state",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "member-safe degraded state",
+        "provider internals hidden",
+        "available fallback capabilities"
+      ]
+    },
+    {
+      "tag": "@weave-product-guest-bounded-space-access",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "external_guest",
+        "admin"
+      ],
+      "domains": [
+        "spaces",
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "bounded guest invite",
+        "policy-limited capability grants",
+        "audit without private content"
+      ]
+    },
+    {
+      "tag": "@weave-product-document-session-launch",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "documents-office",
+        "files",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "scoped editor grant",
+        "document locks and callbacks behind Weave contract",
+        "provider-neutral unavailable state"
+      ]
+    },
+    {
+      "tag": "@weave-product-meeting-artifacts-followup",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls",
+        "calendar",
+        "spaces",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "meeting artifacts linked to Space and decisions",
+        "retention/recording product states",
+        "unsupported artifact honesty"
+      ]
+    },
+    {
+      "tag": "@weave-product-support-bundle-redaction",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "support bundle evidence",
+        "redaction of secrets/provider bodies/member content",
+        "omission and consent accounting"
+      ]
+    },
+    {
+      "tag": "@weave-product-backup-restore-readiness",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "backup manifest",
+        "restore receipt",
+        "release blocked on stale/missing restore evidence"
+      ]
+    },
+    {
+      "tag": "@weave-product-export-delete-retention",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops",
+        "identity-idm",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "export/delete/retention classifications",
+        "destructive action blocked until approval",
+        "private content not exposed"
+      ]
+    },
+    {
+      "tag": "@weave-product-weaver-consent-approval-receipt",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "user consent",
+        "approval receipt",
+        "user-rights organization-whitelisted capabilities",
+        "audit and revocation"
+      ]
+    },
+    {
+      "tag": "@weave-product-provider-switch-manual-review",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "lossy unsupported vendor-locked dry-run items",
+        "manual review decisions",
+        "stable member language",
+        "rollback/archive/permission impact evidence"
+      ]
+    }
+  ]
+}

@@ -4,15 +4,24 @@ Weave uses Gherkin as a product acceptance contract and CI evidence layer. It is
 not a Cucumber theater layer: a scenario is reviewable only when it has a stable,
 machine-readable mapping to executable evidence.
 
-## Current frontend live-stack contract
+## Current E2E and acceptance contract
 
-- Product scenarios live in `e2e/features/live_stack_app.feature`.
+- Product scenarios live in `e2e/features/`. Critical runtime scenarios stay in
+  `e2e/features/live_stack_app.feature`; release, admin/provider, operator, and
+  spec-projection scenarios use focused feature files in the same directory.
 - Stable scenario mappings live in `e2e/scenario_mappings.json`. Each mapping
   declares an `evidenceMode`: `live-runtime` markers must be observed in the
   credentialed Live Stack E2E log, while `offline-spec` markers prove checked-in
   executable/spec evidence and are not counted as live runtime observations.
-- The mapping guard is `test/live_stack_feature_mapping_test.dart` and can also
-  be run directly with `dart run tool/acceptance_contract.dart guard`.
+- Professional suite structure lives in `e2e/suites/scenario_catalog.json`.
+  It classifies every mapped scenario by suite, persona, bounded domain, test
+  level, and assertion focus; execution lane is inherited from the referenced
+  suite. `tools/e2e_structure_check.py` prevents unmapped, unclassified, or
+  domain-blind scenarios from landing.
+- The mapping guard is `test/live_stack_feature_mapping_test.dart`; the root
+  `./gradlew acceptanceContract` gate also runs the suite-structure guard. The
+  Dart mapping guard can be run directly with
+  `dart run tool/acceptance_contract.dart guard`.
 - Live CI writes audit artifacts to `weave-live-stack-acceptance-evidence`:
   - `acceptance-summary.md`
   - `gherkin-scenarios.json`
@@ -40,7 +49,10 @@ For new product behavior:
 2. Add the scenario to `e2e/scenario_mappings.json` with an executable
    test path and evidence marker. The guard should be red until the executable
    evidence exists.
-3. Drive the implementation with focused unit, provider, widget, integration, or
+3. Add the scenario to `e2e/suites/scenario_catalog.json` with its suite,
+   persona(s), bounded domain(s), test level, and assertion focus. Confirm that
+   the selected suite's execution lane is correct for the scenario.
+4. Drive the implementation with focused unit, provider, widget, integration, or
    backend tests. Do not push implementation details into the feature file.
 4. Keep live-stack E2E sparse. It proves critical end-to-end product contracts
    only; lower-level tests carry the detailed technical coverage. Admin/provider

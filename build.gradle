@@ -23,7 +23,8 @@ ext.registerRootCommandTask = { String taskName, List<String> args, String taskD
     registerCommandTask(taskName, projectDir, args, taskDescription)
 }
 
-registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json'], 'Verify Gherkin scenario mappings and acceptance contracts.')
+registerRootCommandTask('acceptanceContract', ['bash', '-lc', 'cd client && dart run tool/acceptance_contract.dart guard --root .. --features e2e/features --mapping e2e/scenario_mappings.json && cd .. && python3 tools/e2e_structure_check.py'], 'Verify Gherkin scenario mappings, acceptance contracts, and professional E2E suite coverage.')
+registerRootCommandTask('e2eStructureCheck', ['python3', 'tools/e2e_structure_check.py'], 'Validate the professional E2E suite catalog covers every mapped scenario by suite, persona, domain, and evidence lane.')
 registerCommandTask('clientCi', file('client'), ['bash', '-lc', 'flutter gen-l10n && dart run build_runner build --delete-conflicting-outputs && dart format --output=none --set-exit-if-changed . && flutter analyze --fatal-infos && flutter test && make marketing-screenshots && git -C .. diff --exit-code -- client/lib client/test docs/assets/marketing docs/assets/roadmap && make offline-contract-test'], 'Run Flutter generated-code, format, analysis, tests, screenshots, and offline contract checks.')
 registerCommandTask('serverCi', file('server'), ['./gradlew', 'test'], 'Run server checks through the existing server Gradle build.')
 registerCommandTask('adminCi', file('admin-console'), ['npm', 'run', 'ci'], 'Run admin console npm CI checks.')
