@@ -202,7 +202,19 @@ jobs:
           set -euo pipefail
           hosts="weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
           candidates_file="$(mktemp)"
-          docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' weave-proxy 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1 " 443"}' >> "$candidates_file" || true
+          proxy_networks_json="$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null || true)"
+          PROXY_NETWORKS_JSON="$proxy_networks_json" python3 - <<'PYROUTE' >> "$candidates_file" || true
+          import json
+          import os
+          try:
+              networks = json.loads(os.environ.get("PROXY_NETWORKS_JSON", "{}"))
+          except Exception:
+              networks = {}
+          for network in networks.values():
+              ip = str(network.get("IPAddress", ""))
+              if ip.count(".") == 3:
+                  print(f"{ip} 443")
+          PYROUTE
           docker network inspect weave_network -f '{{range .Containers}}{{if eq .Name "weave-proxy"}}{{println .IPv4Address}}{{end}}{{end}}' 2>/dev/null | cut -d/ -f1 | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1 " 443"}' >> "$candidates_file" || true
           printf '%s %s\n' "${WEAVE_LOOPBACK_RESOLVE_HOST:-}" "${TF_VAR_proxy_host_port}" >> "$candidates_file"
           getent hosts host.docker.internal 2>/dev/null | awk -v port="${TF_VAR_proxy_host_port}" '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1 " " port}' >> "$candidates_file" || true
@@ -241,7 +253,6 @@ jobs:
         working-directory: infra/weave-workspace
         run: bash ./operator-check.sh
       - name: Generate support-safe deployment handoff evidence
-        if: always()
         run: |
           set -euo pipefail
           evidence_dir="${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$PWD/.weave-local-forgejo-e2e-evidence}"

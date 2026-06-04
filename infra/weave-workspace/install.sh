@@ -407,10 +407,17 @@ maybe_use_reverse_proxy_container_route() {
     *) return 0 ;;
   esac
 
-  proxy_ip="$({
-    docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' weave-proxy 2>/dev/null || true
-    docker network inspect weave_network -f '{{range .Containers}}{{if eq .Name "weave-proxy"}}{{println .IPv4Address}}{{end}}{{end}}' 2>/dev/null | cut -d/ -f1 || true
-  } | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
+  proxy_ip="$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null | python3 -c 'import json,sys
+try:
+    networks=json.load(sys.stdin)
+except Exception:
+    networks={}
+for network in networks.values():
+    ip=str(network.get("IPAddress", ""))
+    if ip.count(".") == 3:
+        print(ip)
+        break
+' || true)"
   if [[ -z "${proxy_ip}" ]]; then
     log "Reverse proxy route diagnostics: containers=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^weave-' | paste -sd, - || true) networks=$(docker network ls --format '{{.Name}}' 2>/dev/null | grep '^weave' | paste -sd, - || true) proxy_networks=$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null || true)"
     fail "Reverse proxy container IP could not be resolved for local public Weave hostnames."
