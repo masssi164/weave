@@ -137,6 +137,8 @@ jobs:
             chmod +x /usr/local/bin/tofu
           fi
           flutter --version >/dev/null
+          flutter precache --linux --web >/dev/null
+          flutter doctor -v >/dev/null
           tofu version >/dev/null
       - name: Prepare support-safe evidence directory
         run: |
