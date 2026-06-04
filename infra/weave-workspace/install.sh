@@ -407,7 +407,7 @@ maybe_use_reverse_proxy_container_route() {
     *) return 0 ;;
   esac
 
-  proxy_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' weave-proxy 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
+  proxy_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' weave-proxy 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
   if [[ -n "${proxy_ip}" ]]; then
     LOOPBACK_RESOLVE_HOST="${proxy_ip}"
     export WEAVE_LOOPBACK_RESOLVE_HOST="${proxy_ip}"

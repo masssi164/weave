@@ -224,7 +224,7 @@ jobs:
       - name: Route public Weave hostnames to the deployed reverse proxy
         run: |
           set -euo pipefail
-          proxy_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' weave-proxy | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
+          proxy_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' weave-proxy | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
           if [ -z "$proxy_ip" ]; then
             echo "reverse_proxy_container_ip_missing=true"
             exit 2
