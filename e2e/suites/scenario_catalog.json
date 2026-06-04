@@ -71,6 +71,13 @@
       "evidenceMode": "offline-spec",
       "executionLane": "scenario-first-offline-contract",
       "description": "Scenario-first product and business flow coverage that must exist before runtime implementation expands."
+    },
+    {
+      "id": "weave-control-setup-modes",
+      "name": "Weave Control setup modes",
+      "evidenceMode": "offline-spec",
+      "executionLane": "scenario-first-control-mode-contract",
+      "description": "Product-mode acceptance for deploy_new, attach_existing, and hybrid bootstrap-to-client proof boundaries."
     }
   ],
   "scenarios": [
@@ -1153,6 +1160,120 @@
         "manual review decisions",
         "stable member language",
         "rollback/archive/permission impact evidence"
+      ]
+    },
+    {
+      "tag": "@weave-control-plan-preflight-modes",
+      "suiteId": "weave-control-setup-modes",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "identity-idm",
+        "chat",
+        "files",
+        "calendar",
+        "boards-tasks",
+        "meetings-calls",
+        "documents-office",
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "per-domain setup mode plan",
+        "SecretRef/CredentialRef posture",
+        "consequence and rollback copy",
+        "fail-closed unsupported combinations"
+      ]
+    },
+    {
+      "tag": "@weave-control-deploy-new-local-forgejo-e2e-boundary",
+      "suiteId": "weave-control-setup-modes",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "deploy_new local Forgejo boundary",
+        "pipeline_terminal_success",
+        "stack_readiness_passed",
+        "weave_e2e_passed",
+        "GitHub-only evidence is not a substitute"
+      ]
+    },
+    {
+      "tag": "@weave-control-attach-existing-preflight-boundary",
+      "suiteId": "weave-control-setup-modes",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops",
+        "identity-idm",
+        "chat",
+        "files"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "attach_existing opaque refs",
+        "no redeploy/destructive migration/credential rotation",
+        "cannot be satisfied by deploy_new run",
+        "member capability mapping"
+      ]
+    },
+    {
+      "tag": "@weave-control-hybrid-domain-separation",
+      "suiteId": "weave-control-setup-modes",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops",
+        "identity-idm",
+        "chat",
+        "files",
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "hybrid per-domain mode separation",
+        "separate mutation boundaries",
+        "fail-closed unsupported combinations",
+        "coherent member manifest"
+      ]
+    },
+    {
+      "tag": "@weave-control-member-bootstrap-invariant",
+      "suiteId": "weave-control-setup-modes",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "spaces",
+        "identity-idm",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "organization URL/invite/deep link entry",
+        "SSO member join",
+        "no provider/OIDC/CI/CD/SecretRef diagnostics in member app",
+        "member_provider_neutral_join_passed claim boundary"
       ]
     }
   ]

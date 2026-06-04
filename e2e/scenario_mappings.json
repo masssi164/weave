@@ -1913,6 +1913,161 @@
         "PRODUCT_E2E_SCENARIO_CATALOG_COVERAGE"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@weave-control-plan-preflight-modes",
+      "scenario": "Admin preflights deploy-new, attach-existing, and hybrid modes before mutation",
+      "feature": "e2e/features/weave_control_modes.feature",
+      "executableTest": "tools/weave_control_modes_check.py",
+      "evidenceMarkers": [
+        "WEAVE_CONTROL_MODE_MATRIX"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/weave-control-bootstrap-to-client-contract.md",
+          "fragments": [
+            "`deploy_new`",
+            "`attach_existing`",
+            "`hybrid`",
+            "GitHub-only Live Stack evidence is not a substitute"
+          ]
+        },
+        {
+          "path": "release/provider-lab/weave-control-modes/weave-control-mode-matrix.fixture.json",
+          "fragments": [
+            "dispatch_preflight_only",
+            "pipeline_terminal_success",
+            "stack_readiness_passed",
+            "weave_e2e_passed",
+            "member_provider_neutral_join_passed"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-control-deploy-new-local-forgejo-e2e-boundary",
+      "scenario": "Deploy-new proof requires pipeline, stack readiness, and Weave E2E",
+      "feature": "e2e/features/weave_control_modes.feature",
+      "executableTest": "tools/weave_control_modes_check.py",
+      "evidenceMarkers": [
+        "WEAVE_CONTROL_DEPLOY_NEW_E2E_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/weave-control-bootstrap-to-client-contract.md",
+          "fragments": [
+            "`deploy_new`",
+            "`attach_existing`",
+            "`hybrid`",
+            "GitHub-only Live Stack evidence is not a substitute"
+          ]
+        },
+        {
+          "path": "release/provider-lab/weave-control-modes/weave-control-mode-matrix.fixture.json",
+          "fragments": [
+            "dispatch_preflight_only",
+            "pipeline_terminal_success",
+            "stack_readiness_passed",
+            "weave_e2e_passed",
+            "member_provider_neutral_join_passed"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-control-attach-existing-preflight-boundary",
+      "scenario": "Attach-existing proof binds existing systems without redeploying them",
+      "feature": "e2e/features/weave_control_modes.feature",
+      "executableTest": "tools/weave_control_modes_check.py",
+      "evidenceMarkers": [
+        "WEAVE_CONTROL_ATTACH_EXISTING_PREFLIGHT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/weave-control-bootstrap-to-client-contract.md",
+          "fragments": [
+            "`deploy_new`",
+            "`attach_existing`",
+            "`hybrid`",
+            "GitHub-only Live Stack evidence is not a substitute"
+          ]
+        },
+        {
+          "path": "release/provider-lab/weave-control-modes/weave-control-mode-matrix.fixture.json",
+          "fragments": [
+            "dispatch_preflight_only",
+            "pipeline_terminal_success",
+            "stack_readiness_passed",
+            "weave_e2e_passed",
+            "member_provider_neutral_join_passed"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-control-hybrid-domain-separation",
+      "scenario": "Hybrid setup keeps per-domain mutation boundaries separate",
+      "feature": "e2e/features/weave_control_modes.feature",
+      "executableTest": "tools/weave_control_modes_check.py",
+      "evidenceMarkers": [
+        "WEAVE_CONTROL_HYBRID_DOMAIN_SEPARATION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/weave-control-bootstrap-to-client-contract.md",
+          "fragments": [
+            "`deploy_new`",
+            "`attach_existing`",
+            "`hybrid`",
+            "GitHub-only Live Stack evidence is not a substitute"
+          ]
+        },
+        {
+          "path": "release/provider-lab/weave-control-modes/weave-control-mode-matrix.fixture.json",
+          "fragments": [
+            "dispatch_preflight_only",
+            "pipeline_terminal_success",
+            "stack_readiness_passed",
+            "weave_e2e_passed",
+            "member_provider_neutral_join_passed"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-control-member-bootstrap-invariant",
+      "scenario": "Member joins through invite or organization link after admin bootstrap",
+      "feature": "e2e/features/weave_control_modes.feature",
+      "executableTest": "tools/weave_control_modes_check.py",
+      "evidenceMarkers": [
+        "WEAVE_CONTROL_MEMBER_BOOTSTRAP_INVARIANT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/weave-control-bootstrap-to-client-contract.md",
+          "fragments": [
+            "`deploy_new`",
+            "`attach_existing`",
+            "`hybrid`",
+            "GitHub-only Live Stack evidence is not a substitute"
+          ]
+        },
+        {
+          "path": "release/provider-lab/weave-control-modes/weave-control-mode-matrix.fixture.json",
+          "fragments": [
+            "dispatch_preflight_only",
+            "pipeline_terminal_success",
+            "stack_readiness_passed",
+            "weave_e2e_passed",
+            "member_provider_neutral_join_passed"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -43,7 +43,7 @@ Required plan fields:
 - member capability preview using provider-neutral states;
 - evidence refs to be emitted: plan, pipeline, readiness, E2E, audit, support bundle, and claim gate.
 
-Required terminal booleans for the local Forgejo deployed-stack release blocker are `pipeline_terminal_success`, `stack_readiness_passed`, and `weave_e2e_passed`. They remain false/unknown until an approved local run produces evidence; GitHub-only Live Stack evidence is not a substitute.
+Required terminal booleans for the local Forgejo deployed-stack release blocker are `pipeline_terminal_success`, `stack_readiness_passed`, and `weave_e2e_passed`. They remain false/unknown until an approved local run produces evidence; GitHub-only Live Stack evidence is not a substitute. A dispatched workflow, generated plan, or preflight-only proof is `dispatch_preflight_only` until all three terminal booleans are true for the selected target. The member handoff may claim `member_provider_neutral_join_passed` only when a normal member has joined through an organization URL, invite link, or deep link and seen product surfaces without provider setup leakage.
 
 Error responses must use stable codes such as `unsupported_hybrid_combination`, `missing_secretref`, `preflight_failed`, `approval_required`, `pipeline_not_terminal`, `readiness_degraded`, `e2e_not_proven`, `manual_at_missing`, or `claim_blocked`. Support-safe evidence may include opaque refs and reason codes only.
 
