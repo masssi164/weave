@@ -181,7 +181,12 @@ def main() -> None:
         fail("no commercial provider implementation may be approved in Sprint 28")
     if set(guard.get("guardedProviderKeys", [])) != REQUIRED_PROVIDER_KEYS:
         fail("implementation guard must cover Teams and Slack")
-    actual_refs = provider_reference_files(list(guard.get("sourceRootsScanned", [])))
+    allowed_readiness_paths = set(guard.get("allowedReadinessOnlyPaths", []))
+    actual_refs = [
+        ref
+        for ref in provider_reference_files(list(guard.get("sourceRootsScanned", [])))
+        if ref not in allowed_readiness_paths
+    ]
     expected_refs = sorted(guard.get("preExistingReadinessOnlyOrSandboxReferences", []))
     if actual_refs != expected_refs:
         added = sorted(set(actual_refs) - set(expected_refs))

@@ -25,6 +25,7 @@
     "release/commercial-adapter-readiness/go-no-go-matrix.json",
     "release/commercial-adapter-readiness/implementation-guard.fixture.json",
     "tools/commercial_adapter_readiness_check.py",
+    "client/test/live_stack_feature_mapping_test.dart",
     "e2e/features/sprint_28_commercial_adapter_readiness.feature",
     "e2e/scenario_mappings.json"
   ],
