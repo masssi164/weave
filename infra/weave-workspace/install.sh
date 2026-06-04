@@ -1242,7 +1242,7 @@ main() {
   require_command docker
   require_command openssl
   require_command python3
-  require_command terraform
+  require_command "${WEAVE_IAC_BIN}"
 
   ensure_generated_directories
   load_persisted_env
