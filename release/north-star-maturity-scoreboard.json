@@ -5,14 +5,15 @@
   "candidate": {
     "commit": "3b351e8efc333bb8b6e4755dca5b39b84a62c715",
     "tag": "v0.1.0-rc.1",
-    "evidenceClass": "current-head candidate evidence, not a production release claim"
+    "postClosureMainHead": "e39c06c4d2315bb741df79a67e744196b249a205",
+    "evidenceClass": "RC candidate run; GitHub CI is post-closure main head, Live Stack E2E is last successful Sprint 20 candidate evidence from 3b351e8"
   },
   "score": {
     "current": 82,
     "target": 85,
     "hardExitThreshold": 80,
     "status": "sprint-20-closure-ready-above-hard-exit-threshold-release-promotion-blocked-by-manual-at",
-    "rationale": "Current-head local CI/offline gates and GitHub Live Stack E2E run 26829660573 passed on the current main commit. Real external human assistive-technology signoff remains missing and cannot receive pass credit, so Sprint 20 is closure-ready above the hard exit threshold while RC/production release promotion and the desired 85+ target remain blocked by #591."
+    "rationale": "Post-closure main head e39c06c4d2315bb741df79a67e744196b249a205 has green GitHub CI run 26832803943. The latest Sprint 20 Live Stack E2E evidence remains run 26829660573 on the immediately preceding candidate 3b351e8efc333bb8b6e4755dca5b39b84a62c715, not an exact e39c06c rerun. Real external human assistive-technology signoff remains missing and cannot receive pass credit, so Sprint 20 is closed above the hard exit threshold while RC/production release promotion and the desired 85+ target remain blocked by #591."
   },
   "dimensions": [
     {
@@ -20,10 +21,10 @@
       "label": "Product flow: member starts and completes daily work",
       "weight": 15,
       "score": 15,
-      "evidenceClass": "current-head offline/spec, local CI, and passed live workflow evidence",
+      "evidenceClass": "post-closure offline/spec and local CI evidence plus prior candidate live workflow evidence",
       "evidence": [
-        "./gradlew ci --console=plain passed locally on 3b351e8efc333bb8b6e4755dca5b39b84a62c715 at 2026-06-02T15:36:47Z",
-        "GitHub Live Stack E2E run 26829660573 passed on 3b351e8efc333bb8b6e4755dca5b39b84a62c715",
+        "./gradlew ci --console=plain passed locally on Sprint 20 candidate 3b351e8efc333bb8b6e4755dca5b39b84a62c715 at 2026-06-02T15:36:47Z",
+        "GitHub Live Stack E2E run 26829660573 passed on 3b351e8efc333bb8b6e4755dca5b39b84a62c715; it has not been rerun on post-closure head e39c06c4d2315bb741df79a67e744196b249a205",
         "client/test/features/chat/chat_room_screen_test.dart",
         "client/test/release_1/v0_1_release_spine_contract_test.dart",
         "e2e/scenario_mappings.json marker V01_SPACE_CONTROL_ROOM"
@@ -34,19 +35,19 @@
     },
     {
       "id": "current-head-release-evidence",
-      "label": "Current-head release evidence",
+      "label": "Release evidence at post-closure main head",
       "weight": 12,
       "score": 12,
-      "evidenceClass": "current-head local CI plus passed GitHub live workflow",
+      "evidenceClass": "current-head GitHub CI plus prior successful Sprint 20 live workflow",
       "evidence": [
-        "./gradlew ci --console=plain passed locally on current head and wrote build/evidence/ci-summary.json for 3b351e8efc333bb8b6e4755dca5b39b84a62c715 at 2026-06-02T15:36:47Z",
-        "GitHub CI run 26829621106 completed successfully on 3b351e8efc333bb8b6e4755dca5b39b84a62c715",
-        "GitHub Live Stack E2E run 26829660573 passed on 3b351e8efc333bb8b6e4755dca5b39b84a62c715",
+        "./gradlew ci --console=plain passed locally on Sprint 20 candidate 3b351e8efc333bb8b6e4755dca5b39b84a62c715 and wrote build/evidence/ci-summary.json at 2026-06-02T15:36:47Z",
+        "GitHub CI run 26832803943 completed successfully on post-closure main head e39c06c4d2315bb741df79a67e744196b249a205",
+        "GitHub Live Stack E2E run 26829660573 passed on prior Sprint 20 candidate 3b351e8efc333bb8b6e4755dca5b39b84a62c715; no exact e39c06c Live Stack rerun is claimed",
         "Live artifact 7362369510 `weave-live-stack-acceptance-evidence` contains release-evidence-manifest.json; nested acceptanceContract records 42/42 mappings, 9 live-runtime scenarios, runtimeEvidenceCollected=true, findings=[], supportSafe=true",
         "python3 tools/release_readiness_check.py ... --ci-summary build/evidence/ci-summary.json --live-evidence-dir /tmp/weave-s20/live-26829660573 reported RC readiness: ready when run against the downloaded support-safe artifact and supplied local blocker summary"
       ],
       "blockers": [
-        "External human manual AT signoff remains #591; release-promotion blocker state must be reconciled separately from local release-blockers.json."
+        "External human manual AT signoff remains #591; an exact post-closure-head Live Stack rerun is also not claimed in this scoreboard refresh."
       ]
     },
     {
@@ -151,10 +152,10 @@
       "label": "Scenario and live-E2E coverage",
       "weight": 10,
       "score": 10,
-      "evidenceClass": "42/42 mapping plus current-head live runtime evidence",
+      "evidenceClass": "42/42 mapping plus prior Sprint 20 live runtime evidence",
       "evidence": [
         "./gradlew acceptanceContract passed with 42 scenarios: 9 live-runtime and 33 offline-spec.",
-        "GitHub Live Stack E2E run 26829660573 passed on current-head candidate commit 3b351e8efc333bb8b6e4755dca5b39b84a62c715.",
+        "GitHub Live Stack E2E run 26829660573 passed on Sprint 20 candidate commit 3b351e8efc333bb8b6e4755dca5b39b84a62c715; no exact e39c06c4d2315bb741df79a67e744196b249a205 rerun is claimed.",
         "Live manifest acceptanceContract observed AUTH_RESULT, PROFILE_RESULT, CHAT_RESULT, MATRIX_RESULT, E2EE_RESULT, FILES_RESULT, PROVIDER_STACK_RESULT, CALENDAR_RESULT, BOARDS_RESULT, WORKSPACE_LOOP_RESULT, and PROVIDER_REALITY_RESULT with findings=[]."
       ],
       "blockers": [
@@ -172,8 +173,8 @@
     {
       "number": 608,
       "url": "https://github.com/masssi164/weave/issues/608",
-      "state": "closable-after-autonomous-closure-update",
-      "reason": "Sprint 20 release-trust work is complete with current-head CI and Live Stack evidence; #591 is carried as an external human AT release-promotion blocker, not a requester review gate."
+      "state": "closed",
+      "reason": "Sprint 20 release-trust work was closed after PR #615 merged; #591 is carried as an external human AT release-promotion blocker, not a requester review gate."
     },
     {
       "number": 613,
