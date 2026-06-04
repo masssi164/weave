@@ -17,7 +17,7 @@ readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/
 readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
 readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
-readonly LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
+LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
 readonly TEST_USER_EMAIL="test@weave.local"
 readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_host
@@ -397,6 +397,22 @@ wait_for_nextcloud() {
   done
 
   fail "Nextcloud did not finish bootstrapping in time."
+}
+
+maybe_use_reverse_proxy_container_route() {
+  local proxy_ip=""
+
+  case "${WEAVE_RUNNER_HYGIENE:-false}" in
+    true | TRUE | True | 1) ;;
+    *) return 0 ;;
+  esac
+
+  proxy_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' weave-proxy 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
+  if [[ -n "${proxy_ip}" ]]; then
+    LOOPBACK_RESOLVE_HOST="${proxy_ip}"
+    export WEAVE_LOOPBACK_RESOLVE_HOST="${proxy_ip}"
+    log "Using reverse proxy container route for local public Weave hostnames."
+  fi
 }
 
 occ() {
@@ -1296,6 +1312,7 @@ main() {
 
   log "Applying infrastructure module..."
   terraform_apply "${INFRA_DIR}"
+  maybe_use_reverse_proxy_container_route
   synapse_repair_volume_permissions
   synapse_verify_volume_writable
   ensure_postgres_bootstrap_applied
