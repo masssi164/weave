@@ -1185,6 +1185,7 @@ create_nextcloud_backend_actor() {
 ensure_nextcloud_backend_actor_calendar() {
   local calendar_id
   local calendar_url
+  local create_output
   local create_status
   local read_status
   local -a calendar_ids=(
@@ -1194,9 +1195,12 @@ ensure_nextcloud_backend_actor_calendar() {
   )
 
   for calendar_id in "${calendar_ids[@]}"; do
-    if occ list --format=txt | grep -q '^  dav:create-calendar' && \
-      occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" >/dev/null 2>&1; then
-      continue
+    if occ list --format=txt | grep -q 'dav:create-calendar'; then
+      create_output="$(occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" 2>&1)" && continue
+      if printf '%s' "${create_output}" | grep -Eiq 'already exists|calendar.*exists|duplicate'; then
+        continue
+      fi
+      fail "Nextcloud backend actor calendar ${calendar_id} could not be created through occ: ${create_output}"
     fi
 
     calendar_url="$(nextcloud_public_url)/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/${calendar_id}/"
