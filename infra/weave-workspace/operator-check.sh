@@ -7,6 +7,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
 APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
 SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
+readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 
 log() {
   printf '%s\n' "$*"
@@ -82,7 +83,7 @@ curl_common_args() {
   local -a args=(--silent --show-error --fail)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:127.0.0.1")
+  args+=(--resolve "${host_port}:${LOOPBACK_HOST}")
 
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
     args+=(--cacert "${WEAVE_TLS_CA_FILE}")
@@ -152,7 +153,7 @@ curl_status() {
   local -a args=(--silent --show-error)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:127.0.0.1")
+  args+=(--resolve "${host_port}:${LOOPBACK_HOST}")
 
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
     args+=(--cacert "${WEAVE_TLS_CA_FILE}")
@@ -189,7 +190,7 @@ curl_auth_status() {
   local -a args=(--silent --show-error)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:127.0.0.1")
+  args+=(--resolve "${host_port}:${LOOPBACK_HOST}")
 
   if [[ -n "${WEAVE_TLS_CA_FILE:-}" ]]; then
     args+=(--cacert "${WEAVE_TLS_CA_FILE}")
@@ -601,10 +602,10 @@ for container in weave-proxy weave-keycloak weave-backend weave-mas weave-synaps
 done
 
 log "Checking loopback health endpoints..."
-assert_http_200 "Keycloak management" "http://127.0.0.1:${TF_VAR_keycloak_management_host_port:-49000}/health/ready"
-assert_http_200 "Weave backend" "http://127.0.0.1:${TF_VAR_backend_host_port:-48084}/api/health/ready"
-assert_http_200 "MAS" "http://127.0.0.1:${TF_VAR_mas_host_port:-48082}/health"
-assert_http_200 "Synapse" "http://127.0.0.1:${TF_VAR_synapse_host_port:-48008}/_matrix/client/versions"
+assert_http_200 "Keycloak management" "http://${LOOPBACK_HOST}:${TF_VAR_keycloak_management_host_port:-49000}/health/ready"
+assert_http_200 "Weave backend" "http://${LOOPBACK_HOST}:${TF_VAR_backend_host_port:-48084}/api/health/ready"
+assert_http_200 "MAS" "http://${LOOPBACK_HOST}:${TF_VAR_mas_host_port:-48082}/health"
+assert_http_200 "Synapse" "http://${LOOPBACK_HOST}:${TF_VAR_synapse_host_port:-48008}/_matrix/client/versions"
 
 log "Checking public product, issuer, API, files, and matrix routes..."
 product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/")"

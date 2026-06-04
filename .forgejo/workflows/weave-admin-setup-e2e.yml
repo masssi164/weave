@@ -75,6 +75,7 @@ jobs:
       WEAVE_INTEGRATION_TEST_DEVICE: linux
       DOCKER_HOST: unix:///var/run/docker.sock
       WEAVE_IAC_BIN: tofu
+      WEAVE_LOOPBACK_HOST: host.docker.internal
     steps:
       - name: Check out weave
         uses: actions/checkout@v4
@@ -170,7 +171,15 @@ jobs:
       - name: Ensure local Weave hostnames resolve inside the runner
         run: |
           set -euo pipefail
-          line='127.0.0.1 weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local'
+          gateway_ip="$(getent hosts host.docker.internal | awk '{print $1; exit}')"
+          if [ -z "$gateway_ip" ]; then
+            gateway_ip="$(ip route | awk '/default/ {print $3; exit}')"
+          fi
+          if [ -z "$gateway_ip" ]; then
+            echo "unable_to_resolve_host_docker_internal_gateway=true"
+            exit 2
+          fi
+          line="$gateway_ip weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
           if ! grep -Eq '(^|[[:space:]])api[.]weave[.]local([[:space:]]|$)' /etc/hosts \
             || ! grep -Eq '(^|[[:space:]])auth[.]weave[.]local([[:space:]]|$)' /etc/hosts; then
             echo "$line" >> /etc/hosts

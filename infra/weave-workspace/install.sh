@@ -16,7 +16,7 @@ readonly APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
 readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/bootstrap.env"
 readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
 readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
-readonly LOOPBACK_HOST="127.0.0.1"
+readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 readonly TEST_USER_EMAIL="test@weave.local"
 readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_host
@@ -543,7 +543,7 @@ curl_nextcloud_actor_calendar_status() {
   local -a args=(--silent --show-error)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:127.0.0.1")
+  args+=(--resolve "${host_port}:${LOOPBACK_HOST}")
   if [[ "${TF_VAR_public_scheme}" == "https" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then
     args+=(--cacert "${TF_VAR_caddy_tls_ca_file}")
   fi
@@ -692,7 +692,7 @@ preflight_checks() {
   if (( ${#unresolved_hosts[@]} > 0 )); then
     log "Preflight warning: these canonical hosts do not resolve yet: ${unresolved_hosts[*]}"
     log "Add this /etc/hosts line before opening browser/native-client URLs:"
-    log "127.0.0.1 ${hosts[*]}"
+    log "${LOOPBACK_HOST} ${hosts[*]}"
   fi
 
   if command -v lsof >/dev/null 2>&1; then
@@ -1061,7 +1061,7 @@ configure_nextcloud_base_url() {
 
   occ config:system:set trusted_domains 0 --value="${nextcloud_host}"
   occ config:system:set trusted_domains 1 --value="localhost"
-  occ config:system:set trusted_domains 2 --value="127.0.0.1"
+  occ config:system:set trusted_domains 2 --value="${LOOPBACK_HOST}"
   occ config:system:delete trusted_domains 3 >/dev/null 2>&1 || true
   occ config:system:set overwritehost --value="${nextcloud_host}$(public_port_suffix)"
   occ config:system:set overwrite.cli.url --value="${nextcloud_url}"
@@ -1210,7 +1210,7 @@ print_summary() {
   log "- Matrix:    ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")${suffix}"
   log
   log "App config file (no secrets): ${APP_CONFIG_ENV_FILE}"
-  log "Host entries: 127.0.0.1 ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}")"
+  log "Host entries: ${LOOPBACK_HOST} ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}")"
   log "Trust this local TLS CA certificate on the host before opening browser/native-client URLs: ${TF_VAR_caddy_tls_ca_file}"
   log
   log "MVP feature flags:"
