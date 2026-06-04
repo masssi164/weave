@@ -39,16 +39,28 @@ resource "docker_container" "this" {
     external = var.https_host_port
   }
 
-  volumes {
-    host_path      = var.caddyfile_path
-    container_path = "/etc/caddy/Caddyfile"
-    read_only      = true
+  upload {
+    file        = "/etc/caddy/Caddyfile"
+    source      = var.caddyfile_path
+    source_hash = filesha256(var.caddyfile_path)
   }
 
-  volumes {
-    host_path      = var.certs_dir
-    container_path = "/certs"
-    read_only      = true
+  upload {
+    file        = "/certs/${basename(var.tls_cert_file)}"
+    source      = var.tls_cert_file
+    source_hash = filesha256(var.tls_cert_file)
+  }
+
+  upload {
+    file        = "/certs/${basename(var.tls_key_file)}"
+    source      = var.tls_key_file
+    source_hash = filesha256(var.tls_key_file)
+  }
+
+  upload {
+    file        = "/certs/${basename(var.tls_ca_file)}"
+    source      = var.tls_ca_file
+    source_hash = filesha256(var.tls_ca_file)
   }
 
   volumes {

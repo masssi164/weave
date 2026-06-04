@@ -48,8 +48,13 @@ variable "trusted_proxies" {
   type        = string
 }
 
-variable "certs_dir" {
-  description = "Host directory containing the local CA certificate trusted by Nextcloud outbound HTTPS calls."
+variable "tls_ca_file" {
+  description = "Path to the generated local TLS CA certificate trusted by Nextcloud outbound HTTPS calls."
+  type        = string
+}
+
+variable "tls_ca_filename" {
+  description = "Filename of the local CA certificate inside /certs."
   type        = string
 }
 

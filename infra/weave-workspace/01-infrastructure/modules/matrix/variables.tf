@@ -83,12 +83,12 @@ variable "synapse_config_hash" {
   type        = string
 }
 
-variable "certs_dir" {
-  description = "Host directory containing the local CA certificate trusted by MAS outbound HTTPS calls."
+variable "tls_ca_file" {
+  description = "Path to the generated local TLS CA certificate trusted by MAS and Synapse outbound HTTPS calls."
   type        = string
 }
 
 variable "tls_ca_filename" {
-  description = "Filename of the local CA certificate inside certs_dir."
+  description = "Filename of the local CA certificate inside /certs."
   type        = string
 }

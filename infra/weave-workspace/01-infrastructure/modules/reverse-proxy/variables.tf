@@ -24,12 +24,22 @@ variable "https_host_port" {
 }
 
 variable "caddyfile_path" {
-  description = "Host path to the generated Caddyfile."
+  description = "Path to the generated Caddyfile."
   type        = string
 }
 
-variable "certs_dir" {
-  description = "Host directory containing local TLS certificate, private key, and CA certificate files."
+variable "tls_cert_file" {
+  description = "Path to the generated local TLS certificate."
+  type        = string
+}
+
+variable "tls_key_file" {
+  description = "Path to the generated local TLS private key."
+  type        = string
+}
+
+variable "tls_ca_file" {
+  description = "Path to the generated local TLS CA certificate."
   type        = string
 }
 

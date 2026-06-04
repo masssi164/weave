@@ -108,10 +108,10 @@ resource "docker_container" "mas" {
     source_hash = var.mas_signing_key_hash
   }
 
-  volumes {
-    host_path      = var.certs_dir
-    container_path = "/certs"
-    read_only      = true
+  upload {
+    file        = "/certs/${var.tls_ca_filename}"
+    source      = var.tls_ca_file
+    source_hash = filesha256(var.tls_ca_file)
   }
 
   networks_advanced {
@@ -181,10 +181,10 @@ resource "docker_container" "synapse" {
     container_path = "/data"
   }
 
-  volumes {
-    host_path      = var.certs_dir
-    container_path = "/certs"
-    read_only      = true
+  upload {
+    file        = "/certs/${var.tls_ca_filename}"
+    source      = var.tls_ca_file
+    source_hash = filesha256(var.tls_ca_file)
   }
 
   networks_advanced {
