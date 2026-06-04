@@ -141,7 +141,9 @@ void main() {
 
       await _waitFor(
         tester,
-        () => find.text('Anmelden').evaluate().isNotEmpty,
+        () =>
+            find.text('Anmelden').evaluate().isNotEmpty ||
+            find.text('Sign In').evaluate().isNotEmpty,
         reason: 'App should reach the sign-in screen with the live config.',
         diagnostics: () {
           final bootstrap = container.read(appBootstrapProvider);
