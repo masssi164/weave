@@ -13,7 +13,7 @@ Start with:
 3. [Canonical domains](architecture/canonical-domains.md) and [Provider portability contract](architecture/provider-portability.md) — foundation vocabulary and no-unaccounted-data-loss boundaries.
 4. [Product acceptance flows](product-acceptance-flows.md) — product-language acceptance paths.
 5. [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md) — latest published prerelease candidate commit, gates, release-draft evidence, and Live Stack E2E links.
-6. [v0.1 release notes](release-notes/v0.1.md) — durable release notes for the dogfood-production line, with guarded/future surfaces kept explicit.
+6. [v0.1 release notes](release-notes/v0.1.md) — durable release notes for the dogfood-ready review line, with guarded/future surfaces kept explicit.
 7. [Sprint 5 closure report](sprint-5-closure-report.md) — project-readiness evidence and release-candidate gaps.
 8. [Enterprise release foundation](enterprise-release-foundation.md) — release lanes, RC gate, waiver semantics, and support-safe artifacts.
 9. [Sprint 6 epic closure report](sprint-6-epic-closure-report.md) — #212/#233 acceptance evidence after the merged identity/admin slices.
@@ -131,7 +131,7 @@ The canonical product/domain truth is the pinned Weave Specification Corpus refe
 
 Weaver remains optional, governed, auditable, support-safe, and disabled by default. Any future per-user PA runtime must be generated from Weave organization policy as an isolated OpenClaw-derived profile and follow the rule: user-rights, organization-whitelisted capabilities. See [Governed Weaver runtime security contract](governed-weaver-runtime-security-contract.md) for the runtime/model/tool-provider split, approval receipts, and support-safe evidence boundary.
 
-v0.1 is dogfood-production, not a preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md). The latest published prerelease audit is [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md); current post-publication release readiness still blocks on #591 manual assistive-technology evidence.
+v0.1 is a dogfood-ready review baseline, not a general production release claim or scaffold preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md). The latest published prerelease audit is [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md); current post-publication release readiness still blocks on #591 manual assistive-technology evidence.
 
 ## Documentation stack
 

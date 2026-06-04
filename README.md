@@ -6,7 +6,7 @@
 
 **Weave lets organizations own their collaboration layer.** Members work in stable Weave domains such as chat, files, documents, calendar, boards, calls, decisions, notifications, and health. Admins and operators control provider adapters, readiness, policy, migration, audit, backup/restore, and support evidence.
 
-Weave is not a re-skinned provider bundle. It is a sovereign, accessibility-first organization suite where provider adapters sit behind Weave-owned domain contracts. Normal members see capability states and work surfaces; they do not configure raw provider endpoints, secrets, OIDC clients, migration tools, or diagnostics.
+Weave is not a re-skinned provider bundle. It is a self-hosting-friendly, accessibility-first organization suite where provider adapters sit behind Weave-owned domain contracts. Normal members see capability states and work surfaces; they do not configure raw provider endpoints, secrets, OIDC clients, migration tools, or diagnostics.
 
 ## Why Weave exists
 
@@ -72,14 +72,14 @@ Start with the [Admin/Operator Handbook](docs/admin-operator-handbook.md), [Orga
 
 ## v0.1 product truth
 
-v0.1 is dogfood-production, not preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration, service secrets, provider diagnostics, or scaffold copy. Guarded surfaces remain fail-closed until their evidence exists. Future surfaces, including Weaver runtime execution, stay explicitly future/disabled rather than half-shipped.
+v0.1 is dogfood-production, not preview; it is still not a general production release claim. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration, service secrets, provider diagnostics, or scaffold copy. Guarded surfaces remain fail-closed until their evidence exists. Future surfaces, including Weaver runtime execution, stay explicitly future/disabled rather than half-shipped.
 
 ## Ready / Guarded / Future claim matrix
 
 | Claim | Status | Evidence or boundary |
 | --- | --- | --- |
 | Weave is a monorepo product stack with client, server, infra, e2e, docs, and release gates. | **Ready** | [Developer Handbook](docs/developer-handbook.md), [Build/evidence delivery system](docs/build-evidence-delivery-system.md), `./gradlew ci`. |
-| v0.1 is dogfood-production, not preview/scaffold UX for normal members. | **Ready** | [v0.1 Golden Path readiness](docs/v0.1-golden-path.md), [ISO 9241-110 dogfood UX gate](docs/iso-9241-110-dogfood-ux-gate.md). |
+| v0.1 is dogfood-production, not preview/scaffold UX for normal members. | **Ready foundation** | [v0.1 Golden Path readiness](docs/v0.1-golden-path.md), [ISO 9241-110 dogfood UX gate](docs/iso-9241-110-dogfood-ux-gate.md). |
 | Members work in provider-neutral Weave domains. | **Ready foundation** | [Canonical domains](docs/architecture/canonical-domains.md), [Canonical feature models](docs/canonical-feature-models.md), [Architecture](docs/architecture.md). |
 | Normal members do not configure raw providers, secrets, OIDC clients, or diagnostics. | **Ready boundary** | [Admin-provisioned first use](docs/admin-provisioned-first-use.md), [Admin/Operator Handbook](docs/admin-operator-handbook.md). |
 | Provider adapters are replaceable behind Weave-owned contracts. | **Guarded** | [Provider portability contract](docs/architecture/provider-portability.md), [Provider replacement and anti-silo contract](docs/provider-replacement-and-anti-silo-contract.md). Provider reality levels (`contract_only`, `configured`, `live_read`, `live_write`, `migration_dry_run`, `migration_apply_ready`, `rollback_ready`, `release_ready`) prevent contract-only candidates from being marketed as generally available; replacement apply is limited to domains with explicit dry-run/apply/rollback evidence. |

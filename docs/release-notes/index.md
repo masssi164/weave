@@ -5,7 +5,7 @@ Release notes are the durable, user/admin/operator-facing record of what changed
 ## Files
 
 - [Unreleased](unreleased.md) collects changes that have merged but are not cut into a tagged release yet.
-- [v0.1](v0.1.md) records the dogfood-production release notes, including the latest published `v0.1.0-rc.3` prerelease facts and evidence links.
+- [v0.1](v0.1.md) records the dogfood-ready review release notes, including the latest published `v0.1.0-rc.3` prerelease facts and evidence links.
 
 ## Categories
 

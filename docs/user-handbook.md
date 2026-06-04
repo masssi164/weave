@@ -12,7 +12,7 @@ If your organization is not usable yet, Weave should explain the impact in plain
 
 ## Workspaces and channels
 
-Channels are workspace containers for collaboration. A channel can expose tabs for chat, decisions, files, boards/tasks, calendar, meetings, and read-only Weaver scout when those capabilities are enabled for your organization and role.
+Channels are workspace containers for collaboration. A channel can expose tabs for chat, decisions, files, boards/tasks, calendar, meetings, and explicitly gated Weaver/AI boundary copy when those capabilities are enabled for your organization and role.
 
 Expected member boundaries:
 
