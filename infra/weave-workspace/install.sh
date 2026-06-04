@@ -1195,11 +1195,11 @@ ensure_nextcloud_backend_actor_calendar() {
   )
 
   for calendar_id in "${calendar_ids[@]}"; do
-    if occ list --format=txt | grep -q 'dav:create-calendar'; then
-      create_output="$(occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" 2>&1)" && continue
-      if printf '%s' "${create_output}" | grep -Eiq 'already exists|calendar.*exists|duplicate'; then
-        continue
-      fi
+    create_output="$(occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" 2>&1)" && continue
+    if printf '%s' "${create_output}" | grep -Eiq 'already exists|calendar.*exists|duplicate'; then
+      continue
+    fi
+    if ! printf '%s' "${create_output}" | grep -Eiq 'not defined|unknown command|namespace .* not found'; then
       fail "Nextcloud backend actor calendar ${calendar_id} could not be created through occ: ${create_output}"
     fi
 
