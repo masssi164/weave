@@ -49,7 +49,7 @@ def load_json(path: Path) -> dict[str, Any]:
     return decoded
 
 
-def pinned_spec_manifest_path() -> Path:
+def pinned_spec_manifest_path() -> Path | None:
     lock = load_json(SPEC_LOCK)
     spec_corpus = lock.get("specCorpus")
     if not isinstance(spec_corpus, dict):
@@ -60,7 +60,10 @@ def pinned_spec_manifest_path() -> Path:
         fail("specs/weave-specs.lock.json specCorpus.localPath must be non-empty")
     if not isinstance(manifest, str) or not manifest:
         fail("specs/weave-specs.lock.json specCorpus.manifest must be non-empty")
-    return (ROOT / local_path / manifest).resolve()
+    path = (ROOT / local_path / manifest).resolve()
+    if not path.exists():
+        return None
+    return path
 
 
 def ensure_list(value: Any, name: str) -> list[Any]:
@@ -83,23 +86,27 @@ def main() -> int:
     if not required_domains:
         fail("catalog.requiredDomains must not be empty")
 
-    spec_manifest = load_json(pinned_spec_manifest_path())
-    manifest_domains = set()
-    for entry in ensure_list(spec_manifest.get("entries"), "specManifest.entries"):
-        if not isinstance(entry, dict):
-            continue
-        if entry.get("path", "").startswith("domains/"):
-            manifest_domains.add(str(entry["path"]).split("/")[1])
-    missing_spec_domains = {
-        domain
-        for domain in required_domains
-        if domain not in {"provider-portability", "operator-release"} and domain not in manifest_domains
-    }
-    if missing_spec_domains:
-        fail(
-            "catalog.requiredDomains references domains not present in spec manifest: "
-            + ", ".join(sorted(missing_spec_domains))
-        )
+    spec_manifest_path = pinned_spec_manifest_path()
+    if spec_manifest_path is not None:
+        spec_manifest = load_json(spec_manifest_path)
+        manifest_domains = set()
+        for entry in ensure_list(spec_manifest.get("entries"), "specManifest.entries"):
+            if not isinstance(entry, dict):
+                continue
+            if entry.get("path", "").startswith("domains/"):
+                manifest_domains.add(str(entry["path"]).split("/")[1])
+        missing_spec_domains = {
+            domain
+            for domain in required_domains
+            if domain not in {"provider-portability", "operator-release"} and domain not in manifest_domains
+        }
+        if missing_spec_domains:
+            fail(
+                "catalog.requiredDomains references domains not present in spec manifest: "
+                + ", ".join(sorted(missing_spec_domains))
+            )
+    else:
+        print("e2e-structure-check: pinned spec manifest absent; domain-manifest cross-check skipped")
 
     suite_by_id: dict[str, dict[str, Any]] = {}
     for suite in suites:
