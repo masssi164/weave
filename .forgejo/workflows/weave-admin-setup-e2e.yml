@@ -219,7 +219,20 @@ jobs:
           docker network inspect homelab_internal -f '{{range .IPAM.Config}}{{if .Gateway}}{{println .Gateway}}{{end}}{{end}}' >> "$candidates_file" 2>/dev/null || true
           getent hosts host.docker.internal 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1}' >> "$candidates_file" || true
           ip route 2>/dev/null | awk '/default/ && $3 ~ /^[0-9]+([.][0-9]+){3}$/ {print $3; exit}' >> "$candidates_file" || true
-          runner_loopback_host="$(awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ && $1 != "127.0.0.1" {print $1; exit}' "$candidates_file")"
+          runner_loopback_host="$(python3 - "$candidates_file" <<'PYHOST'
+          import ipaddress
+          import sys
+          for raw in open(sys.argv[1], encoding='utf-8'):
+              value = raw.strip().split()[0] if raw.strip() else ''
+              try:
+                  address = ipaddress.ip_address(value)
+              except ValueError:
+                  continue
+              if address.version == 4 and not address.is_loopback:
+                  print(address)
+                  break
+          PYHOST
+          )"
           rm -f "$candidates_file"
           if [ -z "$runner_loopback_host" ]; then
             echo "runner_loopback_host_resolved=false"
