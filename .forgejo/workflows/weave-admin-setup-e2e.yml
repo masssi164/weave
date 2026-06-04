@@ -207,6 +207,7 @@ jobs:
               exit 2
             fi
           fi
+          echo "WEAVE_LOOPBACK_HOST=$gateway_ip" >> "$GITHUB_ENV"
           echo "WEAVE_LOOPBACK_RESOLVE_HOST=$gateway_ip" >> "$GITHUB_ENV"
           line="$gateway_ip weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
           if ! grep -Eq '(^|[[:space:]])api[.]weave[.]local([[:space:]]|$)' /etc/hosts \
