@@ -79,6 +79,7 @@ jobs:
       DOCKER_HOST: unix:///var/run/docker.sock
       WEAVE_IAC_BIN: tofu
       WEAVE_LOOPBACK_HOST: host.docker.internal
+      WEAVE_LOCAL_FORGEJO_DOCKER_GATEWAY: '192.168.117.1'
       WEAVE_HANDOFF_HOLD_SECONDS: ${{ github.event.inputs.handoff_hold_seconds }}
     steps:
       - name: Check out weave
@@ -213,6 +214,7 @@ jobs:
           set -euo pipefail
           candidates_file="$(mktemp)"
           printf '%s\n' "${WEAVE_LOOPBACK_HOST:-}" > "$candidates_file"
+          printf '%s\n' "${WEAVE_LOCAL_FORGEJO_DOCKER_GATEWAY:-}" >> "$candidates_file"
           docker inspect "$(hostname)" -f '{{range .NetworkSettings.Networks}}{{if .Gateway}}{{println .Gateway}}{{end}}{{end}}' >> "$candidates_file" 2>/dev/null || true
           docker network inspect homelab_internal -f '{{range .IPAM.Config}}{{if .Gateway}}{{println .Gateway}}{{end}}{{end}}' >> "$candidates_file" 2>/dev/null || true
           getent hosts host.docker.internal 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1}' >> "$candidates_file" || true
