@@ -9,7 +9,8 @@ COPY gradle ./gradle
 RUN chmod +x ./gradlew
 
 COPY src ./src
-RUN ./gradlew --no-daemon bootJar
+ENV GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx512m -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=1"
+RUN ./gradlew --no-daemon --max-workers=1 bootJar
 
 FROM --platform=$TARGETPLATFORM eclipse-temurin:21-jre-jammy
 WORKDIR /app
