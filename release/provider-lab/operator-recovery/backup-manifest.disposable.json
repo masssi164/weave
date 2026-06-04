@@ -1,0 +1,91 @@
+{
+  "artifactKind": "weave-backup-manifest-v1",
+  "issue": 639,
+  "relatedGateIssue": 642,
+  "supportSafe": false,
+  "createdAt": "2026-06-04T05:49:03Z",
+  "backupId": "disposable-restore-proof-issue-642-local-proof",
+  "scope": {
+    "environment": "disposable-stack-rehearsal",
+    "domains": [
+      "identity-idm",
+      "chat",
+      "files",
+      "calendar",
+      "health"
+    ],
+    "artifactsContainSecretsOrMemberData": true,
+    "shareExternally": false,
+    "disposableOnly": true
+  },
+  "artifacts": [
+    {
+      "path": "MANIFEST.txt",
+      "kind": "text-manifest",
+      "description": "Disposable proof manifest",
+      "sha256": "3328ead5065d4c7cb09e4e537d7ab6dce4cf5352efacfc30cfa32813eeb2c0f7",
+      "bytes": 126,
+      "requiredForRestore": true
+    },
+    {
+      "path": "postgres.sql",
+      "kind": "postgres-dump",
+      "description": "PostgreSQL domain object fixture dump",
+      "sha256": "edd90df7047b4600e20a0bba39b456f595c8364beab8d8c63c134edb2596ba1c",
+      "bytes": 501,
+      "requiredForRestore": true
+    },
+    {
+      "path": "nextcloud-data.tgz",
+      "kind": "docker-volume-archive",
+      "description": "Restored files/calendar fixture archive",
+      "sha256": "93009b4ad59e13efe85a54e8475ed864fe8e708401ccbfcc18894f1b9666c484",
+      "bytes": 320,
+      "requiredForRestore": true
+    },
+    {
+      "path": "matrix-synapse-data.tgz",
+      "kind": "docker-volume-archive",
+      "description": "Restored chat/media fixture archive",
+      "sha256": "6af5f7099265d36f44911013b975a0ece6eb0fa8fa727f35598f13b810d097b2",
+      "bytes": 292,
+      "requiredForRestore": true
+    },
+    {
+      "path": "caddy-data.tgz",
+      "kind": "docker-volume-archive",
+      "description": "Restored Caddy runtime fixture archive",
+      "sha256": "27193338e2d2eb483e02f6bc736eef1ff4b63a056b1c498df8e72f57fa2a8f97",
+      "bytes": 162,
+      "requiredForRestore": true
+    },
+    {
+      "path": "caddy-config.tgz",
+      "kind": "docker-volume-archive",
+      "description": "Restored Caddy config fixture archive",
+      "sha256": "62fa80cab8faebc7518e54bc21a5ad86b08ba259815bd5c325bdc8699e6de5ad",
+      "bytes": 171,
+      "requiredForRestore": true
+    },
+    {
+      "path": "keycloak-data.tgz",
+      "kind": "docker-volume-archive",
+      "description": "Restored identity fixture archive",
+      "sha256": "f4e5ee719cf3296d912b9ed7074cd1c1cd7e3c80e92d326389ed4aed8ac4b13c",
+      "bytes": 198,
+      "requiredForRestore": true
+    },
+    {
+      "path": "generated-config-secrets.tgz",
+      "kind": "generated-config-secrets",
+      "description": "Generated config fixture archive",
+      "sha256": "576709510976955670aed4f9e79f2b0835b7b80ad63715cf86c7f22cbae42723",
+      "bytes": 318,
+      "requiredForRestore": true
+    }
+  ],
+  "limitations": [
+    "This manifest was generated from support-safe disposable fixture data, not production data.",
+    "It proves the destroy/restore validation path for fixture domain data; production restore still requires operator approval and private evidence."
+  ]
+}

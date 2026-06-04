@@ -44,7 +44,7 @@ def sha256_file(path: Path) -> str:
 def main() -> None:
     default = run()
     assert default.returncode == 0, default.stderr
-    assert "release_blocked=missing-live-destroy-restore-proof" in default.stdout
+    assert "disposable_restore_proof=release_eligible" in default.stdout
 
     with tempfile.TemporaryDirectory() as tmp:
         evidence = Path(tmp)

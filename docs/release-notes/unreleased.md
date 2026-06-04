@@ -9,7 +9,7 @@ Use this page for release-affecting changes that have merged but are not include
 - Sprint 24 adds a guarded Weaver Runtime Factory provider-lab fixture and gate for per-user runtime lifecycle, desired-state reconciliation, isolation, support-safe redaction, revoke, and claim safety without claiming production PA availability, customer-ready Weaver, release-ready Weaver, or broad autonomous AI availability.
 - Sprint 29 adds executable pre-human release validation guards, human UX/accessibility and Weaver evidence templates, and a final decision guard that blocks release-ready wording until automated evidence, human signoff, and release-blocker checks all pass.
 - Sprint 28 adds commercial adapter readiness specs, a go/no-go matrix, and a CI guard that keeps Slack and Microsoft Teams implementation starts blocked until provider-specific proof, admin consent, cost, export, retention, and rollback evidence exist. It does not claim Slack or Teams integration availability.
-- Sprint 26 adds operator recovery guardrails for `BackupManifest`, `RestoreReceipt`, support-bundle redaction reports, and `docs/operator-recovery-known-limitations.md` without claiming release-ready restore proof.
+- Sprint 26 adds operator recovery guardrails plus support-safe disposable Backup -> Destroy -> Restore -> Validate evidence for fixture domain data; production restore remains operator-approved and private-evidence scoped.
 
 ## Changed
 
@@ -32,9 +32,9 @@ Use this page for release-affecting changes that have merged but are not include
 
 - No production provider cutover, migration apply, Terraform/live infrastructure change, or public production release has been performed after `v0.1.0-rc.3`.
 - Slack and Microsoft Teams remain commercial adapter readiness candidates only; adapter implementation, production migration, rollback, and customer-ready claims are blocked until future `implementation_allowed` and `release_ready` evidence exists.
-- Operator backup/restore wording must reference `docs/operator-recovery-known-limitations.md`; Sprint 26 release promotion remains blocked until a live disposable destroy/restore rehearsal proves recovered domain data.
+- Operator backup/restore wording must reference `docs/operator-recovery-known-limitations.md`; Sprint 26 now allows only the scoped disposable fixture-domain restore proof claim, not production restore or E2EE lost-device recovery claims.
 
 ## Known Issues
 
 - #591 remains a release blocker: actual manual assistive-technology signoff is required before Sprint 18 milestone closure or public/production release signoff, unless release ownership explicitly splits the remaining manual signoff into a separate accepted blocker.
-- #642 remains a release blocker for operator recovery until `RestoreReceipt` evidence includes a performed destroy step and recovered domain-data validation.
+- #591 remains the active human/manual release blocker; #642 operator recovery is satisfied only for disposable fixture-domain restore evidence and does not authorize production restore claims.
