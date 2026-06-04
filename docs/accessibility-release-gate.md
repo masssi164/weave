@@ -127,9 +127,9 @@ The gate maps Flutter semantics, keyboard traversal, text-scale/reflow, Admin Co
 
 ## Sprint 18 manual assistive-technology release trust gate
 
-Issue #591 expands the release-blocking manual AT scope to the Sprint 18 member Workspace loop, admin migration apply/recovery, admin go-live claim-control, and governed Weaver approval/revocation surfaces. The machine-readable gate is `release/accessibility-gate.json`; current blocker accounting is `docs/evidence/accessibility/sprint-18-manual-at-blocker.md`.
+Issue #591 expands the release-blocking manual AT scope to the Sprint 18 member Workspace loop, admin migration apply/recovery, admin go-live claim-control, and governed Weaver approval/revocation surfaces. The machine-readable gate is `release/accessibility-gate.json`; current blocker accounting is `docs/evidence/accessibility/sprint-18-manual-at-blocker.md`. The human execution package is `docs/evidence/accessibility/sprint-18-manual-at-candidate-signoff-checklist.md`.
 
-This blocker artifact is not pass evidence. It exists because the repository automation environment cannot collect a real screen-reader, keyboard-only, and text-scale session by itself. Before any Sprint 18 RC or production accessibility signoff, each row must be replaced by real reviewer evidence or by an exceptional release-owner waiver that names the owner, candidate commit/tag, tested route, assistive technology/browser or device combination, result, linked blocker, expiry, and compensating evidence.
+The blocker artifact and candidate checklist are not pass evidence. They exist because the repository automation environment cannot collect a real screen-reader, keyboard-only, and text-scale session by itself. Before any Sprint 18 RC or production accessibility signoff, each row must be replaced by real reviewer evidence or by an exceptional release-owner waiver that names the owner, candidate commit/tag, tested route, assistive technology/browser or device combination, result, linked blocker, expiry, and compensating evidence.
 
 | Sprint 18 flow | Required manual evidence | Current release state |
 | --- | --- | --- |
