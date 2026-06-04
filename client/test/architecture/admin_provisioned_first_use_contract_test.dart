@@ -8,6 +8,9 @@ void main() {
     final releasePlan = File('../docs/release-v0.1-dogfood-plan.md');
     final roadmap = File('../docs/roadmap-and-guarded-surfaces.md');
     final quality = File('../docs/quality-and-evidence.md');
+    final weaveControlContract = File(
+      '../docs/weave-control-bootstrap-to-client-contract.md',
+    );
 
     test('documents member vs admin/operator setup ownership', () {
       expect(boundaryDoc.existsSync(), isTrue);
@@ -18,6 +21,7 @@ void main() {
         'Normal members must not configure OIDC, realms, provider URLs, service endpoints, backup/restore, policy, or infrastructure readiness',
         'must not see provider setup diagnostics',
         'Workspace Health is the admin/operator control plane',
+        'deploy-new, attach-existing, and hybrid bootstrap modes are Weave Control concepts only',
         '`owner`',
         '`admin`',
         '`operator`',
@@ -56,6 +60,7 @@ void main() {
       final release = releasePlan.readAsStringSync();
       final roadmapText = roadmap.readAsStringSync();
       final qualityText = quality.readAsStringSync();
+      final controlText = weaveControlContract.readAsStringSync();
 
       expect(release, contains('without OIDC/provider/infra setup prompts'));
       expect(
@@ -90,6 +95,19 @@ void main() {
       expect(
         qualityText,
         contains('Normal members must not see provider setup diagnostics'),
+      );
+
+      expect(controlText, contains('`deploy_new`'));
+      expect(controlText, contains('`attach_existing`'));
+      expect(controlText, contains('`hybrid`'));
+      expect(
+        controlText,
+        contains('Weave Server stays separately deployable or attachable'),
+      );
+      expect(controlText, contains('Members never configure CI/CD targets'));
+      expect(
+        controlText,
+        contains('GitHub-only Live Stack evidence is not a substitute'),
       );
     });
   });
