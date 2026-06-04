@@ -26,6 +26,8 @@ This blocker artifact intentionally contains no screenshots, raw logs, endpoint 
 
 ## Replacement checklist
 
+Use the candidate execution package in [`sprint-18-manual-at-candidate-signoff-checklist.md`](sprint-18-manual-at-candidate-signoff-checklist.md) before asking Massimo / the release owner for #591 signoff. The checklist gives the exact candidate-pinning commands, compact preflight gates, manual AT rows, evidence fields, and support-safe #591 comment template.
+
 Before closing #591 or promoting a Sprint 18 candidate, replace this blocker with real manual evidence or a release-owner-approved exceptional waiver that names:
 
 - owner and reviewer;
