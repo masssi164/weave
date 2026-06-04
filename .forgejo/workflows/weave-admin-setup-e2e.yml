@@ -296,7 +296,10 @@ jobs:
           echo "public_weave_hostname_route=ready"
       - name: Verify deployed stack readiness
         working-directory: infra/weave-workspace
-        run: bash ./operator-check.sh
+        run: |
+          set -euo pipefail
+          operator_loopback_host="${WEAVE_LOCAL_FORGEJO_DOCKER_GATEWAY:-${WEAVE_LOOPBACK_HOST:-127.0.0.1}}"
+          WEAVE_LOOPBACK_HOST="$operator_loopback_host" bash ./operator-check.sh
       - name: Emit #665 concise terminal signals
         run: |
           set -euo pipefail

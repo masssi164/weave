@@ -77,6 +77,7 @@ FORGEJO_WORKFLOW_REQUIRED_FRAGMENTS = [
     "Hold deployed handoff open for external client lane",
     "runner_loopback_host_resolved=true",
     "WEAVE_LOCAL_FORGEJO_DOCKER_GATEWAY",
+    "operator_loopback_host",
 ]
 
 
