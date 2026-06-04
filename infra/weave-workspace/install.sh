@@ -1350,9 +1350,6 @@ main() {
   log "Configuring Nextcloud OIDC provider..."
   configure_nextcloud_oidc
 
-  log "Waiting for Nextcloud public route readiness..."
-  wait_for_public_http_200 "Nextcloud public route" "$(nextcloud_public_url)/status.php" 60 2
-
   log "Ensuring backend-owned Nextcloud actor for files/calendar facades..."
   ensure_nextcloud_backend_actor
 
