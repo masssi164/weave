@@ -671,8 +671,15 @@ preflight_checks() {
   )
 
   for host in "${hosts[@]}"; do
+    if grep -Eq "(^|[[:space:]])${host//./[.]}([[:space:]]|$)" /etc/hosts 2>/dev/null; then
+      continue
+    fi
     if command -v getent >/dev/null 2>&1; then
-      getent hosts "${host}" >/dev/null 2>&1 && continue
+      if command -v timeout >/dev/null 2>&1; then
+        timeout 2s getent hosts "${host}" >/dev/null 2>&1 && continue
+      else
+        getent hosts "${host}" >/dev/null 2>&1 && continue
+      fi
     fi
     if command -v dscacheutil >/dev/null 2>&1; then
       dscacheutil -q host -a name "${host}" >/dev/null 2>&1 && continue
