@@ -790,6 +790,7 @@ ensure_default_inputs() {
     "TF_VAR_proxy_host_port=44443"
     "TF_VAR_proxy_http_host_port=44080"
     "TF_VAR_keycloak_host_port=48080"
+    "TF_VAR_keycloak_admin_host=${LOOPBACK_HOST}"
     "TF_VAR_keycloak_management_host_port=49000"
     "TF_VAR_mas_host_port=48082"
     "TF_VAR_synapse_host_port=48008"
