@@ -171,11 +171,12 @@ jobs:
         run: |
           set -euo pipefail
           line='127.0.0.1 weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local'
+          if ! grep -Eq '(^|[[:space:]])api[.]weave[.]local([[:space:]]|$)' /etc/hosts \
+            || ! grep -Eq '(^|[[:space:]])auth[.]weave[.]local([[:space:]]|$)' /etc/hosts; then
+            echo "$line" >> /etc/hosts
+          fi
           for host in weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local; do
-            if ! getent hosts "$host" >/dev/null 2>&1; then
-              echo "$line" >> /etc/hosts
-              break
-            fi
+            grep -Eq "(^|[[:space:]])${host//./[.]}([[:space:]]|$)" /etc/hosts
           done
       - name: Clean stale stack state
         working-directory: infra/weave-workspace
