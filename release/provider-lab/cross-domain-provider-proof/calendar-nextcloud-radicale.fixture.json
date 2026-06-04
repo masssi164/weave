@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-sprint-27-calendar-boundary-proof-v1",
+  "issue": 643,
+  "supportSafe": true,
+  "domain": "calendar",
+  "sourceProviderKey": "nextcloud-caldav",
+  "targetProviderKey": "radicale",
+  "realityLevel": "migration_dry_run",
+  "canonicalObjects": [
+    "WeaveCalendar",
+    "WeaveEvent",
+    "WeaveRecurrence",
+    "WeaveAttendee",
+    "WeaveResource",
+    "WeaveAvailability",
+    "ProviderRef"
+  ],
+  "fixtureRef": "calendar-fixture-sprint-27-redacted",
+  "preservedFields": [
+    "WeaveCalendar.id",
+    "WeaveCalendar.displayName",
+    "WeaveEvent.uid",
+    "WeaveEvent.summary",
+    "WeaveEvent.description",
+    "WeaveEvent.startsAt",
+    "WeaveEvent.endsAt",
+    "WeaveEvent.timeZone",
+    "WeaveRecurrence.rrule",
+    "WeaveAttendee.emailHash",
+    "WeaveAttendee.participationStatus",
+    "ProviderRef.sourceProviderKey",
+    "ProviderRef.sourceObjectHash"
+  ],
+  "lossyFields": [
+    {
+      "field": "WeaveResource.bookingPolicy",
+      "source": "nextcloud-caldav-resource-extension",
+      "target": "radicale-metadata-only",
+      "classification": "metadata_only",
+      "adminImpact": "Resource booking policy is retained as a support-safe note, not target-enforced."
+    },
+    {
+      "field": "WeaveAvailability.freeBusySource",
+      "source": "nextcloud-caldav-freebusy-extension",
+      "target": "radicale-not-supported",
+      "classification": "unsupported",
+      "adminImpact": "Free/busy details require recalculation after provider cutover."
+    },
+    {
+      "field": "WeaveAttendee.delegationChain",
+      "source": "nextcloud-caldav-attendee-extension",
+      "target": "radicale-partial",
+      "classification": "partially_preserved",
+      "adminImpact": "Delegation is retained in provenance notes while attendee identity and status remain preserved."
+    }
+  ],
+  "uiDomainStability": {
+    "memberSurface": "Weave Calendar",
+    "providerNamesHiddenFromMemberPath": true,
+    "stableObjects": ["WeaveCalendar", "WeaveEvent", "WeaveRecurrence", "WeaveAttendee"],
+    "adminVisibleProviderRefs": true
+  },
+  "rollbackBoundary": {
+    "rollbackReady": false,
+    "reason": "Sprint 27 proves dry-run field mapping only; no production mutation or rollback apply claim."
+  },
+  "evidenceMarkers": ["SPRINT27_CALENDAR_PROVIDER_BOUNDARY_PROOF"]
+}
