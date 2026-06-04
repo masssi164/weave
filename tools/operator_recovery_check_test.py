@@ -44,11 +44,11 @@ def sha256_file(path: Path) -> str:
 def main() -> None:
     default = run()
     assert default.returncode == 0, default.stderr
-    assert "release_blocked=missing-live-destroy-restore-proof" in default.stdout
+    assert "disposable_restore_proof=release_eligible" in default.stdout
 
     with tempfile.TemporaryDirectory() as tmp:
         evidence = Path(tmp)
-        manifest = json.loads((FIXTURE_DIR / "backup-manifest.fixture.json").read_text(encoding="utf-8"))
+        manifest = json.loads((FIXTURE_DIR / "backup-manifest.disposable.json").read_text(encoding="utf-8"))
         manifest["artifacts"] = []
         for name in REQUIRED_ARTIFACTS:
             artifact = evidence / name
@@ -63,7 +63,7 @@ def main() -> None:
         manifest["scope"]["environment"] = "approved-disposable-stack"
         write_json(evidence / "BackupManifest.json", manifest)
 
-        receipt = json.loads((FIXTURE_DIR / "restore-receipt.fixture.json").read_text(encoding="utf-8"))
+        receipt = json.loads((FIXTURE_DIR / "restore-receipt.disposable.json").read_text(encoding="utf-8"))
         receipt.update({
             "validationMode": "disposable_stack_rehearsal",
             "status": "passed",
@@ -77,7 +77,7 @@ def main() -> None:
             "releaseEligible": True,
         })
         write_json(evidence / "RestoreReceipt.json", receipt)
-        shutil.copyfile(FIXTURE_DIR / "support-redaction-report.fixture.json", evidence / "support-redaction-report.json")
+        shutil.copyfile(FIXTURE_DIR / "support-redaction-report.disposable.json", evidence / "support-redaction-report.json")
 
         passing = run("--evidence-dir", str(evidence))
         assert passing.returncode == 0, passing.stderr
@@ -105,7 +105,7 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         evidence = Path(tmp)
-        manifest = json.loads((FIXTURE_DIR / "backup-manifest.fixture.json").read_text(encoding="utf-8"))
+        manifest = json.loads((FIXTURE_DIR / "backup-manifest.disposable.json").read_text(encoding="utf-8"))
         manifest["artifacts"] = []
         for name in REQUIRED_ARTIFACTS:
             artifact = evidence / name
@@ -119,7 +119,7 @@ def main() -> None:
             })
         write_json(evidence / "BackupManifest.json", manifest)
         shutil.copyfile(FIXTURE_DIR / "restore-receipt.fixture.json", evidence / "RestoreReceipt.json")
-        shutil.copyfile(FIXTURE_DIR / "support-redaction-report.fixture.json", evidence / "support-redaction-report.json")
+        shutil.copyfile(FIXTURE_DIR / "support-redaction-report.disposable.json", evidence / "support-redaction-report.json")
         blocked = run("--evidence-dir", str(evidence))
         assert blocked.returncode != 0
         assert "live release evidence requires" in blocked.stderr

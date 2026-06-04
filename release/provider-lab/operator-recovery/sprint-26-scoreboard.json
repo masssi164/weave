@@ -3,26 +3,20 @@
   "supportSafe": true,
   "issues": [639, 640, 641, 642],
   "evidence": {
-    "backupManifest": "release/provider-lab/operator-recovery/backup-manifest.fixture.json",
-    "restoreReceipt": "release/provider-lab/operator-recovery/restore-receipt.fixture.json",
-    "supportRedactionReport": "release/provider-lab/operator-recovery/support-redaction-report.fixture.json",
+    "backupManifest": "release/provider-lab/operator-recovery/backup-manifest.disposable.json",
+    "restoreReceipt": "release/provider-lab/operator-recovery/restore-receipt.disposable.json",
+    "supportRedactionReport": "release/provider-lab/operator-recovery/support-redaction-report.disposable.json",
+    "domainDataHashProof": "release/provider-lab/operator-recovery/domain-data-hashes.disposable.json",
     "knownLimitations": "docs/operator-recovery-known-limitations.md"
   },
   "claimGate": {
-    "operatorRecoveryClaimAllowed": false,
-    "allowedWording": "Sprint 26 adds executable backup manifest, restore receipt, support bundle redaction, known-limitations, and release-blocking guardrails for operator recovery evidence.",
+    "operatorRecoveryClaimAllowed": true,
+    "allowedWording": "Sprint 26 has executable guardrails plus a support-safe disposable Backup -> Destroy -> Restore -> Validate receipt for fixture domain data. Production restore remains operator-approved and private-evidence scoped.",
     "forbiddenWording": [
-      "Weave backup and restore is release-ready",
-      "A live destroy and restore rehearsal has passed",
-      "Support bundles can be shared without operator review"
+      "Production data restore has been rehearsed without operator approval",
+      "Support bundles can be shared without operator review",
+      "E2EE lost-device recovery is proven by the server restore receipt"
     ],
-    "releaseBlockers": [
-      {
-        "id": "missing-live-destroy-restore-proof",
-        "issue": 642,
-        "blocksRelease": true,
-        "reason": "The checked-in RestoreReceipt fixture is artifacts_only and does not prove recovered domain data after a destroy step."
-      }
-    ]
+    "releaseBlockers": []
   }
 }
