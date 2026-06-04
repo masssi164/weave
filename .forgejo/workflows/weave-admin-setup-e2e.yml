@@ -73,9 +73,39 @@ jobs:
       WEAVE_REMOVE_VOLUMES: 'true'
       WEAVE_CONFIRM_DESTRUCTIVE_RESET: weave
       WEAVE_INTEGRATION_TEST_DEVICE: linux
+      DOCKER_HOST: tcp://forgejo-runner-dind:2375
     steps:
       - name: Check out weave
         uses: actions/checkout@v4
+      - name: Install Docker CLI and Linux desktop prerequisites
+        run: |
+          set -euo pipefail
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates \
+            clang \
+            cmake \
+            curl \
+            docker.io \
+            git \
+            jq \
+            libgtk-3-dev \
+            make \
+            ninja-build \
+            pkg-config \
+            unzip \
+            xz-utils \
+            zstd
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.10.6
+          tofu_wrapper: false
       - name: Verify live-stack prerequisites without exposing secrets
         run: |
           set -euo pipefail
@@ -83,6 +113,9 @@ jobs:
           for cmd in docker flutter tofu make python3; do
             command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
           done
+          if ! docker info >/dev/null 2>&1; then
+            missing+=("docker-daemon")
+          fi
           if [ -z "${WEAVE_TEST_PASSWORD:-}" ]; then
             missing+=("SecretRef:WEAVE_TEST_PASSWORD")
           fi
