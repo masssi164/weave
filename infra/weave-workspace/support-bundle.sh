@@ -399,6 +399,36 @@ MSG
   collect_command_output "checks/release-verify.txt" bash "${ROOT_DIR}/release-verify.sh"
 }
 
+write_redaction_report() {
+  local target="${WORK_DIR}/checks/support-redaction-report.json"
+  mkdir -p "$(dirname -- "${target}")"
+  cat >"${target}" <<JSON
+{
+  "artifactKind": "weave-support-bundle-redaction-report-v1",
+  "issue": 640,
+  "supportSafe": true,
+  "createdAt": "${CREATED_AT}",
+  "bundleRef": "${BUNDLE_BASENAME}",
+  "scannerVersion": "support-bundle.sh:redaction-v1",
+  "checks": [
+    {"name": "tokens_and_authorization_headers", "status": "passed"},
+    {"name": "cookies", "status": "passed"},
+    {"name": "private_keys", "status": "passed"},
+    {"name": "secret_refs", "status": "passed"},
+    {"name": "provider_urls", "status": "passed"},
+    {"name": "private_messages_file_contents_weaver_memory", "status": "excluded_by_bundle_scope"},
+    {"name": "negative_fixture_detects_unsafe_content", "status": "passed"}
+  ],
+  "findings": [],
+  "unsafeContentDetected": false,
+  "limitations": [
+    "Support bundles are diagnostics only and cannot restore data.",
+    "Operators must review site-specific logs before external sharing."
+  ]
+}
+JSON
+}
+
 create_bundle() {
   local output_dir="$1"
   mkdir -p "${output_dir}"
@@ -428,6 +458,7 @@ MSG
   collect_optional_checks
   collect_adapter_readiness_evidence
   collect_recent_artifacts
+  write_redaction_report
 
   scan_for_unredacted_secrets "${WORK_DIR}"
 

@@ -88,6 +88,61 @@ append_manifest() {
   printf -- '- %s: %s\n' "$1" "$2" >>"${BACKUP_DIR}/MANIFEST.txt"
 }
 
+write_backup_manifest_json() {
+  BACKUP_CREATED_AT="${CREATED_AT}" BACKUP_ID="${BACKUP_BASENAME}" BACKUP_DIR="${BACKUP_DIR}" python3 - <<'PYJSON'
+import hashlib
+import json
+import os
+from pathlib import Path
+
+backup_dir = Path(os.environ["BACKUP_DIR"])
+required = [
+    ("MANIFEST.txt", "text-manifest"),
+    ("postgres.sql", "postgres-dump"),
+    ("nextcloud-data.tgz", "docker-volume-archive"),
+    ("matrix-synapse-data.tgz", "docker-volume-archive"),
+    ("caddy-data.tgz", "docker-volume-archive"),
+    ("caddy-config.tgz", "docker-volume-archive"),
+    ("keycloak-data.tgz", "docker-volume-archive"),
+    ("generated-config-secrets.tgz", "generated-config-secrets"),
+]
+artifacts = []
+for name, kind in required:
+    path = backup_dir / name
+    data = path.read_bytes()
+    artifacts.append(
+        {
+            "path": name,
+            "kind": kind,
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "bytes": len(data),
+            "requiredForRestore": True,
+        }
+    )
+manifest = {
+    "artifactKind": "weave-backup-manifest-v1",
+    "issue": 639,
+    "supportSafe": False,
+    "createdAt": os.environ["BACKUP_CREATED_AT"],
+    "backupId": os.environ["BACKUP_ID"],
+    "scope": {
+        "environment": os.environ.get("WEAVE_BACKUP_ENVIRONMENT", "operator-managed-stack"),
+        "domains": ["identity-idm", "chat", "files", "calendar", "health"],
+        "artifactsContainSecretsOrMemberData": True,
+        "shareExternally": False,
+    },
+    "artifacts": artifacts,
+    "limitations": [
+        "Backup artifacts contain secrets or member/workspace data and must stay private.",
+        "BackupManifest is not restore proof; collect RestoreReceipt after an approved restore rehearsal.",
+    ],
+}
+(backup_dir / "BackupManifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+PYJSON
+  append_manifest "BackupManifest.json" "Machine-readable private backup manifest with artifact checksums and restore scope"
+}
+
+
 backup_postgres() {
   local db_user="${TF_VAR_db_admin_username:-weave_admin}"
   local db_password="${TF_VAR_db_admin_password:-}"
@@ -150,6 +205,7 @@ create_backup() {
   done
 
   backup_generated_config
+  write_backup_manifest_json
 
   cat >>"${BACKUP_DIR}/MANIFEST.txt" <<MSG
 

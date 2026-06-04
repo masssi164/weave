@@ -1,0 +1,28 @@
+{
+  "scoreboardKind": "weave-sprint-26-operator-recovery-scoreboard",
+  "supportSafe": true,
+  "issues": [639, 640, 641, 642],
+  "evidence": {
+    "backupManifest": "release/provider-lab/operator-recovery/backup-manifest.fixture.json",
+    "restoreReceipt": "release/provider-lab/operator-recovery/restore-receipt.fixture.json",
+    "supportRedactionReport": "release/provider-lab/operator-recovery/support-redaction-report.fixture.json",
+    "knownLimitations": "docs/operator-recovery-known-limitations.md"
+  },
+  "claimGate": {
+    "operatorRecoveryClaimAllowed": false,
+    "allowedWording": "Sprint 26 adds executable backup manifest, restore receipt, support bundle redaction, known-limitations, and release-blocking guardrails for operator recovery evidence.",
+    "forbiddenWording": [
+      "Weave backup and restore is release-ready",
+      "A live destroy and restore rehearsal has passed",
+      "Support bundles can be shared without operator review"
+    ],
+    "releaseBlockers": [
+      {
+        "id": "missing-live-destroy-restore-proof",
+        "issue": 642,
+        "blocksRelease": true,
+        "reason": "The checked-in RestoreReceipt fixture is artifacts_only and does not prove recovered domain data after a destroy step."
+      }
+    ]
+  }
+}

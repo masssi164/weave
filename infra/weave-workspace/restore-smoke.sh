@@ -7,6 +7,7 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
 REPROVISION_MATRIX="${WEAVE_RESTORE_SMOKE_REPROVISION_MATRIX:-false}"
 ARTIFACTS_ONLY="${WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY:-false}"
+RESTORE_RECEIPT_OUTPUT="${WEAVE_RESTORE_RECEIPT_OUTPUT:-}"
 
 log() {
   printf '%s\n' "$*"
@@ -48,6 +49,61 @@ require_artifact() {
   [[ -s "${backup_dir}/${name}" ]] || fail "Backup artifact is missing or empty: ${backup_dir}/${name}"
 }
 
+
+write_restore_receipt() {
+  local backup_dir="$1"
+  local validation_mode="$2"
+  local status="$3"
+  local destroy_performed="$4"
+  local domain_data_status="$5"
+  local release_eligible="$6"
+  local output="${RESTORE_RECEIPT_OUTPUT}"
+  if [[ -z "${output}" ]]; then
+    if [[ -n "${backup_dir}" ]]; then
+      output="${backup_dir}/RestoreReceipt.json"
+    else
+      output="${ROOT_DIR}/.generated/RestoreReceipt.json"
+    fi
+  fi
+  mkdir -p "$(dirname -- "${output}")"
+  RESTORE_CREATED_AT="$(date -u +%Y%m%dT%H%M%SZ)"     RESTORE_BACKUP_DIR="${backup_dir}"     RESTORE_VALIDATION_MODE="${validation_mode}"     RESTORE_STATUS="${status}"     RESTORE_DESTROY_PERFORMED="${destroy_performed}"     RESTORE_DOMAIN_DATA_STATUS="${domain_data_status}"     RESTORE_RELEASE_ELIGIBLE="${release_eligible}"     RESTORE_RECEIPT_OUTPUT_PATH="${output}"     python3 - <<'PYJSON'
+import json
+import os
+from pathlib import Path
+
+backup_dir = os.environ.get("RESTORE_BACKUP_DIR") or ""
+destroy_performed = os.environ["RESTORE_DESTROY_PERFORMED"] == "true"
+domain_status = os.environ["RESTORE_DOMAIN_DATA_STATUS"]
+release_eligible = os.environ["RESTORE_RELEASE_ELIGIBLE"] == "true"
+receipt = {
+    "artifactKind": "weave-restore-receipt-v1",
+    "issue": 639,
+    "supportSafe": True,
+    "createdAt": os.environ["RESTORE_CREATED_AT"],
+    "backupManifestRef": str(Path(backup_dir) / "BackupManifest.json") if backup_dir else "not-provided",
+    "restoreRunId": f"restore-smoke-{os.environ['RESTORE_CREATED_AT']}",
+    "validationMode": os.environ["RESTORE_VALIDATION_MODE"],
+    "status": os.environ["RESTORE_STATUS"],
+    "destroyStep": {
+        "performed": destroy_performed,
+        "reason": "operator-declared approved disposable restore rehearsal" if destroy_performed else "not performed by restore-smoke.sh",
+    },
+    "checks": [
+        {"name": "backup_artifacts_present", "status": "passed" if backup_dir else "not_run"},
+        {"name": "post_restore_operator_check", "status": "passed" if os.environ["RESTORE_VALIDATION_MODE"] != "artifacts_only" else "not_run"},
+        {"name": "domain_data_recovered", "status": domain_status},
+    ],
+    "provesRestoredDomainData": domain_status == "passed" and destroy_performed,
+    "releaseEligible": release_eligible,
+    "limitations": [] if release_eligible else [
+        "This receipt does not prove release-ready backup/restore unless destroyStep.performed=true and domain_data_recovered passed.",
+    ],
+}
+Path(os.environ["RESTORE_RECEIPT_OUTPUT_PATH"]).write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+PYJSON
+  log "RestoreReceipt written to ${output}"
+}
+
 check_backup_dir() {
   local backup_dir="$1"
 
@@ -77,6 +133,7 @@ main() {
 
   if [[ "${ARTIFACTS_ONLY}" == "true" ]]; then
     [[ -n "${backup_dir}" ]] || fail "WEAVE_RESTORE_SMOKE_ARTIFACTS_ONLY=true requires a backup directory argument."
+    write_restore_receipt "${backup_dir}" "artifacts_only" "artifact_preflight_passed_not_restore_proof" "false" "not_proven" "false"
     log "Restore smoke artifact preflight passed. Service readiness was not checked in artifacts-only mode."
     exit 0
   fi
@@ -89,6 +146,7 @@ main() {
   log "Running recovery readiness checks with operator-check.sh..."
   bash "${ROOT_DIR}/operator-check.sh"
 
+  write_restore_receipt "${backup_dir}" "post_restore_live" "passed" "${WEAVE_RESTORE_SMOKE_DESTROY_PERFORMED:-false}" "${WEAVE_RESTORE_SMOKE_DOMAIN_DATA_RECOVERED:-not_proven}" "${WEAVE_RESTORE_SMOKE_RELEASE_ELIGIBLE:-false}"
   log "Restore smoke passed: backend, Keycloak, Matrix/MAS, default Matrix rooms, and raw Nextcloud checks are healthy."
 }
 
