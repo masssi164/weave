@@ -122,6 +122,16 @@ jobs:
           fi
           flutter --version >/dev/null
           tofu version >/dev/null
+      - name: Prepare support-safe evidence directory
+        run: |
+          set -euo pipefail
+          evidence_dir="$PWD/.weave-local-forgejo-e2e-evidence"
+          test_log="$evidence_dir/weave-e2e.log"
+          rm -rf "$evidence_dir"
+          mkdir -p "$evidence_dir"
+          : > "$test_log"
+          echo "WEAVE_ACCEPTANCE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
+          echo "WEAVE_ACCEPTANCE_TEST_LOG=$test_log" >> "$GITHUB_ENV"
       - name: Verify live-stack prerequisites without exposing secrets
         run: |
           set -euo pipefail
@@ -142,16 +152,6 @@ jobs:
             printf 'blocked_missing_prerequisites=%s\n' "$(IFS=,; echo "${missing[*]}")"
             exit 2
           fi
-      - name: Prepare support-safe evidence directory
-        run: |
-          set -euo pipefail
-          evidence_dir="$PWD/.weave-local-forgejo-e2e-evidence"
-          test_log="$evidence_dir/weave-e2e.log"
-          rm -rf "$evidence_dir"
-          mkdir -p "$evidence_dir"
-          : > "$test_log"
-          echo "WEAVE_ACCEPTANCE_EVIDENCE_DIR=$evidence_dir" >> "$GITHUB_ENV"
-          echo "WEAVE_ACCEPTANCE_TEST_LOG=$test_log" >> "$GITHUB_ENV"
       - name: Ensure local Weave hostnames resolve inside the runner
         run: |
           set -euo pipefail
@@ -196,12 +196,16 @@ jobs:
           WEAVE_OFFLINE_CONTRACT_ONLY: 'false'
         run: |
           set -euo pipefail
+          evidence_dir="${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$PWD/../.weave-local-forgejo-e2e-evidence}"
+          test_log="${WEAVE_ACCEPTANCE_TEST_LOG:-$evidence_dir/weave-e2e.log}"
+          mkdir -p "$evidence_dir"
+          : > "$test_log"
           dart run tool/acceptance_contract.dart guard \
             --root .. \
             --features e2e/features \
             --mapping e2e/scenario_mappings.json \
-            --out "$WEAVE_ACCEPTANCE_EVIDENCE_DIR" \
-            --test-log "$WEAVE_ACCEPTANCE_TEST_LOG" \
+            --out "$evidence_dir" \
+            --test-log "$test_log" \
             --source local-forgejo-actions \
             --lane local-forgejo-deployed-stack-e2e \
             --commit "${GITHUB_SHA:-local-forgejo}" \
