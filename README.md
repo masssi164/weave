@@ -4,7 +4,7 @@
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
 </p>
 
-**Weave is a provider-neutral organization suite with an admin/operator control plane.** It gives organizations one Weave-owned product layer for collaboration, readiness, policy, evidence, and future governed assistance while keeping concrete providers behind adapters.
+**Weave is a provider-neutral organization suite with an admin/operator control plane.** Weave lets organizations own their collaboration layer: one Weave-owned product layer for collaboration, readiness, policy, evidence, and future governed assistance while keeping concrete providers behind adapters.
 
 Weave is not a re-skinned Matrix, Nextcloud, Microsoft 365, Slack, Jira, or AI-agent bundle. Providers are implementation choices. Members use Weave product surfaces. Admins and operators control setup, provider binding, policy, readiness, audit, support evidence, and migration boundaries.
 
