@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-commercial-adapter-go-no-go-matrix-v1",
+  "sprint": 28,
+  "issues": [647, 648, 649, 650],
+  "scope": "Readiness/specification and implementation-start gating only; no Slack or Microsoft Teams adapter implementation is approved or present.",
+  "goNoGoVocabulary": ["blocked", "manual_review", "contract_ready", "implementation_allowed"],
+  "implementationStartDefault": "blocked",
+  "unsupportedClaimsBlocked": [
+    "Slack integration is implemented",
+    "Slack integration is available",
+    "Slack migration is production-ready",
+    "Slack rollback is production-ready",
+    "Microsoft Teams integration is implemented",
+    "Microsoft Teams integration is available",
+    "Microsoft Teams migration is production-ready",
+    "Microsoft Teams rollback is production-ready"
+  ],
+  "providers": [
+    {
+      "providerKey": "microsoft-teams",
+      "displayName": "Microsoft Teams",
+      "domain": "chat",
+      "decision": "blocked",
+      "implementationStartAllowed": false,
+      "readinessSpecRef": "docs/CommercialAdapterReadiness.md#microsoft-teams-readiness-section",
+      "requiredProofBeforeImplementation": [
+        "tenant-admin consent receipt",
+        "Microsoft Graph permission and least-privilege contract",
+        "rate-limit and backoff evidence",
+        "history export proof for channels, private/shared channels, chats, replies, edits, deletes, and reactions",
+        "attachment export and SharePoint/OneDrive provenance proof",
+        "user, group, guest, and service-principal mapping contract",
+        "canonical thread/message lossy-field report",
+        "retention, legal hold, E2EE, DLP, and compliance limit review",
+        "cost and license review",
+        "rollback or archive-only proof fixture"
+      ],
+      "blockingReasons": [
+        "No admin-consent receipt exists.",
+        "No provider-specific lossy-field report exists.",
+        "No rate-limit, export, attachment, retention, cost, or rollback proof exists."
+      ]
+    },
+    {
+      "providerKey": "slack",
+      "displayName": "Slack",
+      "domain": "chat",
+      "decision": "blocked",
+      "implementationStartAllowed": false,
+      "readinessSpecRef": "docs/CommercialAdapterReadiness.md#slack-readiness-section",
+      "requiredProofBeforeImplementation": [
+        "workspace/org app approval receipt",
+        "Slack OAuth scope and least-privilege contract",
+        "rate-limit and backoff evidence",
+        "history export proof for public channels, private channels, DMs, group DMs, threads, edits, deletes, and reactions",
+        "attachment export and remote-file provenance proof",
+        "user, guest, bot, and usergroup mapping contract",
+        "canonical thread/message lossy-field report",
+        "retention, EKM, DLP, discovery, and compliance limit review",
+        "cost and plan review",
+        "rollback or archive-only proof fixture"
+      ],
+      "blockingReasons": [
+        "No app-approval receipt exists.",
+        "No provider-specific lossy-field report exists.",
+        "No rate-limit, export, attachment, retention, cost, or rollback proof exists."
+      ]
+    }
+  ],
+  "guard": {
+    "tool": "tools/commercial_adapter_readiness_check.py",
+    "failClosedUntilDecision": "implementation_allowed",
+    "forbiddenImplementationStarts": [
+      "server/client/admin/infra source files that introduce Slack or Microsoft Teams adapter classes, modules, routes, or provider implementations before approval",
+      "release notes or public docs that claim Slack or Microsoft Teams availability before release_ready evidence"
+    ]
+  }
+}

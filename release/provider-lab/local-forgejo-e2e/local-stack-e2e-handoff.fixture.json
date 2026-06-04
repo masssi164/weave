@@ -8,8 +8,8 @@
   "requiredUpstreamEvidence": {
     "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
     "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
-    "deployablePlanRef": "pending-mainline-issue-664-deployable-plan",
-    "pipelineRunRef": "pending-mainline-issue-663-pipeline-run-ref"
+    "deployablePlanRef": "release/provider-lab/local-domain-plan/deployable-domain-plan.fixture.json",
+    "pipelineRunRef": "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json"
   },
   "requiredConciseLocalSignals": [
     "pipeline_terminal_success",
@@ -30,7 +30,7 @@
     "deployedStackRequired": true,
     "weaveE2eRequired": true,
     "releaseReadyClaimAllowed": false,
-    "supportSafeSummary": "Post-run Weave E2E is blocked until PipelineProvider dispatch/status, deployed stack readiness, and Weave E2E concise signals are present. The real ~/server runner now exists and is running."
+    "supportSafeSummary": "Post-run Weave E2E is blocked until PipelineProvider dispatch/status, deployed stack readiness, and Weave E2E concise signals are present. Mainline upstream prerequisites are present; live dispatch and deployed-stack E2E are not claimed."
   },
   "forbiddenEvidence": [
     "secretValue",
@@ -52,19 +52,74 @@
     "secret_refs_present": true,
     "secret_values_logged": false
   },
+  "adminConsoleEvidenceState": {
+    "surface": "Organization/Admin Console CI/CD setup status",
+    "preDispatchStates": [
+      "runner_ready",
+      "deployable_plan_ready",
+      "secret_refs_present",
+      "approval_required"
+    ],
+    "postDispatchAllowedFields": [
+      "PipelineRunRef",
+      "terminalStatus",
+      "stackReadinessRef",
+      "e2eEvidenceRef",
+      "supportSafeSummary"
+    ],
+    "rawDetailsDisplayed": false,
+    "blockedUntilSignals": [
+      "pipeline_terminal_success",
+      "stack_readiness_passed",
+      "weave_e2e_passed"
+    ]
+  },
+  "failureCases": [
+    {
+      "case": "missing_test_credential",
+      "status": "blocked",
+      "nextActionCode": "provide_customer_owned_secret_ref_name",
+      "supportSafeSummary": "Show missing SecretRef name only; do not display or persist secret values."
+    },
+    {
+      "case": "stack_not_ready",
+      "status": "blocked",
+      "nextActionCode": "inspect_stack_readiness_ref",
+      "supportSafeSummary": "Persist only readiness failure code and evidence ref, not endpoint URLs or logs."
+    },
+    {
+      "case": "e2e_failed",
+      "status": "failed",
+      "nextActionCode": "rerun_weave_e2e_after_fix",
+      "supportSafeSummary": "Persist sanitized marker summary only; no raw member content or provider payloads."
+    },
+    {
+      "case": "timeout",
+      "status": "timed_out",
+      "nextActionCode": "fail_closed_unknown_status_timeout",
+      "supportSafeSummary": "Unknown or missing terminal status blocks #665 closure."
+    },
+    {
+      "case": "evidence_redaction_failed",
+      "status": "blocked",
+      "nextActionCode": "redact_or_discard_unsafe_evidence",
+      "supportSafeSummary": "Unsafe evidence must not be persisted, attached, or used to close the issue."
+    }
+  ],
   "liveEvidenceBoundary": {
     "localProbePerformed": "read_only_file_presence_under_home_server",
+    "forgejoRunnerServiceNamesObserved": true,
     "forgejoWorkflowFileObserved": false,
     "liveDispatchPerformed": false,
     "requiresExplicitApprovalBeforeMutation": true,
-    "smallestApprovalNeeded": "Dispatch or create the local Forgejo weave-admin-setup-e2e workflow and run deployed-stack E2E using existing customer-owned SecretRefs; return only opaque run ref plus pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed booleans."
+    "smallestApprovalNeeded": "Create or dispatch the local Forgejo weave-admin-setup-e2e workflow and run deployed-stack E2E using existing customer-owned SecretRefs; return only opaque run ref plus pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed booleans."
   },
   "mainlineDependencyStatus": {
-    "originMainHead": "865e730",
+    "originMainHead": "ae596b6",
     "localCicdBootstrapperIssue666PresentOnMain": true,
-    "localForgejoRunnerReadinessIssue662PresentOnMain": false,
-    "deployableDomainPlanIssue664PresentOnMain": false,
-    "pipelineProviderIssue663PresentOnMain": false,
-    "note": "GitHub PRs #668, #669, and #670 are MERGED, but their base branches are stacked feature branches rather than main; their evidence artifacts are not present on origin/main yet."
+    "localForgejoRunnerReadinessIssue662PresentOnMain": true,
+    "deployableDomainPlanIssue664PresentOnMain": true,
+    "pipelineProviderIssue663PresentOnMain": true,
+    "note": "Mainline upstream artifacts are present, but #665 remains blocked until live local Forgejo pipeline terminal success, deployed-stack readiness, and Weave E2E concise evidence are provided."
   }
 }
