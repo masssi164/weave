@@ -2,7 +2,7 @@
 
 Date: 2026-06-02
 
-Status: **AUTONOMOUS SPRINT 20 CLOSURE READY; release promotion remains blocked by external human AT evidence**. Current-head local gates and Live Stack E2E prove an honest score above 80%, all agent-actionable Sprint 20 delivery work is complete, and the remaining #591/manual AT gap is carried as a release-promotion blocker rather than a requester review gate or normal sprint-delivery blocker.
+Status: **SPRINT 20 CLOSED; release promotion remains blocked by external human AT evidence**. Post-closure `main` (`e39c06c4d2315bb741df79a67e744196b249a205`) has green GitHub CI, and the latest Sprint 20 Live Stack E2E evidence remains the successful run on the immediately preceding candidate `3b351e8efc333bb8b6e4755dca5b39b84a62c715`. The scoreboard stays above 80% without claiming an exact post-closure-head Live Stack rerun; #591/manual AT remains a release-promotion blocker.
 
 ## Governing specs
 
@@ -22,31 +22,33 @@ Target score: **85 / 100**.
 
 Hard exit threshold: **more than 80 / 100**.
 
-Result: **above the hard exit threshold and ready for Sprint 20 closure, but blocked below the desired 85 target by #591/manual AT evidence**. Current-head Live Stack E2E completed successfully and its support-safe manifest is recorded in this report. The sprint remains below 85 while #591 lacks real manual assistive-technology pass evidence; that gap blocks RC/production accessibility signoff and release-promotion claims, not autonomous Sprint 20 closure.
+Result: **above the hard exit threshold and Sprint 20 is closed, but blocked below the desired 85 target by #591/manual AT evidence**. GitHub CI completed successfully on post-closure `main`; Live Stack E2E evidence remains the support-safe successful run on candidate `3b351e8`, not an exact `e39c06c` rerun. The sprint remains below 85 while #591 lacks real manual assistive-technology pass evidence; that gap blocks RC/production accessibility signoff and release-promotion claims, not Sprint 20 closure.
 
 | Dimension | Weight | Current score | Conditional score | Evidence class | Rationale |
 | --- | ---: | ---: | ---: | --- | --- |
-| Product flow | 15 | 15 | 15 | Current-head offline/spec + local CI + passed live workflow | Member Home-to-Space control-room loop is covered by client tests, acceptance mappings, and current-head Live Stack evidence. |
-| Current-head release evidence | 12 | 11 | 11 | Current-head CI + passed live workflow | Local `./gradlew ci` passed on the candidate commit and Live Stack E2E run `26829660573` passed on the same commit. |
+| Product flow | 15 | 15 | 15 | Post-closure offline/spec + local CI + prior candidate live workflow | Member Home-to-Space control-room loop is covered by client tests, acceptance mappings, and Sprint 20 Live Stack evidence on candidate `3b351e8`; no exact `e39c06c` Live Stack rerun is claimed. |
+| Release evidence at post-closure main head | 12 | 12 | 12 | Post-closure GitHub CI + prior candidate live workflow | GitHub CI run `26832803943` passed on `e39c06c`; local `./gradlew ci` and Live Stack E2E run `26829660573` passed on candidate `3b351e8`, with no exact post-closure Live Stack rerun claimed. |
 | Manual AT/accessibility signoff | 12 | 2 | 2 | Blocked manual evidence | #591 remains open. Automation and waivers do not count as manual AT pass evidence. |
 | Provider portability/cutover honesty | 11 | 9 | 9 | Current-head offline/spec + contract evidence | Backend/admin dry-run evidence supports bounded, support-safe provider-switch claims without apply/cutover overclaiming. |
-| Space control room dogfoodability | 10 | 9 | 9 | Current-head offline/spec + client CI + passed live workflow | Space control-room tabs and stable states remain covered; current-head live runtime passed without claiming manual AT. |
+| Space control room dogfoodability | 10 | 9 | 9 | Current-head offline/spec + client CI + prior candidate live workflow | Space control-room tabs and stable states remain covered; candidate live runtime passed without claiming manual AT or an exact `e39c06c` rerun. |
 | Governed Weaver runtime safety | 10 | 8 | 8 | Current-head offline/spec + backend/admin/infra contract evidence | RuntimeProfile/tool-registry governance is covered; no broad live autonomous runtime claim is made. |
 | Claim control | 10 | 9 | 9 | Current-head release evidence checks | Release wording and matrices remain fail-closed for unsupported public, production, migration, AT, Weaver, and operator claims. |
 | Backup/restore/operator readiness | 10 | 8 | 8 | Current-head fixture/offline operator evidence | Backup/restore/support-bundle scripts and redaction tests are covered; live restore rehearsal is not claimed. |
-| Scenario/live-E2E coverage | 10 | 10 | 10 | 42/42 mapping + current-head live runtime | Acceptance mapping remains 42/42 with 9 live-runtime and 33 offline-spec scenarios; current-head Live Stack E2E passed with no findings. |
+| Scenario/live-E2E coverage | 10 | 10 | 10 | 42/42 mapping + prior Sprint 20 live runtime | Acceptance mapping remains 42/42 with 9 live-runtime and 33 offline-spec scenarios; Live Stack E2E passed on candidate `3b351e8` with no findings and has not been rerun on `e39c06c`. |
 
 ## Evidence classification
 
-### Current-head evidence
+### Post-closure and candidate evidence
 
-- Candidate commit: `3b351e8efc333bb8b6e4755dca5b39b84a62c715` (`3b351e8`).
+- Post-closure main head: `e39c06c4d2315bb741df79a67e744196b249a205` (`e39c06c`), merged by PR #615.
+- GitHub CI on post-closure main head: run `26832803943`, URL `https://github.com/masssi164/weave/actions/runs/26832803943`, conclusion `success`.
+- Sprint 20 Live Stack candidate commit: `3b351e8efc333bb8b6e4755dca5b39b84a62c715` (`3b351e8`). No Live Stack E2E rerun on `e39c06c` is claimed.
 - Local CI: `./gradlew ci --console=plain` passed locally and wrote `build/evidence/ci-summary.json` with `generatedAtUtc: 2026-06-02T15:36:47Z`, `commit: 3b351e8efc333bb8b6e4755dca5b39b84a62c715`, and `build.result: passed`.
-- Current-head gate coverage in that CI summary: `doctor`, `acceptanceContract`, `clientCi`, `serverCi`, `adminCi`, `infraStatic`, `docsCheck`, `releaseNotesLabelCheck`, `specContract`, `specContractTest`, `domainRegistryCheck`, `portabilityContractCheck`, `productTrustClaimMatrixCheck`, `androidReleaseIdentityCheck`, `adminDependencyPolicyCheck`, `releaseEvidenceCheck`, and `projectReadinessEvidenceCheck` passed.
-- Additional local release-readiness command with explicit current-head CI summary and downloaded support-safe Live Stack artifact: `python3 tools/release_readiness_check.py --candidate-version 0.1.0-rc.1 --candidate-tag v0.1.0-rc.1 --candidate-commit 3b351e8efc333bb8b6e4755dca5b39b84a62c715 --ci-summary build/evidence/ci-summary.json --blockers-json build/evidence/release-blockers.json --live-evidence-dir /tmp/weave-s20/live-26829660573`.
+- Candidate gate coverage in that CI summary: `doctor`, `acceptanceContract`, `clientCi`, `serverCi`, `adminCi`, `infraStatic`, `docsCheck`, `releaseNotesLabelCheck`, `specContract`, `specContractTest`, `domainRegistryCheck`, `portabilityContractCheck`, `productTrustClaimMatrixCheck`, `androidReleaseIdentityCheck`, `adminDependencyPolicyCheck`, `releaseEvidenceCheck`, and `projectReadinessEvidenceCheck` passed.
+- Additional local release-readiness command with explicit candidate CI summary and downloaded support-safe Live Stack artifact: `python3 tools/release_readiness_check.py --candidate-version 0.1.0-rc.1 --candidate-tag v0.1.0-rc.1 --candidate-commit 3b351e8efc333bb8b6e4755dca5b39b84a62c715 --ci-summary build/evidence/ci-summary.json --blockers-json build/evidence/release-blockers.json --live-evidence-dir /tmp/weave-s20/live-26829660573`.
   - Result: `RC readiness: ready` for CI summary, release notes, offline pointers, Live Stack manifest, supplied blocker summary, and support-safe scans. This does not close GitHub #591 because the supplied local blocker summary is not authoritative for current GitHub issue state.
-- Additional local gates: `./gradlew specCorpusConformance spaceAnchorCheck enterpriseReleaseGateCheck releaseReadinessCheck --console=plain` passed all listed gates except `releaseReadinessCheck`, which blocks on missing authoritative CI summary when not passed explicitly and missing Live Stack manifest. Re-running the readiness script with the current-head `build/evidence/ci-summary.json` clears the CI-summary blocker and leaves only Live Stack.
-- GitHub Live Stack E2E: run `26829660573`, URL `https://github.com/masssi164/weave/actions/runs/26829660573`, branch `main`, head `3b351e8efc333bb8b6e4755dca5b39b84a62c715`, job `Bootstrap Stack And Run App E2E`, runner `weave-live-mac-mini`, conclusion `success`.
+- Additional local gates: `./gradlew specCorpusConformance spaceAnchorCheck enterpriseReleaseGateCheck releaseReadinessCheck --console=plain` passed all listed gates except `releaseReadinessCheck`, which blocks on missing authoritative CI summary when not passed explicitly and missing Live Stack manifest. Re-running the readiness script with the candidate `build/evidence/ci-summary.json` clears the CI-summary blocker and leaves only Live Stack.
+- GitHub Live Stack E2E: run `26829660573`, URL `https://github.com/masssi164/weave/actions/runs/26829660573`, branch `main`, head `3b351e8efc333bb8b6e4755dca5b39b84a62c715`, job `Bootstrap Stack And Run App E2E`, runner `weave-live-mac-mini`, conclusion `success`; this is prior-candidate live evidence, not exact post-closure-head evidence.
 - Live artifact: `7362369510` named `weave-live-stack-acceptance-evidence`, containing `release-evidence-manifest.json`, `acceptance-summary.md`, `scenario-mapping-results.json`, `evidence-markers.json`, and `gherkin-scenarios.json`. Manifest fields: `schemaVersion: 1`, `lane: release-candidate-live-evidence`, `commit: 3b351e8efc333bb8b6e4755dca5b39b84a62c715`, `supportSafe: true`; nested `acceptanceContract` fields record `runtimeEvidenceCollected: true`, `scenarioCount: 42`, `mappingCount: 42`, `liveRuntimeMappingCount: 9`, `offlineSpecMappingCount: 33`, and `findings: []`.
 
 ### Current-head offline/spec evidence
@@ -88,7 +90,7 @@ Result: **above the hard exit threshold and ready for Sprint 20 closure, but blo
 
 ### Historical evidence
 
-- Sprint 18, Sprint 19, RC3, and older Live Stack evidence remains historical unless rerun on exact candidate commit `3b351e8efc333bb8b6e4755dca5b39b84a62c715`.
+- Sprint 18, Sprint 19, RC3, and older Live Stack evidence remains historical unless rerun on the exact candidate commit being promoted. The latest Sprint 20 Live Stack run is still `3b351e8`, not post-closure `e39c06c`.
 - Historical evidence can explain risk posture and continuity, but does not earn current-head Live Stack or manual AT pass credit.
 
 ### Blocked evidence
@@ -99,14 +101,14 @@ Result: **above the hard exit threshold and ready for Sprint 20 closure, but blo
 ## Issue DAG and current state
 
 1. #608 `epic(trust): complete manual AT signoff and current-head release evidence`
-   - Depends on #591 for RC/production accessibility signoff; current-head Live Stack E2E is satisfied.
-   - State: **Sprint 20 release-trust work complete; external human #591 manual AT evidence carried as RC/production release-promotion blocker**.
-   - Current-head Live Stack E2E run `26829660573` passed and is counted as live release evidence.
+   - Depends on #591 for RC/production accessibility signoff; Sprint 20 candidate Live Stack E2E is satisfied.
+   - State: **closed; Sprint 20 release-trust work complete; external human #591 manual AT evidence carried as RC/production release-promotion blocker**.
+   - Live Stack E2E run `26829660573` passed on candidate `3b351e8` and is counted as Sprint 20 live release evidence; no exact `e39c06c` Live Stack rerun is claimed.
    - Smallest non-agent release-promotion action: an external human AT reviewer executes the #591 checklist on the exact candidate build and records support-safe results.
 
 2. #609 `epic(workspace): prove the daily Space control room as a current-head product loop`
-   - Depends on current-head Live Stack for release-grade live credit and #591 for manual AT release signoff.
-   - State: **closed for Sprint 20; offline/spec, local CI, and current-head live evidence satisfied; manual release-promotion evidence remains #591**.
+   - Depends on exact-candidate Live Stack for release-grade live credit and #591 for manual AT release signoff.
+   - State: **closed for Sprint 20; offline/spec, local CI, and candidate live evidence satisfied; manual release-promotion evidence remains #591**.
    - Evidence: `clientCi`, `acceptanceContract`, Space control-room tests, `V01_SPACE_CONTROL_ROOM` mapping.
 
 3. #610 `epic(operator): make backup restore and support bundles deterministic`
@@ -132,7 +134,7 @@ Dependency shape:
 
 - #610, #611, #612, and the offline parts of #609 are parallel evidence-hardening tracks.
 - #613 integrates all evidence and depends on the final state of #608/#609/#610/#611/#612.
-- #608 is the Sprint 20 release-trust gate and is closable for Sprint 20 after this update because current-head Live Stack E2E is satisfied; #591 remains the separate RC/production accessibility signoff blocker.
+- #608 was closed after PR #615 merged; #591 remains the separate RC/production accessibility signoff blocker.
 
 ## Boundaries and non-claims
 
@@ -145,10 +147,10 @@ Dependency shape:
 
 ## Closure gate status
 
-GitHub closure gate is **ready for final Sprint 20 closure; RC/production release-promotion gate remains blocked by #591**:
+GitHub closure gate is **complete for Sprint 20; RC/production release-promotion gate remains blocked by #591**:
 
-- Sprint 20 issues #609, #610, #611, #612, and #613 are closed with evidence comments; #608 is closable once this autonomous-closure clarification is merged.
+- Sprint 20 issues #608, #609, #610, #611, #612, and #613 are closed with evidence comments.
 - #591 remains open and release-blocking for RC/production accessibility signoff; it is outside the Sprint 20 milestone and is not a requester review gate.
 - The North-Star score is currently 82, above the hard exit threshold, but below the desired 85 target because #591 manual AT evidence is missing.
 
-Next safe action after this update merges: close #608 as completed-with-release-promotion-blocker-carried, close Sprint 20 milestone, and keep #591 open until real external human AT evidence or an allowed exceptional release-owner waiver replaces the blocker artifact.
+Next safe action after this update merges: keep #591 open until real external human AT evidence or an allowed exceptional release-owner waiver replaces the blocker artifact; do not promote an RC/production release from this scoreboard without refreshed release-owner evidence.
