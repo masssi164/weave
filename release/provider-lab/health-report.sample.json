@@ -14,8 +14,8 @@
     {
       "providerKey": "docker-runtime",
       "domain": "weaver",
-      "realityLevel": "contract_only",
-      "evidenceTimestamp": "2026-06-03T02:01:37Z",
+      "realityLevel": "configured",
+      "evidenceTimestamp": "2026-06-03T08:30:00Z",
       "supportEvidenceRedacted": true
     },
     {

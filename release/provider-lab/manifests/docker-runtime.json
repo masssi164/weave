@@ -4,10 +4,12 @@
   "providerKey": "docker-runtime",
   "displayName": "Docker Runtime boundary",
   "domain": "weaver",
-  "realityLevel": "contract_only",
+  "realityLevel": "configured",
   "capabilityFlags": [
     "runtime.boundary",
-    "per-user-isolation-planned"
+    "per-user-runtime-fixture",
+    "desired-state-reconciliation-fixture",
+    "per-user-isolation-fixture"
   ],
   "historyHonesty": {
     "preservationClaim": "fixture_expected_statuses_only",
@@ -21,7 +23,7 @@
       "metadata_only"
     ],
     "fullHistoryPreserved": false,
-    "notes": "Runtime boundary is a lab contract only; no per-user PA availability claim."
+    "notes": "Runtime boundary has Sprint 24 provider-lab fixture evidence only; no production per-user PA availability claim."
   },
   "rollback": {
     "claim": "not_ready",
@@ -32,7 +34,8 @@
     "applyClaimed": false,
     "releaseReadyClaimed": false,
     "knownLossyFields": [
-      "provider_specific_permissions",
+      "production_sandbox_strength",
+      "live_user_memory_migration",
       "provider_specific_history_metadata"
     ]
   },
@@ -48,6 +51,9 @@
       "domain",
       "realityLevel",
       "capabilityFlags",
+      "runtimeLifecycleFixture",
+      "reconciliationFixture",
+      "isolationFixture",
       "historyHonesty.statuses",
       "rollback.claim",
       "checkedAt"

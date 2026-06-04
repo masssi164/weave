@@ -16,7 +16,8 @@ public record WeaverToolInvocationRequest(
         List<String> grantedCapabilities,
         List<String> scopedToolGrants,
         Map<String, Object> input,
-        String approvalReceiptRef) {
+        String approvalReceiptRef,
+        WeaverApprovalReceipt approvalReceipt) {
 
     public WeaverToolInvocationRequest(
             String toolName,
@@ -37,7 +38,37 @@ public record WeaverToolInvocationRequest(
                 grantedCapabilities,
                 List.of(toolName == null ? "" : toolName),
                 input,
-                approvalReceiptRef);
+                approvalReceiptRef,
+                null);
+    }
+
+    public WeaverToolInvocationRequest(
+            String toolName,
+            String userRef,
+            String runtimeProfileHash,
+            String runtimeProfileUserRef,
+            String runtimeProfileSignature,
+            boolean runtimeProfileRevoked,
+            String runtimeTokenExpiresAt,
+            boolean consentGranted,
+            List<String> grantedCapabilities,
+            List<String> scopedToolGrants,
+            Map<String, Object> input,
+            String approvalReceiptRef) {
+        this(
+                toolName,
+                userRef,
+                runtimeProfileHash,
+                runtimeProfileUserRef,
+                runtimeProfileSignature,
+                runtimeProfileRevoked,
+                runtimeTokenExpiresAt,
+                consentGranted,
+                grantedCapabilities,
+                scopedToolGrants,
+                input,
+                approvalReceiptRef,
+                null);
     }
 
     public WeaverToolInvocationRequest {
@@ -52,5 +83,8 @@ public record WeaverToolInvocationRequest(
         grantedCapabilities = List.copyOf(grantedCapabilities == null ? List.of() : grantedCapabilities);
         scopedToolGrants = List.copyOf(scopedToolGrants == null ? List.of() : scopedToolGrants);
         input = Map.copyOf(input == null ? Map.of() : input);
+        if ((approvalReceiptRef == null || approvalReceiptRef.isBlank()) && approvalReceipt != null) {
+            approvalReceiptRef = approvalReceipt.receiptRef();
+        }
     }
 }

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "sprint": 29,
+  "coversIssues": [651, 652, 653, 654],
+  "decision": "blocked_pending_human_validation",
+  "releaseReady": false,
+  "supportSafe": true,
+  "allAutomatedGatesPassed": false,
+  "openReleaseBlockers": "not_checked_in_template",
+  "requiredInputs": [
+    "pre-human automated acceptance report with all gates pass",
+    "human UX/accessibility validation signed by Massimo or release owner",
+    "human Weaver validation signed by Massimo or release owner",
+    "open release-blocker issue check",
+    "support-safe final readiness decision"
+  ],
+  "humanUxAccessibilityValidation": {
+    "humanSignedOff": false,
+    "signedBy": "",
+    "signedAtUtc": "",
+    "evidencePath": "docs/evidence/sprint-29-human-validation/human-ux-accessibility-validation.md",
+    "blockerFindings": []
+  },
+  "humanWeaverValidation": {
+    "humanSignedOff": false,
+    "signedBy": "",
+    "signedAtUtc": "",
+    "evidencePath": "docs/evidence/sprint-29-human-validation/human-weaver-validation.md",
+    "blockerFindings": []
+  },
+  "guardCommands": [
+    "python3 tools/sprint29_release_decision_guard.py entry --evidence <generated-pre-human-acceptance-report.json>",
+    "python3 tools/sprint29_release_decision_guard.py final --evidence <signed-final-decision.json>"
+  ],
+  "notes": [
+    "This template intentionally blocks release readiness until automated gates, human UX/accessibility validation, human Weaver validation, and release-blocker checks are complete.",
+    "Do not convert this checked-in template to release_ready. Store candidate-specific signed evidence separately and keep it support-safe."
+  ]
+}

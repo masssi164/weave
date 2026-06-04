@@ -84,17 +84,32 @@ class WeaverToolRegistryTest {
                 "boards.comment",
                 "user:abc123",
                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                "user:abc123",
+                signature(),
+                false,
+                future(),
+                true,
                 List.of("weaver.boards_write"),
+                List.of("boards.comment"),
                 Map.of(
                         "spaceRef", "space:control-room",
                         "decisionRef", "decision:governed-weaver",
                         "boardTaskRef", "board-task:WEAVE-601",
                         "body", "Looks good"),
-                "approval:abc123"));
+                "approval:abc123",
+                new WeaverApprovalReceipt(
+                        "approval:abc123",
+                        "user:abc123",
+                        "boards.comment",
+                        List.of("board-task:WEAVE-601"),
+                        "policy:test",
+                        future(),
+                        "audit://weaver-approval/test")));
 
         assertThat(approved.status()).isEqualTo("ok");
         assertThat(approved.approvalRequired()).isFalse();
         assertThat(approved.redactedResult()).containsEntry("rawProviderPayload", "redacted");
+        assertThat(approved.redactedResult()).containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/test");
         assertThat(approved.redactedResult().get("canonicalRefs").toString())
                 .contains("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601")
                 .doesNotContain("Looks good", "providerRoom", "matrix");
@@ -102,6 +117,10 @@ class WeaverToolRegistryTest {
         assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload()).containsEntry("supportSafe", true));
         assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
                 .containsKeys("runtimeProfileHash", "user", "tool", "action", "domain", "providerRef", "credentialRef", "decision", "auditRef"));
+        assertThat(audit.events().get(1).payload())
+                .containsEntry("approvalReceiptValidated", true)
+                .containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/test")
+                .containsEntry("approvalReceiptPolicyVersion", "policy:test");
     }
 
     @Test

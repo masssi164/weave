@@ -77,7 +77,7 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.signature()).startsWith("weave-signature:v1:");
         assertThat(profile.revoked()).isFalse();
         assertThat(profile.revocationStatus()).isEqualTo("active");
-        assertThat(profile.previousProfileHash()).startsWith("sha256:");
+        assertThat(profile.previousProfileHash()).isEqualTo("none");
         assertThat(profile.workspacePath()).startsWith("/var/lib/weave/weaver/");
         assertThat(profile.isolatedAgentDirectory()).isEqualTo(".weaver/agents");
         assertThat(profile.dockerNetworkMode()).isEqualTo("none");
@@ -154,6 +154,54 @@ class WeaverRuntimeServiceTest {
     }
 
     @Test
+    void versionsProfileCustomizationsAndRollsBackToPreviousProfile() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverRuntimeService service = service(true, runtimeProperties(true), audit);
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var base = service.profileFor(member);
+        var customized = service.applyRuntimeCustomization(member, Map.of(
+                "displayName", "Otter Weaver",
+                "style", "concise",
+                "language", "en",
+                "memoryOptIn", true));
+
+        assertThat(customized.accepted()).isTrue();
+        assertThat(customized.profile().profileVersion()).isNotEqualTo(base.profileVersion());
+        assertThat(customized.profile().runtimeProfileHash()).isNotEqualTo(base.runtimeProfileHash());
+        assertThat(customized.profile().previousProfileHash()).isEqualTo(base.runtimeProfileHash());
+
+        var rolledBack = service.rollbackRuntimeProfile(member, base.runtimeProfileHash());
+
+        assertThat(rolledBack.runtimeProfileHash()).isEqualTo(base.runtimeProfileHash());
+        assertThat(rolledBack.profileVersion()).isEqualTo(base.profileVersion());
+        assertThat(audit.events()).extracting(event -> event.action())
+                .contains(AuditAction.ADMIN_POLICY_UPDATED, AuditAction.WEAVER_RUNTIME_PROFILE_ROLLED_BACK);
+        assertThat(audit.events().toString()).doesNotContain("member@example.invalid", "openclaw.json", "Bearer ");
+    }
+
+    @Test
+    void blocksForbiddenCustomizationAttemptsAndAuditsPolicyReason() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverRuntimeService service = service(true, runtimeProperties(true), audit);
+
+        var decision = service.applyRuntimeCustomization(
+                jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime")),
+                Map.of("rawOpenClawConfig", "openclaw.json {\"apiKey\":\"sk-secret\"}"));
+
+        assertThat(decision.accepted()).isFalse();
+        assertThat(decision.policyReason()).isEqualTo("admin_policy_forbids_raw_openclaw_config");
+        assertThat(decision.profile()).isNull();
+        assertThat(audit.events()).hasSize(1);
+        assertThat(audit.events().get(0).action()).isEqualTo(AuditAction.ADMIN_POLICY_UPDATED);
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("decision", "blocked")
+                .containsEntry("policyReason", "admin_policy_forbids_raw_openclaw_config")
+                .containsEntry("supportSafe", true);
+        assertThat(audit.events().toString()).doesNotContain("sk-secret", "Bearer ", "refresh_token");
+    }
+
+    @Test
     void fetchesOnlyIssuedCurrentRuntimeProfileByHashForSameUser() {
         WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
         Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
@@ -174,6 +222,109 @@ class WeaverRuntimeServiceTest {
         assertThat(mismatched.enabled()).isFalse();
         assertThat(mismatched.posture()).isEqualTo("runtime-profile-fetch-denied");
         assertThat(mismatched.toString()).doesNotContain("Bearer ", "openclaw.json", "refresh_token", "https://matrix.weave.local");
+    }
+
+    @Test
+    void provisionsDistinctPerUserRuntimeInstancesAndStopsOnlyDisabledUser() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        var alice = service.profileFor(jwt("alice@example.invalid", List.of("member"), List.of("weave-weaver-runtime")));
+        var bob = service.profileFor(jwt("bob@example.invalid", List.of("member"), List.of("weave-weaver-runtime")));
+
+        var aliceRuntime = service.provisionRuntime(alice, "org:acme", "policy:v24");
+        var bobRuntime = service.provisionRuntime(bob, "org:acme", "policy:v24");
+        var stoppedAlice = service.deactivateRuntime(alice.userRef(), "admin-disabled");
+
+        assertThat(aliceRuntime.userRef()).isNotEqualTo(bobRuntime.userRef());
+        assertThat(aliceRuntime.containerId()).isNotEqualTo(bobRuntime.containerId());
+        assertThat(aliceRuntime.workspacePath()).isNotEqualTo(bobRuntime.workspacePath());
+        assertThat(aliceRuntime.labels())
+                .containsEntry("weave.org", "org:acme")
+                .containsEntry("weave.user", alice.userRef())
+                .containsEntry("weave.profile_hash", alice.runtimeProfileHash())
+                .containsEntry("weave.policy_version", "policy:v24")
+                .containsEntry("weave.managed_by", "weave-weaver-runtime-reconciler");
+        assertThat(stoppedAlice.state()).isEqualTo("stopped");
+        assertThat(stoppedAlice.stoppedReason()).isEqualTo("admin-disabled");
+        assertThat(service.runtimeInstances())
+                .filteredOn(instance -> instance.userRef().equals(bob.userRef()))
+                .singleElement()
+                .extracting(WeaverRuntimeService.WeaverRuntimeInstance::state)
+                .isEqualTo("running");
+    }
+
+    @Test
+    void reconcilesCreateUpdateStopAndRevokeWithSupportSafeAudit() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverRuntimeService service = service(true, runtimeProperties(true), audit);
+        var alice = service.profileFor(jwt("alice@example.invalid", List.of("member"), List.of("weave-weaver-runtime")));
+        var bob = service.profileFor(jwt("bob@example.invalid", List.of("member"), List.of("weave-weaver-runtime")));
+        var carol = service.profileFor(jwt("carol@example.invalid", List.of("member"), List.of("weave-weaver-runtime")));
+
+        var bobDrifted = new WeaverRuntimeService.WeaverRuntimeInstance(
+                bob.userRef(),
+                "weaver-drifted",
+                "running",
+                "sha256:old-profile",
+                "policy:v23",
+                bob.containerImage(),
+                bob.workspacePath(),
+                Map.of("weave.managed_by", "weave-weaver-runtime-reconciler"),
+                Instant.now().toString(),
+                null);
+        var carolRunning = service.provisionRuntime(carol, "org:acme", "policy:v24");
+
+        var decisions = service.reconcile(
+                "org:acme",
+                List.of(
+                        service.desiredStateFromProfile(alice, "policy:v24"),
+                        service.desiredStateFromProfile(bob, "policy:v24"),
+                        new WeaverRuntimeService.WeaverRuntimeDesiredState(
+                                carol.userRef(), false, "admin-disabled", carol.runtimeProfileHash(), "policy:v24", carol.containerImage(), carol.workspacePath())),
+                List.of(bobDrifted, carolRunning));
+
+        assertThat(decisions)
+                .extracting(WeaverRuntimeService.WeaverRuntimeReconcileDecision::action)
+                .containsExactly("create", "update", "revoke");
+        assertThat(decisions).allSatisfy(decision -> assertThat(decision.outcome()).isNotBlank());
+        assertThat(audit.events())
+                .filteredOn(event -> event.action() == AuditAction.WEAVER_RUNTIME_RECONCILED)
+                .hasSize(3)
+                .allSatisfy(event -> assertThat(event.payload())
+                        .containsKeys("desiredState", "actualState", "action", "outcome")
+                        .containsEntry("supportSafe", true));
+        assertThat(audit.events().toString()).doesNotContain("alice@example.invalid", "bob@example.invalid", "openclaw.json", "Bearer ");
+    }
+
+    @Test
+    void blocksCrossUserWorkspaceReadsAndRedactsWeaverSupportBundle() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt aliceJwt = jwt("alice@example.invalid", List.of("member"), List.of("weave-weaver-runtime"));
+        Jwt bobJwt = jwt("bob@example.invalid", List.of("member"), List.of("weave-weaver-runtime"));
+        var alice = service.profileFor(aliceJwt);
+        var bob = service.profileFor(bobJwt);
+        var aliceRuntime = service.provisionRuntime(alice, "org:acme", "policy:v24");
+        var bobRuntime = service.provisionRuntime(bob, "org:acme", "policy:v24");
+
+        assertThat(service.canReadWorkspace(aliceJwt, aliceRuntime.workspacePath() + "/notes.md")).isTrue();
+        assertThat(service.canReadWorkspace(aliceJwt, bobRuntime.workspacePath() + "/memory/session.json")).isFalse();
+        assertThat(service.canReadWorkspace(bobJwt, aliceRuntime.workspacePath() + "/memory/session.json")).isFalse();
+
+        Map<String, Object> bundle = service.supportSafeRuntimeBundle(
+                List.of(aliceRuntime, bobRuntime),
+                Map.of(
+                        "weaverMemory", "memory://alice/private prompt about Bob",
+                        "openclawConfig", "openclaw.json {\"apiKey\":\"sk-secret\"}",
+                        "providerDiagnostic", "Bearer raw-token refresh_token=raw https://matrix.weave.local/_matrix/private",
+                        "health", "runtime labels ok"));
+
+        assertThat(bundle)
+                .containsEntry("redaction", "support_safe")
+                .containsEntry("rawWeaverMemoryExported", false)
+                .containsEntry("rawOpenClawConfigExported", false)
+                .containsEntry("rawProviderSecretsExported", false);
+        assertThat(bundle.toString())
+                .doesNotContain("memory://alice", "private prompt", "openclaw.json", "sk-secret", "Bearer raw-token", "refresh_token=raw")
+                .contains("[redacted]");
     }
 
     private WeaverRuntimeService service(

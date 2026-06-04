@@ -1,0 +1,87 @@
+{
+  "artifactKind": "weave-admin-cicd-local-forgejo-setup-proof-v1",
+  "issue": 659,
+  "supportSafe": true,
+  "proofTarget": "Massimo local Forgejo",
+  "providerKey": "local-forgejo-actions",
+  "connectionRefs": {
+    "baseUrlVariable": "WEAVE_FORGEJO_BASE_URL",
+    "apiUrlVariable": "WEAVE_FORGEJO_API_URL",
+    "usernameVariable": "WEAVE_FORGEJO_USERNAME",
+    "sshHostVariable": "WEAVE_FORGEJO_SSH_HOST",
+    "sshPortVariable": "WEAVE_FORGEJO_SSH_PORT",
+    "tokenSecret": "WEAVE_FORGEJO_TOKEN"
+  },
+  "localDiagnostic": {
+    "composeRootRef": "homelab-compose-root",
+    "forgejoService": "present",
+    "forgejoDatabaseService": "present",
+    "runnerService": "missing",
+    "diagnosticAt": "2026-06-03T09:49:34Z",
+    "source": "support-safe docker compose service-name check"
+  },
+  "secretValidation": [
+    {
+      "name": "WEAVE_FORGEJO_TOKEN",
+      "role": "repository_secret",
+      "state": "present",
+      "valueDisplayed": false
+    },
+    {
+      "name": "WEAVE_FORGEJO_BASE_URL",
+      "role": "repository_variable",
+      "state": "present",
+      "valueDisplayed": false
+    },
+    {
+      "name": "WEAVE_FORGEJO_API_URL",
+      "role": "repository_variable",
+      "state": "present",
+      "valueDisplayed": false
+    },
+    {
+      "name": "WEAVE_FORGEJO_USERNAME",
+      "role": "repository_variable",
+      "state": "present",
+      "valueDisplayed": false
+    },
+    {
+      "name": "WEAVE_FORGEJO_SSH_HOST",
+      "role": "repository_variable",
+      "state": "present",
+      "valueDisplayed": false
+    },
+    {
+      "name": "WEAVE_FORGEJO_SSH_PORT",
+      "role": "repository_variable",
+      "state": "present",
+      "valueDisplayed": false
+    }
+  ],
+  "adminConsoleStatus": {
+    "state": "preflight_blocked",
+    "reasonCode": "runner_missing",
+    "missingNamesDisplayed": ["FORGEJO_ACTIONS_RUNNER_REGISTRATION"],
+    "copy": "Forgejo is reachable through configured refs, but no supported runner registration is present. Add a Forgejo Actions runner registration through the customer CI/CD secret mechanism, then rerun preflight. Secret values and provider URLs stay hidden."
+  },
+  "pipelineRunRef": {
+    "providerKey": "local-forgejo-actions",
+    "workflowRef": "weave-admin-setup-e2e",
+    "runRef": "none-trigger-blocked-before-dispatch",
+    "status": "blocked",
+    "correlationRef": "forgejo-local-preflight-2026-06-03",
+    "auditRef": "audit://admin-cicd/local-forgejo/preflight-blocked",
+    "evidenceRef": "release/provider-lab/admin-cicd/local-forgejo-setup-proof.fixture.json",
+    "nextActionCode": "register_runner_before_trigger",
+    "supportSafeSummary": "Trigger blocked before dispatch because runner readiness is missing."
+  },
+  "failClosedCases": [
+    "runner_missing",
+    "missing_secret_ref",
+    "raw_secret_value_supplied",
+    "raw_ci_log_supplied",
+    "unknown_status_timeout",
+    "rate_limit_exhausted",
+    "approval_missing"
+  ]
+}

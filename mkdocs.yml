@@ -85,6 +85,7 @@ nav:
       - Weaver security/privacy/accessibility evidence: evidence/weaver-security-privacy-accessibility-report.md
       - Provider replacement and anti-silo contract: provider-replacement-and-anti-silo-contract.md
       - Product trust and provider-choice claim matrix: product-trust-provider-choice-claim-matrix.md
+      - Commercial adapter readiness: CommercialAdapterReadiness.md
       - Matrix Chat migration proof boundary: matrix-chat-migration-proof.md
       - Matrix Chat Sprint 15 dry-run policy: matrix-chat-sprint15-dry-run-policy.md
       - Manuals and release notes integration: manuals-and-release-notes-integration.md

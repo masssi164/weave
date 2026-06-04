@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-weaver-runtime-sprint-24-claim-gate",
+  "supportSafe": true,
+  "issue": 634,
+  "scope": "guarded Sprint 24 provider-lab runtime factory claims",
+  "acceptedClaim": {
+    "claim": "Sprint 24 proves a support-safe provider-lab Weaver Runtime Factory fixture for admin enablement, user opt-in, per-user Docker runtime lifecycle, health, audit, revoke, reconciliation, and isolation evidence.",
+    "expectedOutcome": "accept",
+    "requiredEvidenceRefs": [
+      "release/provider-lab/weaver-runtime/per-user-runtime-proof.fixture.json",
+      "release/provider-lab/weaver-runtime/desired-state-reconciliation-proof.fixture.json",
+      "release/provider-lab/weaver-runtime/per-user-isolation-proof.fixture.json"
+    ]
+  },
+  "rejectedClaims": [
+    {
+      "claim": "Weaver is available",
+      "expectedOutcome": "reject"
+    },
+    {
+      "claim": "A PA runs per user",
+      "expectedOutcome": "reject"
+    },
+    {
+      "claim": "Weaver is customer-ready and release-ready",
+      "expectedOutcome": "reject"
+    },
+    {
+      "claim": "Broad autonomous AI availability is enabled",
+      "expectedOutcome": "reject"
+    }
+  ],
+  "claimBoundary": "Only scoped provider-lab runtime factory wording may pass; production PA availability, customer-ready Weaver, broad autonomous AI, raw OpenClaw config, memory, secrets, tokens, provider URLs, and raw provider payloads remain blocked."
+}
