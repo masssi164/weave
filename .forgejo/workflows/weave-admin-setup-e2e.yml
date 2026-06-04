@@ -142,6 +142,16 @@ jobs:
             unzip -q /tmp/opentofu.zip -d /usr/local/bin tofu
             chmod +x /usr/local/bin/tofu
           fi
+          cargo_bin="$HOME/.cargo/bin"
+          if ! command -v rustup >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+          fi
+          echo "$cargo_bin" >> "$GITHUB_PATH"
+          echo "PATH=$cargo_bin:$PATH" >> "$GITHUB_ENV"
+          export PATH="$cargo_bin:$PATH"
+          rustup show active-toolchain >/dev/null
+          rustc --version >/dev/null
+          cargo --version >/dev/null
           flutter --version >/dev/null
           flutter precache --linux --web >/dev/null
           flutter doctor -v >/dev/null
