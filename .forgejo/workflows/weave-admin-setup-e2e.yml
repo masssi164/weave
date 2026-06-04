@@ -224,19 +224,37 @@ jobs:
       - name: Route public Weave hostnames to the deployed reverse proxy
         run: |
           set -euo pipefail
-          proxy_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' weave-proxy | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
-          if [ -z "$proxy_ip" ]; then
-            echo "reverse_proxy_container_ip_missing=true"
+          hosts="weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
+          candidates_file="$(mktemp)"
+          docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' weave-proxy 2>/dev/null >> "$candidates_file" || true
+          docker network inspect weave_network -f '{{range .Containers}}{{if eq .Name "weave-proxy"}}{{println .IPv4Address}}{{end}}{{end}}' 2>/dev/null | cut -d/ -f1 >> "$candidates_file" || true
+          printf '%s\n' "${WEAVE_LOOPBACK_RESOLVE_HOST:-}" >> "$candidates_file"
+          getent hosts host.docker.internal 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1}' >> "$candidates_file" || true
+          ip route 2>/dev/null | awk '/default/ && $3 ~ /^[0-9]+([.][0-9]+){3}$/ {print $3; exit}' >> "$candidates_file" || true
+          printf '127.0.0.1\n' >> "$candidates_file"
+          route_ip=""
+          while IFS= read -r candidate; do
+            case "$candidate" in
+              ''|*[!0-9.]*) continue ;;
+            esac
+            status="$(curl -sk --resolve "files.weave.local:${TF_VAR_proxy_host_port}:$candidate" -o /dev/null -w '%{http_code}' "https://files.weave.local:${TF_VAR_proxy_host_port}/status.php" || true)"
+            if [ "$status" = "200" ]; then
+              route_ip="$candidate"
+              break
+            fi
+          done < <(awk '!seen[$1]++' "$candidates_file")
+          rm -f "$candidates_file"
+          if [ -z "$route_ip" ]; then
+            echo "reverse_proxy_route_ready=false"
             exit 2
           fi
-          echo "WEAVE_LOOPBACK_RESOLVE_HOST=$proxy_ip" >> "$GITHUB_ENV"
-          hosts="weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
+          echo "WEAVE_LOOPBACK_RESOLVE_HOST=$route_ip" >> "$GITHUB_ENV"
           tmp_hosts="$(mktemp)"
           awk 'BEGIN { split("weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local", blocked, " "); for (i in blocked) deny[blocked[i]]=1 } { keep=1; for (i=2; i<=NF; i++) if ($i in deny) keep=0; if (keep) print }' /etc/hosts > "$tmp_hosts"
-          printf '%s %s\n' "$proxy_ip" "$hosts" >> "$tmp_hosts"
+          printf '%s %s\n' "$route_ip" "$hosts" >> "$tmp_hosts"
           cat "$tmp_hosts" > /etc/hosts
           rm -f "$tmp_hosts"
-          echo "public_weave_hostname_route=reverse-proxy-container"
+          echo "public_weave_hostname_route=ready"
       - name: Verify deployed stack readiness
         working-directory: infra/weave-workspace
         run: bash ./operator-check.sh
