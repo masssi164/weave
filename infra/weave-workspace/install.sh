@@ -362,6 +362,9 @@ wait_for_http_200() {
     if [[ "${status_code}" == "200" ]]; then
       return 0
     fi
+    if ((i == 1 || i % 10 == 0)); then
+      log "Still waiting for ${name} readiness (attempt ${i}/${attempts}, status ${status_code:-000})..."
+    fi
     sleep "${sleep_seconds}"
   done
 
@@ -440,9 +443,10 @@ nextcloud_is_installed() {
 
 terraform_apply() {
   local dir="$1"
+  local refresh="${WEAVE_IAC_REFRESH:-true}"
 
   "${WEAVE_IAC_BIN}" -chdir="${dir}" init -input=false
-  "${WEAVE_IAC_BIN}" -chdir="${dir}" apply -refresh=false -input=false -auto-approve
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" apply -refresh="${refresh}" -input=false -auto-approve
 }
 
 ensure_terraform_network_state() {
