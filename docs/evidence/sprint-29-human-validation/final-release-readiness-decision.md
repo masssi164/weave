@@ -6,13 +6,14 @@ Do not paste secrets, tokens, raw provider payloads, raw provider error bodies, 
 
 ## Entry condition
 
-Final readiness can be evaluated only after:
+Final readiness triage can start only after:
 
 1. `python3 tools/sprint29_release_decision_guard.py entry --evidence <generated-pre-human-acceptance-report.json>` passes.
-2. Human UX/accessibility validation is signed or has blocker findings filed.
-3. Human Weaver validation is signed or has blocker findings filed.
+2. Human UX/accessibility validation is completed as signed approval or documented blocker findings.
+3. Human Weaver validation is completed as signed approval or documented blocker findings.
 4. GitHub release-blocker issues are checked for the candidate.
-5. `python3 tools/sprint29_release_decision_guard.py final --evidence <signed-final-decision.json>` passes.
+
+After filling this decision template from those inputs, run `python3 tools/sprint29_release_decision_guard.py final --evidence <signed-final-decision.json>`. That final guard passes only for a signed `release_ready` decision; pending or blocked outcomes remain valid triage results but must not be promoted as release-ready.
 
 ## Candidate
 

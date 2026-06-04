@@ -17,6 +17,23 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ENTRY = ROOT / "release" / "sprint-29-human-validation" / "pre-human-acceptance-gates.json"
 DEFAULT_DECISION = ROOT / "release" / "sprint-29-human-validation" / "release-decision-guard.template.json"
+REQUIRED_AUTOMATED_GATES = {
+    "admin-bootstrap",
+    "user-login",
+    "space-opens",
+    "chat-works",
+    "provider-switch",
+    "history-report",
+    "rollback-receipt",
+    "files",
+    "calendar",
+    "weaver-runtime",
+    "weaver-customization",
+    "weaver-approval",
+    "weaver-revoke",
+    "backup-restore",
+    "redacted-support-bundle",
+}
 
 
 def fail(message: str) -> None:
@@ -42,14 +59,28 @@ def entry_gate(path: Path) -> None:
     if not isinstance(gates, list) or not gates:
         fail("entry evidence has no automatedGates")
     failing: list[str] = []
+    seen: set[str] = set()
     for gate in gates:
         if not isinstance(gate, dict):
             fail("automated gate entries must be objects")
-        gate_id = str(gate.get("id", "<unknown>"))
-        if gate.get("requiredBeforeHumanValidation") is True and gate.get("status") != "pass":
-            failing.append(gate_id)
-        if gate.get("status") == "pass" and not gate.get("evidence"):
-            failing.append(f"{gate_id} (missing evidence pointer)")
+        gate_id = str(gate.get("id", "")).strip()
+        if not gate_id:
+            failing.append("<missing id>")
+            continue
+        if gate_id in seen:
+            failing.append(f"{gate_id} (duplicate id)")
+            continue
+        seen.add(gate_id)
+        if gate_id in REQUIRED_AUTOMATED_GATES:
+            if gate.get("requiredBeforeHumanValidation") is not True:
+                failing.append(f"{gate_id} (not required before human validation)")
+            if gate.get("status") != "pass":
+                failing.append(gate_id)
+            if not gate.get("evidence"):
+                failing.append(f"{gate_id} (missing evidence pointer)")
+    missing = REQUIRED_AUTOMATED_GATES - seen
+    if missing:
+        failing.append("missing required gate(s): " + ", ".join(sorted(missing)))
     if data.get("allAutomatedGatesPassed") is not True:
         failing.append("allAutomatedGatesPassed flag")
     if data.get("humanValidationStartAllowed") is not True:

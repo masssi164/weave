@@ -111,6 +111,10 @@ def assert_automated_gate_manifest(data: dict[str, Any]) -> None:
         if not isinstance(gate, dict):
             fail("automated gate entries must be objects")
         gate_id = str(gate.get("id", "")).strip()
+        if not gate_id:
+            fail("automated gate entries must have non-empty id")
+        if gate_id in seen:
+            fail(f"duplicate automated gate id: {gate_id}")
         seen.add(gate_id)
         if gate.get("requiredBeforeHumanValidation") is not True:
             fail(f"{gate_id} must be required before human validation")
