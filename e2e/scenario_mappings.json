@@ -1571,6 +1571,203 @@
       ]
     },
     {
+      "feature": "e2e/features/sprint_27_local_domain_adapter_plan.feature",
+      "executableTest": "tools/local_domain_adapter_plan_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-domain-adapter-plan",
+      "scenario": "Domain choices produce a support-safe Forgejo deployable plan",
+      "evidenceMarkers": [
+        "LOCAL_DOMAIN_ADAPTER_PLAN_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/local-domain-plan/deployable-domain-plan.fixture.json",
+          "fragments": [
+            "weave-local-domain-adapter-deployable-plan-v1",
+            "server-backend",
+            "health-readiness",
+            "support_safe_domain_plan_ref"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-domain-adapter-deployable-plan.md",
+          "fragments": [
+            "Server/backend",
+            "Infrastructure stack",
+            "Fail-closed cases"
+          ]
+        },
+        {
+          "path": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+          "fragments": [
+            "runner_registered",
+            "local-forgejo-actions"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_local_forgejo_pipeline_provider.feature",
+      "executableTest": "tools/local_forgejo_pipeline_provider_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-local-forgejo-pipeline-provider",
+      "scenario": "Local Forgejo PipelineProvider gates dispatch and observes support-safe run status",
+      "evidenceMarkers": [
+        "LOCAL_FORGEJO_PIPELINE_PROVIDER_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json",
+          "fragments": [
+            "weave-local-forgejo-pipeline-provider-v1",
+            "PipelineProvider",
+            "PipelineRunRef",
+            "approval_missing"
+          ]
+        },
+        {
+          "path": "docs/evidence/local-forgejo-pipeline-provider.md",
+          "fragments": [
+            "PipelineProvider",
+            "Live dispatch boundary",
+            "explicit admin approval"
+          ]
+        },
+        {
+          "path": "server/src/main/java/com/massimotter/weave/backend/cicd/LocalForgejoPipelineProvider.java",
+          "fragments": [
+            "LocalForgejoPipelineProvider",
+            "requestDispatch",
+            "observe"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_cross_domain_provider_proof.feature",
+      "executableTest": "tools/cross_domain_provider_proof_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-calendar-provider-boundary",
+      "scenario": "Calendar switch proof reports preserved and lossy fields",
+      "evidenceMarkers": [
+        "SPRINT27_CALENDAR_PROVIDER_BOUNDARY_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/cross-domain-provider-proof/calendar-nextcloud-radicale.fixture.json",
+          "fragments": [
+            "weave-sprint-27-calendar-boundary-proof-v1",
+            "WeaveCalendar",
+            "WeaveAvailability",
+            "migration_dry_run"
+          ]
+        },
+        {
+          "path": "docs/evidence/sprint-27-cross-domain-provider-proof.md",
+          "fragments": [
+            "Calendar proof (#643)",
+            "Nextcloud CalDAV -> Radicale",
+            "The member UI remains `Weave Calendar`"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_cross_domain_provider_proof.feature",
+      "executableTest": "tools/cross_domain_provider_proof_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-files-provider-boundary",
+      "scenario": "Files switch proof validates metadata permissions and lossy cases",
+      "evidenceMarkers": [
+        "SPRINT27_FILES_PROVIDER_BOUNDARY_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/cross-domain-provider-proof/files-nextcloud-minio.fixture.json",
+          "fragments": [
+            "weave-sprint-27-files-boundary-proof-v1",
+            "WeavePermission",
+            "silentPermissionDropsAllowed",
+            "migration_dry_run"
+          ]
+        },
+        {
+          "path": "docs/evidence/sprint-27-cross-domain-provider-proof.md",
+          "fragments": [
+            "Files proof (#644)",
+            "Nextcloud Files -> MinIO S3",
+            "Silent permission drops are forbidden"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_cross_domain_provider_proof.feature",
+      "executableTest": "tools/cross_domain_provider_proof_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-identity-provider-boundary",
+      "scenario": "Identity switch proof names mapping risk boundaries without secrets",
+      "evidenceMarkers": [
+        "SPRINT27_IDENTITY_PROVIDER_BOUNDARY_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json",
+          "fragments": [
+            "weave-sprint-27-identity-boundary-proof-v1",
+            "keycloak",
+            "authentik",
+            "containsSecrets"
+          ]
+        },
+        {
+          "path": "docs/evidence/sprint-27-cross-domain-provider-proof.md",
+          "fragments": [
+            "Identity proof (#645)",
+            "Keycloak -> Authentik",
+            "Evidence contains no secrets"
+          ]
+        }
+      ]
+    },
+    {
+      "feature": "e2e/features/sprint_27_cross_domain_provider_proof.feature",
+      "executableTest": "tools/cross_domain_provider_proof_check.py",
+      "evidenceMode": "offline-spec",
+      "tag": "@sprint27-provider-neutrality-claim-gate",
+      "scenario": "Provider neutrality beyond chat stays scoped to evidence",
+      "evidenceMarkers": [
+        "SPRINT27_PROVIDER_NEUTRALITY_SCOREBOARD",
+        "SPRINT27_PROVIDER_NEUTRALITY_CLAIM_GATE"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "release/provider-lab/cross-domain-provider-proof/sprint-27-cross-domain-scoreboard.json",
+          "fragments": [
+            "weave-sprint-27-cross-domain-provider-proof-scoreboard-v1",
+            "domainRealityLevels",
+            "separate_not_required_for_domain_aggregate"
+          ]
+        },
+        {
+          "path": "release/provider-lab/cross-domain-provider-proof/sprint-27-provider-neutrality-claim-gate.fixture.json",
+          "fragments": [
+            "weave-sprint-27-provider-neutrality-claim-gate-v1",
+            "Chat switch evidence alone",
+            "Deployed-stack E2E handoff remains separate"
+          ]
+        },
+        {
+          "path": "docs/evidence/sprint-27-cross-domain-provider-proof.md",
+          "fragments": [
+            "Provider-neutrality gate (#646)",
+            "#665 remains separate",
+            "setup-flow evidence"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@sprint28-commercial-adapter-readiness",
       "scenario": "Teams and Slack readiness specs block implementation starts",
       "feature": "e2e/features/sprint_28_commercial_adapter_readiness.feature",
