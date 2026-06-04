@@ -408,11 +408,15 @@ maybe_use_reverse_proxy_container_route() {
   esac
 
   proxy_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{println .IPAddress}}{{end}}' weave-proxy 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1; exit}')"
-  if [[ -n "${proxy_ip}" ]]; then
-    LOOPBACK_RESOLVE_HOST="${proxy_ip}"
-    export WEAVE_LOOPBACK_RESOLVE_HOST="${proxy_ip}"
-    log "Using reverse proxy container route for local public Weave hostnames."
+  if [[ -z "${proxy_ip}" ]]; then
+    fail "Reverse proxy container IP could not be resolved for local public Weave hostnames."
   fi
+
+  LOOPBACK_RESOLVE_HOST="${proxy_ip}"
+  PUBLIC_PROXY_PORT="443"
+  export WEAVE_LOOPBACK_RESOLVE_HOST="${proxy_ip}"
+  export WEAVE_PUBLIC_PROXY_PORT="${PUBLIC_PROXY_PORT}"
+  log "Using reverse proxy container route for local public Weave hostnames."
 }
 
 occ() {
@@ -504,11 +508,13 @@ ensure_postgres_bootstrap_applied() {
 }
 
 public_port_suffix() {
-  if [[ "${TF_VAR_public_scheme}" == "http" && "${TF_VAR_proxy_host_port}" == "80" ]] ||
-    [[ "${TF_VAR_public_scheme}" == "https" && "${TF_VAR_proxy_host_port}" == "443" ]]; then
+  local port="${PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port}}"
+
+  if [[ "${TF_VAR_public_scheme}" == "http" && "${port}" == "80" ]] ||
+    [[ "${TF_VAR_public_scheme}" == "https" && "${port}" == "443" ]]; then
     printf ''
   else
-    printf ':%s' "${TF_VAR_proxy_host_port}"
+    printf ':%s' "${port}"
   fi
 }
 

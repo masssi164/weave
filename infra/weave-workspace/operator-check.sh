@@ -9,6 +9,7 @@ APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
 SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 readonly LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
+readonly PUBLIC_PROXY_PORT="${WEAVE_PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port:-443}}"
 
 log() {
   printf '%s\n' "$*"
@@ -32,7 +33,7 @@ load_bootstrap_env() {
 
 public_port_suffix() {
   local scheme="${TF_VAR_public_scheme:-https}"
-  local port="${TF_VAR_proxy_host_port:-443}"
+  local port="${PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port:-443}}"
 
   if [[ "${scheme}" == "http" && "${port}" == "80" ]] || [[ "${scheme}" == "https" && "${port}" == "443" ]]; then
     printf ''
