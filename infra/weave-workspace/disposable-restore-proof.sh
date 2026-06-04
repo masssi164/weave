@@ -68,9 +68,14 @@ cleanup_volumes() {
     log "Keeping disposable proof volumes because WEAVE_DISPOSABLE_RESTORE_KEEP_VOLUMES=true"
     return
   fi
+
+  local volume
   docker volume ls --format '{{.Name}}' \
     | grep -E "^${VOLUME_PREFIX}_(nextcloud|synapse|caddy_data|caddy_config|keycloak)$" \
-    | xargs -r docker volume rm >/dev/null 2>&1 || true
+    | while IFS= read -r volume; do
+        [[ -n "${volume}" ]] || continue
+        docker volume rm "${volume}" >/dev/null 2>&1 || true
+      done
 }
 
 main() {
