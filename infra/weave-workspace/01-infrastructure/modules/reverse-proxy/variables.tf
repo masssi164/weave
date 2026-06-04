@@ -28,6 +28,11 @@ variable "caddyfile_path" {
   type        = string
 }
 
+variable "caddyfile_content" {
+  description = "Generated Caddyfile content uploaded into the container."
+  type        = string
+}
+
 variable "tls_cert_file" {
   description = "Path to the generated local TLS certificate."
   type        = string

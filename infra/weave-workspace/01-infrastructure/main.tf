@@ -328,6 +328,7 @@ module "reverse_proxy" {
   http_host_port     = var.proxy_http_host_port
   https_host_port    = var.proxy_host_port
   caddyfile_path     = local_file.caddyfile.filename
+  caddyfile_content  = local.caddyfile_content
   tls_cert_file      = local.caddy_tls_cert_file
   tls_key_file       = local.caddy_tls_key_file
   tls_ca_file        = local.caddy_tls_ca_file
