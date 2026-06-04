@@ -96,6 +96,16 @@ import os
 from pathlib import Path
 
 backup_dir = Path(os.environ["BACKUP_DIR"])
+
+
+def artifact_digest(path: Path) -> tuple[str, int]:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            size += len(chunk)
+            digest.update(chunk)
+    return digest.hexdigest(), size
 required = [
     ("MANIFEST.txt", "text-manifest"),
     ("postgres.sql", "postgres-dump"),
@@ -109,13 +119,13 @@ required = [
 artifacts = []
 for name, kind in required:
     path = backup_dir / name
-    data = path.read_bytes()
+    sha256, size = artifact_digest(path)
     artifacts.append(
         {
             "path": name,
             "kind": kind,
-            "sha256": hashlib.sha256(data).hexdigest(),
-            "bytes": len(data),
+            "sha256": sha256,
+            "bytes": size,
             "requiredForRestore": True,
         }
     )

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -32,6 +33,14 @@ def write_json(path: Path, value: dict) -> None:
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def main() -> None:
     default = run()
     assert default.returncode == 0, default.stderr
@@ -42,12 +51,13 @@ def main() -> None:
         manifest = json.loads((FIXTURE_DIR / "backup-manifest.fixture.json").read_text(encoding="utf-8"))
         manifest["artifacts"] = []
         for name in REQUIRED_ARTIFACTS:
-            (evidence / name).write_text(f"fixture {name}\n", encoding="utf-8")
+            artifact = evidence / name
+            artifact.write_text(f"fixture {name}\n", encoding="utf-8")
             manifest["artifacts"].append({
                 "path": name,
                 "kind": "fixture",
-                "sha256": "0" * 64,
-                "bytes": (evidence / name).stat().st_size,
+                "sha256": sha256_file(artifact),
+                "bytes": artifact.stat().st_size,
                 "requiredForRestore": True,
             })
         manifest["scope"]["environment"] = "approved-disposable-stack"
@@ -73,6 +83,21 @@ def main() -> None:
         assert passing.returncode == 0, passing.stderr
         assert "restore_proof=release_eligible" in passing.stdout
 
+        manifest["artifacts"][0]["sha256"] = "0" * 64
+        write_json(evidence / "BackupManifest.json", manifest)
+        checksum_mismatch = run("--evidence-dir", str(evidence))
+        assert checksum_mismatch.returncode != 0
+        assert "sha256 mismatch" in checksum_mismatch.stderr
+
+        manifest["artifacts"][0]["sha256"] = sha256_file(evidence / REQUIRED_ARTIFACTS[0])
+        manifest["artifacts"][0]["bytes"] += 1
+        write_json(evidence / "BackupManifest.json", manifest)
+        bytes_mismatch = run("--evidence-dir", str(evidence))
+        assert bytes_mismatch.returncode != 0
+        assert "bytes mismatch" in bytes_mismatch.stderr
+
+        manifest["artifacts"][0]["bytes"] = (evidence / REQUIRED_ARTIFACTS[0]).stat().st_size
+        write_json(evidence / "BackupManifest.json", manifest)
         (evidence / "postgres.sql").unlink()
         missing_artifact = run("--evidence-dir", str(evidence))
         assert missing_artifact.returncode != 0
@@ -80,9 +105,19 @@ def main() -> None:
 
     with tempfile.TemporaryDirectory() as tmp:
         evidence = Path(tmp)
-        shutil.copyfile(FIXTURE_DIR / "backup-manifest.fixture.json", evidence / "BackupManifest.json")
+        manifest = json.loads((FIXTURE_DIR / "backup-manifest.fixture.json").read_text(encoding="utf-8"))
+        manifest["artifacts"] = []
         for name in REQUIRED_ARTIFACTS:
-            (evidence / name).write_text(f"fixture {name}\n", encoding="utf-8")
+            artifact = evidence / name
+            artifact.write_text(f"fixture {name}\n", encoding="utf-8")
+            manifest["artifacts"].append({
+                "path": name,
+                "kind": "fixture",
+                "sha256": sha256_file(artifact),
+                "bytes": artifact.stat().st_size,
+                "requiredForRestore": True,
+            })
+        write_json(evidence / "BackupManifest.json", manifest)
         shutil.copyfile(FIXTURE_DIR / "restore-receipt.fixture.json", evidence / "RestoreReceipt.json")
         shutil.copyfile(FIXTURE_DIR / "support-redaction-report.fixture.json", evidence / "support-redaction-report.json")
         blocked = run("--evidence-dir", str(evidence))

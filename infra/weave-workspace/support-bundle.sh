@@ -12,6 +12,7 @@ RUN_CHECKS="${WEAVE_SUPPORT_BUNDLE_RUN_CHECKS:-false}"
 CREATED_AT="$(date -u +%Y%m%dT%H%M%SZ)"
 BUNDLE_BASENAME="weave-support-${CREATED_AT}"
 WORK_DIR=""
+NEGATIVE_REDACTION_FIXTURE_STATUS="not_run"
 
 readonly DEFAULT_CONTAINERS=(
   weave-proxy
@@ -399,6 +400,24 @@ MSG
   collect_command_output "checks/release-verify.txt" bash "${ROOT_DIR}/release-verify.sh"
 }
 
+run_negative_redaction_fixture() {
+  local fixture_dir
+  fixture_dir="$(mktemp -d "${TMPDIR:-/tmp}/weave-support-negative-fixture.XXXXXX")"
+
+  cat >"${fixture_dir}/unsafe.txt" <<'MSG'
+Authorization: Bearer fixture-token-that-must-be-detected
+Cookie: fixture_session=must_be_detected
+MSG
+
+  if scan_for_unredacted_secrets "${fixture_dir}" >/dev/null 2>&1; then
+    NEGATIVE_REDACTION_FIXTURE_STATUS="failed"
+    fail "negative redaction fixture was not detected; refusing to mark support bundle redaction checks as passed"
+  fi
+
+  rm -rf "${fixture_dir}"
+  NEGATIVE_REDACTION_FIXTURE_STATUS="passed"
+}
+
 write_redaction_report() {
   local target="${WORK_DIR}/checks/support-redaction-report.json"
   mkdir -p "$(dirname -- "${target}")"
@@ -417,7 +436,7 @@ write_redaction_report() {
     {"name": "secret_refs", "status": "passed"},
     {"name": "provider_urls", "status": "passed"},
     {"name": "private_messages_file_contents_weaver_memory", "status": "excluded_by_bundle_scope"},
-    {"name": "negative_fixture_detects_unsafe_content", "status": "passed"}
+    {"name": "negative_fixture_detects_unsafe_content", "status": "${NEGATIVE_REDACTION_FIXTURE_STATUS}"}
   ],
   "findings": [],
   "unsafeContentDetected": false,
@@ -458,6 +477,7 @@ MSG
   collect_optional_checks
   collect_adapter_readiness_evidence
   collect_recent_artifacts
+  run_negative_redaction_fixture
   write_redaction_report
 
   scan_for_unredacted_secrets "${WORK_DIR}"

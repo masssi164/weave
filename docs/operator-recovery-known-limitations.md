@@ -1,6 +1,6 @@
 # Operator recovery KnownLimitations
 
-Status: Sprint 26 operator-recovery guardrail for issues #639, #641, and #642.
+Status: Sprint 26 operator-recovery guardrail for issues #639, #640, #641, and #642.
 
 This page is the support-safe limitations reference for Weave backup, restore, and support-bundle evidence. It prevents release wording from overstating the current proof.
 

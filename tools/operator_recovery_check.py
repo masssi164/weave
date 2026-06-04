@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -91,6 +92,14 @@ def assert_support_safe(value: Any, label: str, path: tuple[str, ...] = ()) -> N
                 fail(f"{label} contains support-unsafe value at {'.'.join(path)}")
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None:
     if manifest.get("artifactKind") != "weave-backup-manifest-v1":
         fail("BackupManifest kind mismatch")
@@ -123,12 +132,19 @@ def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None
     if missing:
         fail(f"BackupManifest missing required artifacts: {', '.join(sorted(missing))}")
     if not fixture:
-        # In a real evidence directory the checksums must match files next to the manifest.
+        # In a real evidence directory the private BackupManifest checksums and sizes
+        # must match the backup artifacts next to the manifest.
         base = Path(str(manifest.get("_source", ""))).parent
         for name, item in by_path.items():
             target = base / name
             if not target.exists() or target.stat().st_size <= 0:
                 fail(f"real evidence missing non-empty backup artifact {name}")
+            actual_bytes = target.stat().st_size
+            if item["bytes"] != actual_bytes:
+                fail(f"real evidence backup artifact {name} bytes mismatch: manifest={item['bytes']} actual={actual_bytes}")
+            actual_sha256 = sha256_file(target)
+            if item["sha256"] != actual_sha256:
+                fail(f"real evidence backup artifact {name} sha256 mismatch")
 
 
 def validate_restore_receipt(receipt: dict[str, Any], *, require_live: bool) -> None:
@@ -244,7 +260,7 @@ def validate_evidence_dir(path: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--evidence-dir", type=Path, help="Validate a real support-safe release evidence directory containing BackupManifest.json, RestoreReceipt.json, and support-redaction-report.json.")
+    parser.add_argument("--evidence-dir", type=Path, help="Validate a real operator evidence directory: private BackupManifest.json plus private backup artifacts, support-safe RestoreReceipt.json, and support-safe support-redaction-report.json.")
     args = parser.parse_args()
     if args.evidence_dir:
         validate_evidence_dir(args.evidence_dir)

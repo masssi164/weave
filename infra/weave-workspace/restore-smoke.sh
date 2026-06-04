@@ -116,6 +116,7 @@ check_backup_dir() {
   require_artifact "${backup_dir}" caddy-config.tgz
   require_artifact "${backup_dir}" keycloak-data.tgz
   require_artifact "${backup_dir}" generated-config-secrets.tgz
+  require_artifact "${backup_dir}" BackupManifest.json
 
   log "Backup artifact presence check passed for ${backup_dir}"
 }
