@@ -209,7 +209,20 @@ jobs:
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
           WEAVE_IAC_BIN: tofu
-        run: ./install.sh
+        run: |
+          set -euo pipefail
+          runner_loopback_host="${WEAVE_LOOPBACK_HOST:-}"
+          if [ -z "$runner_loopback_host" ] || [ "$runner_loopback_host" = "127.0.0.1" ]; then
+            runner_loopback_host="$(ip route | awk '/default/ && $3 ~ /^[0-9]+([.][0-9]+){3}$/ {print $3; exit}')"
+          fi
+          if [ -z "$runner_loopback_host" ]; then
+            echo "runner_loopback_host_resolved=false"
+            exit 2
+          fi
+          echo "runner_loopback_host_resolved=true"
+          WEAVE_LOOPBACK_HOST="$runner_loopback_host" \
+            WEAVE_LOOPBACK_RESOLVE_HOST="$runner_loopback_host" \
+            ./install.sh
       - name: Route public Weave hostnames to the deployed reverse proxy
         run: |
           set -euo pipefail
