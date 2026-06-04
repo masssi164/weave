@@ -31,7 +31,7 @@ Support-safe current-working-tree proof:
 - `client_bootstrap_handoff_ready`: true for the direct local stack proof;
 - raw logs, endpoint URLs, provider payloads, secrets, tokens, tenant URLs, Matrix URLs, and member content were not persisted in repo evidence.
 
-This is not claimed as `forgejo_runner_workflow_terminal_success`; the current working tree has not been committed/pushed/dispatch-run through local Forgejo.
+This earlier direct proof is retained as supporting evidence only; it is not itself claimed as `forgejo_runner_workflow_terminal_success`. Strict Forgejo-runner proof is recorded below and correlated separately by run/task refs, commit, and backend image revision.
 
 ## Separate client-lane proof
 
