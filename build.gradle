@@ -49,6 +49,7 @@ registerRootCommandTask('operatorRecoveryCheck', ['python3', 'tools/operator_rec
 registerRootCommandTask('localCicdBootstrapperCheck', ['python3', 'tools/local_cicd_bootstrapper_check.py'], 'Validate Sprint 27 local CI/CD bootstrapper executable, fixtures, and acceptance mapping.')
 registerRootCommandTask('localForgejoRunnerReadinessCheck', ['python3', 'tools/local_forgejo_runner_readiness_check.py'], 'Validate Sprint 27 local Forgejo runner readiness fixtures and acceptance mapping.')
 registerRootCommandTask('localForgejoE2eHandoffCheck', ['python3', 'tools/local_forgejo_e2e_handoff_check.py'], 'Validate Sprint 27 local Forgejo deployed-stack E2E handoff fixtures and acceptance mapping.')
+registerRootCommandTask('sprint29HumanValidationCheck', ['python3', 'tools/sprint29_human_validation_check.py'], 'Validate Sprint 29 human-in-the-loop release validation artifacts, manual templates, and no-fake-signoff guard posture.')
 registerRootCommandTask('commercialAdapterReadinessCheck', ['python3', 'tools/commercial_adapter_readiness_check.py'], 'Validate Sprint 28 commercial adapter readiness specs, go/no-go matrix, and implementation-start guard.')
 registerRootCommandTask('localDomainAdapterPlanCheck', ['python3', 'tools/local_domain_adapter_plan_check.py'], 'Validate Sprint 27 local domain-adapter deployable plan fixtures and acceptance mapping.')
 registerRootCommandTask('localForgejoPipelineProviderCheck', ['python3', 'tools/local_forgejo_pipeline_provider_check.py'], 'Validate Sprint 27 local Forgejo PipelineProvider fixtures and acceptance mapping.')
@@ -87,7 +88,7 @@ tasks.register('releaseReadinessCheck', Exec) {
     commandLine execCommand(args)
     outputs.upToDateWhen { false }
 }
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/weaver_runtime_factory_check.py && python3 tools/weaver_customization_check.py && python3 tools/admin_cicd_orchestration_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/local_cicd_bootstrapper_check.py && python3 tools/local_forgejo_runner_readiness_check.py && python3 tools/local_forgejo_e2e_handoff_check.py && python3 tools/local_domain_adapter_plan_check.py && python3 tools/local_forgejo_pipeline_provider_check.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/commercial_adapter_readiness_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes, README markers, provider reality, Sprint 26/27/28/29 evidence gates, claim matrices, labels, generator fixtures, project readiness, enterprise release gates, and RC readiness fixtures.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/weaver_runtime_factory_check.py && python3 tools/weaver_customization_check.py && python3 tools/admin_cicd_orchestration_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/local_cicd_bootstrapper_check.py && python3 tools/local_forgejo_runner_readiness_check.py && python3 tools/local_forgejo_e2e_handoff_check.py && python3 tools/local_domain_adapter_plan_check.py && python3 tools/local_forgejo_pipeline_provider_check.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/commercial_adapter_readiness_check.py && python3 tools/sprint29_human_validation_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes, README markers, provider reality, Sprint 26/27/28/29 evidence gates, claim matrices, labels, generator fixtures, project readiness, enterprise release gates, and RC readiness fixtures.')
 
 tasks.register('docsCheck') {
     group = 'verification'
@@ -134,6 +135,7 @@ ext.ciEvidenceGates = [
     'localCicdBootstrapperCheck',
     'localForgejoRunnerReadinessCheck',
     'localForgejoE2eHandoffCheck',
+    'sprint29HumanValidationCheck',
     'commercialAdapterReadinessCheck',
     'localDomainAdapterPlanCheck',
     'localForgejoPipelineProviderCheck',
@@ -255,7 +257,9 @@ List<String> artifactPathsForGate(String gateName) {
         case 'adminCicdOrchestrationCheck':
             return ['specs/admin-ci-cd-orchestration-contract.md', 'release/provider-lab/admin-cicd/local-forgejo-setup-proof.fixture.json', 'tools/admin_cicd_orchestration_check.py']
         case 'releaseEvidenceCheck':
-            return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md']
+            return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md', 'release/sprint-29-human-validation']
+        case 'sprint29HumanValidationCheck':
+            return ['release/sprint-29-human-validation', 'docs/evidence/sprint-29-human-validation', 'tools/sprint29_human_validation_check.py', 'tools/sprint29_release_decision_guard.py']
         case 'projectReadinessEvidenceCheck':
             return ['docs/sprint-5-closure-report.md', 'e2e/scenario_mappings.json']
         case 'enterpriseReleaseGateCheck':

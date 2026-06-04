@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "sprint": 29,
+  "name": "Human-in-the-Loop Release Validation",
+  "coversIssues": [651, 652, 653, 654],
+  "baseChoice": {
+    "branch": "origin/main",
+    "reason": "Sprint 29 preparation is a release-validation guard slice. Open PR #672 is not incorporated because the requested artifacts can be built from current main without depending on unrelated Sprint 27 branch state."
+  },
+  "humanValidationStartRule": "all automated gates must pass with current sanitized evidence",
+  "allAutomatedGatesPassed": false,
+  "humanValidationStartAllowed": false,
+  "operatorInstruction": "Run the listed commands and replace pending-current-evidence with pass only for gates backed by current sanitized artifacts. Human validation must not start while any required gate is red, blocked, or pending.",
+  "automatedGates": [
+    {
+      "id": "admin-bootstrap",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew adminCicdOrchestrationCheck", "./gradlew adminCi"],
+      "evidence": ["docs/evidence/local-cicd-bootstrapper.md", "docs/evidence/local-forgejo-runner-readiness.md"]
+    },
+    {
+      "id": "user-login",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew acceptanceContract", "./gradlew clientCi"],
+      "evidence": ["e2e/scenario_mappings.json"]
+    },
+    {
+      "id": "space-opens",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew spaceAnchorCheck", "./gradlew acceptanceContract"],
+      "evidence": ["specs/0005-spaces-anchor/space-anchor-fixture.json", "e2e/scenario_mappings.json"]
+    },
+    {
+      "id": "chat-works",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew chatProviderSwitchCheck"],
+      "evidence": ["release/provider-lab/chat-switch", "fixtures/provider-lab/chat-fixture.json"]
+    },
+    {
+      "id": "provider-switch",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew providerLabCheck", "./gradlew chatProviderSwitchCheck"],
+      "evidence": ["release/provider-lab", "release/provider-lab/chat-switch"]
+    },
+    {
+      "id": "history-report",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew chatProviderSwitchCheck"],
+      "evidence": ["release/provider-lab/chat-switch/history-report.json"]
+    },
+    {
+      "id": "rollback-receipt",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew portabilityContractCheck", "./gradlew chatProviderSwitchCheck"],
+      "evidence": ["specs/0006-portability-contract/matrix-synapse-chat-bounded-apply-cutover-rollback-proof.json"]
+    },
+    {
+      "id": "files",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew portabilityContractCheck", "./gradlew productRealityClaimGateCheck"],
+      "evidence": ["specs/0006-portability-contract/provider-portability-v2-files-dry-run.json"]
+    },
+    {
+      "id": "calendar",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew portabilityContractCheck", "./gradlew productRealityClaimGateCheck"],
+      "evidence": ["specs/0006-portability-contract/provider-portability-v2-calendar-dry-run.json"]
+    },
+    {
+      "id": "weaver-runtime",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew weaverRuntimeFactoryCheck"],
+      "evidence": ["docs/evidence/weaver-runtime-factory-report.md", "release/provider-lab/weaver-runtime"]
+    },
+    {
+      "id": "weaver-customization",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew weaverCustomizationCheck"],
+      "evidence": ["docs/evidence/weaver-customization-report.md", "release/provider-lab/weaver-runtime/sprint-25-scoreboard.json"]
+    },
+    {
+      "id": "weaver-approval",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew weaverCustomizationCheck"],
+      "evidence": ["release/provider-lab/weaver-runtime/sprint-25-claim-gate.fixture.json"]
+    },
+    {
+      "id": "weaver-revoke",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew weaverRuntimeFactoryCheck", "./gradlew weaverCustomizationCheck"],
+      "evidence": ["docs/evidence/weaver-runtime-factory-report.md", "docs/evidence/weaver-customization-report.md"]
+    },
+    {
+      "id": "backup-restore",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew releaseReadinessFixtureTest", "./gradlew releaseReadinessCheck -PcandidateVersion=0.1.0-rc.1 -PcandidateTag=v0.1.0-rc.1"],
+      "evidence": ["tools/fixtures/rc_readiness/green", "weave-live-stack-acceptance-evidence"]
+    },
+    {
+      "id": "redacted-support-bundle",
+      "issue": 651,
+      "requiredBeforeHumanValidation": true,
+      "status": "pending-current-evidence",
+      "commands": ["./gradlew releaseReadinessFixtureTest", "./gradlew releaseEvidenceCheck"],
+      "evidence": ["tools/fixtures/rc_readiness/green", "build/evidence/ci-summary.json"]
+    }
+  ]
+}
