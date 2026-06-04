@@ -106,6 +106,7 @@ jobs:
             curl \
             docker.io \
             git \
+            iproute2 \
             jq \
             libgtk-3-dev \
             make \
