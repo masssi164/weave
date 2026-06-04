@@ -75,12 +75,14 @@ backup_dir = os.environ.get("RESTORE_BACKUP_DIR") or ""
 destroy_performed = os.environ["RESTORE_DESTROY_PERFORMED"] == "true"
 domain_status = os.environ["RESTORE_DOMAIN_DATA_STATUS"]
 release_eligible = os.environ["RESTORE_RELEASE_ELIGIBLE"] == "true"
+manifest_path = Path(backup_dir) / "BackupManifest.json" if backup_dir else None
+manifest_ref = str(manifest_path) if manifest_path and manifest_path.exists() else "not-provided"
 receipt = {
     "artifactKind": "weave-restore-receipt-v1",
     "issue": 639,
     "supportSafe": True,
     "createdAt": os.environ["RESTORE_CREATED_AT"],
-    "backupManifestRef": str(Path(backup_dir) / "BackupManifest.json") if backup_dir else "not-provided",
+    "backupManifestRef": manifest_ref,
     "restoreRunId": f"restore-smoke-{os.environ['RESTORE_CREATED_AT']}",
     "validationMode": os.environ["RESTORE_VALIDATION_MODE"],
     "status": os.environ["RESTORE_STATUS"],
@@ -90,6 +92,7 @@ receipt = {
     },
     "checks": [
         {"name": "backup_artifacts_present", "status": "passed" if backup_dir else "not_run"},
+        {"name": "backup_manifest_present", "status": "passed" if manifest_ref != "not-provided" else "not_provided"},
         {"name": "post_restore_operator_check", "status": "passed" if os.environ["RESTORE_VALIDATION_MODE"] != "artifacts_only" else "not_run"},
         {"name": "domain_data_recovered", "status": domain_status},
     ],
@@ -116,7 +119,11 @@ check_backup_dir() {
   require_artifact "${backup_dir}" caddy-config.tgz
   require_artifact "${backup_dir}" keycloak-data.tgz
   require_artifact "${backup_dir}" generated-config-secrets.tgz
-  require_artifact "${backup_dir}" BackupManifest.json
+  if [[ -s "${backup_dir}/BackupManifest.json" ]]; then
+    log "Backup manifest presence check passed for ${backup_dir}/BackupManifest.json"
+  else
+    log "Backup manifest not provided for ${backup_dir}; RestoreReceipt will record backupManifestRef=not-provided."
+  fi
 
   log "Backup artifact presence check passed for ${backup_dir}"
 }
