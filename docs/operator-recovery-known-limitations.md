@@ -8,8 +8,8 @@ This page is the support-safe limitations reference for Weave backup, restore, a
 
 - `infra/weave-workspace/backup.sh` can create private operator backup artifacts and a `BackupManifest.json` with scope, artifact names, sizes, and checksums.
 - `infra/weave-workspace/restore-smoke.sh` can create a `RestoreReceipt.json` for artifact preflight or post-restore readiness checks.
-- Checked-in Sprint 26 fixtures prove the artifact contracts and release gate behavior, not a live customer-ready restore.
-- Release/customer wording remains blocked until an approved disposable stack performs backup, destroys fixture state, restores it, and proves recovered domain data.
+- Checked-in Sprint 26 disposable evidence proves the artifact contracts, release gate behavior, and a non-production Backup -> Destroy -> Restore -> Validate rehearsal for support-safe fixture domain data.
+- Production/customer-data restore wording remains blocked until an operator-approved production-like rehearsal keeps private backup artifacts under operator control and records site-specific limitations.
 
 ## Known limitations by domain
 
@@ -25,4 +25,4 @@ This page is the support-safe limitations reference for Weave backup, restore, a
 
 ## Release wording rule
 
-Allowed wording must say that Sprint 26 adds executable guardrails and a truthful blocker for missing live restore proof. Do not claim release-ready backup/restore until the Sprint 26 scoreboard has no `blocksRelease=true` restore blocker and the RestoreReceipt proves recovered domain data.
+Allowed wording must say that Sprint 26 adds executable guardrails and a support-safe disposable restore proof for fixture domain data. Do not claim production/customer-data backup and restore readiness unless a separate operator-approved evidence directory passes `python3 tools/operator_recovery_check.py --evidence-dir <operator-evidence-dir>` and the release wording names the covered scope.

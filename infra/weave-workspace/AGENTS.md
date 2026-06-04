@@ -9,6 +9,7 @@
 - `release-verify.sh`: checks the public URLs after a non-local install.
 - `backup.sh`: manually creates a private backup artifact set for operator-managed storage.
 - `restore-smoke.sh`: verifies recovery readiness after a restore or clean reprovisioning rehearsal without deleting data.
+- `disposable-restore-proof.sh`: runs a support-safe disposable Backup -> Destroy -> Restore -> Validate proof using only uniquely named `weave_disposable_restore_*` Docker volumes.
 - `release.env.example`: template for operator-managed single-host deployments.
 - `.env.example`: local hostname, port, and Caddy mount defaults.
 - `docker-compose.yml`: Caddy service definition for proxy-only iteration against the OpenTofu-created network.

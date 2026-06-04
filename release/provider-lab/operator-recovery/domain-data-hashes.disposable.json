@@ -1,0 +1,24 @@
+{
+  "artifactKind": "weave-disposable-domain-data-hash-proof-v1",
+  "supportSafe": true,
+  "runId": "issue-642-local-proof",
+  "seedHashes": {
+    "caddy_config/caddy-config-marker.txt": "7fd70935ca08fa816296fbfc0715a4fc2cb1e21ec074d318231cbec04d412cbc",
+    "caddy_data/acme-marker.txt": "732b0b8d41b32ff9ece692ea3352744b2f1b45078379ab46ef046e56e1c3af7a",
+    "keycloak/realm/weave-users.json": "730e86d717065e81c97458d2ea72fe1ecd6cd00c82cee224915206e94b1d5b13",
+    "nextcloud/calendar/team-calendar.ics": "e3e381737096345ab44f8ac54acdb30e00be4587ffadda8170e438b6de062347",
+    "nextcloud/files/channel-general/restore-proof.txt": "4a6d3470cf131aae66b79b8b3fd8aec4c6155b0ee9a7445e8a368f43fea2d830",
+    "synapse/media/attachment.sha256": "187d786decb109a27666ff5ff13c5e978a9bab5801b6c602d066276f6442ee68",
+    "synapse/rooms/general-events.jsonl": "36bc37728e4be822c76d988be5a56d2e2b35e0ea647404f87f237feb8771d0e7"
+  },
+  "restoredHashes": {
+    "caddy_config/caddy-config-marker.txt": "7fd70935ca08fa816296fbfc0715a4fc2cb1e21ec074d318231cbec04d412cbc",
+    "caddy_data/acme-marker.txt": "732b0b8d41b32ff9ece692ea3352744b2f1b45078379ab46ef046e56e1c3af7a",
+    "keycloak/realm/weave-users.json": "730e86d717065e81c97458d2ea72fe1ecd6cd00c82cee224915206e94b1d5b13",
+    "nextcloud/calendar/team-calendar.ics": "e3e381737096345ab44f8ac54acdb30e00be4587ffadda8170e438b6de062347",
+    "nextcloud/files/channel-general/restore-proof.txt": "4a6d3470cf131aae66b79b8b3fd8aec4c6155b0ee9a7445e8a368f43fea2d830",
+    "synapse/media/attachment.sha256": "187d786decb109a27666ff5ff13c5e978a9bab5801b6c602d066276f6442ee68",
+    "synapse/rooms/general-events.jsonl": "36bc37728e4be822c76d988be5a56d2e2b35e0ea647404f87f237feb8771d0e7"
+  },
+  "matched": true
+}

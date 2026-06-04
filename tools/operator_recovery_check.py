@@ -13,9 +13,10 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_DIR = ROOT / "release" / "provider-lab" / "operator-recovery"
-BACKUP_MANIFEST = ARTIFACT_DIR / "backup-manifest.fixture.json"
-RESTORE_RECEIPT = ARTIFACT_DIR / "restore-receipt.fixture.json"
-REDACTION_REPORT = ARTIFACT_DIR / "support-redaction-report.fixture.json"
+BACKUP_MANIFEST = ARTIFACT_DIR / "backup-manifest.disposable.json"
+RESTORE_RECEIPT = ARTIFACT_DIR / "restore-receipt.disposable.json"
+REDACTION_REPORT = ARTIFACT_DIR / "support-redaction-report.disposable.json"
+DOMAIN_DATA_HASH_PROOF = ARTIFACT_DIR / "domain-data-hashes.disposable.json"
 SCOREBOARD = ARTIFACT_DIR / "sprint-26-scoreboard.json"
 LIMITATIONS = ROOT / "docs" / "operator-recovery-known-limitations.md"
 EVIDENCE_REPORT = ROOT / "docs" / "evidence" / "operator-recovery-report.md"
@@ -137,6 +138,8 @@ def validate_backup_manifest(manifest: dict[str, Any], *, fixture: bool) -> None
         base = Path(str(manifest.get("_source", ""))).parent
         for name, item in by_path.items():
             target = base / name
+            if not target.exists():
+                target = base / "backup-artifacts" / name
             if not target.exists() or target.stat().st_size <= 0:
                 fail(f"real evidence missing non-empty backup artifact {name}")
             actual_bytes = target.stat().st_size
@@ -175,6 +178,24 @@ def validate_restore_receipt(receipt: dict[str, Any], *, require_live: bool) -> 
             fail("live release evidence requires all restore checks passed")
 
 
+def validate_domain_data_hash_proof(proof: dict[str, Any]) -> None:
+    if proof.get("artifactKind") != "weave-disposable-domain-data-hash-proof-v1":
+        fail("domain data hash proof kind mismatch")
+    if proof.get("supportSafe") is not True:
+        fail("domain data hash proof must be support-safe")
+    assert_support_safe(proof, "domain data hash proof")
+    if proof.get("matched") is not True:
+        fail("domain data hash proof must declare matched=true")
+    seed = proof.get("seedHashes")
+    restored = proof.get("restoredHashes")
+    if not isinstance(seed, dict) or not isinstance(restored, dict) or not seed or seed != restored:
+        fail("domain data hash proof seed/restored hashes must match")
+    required_fragments = ["nextcloud/", "synapse/", "keycloak/", "caddy_data/", "caddy_config/"]
+    for fragment in required_fragments:
+        if not any(isinstance(path, str) and path.startswith(fragment) for path in seed):
+            fail(f"domain data hash proof missing {fragment} fixture data")
+
+
 def validate_redaction_report(report: dict[str, Any]) -> None:
     if report.get("artifactKind") != "weave-support-bundle-redaction-report-v1":
         fail("redaction report kind mismatch")
@@ -203,15 +224,15 @@ def validate_scoreboard(scoreboard: dict[str, Any]) -> None:
     if set(scoreboard.get("issues", [])) != {639, 640, 641, 642}:
         fail("scoreboard must cover issues #639-#642")
     evidence = scoreboard.get("evidence", {})
-    for expected in [BACKUP_MANIFEST, RESTORE_RECEIPT, REDACTION_REPORT, LIMITATIONS]:
+    for expected in [BACKUP_MANIFEST, RESTORE_RECEIPT, REDACTION_REPORT, DOMAIN_DATA_HASH_PROOF, LIMITATIONS]:
         if str(expected.relative_to(ROOT)) not in evidence.values():
             fail(f"scoreboard missing evidence ref {expected.relative_to(ROOT)}")
     gate = scoreboard.get("claimGate", {})
     blockers = gate.get("releaseBlockers", [])
-    if gate.get("operatorRecoveryClaimAllowed") is not False:
-        fail("fixture scoreboard must not allow release-ready operator recovery claims")
-    if not any(isinstance(item, dict) and item.get("id") == "missing-live-destroy-restore-proof" and item.get("blocksRelease") is True for item in blockers):
-        fail("scoreboard must block release on missing live restore proof")
+    if gate.get("operatorRecoveryClaimAllowed") is not True:
+        fail("scoreboard must allow only the scoped disposable restore proof claim")
+    if any(isinstance(item, dict) and item.get("blocksRelease") is True for item in blockers):
+        fail("scoreboard must not keep a release blocker after disposable restore proof passes")
 
 
 def validate_docs() -> None:
@@ -223,7 +244,7 @@ def validate_docs() -> None:
         if fragment not in limitations:
             fail(f"KnownLimitations missing {fragment!r}")
     report = EVIDENCE_REPORT.read_text(encoding="utf-8")
-    for path in [BACKUP_MANIFEST, RESTORE_RECEIPT, REDACTION_REPORT, SCOREBOARD, LIMITATIONS]:
+    for path in [BACKUP_MANIFEST, RESTORE_RECEIPT, REDACTION_REPORT, DOMAIN_DATA_HASH_PROOF, SCOREBOARD, LIMITATIONS]:
         if str(path.relative_to(ROOT)) not in report:
             fail(f"evidence report missing {path.relative_to(ROOT)}")
 
@@ -238,13 +259,15 @@ def validate_checked_in_fixtures() -> None:
     manifest = load_with_source(BACKUP_MANIFEST)
     receipt = load_json(RESTORE_RECEIPT)
     report = load_json(REDACTION_REPORT)
+    proof = load_json(DOMAIN_DATA_HASH_PROOF)
     scoreboard = load_json(SCOREBOARD)
     validate_backup_manifest(manifest, fixture=True)
-    validate_restore_receipt(receipt, require_live=False)
+    validate_restore_receipt(receipt, require_live=True)
     validate_redaction_report(report)
+    validate_domain_data_hash_proof(proof)
     validate_scoreboard(scoreboard)
     validate_docs()
-    print("operator-recovery-check: ok fixtures release_blocked=missing-live-destroy-restore-proof")
+    print("operator-recovery-check: ok disposable_restore_proof=release_eligible")
     print("SPRINT26_OPERATOR_RECOVERY_GUARD")
 
 
