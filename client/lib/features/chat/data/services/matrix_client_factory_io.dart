@@ -20,14 +20,17 @@ class SdkMatrixClientFactory implements MatrixClientFactory {
     ApplicationSupportDirectoryProvider? appSupportDirectoryProvider,
     MatrixDatabaseOpener? databaseOpener,
     MatrixSdkClientFactory? clientFactory,
+    bool allowUnsupportedPlatformForTesting = false,
   }) : _appSupportDirectoryProvider =
            appSupportDirectoryProvider ?? getApplicationSupportDirectory,
        _databaseOpener = databaseOpener ?? sqflite.openDatabase,
-       _clientFactory = clientFactory ?? _defaultSdkClientFactory;
+       _clientFactory = clientFactory ?? _defaultSdkClientFactory,
+       _allowUnsupportedPlatformForTesting = allowUnsupportedPlatformForTesting;
 
   final ApplicationSupportDirectoryProvider _appSupportDirectoryProvider;
   final MatrixDatabaseOpener _databaseOpener;
   final MatrixSdkClientFactory _clientFactory;
+  final bool _allowUnsupportedPlatformForTesting;
 
   sdk.Client? _client;
   Future<sdk.Client>? _clientFuture;
@@ -127,7 +130,7 @@ class SdkMatrixClientFactory implements MatrixClientFactory {
   }
 
   Future<sdk.Client> _createClient() async {
-    if (!_isInteractivePlatform) {
+    if (!_allowUnsupportedPlatformForTesting && !_isInteractivePlatform) {
       throw const ChatFailure.unsupportedPlatform(
         'Matrix chat is currently supported on Android, iOS, and macOS.',
       );

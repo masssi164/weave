@@ -77,11 +77,6 @@ void main() {
   SdkMatrixClientFactory? liveMatrixClientFactory;
 
   setUp(() async {
-    // The local Forgejo runner executes the desktop live E2E on Linux/Xvfb,
-    // while the product Matrix client is intentionally enabled only on
-    // Android, iOS, and macOS. Exercise the supported desktop code path in
-    // this harness without broadening runtime platform support.
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
     config = TestConfig.fromEnvironment();
     config.requireCredentials();
     liveOidcDriver = LiveOidcTestDriver(config: config);
@@ -91,11 +86,11 @@ void main() {
     matrixSupportDirectory = supportDirectory;
     liveMatrixClientFactory = SdkMatrixClientFactory(
       appSupportDirectoryProvider: () async => supportDirectory,
+      allowUnsupportedPlatformForTesting: true,
     );
   });
 
   tearDown(() async {
-    debugDefaultTargetPlatformOverride = null;
     await liveMatrixClientFactory?.dispose();
     final supportDirectory = matrixSupportDirectory;
     if (supportDirectory != null && await supportDirectory.exists()) {
