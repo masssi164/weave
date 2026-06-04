@@ -183,8 +183,20 @@ jobs:
         env:
           WEAVE_IAC_BIN: tofu
         run: bash ./teardown.sh
-      - name: Build backend image from monorepo server
-        run: docker build -t "$WEAVE_BACKEND_IMAGE" server
+      - name: Verify prebuilt backend image from monorepo server
+        run: |
+          set -euo pipefail
+          current_commit="$(git rev-parse HEAD)"
+          image_commit="$(docker image inspect "$WEAVE_BACKEND_IMAGE" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' 2>/dev/null || true)"
+          if [ "$image_commit" != "$current_commit" ]; then
+            echo "backend_image_ready=false"
+            echo "backend_image_expected_commit=$current_commit"
+            echo "backend_image_actual_commit=${image_commit:-missing}"
+            echo "Build the local Forgejo backend image on the host before dispatching: docker build --label org.opencontainers.image.revision=$current_commit -t $WEAVE_BACKEND_IMAGE server"
+            exit 2
+          fi
+          echo "backend_image_ready=true"
+          echo "backend_image_commit=$current_commit"
       - name: Bootstrap local stack
         working-directory: infra/weave-workspace
         env:
