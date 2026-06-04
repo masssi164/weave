@@ -73,7 +73,7 @@ jobs:
       WEAVE_REMOVE_VOLUMES: 'true'
       WEAVE_CONFIRM_DESTRUCTIVE_RESET: weave
       WEAVE_INTEGRATION_TEST_DEVICE: linux
-      DOCKER_HOST: tcp://forgejo-runner-dind:2375
+      DOCKER_HOST: unix:///var/run/docker.sock
       WEAVE_IAC_BIN: tofu
     steps:
       - name: Check out weave
