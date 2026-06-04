@@ -233,8 +233,7 @@ jobs:
           hosts="weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
           tmp_hosts="$(mktemp)"
           awk 'BEGIN { split("weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local", blocked, " "); for (i in blocked) deny[blocked[i]]=1 } { keep=1; for (i=2; i<=NF; i++) if ($i in deny) keep=0; if (keep) print }' /etc/hosts > "$tmp_hosts"
-          printf '%s %s
-' "$proxy_ip" "$hosts" >> "$tmp_hosts"
+          printf '%s %s\n' "$proxy_ip" "$hosts" >> "$tmp_hosts"
           cat "$tmp_hosts" > /etc/hosts
           rm -f "$tmp_hosts"
           echo "public_weave_hostname_route=reverse-proxy-container"
