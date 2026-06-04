@@ -48,7 +48,20 @@ ALLOWED_FORBIDDEN_CONTEXT = (
     "avoid",
     "no ",
 )
-PROVIDER_TERMS = ("slack", "teams", "microsoft graph", "microsoft-teams")
+PROVIDER_TERMS = (
+    "slack",
+    "microsoft teams",
+    "microsoft-teams",
+    "microsoft graph",
+    "ms teams",
+    "teams adapter",
+    "teams provider",
+    "teams integration",
+    "teams connector",
+    "teamsadapter",
+    "teamsprovider",
+    "teamsconnector",
+)
 FORBIDDEN_VALUE_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
     for pattern in [
@@ -175,8 +188,12 @@ def main() -> None:
     assert_support_safe(matrix, "go/no-go matrix")
 
     guard = load_json(GUARD)
-    if guard.get("artifactKind") != "weave-commercial-adapter-implementation-guard-v1" or guard.get("issue") != 650:
-        fail("implementation guard fixture kind/issue mismatch")
+    if (
+        guard.get("artifactKind") != "weave-commercial-adapter-implementation-guard-v1"
+        or guard.get("issue") != 650
+        or guard.get("sprint") != 28
+    ):
+        fail("implementation guard fixture kind/issue/sprint mismatch")
     if guard.get("implementationStartDefault") != "blocked":
         fail("implementation guard must default to blocked")
     if guard.get("approvedImplementationProviders") != []:
@@ -200,7 +217,7 @@ def main() -> None:
 
     assert_fragments(FEATURE, ["@sprint28-commercial-adapter-readiness", "Microsoft Teams implementation remains blocked", "Slack implementation remains blocked"])
     assert_fragments(MAPPING, ["@sprint28-commercial-adapter-readiness", "COMMERCIAL_ADAPTER_READINESS_PROOF", str(MATRIX.relative_to(ROOT)), str(GUARD.relative_to(ROOT))])
-    assert_claims_blocked([DOC, RELEASE_NOTES])
+    assert_claims_blocked([DOC, RELEASE_NOTES, ROOT / "README.md"])
 
     print("commercial-adapter-readiness-check: ok sprint=28 providers=slack,microsoft-teams decision=blocked")
     print("COMMERCIAL_ADAPTER_READINESS_PROOF")

@@ -23,7 +23,7 @@
       "domain": "chat",
       "decision": "blocked",
       "implementationStartAllowed": false,
-      "readinessSpecRef": "docs/CommercialAdapterReadiness.md#Microsoft-Teams-readiness-section",
+      "readinessSpecRef": "docs/CommercialAdapterReadiness.md#microsoft-teams-readiness-section",
       "requiredProofBeforeImplementation": [
         "tenant-admin consent receipt",
         "Microsoft Graph permission and least-privilege contract",
@@ -48,7 +48,7 @@
       "domain": "chat",
       "decision": "blocked",
       "implementationStartAllowed": false,
-      "readinessSpecRef": "docs/CommercialAdapterReadiness.md#Slack-readiness-section",
+      "readinessSpecRef": "docs/CommercialAdapterReadiness.md#slack-readiness-section",
       "requiredProofBeforeImplementation": [
         "workspace/org app approval receipt",
         "Slack OAuth scope and least-privilege contract",

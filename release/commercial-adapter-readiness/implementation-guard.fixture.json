@@ -47,11 +47,6 @@
     "admin-console/src/api.test.ts",
     "admin-console/src/api.ts",
     "client/lib/features/connectors/presentation/providers/connector_preview_provider.dart",
-    "client/lib/l10n/app_de.arb",
-    "client/lib/l10n/app_en.arb",
-    "client/lib/l10n/generated/app_localizations.dart",
-    "client/lib/l10n/generated/app_localizations_de.dart",
-    "client/lib/l10n/generated/app_localizations_en.dart",
     "client/test/architecture/member_client_provider_boundary_contract_test.dart",
     "client/test/features/connectors/connector_settings_preview_test.dart",
     "infra/README.md",
@@ -96,9 +91,7 @@
     "server/src/test/java/com/massimotter/weave/backend/controller/SlackBridgeControllerTest.java",
     "server/src/test/java/com/massimotter/weave/backend/provider/DomainAdapterRegistryMapperTest.java",
     "server/src/test/java/com/massimotter/weave/backend/provider/ProviderRegistryTest.java",
-    "server/src/test/java/com/massimotter/weave/backend/service/CalendarFacadeServiceTest.java",
     "server/src/test/java/com/massimotter/weave/backend/service/interop/InteropCoreServiceTest.java",
-    "server/src/test/java/com/massimotter/weave/backend/service/migration/MigrationDryRunServiceTest.java",
-    "server/src/test/resources/features/provider-stack-readiness.feature"
+    "server/src/test/java/com/massimotter/weave/backend/service/migration/MigrationDryRunServiceTest.java"
   ]
 }
