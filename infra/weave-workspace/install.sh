@@ -558,6 +558,32 @@ curl_nextcloud_actor_calendar_status() {
     "${url}"
 }
 
+wait_for_public_http_200() {
+  local name="$1"
+  local url="$2"
+  local attempts="${3:-60}"
+  local sleep_seconds="${4:-2}"
+  local host_port
+  local status_code
+  local -a args=(--silent --show-error)
+
+  host_port="$(host_port_from_url "${url}")"
+  args+=(--resolve "${host_port}:${LOOPBACK_RESOLVE_HOST}")
+  if [[ "${TF_VAR_public_scheme}" == "https" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then
+    args+=(--cacert "${TF_VAR_caddy_tls_ca_file}")
+  fi
+
+  for ((i = 1; i <= attempts; i++)); do
+    status_code="$(curl "${args[@]}" -o /dev/null -w '%{http_code}' "${url}" || true)"
+    if [[ "${status_code}" == "200" ]]; then
+      return 0
+    fi
+    sleep "${sleep_seconds}"
+  done
+
+  fail "${name} never became ready at ${url}"
+}
+
 create_test_user_enabled() {
   case "${TF_VAR_create_test_user:-false}" in
     true | TRUE | True | 1)
@@ -1306,6 +1332,9 @@ main() {
 
   log "Configuring Nextcloud OIDC provider..."
   configure_nextcloud_oidc
+
+  log "Waiting for Nextcloud public route readiness..."
+  wait_for_public_http_200 "Nextcloud public route" "$(nextcloud_public_url)/status.php" 60 2
 
   log "Ensuring backend-owned Nextcloud actor for files/calendar facades..."
   ensure_nextcloud_backend_actor
