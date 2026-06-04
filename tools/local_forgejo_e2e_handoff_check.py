@@ -15,6 +15,8 @@ DOC = ROOT / "docs" / "evidence" / "local-forgejo-e2e-handoff.md"
 FEATURE = ROOT / "e2e" / "features" / "sprint_27_local_forgejo_e2e_handoff.feature"
 MAPPING = ROOT / "e2e" / "scenario_mappings.json"
 RUNNER_FIXTURE = ROOT / "release" / "provider-lab" / "local-forgejo-runner-readiness" / "runner-readiness.fixture.json"
+DEPLOYABLE_PLAN_FIXTURE = ROOT / "release" / "provider-lab" / "local-domain-plan" / "deployable-domain-plan.fixture.json"
+PIPELINE_PROVIDER_FIXTURE = ROOT / "release" / "provider-lab" / "admin-cicd" / "local-forgejo-pipeline-provider.fixture.json"
 
 FORBIDDEN_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
@@ -41,6 +43,13 @@ REQUIRED_SIGNALS = {
     "pipeline_terminal_success",
     "stack_readiness_passed",
     "weave_e2e_passed",
+}
+REQUIRED_FAILURE_CASES = {
+    "missing_test_credential",
+    "stack_not_ready",
+    "e2e_failed",
+    "timeout",
+    "evidence_redaction_failed",
 }
 
 
@@ -100,8 +109,36 @@ def main() -> None:
     if set(fixture.get("requiredConciseLocalSignals", [])) != REQUIRED_SIGNALS:
         fail("fixture required concise signals mismatch")
     upstream = fixture.get("requiredUpstreamEvidence", {})
-    if upstream.get("runnerReadinessRef") != str(RUNNER_FIXTURE.relative_to(ROOT)):
-        fail("#665 fixture must depend on #662 runner readiness")
+    expected_upstream = {
+        "runnerReadinessRef": RUNNER_FIXTURE,
+        "deployablePlanRef": DEPLOYABLE_PLAN_FIXTURE,
+        "pipelineRunRef": PIPELINE_PROVIDER_FIXTURE,
+    }
+    for key, path in expected_upstream.items():
+        if upstream.get(key) != str(path.relative_to(ROOT)):
+            fail(f"#665 fixture upstream {key} mismatch: {upstream.get(key)!r}")
+        if not path.exists():
+            fail(f"#665 upstream evidence missing {path.relative_to(ROOT)}")
+    admin_state = fixture.get("adminConsoleEvidenceState", {})
+    if admin_state.get("rawDetailsDisplayed") is not False:
+        fail("Admin Console evidence state must not display raw details")
+    if set(admin_state.get("blockedUntilSignals", [])) != REQUIRED_SIGNALS:
+        fail("Admin Console evidence state must block until all #665 concise signals")
+    failure_cases = fixture.get("failureCases", [])
+    if {case.get("case") for case in failure_cases if isinstance(case, dict)} != REQUIRED_FAILURE_CASES:
+        fail("#665 failure-case coverage mismatch")
+    for case in failure_cases:
+        if case.get("case") == "evidence_redaction_failed" and case.get("status") != "blocked":
+            fail("redaction failure must block evidence persistence")
+    mainline = fixture.get("mainlineDependencyStatus", {})
+    for key in [
+        "localCicdBootstrapperIssue666PresentOnMain",
+        "localForgejoRunnerReadinessIssue662PresentOnMain",
+        "deployableDomainPlanIssue664PresentOnMain",
+        "pipelineProviderIssue663PresentOnMain",
+    ]:
+        if mainline.get(key) is not True:
+            fail(f"#665 mainline dependency boundary must claim {key}=true only after artifacts are present")
     runner_status = fixture.get("runnerSignalStatus", {})
     for name in ["service_exists", "config_path_exists", "registered", "running", "secret_refs_present"]:
         if runner_status.get(name) is not True:
@@ -114,8 +151,13 @@ def main() -> None:
             fail(f"claim boundary missing {name}=true")
     if boundary.get("releaseReadyClaimAllowed") is not False:
         fail("#665 blocked handoff must not allow release-ready claim")
+    live_boundary = fixture.get("liveEvidenceBoundary", {})
+    if live_boundary.get("liveDispatchPerformed") is not False or live_boundary.get("requiresExplicitApprovalBeforeMutation") is not True:
+        fail("live dispatch boundary must remain explicit before local Forgejo/stack mutation")
+    if live_boundary.get("forgejoWorkflowFileObserved") is not False:
+        fail("read-only local probe currently observed no local Forgejo workflow file")
     assert_support_safe(fixture, "e2e handoff fixture")
-    assert_fragments(DOC, ["blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "concise `~/server` signal", "weave_e2e_passed"])
+    assert_fragments(DOC, ["blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "concise `~/server` signal", "weave_e2e_passed", "Admin Console readiness/evidence state", "Failure cases", "Live evidence boundary"])
     assert_fragments(FEATURE, ["@sprint27-local-forgejo-e2e-handoff", "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "pipeline_terminal_success"])
     assert_fragments(MAPPING, ["@sprint27-local-forgejo-e2e-handoff", "LOCAL_FORGEJO_E2E_HANDOFF_PROOF", str(FIXTURE.relative_to(ROOT))])
     print("local-forgejo-e2e-handoff-check: ok issue=665 status=blocked_awaiting_pipeline_deployed_stack_and_e2e_signal")
