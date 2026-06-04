@@ -94,6 +94,9 @@ jobs:
             && command -v pkg-config >/dev/null 2>&1 \
             && command -v unzip >/dev/null 2>&1 \
             && command -v zstd >/dev/null 2>&1 \
+            && command -v xvfb-run >/dev/null 2>&1 \
+            && command -v xauth >/dev/null 2>&1 \
+            && command -v dbus-run-session >/dev/null 2>&1 \
             && pkg-config --exists gtk+-3.0 \
             && pkg-config --exists libsecret-1 \
             && pkg-config --exists webkit2gtk-4.1; then
@@ -107,6 +110,7 @@ jobs:
             clang \
             cmake \
             curl \
+            dbus-x11 \
             docker.io \
             git \
             iproute2 \
@@ -118,6 +122,8 @@ jobs:
             ninja-build \
             pkg-config \
             unzip \
+            xauth \
+            xvfb \
             xz-utils \
             zstd
       - name: Install Flutter and OpenTofu without external setup actions
@@ -285,7 +291,7 @@ jobs:
           WEAVE_BOOTSTRAP_ENV: ${{ github.workspace }}/infra/weave-workspace/.generated/bootstrap.env
         run: |
           set -euo pipefail
-          make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
+          xvfb-run -a --server-args="-screen 0 1280x1024x24" dbus-run-session -- make integration-test 2>&1 | tee "$WEAVE_ACCEPTANCE_TEST_LOG"
       - name: Generate support-safe acceptance evidence
         if: always()
         working-directory: client
