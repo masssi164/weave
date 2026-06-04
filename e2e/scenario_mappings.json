@@ -1766,6 +1766,43 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@sprint28-commercial-adapter-readiness",
+      "scenario": "Teams and Slack readiness specs block implementation starts",
+      "feature": "e2e/features/sprint_28_commercial_adapter_readiness.feature",
+      "executableTest": "tools/commercial_adapter_readiness_check.py",
+      "evidenceMarkers": [
+        "COMMERCIAL_ADAPTER_READINESS_PROOF"
+      ],
+      "additionalEvidence": [
+        {
+          "path": "docs/CommercialAdapterReadiness.md",
+          "fragments": [
+            "Microsoft Teams readiness section",
+            "Slack readiness section",
+            "Do not claim Slack or Teams integration is implemented"
+          ]
+        },
+        {
+          "path": "release/commercial-adapter-readiness/go-no-go-matrix.json",
+          "fragments": [
+            "weave-commercial-adapter-go-no-go-matrix-v1",
+            "\"implementationStartAllowed\": false",
+            "Slack integration is implemented",
+            "Microsoft Teams integration is implemented"
+          ]
+        },
+        {
+          "path": "release/commercial-adapter-readiness/implementation-guard.fixture.json",
+          "fragments": [
+            "weave-commercial-adapter-implementation-guard-v1",
+            "\"approvedImplementationProviders\": []",
+            "noProviderTenantMutation"
+          ]
+        }
+      ],
+      "evidenceMode": "offline-spec"
     }
   ]
 }
