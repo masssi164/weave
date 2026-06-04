@@ -109,6 +109,9 @@ grep -Fq '"schema": "weave-support-safe-adapter-readiness-v1"' "${extracted}/che
 grep -Fq '"domain": "boards-tasks"' "${extracted}/checks/adapter-readiness-summary.json"
 grep -Fq '"adapterKey": "openproject-primary"' "${extracted}/checks/adapter-readiness-summary.json"
 grep -Fq '"configured": true' "${extracted}/checks/adapter-readiness-summary.json"
+grep -Fq '"artifactKind": "weave-support-bundle-redaction-report-v1"' "${extracted}/checks/support-redaction-report.json"
+grep -Fq '"name": "negative_fixture_detects_unsafe_content"' "${extracted}/checks/support-redaction-report.json"
+grep -Fq '"unsafeContentDetected": false' "${extracted}/checks/support-redaction-report.json"
 
 if grep -R -Fq 'super-secret' "${extracted}" || grep -R -Fq 'calendar-token' "${extracted}" || grep -R -Fq 'slack-signing-secret' "${extracted}" || grep -R -Fq 'slack-client-secret-ref' "${extracted}" || grep -R -Fq 'openproject-super-secret' "${extracted}" || grep -R -Fq 'openproject-secret-key-base' "${extracted}" || grep -R -Fq 'openproject-app-token' "${extracted}" || grep -R -Fq 'boards-provider-secret' "${extracted}" || grep -R -Fq 'boards-runtime-token' "${extracted}" || grep -R -Fq 'weaver-short-lived-token' "${extracted}" || grep -R -Fq 'secretref://weave' "${extracted}" || grep -R -Fq 'openproject.example' "${extracted}" || grep -R -Fq 'files.weave.local' "${extracted}" || grep -R -Fq 'AKIAABCDEFGHIJKLMNOP' "${extracted}" || grep -R -Fq 'person@example.com' "${extracted}" || grep -R -Fq 'raw-private-key-material' "${extracted}"; then
   echo "support bundle leaked a test secret" >&2
