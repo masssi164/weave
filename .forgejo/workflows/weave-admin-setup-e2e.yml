@@ -74,6 +74,7 @@ jobs:
       WEAVE_CONFIRM_DESTRUCTIVE_RESET: weave
       WEAVE_INTEGRATION_TEST_DEVICE: linux
       DOCKER_HOST: tcp://forgejo-runner-dind:2375
+      WEAVE_IAC_BIN: tofu
     steps:
       - name: Check out weave
         uses: actions/checkout@v4
@@ -104,9 +105,10 @@ jobs:
           mkdir -p "$install_root"
           if ! command -v flutter >/dev/null 2>&1; then
             git clone --depth 1 --branch stable https://github.com/flutter/flutter.git "$install_root/flutter"
-            echo "$install_root/flutter/bin" >> "$GITHUB_PATH"
-            export PATH="$install_root/flutter/bin:$PATH"
           fi
+          echo "$install_root/flutter/bin" >> "$GITHUB_PATH"
+          echo "PATH=$install_root/flutter/bin:$PATH" >> "$GITHUB_ENV"
+          export PATH="$install_root/flutter/bin:$PATH"
           if ! command -v tofu >/dev/null 2>&1; then
             arch="$(uname -m)"
             case "$arch" in
@@ -190,6 +192,8 @@ jobs:
       - name: Generate support-safe acceptance evidence
         if: always()
         working-directory: client
+        env:
+          WEAVE_OFFLINE_CONTRACT_ONLY: 'false'
         run: |
           set -euo pipefail
           dart run tool/acceptance_contract.dart guard \
