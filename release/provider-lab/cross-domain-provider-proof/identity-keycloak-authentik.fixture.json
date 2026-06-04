@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-sprint-27-identity-boundary-proof-v1",
+  "issue": 645,
+  "supportSafe": true,
+  "domain": "identity",
+  "sourceProviderKey": "keycloak",
+  "targetProviderKey": "authentik",
+  "realityLevel": "migration_dry_run",
+  "canonicalObjects": [
+    "Organization",
+    "UserAccount",
+    "Person",
+    "Group",
+    "Role",
+    "IdentitySource",
+    "CapabilityPolicy",
+    "ProviderRef"
+  ],
+  "fixtureRef": "identity-fixture-sprint-27-redacted",
+  "preservedFields": [
+    "UserAccount.stableSubjectHash",
+    "Person.displayName",
+    "Person.primaryEmailHash",
+    "Group.externalGroupHash",
+    "Role.weaveRoleKey",
+    "IdentitySource.protocol",
+    "CapabilityPolicy.effectivePolicyRef",
+    "ProviderRef.sourceProviderKey"
+  ],
+  "lossyFields": [
+    {
+      "field": "UserAccount.sessionContinuity",
+      "source": "keycloak-session",
+      "target": "authentik-session",
+      "classification": "unsupported",
+      "adminImpact": "Users must reauthenticate after cutover; no session portability claim is made."
+    },
+    {
+      "field": "Role.providerCompositeRoleExpression",
+      "source": "keycloak-composite-role",
+      "target": "authentik-group-policy-expression",
+      "classification": "partially_preserved",
+      "adminImpact": "Effective Weave role is preserved; provider-native composite expression requires admin review."
+    },
+    {
+      "field": "IdentitySource.samlNameIdFormatOverride",
+      "source": "keycloak-saml-client-setting",
+      "target": "authentik-provider-setting",
+      "classification": "metadata_only",
+      "adminImpact": "SAML override is retained in the switch report and must be confirmed before activation."
+    }
+  ],
+  "authEvidenceBoundary": {
+    "containsSecrets": false,
+    "containsRawAssertions": false,
+    "containsBearerTokens": false,
+    "redactedRefsOnly": true
+  },
+  "protocolCoverage": {
+    "oidc": "mapped",
+    "saml": "mapped",
+    "roles": "mapped_with_review",
+    "groups": "mapped",
+    "rollback": "not_ready"
+  },
+  "rollbackBoundary": {
+    "rollbackReady": false,
+    "reason": "Sprint 27 identity proof names mapping and risk boundaries without mutating identity providers."
+  },
+  "evidenceMarkers": ["SPRINT27_IDENTITY_PROVIDER_BOUNDARY_PROOF"]
+}

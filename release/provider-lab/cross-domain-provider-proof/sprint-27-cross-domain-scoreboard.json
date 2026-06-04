@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-sprint-27-cross-domain-provider-proof-scoreboard-v1",
+  "supportSafe": true,
+  "issues": {
+    "643": "green",
+    "644": "green",
+    "645": "green",
+    "646": "green"
+  },
+  "domainRealityLevels": {
+    "calendar": "migration_dry_run",
+    "files": "migration_dry_run",
+    "identity": "migration_dry_run",
+    "chat": "migration_apply_ready",
+    "setupFlow": "configured_with_pipeline_dispatch_gated"
+  },
+  "domainEvidence": {
+    "calendar": "release/provider-lab/cross-domain-provider-proof/calendar-nextcloud-radicale.fixture.json",
+    "files": "release/provider-lab/cross-domain-provider-proof/files-nextcloud-minio.fixture.json",
+    "identity": "release/provider-lab/cross-domain-provider-proof/identity-keycloak-authentik.fixture.json",
+    "chat": "release/provider-lab/chat-switch/sprint-23-claim-gate.fixture.json"
+  },
+  "setupFlowEvidence": {
+    "bootstrapperIssue": 666,
+    "runnerReadinessIssue": 662,
+    "deployablePlanIssue": 664,
+    "pipelineProviderIssue": 663,
+    "deployedStackE2eIssue": 665,
+    "deployedStackE2eStatus": "separate_not_required_for_domain_aggregate",
+    "evidenceRefs": [
+      "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
+      "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
+      "release/provider-lab/local-domain-plan/deployable-domain-plan.fixture.json",
+      "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json"
+    ]
+  },
+  "claimGateRef": "release/provider-lab/cross-domain-provider-proof/sprint-27-provider-neutrality-claim-gate.fixture.json",
+  "broadProviderNeutralityClaim": "blocked_until_release_ready_evidence_exists_for_each_named_scope",
+  "releaseReady": false,
+  "evidenceMarkers": ["SPRINT27_PROVIDER_NEUTRALITY_SCOREBOARD"]
+}
