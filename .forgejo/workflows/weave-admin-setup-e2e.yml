@@ -211,10 +211,14 @@ jobs:
           WEAVE_IAC_BIN: tofu
         run: |
           set -euo pipefail
-          runner_loopback_host="${WEAVE_LOOPBACK_HOST:-}"
-          if [ -z "$runner_loopback_host" ] || [ "$runner_loopback_host" = "127.0.0.1" ]; then
-            runner_loopback_host="$(ip route | awk '/default/ && $3 ~ /^[0-9]+([.][0-9]+){3}$/ {print $3; exit}')"
-          fi
+          candidates_file="$(mktemp)"
+          printf '%s\n' "${WEAVE_LOOPBACK_HOST:-}" > "$candidates_file"
+          docker inspect "$(hostname)" -f '{{range .NetworkSettings.Networks}}{{if .Gateway}}{{println .Gateway}}{{end}}{{end}}' >> "$candidates_file" 2>/dev/null || true
+          docker network inspect homelab_internal -f '{{range .IPAM.Config}}{{if .Gateway}}{{println .Gateway}}{{end}}{{end}}' >> "$candidates_file" 2>/dev/null || true
+          getent hosts host.docker.internal 2>/dev/null | awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ {print $1}' >> "$candidates_file" || true
+          ip route 2>/dev/null | awk '/default/ && $3 ~ /^[0-9]+([.][0-9]+){3}$/ {print $3; exit}' >> "$candidates_file" || true
+          runner_loopback_host="$(awk '$1 ~ /^[0-9]+([.][0-9]+){3}$/ && $1 != "127.0.0.1" {print $1; exit}' "$candidates_file")"
+          rm -f "$candidates_file"
           if [ -z "$runner_loopback_host" ]; then
             echo "runner_loopback_host_resolved=false"
             exit 2
