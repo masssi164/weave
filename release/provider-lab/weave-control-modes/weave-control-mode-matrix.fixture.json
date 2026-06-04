@@ -1,0 +1,49 @@
+{
+  "artifactKind": "weave-control-mode-matrix-v1",
+  "issues": [681, 685],
+  "supportSafe": true,
+  "modes": [
+    {
+      "mode": "deploy_new",
+      "allowedMutationBoundary": "only resources named in approved plan after dry-run, consequence copy, rollback boundary, and approval receipt",
+      "evidenceRefs": ["plan_ref", "pipeline_run_ref", "stack_readiness_ref", "weave_e2e_ref", "audit_ref", "support_bundle_ref"],
+      "memberResult": "provider-neutral capability states only"
+    },
+    {
+      "mode": "attach_existing",
+      "allowedMutationBoundary": "no provider redeploy, destructive migration, or credential rotation unless separately approved",
+      "evidenceRefs": ["attach_preflight_ref", "secretref_posture_ref", "health_readiness_ref", "next_action_code_ref"],
+      "memberResult": "provider-neutral capability states only"
+    },
+    {
+      "mode": "hybrid",
+      "allowedMutationBoundary": "per-domain deploy_new or attach_existing boundary remains separate; unsupported combinations fail closed",
+      "evidenceRefs": ["per_domain_mode_refs", "aggregate_member_preview_ref", "release_claim_boundary_ref"],
+      "memberResult": "one coherent provider-neutral organization manifest"
+    }
+  ],
+  "planPreflightInvariant": {
+    "rawSecretsAccepted": false,
+    "credentialBearingUrlsAccepted": false,
+    "unsupportedCombinationResult": "unsupported_hybrid_combination",
+    "mutationBeforeApprovalAllowed": false,
+    "requiredAdminCopy": ["SecretRef/CredentialRef posture", "consequence copy", "rollback/support boundary", "blocked claims"]
+  },
+  "claimStates": {
+    "dispatch_preflight_only": "Workflow dispatch/preflight exists but terminal pipeline, stack readiness, and Weave E2E are not all proved.",
+    "pipeline_terminal_success": "Selected execution target reached a terminal success state.",
+    "stack_readiness_passed": "The selected deployed or attached stack produced support-safe readiness evidence.",
+    "weave_e2e_passed": "Weave E2E passed against the selected target stack.",
+    "member_provider_neutral_join_passed": "A normal member joined through organization URL, invite link, or deep link and saw provider-neutral product surfaces."
+  },
+  "forbiddenEvidence": [
+    "raw_secret_value",
+    "bearer_token",
+    "credential_bearing_url",
+    "tenant_url",
+    "raw_provider_payload",
+    "raw_provider_error",
+    "raw_ci_log",
+    "member_content"
+  ]
+}

@@ -151,13 +151,23 @@ def main() -> None:
             fail(f"claim boundary missing {name}=true")
     if boundary.get("releaseReadyClaimAllowed") is not False:
         fail("#665 blocked handoff must not allow release-ready claim")
+    preflight = fixture.get("currentLocalForgejoPreflight", {})
+    for key in ["repoTargetObserved", "workflowTargetObserved", "dispatchAccepted", "dispatchPreflightTerminalSuccess"]:
+        if preflight.get(key) is not True:
+            fail(f"current local Forgejo preflight must record {key}=true")
+    for key in ["deployedStackPipelineTerminalSuccess", "stackReadinessPassed", "weaveE2ePassed"]:
+        if preflight.get(key) is not False:
+            fail(f"current local Forgejo preflight must keep {key}=false until deployed-stack E2E exists")
+    if preflight.get("claimBoundary") != "dispatch_preflight_only":
+        fail("current local Forgejo preflight must remain dispatch_preflight_only")
     live_boundary = fixture.get("liveEvidenceBoundary", {})
-    if live_boundary.get("liveDispatchPerformed") is not False or live_boundary.get("requiresExplicitApprovalBeforeMutation") is not True:
-        fail("live dispatch boundary must remain explicit before local Forgejo/stack mutation")
-    if live_boundary.get("forgejoWorkflowFileObserved") is not False:
-        fail("read-only local probe currently observed no local Forgejo workflow file")
+    if live_boundary.get("liveDispatchPerformed") is not True or live_boundary.get("requiresExplicitApprovalBeforeMutation") is not True:
+        fail("live dispatch boundary must record approved preflight and keep explicit approval for stack mutation")
+    for key in ["forgejoRepositoryTargetObserved", "forgejoWorkflowFileObserved", "dispatchPreflightPerformed", "dispatchPreflightTerminalSuccess"]:
+        if live_boundary.get(key) is not True:
+            fail(f"live evidence boundary must record {key}=true")
     assert_support_safe(fixture, "e2e handoff fixture")
-    assert_fragments(DOC, ["blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "concise `~/server` signal", "weave_e2e_passed", "Admin Console readiness/evidence state", "Failure cases", "Live evidence boundary"])
+    assert_fragments(DOC, ["blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "concise `~/server` signal", "dispatch_preflight_only", "local-forgejo-actions-run-7", "weave_e2e_passed", "Admin Console readiness/evidence state", "Failure cases", "Live evidence boundary"])
     assert_fragments(FEATURE, ["@sprint27-local-forgejo-e2e-handoff", "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal", "pipeline_terminal_success"])
     assert_fragments(MAPPING, ["@sprint27-local-forgejo-e2e-handoff", "LOCAL_FORGEJO_E2E_HANDOFF_PROOF", str(FIXTURE.relative_to(ROOT))])
     print("local-forgejo-e2e-handoff-check: ok issue=665 status=blocked_awaiting_pipeline_deployed_stack_and_e2e_signal")

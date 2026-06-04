@@ -1,0 +1,23 @@
+{
+  "artifactKind": "weave-control-hybrid-member-manifest-v1",
+  "issues": [681, 685],
+  "supportSafe": true,
+  "mode": "hybrid",
+  "domainModes": [
+    {"domain": "identity-idm", "mode": "attach_existing", "mutationBoundary": "no_redeploy_without_separate_approval", "memberState": "available"},
+    {"domain": "chat", "mode": "deploy_new", "mutationBoundary": "approved_plan_resources_only", "memberState": "available"},
+    {"domain": "files", "mode": "attach_existing", "mutationBoundary": "no_destructive_migration_without_separate_approval", "memberState": "degraded"},
+    {"domain": "weaver-governed-pa", "mode": "attach_existing", "mutationBoundary": "policy_only_no_runtime_default", "memberState": "disabled_by_policy"}
+  ],
+  "unsupportedCombinationResult": "unsupported_hybrid_combination",
+  "memberManifest": {
+    "providerSetupControlsVisible": false,
+    "oidcEndpointSetupVisible": false,
+    "cicdTargetsVisible": false,
+    "secretRefsVisible": false,
+    "bootstrapDiagnosticsVisible": false,
+    "rawProviderErrorsVisible": false,
+    "coherentOrganizationView": true,
+    "states": ["available", "degraded", "disabled_by_policy"]
+  }
+}

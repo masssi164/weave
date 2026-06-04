@@ -30,7 +30,18 @@
     "deployedStackRequired": true,
     "weaveE2eRequired": true,
     "releaseReadyClaimAllowed": false,
-    "supportSafeSummary": "Post-run Weave E2E is blocked until PipelineProvider dispatch/status, deployed stack readiness, and Weave E2E concise signals are present. Mainline upstream prerequisites are present; live dispatch and deployed-stack E2E are not claimed."
+    "supportSafeSummary": "Post-run Weave E2E is blocked until deployed-stack pipeline success, deployed stack readiness, and Weave E2E concise signals are present. Mainline upstream prerequisites and a local dispatch/preflight success are present; deployed-stack readiness and Weave E2E are not claimed."
+  },
+  "currentLocalForgejoPreflight": {
+    "repoTargetObserved": true,
+    "workflowTargetObserved": true,
+    "dispatchAccepted": true,
+    "supportSafeRunRef": "local-forgejo-actions-run-7",
+    "dispatchPreflightTerminalSuccess": true,
+    "deployedStackPipelineTerminalSuccess": false,
+    "stackReadinessPassed": false,
+    "weaveE2ePassed": false,
+    "claimBoundary": "dispatch_preflight_only"
   },
   "forbiddenEvidence": [
     "secretValue",
@@ -107,12 +118,15 @@
     }
   ],
   "liveEvidenceBoundary": {
-    "localProbePerformed": "read_only_file_presence_under_home_server",
+    "localProbePerformed": "operator_approved_support_safe_forgejo_probe",
     "forgejoRunnerServiceNamesObserved": true,
-    "forgejoWorkflowFileObserved": false,
-    "liveDispatchPerformed": false,
+    "forgejoRepositoryTargetObserved": true,
+    "forgejoWorkflowFileObserved": true,
+    "dispatchPreflightPerformed": true,
+    "dispatchPreflightTerminalSuccess": true,
+    "liveDispatchPerformed": true,
     "requiresExplicitApprovalBeforeMutation": true,
-    "smallestApprovalNeeded": "Create or dispatch the local Forgejo weave-admin-setup-e2e workflow and run deployed-stack E2E using existing customer-owned SecretRefs; return only opaque run ref plus pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed booleans."
+    "smallestApprovalNeeded": "Extend the existing local Forgejo weave-admin-setup-e2e workflow from dispatch/preflight into deployed-stack execution, then run deployed-stack E2E using existing customer-owned SecretRefs; return only opaque run ref plus pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed booleans."
   },
   "mainlineDependencyStatus": {
     "originMainHead": "ae596b6",
@@ -120,6 +134,6 @@
     "localForgejoRunnerReadinessIssue662PresentOnMain": true,
     "deployableDomainPlanIssue664PresentOnMain": true,
     "pipelineProviderIssue663PresentOnMain": true,
-    "note": "Mainline upstream artifacts are present, but #665 remains blocked until live local Forgejo pipeline terminal success, deployed-stack readiness, and Weave E2E concise evidence are provided."
+    "note": "Mainline upstream artifacts and the local Forgejo dispatch/preflight target are present, but #665 remains blocked until deployed-stack pipeline terminal success, deployed-stack readiness, and Weave E2E concise evidence are provided."
   }
 }

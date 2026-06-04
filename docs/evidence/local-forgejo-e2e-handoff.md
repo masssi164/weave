@@ -22,10 +22,17 @@ Satisfied upstream runner signals:
 - `service_exists`, `config_path_exists`, `registered`, and `running` for the `~/server` Forgejo runner.
 - `secret_refs_present` for required names; values stay hidden.
 
+Current support-safe local preflight evidence:
+
+- local Forgejo repository target exists and contains the `weave-admin-setup-e2e` workflow target;
+- local Forgejo accepted a manual dispatch;
+- opaque run ref `local-forgejo-actions-run-7` reached dispatch/preflight terminal success;
+- this is `dispatch_preflight_only`, not deployed-stack or Weave E2E evidence.
+
 Still required before #665 can claim E2E:
 
-- `pipeline_terminal_success` for the selected `weave-admin-setup-e2e` workflow.
-- `stack_readiness_passed` for the deployed local stack.
+- `pipeline_terminal_success` for a deployed-stack execution of the selected `weave-admin-setup-e2e` workflow;
+- `stack_readiness_passed` for the deployed local stack;
 - `weave_e2e_passed` for Weave E2E.
 
 No raw logs, registration tokens, secret values, provider payloads, credential-bearing URLs, tenant URLs, or member content may be copied into the repo, issues, PRs, release evidence, or support bundles.
@@ -54,8 +61,10 @@ The #665 handoff must remain blocked and support-safe for:
 
 ## Live evidence boundary
 
-A read-only local probe under `~/server` found Forgejo/runner service names present but no checked-in `.forgejo`/`.gitea` workflow file named for `weave-admin-setup-e2e`; no file contents, logs, env, URLs, tokens, or secrets were read. Creating or dispatching that workflow is a live local Forgejo/stack mutation and needs explicit operator approval.
+An operator-approved support-safe local probe now shows the local Forgejo stack, repository target, runner path, and `weave-admin-setup-e2e` workflow target exist. A manual dispatch/preflight completed successfully and is recorded only as an opaque local run ref. No raw logs, registration material, secret values, provider payloads, credential-bearing URLs, tenant URLs, Matrix URLs, or member content may be copied into repo artifacts.
+
+Creating or extending the workflow from dispatch/preflight into deployed-stack execution remains a live local Forgejo/stack mutation. It is allowed only under the existing operator approval and support-safe evidence boundary, and the repo may record only the opaque run ref plus `pipeline_terminal_success`, `stack_readiness_passed`, and `weave_e2e_passed` booleans.
 
 ## Current claim boundary
 
-The current repo artifact is `blocked_awaiting_pipeline_deployed_stack_and_e2e_signal`. It may prove that #665 has a support-safe handoff contract and that upstream bootstrapper, runner, deployable-plan, and PipelineProvider prerequisites are present on main. It must not claim live pipeline success, deployed-stack readiness, Weave E2E success, production cutover, or release readiness.
+The current repo artifact is `blocked_awaiting_pipeline_deployed_stack_and_e2e_signal`. It may prove that #665 has a support-safe handoff contract, upstream bootstrapper/runner/deployable-plan/PipelineProvider prerequisites are present on main, and local Forgejo dispatch/preflight can reach terminal success. It must not claim deployed-stack pipeline success, deployed-stack readiness, Weave E2E success, production cutover, or release readiness.
