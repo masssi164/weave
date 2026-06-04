@@ -1,0 +1,34 @@
+name: Weave Admin Setup E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      evidence_mode:
+        description: "support-safe evidence mode; smoke does not claim #665 live-stack E2E"
+        required: false
+        default: "smoke"
+
+jobs:
+  support-safe-preflight:
+    name: Support-safe Forgejo dispatch preflight
+    runs-on:
+      - ubuntu-latest
+      - docker
+    timeout-minutes: 20
+    steps:
+      - name: Check out weave
+        uses: actions/checkout@v4
+      - name: Validate support-safe local Forgejo contracts
+        run: |
+          set -euo pipefail
+          python3 tools/local_forgejo_runner_readiness_check.py
+          python3 tools/local_forgejo_pipeline_provider_check.py
+          python3 tools/local_domain_adapter_plan_check.py
+          python3 tools/local_forgejo_e2e_handoff_check.py
+      - name: Emit claim boundary
+        run: |
+          set -euo pipefail
+          echo "pipeline_terminal_success=false"
+          echo "stack_readiness_passed=false"
+          echo "weave_e2e_passed=false"
+          echo "claim_boundary=dispatch_preflight_only_not_665_closure"
