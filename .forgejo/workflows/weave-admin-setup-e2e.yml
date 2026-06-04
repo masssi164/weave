@@ -164,6 +164,8 @@ jobs:
           done
       - name: Clean stale stack state
         working-directory: infra/weave-workspace
+        env:
+          WEAVE_IAC_BIN: tofu
         run: bash ./teardown.sh
       - name: Build backend image from monorepo server
         run: docker build -t "$WEAVE_BACKEND_IMAGE" server
@@ -171,6 +173,7 @@ jobs:
         working-directory: infra/weave-workspace
         env:
           TF_VAR_weave_backend_image: ${{ env.WEAVE_BACKEND_IMAGE }}
+          WEAVE_IAC_BIN: tofu
         run: ./install.sh
       - name: Verify deployed stack readiness
         working-directory: infra/weave-workspace
@@ -199,7 +202,7 @@ jobs:
           evidence_dir="${WEAVE_ACCEPTANCE_EVIDENCE_DIR:-$PWD/../.weave-local-forgejo-e2e-evidence}"
           test_log="${WEAVE_ACCEPTANCE_TEST_LOG:-$evidence_dir/weave-e2e.log}"
           mkdir -p "$evidence_dir"
-          : > "$test_log"
+          touch "$test_log"
           dart run tool/acceptance_contract.dart guard \
             --root .. \
             --features e2e/features \
@@ -220,4 +223,6 @@ jobs:
       - name: Destroy stack and scrub stale resources
         if: always()
         working-directory: infra/weave-workspace
+        env:
+          WEAVE_IAC_BIN: tofu
         run: bash ./teardown.sh
