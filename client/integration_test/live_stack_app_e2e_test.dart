@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:matrix/matrix.dart' as sdk;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart' as sqflite_ffi;
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/core/persistence/flutter_secure_store.dart';
@@ -83,8 +84,10 @@ void main() {
       'weave-live-e2e-matrix-',
     );
     matrixSupportDirectory = supportDirectory;
+    sqflite_ffi.sqfliteFfiInit();
     liveMatrixClientFactory = SdkMatrixClientFactory(
       appSupportDirectoryProvider: () async => supportDirectory,
+      databaseOpener: sqflite_ffi.databaseFactoryFfi.openDatabase,
       allowUnsupportedPlatformForTesting: true,
     );
   });
