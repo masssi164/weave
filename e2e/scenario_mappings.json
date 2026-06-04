@@ -1548,7 +1548,7 @@
           "path": "release/provider-lab/local-forgejo-e2e/local-stack-e2e-handoff.fixture.json",
           "fragments": [
             "weave-local-forgejo-e2e-handoff-v1",
-            "local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch",
+            "forgejo_runner_handoff_and_separate_client_e2e_passed",
             "currentSeparateClientLane",
             "weaveClientE2ePassed"
           ]
@@ -1558,7 +1558,7 @@
           "fragments": [
             "concise `~/server` signal",
             "pipeline_terminal_success",
-            "local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch",
+            "forgejo_runner_handoff_and_separate_client_e2e_passed",
             "forgejo_runner_workflow_terminal_success"
           ]
         },

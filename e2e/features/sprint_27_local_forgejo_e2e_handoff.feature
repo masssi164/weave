@@ -7,7 +7,7 @@ Feature: Sprint 27 local Forgejo deployment handoff and separate client evidence
     And runner readiness has the concise ~/server service/config/registered/running signal
     And a direct local stack install plus operator-check passed on the current working tree
     And separate client-lane evidence passed against the handoff target
-    Then the #665 artifact records local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch
+    Then the #665 artifact records forgejo_runner_handoff_and_separate_client_e2e_passed
     And no secret value, runner registration token, raw CI log, provider payload, credential-bearing URL, tenant URL, or member content is persisted
     When strict Forgejo-runner closure is required
     Then a current forgejo_runner_workflow_terminal_success ref is still required before claiming local Forgejo workflow completion

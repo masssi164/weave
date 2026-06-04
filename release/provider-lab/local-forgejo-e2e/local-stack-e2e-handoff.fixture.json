@@ -4,7 +4,7 @@
   "supportSafe": true,
   "providerKey": "local-forgejo-actions",
   "workflowRef": "weave-admin-setup-e2e",
-  "status": "local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch",
+  "status": "forgejo_runner_handoff_and_separate_client_e2e_passed",
   "requiredUpstreamEvidence": {
     "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
     "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
@@ -34,25 +34,37 @@
     "serverInfraDeploymentPassedDirectly": true,
     "weaveControlHandoffPassedDirectly": true,
     "separateClientE2ePassed": true,
-    "forgejoRunnerWorkflowTerminalSuccess": false,
+    "forgejoRunnerWorkflowTerminalSuccess": true,
     "releaseReadyClaimAllowed": false,
-    "issueClosureClaimAllowed": false,
-    "supportSafeSummary": "Direct local deployment handoff and separate app/client E2E passed against the current working tree. A true Forgejo-runner workflow terminal-success ref has not been produced from these uncommitted changes; the workflow now supports a bounded handoff_hold_seconds window for a separate client lane before cleanup, so #665 closure remains pending until committed, pushed, dispatch-run, and correlated."
+    "issueClosureClaimAllowed": true,
+    "supportSafeSummary": "Local Forgejo workflow_dispatch run 121 deployed the selected Weave Control/server/infra stack from commit c0470ee, emitted support-safe handoff booleans, held the handoff for an external client lane, and the separate app/client E2E lane passed against that runner-deployed target. This closes the #665 evidence boundary without claiming production cutover or release readiness."
   },
   "currentLocalForgejoPreflight": {
     "repoTargetObserved": true,
     "workflowTargetObserved": true,
     "dispatchAccepted": true,
-    "supportSafeRunRef": "local-forgejo-actions-run-7",
+    "supportSafeRunRef": "local-forgejo-actions-run-121",
     "dispatchPreflightTerminalSuccess": true,
-    "claimBoundary": "dispatch_preflight_plus_direct_local_proofs",
-    "localDeploymentPipelineTerminalSuccess": false,
-    "serverInfraReadinessPassed": false,
-    "weaveControlReady": false,
-    "clientBootstrapHandoffReady": false,
+    "claimBoundary": "forgejo_runner_deployment_handoff_plus_separate_client_lane",
+    "localDeploymentPipelineTerminalSuccess": true,
+    "serverInfraReadinessPassed": true,
+    "weaveControlReady": true,
+    "clientBootstrapHandoffReady": true,
     "memberProviderNeutralJoinPassed": false,
     "weaveClientE2ePassed": false,
-    "forgejoRunnerWorkflowTerminalSuccess": false
+    "forgejoRunnerWorkflowTerminalSuccess": true,
+    "supportSafeJobRef": "local-forgejo-actions-job-235",
+    "supportSafeTaskRef": "local-forgejo-actions-task-220",
+    "commitSha": "c0470eec04232b2271e49a82566796d66aab99d7",
+    "backendImageRevision": "c0470eec04232b2271e49a82566796d66aab99d7",
+    "backendImageId": "sha256:0f299fd6c6b46086b9a6fe3f08b95a6d3dfdaa2bfeb0f47417d8051f72304fc2",
+    "handoffHoldSeconds": 1800,
+    "oidcDiscoveryReadyDuringHandoff": true,
+    "clientSignalsEmittedByDeploymentRunner": false,
+    "terminalStatus": "success",
+    "taskLogInStorage": true,
+    "holdStepStatus": "success",
+    "destroyStepStatus": "success"
   },
   "forbiddenEvidence": [
     "secretValue",
@@ -148,12 +160,25 @@
     "smallestApprovalNeeded": "Extend the existing local Forgejo weave-admin-setup-e2e workflow from dispatch/preflight into Weave Control, server, and infra deployment; return only opaque run ref plus pipeline_terminal_success, server_infra_readiness_passed, weave_control_ready, and client_bootstrap_handoff_ready booleans. Run app/client E2E separately against the handoff target.",
     "directLocalDeploymentProofPerformed": true,
     "separateClientE2eProofPerformed": true,
-    "forgejoRunnerWorkflowTerminalSuccessRecorded": false,
-    "smallestRemainingProofNeeded": "Commit/push the updated weave-admin-setup-e2e workflow to local Forgejo, dispatch it with a bounded handoff_hold_seconds value, record the support-safe terminal runner ref, run the separate client lane against that runner-deployed handoff target, then teardown.",
+    "forgejoRunnerWorkflowTerminalSuccessRecorded": true,
+    "smallestRemainingProofNeeded": "None for #665 evidence closure. Keep production cutover and release-readiness as separate approvals.",
     "forgejoWorkflowSupportsExternalClientHandoffHold": true,
     "handoffHoldInput": "handoff_hold_seconds",
     "handoffHoldDefaultSeconds": 0,
-    "handoffHoldMaxSeconds": 7200
+    "handoffHoldMaxSeconds": 7200,
+    "terminalRunRef": "local-forgejo-actions-run-121",
+    "terminalJobRef": "local-forgejo-actions-job-235",
+    "terminalTaskRef": "local-forgejo-actions-task-220",
+    "commitSha": "c0470eec04232b2271e49a82566796d66aab99d7",
+    "backendImageRevision": "c0470eec04232b2271e49a82566796d66aab99d7",
+    "backendImageId": "sha256:0f299fd6c6b46086b9a6fe3f08b95a6d3dfdaa2bfeb0f47417d8051f72304fc2",
+    "handoffHoldSeconds": 1800,
+    "oidcDiscoveryReadyDuringHandoff": true,
+    "separateClientLaneAgainstRunnerHandoffPassed": true,
+    "terminalStatus": "success",
+    "taskLogInStorage": true,
+    "holdStepStatus": "success",
+    "destroyStepStatus": "success"
   },
   "mainlineDependencyStatus": {
     "originMainHead": "ae596b6",
@@ -161,7 +186,7 @@
     "localForgejoRunnerReadinessIssue662PresentOnMain": true,
     "deployableDomainPlanIssue664PresentOnMain": true,
     "pipelineProviderIssue663PresentOnMain": true,
-    "note": "Mainline upstream artifacts and local dispatch/preflight target are present. Current working tree direct local deployment handoff and separate client E2E passed; a Forgejo-runner workflow terminal ref for these uncommitted changes is not recorded."
+    "note": "Mainline upstream artifacts and local dispatch/preflight target are present. Local Forgejo workflow_dispatch run 121 provided the strict deployment handoff proof, and the separate client lane passed against that runner-deployed handoff target."
   },
   "currentLocalDirectProof": {
     "supportSafeRunRef": "local-direct-weave-stack-proof-current-working-tree",
@@ -175,8 +200,8 @@
     "supportSafeSummary": "Local stack install completed and operator-check reported Operator checks passed."
   },
   "currentSeparateClientLane": {
-    "supportSafeRunRef": "local-client-integration-test-current-working-tree",
-    "commandRef": "client/Makefile integration-test",
+    "supportSafeRunRef": "local-client-integration-app-e2e-against-local-forgejo-run-121-handoff",
+    "commandRef": "client/Makefile integration-app-e2e",
     "makeFailMaskingFixed": true,
     "memberProviderNeutralJoinPassed": true,
     "weaveClientE2ePassed": true,
@@ -194,6 +219,10 @@
     ],
     "e2eePostureBoundary": "Encrypted Matrix wire event required; recoveryRequired is accepted only as honest posture, not as a healthy-recovery claim.",
     "rawLogsPersisted": false,
-    "supportSafeSummary": "Separate client lane passed with real auth, profile, Matrix chat/E2EE, files, calendar policy, boards, workspace-loop, and provider-reality markers."
+    "supportSafeSummary": "Separate client lane passed against the local Forgejo runner-deployed handoff with real auth, profile, Matrix chat/E2EE, files, calendar policy, boards, workspace-loop, provider-reality markers, and the follow-up app contract suite.",
+    "againstForgejoRunnerRunRef": "local-forgejo-actions-run-121",
+    "againstForgejoRunnerTaskRef": "local-forgejo-actions-task-220",
+    "runnerBootstrapEnvCopiedTemporarily": true,
+    "runnerBootstrapSecretValuesPersisted": false
   }
 }

@@ -132,7 +132,7 @@ def main() -> None:
     fixture = load(FIXTURE)
     if fixture.get("artifactKind") != "weave-local-forgejo-e2e-handoff-v1" or fixture.get("issue") != 665:
         fail("fixture kind/issue mismatch")
-    expected_status = "local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch"
+    expected_status = "forgejo_runner_handoff_and_separate_client_e2e_passed"
     if fixture.get("status") != expected_status:
         fail(f"#665 fixture status mismatch: {fixture.get('status')!r}")
     if set(fixture.get("requiredConciseLocalSignals", [])) != REQUIRED_SIGNALS:
@@ -187,18 +187,33 @@ def main() -> None:
     ]:
         if boundary.get(name) is not True:
             fail(f"claim boundary missing {name}=true")
-    for name in ["forgejoRunnerWorkflowTerminalSuccess", "releaseReadyClaimAllowed", "issueClosureClaimAllowed"]:
-        if boundary.get(name) is not False:
-            fail(f"claim boundary must keep {name}=false")
+    if boundary.get("forgejoRunnerWorkflowTerminalSuccess") is not True:
+        fail("claim boundary must record forgejoRunnerWorkflowTerminalSuccess=true")
+    if boundary.get("issueClosureClaimAllowed") is not True:
+        fail("claim boundary must allow #665 evidence closure")
+    if boundary.get("releaseReadyClaimAllowed") is not False:
+        fail("claim boundary must keep releaseReadyClaimAllowed=false")
     preflight = fixture.get("currentLocalForgejoPreflight", {})
     for key in ["repoTargetObserved", "workflowTargetObserved", "dispatchAccepted", "dispatchPreflightTerminalSuccess"]:
         if preflight.get(key) is not True:
             fail(f"current local Forgejo preflight must record {key}=true")
-    for key in ["localDeploymentPipelineTerminalSuccess", "serverInfraReadinessPassed", "weaveControlReady", "clientBootstrapHandoffReady", "memberProviderNeutralJoinPassed", "weaveClientE2ePassed", "forgejoRunnerWorkflowTerminalSuccess"]:
+    for key in ["localDeploymentPipelineTerminalSuccess", "serverInfraReadinessPassed", "weaveControlReady", "clientBootstrapHandoffReady", "forgejoRunnerWorkflowTerminalSuccess"]:
+        if preflight.get(key) is not True:
+            fail(f"current local Forgejo runner proof must record {key}=true")
+    for key in ["memberProviderNeutralJoinPassed", "weaveClientE2ePassed", "clientSignalsEmittedByDeploymentRunner"]:
         if preflight.get(key) is not False:
-            fail(f"current local Forgejo preflight must keep {key}=false until a current Forgejo-runner workflow terminal ref exists")
-    if preflight.get("claimBoundary") != "dispatch_preflight_plus_direct_local_proofs":
-        fail("current local Forgejo preflight must distinguish preflight from direct local proofs")
+            fail(f"deployment runner must keep client-lane field {key}=false")
+    if preflight.get("claimBoundary") != "forgejo_runner_deployment_handoff_plus_separate_client_lane":
+        fail("current local Forgejo proof must distinguish deployment handoff from separate client lane")
+    for key, expected in {"supportSafeRunRef": "local-forgejo-actions-run-121", "supportSafeTaskRef": "local-forgejo-actions-task-220", "commitSha": "c0470eec04232b2271e49a82566796d66aab99d7", "backendImageRevision": "c0470eec04232b2271e49a82566796d66aab99d7"}.items():
+        if preflight.get(key) != expected:
+            fail(f"current local Forgejo proof {key} mismatch: {preflight.get(key)!r}")
+    if preflight.get("handoffHoldSeconds") != 1800 or preflight.get("oidcDiscoveryReadyDuringHandoff") is not True:
+        fail("current local Forgejo proof must record the 1800s OIDC-ready handoff")
+    if preflight.get("terminalStatus") != "success" or preflight.get("taskLogInStorage") is not True:
+        fail("current local Forgejo proof must record terminal success with log storage")
+    if preflight.get("holdStepStatus") != "success" or preflight.get("destroyStepStatus") != "success":
+        fail("current local Forgejo proof must record hold and cleanup success")
     direct = fixture.get("currentLocalDirectProof", {})
     for key in ["serverInfraReadinessPassed", "weaveControlReady", "clientBootstrapHandoffReady", "operatorCheckPassed"]:
         if direct.get(key) is not True:
@@ -219,8 +234,14 @@ def main() -> None:
         fail("live dispatch boundary must record approved preflight and keep explicit approval for stack mutation")
     if live_boundary.get("directLocalDeploymentProofPerformed") is not True or live_boundary.get("separateClientE2eProofPerformed") is not True:
         fail("live evidence boundary must record direct deployment and separate client proofs")
-    if live_boundary.get("forgejoRunnerWorkflowTerminalSuccessRecorded") is not False:
-        fail("live evidence boundary must not claim current Forgejo-runner terminal success")
+    if live_boundary.get("forgejoRunnerWorkflowTerminalSuccessRecorded") is not True:
+        fail("live evidence boundary must record current Forgejo-runner terminal success")
+    if live_boundary.get("terminalRunRef") != "local-forgejo-actions-run-121" or live_boundary.get("terminalTaskRef") != "local-forgejo-actions-task-220":
+        fail("live evidence boundary terminal Forgejo refs mismatch")
+    if live_boundary.get("handoffHoldSeconds") != 1800 or live_boundary.get("separateClientLaneAgainstRunnerHandoffPassed") is not True:
+        fail("live evidence boundary must record separate client lane against 1800s handoff")
+    if live_boundary.get("terminalStatus") != "success" or live_boundary.get("taskLogInStorage") is not True:
+        fail("live evidence boundary must record terminal success with log storage")
     if live_boundary.get("forgejoWorkflowSupportsExternalClientHandoffHold") is not True:
         fail("live evidence boundary must record workflow handoff-hold support for the separate client lane")
     if live_boundary.get("handoffHoldInput") != "handoff_hold_seconds":
@@ -238,7 +259,7 @@ def main() -> None:
             fail(f"Forgejo deployment workflow missing deployment-handoff fragment {fragment!r}")
 
     assert_support_safe(fixture, "e2e handoff fixture")
-    assert_fragments(DOC, [expected_status, "concise `~/server` signal", "dispatch_preflight_only", "local-forgejo-actions-run-7", "weave_client_e2e_passed", "forgejo_runner_workflow_terminal_success", "Forgejo deployment runner must stay client-free", "Responsibility split evidence", "No v0.1 Spec 0001 Weaver/AI runtime claim", "Admin Console readiness/evidence state", "Failure cases", "Activity boundary"])
+    assert_fragments(DOC, [expected_status, "local-forgejo-actions-run-121", "local-forgejo-actions-task-220", "handoff_hold_seconds=1800", "weave_client_e2e_passed", "forgejo_runner_workflow_terminal_success", "Forgejo deployment runner must stay client-free", "Responsibility split evidence", "No v0.1 Spec 0001 Weaver/AI runtime claim", "Admin Console readiness/evidence state", "Failure cases", "Activity boundary"])
     assert_fragments(ROOT / "docs" / "weave-control-bootstrap-to-client-contract.md", ["```mermaid", "Admin selects deploy_new in Weave Control", "Receive deployment handoff target from Weave Control"])
     assert_fragments(FEATURE, ["@sprint27-local-forgejo-e2e-handoff", expected_status, "pipeline_terminal_success", "forgejo_runner_workflow_terminal_success"])
     assert_fragments(MAPPING, ["@sprint27-local-forgejo-e2e-handoff", "LOCAL_FORGEJO_E2E_HANDOFF_PROOF", str(FIXTURE.relative_to(ROOT))])

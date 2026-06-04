@@ -1,15 +1,17 @@
 # Local Forgejo deployment and client E2E handoff
 
-Status: Sprint 27 / #665 has **direct local deployment-handoff proof** and **separate client E2E proof** on the current working tree. A true local Forgejo-runner workflow terminal-success ref for these uncommitted changes is still not recorded.
+Status: Sprint 27 / #665 has **strict local Forgejo-runner deployment-handoff proof** and **separate client E2E proof against that runner-deployed handoff**. The proof is support-safe and correlated by commit, image revision, Forgejo run, task, and external client lane.
 
 ## Scope
 
-#665 may close only under the claim boundary chosen by the release owner:
+#665 may close under the strict local evidence boundary:
 
-- strict Forgejo-runner proof: commit/dispatch the updated `weave-admin-setup-e2e` workflow and record a support-safe terminal run ref;
-- direct local proof accepted: use the support-safe direct stack proof plus separate client-lane proof below.
+- local Forgejo `workflow_dispatch` ran the committed `weave-admin-setup-e2e` workflow;
+- backend image revision matched the dispatched commit;
+- the runner emitted only deployment-handoff booleans and held the live stack for the external client lane;
+- the separate client lane passed against that held runner-deployed handoff.
 
-Local fixture truth alone is not sufficient, and no production cutover or release-ready claim is made here.
+No production cutover or release-ready claim is made here.
 
 ## Required upstream evidence
 
@@ -35,9 +37,9 @@ This is not claimed as `forgejo_runner_workflow_terminal_success`; the current w
 
 Support-safe current-working-tree proof:
 
-- command ref: `client/Makefile integration-test`;
+- command ref: `client/Makefile integration-app-e2e`;
 - Makefile fail masking was fixed so an earlier failing Flutter E2E cannot be hidden by a later passing test;
-- the separate client lane passed after the deployment handoff target was available;
+- the separate client lane passed against the local Forgejo runner-deployed handoff target while `handoff_hold_seconds=1800` kept it available;
 - observed support-safe marker classes: `AUTH_RESULT`, `PROFILE_RESULT`, `CHAT_RESULT`, `MATRIX_RESULT`, `E2EE_RESULT`, `FILES_RESULT`, `CALENDAR_RESULT`, `BOARDS_RESULT`, `WORKSPACE_LOOP_RESULT`, and `PROVIDER_REALITY_RESULT`;
 - `member_provider_neutral_join_passed`: true for the separate client lane;
 - `weave_client_e2e_passed`: true for the separate client lane.
@@ -57,12 +59,21 @@ It must not install Flutter, Linux desktop dependencies, Xvfb/GTK, or any app/cl
 
 For strict #665 proof the workflow supports `handoff_hold_seconds`: default `0` keeps immediate cleanup, while an approved dispatch may hold the deployed handoff open briefly so the external client lane can run against the runner-deployed target before teardown.
 
-## Current support-safe local preflight evidence
+## Current support-safe Forgejo-runner evidence
 
-- local Forgejo repository target exists and contains the `weave-admin-setup-e2e` workflow target;
-- local Forgejo accepted a manual dispatch;
-- opaque run ref `local-forgejo-actions-run-7` reached dispatch/preflight terminal success;
-- this historical run remains `dispatch_preflight_only`, not a terminal proof for the current uncommitted deployment workflow.
+- commit: `c0470eec04232b2271e49a82566796d66aab99d7`;
+- backend image revision: `c0470eec04232b2271e49a82566796d66aab99d7`;
+- backend image id: `sha256:0f299fd6c6b46086b9a6fe3f08b95a6d3dfdaa2bfeb0f47417d8051f72304fc2`;
+- workflow event: local Forgejo `workflow_dispatch`;
+- opaque run ref: `local-forgejo-actions-run-121`;
+- opaque job ref: `local-forgejo-actions-job-235`;
+- opaque task ref: `local-forgejo-actions-task-220`;
+- terminal status: success;
+- task log storage: true;
+- dispatch input: `handoff_hold_seconds=1800`;
+- OIDC discovery was ready during the handoff window;
+- DB/log evidence shows checkout, prerequisites, backend image verification, stack bootstrap, public hostname routing, operator-check, terminal signal emit, 1800s handoff hold, cleanup, and job success;
+- raw logs, endpoint URLs, provider payloads, secrets, tokens, tenant URLs, Matrix URLs, and member content were not persisted in repo evidence.
 
 ## Responsibility split evidence
 
@@ -81,7 +92,7 @@ The Admin Console handoff state is evidence-first and fail-closed:
 
 - before dispatch it may show runner, deployable-plan, SecretRef-name, and approval readiness without secret values;
 - after dispatch it may show only a support-safe `PipelineRunRef`, terminal status, sanitized evidence refs, direct local proof refs, separate client-lane evidence refs, and support-safe summaries;
-- strict Forgejo-runner closure remains blocked unless a current `forgejo_runner_workflow_terminal_success` ref is recorded or the release owner explicitly accepts the direct local proof boundary.
+- strict Forgejo-runner closure is satisfied by `local-forgejo-actions-run-121`; production cutover and release-readiness remain separate approval gates.
 
 ## Failure cases
 
@@ -118,4 +129,4 @@ flowchart TD
 
 ## Current claim boundary
 
-The current repo artifact status is `local_direct_deployment_and_client_e2e_passed_pending_forgejo_runner_dispatch`. It may prove that direct local deployment handoff and separate app/client E2E passed on the current working tree. It must not claim a current local Forgejo-runner workflow terminal success, production cutover, or release readiness.
+The current repo artifact status is `forgejo_runner_handoff_and_separate_client_e2e_passed`. It may claim #665 local evidence closure for the strict Forgejo-runner handoff boundary: committed workflow, correlated backend image revision, local Forgejo run/task refs, `handoff_hold_seconds=1800`, OIDC-ready live stack during hold, and separate client E2E passed against that handoff. It must not claim production cutover or release readiness.
