@@ -29,7 +29,9 @@ SECRET_PATTERNS = [
         r"(token|secret|password|private[_-]?key)\s*[:=]\s*[^\s,}\"]+",
         r"rawProviderPayload",
         r"rawProviderError",
-        r"-----begin\s+((rsa|dsa|ec|openssh)\s+)?private\s+key-----",
+        r"https?://[^\s)\"]+",
+        r"ssh://[^\s)\"]+",
+        r"-----begin\s+((rsa|dsa|ec|openssh|encrypted)\s+)?private\s+key-----",
     ]
 ]
 FORBIDDEN_KEYS = {
@@ -39,8 +41,11 @@ FORBIDDEN_KEYS = {
     "rawProviderPayload",
     "rawProviderError",
     "rawAssertion",
+    "rawCiLog",
     "bearerToken",
     "credentialBearingUrl",
+    "tenantUrl",
+    "memberContent",
 }
 
 
@@ -181,6 +186,20 @@ def validate_claim_gate(claim_gate: dict[str, Any], scoreboard: dict[str, Any]) 
     assert_support_safe({"claim_gate": claim_gate, "scoreboard": scoreboard}, "claim gate and scoreboard")
 
 
+def validate_safety_regression_samples() -> None:
+    pattern_samples = [
+        "https://nextcloud.example.invalid/remote.php/dav/calendars/member/work",
+        "ssh://git@example.invalid/org/repo.git",
+        "-----BEGIN ENCRYPTED PRIVATE KEY-----",
+    ]
+    for sample in pattern_samples:
+        if not any(pattern.search(sample) for pattern in SECRET_PATTERNS):
+            fail(f"support-safety regression sample was not rejected: {sample!r}")
+    for key in ["rawCiLog", "tenantUrl", "memberContent"]:
+        if key not in FORBIDDEN_KEYS:
+            fail(f"support-safety forbidden key is missing: {key}")
+
+
 def validate_docs_and_mapping() -> None:
     assert_fragments(DOC, [
         "#643", "#644", "#645", "#646", "#665 remains separate",
@@ -208,6 +227,8 @@ def validate_docs_and_mapping() -> None:
 
 
 def main() -> None:
+    validate_safety_regression_samples()
+
     for provider, domain in [
         ("nextcloud-caldav", "calendar"),
         ("radicale", "calendar"),

@@ -71,6 +71,7 @@ class LocalForgejoPipelineProviderTest {
 
         PipelineRunRef queued = provider.requestDispatch(request);
         assertThat(queued.status()).isEqualTo(PipelineRunStatus.QUEUED);
+        assertThat(queued.correlationRef()).isEqualTo("forgejo-local-preflight-2026-06-03");
         assertThat(queued.runRef()).contains("pending-provider-call");
         assertThat(queued.runRef()).doesNotContain("http", "token");
 
@@ -86,9 +87,26 @@ class LocalForgejoPipelineProviderTest {
     }
 
     @Test
+    void dispatchRejectsSupportUnsafeCorrelationRefsBeforeReturningThem() {
+        PipelineDispatchRequest urlCorrelation = new PipelineDispatchRequest(new PipelinePreflightRequest(true, true, allSecrets(), allVariables(), false, true, "support_safe_domain_plan_ref"), "https://forgejo.local/org/repo/actions/runs/123", "idem-url");
+        PipelineRunRef urlBlocked = provider.requestDispatch(urlCorrelation);
+        assertThat(urlBlocked.status()).isEqualTo(PipelineRunStatus.BLOCKED);
+        assertThat(urlBlocked.nextActionCode()).isEqualTo("replace_raw_values_with_secretrefs");
+        assertThat(urlBlocked.correlationRef()).isEqualTo("support-unsafe-correlation-ref-redacted");
+        assertThat(urlBlocked.runRef()).doesNotContain("https", "forgejo.local");
+
+        PipelineDispatchRequest privateKeyCorrelation = new PipelineDispatchRequest(new PipelinePreflightRequest(true, true, allSecrets(), allVariables(), false, true, "support_safe_domain_plan_ref"), "-----BEGIN ENCRYPTED PRIVATE KEY-----", "idem-key");
+        PipelineRunRef privateKeyBlocked = provider.requestDispatch(privateKeyCorrelation);
+        assertThat(privateKeyBlocked.status()).isEqualTo(PipelineRunStatus.BLOCKED);
+        assertThat(privateKeyBlocked.correlationRef()).isEqualTo("support-unsafe-correlation-ref-redacted");
+        assertThat(privateKeyBlocked.runRef()).doesNotContain("PRIVATE KEY");
+    }
+
+    @Test
     void redactorBlocksPemPrivateKeys() {
         assertThat(SupportSafePipelineRedactor.containsUnsafeValue("-----BEGIN PRIVATE KEY-----")).isTrue();
         assertThat(SupportSafePipelineRedactor.containsUnsafeValue("-----BEGIN OPENSSH PRIVATE KEY-----")).isTrue();
+        assertThat(SupportSafePipelineRedactor.containsUnsafeValue("-----BEGIN ENCRYPTED PRIVATE KEY-----")).isTrue();
     }
 
     private static List<String> allSecrets() {

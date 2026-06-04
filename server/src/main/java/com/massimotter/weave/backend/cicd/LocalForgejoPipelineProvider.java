@@ -80,14 +80,28 @@ public final class LocalForgejoPipelineProvider implements PipelineProvider {
 
     @Override
     public PipelineRunRef requestDispatch(PipelineDispatchRequest request) {
+        if (SupportSafePipelineRedactor.containsUnsafeValue(request.correlationRef())) {
+            return new PipelineRunRef(
+                    PROVIDER_KEY,
+                    WORKFLOW_REF,
+                    "none-trigger-blocked-before-dispatch",
+                    PipelineRunStatus.BLOCKED,
+                    "support-unsafe-correlation-ref-redacted",
+                    "audit://admin-cicd/local-forgejo/preflight-blocked",
+                    "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json",
+                    "replace_raw_values_with_secretrefs",
+                    "Raw secret, URL, log, or provider payload was supplied in correlation metadata; dispatch blocked before provider mutation."
+            );
+        }
         PipelinePreflightResult result = preflight(request.preflight());
         if (!result.dispatchAllowed()) {
             PipelineRunStatus blockedStatus = "approval_missing".equals(result.reasonCode()) ? PipelineRunStatus.APPROVAL_REQUIRED : PipelineRunStatus.BLOCKED;
             String nextAction = nextActionForBlockedPreflight(result.reasonCode());
-            return new PipelineRunRef(PROVIDER_KEY, WORKFLOW_REF, "none-trigger-blocked-before-dispatch", blockedStatus, request.correlationRef(), result.auditRef(), result.evidenceRef(), nextAction, result.supportSafeSummary());
+            return new PipelineRunRef(PROVIDER_KEY, WORKFLOW_REF, "none-trigger-blocked-before-dispatch", blockedStatus, supportSafeCorrelationRef(request.correlationRef()), result.auditRef(), result.evidenceRef(), nextAction, result.supportSafeSummary());
         }
-        String runRef = "forgejo-run-" + safeRef(request.correlationRef()) + "-pending-provider-call";
-        return new PipelineRunRef(PROVIDER_KEY, WORKFLOW_REF, runRef, PipelineRunStatus.QUEUED, request.correlationRef(), "audit://admin-cicd/local-forgejo/dispatch-requested", "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json", "observe_run_status", "Dispatch requested through support-safe provider abstraction; provider internals stay hidden.");
+        String correlationRef = supportSafeCorrelationRef(request.correlationRef());
+        String runRef = "forgejo-run-" + safeRef(correlationRef) + "-pending-provider-call";
+        return new PipelineRunRef(PROVIDER_KEY, WORKFLOW_REF, runRef, PipelineRunStatus.QUEUED, correlationRef, "audit://admin-cicd/local-forgejo/dispatch-requested", "release/provider-lab/admin-cicd/local-forgejo-pipeline-provider.fixture.json", "observe_run_status", "Dispatch requested through support-safe provider abstraction; provider internals stay hidden.");
     }
 
     @Override
@@ -151,5 +165,12 @@ public final class LocalForgejoPipelineProvider implements PipelineProvider {
             return "uncorrelated";
         }
         return raw.replaceAll("[^a-zA-Z0-9._-]", "-");
+    }
+
+    private static String supportSafeCorrelationRef(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "uncorrelated";
+        }
+        return raw;
     }
 }
