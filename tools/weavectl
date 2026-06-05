@@ -150,16 +150,30 @@ def support_safe_ref(prefix: str, *parts: str) -> str:
     return f"{prefix}-{digest}"
 
 
+def assert_support_safe_payload(value: object, label: str, path: tuple[str, ...] = ()) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            assert_support_safe_payload(child, label, (*path, str(key)))
+        return
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            assert_support_safe_payload(child, label, (*path, str(index)))
+        return
+    if isinstance(value, str):
+        lowered = value.lower()
+        location = ".".join(path) or "<root>"
+        for fragment in FORBIDDEN_EVIDENCE_FRAGMENTS:
+            if fragment in lowered:
+                fail(f"support-safe redaction blocked artifact {label}: forbidden fragment {fragment} at {location}")
+        for pattern in FORBIDDEN_EVIDENCE_PATTERNS:
+            if pattern.search(value):
+                fail(f"support-safe redaction blocked artifact {label}: forbidden pattern {pattern.pattern} at {location}")
+
+
 def write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    assert_support_safe_payload(payload, str(path))
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    lowered = text.lower()
-    for fragment in FORBIDDEN_EVIDENCE_FRAGMENTS:
-        if fragment in lowered:
-            fail(f"support-safe redaction blocked artifact {path}: forbidden fragment {fragment}")
-    for pattern in FORBIDDEN_EVIDENCE_PATTERNS:
-        if pattern.search(text):
-            fail(f"support-safe redaction blocked artifact {path}: forbidden pattern {pattern.pattern}")
     path.write_text(text, encoding="utf-8")
 
 
@@ -349,6 +363,7 @@ def apply_bootstrap(args: argparse.Namespace) -> int:
         fail("unsupported bootstrap plan schema")
     if plan.get("supportSafe") is not True:
         fail("bootstrap plan must be supportSafe=true")
+    assert_support_safe_payload(plan, str(plan_path))
     validate_plan_integrity(plan, plan_path)
     mutation = plan.get("mutationBoundary", {})
     if not isinstance(mutation, dict):

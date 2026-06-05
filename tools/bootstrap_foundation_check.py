@@ -268,6 +268,14 @@ def assert_bootstrap_runtime() -> None:
         "--plan", str(forged_path), "--execute", "--approval-ref", "APPROVAL-123",
     ], "--execute is not allowed")
 
+    unsafe_plan_input = dict(plan)
+    unsafe_plan_input["forbiddenClaims"] = [*plan.get("forbiddenClaims", []), "access_token=SHOULD_BE_REJECTED"]
+    unsafe_plan_input_path = write_case_plan("unsafe-plan-input", unsafe_plan_input)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(unsafe_plan_input_path),
+    ], "support-safe redaction blocked artifact")
+
     unsafe_receipt_plan = dict(plan)
     unsafe_receipt_plan["providerStack"] = dict(plan["providerStack"], ref="access_token=unsafe")
     unsafe_receipt_path = write_case_plan("unsafe-receipt", unsafe_receipt_plan)
