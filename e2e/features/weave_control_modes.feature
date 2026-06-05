@@ -12,6 +12,7 @@ Feature: Weave Control setup modes and bootstrap-to-client proof
   @weave-control-admin-console-client-responsibility-split
   Scenario: Weave Control, Admin Console, and Client keep separate responsibilities
     Given Weave Control has produced support-safe deployment handoff refs
+    And Bootstrap deploys the Control Plane as server plus Admin Console
     When admins review organization readiness in the Admin Console
     Then the Admin Console may show provider, policy, readiness, audit, whitelist, and future Weaver governance states with sanitized refs
     And the Weave App consumes only organization URL, invite link, or deep link handoff plus provider-neutral capability states

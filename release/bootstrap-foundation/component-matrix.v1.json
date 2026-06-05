@@ -1,0 +1,169 @@
+{
+  "schemaVersion": "weave.bootstrap-foundation.components.v1",
+  "artifactKind": "bootstrap-component-matrix",
+  "supportSafe": true,
+  "claimBoundary": "component ownership and evidence contract only",
+  "components": [
+    {
+      "id": "bootstrap-weave-control",
+      "label": "Bootstrap / Weave Control",
+      "bootstrapRole": "entrypoint",
+      "deployedByBootstrap": true,
+      "owns": [
+        "target discovery",
+        "support-safe plan",
+        "preflight",
+        "approval gate",
+        "selected lane dispatch",
+        "readiness aggregation",
+        "support-safe evidence refs",
+        "handoff refs"
+      ],
+      "forbidden": [
+        "raw secrets",
+        "raw logs",
+        "member content",
+        "client app E2E execution",
+        "unapproved mutation"
+      ]
+    },
+    {
+      "id": "weave-server",
+      "label": "Weave Server",
+      "bootstrapRole": "control-plane-runtime",
+      "deployedByBootstrap": true,
+      "owns": [
+        "domain facades",
+        "provider registry",
+        "policy",
+        "authorization",
+        "readiness",
+        "audit",
+        "SecretRef handling",
+        "support-safe errors"
+      ],
+      "forbidden": [
+        "raw provider payload leakage",
+        "member provider setup prompts",
+        "client deployment"
+      ]
+    },
+    {
+      "id": "admin-console",
+      "label": "Admin Console",
+      "bootstrapRole": "control-plane-ui",
+      "deployedByBootstrap": true,
+      "owns": [
+        "organization management",
+        "provider category management",
+        "policy preview",
+        "readiness and diagnostics",
+        "audit views",
+        "future Weaver governance controls"
+      ],
+      "forbidden": [
+        "direct provider API calls",
+        "raw provider credentials",
+        "raw CI log viewer",
+        "member app flows",
+        "development-only Vite as deployment target"
+      ]
+    },
+    {
+      "id": "provider-stack-infra",
+      "label": "Provider Stack / Infra",
+      "bootstrapRole": "optional-profile-module",
+      "deployedByBootstrap": "profile_driven",
+      "owns": [
+        "deploy-new provider resources named in approved plan",
+        "attach-existing adapter references",
+        "provider readiness refs",
+        "rollback and support boundary refs"
+      ],
+      "forbidden": [
+        "mandatory deployment for attach_existing",
+        "destructive migration without separate approval",
+        "credential rotation without separate approval"
+      ]
+    },
+    {
+      "id": "cicd-target",
+      "label": "CI/CD or GitOps target",
+      "bootstrapRole": "selected-dispatch-lane",
+      "deployedByBootstrap": "selected_target_only",
+      "owns": [
+        "pipeline dispatch",
+        "terminal status refs",
+        "build/deploy evidence refs"
+      ],
+      "forbidden": [
+        "touching unselected providers",
+        "persisting foreign provider secrets",
+        "claiming provider equivalence without evidence"
+      ]
+    },
+    {
+      "id": "member-client",
+      "label": "Flutter/mobile/desktop/web member client",
+      "bootstrapRole": "handoff-consumer",
+      "deployedByBootstrap": false,
+      "owns": [
+        "organization URL consumption",
+        "invite/deep-link consumption",
+        "SSO as normal member",
+        "provider-neutral manifest and capability states",
+        "separate app/client E2E evidence"
+      ],
+      "forbidden": [
+        "provider setup",
+        "SecretRef display",
+        "CI/CD target selection",
+        "bootstrap diagnostics",
+        "Weaver runtime administration"
+      ]
+    }
+  ],
+  "controlPlaneDefinition": {
+    "requiredComponents": ["weave-server", "admin-console"],
+    "thinEntrypoints": ["bootstrap-weave-control"],
+    "developmentOnlyShortcuts": ["admin-console Vite dev server"],
+    "reproducibleDeploymentRequires": ["server artifact", "admin-console artifact", "selected target lane", "support-safe readiness refs"]
+  },
+  "terminalBooleans": {
+    "deploymentLane": [
+      "pipeline_terminal_success",
+      "weave_server_ready",
+      "admin_console_ready",
+      "control_plane_ready",
+      "provider_stack_ready_or_attached",
+      "client_bootstrap_handoff_ready"
+    ],
+    "clientLaneOnly": [
+      "member_provider_neutral_join_passed",
+      "weave_client_e2e_passed"
+    ]
+  },
+  "supportSafeEvidence": {
+    "allowed": [
+      "plan ref",
+      "profile id",
+      "target provider lane",
+      "pipeline ref",
+      "readiness ref",
+      "handoff ref",
+      "audit ref",
+      "support bundle ref",
+      "redacted next-action code"
+    ],
+    "forbidden": [
+      "raw secrets",
+      "tokens",
+      "passwords",
+      "private keys",
+      "credential URLs",
+      "raw provider payloads",
+      "raw downstream errors",
+      "member private content"
+    ]
+  }
+}

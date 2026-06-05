@@ -4,7 +4,7 @@
 
 `infra/` provisions the Docker/OpenTofu foundation for a self-hosted Weave deployment: identity, chat, files/calendar storage, backend API routing, local HTTPS, provider-readiness checks, backups, restore smoke, and support diagnostics.
 
-This directory is the operator layer inside the Weave monorepo. The daily user experience lives in `../client`, product contracts and provider facades live in `../server`, and this layer makes the stack verifiable and recoverable without exposing secrets.
+This directory is the provider-stack implementation layer inside the Weave monorepo. The canonical product bootstrap boundary is `../docs/bootstrap-foundation-contract.md`: bootstrap deploys the Control Plane first and activates this infra/provider-stack implementation only when the selected profile requires deploy-new self-hosted providers. The daily user experience lives in `../client`, product contracts and provider facades live in `../server`, and this layer makes the stack verifiable and recoverable without exposing secrets.
 
 ## What it provisions
 
@@ -31,7 +31,9 @@ This directory is the operator layer inside the Weave monorepo. The daily user e
 
 Those are later product or operations tracks and must stay behind explicit contracts and evidence.
 
-## Quick start: local/dev stack
+## Quick start: local/dev provider-stack implementation
+
+This is the concrete local provider-stack implementation path, not the canonical product bootstrap entrypoint. Use it when the approved bootstrap profile selects local/self-hosted provider deployment.
 
 Add local host entries before opening browser-facing URLs:
 

@@ -1,0 +1,171 @@
+{
+  "schemaVersion": "weave.bootstrap-foundation.profiles.v1",
+  "artifactKind": "bootstrap-profile-matrix",
+  "supportSafe": true,
+  "entrypoint": "weavectl bootstrap plan/apply",
+  "legacyCompatibleEntrypoint": "weavectl profile apply",
+  "claimBoundary": "foundation-contract; no production mutation, provider migration, release readiness, or client E2E claim without separate evidence",
+  "profiles": [
+    {
+      "id": "local-minimal",
+      "purpose": "Fast local Control Plane proof with no mandatory provider stack.",
+      "setupModeDefault": "attach_existing",
+      "targetProviderLanes": [
+        "local-shell",
+        "local-docker"
+      ],
+      "controlPlane": "deploy",
+      "providerStack": "none_or_fixture_adapters",
+      "memberPhoneAllowed": false,
+      "requiresPublicDns": false,
+      "requiresTrustedInternetTls": false,
+      "finalOperatorSteps": [
+        "tools/weavectl bootstrap plan --profile local-minimal --target local-shell",
+        "tools/weavectl bootstrap apply --plan <plan-ref> --execute --approval-ref <approval-ref>"
+      ]
+    },
+    {
+      "id": "local-dogfood",
+      "purpose": "Local self-hosted dogfood stack for operator and desktop member proof.",
+      "setupModeDefault": "hybrid",
+      "targetProviderLanes": [
+        "local-shell",
+        "local-forgejo-actions"
+      ],
+      "controlPlane": "deploy",
+      "providerStack": "deploy_selected_local_domains",
+      "memberPhoneAllowed": false,
+      "requiresPublicDns": false,
+      "requiresTrustedInternetTls": false,
+      "finalOperatorSteps": [
+        "tools/weavectl bootstrap plan --profile local-dogfood --target local-shell",
+        "tools/weavectl bootstrap apply --plan <plan-ref> --execute --approval-ref <approval-ref>"
+      ]
+    },
+    {
+      "id": "local-lan-dogfood",
+      "purpose": "LAN-reachable dogfood handoff for physical phone/member testing.",
+      "setupModeDefault": "hybrid",
+      "targetProviderLanes": [
+        "local-forgejo-actions",
+        "local-shell"
+      ],
+      "controlPlane": "deploy",
+      "providerStack": "deploy_selected_local_domains",
+      "memberPhoneAllowed": true,
+      "requiresPublicDns": false,
+      "requiresTrustedInternetTls": false,
+      "endpointPolicy": {
+        "allowedEndpointClass": "rfc1918-lan-host",
+        "rejects": [
+          "localhost",
+          "127.0.0.1",
+          "0.0.0.0",
+          "host.docker.internal",
+          "docker.for.mac.localhost",
+          "Mac-only .local names",
+          "credential-bearing URLs",
+          "raw provider diagnostics"
+        ]
+      },
+      "finalOperatorSteps": [
+        "tools/weavectl bootstrap plan --profile local-lan-dogfood --target local-shell --lan-host <LAN_IP>",
+        "tools/weavectl bootstrap apply --plan <plan-ref> --execute --approval-ref <approval-ref>"
+      ]
+    },
+    {
+      "id": "external-providers",
+      "purpose": "Customer already owns providers; Weave deploys Control Plane and binds adapters.",
+      "setupModeDefault": "attach_existing",
+      "targetProviderLanes": [
+        "github-actions",
+        "gitlab-ci",
+        "azure-pipelines",
+        "forgejo-actions"
+      ],
+      "controlPlane": "deploy",
+      "providerStack": "attach_existing_only",
+      "memberPhoneAllowed": true,
+      "requiresPublicDns": true,
+      "requiresTrustedInternetTls": true,
+      "finalOperatorSteps": [
+        "tools/weavectl bootstrap plan --profile external-providers --target <provider-lane>",
+        "tools/weavectl bootstrap apply --plan <plan-ref>"
+      ]
+    },
+    {
+      "id": "hybrid",
+      "purpose": "Per-domain mix of deploy-new and attach-existing provider choices.",
+      "setupModeDefault": "hybrid",
+      "targetProviderLanes": [
+        "github-actions",
+        "gitlab-ci",
+        "azure-pipelines",
+        "forgejo-actions",
+        "local-shell"
+      ],
+      "controlPlane": "deploy",
+      "providerStack": "per_domain_mode",
+      "memberPhoneAllowed": true,
+      "requiresPublicDns": "depends_on_endpoint_class",
+      "requiresTrustedInternetTls": "depends_on_endpoint_class",
+      "finalOperatorSteps": [
+        "tools/weavectl bootstrap plan --profile hybrid --target <provider-lane>",
+        "tools/weavectl bootstrap apply --plan <plan-ref>"
+      ]
+    },
+    {
+      "id": "full-selfhosted",
+      "purpose": "Reference self-hosted organization stack with approved provider domains.",
+      "setupModeDefault": "deploy_new",
+      "targetProviderLanes": [
+        "forgejo-actions",
+        "github-actions",
+        "gitlab-ci",
+        "azure-pipelines"
+      ],
+      "controlPlane": "deploy",
+      "providerStack": "deploy_approved_domains",
+      "memberPhoneAllowed": true,
+      "requiresPublicDns": true,
+      "requiresTrustedInternetTls": true,
+      "finalOperatorSteps": [
+        "tools/weavectl bootstrap plan --profile full-selfhosted --target <provider-lane>",
+        "tools/weavectl bootstrap apply --plan <plan-ref>"
+      ]
+    }
+  ],
+  "requiredModes": [
+    "deploy_new",
+    "attach_existing",
+    "hybrid"
+  ],
+  "memberHandoffInvariant": {
+    "clientDeploymentByBootstrap": false,
+    "entrypoints": [
+      "organization URL",
+      "invite link",
+      "deep link",
+      "QR"
+    ],
+    "requiredPath": [
+      "open handoff",
+      "SSO",
+      "Weave workspace home"
+    ],
+    "forbiddenMemberInputs": [
+      "OIDC issuer",
+      "OIDC client ID",
+      "Matrix URL",
+      "Nextcloud URL",
+      "provider hostname",
+      "TLS certificate",
+      "provider diagnostic",
+      "SecretRef",
+      "CredentialRef",
+      "credential URL",
+      "CI/CD target",
+      "bootstrap diagnostics"
+    ]
+  }
+}

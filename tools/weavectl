@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal Weave Control CLI for profile-driven local dogfood handoff evidence."""
+"""Minimal Weave Control CLI for profile-driven bootstrap and dogfood handoff evidence."""
 
 from __future__ import annotations
 
@@ -10,10 +10,13 @@ import json
 import os
 import re
 import socket
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
+
+ROOT = Path(__file__).resolve().parents[1]
 
 FORBIDDEN_EVIDENCE_FRAGMENTS = [
     "access_token=",
@@ -36,6 +39,43 @@ PROFILE_CONTRACT = {
     "production": {"reachabilityMode": "production-domain", "memberPhoneAllowed": True},
 }
 
+BOOTSTRAP_PROFILES_PATH = ROOT / "release" / "bootstrap-foundation" / "bootstrap-profiles.v1.json"
+LOCAL_EXECUTE_PROFILES = {"local-minimal", "local-dogfood", "local-lan-dogfood"}
+BOOTSTRAP_MODES = ["deploy_new", "attach_existing", "hybrid"]
+
+
+def load_bootstrap_profile_contracts() -> dict[str, dict[str, object]]:
+    try:
+        artifact = json.loads(BOOTSTRAP_PROFILES_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        fail(f"missing bootstrap profile fixture: {BOOTSTRAP_PROFILES_PATH.relative_to(ROOT)}")
+    except json.JSONDecodeError as exc:
+        fail(f"invalid bootstrap profile fixture: {exc}")
+    if artifact.get("artifactKind") != "bootstrap-profile-matrix":
+        fail("bootstrap profile fixture has wrong artifactKind")
+    profiles: dict[str, dict[str, object]] = {}
+    for item in artifact.get("profiles", []):
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+            fail("bootstrap profile fixture contains an invalid profile entry")
+        profiles[item["id"]] = item
+    if not profiles:
+        fail("bootstrap profile fixture contains no profiles")
+    return profiles
+
+
+def bootstrap_targets(profiles: dict[str, dict[str, object]]) -> list[str]:
+    targets: set[str] = set()
+    for profile in profiles.values():
+        lanes = profile.get("targetProviderLanes", [])
+        if not isinstance(lanes, list):
+            fail(f"bootstrap profile {profile.get('id')} has invalid targetProviderLanes")
+        targets.update(str(lane) for lane in lanes)
+    return sorted(targets)
+
+
+BOOTSTRAP_PROFILES = load_bootstrap_profile_contracts()
+BOOTSTRAP_TARGETS = bootstrap_targets(BOOTSTRAP_PROFILES)
+
 
 def fail(message: str, code: int = 2) -> None:
     print(f"weavectl: {message}", file=sys.stderr)
@@ -45,30 +85,266 @@ def fail(message: str, code: int = 2) -> None:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="weavectl")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    bootstrap = sub.add_parser("bootstrap", help="Plan or apply a support-safe Weave bootstrap operation")
+    bootstrap_sub = bootstrap.add_subparsers(dest="bootstrap_command", required=True)
+    plan = bootstrap_sub.add_parser("plan", help="Create a support-safe bootstrap plan artifact")
+    plan.add_argument("--profile", required=True, choices=sorted(BOOTSTRAP_PROFILES))
+    plan.add_argument("--target", required=True, choices=BOOTSTRAP_TARGETS)
+    plan.add_argument("--setup-mode", choices=BOOTSTRAP_MODES)
+    plan.add_argument("--output-dir", default="build/evidence/bootstrap-foundation")
+    plan.add_argument("--run-id")
+    plan.add_argument("--source-ref", default="HEAD")
+    plan.add_argument("--organization-slug", default="massimo-dogfood")
+    plan.add_argument("--workspace-slug", default="home")
+    plan.add_argument("--lan-host", help="LAN host/IP required for local-lan-dogfood; artifacts store only the endpoint class")
+
+    apply_bootstrap = bootstrap_sub.add_parser("apply", help="Validate or explicitly execute a bootstrap plan")
+    apply_bootstrap.add_argument("--plan", required=True, help="Plan JSON path or plan_ref emitted by bootstrap plan")
+    apply_bootstrap.add_argument("--output-dir", default="build/evidence/bootstrap-foundation")
+    apply_bootstrap.add_argument("--dry-run", action="store_true", help="Validate the plan and emit an apply receipt without mutation; this is the default")
+    apply_bootstrap.add_argument("--execute", action="store_true", help="Mutate the selected target; requires --approval-ref")
+    apply_bootstrap.add_argument("--approval-ref", help="Human approval/change-ticket reference required for mutation")
+
     profile = sub.add_parser("profile")
     profile_sub = profile.add_subparsers(dest="profile_command", required=True)
-    apply = profile_sub.add_parser("apply")
-    apply.add_argument("--profile", required=True, choices=sorted(PROFILE_CONTRACT))
-    apply.add_argument("--lan-host")
-    apply.add_argument("--public-host")
-    apply.add_argument("--app-port", type=int, default=8080)
-    apply.add_argument("--api-port", type=int, default=8081)
-    apply.add_argument("--scheme", choices=["http", "https"], default="http")
-    apply.add_argument("--organization-slug", default="massimo-dogfood")
-    apply.add_argument("--workspace-slug", default="home")
-    apply.add_argument("--invite-channel", choices=["qr", "link", "deep-link", "org-url"], default="qr")
-    apply.add_argument("--emit-handoff", action="store_true")
-    apply.add_argument("--emit-evidence", action="store_true")
-    apply.add_argument("--evidence")
-    apply.add_argument("--output-dir", default="build/evidence/local-lan-dogfood")
-    apply.add_argument("--run-id")
-    apply.add_argument("--preflight-mode", choices=["validate-only", "tcp"], default="validate-only")
-    apply.add_argument("--timeout-seconds", type=float, default=1.5)
+    apply_profile_parser = profile_sub.add_parser("apply")
+    apply_profile_parser.add_argument("--profile", required=True, choices=sorted(PROFILE_CONTRACT))
+    apply_profile_parser.add_argument("--lan-host")
+    apply_profile_parser.add_argument("--public-host")
+    apply_profile_parser.add_argument("--app-port", type=int, default=8080)
+    apply_profile_parser.add_argument("--api-port", type=int, default=8081)
+    apply_profile_parser.add_argument("--scheme", choices=["http", "https"], default="http")
+    apply_profile_parser.add_argument("--organization-slug", default="massimo-dogfood")
+    apply_profile_parser.add_argument("--workspace-slug", default="home")
+    apply_profile_parser.add_argument("--invite-channel", choices=["qr", "link", "deep-link", "org-url"], default="qr")
+    apply_profile_parser.add_argument("--emit-handoff", action="store_true")
+    apply_profile_parser.add_argument("--emit-evidence", action="store_true")
+    apply_profile_parser.add_argument("--evidence")
+    apply_profile_parser.add_argument("--output-dir", default="build/evidence/local-lan-dogfood")
+    apply_profile_parser.add_argument("--run-id")
+    apply_profile_parser.add_argument("--preflight-mode", choices=["validate-only", "tcp"], default="validate-only")
+    apply_profile_parser.add_argument("--timeout-seconds", type=float, default=1.5)
     return parser.parse_args(argv)
 
 
-def now_run_id() -> str:
-    return "s31-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+def now_run_id(prefix: str = "s31") -> str:
+    return prefix + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def support_safe_ref(prefix: str, *parts: str) -> str:
+    digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
+    return f"{prefix}-{digest}"
+
+
+def write_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    lowered = text.lower()
+    for fragment in FORBIDDEN_EVIDENCE_FRAGMENTS:
+        if fragment in lowered:
+            fail(f"support-safe redaction blocked artifact {path}: forbidden fragment {fragment}")
+    path.write_text(text, encoding="utf-8")
+
+
+def read_json(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        fail(f"plan not found: {path}")
+    except json.JSONDecodeError as exc:
+        fail(f"invalid JSON in {path}: {exc}")
+    if not isinstance(payload, dict):
+        fail(f"JSON artifact must be an object: {path}")
+    return payload
+
+
+def git_commitish(ref: str) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(ROOT), "rev-parse", "--verify", ref],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return "unavailable"
+    return completed.stdout.strip()
+
+
+def plan_bootstrap(args: argparse.Namespace) -> int:
+    profile_contract = BOOTSTRAP_PROFILES[args.profile]
+    target_lanes = [str(lane) for lane in profile_contract.get("targetProviderLanes", [])]
+    if args.target not in target_lanes:
+        fail(f"unsupported_target_lane: profile {args.profile} does not allow target {args.target}; allowed: {', '.join(target_lanes)}")
+    setup_mode = args.setup_mode or str(profile_contract["setupModeDefault"])
+    run_id = args.run_id or now_run_id("bootstrap")
+    output_dir = Path(args.output_dir) / run_id
+    plan_path = output_dir / "plan.json"
+    plan_ref = support_safe_ref("bootstrap-plan", run_id, args.profile, args.target, setup_mode)
+    control_plane_ref = support_safe_ref("control-plane", run_id, "server", "admin-console")
+    provider_stack_ref = support_safe_ref("provider-stack", run_id, args.profile, str(profile_contract["providerStack"]))
+    handoff_ref = support_safe_ref("client-handoff", run_id, args.organization_slug, args.workspace_slug)
+    source_commit = git_commitish(args.source_ref)
+    execute_supported = args.target in {"local-shell", "local-docker"} and args.profile in LOCAL_EXECUTE_PROFILES
+    endpoint_policy: dict[str, object] = {"required": False}
+    if args.profile == "local-lan-dogfood":
+        if not args.lan_host:
+            fail("--lan-host is required for local-lan-dogfood bootstrap planning")
+        endpoint_policy = {"required": True, "endpointClass": validate_phone_host(args.lan_host, args.profile)}
+
+    plan = {
+        "schemaVersion": "weave.bootstrap.plan.v1",
+        "artifactKind": "bootstrap-plan",
+        "runId": run_id,
+        "planRef": plan_ref,
+        "profile": args.profile,
+        "targetProviderLane": args.target,
+        "setupMode": setup_mode,
+        "sourceRef": args.source_ref,
+        "sourceCommit": source_commit,
+        "supportSafe": True,
+        "controlPlane": {
+            "definition": "Weave Server + Admin Console",
+            "components": ["weave-server", "admin-console"],
+            "deployRef": control_plane_ref,
+            "adminConsoleRuntime": "built-artifact-or-container; Vite development server is forbidden as deployment target",
+        },
+        "providerStack": {
+            "semantics": profile_contract["providerStack"],
+            "ref": provider_stack_ref if profile_contract["providerStack"] != "none_or_fixture_adapters" else None,
+            "profileDriven": True,
+        },
+        "memberClientBoundary": {
+            "deployedByBootstrap": False,
+            "handoffRef": handoff_ref,
+            "separateClientE2eRequired": True,
+            "endpointPolicy": endpoint_policy,
+        },
+        "mutationBoundary": {
+            "defaultApplyMode": "dry_run_validate_only",
+            "requiresExplicitExecuteFlag": True,
+            "requiresApprovalRefForMutation": True,
+            "executeSupportedNow": execute_supported,
+            "executor": "infra/weave-workspace/install.sh" if execute_supported and args.target in {"local-shell", "local-docker"} else "not-implemented-for-target",
+        },
+        "terminalBooleans": {
+            "pipeline_terminal_success": "not_dispatched",
+            "weave_server_ready": "not_checked",
+            "admin_console_ready": "not_checked",
+            "control_plane_ready": False,
+            "provider_stack_ready_or_attached": "not_checked",
+            "client_bootstrap_handoff_ready": False,
+        },
+        "finalOperatorSteps": [
+            " ".join(part for part in [
+                f"tools/weavectl bootstrap plan --profile {args.profile} --target {args.target}",
+                "--lan-host <LAN-IP>" if args.profile == "local-lan-dogfood" else "",
+            ] if part),
+            f"tools/weavectl bootstrap apply --plan {plan_ref} --execute --approval-ref <approval-ref>",
+        ],
+        "forbiddenClaims": [
+            "production-ready deployment",
+            "client E2E passed",
+            "provider migration safety proven",
+            "public release readiness",
+        ],
+    }
+    write_json(plan_path, plan)
+    print(f"run_id={run_id}")
+    print(f"plan_ref={plan_ref}")
+    print(f"plan={plan_path}")
+    print(f"next_command=tools/weavectl bootstrap apply --plan {plan_ref}")
+    if execute_supported:
+        print(f"execute_command=tools/weavectl bootstrap apply --plan {plan_ref} --execute --approval-ref <approval-ref>")
+    else:
+        print("execute_supported_now=false")
+    return 0
+
+
+def resolve_plan(plan_arg: str, output_dir: Path) -> Path:
+    direct = Path(plan_arg)
+    if direct.exists():
+        return direct
+    repo_direct = ROOT / plan_arg
+    if repo_direct.exists():
+        return repo_direct
+    for candidate in sorted(output_dir.glob("**/plan.json")):
+        payload = read_json(candidate)
+        if payload.get("planRef") == plan_arg:
+            return candidate
+    fail(f"could not resolve plan path or plan_ref: {plan_arg}")
+
+
+def apply_bootstrap(args: argparse.Namespace) -> int:
+    if args.execute and args.dry_run:
+        fail("--execute and --dry-run are mutually exclusive")
+    output_dir = Path(args.output_dir)
+    plan_path = resolve_plan(args.plan, output_dir)
+    plan = read_json(plan_path)
+    if plan.get("schemaVersion") != "weave.bootstrap.plan.v1":
+        fail("unsupported bootstrap plan schema")
+    if plan.get("supportSafe") is not True:
+        fail("bootstrap plan must be supportSafe=true")
+    mutation = plan.get("mutationBoundary", {})
+    if not isinstance(mutation, dict):
+        fail("bootstrap plan missing mutation boundary")
+    if args.execute and not args.approval_ref:
+        fail("--execute requires --approval-ref")
+    if args.execute and mutation.get("executeSupportedNow") is not True:
+        fail(f"--execute is not implemented for target {plan.get('targetProviderLane')}")
+
+    run_id = str(plan.get("runId"))
+    apply_ref = support_safe_ref("bootstrap-apply", run_id, str(plan.get("planRef")), str(args.approval_ref or "dry-run"))
+    receipt_path = plan_path.parent / "apply-receipt.json"
+    mode = "execute" if args.execute else "dry_run_validate_only"
+    command_result: str | None = None
+
+    if args.execute:
+        executor = ROOT / str(mutation.get("executor"))
+        if not executor.exists():
+            fail(f"executor does not exist: {executor.relative_to(ROOT)}")
+        completed = subprocess.run([str(executor)], cwd=str(executor.parent), check=False)
+        command_result = "success" if completed.returncode == 0 else f"failed_exit_{completed.returncode}"
+        if completed.returncode != 0:
+            fail("bootstrap executor failed; inspect local operator logs before retrying", code=completed.returncode)
+
+    receipt = {
+        "schemaVersion": "weave.bootstrap.apply-receipt.v1",
+        "artifactKind": "bootstrap-apply-receipt",
+        "runId": run_id,
+        "planRef": plan.get("planRef"),
+        "applyRef": apply_ref,
+        "mode": mode,
+        "approvalRef": args.approval_ref,
+        "supportSafe": True,
+        "targetProviderLane": plan.get("targetProviderLane"),
+        "profile": plan.get("profile"),
+        "controlPlaneDeployRef": plan.get("controlPlane", {}).get("deployRef") if isinstance(plan.get("controlPlane"), dict) else None,
+        "providerStackRef": plan.get("providerStack", {}).get("ref") if isinstance(plan.get("providerStack"), dict) else None,
+        "memberHandoffRef": plan.get("memberClientBoundary", {}).get("handoffRef") if isinstance(plan.get("memberClientBoundary"), dict) else None,
+        "executorResult": command_result or "not_dispatched",
+        "terminalBooleans": {
+            "pipeline_terminal_success": command_result == "success" if args.execute else "not_dispatched",
+            "weave_server_ready": "operator-check-required" if args.execute else "not_checked",
+            "admin_console_ready": "operator-check-required" if args.execute else "not_checked",
+            "control_plane_ready": "operator-check-required" if args.execute else False,
+            "provider_stack_ready_or_attached": "operator-check-required" if args.execute else "not_checked",
+            "client_bootstrap_handoff_ready": False,
+        },
+        "claimBoundary": "dry-run validation only; no infrastructure mutation performed" if not args.execute else "executor returned successfully; run operator-check and separate client E2E before release claims",
+    }
+    write_json(receipt_path, receipt)
+    print(f"apply_ref={apply_ref}")
+    print(f"mode={mode}")
+    print(f"receipt={receipt_path}")
+    if not args.execute:
+        print("next_command=tools/weavectl bootstrap apply --plan <plan-ref> --execute --approval-ref <approval-ref>")
+    else:
+        print("next_command=infra/weave-workspace/operator-check.sh")
+    return 0
 
 
 def normalize_host(raw: str | None, profile: str) -> str:
@@ -133,21 +409,6 @@ def tcp_probe(host: str, port: int, timeout: float) -> dict[str, object]:
             return {"port": port, "reachable": True, "summary": "tcp-connect-ok"}
     except OSError:
         return {"port": port, "reachable": False, "summary": "S31-LAN-PREFLIGHT-TCP-UNREACHABLE"}
-
-
-def support_safe_ref(prefix: str, *parts: str) -> str:
-    digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
-    return f"{prefix}-{digest}"
-
-
-def write_json(path: Path, payload: dict[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    lowered = text.lower()
-    for fragment in FORBIDDEN_EVIDENCE_FRAGMENTS:
-        if fragment in lowered:
-            fail(f"support-safe redaction blocked artifact {path}: forbidden fragment {fragment}")
-    path.write_text(text, encoding="utf-8")
 
 
 def apply_profile(args: argparse.Namespace) -> int:
@@ -235,6 +496,11 @@ def apply_profile(args: argparse.Namespace) -> int:
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
+    if args.command == "bootstrap":
+        if args.bootstrap_command == "plan":
+            return plan_bootstrap(args)
+        if args.bootstrap_command == "apply":
+            return apply_bootstrap(args)
     if args.command == "profile" and args.profile_command == "apply":
         return apply_profile(args)
     fail("unsupported command")

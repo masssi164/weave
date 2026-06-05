@@ -18,26 +18,32 @@ Weave is not a re-skinned Matrix, Nextcloud, Microsoft 365, Slack, Jira, or AI-a
 - **Weave App** is for members and guests. Members join through an organization URL, invite link, deep link, or SSO and then see Weave capabilities, not raw provider setup.
 - **Weaver** is the future optional governed PA line. It is disabled by default and must stay behind organization policy, user opt-in where required, tool allowlists, sandboxing, approval receipts, revocation, and audit.
 
-## Bootstrap target
+## Bootstrap foundation
 
-The product goal is a customer-simple bootstrap path:
+The product goal is a customer-simple, reproducible bootstrap path. The canonical contract is [Bootstrap foundation](docs/bootstrap-foundation-contract.md).
 
-1. Start Weave Control through the Admin Console or `weavectl`.
-2. Choose setup mode per domain:
-   - `deploy_new`: Weave provisions approved resources.
-   - `attach_existing`: Weave binds existing customer systems without redeploying them.
-   - `hybrid`: some domains are new, some are attached.
-3. Select the CI/CD or GitOps target, such as local Forgejo for dogfood or another supported provider when evidence exists.
-4. Review the support-safe plan, SecretRef/CredentialRef posture, member impact preview, rollback/support boundary, and blocked claims.
-5. Approve apply.
-6. Observe pipeline and readiness through Admin Console and/or concise shell evidence.
-7. Create, activate, or invite first users.
-8. Members open Weave App, complete SSO, and enter product surfaces.
+Target operator UX:
+
+```bash
+tools/weavectl bootstrap plan --profile <profile> --target <provider-lane>
+tools/weavectl bootstrap apply --plan <plan-ref>
+```
+
+`bootstrap plan` reads the stable profile fixture and rejects targets that are not allowed for the selected profile. `bootstrap apply` is dry-run/validate-only unless the operator explicitly adds `--execute --approval-ref <approval-ref>`; `--dry-run` is available for explicit no-mutation CI/operator checks. For the local shell lane this dispatches the existing `infra/weave-workspace/install.sh` executor; other lanes remain support-safe plan artifacts until their adapter proves mutation dispatch.
+
+`Control Plane = Weave Server + Admin Console`. Bootstrap deploys that Control Plane through the selected lane, then optionally deploys or attaches a Provider Stack according to the chosen profile. The Flutter/member client is not deployed by bootstrap; it consumes the organization URL, invite link, or deep link emitted by the handoff.
+
+Setup modes remain per-domain:
+
+- `deploy_new`: Weave provisions approved resources named in the plan.
+- `attach_existing`: Weave binds existing customer systems without redeploying them.
+- `hybrid`: some domains are new, some are attached.
 
 Normal members must not configure raw OIDC clients, provider URLs, service endpoints, CI/CD targets, Matrix/Nextcloud/OpenProject/LiveKit internals, SecretRefs, bootstrap diagnostics, backup/restore, or provider readiness.
 
 Primary contracts:
 
+- [Bootstrap foundation](docs/bootstrap-foundation-contract.md)
 - [Weave Control bootstrap-to-client contract](docs/weave-control-bootstrap-to-client-contract.md)
 - [Admin-provisioned first use](docs/admin-provisioned-first-use.md)
 - [Admin-Suite readiness and setup contract](docs/admin-suite-readiness-setup-contract.md)
