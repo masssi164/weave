@@ -114,6 +114,26 @@ def run_command(args: list[str]) -> str:
     return completed.stdout
 
 
+def run_command_expect_failure(args: list[str], expected_fragment: str) -> None:
+    try:
+        completed = subprocess.run(args, cwd=ROOT, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+    except subprocess.TimeoutExpired:
+        fail(f"command timed out {' '.join(args)}")
+    output = f"{completed.stdout}\n{completed.stderr}"
+    if completed.returncode == 0:
+        fail(f"command unexpectedly succeeded {' '.join(args)}")
+    if expected_fragment not in output:
+        fail(f"command failure for {' '.join(args)} did not include {expected_fragment!r}: {output.strip()}")
+
+
+def write_case_plan(case_name: str, payload: dict[str, Any]) -> Path:
+    case_dir = BOOTSTRAP_RUNTIME_EVIDENCE / "negative-cases" / case_name
+    case_dir.mkdir(parents=True, exist_ok=True)
+    path = case_dir / "plan.json"
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
 def extract_output_ref(output: str, key: str) -> str:
     prefix = f"{key}="
     for line in output.splitlines():
@@ -193,7 +213,76 @@ def assert_bootstrap_runtime() -> None:
         fail("weavectl bootstrap apply must be dry-run/non-dispatch by default")
     if receipt.get("terminalBooleans", {}).get("client_bootstrap_handoff_ready") is not False:
         fail("bootstrap apply receipt must not claim client handoff readiness from dry-run")
+    if receipt.get("approvalRef") is not None or receipt.get("approvalRefHash") is not None:
+        fail("dry-run receipt must not persist an approval ref")
     assert_support_safe(receipt, "weavectl bootstrap apply receipt")
+
+    malicious_executor = dict(plan)
+    malicious_executor["mutationBoundary"] = dict(plan["mutationBoundary"], executor="/usr/bin/true")
+    malicious_executor_path = write_case_plan("malicious-executor", malicious_executor)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(malicious_executor_path), "--execute", "--approval-ref", "APPROVAL-123",
+    ], "bootstrap executor must be the allowlisted repo-relative path")
+
+    traversal_executor = dict(plan)
+    traversal_executor["mutationBoundary"] = dict(plan["mutationBoundary"], executor="../../usr/bin/true")
+    traversal_executor_path = write_case_plan("traversal-executor", traversal_executor)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(traversal_executor_path), "--execute", "--approval-ref", "APPROVAL-123",
+    ], "bootstrap executor must be the allowlisted repo-relative path")
+
+    nonallowlisted_executor = dict(plan)
+    nonallowlisted_executor["mutationBoundary"] = dict(plan["mutationBoundary"], executor="tools/weavectl")
+    nonallowlisted_executor_path = write_case_plan("nonallowlisted-executor", nonallowlisted_executor)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(nonallowlisted_executor_path), "--execute", "--approval-ref", "APPROVAL-123",
+    ], "bootstrap executor is not allowlisted for this profile/target")
+
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(plan_path.relative_to(ROOT)), "--execute", "--approval-ref", "https://example.invalid/ticket",
+    ], "--approval-ref must be a support-safe ticket id")
+
+    forged_ref_plan = dict(plan)
+    forged_ref_plan["planRef"] = "bootstrap-plan-forged"
+    forged_ref_path = write_case_plan("forged-plan-ref", forged_ref_plan)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(forged_ref_path),
+    ], "planRef does not match plan content")
+
+    forged_output = run_command([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "plan",
+        "--profile", "external-providers", "--target", "forgejo-actions",
+        "--run-id", "foundation-check-forged", "--output-dir", "build/evidence/bootstrap-foundation",
+    ])
+    forged_plan_path = ROOT / extract_output_ref(forged_output, "plan")
+    forged_plan = load(forged_plan_path)
+    forged_plan["mutationBoundary"] = dict(forged_plan["mutationBoundary"], executeSupportedNow=True, executor="infra/weave-workspace/install.sh")
+    forged_path = write_case_plan("forged-execute-supported", forged_plan)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(forged_path), "--execute", "--approval-ref", "APPROVAL-123",
+    ], "--execute is not allowed")
+
+    unsafe_plan_input = dict(plan)
+    unsafe_plan_input["forbiddenClaims"] = [*plan.get("forbiddenClaims", []), "access_token=SHOULD_BE_REJECTED"]
+    unsafe_plan_input_path = write_case_plan("unsafe-plan-input", unsafe_plan_input)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(unsafe_plan_input_path),
+    ], "support-safe redaction blocked artifact")
+
+    unsafe_receipt_plan = dict(plan)
+    unsafe_receipt_plan["providerStack"] = dict(plan["providerStack"], ref="access_token=unsafe")
+    unsafe_receipt_path = write_case_plan("unsafe-receipt", unsafe_receipt_plan)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(unsafe_receipt_path),
+    ], "support-safe redaction blocked artifact")
 
 
 def main() -> int:
