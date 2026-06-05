@@ -89,3 +89,12 @@ This checklist is an admin/operator evidence aid, not legal advice. Public legal
 - Slack import/export guide: <https://slack.com/help/articles/204897248-Guide-to-Slack-import-and-export-tools>
 - Microsoft Teams export API: <https://learn.microsoft.com/en-us/microsoftteams/export-teams-content>
 - Microsoft Graph `chatMessage`: <https://learn.microsoft.com/en-us/graph/api/resources/chatmessage>
+
+
+## Sprint 30 agentic slogan claim gate
+
+Exact slogan: **Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.**
+
+Allowed use: implemented product surfaces and stakeholder evidence may use the slogan when adjacent copy keeps Weaver governance explicit: organization policy, user-rights plus org-whitelisted capabilities, approval receipts for writes, audit, revocation, privacy/data-sovereignty boundary, and no M365 lock-in.
+
+Forbidden use: public/customer-ready autonomous PA, unrestricted background action, raw provider coupling, or claims that members configure OIDC, Matrix, Nextcloud, provider URLs, hostnames, TLS certificates, or diagnostics themselves.

@@ -1,0 +1,52 @@
+{
+  "contractVersion": "sprint30.weaver.mobile-action.v1",
+  "sourceOfTruth": "Weave Control organization policy and user session rights",
+  "eventTypes": [
+    {
+      "type": "weaver.action_request.created",
+      "deliveryTargets": ["mobile-push", "in-app-inbox"],
+      "requiresUserApproval": true,
+      "expiresClosed": true,
+      "payload": {
+        "requestId": "war_01JHOTPHASE",
+        "organizationId": "org_demo",
+        "workspaceId": "workspace_demo",
+        "userIdRef": "user-ref-redacted",
+        "capability": "chat.send",
+        "toolRef": "weave:chat:send-message",
+        "riskLevel": "medium",
+        "humanSummary": "Weaver asks to send a drafted workspace reply.",
+        "redactedContextPreview": "Support-safe summary only; no member private content or raw prompt.",
+        "approvalChoices": ["approve_once", "deny", "revoke_capability"],
+        "policyVersion": "org-policy-v30",
+        "runtimeProfileHash": "sha256:support-safe-demo",
+        "auditCorrelationRef": "audit://weaver/action-request/war_01JHOTPHASE"
+      }
+    },
+    {
+      "type": "weaver.action_request.receipt",
+      "deliveryTargets": ["mobile-push", "in-app-inbox", "audit-trail"],
+      "payload": {
+        "requestId": "war_01JHOTPHASE",
+        "decision": "approve_once",
+        "decidedAt": "2026-06-05T07:00:00Z",
+        "receiptRef": "receipt://weaver/action-request/war_01JHOTPHASE/approve-once",
+        "auditRef": "audit://weaver/action-request/war_01JHOTPHASE/approve-once",
+        "revocationRef": "revocation://weaver/capability/chat.send/user-ref-redacted",
+        "supportSafe": true
+      }
+    }
+  ],
+  "failClosedRules": [
+    "Unknown action-request event type is rejected.",
+    "Unknown capability is denied before notification delivery.",
+    "Missing policyVersion or runtimeProfileHash blocks action execution.",
+    "Expired requests deny by default.",
+    "Denied or revoked capability cannot be retried without a new policy/versioned request."
+  ],
+  "privacyBoundary": {
+    "forbiddenInPayload": ["raw prompt", "member private content", "raw provider payload", "secret value", "credential URL", "raw downstream error"],
+    "adminVisibleByDefault": ["request id", "capability", "policy version", "profile hash", "decision", "audit ref", "revocation ref"],
+    "adminHiddenByDefault": ["member private memory", "full drafted content", "raw provider response"]
+  }
+}

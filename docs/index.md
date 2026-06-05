@@ -1,5 +1,7 @@
 # Weave documentation
 
+**Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.**
+
 Weave is a provider-neutral organization operating layer for chat, files, shared calendars, boards/tasks, meetings, decisions, manuals, and operator health. Documentation is organized by audience first so readers do not have to reverse-engineer the product from sprint reports.
 
 ## Choose your path

@@ -129,6 +129,8 @@ def provider_reference_files(roots: list[str]) -> list[str]:
             rel = str(path.relative_to(ROOT))
             if any(part in {".generated", ".terraform", "build"} for part in path.relative_to(ROOT).parts):
                 continue
+            if path.name.startswith("terraform.tfstate"):
+                continue
             try:
                 text = path.read_text(encoding="utf-8", errors="ignore").lower()
             except UnicodeError:
