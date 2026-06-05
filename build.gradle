@@ -51,6 +51,7 @@ registerRootCommandTask('localCicdBootstrapperCheck', ['python3', 'tools/local_c
 registerRootCommandTask('localForgejoRunnerReadinessCheck', ['python3', 'tools/local_forgejo_runner_readiness_check.py'], 'Validate Sprint 27 local Forgejo runner readiness fixtures and acceptance mapping.')
 registerRootCommandTask('localForgejoE2eHandoffCheck', ['python3', 'tools/local_forgejo_e2e_handoff_check.py'], 'Validate Sprint 27 local Forgejo deployed-stack E2E handoff fixtures and acceptance mapping.')
 registerRootCommandTask('weaveControlModesCheck', ['python3', 'tools/weave_control_modes_check.py'], 'Validate Weave Control deploy-new, attach-existing, and hybrid setup-mode scenario fixtures.')
+registerRootCommandTask('bootstrapFoundationCheck', ['python3', 'tools/bootstrap_foundation_check.py'], 'Validate the enterprise bootstrap foundation contract, profile matrix, component matrix, and non-client deployment boundary.')
 registerRootCommandTask('sprint29HumanValidationCheck', ['python3', 'tools/sprint29_human_validation_check.py'], 'Validate Sprint 29 human-in-the-loop release validation artifacts, manual templates, and no-fake-signoff guard posture.')
 registerRootCommandTask('commercialAdapterReadinessCheck', ['python3', 'tools/commercial_adapter_readiness_check.py'], 'Validate Sprint 28 commercial adapter readiness specs, go/no-go matrix, and implementation-start guard.')
 registerRootCommandTask('sprint30HotPhaseCheck', ['python3', 'tools/sprint30_hot_phase_check.py'], 'Validate Sprint 30 hot-phase slogan, unified setup, member onboarding, support-safe evidence, and Weaver governance guardrails.')
@@ -92,7 +93,7 @@ tasks.register('releaseReadinessCheck', Exec) {
     commandLine execCommand(args)
     outputs.upToDateWhen { false }
 }
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/weaver_runtime_factory_check.py && python3 tools/weaver_customization_check.py && python3 tools/admin_cicd_orchestration_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/local_cicd_bootstrapper_check.py && python3 tools/local_forgejo_runner_readiness_check.py && python3 tools/local_forgejo_e2e_handoff_check.py && python3 tools/weave_control_modes_check.py && python3 tools/local_domain_adapter_plan_check.py && python3 tools/local_forgejo_pipeline_provider_check.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/commercial_adapter_readiness_check.py && python3 tools/sprint30_hot_phase_check.py && python3 tools/sprint31_lan_dogfood_check.py && python3 tools/sprint29_human_validation_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes, README markers, provider reality, Sprint 26/27/28/29 evidence gates, claim matrices, labels, generator fixtures, project readiness, enterprise release gates, and RC readiness fixtures.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/weaver_runtime_factory_check.py && python3 tools/weaver_customization_check.py && python3 tools/admin_cicd_orchestration_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/local_cicd_bootstrapper_check.py && python3 tools/local_forgejo_runner_readiness_check.py && python3 tools/local_forgejo_e2e_handoff_check.py && python3 tools/weave_control_modes_check.py && python3 tools/bootstrap_foundation_check.py && python3 tools/local_domain_adapter_plan_check.py && python3 tools/local_forgejo_pipeline_provider_check.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/commercial_adapter_readiness_check.py && python3 tools/sprint30_hot_phase_check.py && python3 tools/sprint31_lan_dogfood_check.py && python3 tools/sprint29_human_validation_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes, README markers, provider reality, Sprint 26/27/28/29 evidence gates, claim matrices, labels, generator fixtures, project readiness, enterprise release gates, and RC readiness fixtures.')
 
 tasks.register('docsCheck') {
     group = 'verification'
@@ -140,6 +141,7 @@ ext.ciEvidenceGates = [
     'localForgejoRunnerReadinessCheck',
     'localForgejoE2eHandoffCheck',
     'weaveControlModesCheck',
+    'bootstrapFoundationCheck',
     'sprint29HumanValidationCheck',
     'commercialAdapterReadinessCheck',
     'sprint30HotPhaseCheck',
@@ -268,6 +270,8 @@ List<String> artifactPathsForGate(String gateName) {
             return ['README.md', 'tools/fixtures/release_notes_unreleased.expected.md', 'release/sprint-29-human-validation']
         case 'sprint31LanDogfoodCheck':
             return ['tools/weavectl', 'tools/sprint31_lan_dogfood_check.py', 'release/sprint-31-physical-iphone-lan-dogfood', 'docs/sprint-31-iphone-lan-dogfood-runbook.md']
+        case 'bootstrapFoundationCheck':
+            return ['docs/bootstrap-foundation-contract.md', 'release/bootstrap-foundation', 'tools/bootstrap_foundation_check.py']
         case 'sprint29HumanValidationCheck':
             return ['release/sprint-29-human-validation', 'docs/evidence/sprint-29-human-validation', 'tools/sprint29_human_validation_check.py', 'tools/sprint29_release_decision_guard.py']
         case 'projectReadinessEvidenceCheck':
@@ -348,10 +352,10 @@ tasks.register('doctor') {
 tasks.register('ci') {
     group = 'verification'
     description = 'Run the canonical monorepo CI orchestration checks.'
-    dependsOn 'doctor', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck'
+    dependsOn 'doctor', 'acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsCheck', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'projectReadinessEvidenceCheck'
 }
 
-['acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
+['acceptanceContract', 'specContract', 'specContractTest', 'domainRegistryCheck', 'spaceAnchorCheck', 'portabilityContractCheck', 'productTrustClaimMatrixCheck', 'androidReleaseIdentityCheck', 'adminDependencyPolicyCheck', 'bootstrapFoundationCheck', 'clientCi', 'serverCi', 'infraStatic', 'adminCi', 'docsStructureCheck', 'docsBuild', 'releaseNotesLabelCheck', 'releaseEvidenceCheck', 'sprint30HotPhaseCheck', 'crossDomainProviderProofCheck', 'projectReadinessEvidenceCheck', 'enterpriseReleaseGateCheck', 'releaseReadinessFixtureTest', 'releaseReadinessCheck'].each { taskName ->
     tasks.named(taskName) {
         mustRunAfter tasks.named('doctor')
     }

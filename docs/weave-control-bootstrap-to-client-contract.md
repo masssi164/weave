@@ -1,10 +1,10 @@
 # Weave Control bootstrap-to-client contract
 
-Status: Sprint 30 contract slice for issue #681. This page turns the customer-simple setup direction into support-safe acceptance language; it does not authorize live provider mutation, production cutover, or a Weave Server rewrite.
+Status: Sprint 30 contract slice for issue #681, now subordinate to the stable [Bootstrap foundation](bootstrap-foundation-contract.md). This page turns the customer-simple setup direction into support-safe acceptance language; it does not authorize live provider mutation, production cutover, or a Weave Server rewrite.
 
 ## Product boundary
 
-Weave Control is the admin/operator bootstrap and operations product surface. It consists of `weavectl` plus the Control UI, backed by Weave Server as the Java domain facade, policy, readiness, audit, and evidence brain. It owns plan drafting, preflight, explicit apply approval, local/remote CI/CD dispatch, stack/bootstrap operations, rollback/support boundaries, readiness collection, support-bundle references, and client handoff target generation. Weave Server stays separately deployable or attachable until contract evidence proves a different implementation is safer.
+The Bootstrap foundation defines the enterprise component split: Control Plane = Weave Server + Admin Console; Provider Stack / Infra is optional and profile-driven; the member client is never deployed by bootstrap. Weave Control is the admin/operator bootstrap and operations product surface. It consists of `weavectl` plus the Control UI, backed by Weave Server as the Java domain facade, policy, readiness, audit, and evidence brain. It owns plan drafting, preflight, explicit apply approval, local/remote CI/CD dispatch, stack/bootstrap operations, rollback/support boundaries, readiness collection, support-bundle references, and client handoff target generation. Weave Server stays separately deployable or attachable until contract evidence proves a different implementation is safer.
 
 The Admin Console is the organization management surface that sits on top of the same Weave Server contract after or during bootstrap. It owns organization/provider category management, IDM/RBAC sync, users/groups/roles, capability/RBAC profiles, policy preview, whitelists, audit views, readiness/diagnostics, and future governed Weaver category controls. It may show support-safe pipeline/evidence refs produced by Weave Control, but it must not become a raw CI log viewer or secret console.
 

@@ -1,6 +1,6 @@
 # Local bootstrap and app contract
 
-This guide contains the local/dev details that used to make the top-level README intimidating: ports, TLS trust, generated env files, integration test inputs, and the native app/backend contract.
+This guide contains the local/dev provider-stack implementation path that used to make the top-level README intimidating: ports, TLS trust, generated env files, integration test inputs, and the native app/backend contract. It is not the canonical product bootstrap entrypoint; that boundary lives in `../../docs/bootstrap-foundation-contract.md` and deploys the Control Plane first, with infra selected only by profile.
 
 ## Hostnames
 

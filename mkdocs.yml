@@ -98,6 +98,7 @@ nav:
       - Calendar, E2EE, and boards scope: product-calendar-e2ee-boards-scope.md
       - Roadmap and guarded surfaces: roadmap-and-guarded-surfaces.md
       - Interop gateway and external collaboration: interop-gateway-and-external-collaboration.md
+      - Bootstrap foundation contract: bootstrap-foundation-contract.md
       - Control plane and infra bootstrap: control-plane-infra-bootstrap.md
   - Diagrams:
       - Overview: diagrams/index.md
