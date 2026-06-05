@@ -7,6 +7,8 @@ public record PlatformConfigResponse(
         String publicBaseUrl,
         String apiBaseUrl,
         String authBaseUrl,
+        String oidcIssuerUrl,
+        String oidcClientId,
         String matrixHomeserverUrl,
         String filesProductUrl,
         String calendarProductUrl,

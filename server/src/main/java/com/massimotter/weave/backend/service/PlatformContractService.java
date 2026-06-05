@@ -39,6 +39,8 @@ public class PlatformContractService {
                 platformProperties.publicBaseUrl(),
                 platformProperties.apiBaseUrl(),
                 platformProperties.authBaseUrl(),
+                oidcIssuerUrl(),
+                securityProperties.clientId(),
                 platformProperties.matrixHomeserverUrl(),
                 platformProperties.filesProductUrl(),
                 platformProperties.calendarProductUrl(),
@@ -53,6 +55,21 @@ public class PlatformContractService {
                         matrixProperties.federationEnabled(),
                         workspaceProperties.files().enabled(),
                         workspaceProperties.calendar().enabled()));
+    }
+
+    private String oidcIssuerUrl() {
+        String configuredIssuer = resourceServerProperties.getJwt().getIssuerUri();
+        if (hasText(configuredIssuer)) {
+            return configuredIssuer;
+        }
+        return joinUrlPath(platformProperties.authBaseUrl(), "/realms/weave");
+    }
+
+    private String joinUrlPath(String baseUrl, String path) {
+        if (baseUrl.endsWith("/")) {
+            return baseUrl.substring(0, baseUrl.length() - 1) + path;
+        }
+        return baseUrl + path;
     }
 
     public PlatformStatusResponse status(String requestId) {
