@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -26,6 +28,8 @@ ADMIN_README = ROOT / "admin-console" / "README.md"
 INFRA_README = ROOT / "infra" / "README.md"
 LOCAL_BOOTSTRAP = ROOT / "infra" / "docs" / "local-bootstrap.md"
 FEATURE = ROOT / "e2e" / "features" / "weave_control_modes.feature"
+WEAVECTL = ROOT / "tools" / "weavectl"
+BOOTSTRAP_RUNTIME_EVIDENCE = ROOT / "build" / "evidence" / "bootstrap-foundation" / "foundation-check"
 
 REQUIRED_PROFILES = {
     "local-minimal",
@@ -100,6 +104,24 @@ def assert_contains(path: Path, fragments: list[str]) -> None:
             fail(f"{path.relative_to(ROOT)} missing {fragment!r}")
 
 
+def run_command(args: list[str]) -> str:
+    try:
+        completed = subprocess.run(args, cwd=ROOT, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=20)
+    except subprocess.CalledProcessError as exc:
+        fail(f"command failed {' '.join(args)}: {exc.stderr.strip() or exc.stdout.strip()}")
+    except subprocess.TimeoutExpired:
+        fail(f"command timed out {' '.join(args)}")
+    return completed.stdout
+
+
+def extract_output_ref(output: str, key: str) -> str:
+    prefix = f"{key}="
+    for line in output.splitlines():
+        if line.startswith(prefix):
+            return line[len(prefix):].strip()
+    fail(f"command output missing {key}= line")
+
+
 def assert_support_safe(value: Any, label: str, path: tuple[str, ...] = ()) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
@@ -113,6 +135,65 @@ def assert_support_safe(value: Any, label: str, path: tuple[str, ...] = ()) -> N
         for pattern in FORBIDDEN_PATTERNS:
             if pattern.search(value):
                 fail(f"{label} contains support-unsafe pattern at {'.'.join(path)}")
+
+
+def assert_bootstrap_runtime() -> None:
+    if BOOTSTRAP_RUNTIME_EVIDENCE.exists():
+        shutil.rmtree(BOOTSTRAP_RUNTIME_EVIDENCE)
+    plan_output = run_command([
+        "python3",
+        str(WEAVECTL.relative_to(ROOT)),
+        "bootstrap",
+        "plan",
+        "--profile",
+        "local-lan-dogfood",
+        "--target",
+        "local-shell",
+        "--lan-host",
+        "192.168.0.10",
+        "--run-id",
+        "foundation-check",
+        "--output-dir",
+        "build/evidence/bootstrap-foundation",
+    ])
+    plan_ref = extract_output_ref(plan_output, "plan_ref")
+    plan_path = BOOTSTRAP_RUNTIME_EVIDENCE / "plan.json"
+    plan = load(plan_path)
+    if plan.get("schemaVersion") != "weave.bootstrap.plan.v1":
+        fail("weavectl bootstrap plan emitted wrong schema")
+    if plan.get("profile") != "local-lan-dogfood" or plan.get("targetProviderLane") != "local-shell":
+        fail("weavectl bootstrap plan emitted wrong profile/target")
+    mutation = plan.get("mutationBoundary", {})
+    if mutation.get("defaultApplyMode") != "dry_run_validate_only":
+        fail("weavectl bootstrap plan must default to dry-run apply")
+    if mutation.get("requiresApprovalRefForMutation") is not True:
+        fail("weavectl bootstrap plan must require an approval ref for mutation")
+    member_boundary = plan.get("memberClientBoundary", {})
+    if member_boundary.get("deployedByBootstrap") is not False:
+        fail("weavectl bootstrap plan must not deploy the member client")
+    if member_boundary.get("endpointPolicy", {}).get("endpointClass") != "rfc1918-lan-ip":
+        fail("weavectl bootstrap plan must validate LAN endpoint class without storing raw endpoint")
+    assert_support_safe(plan, "weavectl bootstrap plan")
+
+    apply_output = run_command([
+        "python3",
+        str(WEAVECTL.relative_to(ROOT)),
+        "bootstrap",
+        "apply",
+        "--plan",
+        plan_ref,
+        "--output-dir",
+        "build/evidence/bootstrap-foundation",
+    ])
+    receipt_path = extract_output_ref(apply_output, "receipt")
+    receipt = load(ROOT / receipt_path)
+    if receipt.get("schemaVersion") != "weave.bootstrap.apply-receipt.v1":
+        fail("weavectl bootstrap apply emitted wrong schema")
+    if receipt.get("mode") != "dry_run_validate_only" or receipt.get("executorResult") != "not_dispatched":
+        fail("weavectl bootstrap apply must be dry-run/non-dispatch by default")
+    if receipt.get("terminalBooleans", {}).get("client_bootstrap_handoff_ready") is not False:
+        fail("bootstrap apply receipt must not claim client handoff readiness from dry-run")
+    assert_support_safe(receipt, "weavectl bootstrap apply receipt")
 
 
 def main() -> int:
@@ -186,8 +267,9 @@ def main() -> int:
     assert_contains(INFRA_README, ["provider-stack implementation", "bootstrap-foundation-contract.md"])
     assert_contains(LOCAL_BOOTSTRAP, ["provider-stack implementation path", "not the canonical product bootstrap entrypoint"])
     assert_contains(FEATURE, ["Bootstrap deploys the Control Plane as server plus Admin Console"])
+    assert_bootstrap_runtime()
 
-    print("bootstrap-foundation-check: ok profiles=6 components=6 control_plane=server+admin-console")
+    print("bootstrap-foundation-check: ok profiles=6 components=6 control_plane=server+admin-console runtime=plan/apply")
     return 0
 
 

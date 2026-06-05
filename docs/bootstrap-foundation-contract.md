@@ -54,9 +54,11 @@ Every profile must produce the same categories of outputs: plan ref, selected se
 The target operator UX is intentionally short:
 
 ```bash
-weavectl bootstrap plan --profile <profile> --target <provider-lane>
-weavectl bootstrap apply --plan <plan-ref>
+tools/weavectl bootstrap plan --profile <profile> --target <provider-lane>
+tools/weavectl bootstrap apply --plan <plan-ref>
 ```
+
+`bootstrap plan` validates the selected `--profile` and `--target` against `release/bootstrap-foundation/bootstrap-profiles.v1.json`. `bootstrap apply` without `--execute` — or with explicit `--dry-run` — is a CI-safe validation that emits an apply receipt but does not mutate infrastructure. Live mutation requires `--execute --approval-ref <approval-ref>`; today only the local shell/local Docker executor may dispatch `infra/weave-workspace/install.sh`, while remote provider lanes stay plan-only until their adapters prove support-safe dispatch. For local LAN dogfood, planning also requires `--lan-host <LAN-IP>` and stores only the endpoint class in support-safe artifacts.
 
 For local dogfood, the final command may wrap defaults, but it must remain equivalent to the plan/apply contract and must not require manual server startup, manual Admin Console Vite startup, raw provider setup, or Flutter deployment.
 

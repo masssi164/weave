@@ -25,9 +25,11 @@ The product goal is a customer-simple, reproducible bootstrap path. The canonica
 Target operator UX:
 
 ```bash
-weavectl bootstrap plan --profile <profile> --target <provider-lane>
-weavectl bootstrap apply --plan <plan-ref>
+tools/weavectl bootstrap plan --profile <profile> --target <provider-lane>
+tools/weavectl bootstrap apply --plan <plan-ref>
 ```
+
+`bootstrap plan` reads the stable profile fixture and rejects targets that are not allowed for the selected profile. `bootstrap apply` is dry-run/validate-only unless the operator explicitly adds `--execute --approval-ref <approval-ref>`; `--dry-run` is available for explicit no-mutation CI/operator checks. For the local shell lane this dispatches the existing `infra/weave-workspace/install.sh` executor; other lanes remain support-safe plan artifacts until their adapter proves mutation dispatch.
 
 `Control Plane = Weave Server + Admin Console`. Bootstrap deploys that Control Plane through the selected lane, then optionally deploys or attaches a Provider Stack according to the chosen profile. The Flutter/member client is not deployed by bootstrap; it consumes the organization URL, invite link, or deep link emitted by the handoff.
 
