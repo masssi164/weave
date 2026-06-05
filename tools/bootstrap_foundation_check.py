@@ -225,6 +225,22 @@ def assert_bootstrap_runtime() -> None:
         "--plan", str(malicious_executor_path), "--execute", "--approval-ref", "APPROVAL-123",
     ], "bootstrap executor must be the allowlisted repo-relative path")
 
+    traversal_executor = dict(plan)
+    traversal_executor["mutationBoundary"] = dict(plan["mutationBoundary"], executor="../../usr/bin/true")
+    traversal_executor_path = write_case_plan("traversal-executor", traversal_executor)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(traversal_executor_path), "--execute", "--approval-ref", "APPROVAL-123",
+    ], "bootstrap executor must be the allowlisted repo-relative path")
+
+    nonallowlisted_executor = dict(plan)
+    nonallowlisted_executor["mutationBoundary"] = dict(plan["mutationBoundary"], executor="tools/weavectl")
+    nonallowlisted_executor_path = write_case_plan("nonallowlisted-executor", nonallowlisted_executor)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(nonallowlisted_executor_path), "--execute", "--approval-ref", "APPROVAL-123",
+    ], "bootstrap executor is not allowlisted for this profile/target")
+
     run_command_expect_failure([
         "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
         "--plan", str(plan_path.relative_to(ROOT)), "--execute", "--approval-ref", "https://example.invalid/ticket",
