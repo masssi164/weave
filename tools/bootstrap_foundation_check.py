@@ -246,6 +246,14 @@ def assert_bootstrap_runtime() -> None:
         "--plan", str(plan_path.relative_to(ROOT)), "--execute", "--approval-ref", "https://example.invalid/ticket",
     ], "--approval-ref must be a support-safe ticket id")
 
+    forged_ref_plan = dict(plan)
+    forged_ref_plan["planRef"] = "bootstrap-plan-forged"
+    forged_ref_path = write_case_plan("forged-plan-ref", forged_ref_plan)
+    run_command_expect_failure([
+        "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",
+        "--plan", str(forged_ref_path),
+    ], "planRef does not match plan content")
+
     forged_output = run_command([
         "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "plan",
         "--profile", "external-providers", "--target", "forgejo-actions",
