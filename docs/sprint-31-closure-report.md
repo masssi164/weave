@@ -50,8 +50,17 @@ The repository can prepare and validate the LAN handoff, but final success requi
 Local evidence before PR:
 
 - `python3 tools/sprint31_lan_dogfood_check.py`: pass.
+- `tools/weavectl profile apply --profile local-lan-dogfood --lan-host 192.168.42.10 --emit-handoff --emit-evidence --preflight-mode validate-only --run-id s31-smoke --output-dir /tmp/weave-s31-smoke`: pass.
 - `./gradlew sprint31LanDogfoodCheck acceptanceContract docsCheck releaseEvidenceCheck`: pass.
 - `cd client && flutter analyze --fatal-infos`: pass.
 - `cd client && flutter test test/features/onboarding/member_handoff_test.dart test/features/auth/sign_in_screen_test.dart test/architecture/member_client_provider_boundary_contract_test.dart`: pass.
+- `./gradlew clientCi`: pass.
 
-CI/main evidence is to be updated after the PR merges.
+GitHub evidence before merge:
+
+- PR: #702 `feat: add physical iPhone LAN dogfood handoff`.
+- Release notes label: `release-notes-feature`.
+- Copilot review request fallback: `copilot` and `github-copilot` were not resolvable as review users by GitHub GraphQL, so merge readiness relies on local gates plus GitHub CI.
+- PR CI run `27007385556`: `Release Notes Label Check` pass; `Gradle CI` pass.
+
+Main evidence is to be verified after the PR merges.
