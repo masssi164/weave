@@ -596,6 +596,17 @@ source "${SYNAPSE_VOLUME_HELPER}"
 : "${WEAVE_OIDC_ISSUER_URL:=$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:=$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
 : "${WEAVE_MATRIX_HOMESERVER_URL:=$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
+: "${WEAVE_LOCAL_CA_URL:=http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem}"
+
+[[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Operator check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.local}, got ${WEAVE_PUBLIC_BASE_URL}"
+[[ "${WEAVE_BASE_URL}" == "$(api_public_url)/api" ]] || fail "Operator check failed: API URL must stay DNS-first on $(public_host "${TF_VAR_api_subdomain:-api}"), got ${WEAVE_BASE_URL}"
+[[ "${WEAVE_OIDC_ISSUER_URL}" == "$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}" ]] || fail "Operator check failed: OIDC issuer must stay DNS-first on $(public_host "${TF_VAR_auth_subdomain:-auth}"), got ${WEAVE_OIDC_ISSUER_URL}"
+[[ "${WEAVE_LOCAL_CA_URL}" == "http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" ]] || fail "Operator check failed: local CA URL must be advertised on weave.local, got ${WEAVE_LOCAL_CA_URL}"
+if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
+  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_NEXTCLOUD_BASE_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
+    [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Operator check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
+  done
+fi
 
 synapse_operator_diagnose_volume
 
@@ -662,9 +673,7 @@ assert_json "${matrix_auth_metadata}" ".issuer == \"${WEAVE_MATRIX_HOMESERVER_UR
 assert_json "${matrix_auth_metadata}" '.authorization_endpoint | contains("/authorize")' "Matrix OAuth metadata should expose the MAS authorization endpoint"
 
 log "Checking default Matrix room aliases..."
-matrix_homeserver="${WEAVE_MATRIX_HOMESERVER_URL#*://}"
-matrix_homeserver="${matrix_homeserver%%/*}"
-matrix_homeserver="${matrix_homeserver%%:*}"
+matrix_homeserver="${TF_VAR_matrix_subdomain:-matrix}.${TF_VAR_tenant_domain:?Expected TF_VAR_tenant_domain in env or bootstrap env}"
 matrix_space_alias="#${WEAVE_MATRIX_WORKSPACE_ALIAS_LOCALPART:-weave-workspace}:${matrix_homeserver}"
 matrix_announcements_alias="#${WEAVE_MATRIX_ANNOUNCEMENTS_ALIAS_LOCALPART:-announcements}:${matrix_homeserver}"
 matrix_general_alias="#${WEAVE_MATRIX_GENERAL_ALIAS_LOCALPART:-general}:${matrix_homeserver}"

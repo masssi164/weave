@@ -37,6 +37,10 @@ locals {
     service => "${var.public_scheme}://${host}${local.public_port_suffix}"
   }
 
+  # DNS-first local contract: local_lan_host is not a public issuer/redirect truth.
+  client_auth_url   = local.public_urls.auth
+  client_matrix_url = local.public_urls.matrix
+
   matrix_mas_upstream_id = "01JQ7N9R4QK6W3M5X8Y2ZC1DHF"
 }
 
@@ -44,8 +48,8 @@ module "tenant_identity" {
   source = "./modules/tenant-identity"
 
   tenant_slug                             = var.tenant_slug
-  keycloak_public_url                     = local.public_urls.auth
-  mas_public_url                          = local.public_urls.matrix
+  keycloak_public_url                     = local.client_auth_url
+  mas_public_url                          = local.client_matrix_url
   nextcloud_public_url                    = local.public_urls.files
   admin_console_public_url                = local.public_urls.admin
   matrix_mas_upstream_id                  = local.matrix_mas_upstream_id

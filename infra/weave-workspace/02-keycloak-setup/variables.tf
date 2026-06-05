@@ -62,6 +62,12 @@ variable "proxy_host_port" {
   default     = 443
 }
 
+variable "local_lan_host" {
+  description = "Deprecated/non-canonical LAN host/IP compatibility input. Keycloak public issuer and redirects remain DNS-first on weave.local / *.weave.local."
+  type        = string
+  default     = ""
+}
+
 variable "keycloak_host_port" {
   description = "Direct host port for Keycloak admin access."
   type        = number

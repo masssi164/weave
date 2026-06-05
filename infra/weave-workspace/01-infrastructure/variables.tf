@@ -32,6 +32,12 @@ variable "tenant_domain" {
   default     = "weave.local"
 }
 
+variable "local_lan_host" {
+  description = "Optional non-canonical LAN host/IP for certificate SAN/debug compatibility. Public service, app-start, issuer, and CA URLs remain DNS-first on weave.local / *.weave.local."
+  type        = string
+  default     = ""
+}
+
 variable "auth_subdomain" {
   description = "Subdomain used for Keycloak."
   type        = string

@@ -1,10 +1,29 @@
 {
 	admin off
+	default_sni ${ca_bootstrap_host}
+}
+
+http://${ca_bootstrap_host} {
+	@local_ca path /weave-local-ca.pem
+	handle @local_ca {
+		root * /certs
+		rewrite * /${tls_ca_filename}
+		file_server
+	}
+
+	respond "Weave local dogfood HTTP endpoint. Download /weave-local-ca.pem, trust the Weave Local Development CA, then use https://${ca_bootstrap_host}." 200
 }
 
 ${weave_site_addresses} {
 	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
 	encode zstd gzip
+
+	@local_ca path /weave-local-ca.pem
+	handle @local_ca {
+		root * /certs
+		rewrite * /${tls_ca_filename}
+		file_server
+	}
 
 	@files path /files /files/*
 	handle @files {
@@ -25,7 +44,7 @@ ${api_site_addresses} {
 	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
 	encode zstd gzip
 
-	${connector_provider_callbacks_guard}
+${connector_provider_callbacks_guard}
 
 	reverse_proxy ${api_upstream}
 }

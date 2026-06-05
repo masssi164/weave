@@ -245,12 +245,9 @@ class MemberHandoffParser {
         profile == 'dev' ||
         profile == 'local-dogfood';
     if (localProfile) {
-      if (hostClass != 'rfc1918-lan-ip' &&
-          hostClass != 'lan-ipv6' &&
-          hostClass != 'lan-dns' &&
-          hostClass != 'dns') {
+      if (hostClass != 'lan-dns') {
         throw const AppFailure.validation(
-          'WEAVE-LAN-UNREACHABLE: The local invite must point to a LAN-reachable address.',
+          'WEAVE-LAN-UNREACHABLE: The local invite must point to the DNS-first LAN domain.',
         );
       }
       return;
@@ -269,8 +266,15 @@ class MemberHandoffParser {
     if (host.isEmpty ||
         host == 'localhost' ||
         host == 'host.docker.internal' ||
-        host == 'docker.for.mac.localhost' ||
-        host.endsWith('.local')) {
+        host == 'docker.for.mac.localhost') {
+      return 'forbidden-local-only';
+    }
+
+    if (host == 'weave.local' || host.endsWith('.weave.local')) {
+      return 'lan-dns';
+    }
+
+    if (host.endsWith('.local')) {
       return 'forbidden-local-only';
     }
 
@@ -313,4 +317,52 @@ class MemberHandoffParser {
 
     return 'dns';
   }
+}
+
+class MemberHandoffPayloadBuilder {
+  const MemberHandoffPayloadBuilder();
+
+  Uri inviteLink({
+    required Uri productBaseUrl,
+    required String handoffRef,
+    required String organizationSlug,
+    required String workspaceSlug,
+    String profile = 'local-lan-dogfood',
+    String runId = 'unknown-run',
+  }) {
+    final link = Uri(
+      scheme: productBaseUrl.scheme,
+      host: productBaseUrl.host,
+      port: productBaseUrl.hasPort ? productBaseUrl.port : null,
+      path: '/join',
+      queryParameters: {
+        'handoff_ref': handoffRef,
+        'org': organizationSlug,
+        'workspace': workspaceSlug,
+        'profile': profile,
+        'run_id': runId,
+      },
+    );
+
+    // Re-parse the generated link so invite links and QR payloads share the
+    // same support-safe validation path as incoming mobile deep links.
+    const MemberHandoffParser().parse(link);
+    return link;
+  }
+
+  String qrPayload({
+    required Uri productBaseUrl,
+    required String handoffRef,
+    required String organizationSlug,
+    required String workspaceSlug,
+    String profile = 'local-lan-dogfood',
+    String runId = 'unknown-run',
+  }) => inviteLink(
+    productBaseUrl: productBaseUrl,
+    handoffRef: handoffRef,
+    organizationSlug: organizationSlug,
+    workspaceSlug: workspaceSlug,
+    profile: profile,
+    runId: runId,
+  ).toString();
 }

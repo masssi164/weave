@@ -61,12 +61,18 @@ public_port_suffix() {
   printf ':%s' "${port}"
 }
 
+public_host() {
+  local subdomain="$1"
+  printf '%s.%s' \
+    "${subdomain}" \
+    "${TF_VAR_tenant_domain:?Expected TF_VAR_tenant_domain in env or bootstrap env}"
+}
+
 public_url() {
   local subdomain="$1"
-  printf '%s://%s.%s%s' \
+  printf '%s://%s%s' \
     "${TF_VAR_public_scheme:-https}" \
-    "${subdomain}" \
-    "${TF_VAR_tenant_domain:?Expected TF_VAR_tenant_domain in env or bootstrap env}" \
+    "$(public_host "${subdomain}")" \
     "$(public_port_suffix)"
 }
 
@@ -75,6 +81,10 @@ product_public_url() {
     "${TF_VAR_public_scheme:-https}" \
     "${TF_VAR_tenant_domain:?Expected TF_VAR_tenant_domain in env or bootstrap env}" \
     "$(public_port_suffix)"
+}
+
+client_public_url() {
+  product_public_url
 }
 
 host_port_from_url() {
@@ -225,6 +235,68 @@ assert_json() {
   local description="$3"
 
   jq -e "${jq_filter}" >/dev/null <<<"${json}" || fail "Smoke check failed: ${description}"
+}
+
+assert_no_legacy_local_truth() {
+  local json="$1"
+  local description="$2"
+
+  if jq -e '.. | strings | select(test("192\\.168\\.|127\\.0\\.0\\.1|localhost"))' >/dev/null <<<"${json}"; then
+    fail "Smoke check failed: ${description} must not expose LAN IP, loopback, or localhost URLs"
+  fi
+}
+
+assert_url_no_legacy_local_truth() {
+  local url="$1"
+  local description="$2"
+
+  [[ ! "${url}" =~ 192\.168\.|127\.0\.0\.1|localhost ]] || \
+    fail "Smoke check failed: ${description} must not expose LAN IP, loopback, or localhost URLs: ${url}"
+}
+
+assert_decoded_join_payload() {
+  local payload="$1"
+  local expected_handoff_ref="$2"
+  local expected_base_url="$3"
+
+  python3 - "${payload}" "${expected_handoff_ref}" "${expected_base_url}" <<'PY'
+import sys
+from urllib.parse import urlparse, parse_qs
+payload = sys.argv[1]
+expected_ref = sys.argv[2]
+expected_base = urlparse(sys.argv[3])
+parsed = urlparse(payload)
+query = parse_qs(parsed.query)
+errors = []
+
+def effective_port(uri):
+    if uri.port is not None:
+        return uri.port
+    return 443 if uri.scheme == "https" else 80 if uri.scheme == "http" else None
+
+if parsed.scheme != expected_base.scheme:
+    errors.append(f"scheme={parsed.scheme!r}")
+if parsed.hostname != expected_base.hostname:
+    errors.append(f"host={parsed.hostname!r}")
+if effective_port(parsed) != effective_port(expected_base):
+    errors.append(f"port={effective_port(parsed)!r}")
+if parsed.path != "/join":
+    errors.append(f"path={parsed.path!r}")
+if query.get("handoff_ref") != [expected_ref]:
+    errors.append("handoff_ref mismatch")
+if query.get("org") != ["massimo-dogfood"]:
+    errors.append("org mismatch")
+if query.get("workspace") != ["home"]:
+    errors.append("workspace mismatch")
+if query.get("profile") != ["local-lan-dogfood"]:
+    errors.append("profile mismatch")
+for forbidden in ("token", "access_token", "refresh_token", "id_token", "client_secret", "password"):
+    if forbidden in query or forbidden in payload.lower():
+        errors.append(f"forbidden credential field {forbidden}")
+if errors:
+    print("Smoke check failed: QR/invite payload is not the deterministic DNS-first handoff contract: " + ", ".join(errors), file=sys.stderr)
+    sys.exit(1)
+PY
 }
 
 container_env_value() {
@@ -391,16 +463,33 @@ probe_authenticated_facade() {
 require_command curl
 require_command docker
 require_command jq
+require_command python3
 load_bootstrap_env
 
 CADDY_TLS_CA_FILE="${TF_VAR_caddy_tls_ca_file:-${DEFAULT_CADDY_TLS_CA_FILE}}"
 [[ -f "${CADDY_TLS_CA_FILE}" ]] || fail "Expected a trusted Caddy TLS CA file at ${CADDY_TLS_CA_FILE}. Set TF_VAR_caddy_tls_ca_file explicitly or run install.sh first."
 
+WEAVE_PUBLIC_BASE_URL="${WEAVE_PUBLIC_BASE_URL:-$(client_public_url)}"
 WEAVE_API_BASE_URL="${WEAVE_API_BASE_URL:-${WEAVE_BASE_URL:-$(public_url "${TF_VAR_api_subdomain:-api}")/api}}"
 WEAVE_BASE_URL="${WEAVE_API_BASE_URL%/}"
-WEAVE_OIDC_ISSUER_URL="${WEAVE_OIDC_ISSUER_URL:-$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}}"
+WEAVE_AUTH_BASE_URL="${WEAVE_AUTH_BASE_URL:-$(public_url "${TF_VAR_auth_subdomain:-auth}")}"
+WEAVE_OIDC_ISSUER_URL="${WEAVE_OIDC_ISSUER_URL:-${WEAVE_AUTH_BASE_URL}/realms/${TF_VAR_tenant_slug:-weave}}"
 WEAVE_NEXTCLOUD_BASE_URL="${WEAVE_NEXTCLOUD_BASE_URL:-$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
 WEAVE_MATRIX_HOMESERVER_URL="${WEAVE_MATRIX_HOMESERVER_URL:-$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
+WEAVE_LOCAL_CA_URL="${WEAVE_LOCAL_CA_URL:-http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem}"
+
+[[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Smoke check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.local}, got ${WEAVE_PUBLIC_BASE_URL}"
+[[ "${WEAVE_BASE_URL}" == "$(public_url "${TF_VAR_api_subdomain:-api}")/api" ]] || fail "Smoke check failed: API URL must stay DNS-first on $(public_host "${TF_VAR_api_subdomain:-api}"), got ${WEAVE_BASE_URL}"
+[[ "${WEAVE_OIDC_ISSUER_URL}" == "$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}" ]] || fail "Smoke check failed: OIDC issuer must stay DNS-first on $(public_host "${TF_VAR_auth_subdomain:-auth}"), got ${WEAVE_OIDC_ISSUER_URL}"
+[[ "${WEAVE_LOCAL_CA_URL}" == "http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" ]] || fail "Smoke check failed: local CA URL must be advertised on weave.local, got ${WEAVE_LOCAL_CA_URL}"
+assert_url_no_legacy_local_truth "${WEAVE_LOCAL_CA_URL}" "Local CA bootstrap URL"
+local_ca_status="$(curl_status "${WEAVE_LOCAL_CA_URL}")"
+[[ "${local_ca_status}" == "200" ]] || fail "Smoke check failed: local CA must be reachable through weave.local bootstrap URL, got HTTP ${local_ca_status}"
+if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
+  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_AUTH_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
+    [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Smoke check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
+  done
+fi
 : "${WEAVE_OIDC_CLIENT_ID:?Expected WEAVE_OIDC_CLIENT_ID in env or bootstrap env}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:?Expected WEAVE_NEXTCLOUD_BASE_URL in env or bootstrap env}"
 : "${WEAVE_MATRIX_HOMESERVER_URL:?Expected WEAVE_MATRIX_HOMESERVER_URL in env or bootstrap env}"
@@ -419,23 +508,46 @@ backend_health="$(curl_json "${WEAVE_BASE_URL}/health/ready")"
 assert_json "${backend_health}" '.status == "up"' "Backend readiness should report up"
 
 log "Checking product shell routes..."
-product_status="$(curl_status "$(product_public_url)/")"
+product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/")"
 [[ "${product_status}" == "200" ]] || fail "Smoke check failed: Weave product gateway should return 200, got ${product_status}"
-files_product_status="$(curl_status "$(product_public_url)/files")"
+files_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/files")"
 [[ "${files_product_status}" == "200" ]] || fail "Smoke check failed: Weave files product route should return 200, got ${files_product_status}"
-calendar_product_status="$(curl_status "$(product_public_url)/calendar")"
+calendar_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/calendar")"
 [[ "${calendar_product_status}" == "200" ]] || fail "Smoke check failed: Weave calendar product route should return 200, got ${calendar_product_status}"
+
+log "Checking invite-link onboarding contract..."
+invite_handoff_ref="handoff-s32-invite"
+invite_link="${WEAVE_PUBLIC_BASE_URL}/join?handoff_ref=${invite_handoff_ref}&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-invite"
+assert_url_no_legacy_local_truth "${invite_link}" "Invite link"
+assert_decoded_join_payload "${invite_link}" "${invite_handoff_ref}" "${WEAVE_PUBLIC_BASE_URL}"
+invite_status="$(curl_status "${invite_link}")"
+[[ "${invite_status}" == "200" ]] || fail "Smoke check failed: invite link should route through the product gateway, got HTTP ${invite_status}"
+
+log "Checking QR payload onboarding contract..."
+qr_handoff_ref="handoff-s32-qr"
+qr_payload="${WEAVE_PUBLIC_BASE_URL}/join?handoff_ref=${qr_handoff_ref}&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-qr"
+assert_url_no_legacy_local_truth "${qr_payload}" "QR payload"
+assert_decoded_join_payload "${qr_payload}" "${qr_handoff_ref}" "${WEAVE_PUBLIC_BASE_URL}"
+qr_status="$(curl_status "${qr_payload}")"
+[[ "${qr_status}" == "200" ]] || fail "Smoke check failed: QR payload should decode to a routable product join link, got HTTP ${qr_status}"
 
 log "Checking public platform config..."
 platform_config="$(curl_json "${WEAVE_BASE_URL}/platform/config")"
-assert_json "${platform_config}" ".apiBaseUrl == \"${WEAVE_BASE_URL}\"" "Platform config should expose the canonical public API route"
-assert_json "${platform_config}" '.authBaseUrl | contains("auth.")' "Platform config should expose the public auth host"
+assert_json "${platform_config}" ".publicBaseUrl == \"${WEAVE_PUBLIC_BASE_URL}\"" "Platform config should expose the canonical DNS-first product route"
+assert_json "${platform_config}" ".apiBaseUrl == \"${WEAVE_BASE_URL}\"" "Platform config should expose the canonical DNS-first API route"
+assert_json "${platform_config}" ".authBaseUrl == \"${WEAVE_AUTH_BASE_URL}\"" "Platform config should expose the canonical DNS-first auth route"
+assert_json "${platform_config}" ".oidcIssuerUrl == \"${WEAVE_OIDC_ISSUER_URL}\"" "Platform config should expose the canonical DNS-first OIDC issuer"
+assert_json "${platform_config}" ".matrixHomeserverUrl == \"${WEAVE_MATRIX_HOMESERVER_URL}\"" "Platform config should expose the canonical DNS-first Matrix route"
+assert_json "${platform_config}" ".filesProductUrl == \"${WEAVE_PUBLIC_BASE_URL}/files\"" "Platform config should expose the product files route, not raw provider internals"
+assert_json "${platform_config}" ".calendarProductUrl == \"${WEAVE_PUBLIC_BASE_URL}/calendar\"" "Platform config should expose the product calendar route"
+assert_json "${platform_config}" ".nextcloudBaseUrl == \"${WEAVE_NEXTCLOUD_BASE_URL}\"" "Platform config should expose only the support-safe public Nextcloud fallback URL"
 assert_json "${platform_config}" '.features.chatE2ee == false and .features.matrixFederation == false' "MVP chat security flags should be honest"
+assert_no_legacy_local_truth "${platform_config}" "Platform config"
 
 platform_status="$(curl_json "${WEAVE_BASE_URL}/platform/status")"
 assert_json "${platform_status}" '.backend.status == "up"' "Platform status should report backend up"
 
-log "Minting a real app token through Keycloak..."
+log "Checking credentials login through the real Keycloak flow..."
 token_response="$(curl_form "${token_endpoint}" \
   --data-urlencode grant_type=password \
   --data-urlencode client_id="${WEAVE_OIDC_CLIENT_ID}" \
@@ -450,6 +562,11 @@ profile_response="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/me")"
 assert_json "${profile_response}" ".email == \"${WEAVE_TEST_USERNAME}\"" "Backend should accept a valid app token"
 assert_json "${profile_response}" ".audience | index(\"${WEAVE_OIDC_CLIENT_ID}\") != null" "Token audience should include the app client"
 assert_json "${profile_response}" '.userId != null and .username != null' "Backend should expose canonical identity fields"
+
+log "Checking authenticated organization manifest DNS-first contract..."
+organization_manifest="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/organization/manifest")"
+assert_json "${organization_manifest}" '.. | strings | select(. == "'"${WEAVE_AUTH_BASE_URL}"'/realms/'"${TF_VAR_tenant_slug:-weave}"'")' "Organization manifest should expose the canonical DNS-first auth URL"
+assert_no_legacy_local_truth "${organization_manifest}" "Organization manifest"
 
 log "Checking provider stack readiness contract..."
 profile_readiness="$(curl_auth_json "${access_token}" "${WEAVE_BASE_URL}/profile/readiness")"
@@ -484,7 +601,7 @@ assert_json "${nextcloud_providers}" ".clientId == \"nextcloud\"" "Nextcloud pro
 assert_json "${nextcloud_providers}" ".discoveryEndpoint == \"${WEAVE_OIDC_ISSUER_URL}/.well-known/openid-configuration\"" "Nextcloud should point at the public Keycloak discovery URL"
 assert_json "${nextcloud_providers}" '.settings.groupProvisioning == true' "Nextcloud group provisioning should remain enabled"
 nextcloud_oidc_redirect="$(curl_location "${WEAVE_NEXTCLOUD_BASE_URL}/apps/user_oidc/login/1")"
-[[ "${nextcloud_oidc_redirect}" == https://auth* ]] || fail "Smoke check failed: Nextcloud OIDC login should redirect to Auth, got '${nextcloud_oidc_redirect}'"
+[[ "${nextcloud_oidc_redirect}" == "${WEAVE_AUTH_BASE_URL}"/realms/* ]] || fail "Smoke check failed: Nextcloud OIDC login should redirect to the canonical Auth base URL, got '${nextcloud_oidc_redirect}'"
 
 log "Checking Matrix auth routing and MAS wiring..."
 matrix_base_url="${WEAVE_MATRIX_HOMESERVER_URL}"
@@ -505,9 +622,7 @@ authorize_status="$(curl_status "${matrix_base_url}/authorize")"
 [[ "${authorize_status}" == "400" ]] || fail "Smoke check failed: MAS authorize endpoint should be reachable and reject incomplete requests with 400"
 
 log "Checking default Matrix workspace provisioning..."
-matrix_homeserver="${matrix_base_url#*://}"
-matrix_homeserver="${matrix_homeserver%%/*}"
-matrix_homeserver="${matrix_homeserver%%:*}"
+matrix_homeserver="${TF_VAR_matrix_subdomain:-matrix}.${TF_VAR_tenant_domain:?Expected TF_VAR_tenant_domain in env or bootstrap env}"
 matrix_space_alias="#${WEAVE_MATRIX_WORKSPACE_ALIAS_LOCALPART:-weave-workspace}:${matrix_homeserver}"
 matrix_announcements_alias="#${WEAVE_MATRIX_ANNOUNCEMENTS_ALIAS_LOCALPART:-announcements}:${matrix_homeserver}"
 matrix_general_alias="#${WEAVE_MATRIX_GENERAL_ALIAS_LOCALPART:-general}:${matrix_homeserver}"

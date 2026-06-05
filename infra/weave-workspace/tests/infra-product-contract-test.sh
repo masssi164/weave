@@ -289,4 +289,22 @@ assert_file_absent "${provider_profile_sovereign}" 'api_token'
 assert_file_absent "${provider_profile_ms}" 'client_secret'
 assert_file_absent "${keycloak_realm_contract}" 'replace-me'
 
+# Sprint 32 local dogfood is DNS-first: local_lan_host may support cert SANs,
+# but it must not become a second app/startup/issuer/CA URL truth.
+assert_file_contains "${infra_main}" 'client_public_url           = local.public_urls.weave'
+assert_file_contains "${infra_main}" 'client_api_origin           = local.public_urls.api'
+assert_file_contains "${infra_main}" 'client_auth_url             = local.public_urls.auth'
+assert_file_contains "${infra_main}" 'client_matrix_url           = local.public_urls.matrix'
+assert_file_contains "${infra_main}" 'local_lan_host is a deprecated'
+assert_file_contains "${infra_outputs}" 'WEAVE_LOCAL_CA_URL'
+assert_file_contains "${install_script}" 'export WEAVE_LOCAL_CA_URL'
+assert_file_contains "${install_script}" 'http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
+assert_file_contains "${install_script}" '- Local CA:   http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'local_lan_host is non-canonical'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'local_lan_host is non-canonical'
+assert_file_contains "${caddy_template}" 'http://${ca_bootstrap_host}'
+assert_file_contains "${caddy_template}" 'Download /weave-local-ca.pem'
+assert_file_absent "${install_script}" 'http://${TF_VAR_local_lan_host}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
+assert_file_absent "${infra_outputs}" 'local_lan_url'
+
 printf '%s\n' 'infra product contract tests passed'
