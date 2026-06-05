@@ -1,5 +1,7 @@
 # Weave product line and Weaver integration plan
 
+Positioning line: **Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.** This line is valid only with the claim gates in the product trust matrix and Sprint 30 evidence pack.
+
 Status: active product direction, 2026-05-24.
 
 ## Decision lock

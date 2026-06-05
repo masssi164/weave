@@ -1,5 +1,6 @@
 export const adminConsoleMessages = {
   en: {
+    productSlogan: 'Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.',
     effectivePolicyHeading: 'Effective policy explanation',
     effectivePolicySummary:
       'Owner/admin choices define provider mappings and whitelist policy. Operators can inspect support-safe readiness. Members receive only stable capability states.',

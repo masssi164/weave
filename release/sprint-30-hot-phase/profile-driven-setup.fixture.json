@@ -1,0 +1,101 @@
+{
+  "contractVersion": "sprint30.hot-phase.setup.v1",
+  "claimBoundary": "contract-and-dry-run-evidence; no production/public release or unrestricted PA availability claim",
+  "scriptFamily": {
+    "entrypoint": "weavectl profile apply",
+    "singlePipeline": true,
+    "profileVariablesOnly": true,
+    "forbiddenSeparateFlows": [
+      "test-only-member-onboarding",
+      "simulator-only-phone-path",
+      "manual-member-provider-setup"
+    ]
+  },
+  "profiles": [
+    {
+      "name": "dev",
+      "reachabilityMode": "developer-local",
+      "memberPhoneAllowed": false,
+      "endpointPolicy": {
+        "rejectLocalhostForPhone": true,
+        "rejectLoopbackForPhone": true,
+        "rejectMacOnlyLocalNamesForPhone": true
+      },
+      "operatorCommand": "weavectl profile apply --profile dev --dry-run --evidence build/evidence/dev.json"
+    },
+    {
+      "name": "local-lan-dogfood",
+      "reachabilityMode": "lan",
+      "memberPhoneAllowed": true,
+      "endpointPolicy": {
+        "allowedEndpointShape": "https-or-http://<lan-ip-or-lan-dns>:<port>",
+        "rejectLocalhostForPhone": true,
+        "rejectLoopbackForPhone": true,
+        "rejectMacOnlyLocalNamesForPhone": true,
+        "publicDnsRequired": false,
+        "trustedInternetTlsRequired": false
+      },
+      "operatorCommand": "weavectl profile apply --profile local-lan-dogfood --lan-host $WEAVE_LAN_HOST --invite-channel qr --evidence build/evidence/local-lan-dogfood.json"
+    },
+    {
+      "name": "public-dogfood",
+      "reachabilityMode": "public-domain",
+      "memberPhoneAllowed": true,
+      "endpointPolicy": {
+        "publicDnsRequired": true,
+        "trustedInternetTlsRequired": true,
+        "rejectLocalhostForPhone": true,
+        "rejectLoopbackForPhone": true,
+        "rejectMacOnlyLocalNamesForPhone": true
+      },
+      "operatorCommand": "weavectl profile apply --profile public-dogfood --public-host $WEAVE_PUBLIC_HOST --evidence build/evidence/public-dogfood.json"
+    },
+    {
+      "name": "production",
+      "reachabilityMode": "production-domain",
+      "memberPhoneAllowed": true,
+      "endpointPolicy": {
+        "publicDnsRequired": true,
+        "trustedInternetTlsRequired": true,
+        "rejectLocalhostForPhone": true,
+        "rejectLoopbackForPhone": true,
+        "rejectMacOnlyLocalNamesForPhone": true
+      },
+      "operatorCommand": "weavectl profile apply --profile production --change-ticket $WEAVE_CHANGE_REF --evidence build/evidence/production.json"
+    }
+  ],
+  "memberOnboardingInvariant": {
+    "entrypoints": ["invite link", "deep link", "QR", "organization URL"],
+    "requiredPath": ["open handoff", "SSO", "Weave workspace home"],
+    "forbiddenMemberInputs": [
+      "OIDC issuer",
+      "OIDC client ID",
+      "Matrix URL",
+      "Nextcloud URL",
+      "provider hostname",
+      "TLS certificate",
+      "provider diagnostic",
+      "SecretRef",
+      "credential URL"
+    ]
+  },
+  "supportSafeEvidence": {
+    "allowed": [
+      "profile name",
+      "reachability mode",
+      "handoff ref",
+      "readiness ref",
+      "policy version",
+      "profile hash",
+      "audit ref",
+      "redacted endpoint class"
+    ],
+    "forbidden": [
+      "raw secrets",
+      "credential URLs",
+      "provider payloads",
+      "member private content",
+      "raw downstream errors"
+    ]
+  }
+}

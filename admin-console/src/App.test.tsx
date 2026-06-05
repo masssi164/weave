@@ -166,6 +166,11 @@ describe("Admin Console MVP", () => {
       }),
     ).toBeInTheDocument();
     expect(
+      screen.getByText(
+        "Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.",
+      ),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("heading", { name: /organization overview/i }),
     ).toBeInTheDocument();
     expect(

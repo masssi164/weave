@@ -611,13 +611,16 @@ export default function App({
       <CssBaseline />
       <AppBar position="static" color="primary">
         <Toolbar>
-          <Typography
-            variant="h1"
-            component="h1"
-            sx={{ fontSize: { xs: "1.35rem", md: "1.7rem" }, fontWeight: 700 }}
-          >
-            Weave Organization Admin Console
-          </Typography>
+          <Stack spacing={0.5} sx={{ py: 1 }}>
+            <Typography
+              variant="h1"
+              component="h1"
+              sx={{ fontSize: { xs: "1.35rem", md: "1.7rem" }, fontWeight: 700 }}
+            >
+              Weave Organization Admin Console
+            </Typography>
+            <Typography variant="body2">{copy.productSlogan}</Typography>
+          </Stack>
         </Toolbar>
       </AppBar>
       <Container component="main" maxWidth="lg" sx={{ py: 4 }}>
