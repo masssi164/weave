@@ -117,7 +117,7 @@ Weave has one member startup flow: open a support-safe `/join` link, load public
 - The member app must not ask users for Matrix/Nextcloud/provider URLs, secrets, diagnostics, or admin control-plane details.
 - Local self-signed HTTPS still requires installing/trusting the local CA on the device because Safari/AppAuth use system trust.
 
-The app-link association artifacts live in `client/app-links/`. Android release App Links require replacing the template fingerprint with the release signing certificate fingerprint before publishing.
+The app-link association artifacts live in `client/app-links/`. iOS Associated Domains are enabled only for Release builds because Apple Personal Development Teams cannot provision that capability; local `flutter run`/Debug uses the `weave:/join?...` fallback. Android release App Links require replacing the template fingerprint with the release signing certificate fingerprint before publishing.
 
 ### Android identity and release signing
 
