@@ -624,6 +624,17 @@ assert_http_200 "Synapse" "http://${LOOPBACK_HOST}:${TF_VAR_synapse_host_port:-4
 log "Checking public product, issuer, API, files, and matrix routes..."
 product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/")"
 [[ "${product_status}" == "200" ]] || fail "Operator check failed: Weave product gateway returned HTTP ${product_status} at ${WEAVE_PUBLIC_BASE_URL}/"
+product_start_page="$(curl_json "${WEAVE_PUBLIC_BASE_URL}/")"
+grep -Fq '<h1>Weave Local Dogfood start</h1>' <<<"${product_start_page}" || fail "Operator check failed: Weave product gateway did not render the local dogfood start page"
+grep -Fq "http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" <<<"${product_start_page}" || fail "Operator check failed: start page is missing the HTTP local CA link"
+grep -Fq "${WEAVE_PUBLIC_BASE_URL}/weave-local-ca.pem" <<<"${product_start_page}" || fail "Operator check failed: start page is missing the HTTPS local CA link"
+grep -Fq 'Weave Local Development CA' <<<"${product_start_page}" || fail "Operator check failed: start page is missing iPhone trust guidance"
+grep -Fq 'handoff-s32-massimo-dogfood-home' <<<"${product_start_page}" || fail "Operator check failed: start page is missing default invite guidance"
+grep -Fq 'passwords, tokens, client secrets, or credential URLs' <<<"${product_start_page}" || fail "Operator check failed: start page is missing the no-secrets warning"
+[[ "${product_start_page}" != *"127.0.0.1"* && "${product_start_page}" != *"localhost"* && "${product_start_page}" != *"192.168."* ]] || \
+  fail "Operator check failed: start page must not expose loopback, localhost, or LAN-IP local truth"
+product_platform_config="$(curl_json "${WEAVE_PUBLIC_BASE_URL}/api/platform/config")"
+assert_json "${product_platform_config}" ".publicBaseUrl == \"${WEAVE_PUBLIC_BASE_URL}\" and .apiBaseUrl == \"${WEAVE_BASE_URL}\"" "product gateway /api/platform/config should proxy app-start discovery"
 
 files_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/files")"
 [[ "${files_product_status}" == "200" ]] || fail "Operator check failed: Weave product files route returned HTTP ${files_product_status} at ${WEAVE_PUBLIC_BASE_URL}/files"

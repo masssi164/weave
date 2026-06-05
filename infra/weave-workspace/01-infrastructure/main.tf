@@ -97,6 +97,9 @@ locals {
     matrix_site_addresses = local.site_addresses.matrix
     keycloak_upstream     = "${local.service_names.keycloak}:8080"
     nextcloud_upstream    = "${local.service_names.nextcloud}:80"
+    api_public_url        = local.public_urls.api
+    auth_public_url       = local.public_urls.auth
+    client_public_url     = local.client_public_url
     nextcloud_public_url  = local.public_urls.files
     matrix_public_url     = local.public_urls.matrix
     mas_upstream          = "${local.service_names.mas}:8080"
