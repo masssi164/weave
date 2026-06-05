@@ -11,6 +11,7 @@ import 'package:weave/features/chat/presentation/chat_screen.dart';
 import 'package:weave/features/files/presentation/files_screen.dart';
 import 'package:weave/features/help/presentation/help_screen.dart';
 import 'package:weave/features/onboarding/presentation/first_run_screen.dart';
+import 'package:weave/features/onboarding/presentation/member_handoff_screen.dart';
 import 'package:weave/features/onboarding/presentation/providers/first_run_status_provider.dart';
 import 'package:weave/features/onboarding/presentation/setup_flow.dart';
 import 'package:weave/features/onboarding/presentation/welcome_screen.dart';
@@ -36,6 +37,7 @@ GoRouter appRouter(Ref ref) {
           state.matchedLocation == AppRoutes.welcome ||
           state.matchedLocation == AppRoutes.setup;
       final onSignIn = state.matchedLocation == AppRoutes.signIn;
+      final onJoin = state.matchedLocation == AppRoutes.join;
       final onFirstRun = state.matchedLocation == AppRoutes.firstRun;
       final onHiddenReleaseOneRoute =
           state.matchedLocation == AppRoutes.calendar ||
@@ -50,7 +52,7 @@ GoRouter appRouter(Ref ref) {
         case BootstrapPhase.error:
           return null;
         case BootstrapPhase.needsSetup:
-          return onOnboarding ? null : AppRoutes.welcome;
+          return (onOnboarding || onJoin) ? null : AppRoutes.welcome;
         case BootstrapPhase.needsSignIn:
           return onSignIn ? null : AppRoutes.signIn;
         case BootstrapPhase.ready:
@@ -86,6 +88,10 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.signIn,
         builder: (context, state) => const SignInScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.join,
+        builder: (context, state) => MemberHandoffScreen(uri: state.uri),
       ),
       GoRoute(
         path: AppRoutes.firstRun,

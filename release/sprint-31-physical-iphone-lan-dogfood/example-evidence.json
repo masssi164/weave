@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "sprint31.physical-iphone-lan-dogfood.evidence.v1",
+  "runId": "s31-example",
+  "profile": "local-lan-dogfood",
+  "operatorCommand": "weavectl profile apply --profile local-lan-dogfood --lan-host <LAN-IP> --emit-handoff --emit-evidence --preflight-mode tcp",
+  "artifacts": {
+    "readiness": "build/evidence/local-lan-dogfood/s31-example/readiness.json",
+    "handoff": "build/evidence/local-lan-dogfood/s31-example/handoff.json"
+  },
+  "refs": {
+    "handoffRef": "handoff-example",
+    "readinessRef": "readiness-example",
+    "auditRef": "audit-example"
+  },
+  "redactedEndpointClass": "rfc1918-lan-ip",
+  "supportSafe": true,
+  "claimBoundary": "prepared physical iPhone LAN dogfood handoff; final physical-device success requires Massimo's iPhone execution"
+}
