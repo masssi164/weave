@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "sprint31.local-lan-dogfood.profile.v1",
+  "profile": "local-lan-dogfood",
+  "entrypoint": "weavectl profile apply",
+  "singlePipeline": true,
+  "profileVariablesOnly": true,
+  "defaultCommand": "tools/weavectl profile apply --profile local-lan-dogfood --lan-host $WEAVE_LAN_HOST --emit-handoff --emit-evidence --preflight-mode tcp",
+  "memberPhoneAllowed": true,
+  "publicDnsRequired": false,
+  "trustedInternetTlsRequired": false,
+  "rejects": [
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "host.docker.internal",
+    "docker.for.mac.localhost",
+    "Mac-only .local names",
+    "credential-bearing URLs",
+    "raw provider diagnostics"
+  ],
+  "memberPath": ["open handoff", "SSO", "Weave workspace home"],
+  "forbiddenMemberInputs": [
+    "OIDC issuer",
+    "OIDC client ID",
+    "Matrix URL",
+    "Nextcloud URL",
+    "provider hostname",
+    "TLS certificate",
+    "provider diagnostic",
+    "SecretRef",
+    "credential URL"
+  ]
+}

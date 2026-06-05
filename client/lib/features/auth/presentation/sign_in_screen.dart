@@ -105,21 +105,7 @@ class SignInScreen extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 12),
                                 const Text(
-                                  'Identity provider is selected by the Weave Admin Console; this client uses the organization sign-in endpoint.',
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  l10n.signInConfigurationIssuer(
-                                    configuration.oidcIssuerUrl.toString(),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  l10n.signInConfigurationClientId(
-                                    configuration
-                                        .oidcClientRegistration
-                                        .clientId,
-                                  ),
+                                  'Your Weave invite selected the workspace sign-in endpoint. Continue with SSO; if this does not work, ask an admin/operator to refresh the invite and mention WEAVE-SSO-NOT-COMPLETE.',
                                 ),
                               ],
                             ),

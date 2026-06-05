@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+"""Minimal Weave Control CLI for profile-driven local dogfood handoff evidence."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import ipaddress
+import json
+import os
+import re
+import socket
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import urlencode
+
+FORBIDDEN_EVIDENCE_FRAGMENTS = [
+    "access_token=",
+    "refresh_token=",
+    "id_token=",
+    "client_secret=",
+    "password=",
+    "secretref://",
+    "matrix.",
+    "/_matrix/",
+    "homeserver",
+    "nextcloud.",
+    "raw provider",
+]
+
+PROFILE_CONTRACT = {
+    "dev": {"reachabilityMode": "developer-local", "memberPhoneAllowed": False},
+    "local-lan-dogfood": {"reachabilityMode": "lan", "memberPhoneAllowed": True},
+    "public-dogfood": {"reachabilityMode": "public-domain", "memberPhoneAllowed": True},
+    "production": {"reachabilityMode": "production-domain", "memberPhoneAllowed": True},
+}
+
+
+def fail(message: str, code: int = 2) -> None:
+    print(f"weavectl: {message}", file=sys.stderr)
+    raise SystemExit(code)
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="weavectl")
+    sub = parser.add_subparsers(dest="command", required=True)
+    profile = sub.add_parser("profile")
+    profile_sub = profile.add_subparsers(dest="profile_command", required=True)
+    apply = profile_sub.add_parser("apply")
+    apply.add_argument("--profile", required=True, choices=sorted(PROFILE_CONTRACT))
+    apply.add_argument("--lan-host")
+    apply.add_argument("--public-host")
+    apply.add_argument("--app-port", type=int, default=8080)
+    apply.add_argument("--api-port", type=int, default=8081)
+    apply.add_argument("--scheme", choices=["http", "https"], default="http")
+    apply.add_argument("--organization-slug", default="massimo-dogfood")
+    apply.add_argument("--workspace-slug", default="home")
+    apply.add_argument("--invite-channel", choices=["qr", "link", "deep-link", "org-url"], default="qr")
+    apply.add_argument("--emit-handoff", action="store_true")
+    apply.add_argument("--emit-evidence", action="store_true")
+    apply.add_argument("--evidence")
+    apply.add_argument("--output-dir", default="build/evidence/local-lan-dogfood")
+    apply.add_argument("--run-id")
+    apply.add_argument("--preflight-mode", choices=["validate-only", "tcp"], default="validate-only")
+    apply.add_argument("--timeout-seconds", type=float, default=1.5)
+    return parser.parse_args(argv)
+
+
+def now_run_id() -> str:
+    return "s31-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def normalize_host(raw: str | None, profile: str) -> str:
+    if profile == "local-lan-dogfood":
+        raw = raw or os.environ.get("WEAVE_LAN_HOST")
+        if not raw:
+            fail("--lan-host or WEAVE_LAN_HOST is required for local-lan-dogfood")
+    elif profile == "public-dogfood":
+        raw = raw or os.environ.get("WEAVE_PUBLIC_HOST")
+        if not raw:
+            fail("--public-host or WEAVE_PUBLIC_HOST is required for public-dogfood")
+    elif profile == "production":
+        raw = raw or os.environ.get("WEAVE_PUBLIC_HOST")
+        if not raw:
+            fail("--public-host or WEAVE_PUBLIC_HOST is required for production")
+    else:
+        raw = raw or "127.0.0.1"
+    host = raw.strip().strip("/")
+    if "://" in host:
+        fail("host input must be a host or IP only, not a URL")
+    return host
+
+
+def classify_host(host: str) -> str:
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        lowered = host.lower()
+        if lowered in {"localhost", "host.docker.internal", "docker.for.mac.localhost"}:
+            return "forbidden-container-or-localhost"
+        if lowered.endswith(".local"):
+            return "forbidden-mac-only-mdns"
+        if re.fullmatch(r"[a-z0-9-]+", lowered):
+            return "forbidden-container-only-name"
+        if lowered.endswith((".lan", ".home", ".home.internal", ".internal")):
+            return "lan-dns"
+        return "dns"
+    if ip.is_loopback or ip.is_unspecified:
+        return "forbidden-loopback"
+    if ip.version == 4 and ip.is_private:
+        return "rfc1918-lan-ip"
+    if ip.version == 6 and (ip.is_private or ip.is_link_local):
+        return "lan-ipv6"
+    return "public-ip"
+
+
+def validate_phone_host(host: str, profile: str) -> str:
+    host_class = classify_host(host)
+    if profile == "local-lan-dogfood":
+        if host_class.startswith("forbidden"):
+            fail(f"phone handoff blocked: {host} is {host_class}")
+        if host_class not in {"rfc1918-lan-ip", "lan-ipv6", "lan-dns"}:
+            fail(f"phone handoff blocked: {host} is not a LAN-reachable endpoint shape")
+    elif profile in {"public-dogfood", "production"} and host_class.startswith("forbidden"):
+        fail(f"member handoff blocked: {host} is {host_class}")
+    return host_class
+
+
+def tcp_probe(host: str, port: int, timeout: float) -> dict[str, object]:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return {"port": port, "reachable": True, "summary": "tcp-connect-ok"}
+    except OSError:
+        return {"port": port, "reachable": False, "summary": "S31-LAN-PREFLIGHT-TCP-UNREACHABLE"}
+
+
+def support_safe_ref(prefix: str, *parts: str) -> str:
+    digest = hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
+    return f"{prefix}-{digest}"
+
+
+def write_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    lowered = text.lower()
+    for fragment in FORBIDDEN_EVIDENCE_FRAGMENTS:
+        if fragment in lowered:
+            fail(f"support-safe redaction blocked artifact {path}: forbidden fragment {fragment}")
+    path.write_text(text, encoding="utf-8")
+
+
+def apply_profile(args: argparse.Namespace) -> int:
+    host = normalize_host(args.lan_host or args.public_host, args.profile)
+    host_class = validate_phone_host(host, args.profile)
+    run_id = args.run_id or now_run_id()
+    app_base_url = f"{args.scheme}://{host}:{args.app_port}"
+    api_base_url = f"{args.scheme}://{host}:{args.api_port}"
+    handoff_ref = support_safe_ref("handoff", run_id, args.profile, app_base_url)
+    readiness_ref = support_safe_ref("readiness", run_id, args.profile, api_base_url)
+    audit_ref = support_safe_ref("audit", run_id, handoff_ref, readiness_ref)
+
+    probes: list[dict[str, object]] = []
+    if args.preflight_mode == "tcp":
+        probes = [tcp_probe(host, args.app_port, args.timeout_seconds), tcp_probe(host, args.api_port, args.timeout_seconds)]
+        if not all(probe["reachable"] for probe in probes):
+            fail("LAN TCP preflight failed; start the stack or choose the phone-reachable LAN host before emitting handoff")
+    else:
+        probes = [
+            {"port": args.app_port, "reachable": "shape-validated", "summary": "S31-LAN-PREFLIGHT-SHAPE-OK"},
+            {"port": args.api_port, "reachable": "shape-validated", "summary": "S31-LAN-PREFLIGHT-SHAPE-OK"},
+        ]
+
+    handoff_query = urlencode({"handoff_ref": handoff_ref, "org": args.organization_slug, "workspace": args.workspace_slug, "run_id": run_id})
+    tester_url = f"{app_base_url}/join?{handoff_query}"
+    deep_link_query = urlencode({"handoff_ref": handoff_ref, "org": args.organization_slug, "workspace": args.workspace_slug, "run_id": run_id, "app_base_url": app_base_url})
+    deep_link = f"weave:/join?{deep_link_query}"
+    output_dir = Path(args.output_dir) / run_id
+    readiness_path = output_dir / "readiness.json"
+    handoff_path = output_dir / "handoff.json"
+    evidence_path = Path(args.evidence) if args.evidence else output_dir / "evidence.json"
+
+    readiness = {
+        "schemaVersion": "sprint31.local-lan-dogfood.readiness.v1",
+        "runId": run_id,
+        "profile": args.profile,
+        "reachabilityMode": PROFILE_CONTRACT[args.profile]["reachabilityMode"],
+        "phoneReachability": {"hostClass": host_class, "preflightMode": args.preflight_mode, "probes": probes},
+        "nextTesterAction": "Install or open Weave on the iPhone, scan the QR or open the handoff link, complete SSO, and confirm the workspace home appears.",
+        "supportSafe": True,
+    }
+    handoff = {
+        "schemaVersion": "sprint31.local-lan-dogfood.handoff.v1",
+        "runId": run_id,
+        "profile": args.profile,
+        "handoffType": args.invite_channel,
+        "handoffRef": handoff_ref,
+        "testerVisible": {
+            "url": tester_url,
+            "deepLink": deep_link,
+            "qrPayload": tester_url,
+            "screenReaderPrompt": "Open this Weave invite on the iPhone. It starts sign-in and then opens the Weave workspace home.",
+        },
+        "memberPath": ["open handoff", "SSO", "Weave workspace home"],
+        "forbiddenMemberInputs": ["OIDC issuer", "OIDC client ID", "Matrix URL", "Nextcloud URL", "provider hostname", "TLS certificate", "provider diagnostic", "SecretRef", "credential URL"],
+        "supportSafe": True,
+    }
+    evidence = {
+        "schemaVersion": "sprint31.physical-iphone-lan-dogfood.evidence.v1",
+        "runId": run_id,
+        "profile": args.profile,
+        "operatorCommand": "weavectl profile apply --profile local-lan-dogfood --lan-host <LAN-IP> --emit-handoff --emit-evidence --preflight-mode tcp",
+        "artifacts": {"readiness": str(readiness_path), "handoff": str(handoff_path)},
+        "refs": {"handoffRef": handoff_ref, "readinessRef": readiness_ref, "auditRef": audit_ref},
+        "redactedEndpointClass": host_class,
+        "supportSafe": True,
+        "claimBoundary": "prepared physical iPhone LAN dogfood handoff; final physical-device success requires Massimo's iPhone execution",
+    }
+
+    write_json(readiness_path, readiness)
+    if args.emit_handoff:
+        write_json(handoff_path, handoff)
+    if args.emit_evidence or args.evidence:
+        write_json(evidence_path, evidence)
+
+    print(f"run_id={run_id}")
+    print(f"readiness={readiness_path}")
+    if args.emit_handoff:
+        print(f"handoff={handoff_path}")
+        print(f"tester_next_action={handoff['testerVisible']['screenReaderPrompt']}")
+    if args.emit_evidence or args.evidence:
+        print(f"evidence={evidence_path}")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    args = parse_args(argv)
+    if args.command == "profile" and args.profile_command == "apply":
+        return apply_profile(args)
+    fail("unsupported command")
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

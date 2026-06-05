@@ -32,6 +32,16 @@
 				<string>com.massimotter.weave</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>Weave member handoff</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>weave</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
@@ -43,7 +53,7 @@
 		<dict/>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string></string>
+	<string>Weave connects to your workspace services on the same local network for local dogfood setup.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
