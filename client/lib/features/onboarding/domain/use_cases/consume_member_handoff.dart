@@ -116,8 +116,8 @@ class AppStartDiscoveryClient {
       fallback: handoff.fallbackProviderNeutralServiceUrl,
     );
     final nextcloudBaseUrl = _uri(
-      json['nextcloudBaseUrl'] ?? json['filesProductUrl'],
-      fieldName: 'nextcloudBaseUrl',
+      json['filesProductUrl'] ?? json['nextcloudBaseUrl'],
+      fieldName: 'filesProductUrl',
       fallback: handoff.fallbackProviderNeutralServiceUrl,
     );
 

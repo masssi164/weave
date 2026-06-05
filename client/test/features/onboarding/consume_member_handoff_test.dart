@@ -39,7 +39,8 @@ void main() {
           'oidcIssuerUrl': 'https://auth.weave.example/realms/weave',
           'oidcClientId': 'weave-app',
           'matrixHomeserverUrl': 'https://matrix.weave.example',
-          'nextcloudBaseUrl': 'https://files.weave.example',
+          'filesProductUrl': 'https://weave.weave.example/files',
+          'nextcloudBaseUrl': 'http://weave-nextcloud',
         }),
         200,
         headers: {'content-type': 'application/json'},
@@ -72,7 +73,7 @@ void main() {
     );
     expect(
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
-      'https://files.weave.example',
+      'https://weave.weave.example/files',
     );
   });
 
