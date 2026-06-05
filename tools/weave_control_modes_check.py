@@ -23,12 +23,15 @@ REQUIRED_MODES = {"deploy_new", "attach_existing", "hybrid"}
 REQUIRED_CLAIM_STATES = {
     "dispatch_preflight_only",
     "pipeline_terminal_success",
-    "stack_readiness_passed",
-    "weave_e2e_passed",
+    "server_infra_readiness_passed",
+    "weave_control_ready",
+    "client_bootstrap_handoff_ready",
     "member_provider_neutral_join_passed",
+    "weave_client_e2e_passed",
 }
 REQUIRED_TAGS = {
     "@weave-control-plan-preflight-modes",
+    "@weave-control-admin-console-client-responsibility-split",
     "@weave-control-deploy-new-local-forgejo-e2e-boundary",
     "@weave-control-attach-existing-preflight-boundary",
     "@weave-control-hybrid-domain-separation",
@@ -103,11 +106,16 @@ def main() -> int:
             "attach_existing",
             "hybrid",
             "pipeline_terminal_success",
-            "stack_readiness_passed",
-            "weave_e2e_passed",
+            "server_infra_readiness_passed",
+            "weave_control_ready",
+            "client_bootstrap_handoff_ready",
             "member_provider_neutral_join_passed",
+            "weave_client_e2e_passed",
             "dispatch_preflight_only",
-            "GitHub-only Live Stack evidence is not counted",
+            "Flutter or App E2E evidence is collected in a separate client lane against the handoff target",
+            "Weave Control, Admin Console, and Client keep separate responsibilities",
+            "Weaver is represented only as a future governed organization capability",
+            "Forgejo deployment lane remains client-free",
         ],
     )
 
@@ -130,6 +138,18 @@ def main() -> int:
         fail(f"mode matrix mismatch: {modes}")
     if set(matrix.get("claimStates", {})) != REQUIRED_CLAIM_STATES:
         fail("claim state matrix mismatch")
+    surfaces = matrix.get("responsibilitySurfaces", {})
+    for key in ["weave_control", "admin_console", "weave_app_client", "weaver"]:
+        if key not in surfaces:
+            fail(f"responsibility surface matrix missing {key}")
+    if "app_client_e2e_execution" not in surfaces["weave_control"].get("forbidden", []):
+        fail("Weave Control surface must forbid app/client E2E execution")
+    if "future_weaver_governance_controls" not in surfaces["admin_console"].get("owns", []):
+        fail("Admin Console surface must include future Weaver governance controls")
+    if "weaver_runtime_administration" not in surfaces["weave_app_client"].get("forbidden", []):
+        fail("Client surface must forbid Weaver runtime administration")
+    if "v0_1_spec_0001_runtime_claim" not in surfaces["weaver"].get("forbidden", []):
+        fail("Weaver boundary must forbid a v0.1 Spec 0001 runtime claim")
     invariant = matrix.get("planPreflightInvariant", {})
     if invariant.get("rawSecretsAccepted") is not False or invariant.get("mutationBeforeApprovalAllowed") is not False:
         fail("plan preflight invariant must fail closed before mutation")
@@ -170,11 +190,20 @@ def main() -> int:
             "| `deploy_new` |",
             "| `attach_existing` |",
             "| `hybrid` |",
+            "```mermaid",
+            "Admin selects deploy_new in Weave Control",
+            "Receive deployment handoff target from Weave Control",
             "dispatch_preflight_only",
             "pipeline_terminal_success",
-            "stack_readiness_passed",
-            "weave_e2e_passed",
-            "GitHub-only Live Stack evidence is not a substitute",
+            "server_infra_readiness_passed",
+            "weave_control_ready",
+            "client_bootstrap_handoff_ready",
+            "weave_client_e2e_passed",
+            "| Weave Control |",
+            "| Admin Console |",
+            "| Weave App / Client |",
+            "future organization capability and governance surface",
+            "WEAVE-SPEC-0001 do not claim Weaver/AI runtime behavior in v0.1",
         ],
     )
     assert_contains(
@@ -184,11 +213,12 @@ def main() -> int:
             "Members enter or open only an organization auth URL, invite link, or deep link",
         ],
     )
-    assert_contains(MAPPING, sorted(REQUIRED_TAGS))
+    assert_contains(MAPPING, sorted(REQUIRED_TAGS) + ["WEAVE_CONTROL_RESPONSIBILITY_SPLIT"])
     assert_contains(CATALOG, sorted(REQUIRED_TAGS) + ["weave-control-setup-modes"])
 
     print("weave-control-modes-check: ok issues=681,685 modes=deploy_new,attach_existing,hybrid")
     print("WEAVE_CONTROL_MODE_MATRIX")
+    print("WEAVE_CONTROL_RESPONSIBILITY_SPLIT")
     print("WEAVE_CONTROL_DEPLOY_NEW_E2E_BOUNDARY")
     print("WEAVE_CONTROL_ATTACH_EXISTING_PREFLIGHT")
     print("WEAVE_CONTROL_HYBRID_DOMAIN_SEPARATION")

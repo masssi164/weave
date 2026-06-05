@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
 readonly BOOTSTRAP_ENV_FILE="${ROOT_DIR}/.generated/bootstrap.env"
-readonly LOOPBACK_HOST="127.0.0.1"
+readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 
 log() {
   printf '%s\n' "$*"
@@ -24,6 +24,32 @@ require_command() {
 safe_tail() {
   local file="$1"
   tail -n 20 "${file}" 2>/dev/null | sed -E 's/(Compatibility token issued: )[[:graph:]]+/\1[redacted]/g; s/(access_token[=:] ?)[[:graph:]]+/\1[redacted]/gi; s/(token[=:] ?)[[:graph:]]+/\1[redacted]/gi; s/(password[=:] ?)[[:graph:]]+/\1[redacted]/gi'
+}
+
+mas_container_diagnostics() {
+  docker ps -a --filter "name=^/${WEAVE_MATRIX_MAS_CONTAINER_NAME}$" --format '{{.Names}} {{.Status}}' 2>/dev/null | sed -E 's/[[:space:]]+/ /g' || true
+}
+
+wait_for_mas_container_running() {
+  local attempts="${WEAVE_MATRIX_MAS_CONTAINER_WAIT_ATTEMPTS:-12}"
+  local delay="${WEAVE_MATRIX_MAS_CONTAINER_WAIT_DELAY_SECONDS:-1}"
+  local attempt running
+
+  [[ "${attempts}" =~ ^[0-9]+$ && "${attempts}" -gt 0 ]] || fail "Matrix provisioning failed: WEAVE_MATRIX_MAS_CONTAINER_WAIT_ATTEMPTS must be a positive integer."
+  [[ "${delay}" =~ ^[0-9]+([.][0-9]+)?$ ]] || fail "Matrix provisioning failed: WEAVE_MATRIX_MAS_CONTAINER_WAIT_DELAY_SECONDS must be numeric."
+
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    running="$(docker inspect -f '{{.State.Running}}' "${WEAVE_MATRIX_MAS_CONTAINER_NAME}" 2>/dev/null || true)"
+    if [[ "${running}" == "true" ]]; then
+      return 0
+    fi
+
+    if ((attempt < attempts)); then
+      sleep "${delay}"
+    fi
+  done
+
+  return 1
 }
 
 load_bootstrap_env() {
@@ -163,18 +189,46 @@ api_request() {
 }
 
 mas_cli() {
-  docker exec "${WEAVE_MATRIX_MAS_CONTAINER_NAME}" mas-cli --config /config/config.yaml "$@"
+  local attempts="${WEAVE_MATRIX_MAS_CLI_ATTEMPTS:-3}"
+  local delay="${WEAVE_MATRIX_MAS_CLI_DELAY_SECONDS:-2}"
+  local attempt response_file status
+
+  [[ "${attempts}" =~ ^[0-9]+$ && "${attempts}" -gt 0 ]] || fail "Matrix provisioning failed: WEAVE_MATRIX_MAS_CLI_ATTEMPTS must be a positive integer."
+  [[ "${delay}" =~ ^[0-9]+([.][0-9]+)?$ ]] || fail "Matrix provisioning failed: WEAVE_MATRIX_MAS_CLI_DELAY_SECONDS must be numeric."
+
+  response_file="$(mktemp)"
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
+    if ! wait_for_mas_container_running; then
+      printf 'Matrix provisioning: MAS container not running before CLI attempt %s/%s. Diagnostics: %s\n' "${attempt}" "${attempts}" "$(mas_container_diagnostics)" >&2
+    elif docker exec "${WEAVE_MATRIX_MAS_CONTAINER_NAME}" mas-cli --config /config/config.yaml "$@" >"${response_file}" 2>&1; then
+      cat "${response_file}"
+      rm -f -- "${response_file}"
+      return 0
+    else
+      status=$?
+      if ! grep -Eiq 'No such container|is not running' "${response_file}"; then
+        cat "${response_file}" >&2
+        rm -f -- "${response_file}"
+        return "${status}"
+      fi
+      printf 'Matrix provisioning: MAS CLI container race on attempt %s/%s. Diagnostics: %s\n' "${attempt}" "${attempts}" "$(mas_container_diagnostics)" >&2
+    fi
+
+    if ((attempt < attempts)); then
+      sleep "${delay}"
+    fi
+  done
+
+  cat "${response_file}" >&2
+  rm -f -- "${response_file}"
+  return 1
 }
 
 ensure_mas_cli_available() {
   require_command docker
 
-  if ! docker inspect -f '{{.State.Running}}' "${WEAVE_MATRIX_MAS_CONTAINER_NAME}" >/dev/null 2>&1; then
+  if ! wait_for_mas_container_running; then
     fail "Matrix provisioning failed: MAS container '${WEAVE_MATRIX_MAS_CONTAINER_NAME}' is not running. Run install.sh until Matrix Authentication Service is healthy, or set WEAVE_MATRIX_MAS_CONTAINER_NAME to the running MAS container name."
-  fi
-
-  if [[ "$(docker inspect -f '{{.State.Running}}' "${WEAVE_MATRIX_MAS_CONTAINER_NAME}" 2>/dev/null)" != "true" ]]; then
-    fail "Matrix provisioning failed: MAS container '${WEAVE_MATRIX_MAS_CONTAINER_NAME}' is not running. Start the stack and rerun provision-matrix-default-workspace.sh."
   fi
 
   if ! docker exec "${WEAVE_MATRIX_MAS_CONTAINER_NAME}" mas-cli --config /config/config.yaml --help >/dev/null 2>&1; then

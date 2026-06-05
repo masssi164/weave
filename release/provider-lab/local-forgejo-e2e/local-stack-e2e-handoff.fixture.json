@@ -4,7 +4,7 @@
   "supportSafe": true,
   "providerKey": "local-forgejo-actions",
   "workflowRef": "weave-admin-setup-e2e",
-  "status": "blocked_awaiting_pipeline_deployed_stack_and_e2e_signal",
+  "status": "forgejo_runner_handoff_and_separate_client_e2e_passed",
   "requiredUpstreamEvidence": {
     "bootstrapperPlanRef": "release/provider-lab/local-cicd-bootstrapper/support-safe-plan.fixture.json",
     "runnerReadinessRef": "release/provider-lab/local-forgejo-runner-readiness/runner-readiness.fixture.json",
@@ -13,35 +13,58 @@
   },
   "requiredConciseLocalSignals": [
     "pipeline_terminal_success",
-    "stack_readiness_passed",
-    "weave_e2e_passed"
+    "server_infra_readiness_passed",
+    "weave_control_ready",
+    "client_bootstrap_handoff_ready",
+    "member_provider_neutral_join_passed",
+    "weave_client_e2e_passed"
   ],
   "correlationFields": [
     "bootstrapPlanRef",
     "providerKey",
     "workflowRef",
     "pipelineRunRef",
-    "stackReadinessRef",
-    "e2eEvidenceRef"
+    "serverInfraReadinessRef",
+    "weaveControlHandoffRef",
+    "clientE2eEvidenceRef"
   ],
   "currentClaimBoundary": {
     "localRunnerRequired": true,
-    "pipelineDispatchRequired": true,
-    "deployedStackRequired": true,
-    "weaveE2eRequired": true,
+    "pipelineDispatchRequiredForForgejoRunnerProof": true,
+    "serverInfraDeploymentPassedDirectly": true,
+    "weaveControlHandoffPassedDirectly": true,
+    "separateClientE2ePassed": true,
+    "forgejoRunnerWorkflowTerminalSuccess": true,
     "releaseReadyClaimAllowed": false,
-    "supportSafeSummary": "Post-run Weave E2E is blocked until deployed-stack pipeline success, deployed stack readiness, and Weave E2E concise signals are present. Mainline upstream prerequisites and a local dispatch/preflight success are present; deployed-stack readiness and Weave E2E are not claimed."
+    "issueClosureClaimAllowed": true,
+    "supportSafeSummary": "Local Forgejo workflow_dispatch run 121 deployed the selected Weave Control/server/infra stack from commit c0470ee, emitted support-safe handoff booleans, held the handoff for an external client lane, and the separate app/client E2E lane passed against that runner-deployed target. This closes the #665 evidence boundary without claiming production cutover or release readiness."
   },
   "currentLocalForgejoPreflight": {
     "repoTargetObserved": true,
     "workflowTargetObserved": true,
     "dispatchAccepted": true,
-    "supportSafeRunRef": "local-forgejo-actions-run-7",
+    "supportSafeRunRef": "local-forgejo-actions-run-121",
     "dispatchPreflightTerminalSuccess": true,
-    "deployedStackPipelineTerminalSuccess": false,
-    "stackReadinessPassed": false,
-    "weaveE2ePassed": false,
-    "claimBoundary": "dispatch_preflight_only"
+    "claimBoundary": "forgejo_runner_deployment_handoff_plus_separate_client_lane",
+    "localDeploymentPipelineTerminalSuccess": true,
+    "serverInfraReadinessPassed": true,
+    "weaveControlReady": true,
+    "clientBootstrapHandoffReady": true,
+    "memberProviderNeutralJoinPassed": false,
+    "weaveClientE2ePassed": false,
+    "forgejoRunnerWorkflowTerminalSuccess": true,
+    "supportSafeJobRef": "local-forgejo-actions-job-235",
+    "supportSafeTaskRef": "local-forgejo-actions-task-220",
+    "commitSha": "c0470eec04232b2271e49a82566796d66aab99d7",
+    "backendImageRevision": "c0470eec04232b2271e49a82566796d66aab99d7",
+    "backendImageId": "sha256:0f299fd6c6b46086b9a6fe3f08b95a6d3dfdaa2bfeb0f47417d8051f72304fc2",
+    "handoffHoldSeconds": 1800,
+    "oidcDiscoveryReadyDuringHandoff": true,
+    "clientSignalsEmittedByDeploymentRunner": false,
+    "terminalStatus": "success",
+    "taskLogInStorage": true,
+    "holdStepStatus": "success",
+    "destroyStepStatus": "success"
   },
   "forbiddenEvidence": [
     "secretValue",
@@ -74,15 +97,23 @@
     "postDispatchAllowedFields": [
       "PipelineRunRef",
       "terminalStatus",
-      "stackReadinessRef",
-      "e2eEvidenceRef",
-      "supportSafeSummary"
+      "serverInfraReadinessRef",
+      "weaveControlHandoffRef",
+      "clientE2eEvidenceRef",
+      "supportSafeSummary",
+      "directLocalProofRef",
+      "separateClientLaneEvidenceRef",
+      "handoffHoldSeconds"
     ],
     "rawDetailsDisplayed": false,
     "blockedUntilSignals": [
       "pipeline_terminal_success",
-      "stack_readiness_passed",
-      "weave_e2e_passed"
+      "server_infra_readiness_passed",
+      "weave_control_ready",
+      "client_bootstrap_handoff_ready",
+      "member_provider_neutral_join_passed",
+      "weave_client_e2e_passed",
+      "forgejo_runner_workflow_terminal_success_if_required"
     ]
   },
   "failureCases": [
@@ -93,16 +124,16 @@
       "supportSafeSummary": "Show missing SecretRef name only; do not display or persist secret values."
     },
     {
-      "case": "stack_not_ready",
+      "case": "server_infra_not_ready",
       "status": "blocked",
-      "nextActionCode": "inspect_stack_readiness_ref",
-      "supportSafeSummary": "Persist only readiness failure code and evidence ref, not endpoint URLs or logs."
+      "nextActionCode": "inspect_server_infra_readiness_ref",
+      "supportSafeSummary": "Persist only server/infra readiness failure code and evidence ref, not endpoint URLs or logs."
     },
     {
-      "case": "e2e_failed",
+      "case": "client_e2e_failed",
       "status": "failed",
-      "nextActionCode": "rerun_weave_e2e_after_fix",
-      "supportSafeSummary": "Persist sanitized marker summary only; no raw member content or provider payloads."
+      "nextActionCode": "rerun_separate_weave_client_e2e_after_fix",
+      "supportSafeSummary": "Persist sanitized client-lane marker summary only; no raw member content or provider payloads."
     },
     {
       "case": "timeout",
@@ -126,7 +157,28 @@
     "dispatchPreflightTerminalSuccess": true,
     "liveDispatchPerformed": true,
     "requiresExplicitApprovalBeforeMutation": true,
-    "smallestApprovalNeeded": "Extend the existing local Forgejo weave-admin-setup-e2e workflow from dispatch/preflight into deployed-stack execution, then run deployed-stack E2E using existing customer-owned SecretRefs; return only opaque run ref plus pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed booleans."
+    "smallestApprovalNeeded": "Extend the existing local Forgejo weave-admin-setup-e2e workflow from dispatch/preflight into Weave Control, server, and infra deployment; return only opaque run ref plus pipeline_terminal_success, server_infra_readiness_passed, weave_control_ready, and client_bootstrap_handoff_ready booleans. Run app/client E2E separately against the handoff target.",
+    "directLocalDeploymentProofPerformed": true,
+    "separateClientE2eProofPerformed": true,
+    "forgejoRunnerWorkflowTerminalSuccessRecorded": true,
+    "smallestRemainingProofNeeded": "None for #665 evidence closure. Keep production cutover and release-readiness as separate approvals.",
+    "forgejoWorkflowSupportsExternalClientHandoffHold": true,
+    "handoffHoldInput": "handoff_hold_seconds",
+    "handoffHoldDefaultSeconds": 0,
+    "handoffHoldMaxSeconds": 7200,
+    "terminalRunRef": "local-forgejo-actions-run-121",
+    "terminalJobRef": "local-forgejo-actions-job-235",
+    "terminalTaskRef": "local-forgejo-actions-task-220",
+    "commitSha": "c0470eec04232b2271e49a82566796d66aab99d7",
+    "backendImageRevision": "c0470eec04232b2271e49a82566796d66aab99d7",
+    "backendImageId": "sha256:0f299fd6c6b46086b9a6fe3f08b95a6d3dfdaa2bfeb0f47417d8051f72304fc2",
+    "handoffHoldSeconds": 1800,
+    "oidcDiscoveryReadyDuringHandoff": true,
+    "separateClientLaneAgainstRunnerHandoffPassed": true,
+    "terminalStatus": "success",
+    "taskLogInStorage": true,
+    "holdStepStatus": "success",
+    "destroyStepStatus": "success"
   },
   "mainlineDependencyStatus": {
     "originMainHead": "ae596b6",
@@ -134,6 +186,43 @@
     "localForgejoRunnerReadinessIssue662PresentOnMain": true,
     "deployableDomainPlanIssue664PresentOnMain": true,
     "pipelineProviderIssue663PresentOnMain": true,
-    "note": "Mainline upstream artifacts and the local Forgejo dispatch/preflight target are present, but #665 remains blocked until deployed-stack pipeline terminal success, deployed-stack readiness, and Weave E2E concise evidence are provided."
+    "note": "Mainline upstream artifacts and local dispatch/preflight target are present. Local Forgejo workflow_dispatch run 121 provided the strict deployment handoff proof, and the separate client lane passed against that runner-deployed handoff target."
+  },
+  "currentLocalDirectProof": {
+    "supportSafeRunRef": "local-direct-weave-stack-proof-current-working-tree",
+    "deploymentCommandRef": "infra/weave-workspace/install.sh",
+    "readinessCommandRef": "infra/weave-workspace/operator-check.sh",
+    "serverInfraReadinessPassed": true,
+    "weaveControlReady": true,
+    "clientBootstrapHandoffReady": true,
+    "operatorCheckPassed": true,
+    "rawLogsPersisted": false,
+    "supportSafeSummary": "Local stack install completed and operator-check reported Operator checks passed."
+  },
+  "currentSeparateClientLane": {
+    "supportSafeRunRef": "local-client-integration-app-e2e-against-local-forgejo-run-121-handoff",
+    "commandRef": "client/Makefile integration-app-e2e",
+    "makeFailMaskingFixed": true,
+    "memberProviderNeutralJoinPassed": true,
+    "weaveClientE2ePassed": true,
+    "observedMarkers": [
+      "AUTH_RESULT",
+      "PROFILE_RESULT",
+      "CHAT_RESULT",
+      "MATRIX_RESULT",
+      "E2EE_RESULT",
+      "FILES_RESULT",
+      "CALENDAR_RESULT",
+      "BOARDS_RESULT",
+      "WORKSPACE_LOOP_RESULT",
+      "PROVIDER_REALITY_RESULT"
+    ],
+    "e2eePostureBoundary": "Encrypted Matrix wire event required; recoveryRequired is accepted only as honest posture, not as a healthy-recovery claim.",
+    "rawLogsPersisted": false,
+    "supportSafeSummary": "Separate client lane passed against the local Forgejo runner-deployed handoff with real auth, profile, Matrix chat/E2EE, files, calendar policy, boards, workspace-loop, provider-reality markers, and the follow-up app contract suite.",
+    "againstForgejoRunnerRunRef": "local-forgejo-actions-run-121",
+    "againstForgejoRunnerTaskRef": "local-forgejo-actions-task-220",
+    "runnerBootstrapEnvCopiedTemporarily": true,
+    "runnerBootstrapSecretValuesPersisted": false
   }
 }

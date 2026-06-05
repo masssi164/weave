@@ -47,10 +47,10 @@ resource "docker_container" "this" {
     container_path = "/var/www/html"
   }
 
-  volumes {
-    host_path      = var.certs_dir
-    container_path = "/certs"
-    read_only      = true
+  upload {
+    file        = "/certs/${var.tls_ca_filename}"
+    source      = var.tls_ca_file
+    source_hash = filesha256(var.tls_ca_file)
   }
 
   networks_advanced {

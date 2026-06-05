@@ -77,7 +77,8 @@ integration-contract-test:
 	  --dart-define-from-file="$$dart_defines_file"
 
 integration-app-e2e:
-	@dart_defines_file=$$(mktemp); \
+	@set -e; \
+	dart_defines_file=$$(mktemp); \
 	trap 'rm -f "$$dart_defines_file"' EXIT; \
 	$(MAKE) integration-contract-test; \
 	bootstrap_env_default="$(CURDIR)/../infra/weave-workspace/.generated/bootstrap.env"; \

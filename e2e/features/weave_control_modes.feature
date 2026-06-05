@@ -7,14 +7,23 @@ Feature: Weave Control setup modes and bootstrap-to-client proof
     Then Weave Control shows a support-safe plan for deploy_new, attach_existing, and hybrid choices
     And unsupported combinations fail closed before mutation
     And the plan shows SecretRef or CredentialRef posture, consequence copy, rollback boundary, and blocked claims without secret values
+    And Weaver is represented only as a future governed organization capability and not as a v0.1 Spec 0001 runtime claim
+
+  @weave-control-admin-console-client-responsibility-split
+  Scenario: Weave Control, Admin Console, and Client keep separate responsibilities
+    Given Weave Control has produced support-safe deployment handoff refs
+    When admins review organization readiness in the Admin Console
+    Then the Admin Console may show provider, policy, readiness, audit, whitelist, and future Weaver governance states with sanitized refs
+    And the Weave App consumes only organization URL, invite link, or deep link handoff plus provider-neutral capability states
+    And the Forgejo deployment lane remains client-free and never emits member_provider_neutral_join_passed or weave_client_e2e_passed
 
   @weave-control-deploy-new-local-forgejo-e2e-boundary
-  Scenario: Deploy-new proof requires pipeline, stack readiness, and Weave E2E
+  Scenario: Deploy-new proof requires pipeline, server/infra readiness, Weave Control, and client-bootstrap handoff
     Given an admin selects deploy_new for the dogfood stack through a local Forgejo target
     When the approved workflow dispatch reaches a terminal result
-    Then Weave Control requires pipeline_terminal_success, stack_readiness_passed, and weave_e2e_passed before a deployed-stack claim
+    Then Weave Control requires pipeline_terminal_success, server_infra_readiness_passed, weave_control_ready, and client_bootstrap_handoff_ready before a deployment handoff claim
     And dispatch or preflight evidence alone remains dispatch_preflight_only
-    And GitHub-only Live Stack evidence is not counted as the local Forgejo deployed-stack proof
+    And Flutter or App E2E evidence is collected in a separate client lane against the handoff target, not on the Forgejo deployment runner
 
   @weave-control-attach-existing-preflight-boundary
   Scenario: Attach-existing proof binds existing systems without redeploying them
@@ -38,4 +47,4 @@ Feature: Weave Control setup modes and bootstrap-to-client proof
     And an admin creates, activates, or invites the first member
     When the member opens the organization URL, invite link, or deep link and completes SSO
     Then the Weave App shows product surfaces without provider setup, OIDC endpoint setup, CI/CD targets, SecretRefs, bootstrap diagnostics, or raw provider errors
-    And release claims name whether member_provider_neutral_join_passed is proved by current evidence
+    And release claims name whether member_provider_neutral_join_passed and weave_client_e2e_passed are proved by current evidence

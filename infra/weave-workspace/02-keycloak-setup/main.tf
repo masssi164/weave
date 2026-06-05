@@ -14,7 +14,7 @@ provider "keycloak" {
   username  = var.keycloak_admin_username
   password  = var.keycloak_admin_password
   realm     = "master"
-  url       = "http://127.0.0.1:${var.keycloak_host_port}"
+  url       = "http://${var.keycloak_admin_host}:${var.keycloak_host_port}"
 }
 
 locals {

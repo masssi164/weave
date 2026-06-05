@@ -10,8 +10,8 @@ variable "docker_host" {
   default     = "unix:///var/run/docker.sock"
 
   validation {
-    condition     = startswith(var.docker_host, "unix://")
-    error_message = "docker_host must be a unix socket endpoint such as unix:///var/run/docker.sock."
+    condition     = startswith(var.docker_host, "unix://") || var.docker_host == "tcp://forgejo-runner-dind:2375"
+    error_message = "docker_host must be a unix socket endpoint such as unix:///var/run/docker.sock, or the local Forgejo runner DinD endpoint tcp://forgejo-runner-dind:2375."
   }
 }
 

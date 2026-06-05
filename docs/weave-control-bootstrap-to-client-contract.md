@@ -4,9 +4,17 @@ Status: Sprint 30 contract slice for issue #681. This page turns the customer-si
 
 ## Product boundary
 
-Weave Control is the admin/operator product surface. It consists of `weavectl` plus the embedded Control UI/Admin Console, backed by Weave Server as the Java domain facade, policy, readiness, audit, and evidence brain. Weave Server stays separately deployable or attachable until contract evidence proves a different implementation is safer.
+Weave Control is the admin/operator bootstrap and operations product surface. It consists of `weavectl` plus the Control UI, backed by Weave Server as the Java domain facade, policy, readiness, audit, and evidence brain. It owns plan drafting, preflight, explicit apply approval, local/remote CI/CD dispatch, stack/bootstrap operations, rollback/support boundaries, readiness collection, support-bundle references, and client handoff target generation. Weave Server stays separately deployable or attachable until contract evidence proves a different implementation is safer.
 
-Weave App is the member product surface. A normal member enters through an organization auth URL, invite link, or deep link, completes SSO, and sees Weave product capabilities. Members never configure CI/CD targets, Forgejo/GitHub/GitLab/Azure repositories, OIDC clients, provider URLs, service endpoints, SecretRefs, Matrix/Nextcloud/OpenProject/LiveKit internals, or bootstrap diagnostics.
+The Admin Console is the organization management surface that sits on top of the same Weave Server contract after or during bootstrap. It owns organization/provider category management, IDM/RBAC sync, users/groups/roles, capability/RBAC profiles, policy preview, whitelists, audit views, readiness/diagnostics, and future governed Weaver category controls. It may show support-safe pipeline/evidence refs produced by Weave Control, but it must not become a raw CI log viewer or secret console.
+
+Weave App is the member product surface. A normal member enters through an organization auth URL, invite link, or deep link, completes SSO, and sees Weave product capabilities. Members never configure CI/CD targets, Forgejo/GitHub/GitLab/Azure repositories, OIDC clients, provider URLs, service endpoints, SecretRefs, Matrix/Nextcloud/OpenProject/LiveKit internals, Weaver runtime internals, or bootstrap diagnostics.
+
+| Surface | Primary responsibility | Must not own |
+| --- | --- | --- |
+| Weave Control | Bootstrap/ops plans, preflight, approved mutation dispatch, stack readiness, handoff target, support-safe deployment evidence. | Member UX, provider-specific member setup, app/client E2E signals, raw secrets, raw logs, or member content. |
+| Admin Console | Organization/provider/policy management, readiness, IDM/RBAC, whitelists, audit, diagnostics, future Weaver governance controls. | CI/CD mutation without Weave Control approval boundary, raw provider payloads, raw runtime config, or member app flows. |
+| Weave App / Client | SSO/invite/deep-link entry, provider-neutral product surfaces, member capability states, separate app/client E2E proof. | Provider setup, SecretRefs, endpoint rotation, bootstrap diagnostics, CI/CD targets, Admin Console policy authoring, or Weaver runtime administration. |
 
 ## Setup modes
 
@@ -19,6 +27,42 @@ Weave App is the member product surface. A normal member enters through an organ
 Unsupported combinations must return stable support-safe next-action codes. They must not leak raw provider errors, credential-bearing URLs, tenant URLs, downstream payloads, tokens, or member content.
 
 ## Bootstrap-to-client state machine
+
+The following activity diagram summarizes the deploy-new local Forgejo handoff lane. For screen readers: an admin drafts a support-safe plan, preflight validates it, explicit approval gates mutation, Forgejo dispatch runs the selected Weave Control/server/infra deployment, readiness checks emit deployment booleans, and client-bootstrap handoff is produced without claiming app/client E2E.
+
+```mermaid
+flowchart TD
+  A[Admin selects deploy_new in Weave Control] --> B[Draft support-safe plan with SecretRef handles]
+  B --> C[Preflight validates policy, domain compatibility, redaction, and readiness prerequisites]
+  C -->|fails| X[Fail closed with support-safe next-action code]
+  C -->|passes| D[Show consequences, rollback boundary, evidence refs, and blocked claims]
+  D --> E{Explicit apply approval present?}
+  E -->|no| Y[Block with approval_required]
+  E -->|yes| F[Dispatch selected local Forgejo workflow]
+  F --> G[Deploy Weave Control, Weave Server, and infra/provider stack]
+  G --> H[Observe terminal pipeline status]
+  H --> I[Run server/infra and Weave Control readiness checks]
+  I --> J{Deployment handoff booleans true?}
+  J -->|no| Z[Keep deployment handoff blocked]
+  J -->|yes| K[Emit pipeline_terminal_success, server_infra_readiness_passed, weave_control_ready, client_bootstrap_handoff_ready]
+  K --> L[Produce organization URL, invite link, or deep-link handoff target]
+  L --> M[Claim deployment handoff only; wait for separate app/client E2E lane]
+```
+
+The separate app/client E2E lane consumes the handoff target. For screen readers: a client test receives the organization URL, invite link, or deep link, opens Weave App, completes SSO as a normal member, loads the provider-neutral organization manifest and product surfaces, checks that provider setup details are absent, and only then emits member/client evidence signals. This lane is intentionally client-owned; the Forgejo deployment runner stays client-free and never emits member join or app E2E booleans.
+
+```mermaid
+flowchart TD
+  A[Receive deployment handoff target from Weave Control] --> B[Open Weave App through organization URL, invite link, or deep link]
+  B --> C[Complete SSO as normal member]
+  C --> D[Fetch provider-neutral organization manifest]
+  D --> E[Render product surfaces and capability states]
+  E --> F{Provider setup leakage present?}
+  F -->|yes| X[Fail client E2E and block release claim]
+  F -->|no| G[Verify no CI/CD targets, OIDC endpoints, SecretRefs, bootstrap diagnostics, raw provider errors, or member-content leaks]
+  G --> H[Emit member_provider_neutral_join_passed]
+  H --> I[Emit weave_client_e2e_passed for this handoff target]
+```
 
 1. `draft_plan` — owner/admin/operator selects domains and setup modes. Inputs are provider category choices, opaque `SecretRef`/`CredentialRef` handles, repo/pipeline target refs, policy profile refs, and rollback/support expectation. Raw secrets and credential-bearing URLs are rejected.
 2. `preflight_ready` — Weave Server validates domain compatibility, policy posture, required SecretRefs, redaction posture, and member impact preview. No mutation has happened.
@@ -43,7 +87,7 @@ Required plan fields:
 - member capability preview using provider-neutral states;
 - evidence refs to be emitted: plan, pipeline, readiness, E2E, audit, support bundle, and claim gate.
 
-Required terminal booleans for the local Forgejo deployed-stack release blocker are `pipeline_terminal_success`, `stack_readiness_passed`, and `weave_e2e_passed`. They remain false/unknown until an approved local run produces evidence; GitHub-only Live Stack evidence is not a substitute. A dispatched workflow, generated plan, or preflight-only proof is `dispatch_preflight_only` until all three terminal booleans are true for the selected target. The member handoff may claim `member_provider_neutral_join_passed` only when a normal member has joined through an organization URL, invite link, or deep link and seen product surfaces without provider setup leakage.
+Required terminal booleans for the local Forgejo deployment handoff are `pipeline_terminal_success`, `server_infra_readiness_passed`, `weave_control_ready`, and `client_bootstrap_handoff_ready`. They remain false/unknown until an approved local run deploys the selected Weave Control, server, and infra target and emits support-safe handoff evidence. Flutter/App E2E is a separate client lane: the Forgejo deployment runner must not install Flutter, Linux desktop dependencies, Xvfb/GTK, or app/client E2E harnesses, and must not emit `member_provider_neutral_join_passed` or `weave_client_e2e_passed` as deployment-lane results. A dispatched workflow, generated plan, or preflight-only proof is `dispatch_preflight_only` until all deployment handoff booleans are true for the selected target. The member handoff may claim `member_provider_neutral_join_passed` only when a normal member has joined through an organization URL, invite link, or deep link and seen product surfaces without provider setup leakage; `weave_client_e2e_passed` may be true only when the separate app/client E2E lane has passed against that target.
 
 Error responses must use stable codes such as `unsupported_hybrid_combination`, `missing_secretref`, `preflight_failed`, `approval_required`, `pipeline_not_terminal`, `readiness_degraded`, `e2e_not_proven`, `manual_at_missing`, or `claim_blocked`. Support-safe evidence may include opaque refs and reason codes only.
 
@@ -60,7 +104,7 @@ The member path must not contain provider setup forms, OIDC/SAML wiring, realms,
 
 ## Optional governed Weaver boundary
 
-Weaver remains an optional governed personal-assistant line, disabled by default. It is unavailable unless all of these are true:
+Weaver remains an optional future organization capability and governance surface, disabled by default. It belongs in Admin Console policy/readiness/whitelist planning so the organization story does not forget it, but this contract and WEAVE-SPEC-0001 do not claim Weaver/AI runtime behavior in v0.1. It is unavailable unless all of these are true:
 
 1. organization policy enables the Weaver category;
 2. per-user or group policy grants `weaver.enabled`;

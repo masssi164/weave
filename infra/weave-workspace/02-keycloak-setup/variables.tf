@@ -68,6 +68,12 @@ variable "keycloak_host_port" {
   default     = 8080
 }
 
+variable "keycloak_admin_host" {
+  description = "Host used by Terraform to reach direct Keycloak admin access."
+  type        = string
+  default     = "127.0.0.1"
+}
+
 variable "keycloak_admin_username" {
   description = "Keycloak admin username."
   type        = string

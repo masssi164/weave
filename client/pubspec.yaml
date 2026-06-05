@@ -34,6 +34,7 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+  sqflite_common_ffi: ^2.3.4+4
   crypto: ^3.0.7
   flutter_lints: ^4.0.0
   build_runner: ^2.5.0

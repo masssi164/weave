@@ -16,7 +16,8 @@ readonly APP_CONFIG_ENV_FILE="${ROOT_DIR}/.generated/app-config.env"
 readonly RUNNER_BOOTSTRAP_ENV_FILE="/tmp/weave-infra/weave-workspace/.generated/bootstrap.env"
 readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
 readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
-readonly LOOPBACK_HOST="127.0.0.1"
+readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
+LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
 readonly TEST_USER_EMAIL="test@weave.local"
 readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_host
@@ -361,6 +362,9 @@ wait_for_http_200() {
     if [[ "${status_code}" == "200" ]]; then
       return 0
     fi
+    if ((i == 1 || i % 10 == 0)); then
+      log "Still waiting for ${name} readiness (attempt ${i}/${attempts}, status ${status_code:-000})..."
+    fi
     sleep "${sleep_seconds}"
   done
 
@@ -398,6 +402,37 @@ wait_for_nextcloud() {
   fail "Nextcloud did not finish bootstrapping in time."
 }
 
+maybe_use_reverse_proxy_container_route() {
+  local proxy_ip=""
+
+  case "${WEAVE_RUNNER_HYGIENE:-false}" in
+    true | TRUE | True | 1) ;;
+    *) return 0 ;;
+  esac
+
+  proxy_ip="$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null | python3 -c 'import json,sys
+try:
+    networks=json.load(sys.stdin)
+except Exception:
+    networks={}
+for network in networks.values():
+    ip=str(network.get("IPAddress", ""))
+    if ip.count(".") == 3:
+        print(ip)
+        break
+' || true)"
+  if [[ -z "${proxy_ip}" ]]; then
+    log "Reverse proxy route diagnostics: containers=$(docker ps --format '{{.Names}}' 2>/dev/null | grep '^weave-' | paste -sd, - || true) networks=$(docker network ls --format '{{.Name}}' 2>/dev/null | grep '^weave' | paste -sd, - || true) proxy_networks=$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null || true)"
+    fail "Reverse proxy container IP could not be resolved for local public Weave hostnames."
+  fi
+
+  LOOPBACK_RESOLVE_HOST="${proxy_ip}"
+  PUBLIC_PROXY_PORT="443"
+  export WEAVE_LOOPBACK_RESOLVE_HOST="${proxy_ip}"
+  export WEAVE_PUBLIC_PROXY_PORT="${PUBLIC_PROXY_PORT}"
+  log "Using reverse proxy container route for local public Weave hostnames."
+}
+
 occ() {
   docker exec --user www-data weave-nextcloud php occ "$@"
 }
@@ -408,9 +443,10 @@ nextcloud_is_installed() {
 
 terraform_apply() {
   local dir="$1"
+  local refresh="${WEAVE_IAC_REFRESH:-true}"
 
   "${WEAVE_IAC_BIN}" -chdir="${dir}" init -input=false
-  "${WEAVE_IAC_BIN}" -chdir="${dir}" apply -refresh=false -input=false -auto-approve
+  "${WEAVE_IAC_BIN}" -chdir="${dir}" apply -refresh="${refresh}" -input=false -auto-approve
 }
 
 ensure_terraform_network_state() {
@@ -487,11 +523,13 @@ ensure_postgres_bootstrap_applied() {
 }
 
 public_port_suffix() {
-  if [[ "${TF_VAR_public_scheme}" == "http" && "${TF_VAR_proxy_host_port}" == "80" ]] ||
-    [[ "${TF_VAR_public_scheme}" == "https" && "${TF_VAR_proxy_host_port}" == "443" ]]; then
+  local port="${PUBLIC_PROXY_PORT:-${TF_VAR_proxy_host_port}}"
+
+  if [[ "${TF_VAR_public_scheme}" == "http" && "${port}" == "80" ]] ||
+    [[ "${TF_VAR_public_scheme}" == "https" && "${port}" == "443" ]]; then
     printf ''
   else
-    printf ':%s' "${TF_VAR_proxy_host_port}"
+    printf ':%s' "${port}"
   fi
 }
 
@@ -543,7 +581,7 @@ curl_nextcloud_actor_calendar_status() {
   local -a args=(--silent --show-error)
 
   host_port="$(host_port_from_url "${url}")"
-  args+=(--resolve "${host_port}:127.0.0.1")
+  args+=(--resolve "${host_port}:${LOOPBACK_RESOLVE_HOST}")
   if [[ "${TF_VAR_public_scheme}" == "https" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then
     args+=(--cacert "${TF_VAR_caddy_tls_ca_file}")
   fi
@@ -555,6 +593,32 @@ curl_nextcloud_actor_calendar_status() {
     -o /dev/null \
     -w '%{http_code}' \
     "${url}"
+}
+
+wait_for_public_http_200() {
+  local name="$1"
+  local url="$2"
+  local attempts="${3:-60}"
+  local sleep_seconds="${4:-2}"
+  local host_port
+  local status_code
+  local -a args=(--silent --show-error)
+
+  host_port="$(host_port_from_url "${url}")"
+  args+=(--resolve "${host_port}:${LOOPBACK_RESOLVE_HOST}")
+  if [[ "${TF_VAR_public_scheme}" == "https" && -f "${TF_VAR_caddy_tls_ca_file}" ]]; then
+    args+=(--cacert "${TF_VAR_caddy_tls_ca_file}")
+  fi
+
+  for ((i = 1; i <= attempts; i++)); do
+    status_code="$(curl "${args[@]}" -o /dev/null -w '%{http_code}' "${url}" || true)"
+    if [[ "${status_code}" == "200" ]]; then
+      return 0
+    fi
+    sleep "${sleep_seconds}"
+  done
+
+  fail "${name} never became ready at ${url}"
 }
 
 create_test_user_enabled() {
@@ -671,8 +735,15 @@ preflight_checks() {
   )
 
   for host in "${hosts[@]}"; do
+    if grep -Eq "(^|[[:space:]])${host//./[.]}([[:space:]]|$)" /etc/hosts 2>/dev/null; then
+      continue
+    fi
     if command -v getent >/dev/null 2>&1; then
-      getent hosts "${host}" >/dev/null 2>&1 && continue
+      if command -v timeout >/dev/null 2>&1; then
+        timeout 2s getent hosts "${host}" >/dev/null 2>&1 && continue
+      else
+        getent hosts "${host}" >/dev/null 2>&1 && continue
+      fi
     fi
     if command -v dscacheutil >/dev/null 2>&1; then
       dscacheutil -q host -a name "${host}" >/dev/null 2>&1 && continue
@@ -685,7 +756,7 @@ preflight_checks() {
   if (( ${#unresolved_hosts[@]} > 0 )); then
     log "Preflight warning: these canonical hosts do not resolve yet: ${unresolved_hosts[*]}"
     log "Add this /etc/hosts line before opening browser/native-client URLs:"
-    log "127.0.0.1 ${hosts[*]}"
+    log "${LOOPBACK_HOST} ${hosts[*]}"
   fi
 
   if command -v lsof >/dev/null 2>&1; then
@@ -783,6 +854,7 @@ ensure_default_inputs() {
     "TF_VAR_proxy_host_port=44443"
     "TF_VAR_proxy_http_host_port=44080"
     "TF_VAR_keycloak_host_port=48080"
+    "TF_VAR_keycloak_admin_host=${LOOPBACK_HOST}"
     "TF_VAR_keycloak_management_host_port=49000"
     "TF_VAR_mas_host_port=48082"
     "TF_VAR_synapse_host_port=48008"
@@ -1054,7 +1126,7 @@ configure_nextcloud_base_url() {
 
   occ config:system:set trusted_domains 0 --value="${nextcloud_host}"
   occ config:system:set trusted_domains 1 --value="localhost"
-  occ config:system:set trusted_domains 2 --value="127.0.0.1"
+  occ config:system:set trusted_domains 2 --value="${LOOPBACK_HOST}"
   occ config:system:delete trusted_domains 3 >/dev/null 2>&1 || true
   occ config:system:set overwritehost --value="${nextcloud_host}$(public_port_suffix)"
   occ config:system:set overwrite.cli.url --value="${nextcloud_url}"
@@ -1134,6 +1206,7 @@ create_nextcloud_backend_actor() {
 ensure_nextcloud_backend_actor_calendar() {
   local calendar_id
   local calendar_url
+  local create_output
   local create_status
   local read_status
   local -a calendar_ids=(
@@ -1143,9 +1216,12 @@ ensure_nextcloud_backend_actor_calendar() {
   )
 
   for calendar_id in "${calendar_ids[@]}"; do
-    if occ list --format=txt | grep -q '^  dav:create-calendar' && \
-      occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" >/dev/null 2>&1; then
+    create_output="$(occ dav:create-calendar "${TF_VAR_nextcloud_backend_actor_username}" "${calendar_id}" 2>&1)" && continue
+    if printf '%s' "${create_output}" | grep -Eiq 'already exists|calendar.*exists|duplicate'; then
       continue
+    fi
+    if ! printf '%s' "${create_output}" | grep -Eiq 'not defined|unknown command|namespace .* not found'; then
+      fail "Nextcloud backend actor calendar ${calendar_id} could not be created through occ: ${create_output}"
     fi
 
     calendar_url="$(nextcloud_public_url)/remote.php/dav/calendars/${TF_VAR_nextcloud_backend_actor_username}/${calendar_id}/"
@@ -1203,7 +1279,7 @@ print_summary() {
   log "- Matrix:    ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")${suffix}"
   log
   log "App config file (no secrets): ${APP_CONFIG_ENV_FILE}"
-  log "Host entries: 127.0.0.1 ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}")"
+  log "Host entries: ${LOOPBACK_HOST} ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}")"
   log "Trust this local TLS CA certificate on the host before opening browser/native-client URLs: ${TF_VAR_caddy_tls_ca_file}"
   log
   log "MVP feature flags:"
@@ -1242,7 +1318,7 @@ main() {
   require_command docker
   require_command openssl
   require_command python3
-  require_command terraform
+  require_command "${WEAVE_IAC_BIN}"
 
   ensure_generated_directories
   load_persisted_env
@@ -1261,6 +1337,7 @@ main() {
 
   log "Applying infrastructure module..."
   terraform_apply "${INFRA_DIR}"
+  maybe_use_reverse_proxy_container_route
   synapse_repair_volume_permissions
   synapse_verify_volume_writable
   ensure_postgres_bootstrap_applied

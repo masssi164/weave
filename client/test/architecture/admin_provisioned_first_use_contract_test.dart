@@ -105,9 +105,10 @@ void main() {
         contains('Weave Server stays separately deployable or attachable'),
       );
       expect(controlText, contains('Members never configure CI/CD targets'));
+      expect(controlText, contains('dispatch_preflight_only'));
       expect(
         controlText,
-        contains('GitHub-only Live Stack evidence is not a substitute'),
+        contains('Flutter/App E2E is a separate client lane'),
       );
     });
   });

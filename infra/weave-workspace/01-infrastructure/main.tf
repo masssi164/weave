@@ -328,7 +328,10 @@ module "reverse_proxy" {
   http_host_port     = var.proxy_http_host_port
   https_host_port    = var.proxy_host_port
   caddyfile_path     = local_file.caddyfile.filename
-  certs_dir          = local.caddy_certs_dir
+  caddyfile_content  = local.caddyfile_content
+  tls_cert_file      = local.caddy_tls_cert_file
+  tls_key_file       = local.caddy_tls_key_file
+  tls_ca_file        = local.caddy_tls_ca_file
   data_volume_name   = "weave_caddy_data"
   config_volume_name = "weave_caddy_config"
   public_hosts       = local.public_hosts
@@ -462,7 +465,7 @@ module "matrix" {
   mas_signing_key_hash   = sha256(local.generated_files["mas_signing_key"].content)
   synapse_config_source  = local_sensitive_file.generated["synapse_homeserver"].filename
   synapse_config_hash    = sha256(local.generated_files["synapse_homeserver"].content)
-  certs_dir              = local.caddy_certs_dir
+  tls_ca_file            = local.caddy_tls_ca_file
   tls_ca_filename        = basename(local.caddy_tls_ca_file)
   synapse_uid            = var.synapse_uid
   synapse_gid            = var.synapse_gid
@@ -482,7 +485,8 @@ module "nextcloud" {
   public_scheme      = var.public_scheme
   public_port_suffix = local.public_port_suffix
   trusted_proxies    = var.nextcloud_trusted_proxies
-  certs_dir          = local.caddy_certs_dir
+  tls_ca_file        = local.caddy_tls_ca_file
+  tls_ca_filename    = basename(local.caddy_tls_ca_file)
   db_host            = module.postgres.container_name
   db_name            = local.service_databases.nextcloud.database_name
   db_username        = var.nextcloud_db_username
