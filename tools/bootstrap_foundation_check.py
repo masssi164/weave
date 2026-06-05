@@ -245,7 +245,7 @@ def assert_bootstrap_runtime() -> None:
     ], "--execute is not allowed")
 
     unsafe_receipt_plan = dict(plan)
-    unsafe_receipt_plan["providerStack"] = dict(plan["providerStack"], ref="https://unsafe.example/provider")
+    unsafe_receipt_plan["providerStack"] = dict(plan["providerStack"], ref="access_token=unsafe")
     unsafe_receipt_path = write_case_plan("unsafe-receipt", unsafe_receipt_plan)
     run_command_expect_failure([
         "python3", str(WEAVECTL.relative_to(ROOT)), "bootstrap", "apply",

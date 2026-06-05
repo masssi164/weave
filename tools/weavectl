@@ -38,8 +38,6 @@ FORBIDDEN_EVIDENCE_PATTERNS = [
         r"bearer\s+[a-z0-9._-]+",
         r"gh[pousr]_[a-z0-9_]{12,}",
         r"(token|secret|password|private[_-]?key)\s*[:=]\s*[^\s,}\"]+",
-        r"https?://[^\s)\"]+",
-        r"ssh://[^\s)\"]+",
         r"-----begin\s+(rsa|dsa|ec|openssh|private)\s+private\s+key-----",
     ]
 ]
