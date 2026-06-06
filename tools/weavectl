@@ -32,6 +32,19 @@ FORBIDDEN_EVIDENCE_FRAGMENTS = [
     "raw provider",
 ]
 
+FORBIDDEN_EVIDENCE_PATTERNS = [
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in [
+        r"bearer\s+[a-z0-9._-]+",
+        r"gh[pousr]_[a-z0-9_]{12,}",
+        r"(token|secret|password|private[_-]?key)\s*[:=]\s*[^\s,}\"]+",
+        r"-----begin\s+(rsa|dsa|ec|openssh|private)\s+private\s+key-----",
+    ]
+]
+
+APPROVAL_REF_RE = re.compile(r"^(APPROVAL|CHANGE|TICKET|ISSUE|GH|JIRA|OPS|SEC)-[A-Za-z0-9][A-Za-z0-9._:-]{2,63}$")
+ALLOWED_LOCAL_EXECUTOR = Path("infra/weave-workspace/install.sh")
+
 PROFILE_CONTRACT = {
     "dev": {"reachabilityMode": "developer-local", "memberPhoneAllowed": False},
     "local-lan-dogfood": {"reachabilityMode": "lan", "memberPhoneAllowed": True},
@@ -137,14 +150,76 @@ def support_safe_ref(prefix: str, *parts: str) -> str:
     return f"{prefix}-{digest}"
 
 
+def assert_support_safe_payload(value: object, label: str, path: tuple[str, ...] = ()) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            assert_support_safe_payload(child, label, (*path, str(key)))
+        return
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            assert_support_safe_payload(child, label, (*path, str(index)))
+        return
+    if isinstance(value, str):
+        lowered = value.lower()
+        location = ".".join(path) or "<root>"
+        for fragment in FORBIDDEN_EVIDENCE_FRAGMENTS:
+            if fragment in lowered:
+                fail(f"support-safe redaction blocked artifact {label}: forbidden fragment {fragment} at {location}")
+        for pattern in FORBIDDEN_EVIDENCE_PATTERNS:
+            if pattern.search(value):
+                fail(f"support-safe redaction blocked artifact {label}: forbidden pattern {pattern.pattern} at {location}")
+
+
 def write_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    assert_support_safe_payload(payload, str(path))
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    lowered = text.lower()
-    for fragment in FORBIDDEN_EVIDENCE_FRAGMENTS:
-        if fragment in lowered:
-            fail(f"support-safe redaction blocked artifact {path}: forbidden fragment {fragment}")
     path.write_text(text, encoding="utf-8")
+
+
+def validate_approval_ref(raw: str | None) -> str:
+    if raw is None or not APPROVAL_REF_RE.fullmatch(raw):
+        fail("--approval-ref must be a support-safe ticket id like APPROVAL-123, OPS-2026-001, or GH-703")
+    return raw
+
+
+def validate_plan_integrity(plan: dict[str, object], plan_path: Path) -> None:
+    if plan.get("artifactKind") != "bootstrap-plan":
+        fail("bootstrap plan missing artifactKind=bootstrap-plan")
+    run_id = str(plan.get("runId") or "")
+    profile = str(plan.get("profile") or "")
+    target = str(plan.get("targetProviderLane") or "")
+    setup_mode = str(plan.get("setupMode") or "")
+    if profile not in BOOTSTRAP_PROFILES:
+        fail(f"bootstrap plan has unknown profile: {profile}")
+    if target not in BOOTSTRAP_TARGETS:
+        fail(f"bootstrap plan has unknown target provider lane: {target}")
+    expected_ref = support_safe_ref("bootstrap-plan", run_id, profile, target, setup_mode)
+    if plan.get("planRef") != expected_ref:
+        fail(f"bootstrap plan provenance check failed for {plan_path}: planRef does not match plan content")
+
+
+def expected_executor_for_plan(plan: dict[str, object]) -> Path:
+    profile = str(plan.get("profile") or "")
+    target = str(plan.get("targetProviderLane") or "")
+    if target not in {"local-shell", "local-docker"} or profile not in LOCAL_EXECUTE_PROFILES:
+        fail(f"--execute is not allowed for profile={profile} target={target}")
+    mutation = plan.get("mutationBoundary", {})
+    if not isinstance(mutation, dict):
+        fail("bootstrap plan missing mutation boundary")
+    claimed = str(mutation.get("executor") or "")
+    claimed_path = Path(claimed)
+    if claimed_path.is_absolute() or ".." in claimed_path.parts:
+        fail("bootstrap executor must be the allowlisted repo-relative path")
+    if claimed_path != ALLOWED_LOCAL_EXECUTOR:
+        fail("bootstrap executor is not allowlisted for this profile/target")
+    executor = (ROOT / ALLOWED_LOCAL_EXECUTOR).resolve()
+    root = ROOT.resolve()
+    if root not in executor.parents:
+        fail("bootstrap executor resolved outside the repository")
+    if not executor.exists():
+        fail(f"executor does not exist: {ALLOWED_LOCAL_EXECUTOR}")
+    return executor
 
 
 def read_json(path: Path) -> dict[str, object]:
@@ -288,24 +363,23 @@ def apply_bootstrap(args: argparse.Namespace) -> int:
         fail("unsupported bootstrap plan schema")
     if plan.get("supportSafe") is not True:
         fail("bootstrap plan must be supportSafe=true")
+    assert_support_safe_payload(plan, str(plan_path))
+    validate_plan_integrity(plan, plan_path)
     mutation = plan.get("mutationBoundary", {})
     if not isinstance(mutation, dict):
         fail("bootstrap plan missing mutation boundary")
-    if args.execute and not args.approval_ref:
-        fail("--execute requires --approval-ref")
+    approval_ref = validate_approval_ref(args.approval_ref) if args.execute else None
     if args.execute and mutation.get("executeSupportedNow") is not True:
         fail(f"--execute is not implemented for target {plan.get('targetProviderLane')}")
 
     run_id = str(plan.get("runId"))
-    apply_ref = support_safe_ref("bootstrap-apply", run_id, str(plan.get("planRef")), str(args.approval_ref or "dry-run"))
+    apply_ref = support_safe_ref("bootstrap-apply", run_id, str(plan.get("planRef")), str(approval_ref or "dry-run"))
     receipt_path = plan_path.parent / "apply-receipt.json"
     mode = "execute" if args.execute else "dry_run_validate_only"
     command_result: str | None = None
 
     if args.execute:
-        executor = ROOT / str(mutation.get("executor"))
-        if not executor.exists():
-            fail(f"executor does not exist: {executor.relative_to(ROOT)}")
+        executor = expected_executor_for_plan(plan)
         completed = subprocess.run([str(executor)], cwd=str(executor.parent), check=False)
         command_result = "success" if completed.returncode == 0 else f"failed_exit_{completed.returncode}"
         if completed.returncode != 0:
@@ -318,7 +392,8 @@ def apply_bootstrap(args: argparse.Namespace) -> int:
         "planRef": plan.get("planRef"),
         "applyRef": apply_ref,
         "mode": mode,
-        "approvalRef": args.approval_ref,
+        "approvalRef": "redacted" if approval_ref else None,
+        "approvalRefHash": support_safe_ref("approval-ref", approval_ref) if approval_ref else None,
         "supportSafe": True,
         "targetProviderLane": plan.get("targetProviderLane"),
         "profile": plan.get("profile"),
