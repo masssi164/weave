@@ -121,5 +121,23 @@ void main() {
         throwsA(isA<AppFailure>()),
       );
     });
+
+    test('rejects embedded credentials in canonical app-start URLs', () {
+      const parser = MemberHandoffParser();
+
+      for (final uri in [
+        Uri.parse(
+          'https://user:pass@join.weave.example/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&profile=production',
+        ),
+        Uri.parse(
+          'weave:/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&product_base_url=https%3A%2F%2Fuser%3Apass%40join.weave.example&platform_config_url=https%3A%2F%2Fapi.weave.example%2Fapi%2Fplatform%2Fconfig',
+        ),
+        Uri.parse(
+          'weave:/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&product_base_url=https%3A%2F%2Fjoin.weave.example&platform_config_url=https%3A%2F%2Fuser%3Apass%40api.weave.example%2Fapi%2Fplatform%2Fconfig',
+        ),
+      ]) {
+        expect(() => parser.parse(uri), throwsA(isA<AppFailure>()));
+      }
+    });
   });
 }

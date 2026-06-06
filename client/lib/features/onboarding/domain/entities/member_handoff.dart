@@ -98,6 +98,7 @@ class MemberHandoffParser {
         'WEAVE-HANDOFF-INVALID: The invite must use HTTPS or the Weave app link.',
       );
     }
+    _rejectEmbeddedCredentials(uri, 'invite');
 
     final isCustomSchemeJoin =
         uri.scheme == 'weave' && (uri.path == '/join' || uri.host == 'join');
@@ -172,6 +173,7 @@ class MemberHandoffParser {
         'WEAVE-HANDOFF-INVALID: $fieldName must use HTTP or HTTPS.',
       );
     }
+    _rejectEmbeddedCredentials(uri, fieldName);
     if (uri.hasQuery || uri.hasFragment) {
       throw AppFailure.validation(
         'WEAVE-HANDOFF-INVALID: $fieldName must not include query or fragment data.',
@@ -206,6 +208,14 @@ class MemberHandoffParser {
       );
     }
     return value;
+  }
+
+  void _rejectEmbeddedCredentials(Uri uri, String fieldName) {
+    if (uri.userInfo.isNotEmpty) {
+      throw AppFailure.validation(
+        'WEAVE-HANDOFF-SECRET-BLOCKED: $fieldName must not embed credentials.',
+      );
+    }
   }
 
   void _rejectCredentialBearingQuery(Map<String, String> query) {

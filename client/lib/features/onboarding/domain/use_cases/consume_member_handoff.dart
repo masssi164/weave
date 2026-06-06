@@ -140,6 +140,11 @@ class AppStartDiscoveryClient {
         authBaseUrl.host.isEmpty) {
       return null;
     }
+    if (authBaseUrl.userInfo.isNotEmpty) {
+      throw const AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: authBaseUrl must not embed credentials.',
+      );
+    }
     return Uri(
       scheme: authBaseUrl.scheme,
       host: authBaseUrl.host,
@@ -182,6 +187,11 @@ class AppStartDiscoveryClient {
     if (uri.scheme != 'http' && uri.scheme != 'https') {
       throw AppFailure.validation(
         'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName must use HTTP or HTTPS.',
+      );
+    }
+    if (uri.userInfo.isNotEmpty) {
+      throw AppFailure.validation(
+        'WEAVE-APP-START-DISCOVERY-INVALID: $fieldName must not embed credentials.',
       );
     }
     if (uri.hasQuery || uri.hasFragment) {

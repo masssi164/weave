@@ -70,10 +70,44 @@ class PlatformContractServiceTest {
         assertThat(status.matrix().e2ee().status()).isEqualTo("validated");
     }
 
+    @Test
+    void keepsPublicFilesProductUrlSeparateFromTechnicalNextcloudDiagnosticsRoute() {
+        PlatformContractService service = service(
+                new MatrixChatProperties(false, null, null),
+                true,
+                new PlatformContractProperties(
+                        "https://weave.local",
+                        "https://api.weave.local/api",
+                        "https://auth.weave.local",
+                        "https://matrix.weave.local",
+                        "https://weave.local/files",
+                        "https://weave.local/calendar",
+                        "https://nextcloud.internal",
+                        null));
+
+        var config = service.config();
+        var status = service.status("nextcloud-route-test");
+
+        assertThat(config.filesProductUrl()).isEqualTo("https://weave.local/files");
+        assertThat(config.nextcloudBaseUrl()).isEqualTo("https://nextcloud.internal");
+        assertThat(status.nextcloud().readiness()).isEqualTo("ready");
+        assertThat(status.nextcloud().message()).contains("technical route");
+    }
+
     private PlatformContractService service(MatrixChatProperties matrixProperties, boolean chatEnabled) {
+        return service(
+                matrixProperties,
+                chatEnabled,
+                new PlatformContractProperties(null, null, null, null, null, null, null, null));
+    }
+
+    private PlatformContractService service(
+            MatrixChatProperties matrixProperties,
+            boolean chatEnabled,
+            PlatformContractProperties platformProperties) {
         return new PlatformContractService(
                 resourceServerProperties(),
-                new PlatformContractProperties(null, null, null, null, null, null, null, null),
+                platformProperties,
                 matrixProperties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(

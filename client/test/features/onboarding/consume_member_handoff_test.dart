@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:weave/core/failures/app_failure.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/domain/entities/server_configuration.dart';
 import 'package:weave/features/server_config/domain/repositories/server_configuration_repository.dart';
@@ -126,6 +127,63 @@ void main() {
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
       'https://weave.weave.example/files',
     );
+  });
+
+  test('rejects app-start discovery URLs with embedded credentials', () async {
+    final repository = _RecordingServerConfigurationRepository();
+    final httpClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'apiBaseUrl': 'https://api.weave.example/api',
+          'authBaseUrl': 'https://auth.weave.example',
+          'oidcIssuerUrl': 'https://user:pass@auth.weave.example/realms/weave',
+          'matrixHomeserverUrl': 'https://matrix.weave.example',
+          'filesProductUrl': 'https://files.weave.example',
+        }),
+        200,
+      );
+    });
+
+    await expectLater(
+      ConsumeMemberHandoff(
+        repository: repository,
+        discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
+      ).call(
+        Uri.parse(
+          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
+        ),
+      ),
+      throwsA(isA<AppFailure>()),
+    );
+    expect(repository.saved, isNull);
+  });
+
+  test('rejects credential-bearing legacy authBaseUrl fallback', () async {
+    final repository = _RecordingServerConfigurationRepository();
+    final httpClient = MockClient((request) async {
+      return http.Response(
+        jsonEncode({
+          'apiBaseUrl': 'https://api.weave.example/api',
+          'authBaseUrl': 'https://user:pass@auth.weave.example',
+          'matrixHomeserverUrl': 'https://matrix.weave.example',
+          'nextcloudBaseUrl': 'https://files.weave.example',
+        }),
+        200,
+      );
+    });
+
+    await expectLater(
+      ConsumeMemberHandoff(
+        repository: repository,
+        discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
+      ).call(
+        Uri.parse(
+          'https://join.weave.example/join?handoff_ref=invite-abc123&org=acme&workspace=main&profile=production&run_id=prod-001',
+        ),
+      ),
+      throwsA(isA<AppFailure>()),
+    );
+    expect(repository.saved, isNull);
   });
 
   test(
