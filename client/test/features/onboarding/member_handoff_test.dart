@@ -19,11 +19,22 @@ void main() {
       );
     });
 
+    test('rejects HTTP invite links even when the join route is present', () {
+      expect(
+        () => const MemberHandoffParser().parse(
+          Uri.parse(
+            'http://weave.local:8080/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check',
+          ),
+        ),
+        throwsA(isA<AppFailure>()),
+      );
+    });
+
     test('rejects LAN IP invite links as non-canonical local truth', () {
       expect(
         () => const MemberHandoffParser().parse(
           Uri.parse(
-            'http://192.168.42.10:8080/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check',
+            'https://192.168.42.10:44443/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check',
           ),
         ),
         throwsA(isA<AppFailure>()),
@@ -103,7 +114,7 @@ void main() {
         expect(
           () => const MemberHandoffParser().parse(
             Uri.parse(
-              'http://$host:8080/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home',
+              'https://$host:44443/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home',
             ),
           ),
           throwsA(isA<AppFailure>()),

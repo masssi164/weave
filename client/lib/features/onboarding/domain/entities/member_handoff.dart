@@ -91,9 +91,7 @@ class MemberHandoffParser {
   }
 
   void _validateJoinEntrypoint(Uri uri) {
-    if (uri.scheme != 'http' &&
-        uri.scheme != 'https' &&
-        uri.scheme != 'weave') {
+    if (uri.scheme != 'https' && uri.scheme != 'weave') {
       throw const AppFailure.validation(
         'WEAVE-HANDOFF-INVALID: The invite must use HTTPS or the Weave app link.',
       );
@@ -102,8 +100,7 @@ class MemberHandoffParser {
 
     final isCustomSchemeJoin =
         uri.scheme == 'weave' && (uri.path == '/join' || uri.host == 'join');
-    final isWebJoin =
-        (uri.scheme == 'http' || uri.scheme == 'https') && uri.path == '/join';
+    final isWebJoin = uri.scheme == 'https' && uri.path == '/join';
     if (!isCustomSchemeJoin && !isWebJoin) {
       throw const AppFailure.validation(
         'WEAVE-HANDOFF-INVALID: The invite must point to the Weave join route.',
