@@ -107,6 +107,18 @@ flutter pub get
 flutter run
 ```
 
+### App start / member join contract
+
+Weave has one member startup flow: open a support-safe `/join` link, load public `/api/platform/config`, save OIDC/API/facade configuration, start SSO, then show the workspace home.
+
+- Production/customer entry: `https://<weave-link-domain>/join?...` via iOS Universal Links / Android App Links where the domain is in the app association contract.
+- Local iPhone dogfood: use the same `/join` contract when possible; `weave:/join?...` is only the local-dev fallback when Universal Link verification cannot work for IP/self-signed setups.
+- Do not reinstall the app during startup. Keep the stable bundle/package identity and OIDC redirects: `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`.
+- The member app must not ask users for Matrix/Nextcloud/provider URLs, secrets, diagnostics, or admin control-plane details.
+- Local self-signed HTTPS still requires installing/trusting the local CA on the device because Safari/AppAuth use system trust.
+
+The app-link association artifacts live in `client/app-links/`. iOS Associated Domains are enabled only for Release builds because Apple Personal Development Teams cannot provision that capability; local `flutter run`/Debug uses the `weave:/join?...` fallback. Android release App Links require replacing the template fingerprint with the release signing certificate fingerprint before publishing.
+
 ### Android identity and release signing
 
 Android debug builds use the Weave package id `com.massimotter.weave`; the OIDC redirect scheme stays `com.massimotter.weave`, so app-auth provider configuration must still allow `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout` after package-id changes.

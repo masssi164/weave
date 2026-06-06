@@ -596,6 +596,17 @@ source "${SYNAPSE_VOLUME_HELPER}"
 : "${WEAVE_OIDC_ISSUER_URL:=$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:=$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
 : "${WEAVE_MATRIX_HOMESERVER_URL:=$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
+: "${WEAVE_LOCAL_CA_URL:=http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem}"
+
+[[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Operator check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.local}, got ${WEAVE_PUBLIC_BASE_URL}"
+[[ "${WEAVE_BASE_URL}" == "$(api_public_url)/api" ]] || fail "Operator check failed: API URL must stay DNS-first on $(public_host "${TF_VAR_api_subdomain:-api}"), got ${WEAVE_BASE_URL}"
+[[ "${WEAVE_OIDC_ISSUER_URL}" == "$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}" ]] || fail "Operator check failed: OIDC issuer must stay DNS-first on $(public_host "${TF_VAR_auth_subdomain:-auth}"), got ${WEAVE_OIDC_ISSUER_URL}"
+[[ "${WEAVE_LOCAL_CA_URL}" == "http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" ]] || fail "Operator check failed: local CA URL must be advertised on weave.local, got ${WEAVE_LOCAL_CA_URL}"
+if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
+  for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_NEXTCLOUD_BASE_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
+    [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Operator check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
+  done
+fi
 
 synapse_operator_diagnose_volume
 
@@ -613,6 +624,17 @@ assert_http_200 "Synapse" "http://${LOOPBACK_HOST}:${TF_VAR_synapse_host_port:-4
 log "Checking public product, issuer, API, files, and matrix routes..."
 product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/")"
 [[ "${product_status}" == "200" ]] || fail "Operator check failed: Weave product gateway returned HTTP ${product_status} at ${WEAVE_PUBLIC_BASE_URL}/"
+product_start_page="$(curl_json "${WEAVE_PUBLIC_BASE_URL}/")"
+grep -Fq '<h1>Weave Local Dogfood start</h1>' <<<"${product_start_page}" || fail "Operator check failed: Weave product gateway did not render the local dogfood start page"
+grep -Fq "http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" <<<"${product_start_page}" || fail "Operator check failed: start page is missing the HTTP local CA link"
+grep -Fq "${WEAVE_PUBLIC_BASE_URL}/weave-local-ca.pem" <<<"${product_start_page}" || fail "Operator check failed: start page is missing the HTTPS local CA link"
+grep -Fq 'Weave Local Development CA' <<<"${product_start_page}" || fail "Operator check failed: start page is missing iPhone trust guidance"
+grep -Fq 'handoff-s32-massimo-dogfood-home' <<<"${product_start_page}" || fail "Operator check failed: start page is missing default invite guidance"
+grep -Fq 'passwords, tokens, client secrets, or credential URLs' <<<"${product_start_page}" || fail "Operator check failed: start page is missing the no-secrets warning"
+[[ "${product_start_page}" != *"127.0.0.1"* && "${product_start_page}" != *"localhost"* && "${product_start_page}" != *"192.168."* ]] || \
+  fail "Operator check failed: start page must not expose loopback, localhost, or LAN-IP local truth"
+product_platform_config="$(curl_json "${WEAVE_PUBLIC_BASE_URL}/api/platform/config")"
+assert_json "${product_platform_config}" ".publicBaseUrl == \"${WEAVE_PUBLIC_BASE_URL}\" and .apiBaseUrl == \"${WEAVE_BASE_URL}\"" "product gateway /api/platform/config should proxy app-start discovery"
 
 files_product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/files")"
 [[ "${files_product_status}" == "200" ]] || fail "Operator check failed: Weave product files route returned HTTP ${files_product_status} at ${WEAVE_PUBLIC_BASE_URL}/files"
@@ -662,9 +684,7 @@ assert_json "${matrix_auth_metadata}" ".issuer == \"${WEAVE_MATRIX_HOMESERVER_UR
 assert_json "${matrix_auth_metadata}" '.authorization_endpoint | contains("/authorize")' "Matrix OAuth metadata should expose the MAS authorization endpoint"
 
 log "Checking default Matrix room aliases..."
-matrix_homeserver="${WEAVE_MATRIX_HOMESERVER_URL#*://}"
-matrix_homeserver="${matrix_homeserver%%/*}"
-matrix_homeserver="${matrix_homeserver%%:*}"
+matrix_homeserver="${TF_VAR_matrix_subdomain:-matrix}.${TF_VAR_tenant_domain:?Expected TF_VAR_tenant_domain in env or bootstrap env}"
 matrix_space_alias="#${WEAVE_MATRIX_WORKSPACE_ALIAS_LOCALPART:-weave-workspace}:${matrix_homeserver}"
 matrix_announcements_alias="#${WEAVE_MATRIX_ANNOUNCEMENTS_ALIAS_LOCALPART:-announcements}:${matrix_homeserver}"
 matrix_general_alias="#${WEAVE_MATRIX_GENERAL_ALIAS_LOCALPART:-general}:${matrix_homeserver}"

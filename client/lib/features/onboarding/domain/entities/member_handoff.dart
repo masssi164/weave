@@ -7,7 +7,8 @@ class MemberHandoff {
     required this.runId,
     required this.organizationSlug,
     required this.workspaceSlug,
-    required this.appBaseUrl,
+    required this.platformConfigUrl,
+    required this.productBaseUrl,
   });
 
   final String handoffRef;
@@ -15,18 +16,38 @@ class MemberHandoff {
   final String runId;
   final String organizationSlug;
   final String workspaceSlug;
-  final Uri appBaseUrl;
 
-  Uri get issuerUrl => _withoutQuery('/auth/realms/weave');
+  /// Public, unauthenticated app-start discovery endpoint.
+  ///
+  /// This is the single mobile startup contract. It returns support-safe
+  /// product configuration such as OIDC issuer/client id and backend facades;
+  /// it must not return tokens, secrets, raw provider diagnostics, or admin
+  /// control-plane state.
+  final Uri platformConfigUrl;
 
-  Uri get backendApiBaseUrl => _withoutQuery('/api');
+  /// Product/user-facing origin used for browser fallback copy and legacy
+  /// local-dev links. Do not derive provider internals from this origin.
+  final Uri productBaseUrl;
 
-  Uri get providerNeutralServiceUrl => _withoutQuery('/');
+  /// Backwards-compatible alias for older local dogfood tests/scripts.
+  Uri get appBaseUrl => productBaseUrl;
 
-  Uri _withoutQuery(String path) => Uri(
-    scheme: appBaseUrl.scheme,
-    host: appBaseUrl.host,
-    port: appBaseUrl.hasPort ? appBaseUrl.port : null,
+  /// Emergency local-dev fallback only. Production configuration comes from
+  /// [platformConfigUrl].
+  Uri get fallbackIssuerUrl => _joinProductPath('/auth/realms/weave');
+
+  /// Emergency local-dev fallback only. Production configuration comes from
+  /// [platformConfigUrl].
+  Uri get fallbackBackendApiBaseUrl => _joinProductPath('/api');
+
+  /// Emergency local-dev fallback only. Production configuration comes from
+  /// [platformConfigUrl].
+  Uri get fallbackProviderNeutralServiceUrl => _joinProductPath('/');
+
+  Uri _joinProductPath(String path) => Uri(
+    scheme: productBaseUrl.scheme,
+    host: productBaseUrl.host,
+    port: productBaseUrl.hasPort ? productBaseUrl.port : null,
     path: path,
   );
 }
@@ -35,6 +56,7 @@ class MemberHandoffParser {
   const MemberHandoffParser();
 
   MemberHandoff parse(Uri uri) {
+    _validateJoinEntrypoint(uri);
     final query = uri.queryParameters;
     final handoffRef = _requiredSafeRef(query, 'handoff_ref');
     final profile = _requiredSafeSlug(
@@ -47,8 +69,15 @@ class MemberHandoffParser {
     final workspace = _requiredSafeSlug(query, 'workspace');
     _rejectCredentialBearingQuery(query);
 
-    final appBaseUrl = _baseUrlFrom(uri);
-    _validatePhoneReachable(appBaseUrl);
+    final productBaseUrl = _productBaseUrlFrom(uri, query);
+    _validatePhoneReachable(productBaseUrl, profile: profile);
+
+    final platformConfigUrl = _platformConfigUrlFrom(
+      uri,
+      query,
+      productBaseUrl,
+    );
+    _validatePhoneReachable(platformConfigUrl, profile: profile);
 
     return MemberHandoff(
       handoffRef: handoffRef,
@@ -56,19 +85,44 @@ class MemberHandoffParser {
       runId: runId,
       organizationSlug: org,
       workspaceSlug: workspace,
-      appBaseUrl: appBaseUrl,
+      platformConfigUrl: platformConfigUrl,
+      productBaseUrl: productBaseUrl,
     );
   }
 
-  Uri _baseUrlFrom(Uri uri) {
+  void _validateJoinEntrypoint(Uri uri) {
+    if (uri.scheme != 'https' && uri.scheme != 'weave') {
+      throw const AppFailure.validation(
+        'WEAVE-HANDOFF-INVALID: The invite must use HTTPS or the Weave app link.',
+      );
+    }
+    _rejectEmbeddedCredentials(uri, 'invite');
+
+    final isCustomSchemeJoin =
+        uri.scheme == 'weave' && (uri.path == '/join' || uri.host == 'join');
+    final isWebJoin = uri.scheme == 'https' && uri.path == '/join';
+    if (!isCustomSchemeJoin && !isWebJoin) {
+      throw const AppFailure.validation(
+        'WEAVE-HANDOFF-INVALID: The invite must point to the Weave join route.',
+      );
+    }
+  }
+
+  Uri _productBaseUrlFrom(Uri uri, Map<String, String> query) {
+    final explicit = query['product_base_url'] ?? query['app_base_url'];
+    if (explicit != null && explicit.trim().isNotEmpty) {
+      final parsed = _parseAbsoluteHttpUri(explicit, 'product_base_url');
+      return Uri(
+        scheme: parsed.scheme,
+        host: parsed.host,
+        port: parsed.hasPort ? parsed.port : null,
+        path: '/',
+      );
+    }
     if (uri.scheme == 'weave') {
-      final raw = uri.queryParameters['app_base_url'];
-      if (raw == null || raw.trim().isEmpty) {
-        throw const AppFailure.validation(
-          'WEAVE-HANDOFF-MISSING-BASE: Ask an admin/operator to refresh the invite.',
-        );
-      }
-      return Uri.parse(raw);
+      throw const AppFailure.validation(
+        'WEAVE-HANDOFF-MISSING-BASE: Ask an admin/operator to refresh the invite.',
+      );
     }
     return Uri(
       scheme: uri.scheme,
@@ -76,6 +130,53 @@ class MemberHandoffParser {
       port: uri.hasPort ? uri.port : null,
       path: '/',
     );
+  }
+
+  Uri _platformConfigUrlFrom(
+    Uri uri,
+    Map<String, String> query,
+    Uri productBaseUrl,
+  ) {
+    final explicit = query['platform_config_url'] ?? query['discovery_url'];
+    if (explicit != null && explicit.trim().isNotEmpty) {
+      return _parseAbsoluteHttpUri(explicit, 'platform_config_url');
+    }
+
+    final base = uri.scheme == 'weave'
+        ? productBaseUrl
+        : Uri(
+            scheme: uri.scheme,
+            host: uri.host,
+            port: uri.hasPort ? uri.port : null,
+            path: '/',
+          );
+    return Uri(
+      scheme: base.scheme,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+      path: '/api/platform/config',
+    );
+  }
+
+  Uri _parseAbsoluteHttpUri(String rawValue, String fieldName) {
+    final uri = Uri.tryParse(rawValue.trim());
+    if (uri == null || !uri.isAbsolute || uri.host.isEmpty) {
+      throw AppFailure.validation(
+        'WEAVE-HANDOFF-INVALID: $fieldName must be an absolute URL.',
+      );
+    }
+    if (uri.scheme != 'http' && uri.scheme != 'https') {
+      throw AppFailure.validation(
+        'WEAVE-HANDOFF-INVALID: $fieldName must use HTTP or HTTPS.',
+      );
+    }
+    _rejectEmbeddedCredentials(uri, fieldName);
+    if (uri.hasQuery || uri.hasFragment) {
+      throw AppFailure.validation(
+        'WEAVE-HANDOFF-INVALID: $fieldName must not include query or fragment data.',
+      );
+    }
+    return uri;
   }
 
   String _requiredSafeRef(Map<String, String> query, String key) {
@@ -106,6 +207,14 @@ class MemberHandoffParser {
     return value;
   }
 
+  void _rejectEmbeddedCredentials(Uri uri, String fieldName) {
+    if (uri.userInfo.isNotEmpty) {
+      throw AppFailure.validation(
+        'WEAVE-HANDOFF-SECRET-BLOCKED: $fieldName must not embed credentials.',
+      );
+    }
+  }
+
   void _rejectCredentialBearingQuery(Map<String, String> query) {
     const forbidden = {
       'token',
@@ -129,39 +238,138 @@ class MemberHandoffParser {
     }
   }
 
-  void _validatePhoneReachable(Uri uri) {
+  void _validatePhoneReachable(Uri uri, {required String profile}) {
     final host = uri.host.toLowerCase();
+    final hostClass = _hostClass(host);
+    if (hostClass.startsWith('forbidden')) {
+      throw const AppFailure.validation(
+        'WEAVE-LINK-UNREACHABLE: The invite does not point to a phone-reachable address.',
+      );
+    }
+
+    final localProfile =
+        profile == 'local-lan-dogfood' ||
+        profile == 'dev' ||
+        profile == 'local-dogfood';
+    if (localProfile) {
+      if (hostClass != 'lan-dns') {
+        throw const AppFailure.validation(
+          'WEAVE-LAN-UNREACHABLE: The local invite must point to the DNS-first LAN domain.',
+        );
+      }
+      return;
+    }
+
+    if (hostClass != 'dns' &&
+        hostClass != 'public-ip' &&
+        hostClass != 'lan-dns') {
+      throw const AppFailure.validation(
+        'WEAVE-LINK-UNREACHABLE: The invite must point to a public app-start link or managed organization domain.',
+      );
+    }
+  }
+
+  String _hostClass(String host) {
     if (host.isEmpty ||
         host == 'localhost' ||
         host == 'host.docker.internal' ||
-        host == 'docker.for.mac.localhost' ||
-        host.endsWith('.local')) {
-      throw const AppFailure.validation(
-        'WEAVE-LAN-UNREACHABLE: The invite does not point to a phone-reachable LAN address.',
-      );
+        host == 'docker.for.mac.localhost') {
+      return 'forbidden-local-only';
     }
-    final parts = host.split('.');
-    if (parts.length == 4 &&
-        parts.every((part) => int.tryParse(part) != null)) {
-      final octets = parts.map(int.parse).toList(growable: false);
-      final loopback = octets.first == 127;
-      final unspecified = octets.every((octet) => octet == 0);
+
+    if (host == 'weave.local' || host.endsWith('.weave.local')) {
+      return 'lan-dns';
+    }
+
+    if (host.endsWith('.local')) {
+      return 'forbidden-local-only';
+    }
+
+    final v4Parts = host.split('.');
+    if (v4Parts.length == 4 &&
+        v4Parts.every((part) => int.tryParse(part) != null)) {
+      final octets = v4Parts.map(int.parse).toList(growable: false);
+      if (octets.any((octet) => octet < 0 || octet > 255)) {
+        return 'forbidden-invalid-ip';
+      }
+      if (octets.first == 127 || octets.every((octet) => octet == 0)) {
+        return 'forbidden-loopback';
+      }
       final privateLan =
           octets.first == 10 ||
           (octets.first == 172 && octets[1] >= 16 && octets[1] <= 31) ||
           (octets.first == 192 && octets[1] == 168);
-      if (loopback || unspecified || !privateLan) {
-        throw const AppFailure.validation(
-          'WEAVE-LAN-UNREACHABLE: The invite does not point to a phone-reachable LAN address.',
-        );
-      }
-    } else if (!host.endsWith('.lan') &&
-        !host.endsWith('.home') &&
-        !host.endsWith('.home.internal') &&
-        !host.endsWith('.internal')) {
-      throw const AppFailure.validation(
-        'WEAVE-LAN-UNREACHABLE: The invite does not point to a phone-reachable LAN address.',
-      );
+      return privateLan ? 'rfc1918-lan-ip' : 'public-ip';
     }
+
+    if (host.contains(':')) {
+      if (host == '::1' || host.startsWith('fe80:')) {
+        return 'forbidden-loopback';
+      }
+      return host.startsWith('fd') || host.startsWith('fc')
+          ? 'lan-ipv6'
+          : 'public-ip';
+    }
+
+    if (host.endsWith('.lan') ||
+        host.endsWith('.home') ||
+        host.endsWith('.home.internal') ||
+        host.endsWith('.internal')) {
+      return 'lan-dns';
+    }
+
+    if (RegExp(r'^[a-z0-9-]+$').hasMatch(host)) {
+      return 'forbidden-container-only-name';
+    }
+
+    return 'dns';
   }
+}
+
+class MemberHandoffPayloadBuilder {
+  const MemberHandoffPayloadBuilder();
+
+  Uri inviteLink({
+    required Uri productBaseUrl,
+    required String handoffRef,
+    required String organizationSlug,
+    required String workspaceSlug,
+    String profile = 'local-lan-dogfood',
+    String runId = 'unknown-run',
+  }) {
+    final link = Uri(
+      scheme: productBaseUrl.scheme,
+      host: productBaseUrl.host,
+      port: productBaseUrl.hasPort ? productBaseUrl.port : null,
+      path: '/join',
+      queryParameters: {
+        'handoff_ref': handoffRef,
+        'org': organizationSlug,
+        'workspace': workspaceSlug,
+        'profile': profile,
+        'run_id': runId,
+      },
+    );
+
+    // Re-parse the generated link so invite links and QR payloads share the
+    // same support-safe validation path as incoming mobile deep links.
+    const MemberHandoffParser().parse(link);
+    return link;
+  }
+
+  String qrPayload({
+    required Uri productBaseUrl,
+    required String handoffRef,
+    required String organizationSlug,
+    required String workspaceSlug,
+    String profile = 'local-lan-dogfood',
+    String runId = 'unknown-run',
+  }) => inviteLink(
+    productBaseUrl: productBaseUrl,
+    handoffRef: handoffRef,
+    organizationSlug: organizationSlug,
+    workspaceSlug: workspaceSlug,
+    profile: profile,
+    runId: runId,
+  ).toString();
 }

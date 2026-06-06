@@ -66,6 +66,8 @@ class PlatformControllerTest {
                 .andExpect(jsonPath("$.publicBaseUrl").value("https://weave.local"))
                 .andExpect(jsonPath("$.apiBaseUrl").value("https://api.weave.local/api"))
                 .andExpect(jsonPath("$.authBaseUrl").value("https://auth.weave.local"))
+                .andExpect(jsonPath("$.oidcIssuerUrl").value("https://auth.weave.local/realms/weave"))
+                .andExpect(jsonPath("$.oidcClientId").value("weave-app"))
                 .andExpect(jsonPath("$.matrixHomeserverUrl").value("https://matrix.weave.local"))
                 .andExpect(jsonPath("$.filesProductUrl").value("https://weave.local/files"))
                 .andExpect(jsonPath("$.calendarProductUrl").value("https://weave.local/calendar"))

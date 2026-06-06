@@ -51,8 +51,9 @@ provider_stack_check="${ROOT_DIR}/provider-stack-fail-closed-check.sh"
 openproject_live_e2e="${ROOT_DIR}/openproject-boards-live-e2e.sh"
 caddy_template="${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl"
 support_bundle="${ROOT_DIR}/support-bundle.sh"
+local_invite_script="${ROOT_DIR}/local-invite-link.sh"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -288,5 +289,46 @@ assert_file_absent "${provider_profile_sovereign}" 'client_secret'
 assert_file_absent "${provider_profile_sovereign}" 'api_token'
 assert_file_absent "${provider_profile_ms}" 'client_secret'
 assert_file_absent "${keycloak_realm_contract}" 'replace-me'
+
+# Sprint 32 local dogfood is DNS-first: local_lan_host may support cert SANs,
+# but it must not become a second app/startup/issuer/CA URL truth.
+assert_file_contains "${infra_main}" 'client_public_url           = local.public_urls.weave'
+assert_file_contains "${infra_main}" 'client_api_origin           = local.public_urls.api'
+assert_file_contains "${infra_main}" 'client_auth_url             = local.public_urls.auth'
+assert_file_contains "${infra_main}" 'client_matrix_url           = local.public_urls.matrix'
+assert_file_contains "${infra_main}" 'local_lan_host is a deprecated'
+assert_file_contains "${infra_outputs}" 'WEAVE_LOCAL_CA_URL'
+assert_file_contains "${install_script}" 'export WEAVE_LOCAL_CA_URL'
+assert_file_contains "${install_script}" 'http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
+assert_file_contains "${install_script}" '- Local CA:   http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
+assert_file_contains "${ROOT_DIR}/smoke-test.sh" 'local_lan_host is non-canonical'
+assert_file_contains "${ROOT_DIR}/operator-check.sh" 'local_lan_host is non-canonical'
+assert_file_contains "${caddy_template}" 'http://${ca_bootstrap_host}'
+assert_file_contains "${caddy_template}" '<h1>Weave Local Dogfood start</h1>'
+assert_file_contains "${caddy_template}" 'Weave Local Development CA'
+assert_file_contains "${caddy_template}" '${ca_bootstrap_url}/weave-local-ca.pem'
+assert_file_contains "${caddy_template}" '${client_public_url}/weave-local-ca.pem'
+assert_file_contains "${caddy_template}" '@product_api path /api/*'
+assert_file_contains "${caddy_template}" 'reverse_proxy ${api_upstream}'
+assert_file_contains "${infra_main}" 'client_public_url     = local.client_public_url'
+assert_file_contains "${caddy_template}" 'handoff-s32-massimo-dogfood-home'
+assert_file_contains "${caddy_template}" 'passwords, tokens, client secrets, or credential URLs'
+assert_file_contains "${local_invite_script}" 'base_url="${WEAVE_PUBLIC_BASE_URL:-https://weave.local:44443}"'
+assert_file_contains "${local_invite_script}" 'handoff-s32-massimo-dogfood-home'
+assert_file_contains "${local_invite_script}" 'json.dumps(result, separators=(",", ":"), sort_keys=True)'
+assert_file_absent "${install_script}" 'http://${TF_VAR_local_lan_host}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
+assert_file_absent "${infra_outputs}" 'local_lan_url'
+
+invite_json="$(${local_invite_script} --json)"
+printf '%s' "${invite_json}" | jq -e '
+  .inviteLink == "https://weave.local:44443/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood" and
+  .qrPayload == .inviteLink and
+  .platformConfigUrl == "https://weave.local:44443/api/platform/config" and
+  .org == "massimo-dogfood" and
+  .workspace == "home" and
+  (.secretPolicy | contains(".generated/bootstrap.env"))
+' >/dev/null || fail "Default local invite JSON does not match the no-secret DNS-first handoff contract"
+printf '%s' "${invite_json}" | grep -Eiq '127\.0\.0\.1|localhost|192\.168\.|password=|token=|secret=' && \
+  fail "Default local invite JSON leaked non-DNS or credential-bearing data"
 
 printf '%s\n' 'infra product contract tests passed'

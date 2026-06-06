@@ -507,9 +507,18 @@ def apply_profile(args: argparse.Namespace) -> int:
             {"port": args.api_port, "reachable": "shape-validated", "summary": "S31-LAN-PREFLIGHT-SHAPE-OK"},
         ]
 
-    handoff_query = urlencode({"handoff_ref": handoff_ref, "org": args.organization_slug, "workspace": args.workspace_slug, "run_id": run_id})
+    platform_config_url = f"{app_base_url}/api/platform/config"
+    handoff_query = urlencode({"handoff_ref": handoff_ref, "org": args.organization_slug, "workspace": args.workspace_slug, "run_id": run_id, "profile": args.profile})
     tester_url = f"{app_base_url}/join?{handoff_query}"
-    deep_link_query = urlencode({"handoff_ref": handoff_ref, "org": args.organization_slug, "workspace": args.workspace_slug, "run_id": run_id, "app_base_url": app_base_url})
+    deep_link_query = urlencode({
+        "handoff_ref": handoff_ref,
+        "org": args.organization_slug,
+        "workspace": args.workspace_slug,
+        "run_id": run_id,
+        "profile": args.profile,
+        "product_base_url": app_base_url,
+        "platform_config_url": platform_config_url,
+    })
     deep_link = f"weave:/join?{deep_link_query}"
     output_dir = Path(args.output_dir) / run_id
     readiness_path = output_dir / "readiness.json"
@@ -535,7 +544,8 @@ def apply_profile(args: argparse.Namespace) -> int:
             "url": tester_url,
             "deepLink": deep_link,
             "qrPayload": tester_url,
-            "screenReaderPrompt": "Open this Weave invite on the iPhone. It starts sign-in and then opens the Weave workspace home.",
+            "platformConfigUrl": platform_config_url,
+            "screenReaderPrompt": "Open this Weave invite on the iPhone. It loads workspace start configuration, starts sign-in, and then opens the Weave workspace home.",
         },
         "memberPath": ["open handoff", "SSO", "Weave workspace home"],
         "forbiddenMemberInputs": ["OIDC issuer", "OIDC client ID", "Matrix URL", "Nextcloud URL", "provider hostname", "TLS certificate", "provider diagnostic", "SecretRef", "credential URL"],

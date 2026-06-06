@@ -64,7 +64,12 @@ variable "calendar_product_url" {
 }
 
 variable "nextcloud_base_url" {
-  description = "Canonical Nextcloud base URL."
+  description = "Internal Nextcloud base URL consumed by backend adapters."
+  type        = string
+}
+
+variable "nextcloud_public_base_url" {
+  description = "Support-safe public Nextcloud/protocol fallback URL exposed in platform config."
   type        = string
 }
 

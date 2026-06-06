@@ -31,6 +31,7 @@ resource "docker_container" "this" {
     "WEAVE_FILES_PRODUCT_URL=${var.files_product_url}",
     "WEAVE_CALENDAR_PRODUCT_URL=${var.calendar_product_url}",
     "WEAVE_MATRIX_HOMESERVER_URL=${var.matrix_base_url}",
+    "WEAVE_NEXTCLOUD_PUBLIC_BASE_URL=${var.nextcloud_public_base_url}",
     "WEAVE_NEXTCLOUD_BASE_URL=${var.nextcloud_base_url}",
     "WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL=${var.nextcloud_files_actor_model}",
     "WEAVE_NEXTCLOUD_FILES_ACTOR_USERNAME=${var.nextcloud_files_actor_username}",

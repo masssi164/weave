@@ -24,6 +24,7 @@ readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_network_name
   TF_VAR_tenant_slug
   TF_VAR_tenant_domain
+  TF_VAR_local_lan_host
   TF_VAR_create_test_user
   TF_VAR_test_user_password
   TF_VAR_auth_subdomain
@@ -243,17 +244,18 @@ persist_bootstrap_env() {
   done
 
   {
-    printf 'export WEAVE_PUBLIC_BASE_URL=%q\n' "$(product_public_url)"
-    printf 'export WEAVE_API_ORIGIN=%q\n' "$(api_public_url)"
+    printf 'export WEAVE_PUBLIC_BASE_URL=%q\n' "$(client_public_url)"
+    printf 'export WEAVE_API_ORIGIN=%q\n' "$(client_api_origin_url)"
     printf 'export WEAVE_API_BASE_URL=%q\n' "$(integration_test_base_url)"
     printf 'export WEAVE_BASE_URL=%q\n' "$(integration_test_base_url)"
-    printf 'export WEAVE_AUTH_BASE_URL=%q\n' "$(auth_public_url)"
+    printf 'export WEAVE_AUTH_BASE_URL=%q\n' "$(client_auth_public_url)"
     printf 'export WEAVE_ADMIN_CONSOLE_URL=%q\n' "$(admin_public_url)"
     printf 'export WEAVE_ADMIN_CONSOLE_OIDC_CLIENT_ID=%q\n' "weave-admin-console"
     printf 'export WEAVE_ORG_MANIFEST_URL=%q\n' "$(integration_test_base_url)/organization/manifest"
     printf 'export WEAVE_PROVIDER_PROFILE=%q\n' "${TF_VAR_provider_stack_profile}"
-    printf 'export WEAVE_FILES_PRODUCT_URL=%q\n' "$(product_public_url)/files"
-    printf 'export WEAVE_CALENDAR_PRODUCT_URL=%q\n' "$(product_public_url)/calendar"
+    printf 'export WEAVE_FILES_PRODUCT_URL=%q\n' "$(client_public_url)/files"
+    printf 'export WEAVE_CALENDAR_PRODUCT_URL=%q\n' "$(client_public_url)/calendar"
+    printf 'export WEAVE_LOCAL_CA_URL=%q\n' "http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem"
     printf 'export WEAVE_NEXTCLOUD_BASE_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)"
     printf 'export WEAVE_NEXTCLOUD_TECHNICAL_BASE_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_nextcloud_subdomain}")$(public_port_suffix)"
     printf 'export WEAVE_NEXTCLOUD_FILES_ACTOR_MODEL=%q\n' "backend-service-account"
@@ -312,7 +314,7 @@ persist_bootstrap_env() {
       printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_ROLE=%q\n' "${TF_VAR_context_authorization_bootstrap_role}"
       printf 'export WEAVE_CONTEXT_AUTHORIZATION_MEMBERSHIPS_0_SOURCE=%q\n' "local-dev-bootstrap"
     fi
-    printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")$(public_port_suffix)"
+    printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "$(client_matrix_public_url)"
     printf 'export WEAVE_OIDC_ISSUER_URL=%q\n' "$(integration_test_oidc_issuer_url)"
     printf 'export WEAVE_OIDC_CLIENT_ID=%q\n' "weave-app"
     printf 'export WEAVE_TARGET_MOBILE=%q\n' "true"
@@ -554,6 +556,22 @@ product_public_url() {
   printf '%s://%s%s' "${TF_VAR_public_scheme}" "${TF_VAR_tenant_domain}" "$(public_port_suffix)"
 }
 
+client_public_url() {
+  product_public_url
+}
+
+client_api_origin_url() {
+  api_public_url
+}
+
+client_auth_public_url() {
+  auth_public_url
+}
+
+client_matrix_public_url() {
+  printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_matrix_subdomain}")" "$(public_port_suffix)"
+}
+
 nextcloud_public_url() {
   printf '%s://%s%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_nextcloud_subdomain}")" "$(public_port_suffix)"
 }
@@ -633,11 +651,11 @@ create_test_user_enabled() {
 }
 
 integration_test_base_url() {
-  printf '%s/api' "$(api_public_url)"
+  printf '%s/api' "$(client_api_origin_url)"
 }
 
 integration_test_oidc_issuer_url() {
-  printf '%s://%s%s/realms/%s' "${TF_VAR_public_scheme}" "$(public_host "${TF_VAR_auth_subdomain}")" "$(public_port_suffix)" "${TF_VAR_tenant_slug}"
+  printf '%s/realms/%s' "$(client_auth_public_url)" "${TF_VAR_tenant_slug}"
 }
 
 write_app_config_summary() {
@@ -648,10 +666,10 @@ write_app_config_summary() {
   local product_url
 
   api_base_url="$(integration_test_base_url)"
-  auth_base_url="$(auth_public_url)"
-  matrix_url="${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")$(public_port_suffix)"
+  auth_base_url="$(client_auth_public_url)"
+  matrix_url="$(client_matrix_public_url)"
   nextcloud_url="$(nextcloud_public_url)"
-  product_url="$(product_public_url)"
+  product_url="$(client_public_url)"
 
   mkdir -p "$(dirname -- "${APP_CONFIG_ENV_FILE}")"
   {
@@ -659,7 +677,7 @@ write_app_config_summary() {
     printf '%s\n' '# Product files/calendar routes are Weave product routes backed by backend facades.'
     printf '%s\n' '# Raw Nextcloud is a technical/admin/protocol fallback only, not the product files/calendar origin.'
     printf 'export WEAVE_PUBLIC_BASE_URL=%q\n' "${product_url}"
-    printf 'export WEAVE_API_ORIGIN=%q\n' "$(api_public_url)"
+    printf 'export WEAVE_API_ORIGIN=%q\n' "$(client_api_origin_url)"
     printf 'export WEAVE_API_BASE_URL=%q\n' "${api_base_url}"
     printf 'export WEAVE_BASE_URL=%q\n' "${api_base_url}"
     printf 'export WEAVE_AUTH_BASE_URL=%q\n' "${auth_base_url}"
@@ -672,6 +690,7 @@ write_app_config_summary() {
     printf 'export WEAVE_MATRIX_HOMESERVER_URL=%q\n' "${matrix_url}"
     printf 'export WEAVE_FILES_PRODUCT_URL=%q\n' "${product_url}/files"
     printf 'export WEAVE_CALENDAR_PRODUCT_URL=%q\n' "${product_url}/calendar"
+    printf 'export WEAVE_LOCAL_CA_URL=%q\n' "http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem"
     printf 'export WEAVE_NEXTCLOUD_TECHNICAL_BASE_URL=%q\n' "${nextcloud_url}"
     printf 'export WEAVE_NEXTCLOUD_BASE_URL=%q\n' "${nextcloud_url}"
     printf 'export WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL=%q\n' "${nextcloud_url}/remote.php/dav"
@@ -845,6 +864,7 @@ ensure_default_inputs() {
     "TF_VAR_docker_network_name=weave_network"
     "TF_VAR_tenant_slug=weave"
     "TF_VAR_tenant_domain=weave.local"
+    "TF_VAR_local_lan_host="
     "TF_VAR_auth_subdomain=auth"
     "TF_VAR_api_subdomain=api"
     "TF_VAR_admin_subdomain=admin"
@@ -925,6 +945,11 @@ ensure_default_inputs() {
     set_default_var "${entry%%=*}" "${entry#*=}"
   done
 
+  # Sprint 32 local dogfood is DNS-first. A stale TF_VAR_local_lan_host from an
+  # older LAN-IP run must not create a second public app/issuer/certificate
+  # truth. Re-enable explicitly only if a future fallback profile is added.
+  export TF_VAR_local_lan_host=""
+
   if create_test_user_enabled; then
     set_default_var TF_VAR_context_authorization_bootstrap_enabled true
   else
@@ -977,6 +1002,7 @@ certificate_alt_names() {
   local host
   local hosts=(
     "${TF_VAR_tenant_domain}"
+    "*.${TF_VAR_tenant_domain}"
     "$(public_host "${TF_VAR_api_subdomain}")"
     "$(public_host "${TF_VAR_admin_subdomain}")"
     "$(public_host "${TF_VAR_auth_subdomain}")"
@@ -988,6 +1014,14 @@ certificate_alt_names() {
     printf 'DNS.%d = %s\n' "${index}" "${host}"
     index=$((index + 1))
   done
+
+  if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
+    if [[ "${TF_VAR_local_lan_host}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      printf 'IP.1 = %s\n' "${TF_VAR_local_lan_host}"
+    else
+      printf 'DNS.%d = %s\n' "${index}" "${TF_VAR_local_lan_host}"
+    fi
+  fi
 }
 
 ensure_local_tls_certificates() {
@@ -1008,14 +1042,23 @@ ensure_local_tls_certificates() {
     local missing_hosts=()
     local required_hosts=(
       "${TF_VAR_tenant_domain}"
+      "*.${TF_VAR_tenant_domain}"
       "$(public_host "${TF_VAR_api_subdomain}")"
+      "$(public_host "${TF_VAR_admin_subdomain}")"
       "$(public_host "${TF_VAR_auth_subdomain}")"
       "$(public_host "${TF_VAR_nextcloud_subdomain}")"
       "$(public_host "${TF_VAR_matrix_subdomain}")"
     )
+    if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
+      required_hosts+=("${TF_VAR_local_lan_host}")
+    fi
 
     for host in "${required_hosts[@]}"; do
-      if ! openssl x509 -in "${cert_file}" -noout -checkhost "${host}" 2>/dev/null | grep -q 'does match'; then
+      if [[ "${host}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if ! openssl x509 -in "${cert_file}" -noout -checkip "${host}" 2>/dev/null | grep -q 'does match'; then
+          missing_hosts+=("${host}")
+        fi
+      elif ! openssl x509 -in "${cert_file}" -noout -checkhost "${host}" 2>/dev/null | grep -q 'does match'; then
         missing_hosts+=("${host}")
       fi
     done
@@ -1270,17 +1313,19 @@ print_summary() {
   log "Weave local/dev is ready."
   log
   log "Public URLs:"
-  log "- App/Admin: ${TF_VAR_public_scheme}://${TF_VAR_tenant_domain}${suffix}"
-  log "- API:       $(integration_test_base_url)"
-  log "- Auth:      $(auth_public_url)"
-  log "- Files UX:  $(product_public_url)/files"
-  log "- Calendar:  $(product_public_url)/calendar"
-  log "- Files raw: $(nextcloud_public_url)  (Nextcloud admin/protocol fallback, not normal end-user UX)"
-  log "- Matrix:    ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")${suffix}"
+  log "- App/Product: $(client_public_url)"
+  log "- API:         $(integration_test_base_url)"
+  log "- Auth:        $(client_auth_public_url)"
+  log "- Files UX:    $(client_public_url)/files"
+  log "- Calendar:    $(client_public_url)/calendar"
+  log "- Matrix:      $(client_matrix_public_url)"
+  log "- Admin:      ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_admin_subdomain}")${suffix}"
+  log "- Files raw:  $(nextcloud_public_url)  (Nextcloud admin/protocol fallback, not normal end-user UX)"
+  log "- Local CA:   http://${TF_VAR_tenant_domain}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem"
   log
   log "App config file (no secrets): ${APP_CONFIG_ENV_FILE}"
-  log "Host entries: ${LOOPBACK_HOST} ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}")"
-  log "Trust this local TLS CA certificate on the host before opening browser/native-client URLs: ${TF_VAR_caddy_tls_ca_file}"
+  log "DNS-first local hosts: ${TF_VAR_tenant_domain} $(public_host "${TF_VAR_api_subdomain}") $(public_host "${TF_VAR_auth_subdomain}") $(public_host "${TF_VAR_nextcloud_subdomain}") $(public_host "${TF_VAR_matrix_subdomain}") $(public_host "${TF_VAR_admin_subdomain}")"
+  log "Trust this local TLS CA certificate before opening browser/native-client URLs: ${TF_VAR_caddy_tls_ca_file}"
   log
   log "MVP feature flags:"
   log "- Mobile:            enabled"
@@ -1292,7 +1337,7 @@ print_summary() {
   log "Health checks:"
   log "- Backend ready: $(integration_test_base_url)/health/ready"
   log "- Keycloak discovery: $(integration_test_oidc_issuer_url)/.well-known/openid-configuration"
-  log "- Matrix versions: ${TF_VAR_public_scheme}://$(public_host "${TF_VAR_matrix_subdomain}")${suffix}/_matrix/client/versions"
+  log "- Matrix versions: $(client_matrix_public_url)/_matrix/client/versions"
   log "- Matrix default rooms: #announcements:$(public_host "${TF_VAR_matrix_subdomain}"), #general:$(public_host "${TF_VAR_matrix_subdomain}"), #help:$(public_host "${TF_VAR_matrix_subdomain}")"
   log "- Raw Nextcloud: $(nextcloud_public_url)/"
   log

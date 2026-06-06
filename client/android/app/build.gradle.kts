@@ -47,7 +47,8 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         manifestPlaceholders += mapOf(
-            "appAuthRedirectScheme" to "com.massimotter.weave"
+            "appAuthRedirectScheme" to "com.massimotter.weave",
+            "weaveAppLinksHost" to "weave.local"
         )
     }
 

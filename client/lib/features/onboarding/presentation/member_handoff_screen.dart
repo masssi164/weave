@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:go_router/go_router.dart';
 import 'package:weave/core/bootstrap/presentation/providers/app_bootstrap_provider.dart';
 import 'package:weave/core/router/app_routes.dart';
@@ -9,8 +10,11 @@ import 'package:weave/features/onboarding/domain/use_cases/consume_member_handof
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
 
 final consumeMemberHandoffProvider = Provider<ConsumeMemberHandoff>((ref) {
+  final httpClient = http.Client();
+  ref.onDispose(httpClient.close);
   return ConsumeMemberHandoff(
     repository: ref.watch(serverConfigurationRepositoryProvider),
+    discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
   );
 });
 

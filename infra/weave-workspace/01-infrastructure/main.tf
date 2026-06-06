@@ -47,6 +47,17 @@ locals {
     service => "${var.public_scheme}://${host}${local.public_port_suffix}"
   }
 
+  # Client-facing local URLs are DNS-first. local_lan_host is a deprecated
+  # compatibility input and must not create a second public truth for app,
+  # issuer, Matrix, product, or CA URLs.
+  client_public_url           = local.public_urls.weave
+  client_api_origin           = local.public_urls.api
+  client_api_base_url         = "${local.client_api_origin}/api"
+  client_auth_url             = local.public_urls.auth
+  client_matrix_url           = local.public_urls.matrix
+  client_files_product_url    = "${local.client_public_url}/files"
+  client_calendar_product_url = "${local.client_public_url}/calendar"
+
   site_hosts = {
     weave  = [local.public_hosts.weave]
     api    = [local.public_hosts.api]
@@ -66,17 +77,17 @@ locals {
   matrix_mas_upstream_id = "01JQ7N9R4QK6W3M5X8Y2ZC1DHF"
 
   # Caddy TLS (from #3)
-  caddy_tls_cert_file                = abspath(coalesce(var.caddy_tls_cert_file, "${path.module}/.generated/caddy/certs/weave.local.pem"))
-  caddy_tls_key_file                 = abspath(coalesce(var.caddy_tls_key_file, "${path.module}/.generated/caddy/certs/weave.local-key.pem"))
-  caddy_tls_ca_file                  = abspath(coalesce(var.caddy_tls_ca_file, "${path.module}/.generated/caddy/certs/weave-local-ca.pem"))
-  caddy_certs_dir                    = dirname(local.caddy_tls_cert_file)
-  caddyfile_path                     = abspath("${path.module}/.generated/caddy/Caddyfile")
-  connector_provider_callbacks_guard = var.connector_provider_callbacks_exposed ? "" : <<-EOCADDY
-	@connector_provider_callbacks path /api/interop/slack/oauth/callback /api/interop/slack/events
-	handle @connector_provider_callbacks {
-		respond "Connector provider callbacks are disabled by infrastructure defaults." 404
-	}
-  EOCADDY
+  caddy_tls_cert_file = abspath(coalesce(var.caddy_tls_cert_file, "${path.module}/.generated/caddy/certs/weave.local.pem"))
+  caddy_tls_key_file  = abspath(coalesce(var.caddy_tls_key_file, "${path.module}/.generated/caddy/certs/weave.local-key.pem"))
+  caddy_tls_ca_file   = abspath(coalesce(var.caddy_tls_ca_file, "${path.module}/.generated/caddy/certs/weave-local-ca.pem"))
+  caddy_certs_dir     = dirname(local.caddy_tls_cert_file)
+  caddyfile_path      = abspath("${path.module}/.generated/caddy/Caddyfile")
+  connector_provider_callbacks_guard = var.connector_provider_callbacks_exposed ? "" : join("\n", [
+    "\t@connector_provider_callbacks path /api/interop/slack/oauth/callback /api/interop/slack/events",
+    "\thandle @connector_provider_callbacks {",
+    "\t\trespond \"Connector provider callbacks are disabled by infrastructure defaults.\" 404",
+    "\t}",
+  ])
   caddyfile_content = templatefile("${path.module}/templates/Caddyfile.tpl", {
     weave_site_addresses  = local.site_addresses.weave
     api_site_addresses    = local.site_addresses.api
@@ -86,6 +97,9 @@ locals {
     matrix_site_addresses = local.site_addresses.matrix
     keycloak_upstream     = "${local.service_names.keycloak}:8080"
     nextcloud_upstream    = "${local.service_names.nextcloud}:80"
+    api_public_url        = local.public_urls.api
+    auth_public_url       = local.public_urls.auth
+    client_public_url     = local.client_public_url
     nextcloud_public_url  = local.public_urls.files
     matrix_public_url     = local.public_urls.matrix
     mas_upstream          = "${local.service_names.mas}:8080"
@@ -95,10 +109,13 @@ locals {
     tls_cert_filename                  = basename(local.caddy_tls_cert_file)
     tls_key_filename                   = basename(local.caddy_tls_key_file)
     connector_provider_callbacks_guard = local.connector_provider_callbacks_guard
+    ca_bootstrap_host                  = local.public_hosts.weave
+    ca_bootstrap_url                   = "http://${local.public_hosts.weave}:${var.proxy_http_host_port}"
+    tls_ca_filename                    = basename(local.caddy_tls_ca_file)
   })
 
   # Backend / Keycloak contract: validate public iss values while fetching JWKS over the Docker network.
-  keycloak_issuer_url    = "${local.public_urls.auth}/realms/${var.tenant_slug}"
+  keycloak_issuer_url    = "${local.client_auth_url}/realms/${var.tenant_slug}"
   keycloak_jwk_set_uri   = "http://${local.service_names.keycloak}:8080/realms/${var.tenant_slug}/protocol/openid-connect/certs"
   weave_app_client_id    = "weave-app"
   weave_backend_audience = local.weave_app_client_id
@@ -194,7 +211,7 @@ generated_files = {
   mas_config = {
     filename = "${path.module}/.generated/mas/config.yaml"
     content = templatefile("${path.module}/templates/mas-config.yaml.tpl", {
-      mas_public_url         = local.public_urls.matrix
+      mas_public_url         = local.client_matrix_url
       mas_db_host            = local.service_names.db
       mas_db_port            = 5432
       mas_db_name            = local.service_databases.mas.database_name
@@ -206,7 +223,7 @@ generated_files = {
       encryption_secret      = var.mas_encryption_secret
       signing_key_kid        = "mas-default"
       upstream_provider_id   = local.matrix_mas_upstream_id
-      upstream_issuer        = "${local.public_urls.auth}/realms/${var.tenant_slug}"
+      upstream_issuer        = local.keycloak_issuer_url
       upstream_client_id     = "matrix-mas"
       upstream_client_secret = var.matrix_mas_client_secret
       keycloak_human_name    = "Keycloak"
@@ -216,7 +233,7 @@ generated_files = {
     filename = "${path.module}/.generated/synapse/homeserver.yaml"
     content = templatefile("${path.module}/templates/homeserver.yaml.tpl", {
       matrix_homeserver           = local.public_hosts.matrix
-      matrix_public_url           = local.public_urls.matrix
+      matrix_public_url           = local.client_matrix_url
       synapse_db_host             = local.service_names.db
       synapse_db_port             = 5432
       synapse_db_name             = local.service_databases.synapse.database_name
@@ -347,7 +364,7 @@ module "keycloak" {
   volume_name          = "weave_keycloak_data"
   host_port            = var.keycloak_host_port
   management_host_port = var.keycloak_management_host_port
-  public_url           = local.public_urls.auth
+  public_url           = local.client_auth_url
   db_host              = module.postgres.container_name
   db_port              = 5432
   db_name              = local.service_databases.keycloak.database_name
@@ -368,13 +385,14 @@ module "backend" {
   host_port                                        = var.backend_host_port
   container_port                                   = var.backend_container_port
   public_host                                      = local.public_hosts.api
-  public_base_url                                  = local.public_urls.weave
-  api_origin                                       = local.public_urls.api
-  api_base_url                                     = "${local.public_urls.api}/api"
-  auth_base_url                                    = local.public_urls.auth
-  matrix_base_url                                  = local.public_urls.matrix
-  files_product_url                                = "${local.public_urls.weave}/files"
-  calendar_product_url                             = "${local.public_urls.weave}/calendar"
+  public_base_url                                  = local.client_public_url
+  api_origin                                       = local.client_api_origin
+  api_base_url                                     = local.client_api_base_url
+  auth_base_url                                    = local.client_auth_url
+  matrix_base_url                                  = local.client_matrix_url
+  files_product_url                                = local.client_files_product_url
+  calendar_product_url                             = local.client_calendar_product_url
+  nextcloud_public_base_url                        = local.public_urls.files
   nextcloud_base_url                               = local.nextcloud_internal_base_url
   nextcloud_files_actor_model                      = "backend-service-account"
   nextcloud_files_actor_username                   = var.nextcloud_backend_actor_username

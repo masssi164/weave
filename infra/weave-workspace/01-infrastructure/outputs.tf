@@ -10,17 +10,17 @@ output "public_urls" {
 
 output "weave_api_base_url" {
   description = "Canonical public Weave backend API base URL."
-  value       = "${local.public_urls.api}/api"
+  value       = local.client_api_base_url
 }
 
 output "weave_files_product_url" {
   description = "Weave product files route; not a direct Nextcloud route."
-  value       = "${local.public_urls.weave}/files"
+  value       = local.client_files_product_url
 }
 
 output "weave_calendar_product_url" {
   description = "Weave product calendar route; not a direct Nextcloud route."
-  value       = "${local.public_urls.weave}/calendar"
+  value       = local.client_calendar_product_url
 }
 
 output "nextcloud_base_url" {
@@ -37,14 +37,15 @@ output "nextcloud_backend_actor_username" {
 output "app_config" {
   description = "No-secret public endpoint contract for Weave native clients and local tests."
   value = {
-    WEAVE_PUBLIC_BASE_URL                        = local.public_urls.weave
-    WEAVE_API_ORIGIN                             = local.public_urls.api
-    WEAVE_API_BASE_URL                           = "${local.public_urls.api}/api"
-    WEAVE_AUTH_BASE_URL                          = local.public_urls.auth
+    WEAVE_PUBLIC_BASE_URL                        = local.client_public_url
+    WEAVE_API_ORIGIN                             = local.client_api_origin
+    WEAVE_API_BASE_URL                           = local.client_api_base_url
+    WEAVE_AUTH_BASE_URL                          = local.client_auth_url
     WEAVE_OIDC_ISSUER_URL                        = local.keycloak_issuer_url
-    WEAVE_MATRIX_HOMESERVER_URL                  = local.public_urls.matrix
-    WEAVE_FILES_PRODUCT_URL                      = "${local.public_urls.weave}/files"
-    WEAVE_CALENDAR_PRODUCT_URL                   = "${local.public_urls.weave}/calendar"
+    WEAVE_MATRIX_HOMESERVER_URL                  = local.client_matrix_url
+    WEAVE_FILES_PRODUCT_URL                      = local.client_files_product_url
+    WEAVE_CALENDAR_PRODUCT_URL                   = local.client_calendar_product_url
+    WEAVE_LOCAL_CA_URL                           = "http://${local.public_hosts.weave}:${var.proxy_http_host_port}/weave-local-ca.pem"
     WEAVE_NEXTCLOUD_BASE_URL                     = local.public_urls.files
     WEAVE_CALDAV_EXTERNAL_DISCOVERY_URL          = "${local.public_urls.files}/remote.php/dav"
     WEAVE_CALDAV_EXTERNAL_CREDENTIAL_MODE        = "nextcloud-login-flow-app-password"
