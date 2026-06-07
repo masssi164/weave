@@ -106,6 +106,18 @@ class ReleaseReadinessCheckTest(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("#360", self.check_by_id(self.json_result(completed), "release-blockers")["summary"])
 
+    def test_uppercase_open_release_blocker_blocks(self) -> None:
+        blockers = {
+            "schemaVersion": 1,
+            "issues": [
+                {"number": 591, "title": "Manual AT signoff", "state": "OPEN", "labels": [{"name": "release-blocker"}]}
+            ],
+        }
+        (self.root / "release-blockers.json").write_text(json.dumps(blockers), encoding="utf-8")
+        completed = self.run_check()
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("#591", self.check_by_id(self.json_result(completed), "release-blockers")["summary"])
+
     def test_missing_e2e_can_be_waived_with_explicit_marker(self) -> None:
         manifest = self.root / "weave-live-stack-acceptance-evidence" / "release-evidence-manifest.json"
         manifest.unlink()
