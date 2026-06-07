@@ -323,7 +323,7 @@ def extract_open_blockers(data: Any) -> list[dict[str, Any]]:
     for item in candidates:
         if not isinstance(item, dict):
             continue
-        state = str(item.get("state", "open"))
+        state = str(item.get("state", "open")).lower()
         labels = item.get("labels", [])
         label_names: set[str] = set()
         for label in labels:
