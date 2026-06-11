@@ -33,7 +33,7 @@ variable "tenant_domain" {
 }
 
 variable "local_lan_host" {
-  description = "Optional non-canonical LAN host/IP for certificate SAN/debug compatibility. Public service, app-start, issuer, and CA URLs remain DNS-first on tenant_domain / *.tenant_domain."
+  description = "Optional non-canonical LAN host/IP for certificate SAN/debug compatibility. For example, when tenant_domain is weave.test, public service, app-start, issuer, and CA URLs remain DNS-first on weave.test and subdomains such as api.weave.test."
   type        = string
   default     = ""
 }

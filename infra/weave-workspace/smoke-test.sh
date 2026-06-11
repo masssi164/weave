@@ -476,15 +476,17 @@ WEAVE_AUTH_BASE_URL="${WEAVE_AUTH_BASE_URL:-$(public_url "${TF_VAR_auth_subdomai
 WEAVE_OIDC_ISSUER_URL="${WEAVE_OIDC_ISSUER_URL:-${WEAVE_AUTH_BASE_URL}/realms/${TF_VAR_tenant_slug:-weave}}"
 WEAVE_NEXTCLOUD_BASE_URL="${WEAVE_NEXTCLOUD_BASE_URL:-$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
 WEAVE_MATRIX_HOMESERVER_URL="${WEAVE_MATRIX_HOMESERVER_URL:-$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
-WEAVE_LOCAL_CA_URL="${WEAVE_LOCAL_CA_URL:-http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem}"
+WEAVE_LOCAL_CA_HOST="${TF_VAR_tenant_domain:-weave.test}"
+WEAVE_LOCAL_CA_EXPECTED_URL="http://${WEAVE_LOCAL_CA_HOST}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem"
+WEAVE_LOCAL_CA_URL="${WEAVE_LOCAL_CA_URL:-${WEAVE_LOCAL_CA_EXPECTED_URL}}"
 
 [[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Smoke check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.test}, got ${WEAVE_PUBLIC_BASE_URL}"
 [[ "${WEAVE_BASE_URL}" == "$(public_url "${TF_VAR_api_subdomain:-api}")/api" ]] || fail "Smoke check failed: API URL must stay DNS-first on $(public_host "${TF_VAR_api_subdomain:-api}"), got ${WEAVE_BASE_URL}"
 [[ "${WEAVE_OIDC_ISSUER_URL}" == "$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}" ]] || fail "Smoke check failed: OIDC issuer must stay DNS-first on $(public_host "${TF_VAR_auth_subdomain:-auth}"), got ${WEAVE_OIDC_ISSUER_URL}"
-[[ "${WEAVE_LOCAL_CA_URL}" == "http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" ]] || fail "Smoke check failed: local CA URL must be advertised on weave.test, got ${WEAVE_LOCAL_CA_URL}"
+[[ "${WEAVE_LOCAL_CA_URL}" == "${WEAVE_LOCAL_CA_EXPECTED_URL}" ]] || fail "Smoke check failed: local CA URL must be advertised on ${WEAVE_LOCAL_CA_HOST}, expected ${WEAVE_LOCAL_CA_EXPECTED_URL}, got ${WEAVE_LOCAL_CA_URL}"
 assert_url_no_legacy_local_truth "${WEAVE_LOCAL_CA_URL}" "Local CA bootstrap URL"
 local_ca_status="$(curl_status "${WEAVE_LOCAL_CA_URL}")"
-[[ "${local_ca_status}" == "200" ]] || fail "Smoke check failed: local CA must be reachable through weave.test bootstrap URL, got HTTP ${local_ca_status}"
+[[ "${local_ca_status}" == "200" ]] || fail "Smoke check failed: local CA must be reachable through ${WEAVE_LOCAL_CA_HOST} bootstrap URL, got HTTP ${local_ca_status}"
 if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
   for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_AUTH_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
     [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Smoke check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
