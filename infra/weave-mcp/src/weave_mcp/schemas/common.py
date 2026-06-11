@@ -39,6 +39,7 @@ class RuntimeContext:
     capability_grants: frozenset[str]
     allowed_tools: frozenset[str]
     audit_ref: str
+    always_allow_grants: frozenset[str] = frozenset()
 
     @staticmethod
     def from_headers(
@@ -57,7 +58,8 @@ class RuntimeContext:
         tools = frozenset(str(tool) for tool in projection.get("allowedTools", []))
         audit_ref = str(projection.get("auditRef", "audit://mcp/runtime-profile/support-safe"))
         token_ref = str(projection.get("runtimeTokenRef", "")).strip()
-        return RuntimeContext(org_id, user_ref, profile, token_ref, grants, tools, audit_ref)
+        always_allow_grants = frozenset(str(grant) for grant in projection.get("alwaysAllowGrants", []))
+        return RuntimeContext(org_id, user_ref, profile, token_ref, grants, tools, audit_ref, always_allow_grants)
 
 
 def _runtime_profile_projection(
@@ -207,7 +209,7 @@ def require_approval(payload: dict[str, Any], action: str) -> str:
     return receipt
 
 
-def require_approval_or_scoped_always_allow(payload: dict[str, Any], action: str) -> str:
+def require_approval_or_scoped_always_allow(ctx: RuntimeContext, payload: dict[str, Any], action: str) -> str:
     """Require an ApprovalReceipt unless scoped persistent approval is present.
 
     The persistent path intentionally models the risky but allowed user choice
@@ -221,6 +223,6 @@ def require_approval_or_scoped_always_allow(payload: dict[str, Any], action: str
         return receipt
     always_allow = str(payload.get("alwaysAllowGrantRef", "")).strip()
     expected = f"always-allow://weave/{action}/"
-    if always_allow.startswith(expected):
+    if always_allow.startswith(expected) and always_allow in ctx.always_allow_grants:
         return always_allow
     raise McpDenied(f"approval-required-for-{action}")

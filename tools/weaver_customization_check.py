@@ -252,6 +252,8 @@ def validate_sprint32_mcp_execution(artifact: dict[str, Any]) -> None:
     always = approval.get("withAlwaysAllow", {})
     if always.get("persistsAcrossSessions") is not True or always.get("scope") != "calendar.create_event" or always.get("revokable") is not True:
         fail("Sprint 32 MCP execution must prove scoped revokable always-allow persistence")
+    if always.get("source") != "signed RuntimeProfile projection" or always.get("callerSuppliedOnlyGrantAccepted") is not False:
+        fail("Sprint 32 MCP execution always-allow must be minted in the signed RuntimeProfile projection")
     execution = artifact.get("execution", {})
     if execution.get("tool") != "calendar.create_event" or execution.get("stateChange") != "fixture_event_created":
         fail("Sprint 32 MCP execution must create a fixture event through calendar.create_event")

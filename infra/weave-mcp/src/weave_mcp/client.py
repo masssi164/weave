@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any
 
 from .schemas.common import RuntimeContext, ToolResult
 
 _CREATED_EVENTS: dict[str, dict[str, Any]] = {}
+_CREATED_EVENTS_LOCK = Lock()
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,14 @@ class WeaveBackendClient:
 
     def calendar_search_events(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
         requested_ref = str(query.get("eventRef", "")).strip()
-        items = [event for ref, event in sorted(_CREATED_EVENTS.items()) if not requested_ref or ref == requested_ref]
+        with _CREATED_EVENTS_LOCK:
+            items = [
+                event
+                for ref, event in sorted(_CREATED_EVENTS.items())
+                if (not requested_ref or ref == requested_ref)
+                and event.get("orgId") == ctx.org_id
+                and event.get("createdBy") == ctx.user_ref
+            ]
         return ToolResult(
             {
                 "queryRef": "query://calendar/support-safe/" + str(abs(hash(repr(sorted(query.items()))))),
@@ -80,12 +89,14 @@ class WeaveBackendClient:
             "eventRef": event_ref,
             "title": title,
             "startsAt": starts_at,
+            "orgId": ctx.org_id,
             "createdBy": ctx.user_ref,
             "calendarRef": "calendar://fixture/weave-governed-tool-proof",
             "providerMutationPerformedByMcp": False,
             "stateChangeFixtureOnly": True,
         }
-        _CREATED_EVENTS[event_ref] = event
+        with _CREATED_EVENTS_LOCK:
+            _CREATED_EVENTS[event_ref] = event
         readback = self.calendar_search_events(ctx, {"eventRef": event_ref}).support_safe()
         return ToolResult(
             {

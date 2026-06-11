@@ -27,6 +27,8 @@
     },
     "withAlwaysAllow": {
       "persistsAcrossSessions": true,
+      "source": "signed RuntimeProfile projection",
+      "callerSuppliedOnlyGrantAccepted": false,
       "scope": "calendar.create_event",
       "auditable": true,
       "revokable": true,

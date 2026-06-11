@@ -40,7 +40,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
         read_only=True,
         approval_required=False,
         description="Search calendar events via the backend Calendar facade with redacted support-safe output.",
-        input_schema={"type": "object", "properties": {"query": {"type": "string"}}},
+        input_schema={"type": "object", "properties": {"query": {"type": "string"}, "eventRef": {"type": "string"}}},
     ),
     "calendar.create_event": ToolDefinition(
         name="calendar.create_event",
@@ -85,7 +85,7 @@ def _calendar_search(ctx: RuntimeContext, payload: dict[str, Any], client: Weave
 
 
 def _calendar_create_event(ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
-    approval_ref = require_approval_or_scoped_always_allow(payload, "calendar.create_event")
+    approval_ref = require_approval_or_scoped_always_allow(ctx, payload, "calendar.create_event")
     return client.calendar_create_event(ctx, {**payload, "approvalRef": approval_ref}).support_safe()
 
 
