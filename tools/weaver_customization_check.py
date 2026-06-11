@@ -232,6 +232,8 @@ def validate_sprint32_mcp_execution(artifact: dict[str, Any]) -> None:
         fail("Sprint 32 MCP tool execution artifact kind mismatch")
     if artifact.get("githubIssue") != 717 or artifact.get("parentIssue") != 711:
         fail("Sprint 32 MCP tool execution artifact must link #717 and #711")
+    if artifact.get("gapIssue") != 719 or "fixture-only" not in str(artifact.get("evidenceBoundary", "")):
+        fail("Sprint 32 MCP execution must declare fixture-only boundary and #719 E2E gap")
     if "lege ein Ereignis" not in str(artifact.get("userPrompt", "")):
         fail("Sprint 32 MCP tool execution artifact must include the German event creation prompt")
     runtime = artifact.get("runtimeProfile", {})
@@ -257,6 +259,8 @@ def validate_sprint32_mcp_execution(artifact: dict[str, Any]) -> None:
     execution = artifact.get("execution", {})
     if execution.get("tool") != "calendar.create_event" or execution.get("stateChange") != "fixture_event_created":
         fail("Sprint 32 MCP execution must create a fixture event through calendar.create_event")
+    if execution.get("stateStore") != "in-memory fixture" or execution.get("providerMutationPerformedByMcp") is not False:
+        fail("Sprint 32 MCP execution must remain clearly labelled as in-memory fixture state, not provider mutation")
     if execution.get("readbackTool") != "calendar.search_events" or execution.get("readbackVerified") is not True:
         fail("Sprint 32 MCP execution must read back the fixture event")
     if execution.get("finalChatAnswerIncludesAuditRef") is not True or not str(execution.get("auditRef", "")).startswith("audit://mcp/calendar-create/"):
@@ -330,7 +334,7 @@ def main() -> None:
     validate_sprint32_governed_foundation(sprint32_governed)
     validate_sprint32_mcp_execution(sprint32_mcp_execution)
     validate_docs()
-    print("weaver-customization-check: ok issues=635,636,637,638,711,717 claims=scoped governed-mcp-execution customer_ready=false")
+    print("weaver-customization-check: ok issues=635,636,637,638,711,717 gap=719 claims=scoped governed-mcp-fixture-only customer_ready=false isolated_e2e=false")
 
 
 if __name__ == "__main__":
