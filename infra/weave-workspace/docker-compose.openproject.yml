@@ -11,7 +11,7 @@ services:
     container_name: weave-openproject
     restart: unless-stopped
     environment:
-      OPENPROJECT_HOST__NAME: ${TF_VAR_openproject_host_name:-openproject.weave.local}
+      OPENPROJECT_HOST__NAME: ${TF_VAR_openproject_host_name:-openproject.weave.test}
       OPENPROJECT_HTTPS: ${TF_VAR_openproject_https:-false}
       OPENPROJECT_SECRET_KEY_BASE: ${TF_VAR_openproject_secret_key_base:?Set TF_VAR_openproject_secret_key_base in a private env file before starting OpenProject}
     ports:

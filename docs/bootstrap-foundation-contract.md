@@ -36,6 +36,10 @@ Short rule: **bootstrap deploys the Control Plane and optional Provider Stack; i
 
 Every profile must produce the same categories of outputs: plan ref, selected setup modes, mutation boundary, approval posture, pipeline/evidence refs, readiness refs, support-safe next actions, and member handoff refs.
 
+## Environment profile parity
+
+The profile contract in `release/bootstrap-foundation/environment-profiles.v1.json` keeps development and production structurally uniform: one deployable shape, with profile variables selecting endpoint class, DNS/TLS posture, provider lane, approval gates, and evidence gates. Local dogfood defaults to the reserved `weave.test` domain and may use `local_lan_host` only as a non-canonical break-glass CA/bootstrap route for physical devices. Production uses the same component shape but requires an operator-owned domain, public DNS, trusted TLS, and forbids LAN host shortcuts. Planning and CI checks must not mutate live infrastructure, DNS, providers, production data, or customer environments.
+
 ## Bootstrap state machine
 
 1. `init` — operator chooses source repo and target provider lane, such as GitHub, local Forgejo, GitLab, Azure DevOps, or another supported CI/GitOps target.

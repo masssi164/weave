@@ -19,6 +19,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "docs" / "bootstrap-foundation-contract.md"
 PROFILES = ROOT / "release" / "bootstrap-foundation" / "bootstrap-profiles.v1.json"
+ENVIRONMENT_PROFILES = ROOT / "release" / "bootstrap-foundation" / "environment-profiles.v1.json"
 COMPONENTS = ROOT / "release" / "bootstrap-foundation" / "component-matrix.v1.json"
 README = ROOT / "README.md"
 MKDOCS = ROOT / "mkdocs.yml"
@@ -40,6 +41,20 @@ REQUIRED_PROFILES = {
     "full-selfhosted",
 }
 REQUIRED_MODES = {"deploy_new", "attach_existing", "hybrid"}
+REQUIRED_ENVIRONMENT_PROFILES = {"local-dogfood", "local-lan-dogfood", "production"}
+REQUIRED_ENVIRONMENT_VARIABLES = {
+    "tenant_slug",
+    "tenant_domain",
+    "public_scheme",
+    "auth_subdomain",
+    "api_subdomain",
+    "admin_subdomain",
+    "matrix_subdomain",
+    "nextcloud_subdomain",
+    "proxy_host_port",
+    "proxy_http_host_port",
+    "local_lan_host",
+}
 REQUIRED_COMPONENTS = {
     "bootstrap-weave-control",
     "weave-server",
@@ -285,11 +300,38 @@ def assert_bootstrap_runtime() -> None:
     ], "support-safe redaction blocked artifact")
 
 
+def assert_environment_profile_contract(environment_profiles: dict[str, Any]) -> None:
+    if environment_profiles.get("invariant") != "one deployable shape; profile variables select endpoint class, DNS/TLS posture, provider lane, mutation approval, and evidence gates":
+        fail("environment profile contract must preserve one deployable shape invariant")
+    if "live infrastructure" not in str(environment_profiles.get("noLiveMutationBoundary", "")):
+        fail("environment profile contract must name the no-live-mutation boundary")
+    if set(environment_profiles.get("requiredVariables", [])) != REQUIRED_ENVIRONMENT_VARIABLES:
+        fail("environment profile required variable set mismatch")
+    by_id = {item.get("id"): item for item in environment_profiles.get("profiles", []) if isinstance(item, dict)}
+    if set(by_id) != REQUIRED_ENVIRONMENT_PROFILES:
+        fail(f"environment profile matrix mismatch: {sorted(by_id)}")
+    if by_id["local-dogfood"].get("tenantDomainDefault") != "weave.test":
+        fail("local-dogfood must default to the reserved weave.test domain")
+    if by_id["local-lan-dogfood"].get("localLanHost") != "required-non-canonical-break-glass":
+        fail("local LAN host must be explicit and non-canonical")
+    production = by_id["production"]
+    if production.get("localLanHost") != "forbidden" or production.get("requiresPublicDns") is not True or production.get("requiresTrustedInternetTls") is not True:
+        fail("production profile must require public DNS/trusted TLS and forbid local LAN host")
+    for item in by_id.values():
+        if item.get("mutationAllowedByDefault") is not False or item.get("approvalRequiredForMutation") is not True:
+            fail(f"environment profile {item.get('id')} must fail closed for mutation")
+        gates = item.get("evidenceGates", [])
+        if not isinstance(gates, list) or not gates:
+            fail(f"environment profile {item.get('id')} must name evidence gates")
+
+
 def main() -> int:
     profiles = load(PROFILES)
+    environment_profiles = load(ENVIRONMENT_PROFILES)
     components = load(COMPONENTS)
     for artifact, kind in [
         (profiles, "bootstrap-profile-matrix"),
+        (environment_profiles, "environment-profile-contract"),
         (components, "bootstrap-component-matrix"),
     ]:
         if artifact.get("artifactKind") != kind:
@@ -317,6 +359,8 @@ def main() -> int:
     missing_inputs = FORBIDDEN_MEMBER_INPUTS.difference(handoff.get("forbiddenMemberInputs", []))
     if missing_inputs:
         fail(f"member handoff invariant missing forbidden inputs: {sorted(missing_inputs)}")
+
+    assert_environment_profile_contract(environment_profiles)
 
     component_ids = {item.get("id") for item in components.get("components", []) if isinstance(item, dict)}
     if component_ids != REQUIRED_COMPONENTS:

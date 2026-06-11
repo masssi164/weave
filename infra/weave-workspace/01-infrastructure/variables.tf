@@ -29,11 +29,11 @@ variable "tenant_slug" {
 variable "tenant_domain" {
   description = "Base domain used to derive public service hostnames."
   type        = string
-  default     = "weave.local"
+  default     = "weave.test"
 }
 
 variable "local_lan_host" {
-  description = "Optional non-canonical LAN host/IP for certificate SAN/debug compatibility. Public service, app-start, issuer, and CA URLs remain DNS-first on weave.local / *.weave.local."
+  description = "Optional non-canonical LAN host/IP for certificate SAN/debug compatibility. Public service, app-start, issuer, and CA URLs remain DNS-first on tenant_domain / *.tenant_domain."
   type        = string
   default     = ""
 }
