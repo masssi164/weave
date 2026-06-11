@@ -1,0 +1,153 @@
+{
+  "artifactKind": "weave-weaver-runtime-sprint-32-governed-foundation-proof",
+  "supportSafe": true,
+  "githubIssue": 711,
+  "scope": "governed Weaver foundation; disabled by default; policy-generated RuntimeProfile/OpenClaw projection; read-only first tool registry; ApprovalReceipt required for writes/external-send",
+  "defaultPosture": {
+    "weaverCategoryDefault": "disabled",
+    "normalMemberRawOpenClawEditing": "hidden_or_rbac_stripped",
+    "rawConfigExported": false,
+    "rawToolChannelMcpSecretSettingsEditableByMember": false,
+    "runtimeGeneratorDefault": "disabled"
+  },
+  "policyEvaluationCases": [
+    {
+      "id": "default-disabled",
+      "organizationCategoryEnabled": false,
+      "userGrant": "weaver.enabled",
+      "runtimeGeneratorEnabled": true,
+      "memberOptIn": true,
+      "decision": "deny",
+      "reason": "organization_category_disabled"
+    },
+    {
+      "id": "missing-user-flag",
+      "organizationCategoryEnabled": true,
+      "userGrant": null,
+      "runtimeGeneratorEnabled": true,
+      "memberOptIn": true,
+      "decision": "deny",
+      "reason": "missing_weaver_enabled_grant"
+    },
+    {
+      "id": "missing-generator",
+      "organizationCategoryEnabled": true,
+      "userGrant": "weaver.enabled",
+      "runtimeGeneratorEnabled": false,
+      "memberOptIn": true,
+      "decision": "deny",
+      "reason": "runtime_generator_disabled"
+    },
+    {
+      "id": "missing-opt-in",
+      "organizationCategoryEnabled": true,
+      "userGrant": "weaver.enabled",
+      "runtimeGeneratorEnabled": true,
+      "memberOptIn": false,
+      "decision": "deny",
+      "reason": "member_opt_in_required"
+    },
+    {
+      "id": "all-enablement-conditions-present",
+      "organizationCategoryEnabled": true,
+      "userGrant": "weaver.enabled",
+      "runtimeGeneratorEnabled": true,
+      "memberOptIn": true,
+      "decision": "permit",
+      "reason": "all_enablement_conditions_satisfied"
+    }
+  ],
+  "grantIntersectionCases": [
+    {
+      "id": "overbroad-grant-reduced",
+      "organizationAllowlist": ["calendar.search_events", "files.search"],
+      "userRights": ["calendar.search_events", "files.search", "boards.comment"],
+      "effectiveGrants": ["calendar.search_events", "files.search"],
+      "blockedGrants": ["boards.comment"],
+      "decision": "permit_intersection_only"
+    },
+    {
+      "id": "no-intersection-denied",
+      "organizationAllowlist": ["calendar.search_events"],
+      "userRights": ["boards.search_tasks"],
+      "effectiveGrants": [],
+      "blockedGrants": ["boards.search_tasks"],
+      "decision": "deny_no_effective_grants"
+    }
+  ],
+  "toolRegistryV1": {
+    "allowedReadOnlyTools": [
+      "calendar.search_events",
+      "boards.search_tasks",
+      "files.search",
+      "chat.search_messages"
+    ],
+    "writeOrExternalSendTools": [
+      "boards.comment",
+      "notifications.create_action_request"
+    ],
+    "cases": [
+      {
+        "id": "calendar-search-allowed",
+        "tool": "calendar.search_events",
+        "requestedMode": "read",
+        "approvalReceiptRequired": false,
+        "decision": "allow"
+      },
+      {
+        "id": "boards-comment-without-approval",
+        "tool": "boards.comment",
+        "requestedMode": "write",
+        "approvalReceiptRequired": true,
+        "approvalReceiptPresent": false,
+        "decision": "deny_approval_required"
+      },
+      {
+        "id": "external-send-with-approval",
+        "tool": "notifications.create_action_request",
+        "requestedMode": "external_send",
+        "approvalReceiptRequired": true,
+        "approvalReceiptPresent": true,
+        "decision": "allow_with_audit"
+      },
+      {
+        "id": "unknown-tool-fails-closed",
+        "tool": "mcp.marketplace.install",
+        "requestedMode": "write",
+        "approvalReceiptRequired": true,
+        "approvalReceiptPresent": false,
+        "decision": "deny_unknown_tool"
+      }
+    ]
+  },
+  "runtimeProfileProjection": {
+    "sourceOfTruth": "Weave policy and user rights",
+    "projectionDirection": "one_way_to_openclaw_runtime_profile",
+    "normalMemberCanEditRawOpenClaw": false,
+    "rawConfigHidden": true,
+    "includesCredentialRefsOnly": true,
+    "containsProviderSecrets": false,
+    "containsRawToolOutput": false,
+    "profileHashPresent": true,
+    "auditPolicyRequiredFields": [
+      "runtimeProfileHash",
+      "userRef",
+      "tool",
+      "domain",
+      "providerRef",
+      "credentialRef",
+      "policyDecision",
+      "approvalReceiptRef"
+    ]
+  },
+  "claimGate": {
+    "acceptedClaim": "Sprint 32 adds support-safe governed Weaver foundation evidence: disabled-by-default policy evaluation, read-only first tool registry, ApprovalReceipt-gated writes/external-send, and one-way RuntimeProfile/OpenClaw projection generated from Weave policy.",
+    "rejectedClaims": [
+      "Weaver is broadly available to all members.",
+      "Weaver can execute arbitrary tools or marketplace MCPs.",
+      "Normal members can edit raw OpenClaw config, channels, MCP, secrets, or tool allowlists.",
+      "Weaver can perform routine writes or external sends without ApprovalReceipt.",
+      "This evidence closes manual AT or public release blocker #591."
+    ]
+  }
+}
