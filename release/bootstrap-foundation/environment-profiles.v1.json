@@ -1,0 +1,94 @@
+{
+  "schemaVersion": "weave.bootstrap-foundation.environment-profiles.v1",
+  "artifactKind": "environment-profile-contract",
+  "supportSafe": true,
+  "purpose": "Keep development and production deployment shape structurally uniform; profiles differ by variables, targets, approval gates, and evidence requirements rather than bespoke topology.",
+  "invariant": "one deployable shape; profile variables select endpoint class, DNS/TLS posture, provider lane, mutation approval, and evidence gates",
+  "noLiveMutationBoundary": "planning and CI checks must not mutate live infrastructure, DNS, providers, production data, or customer environments",
+  "deployableShape": {
+    "components": [
+      "weave-server",
+      "admin-console",
+      "provider-stack-infra",
+      "caddy-edge",
+      "identity-provider",
+      "matrix-provider",
+      "files-provider",
+      "calendar-provider",
+      "boards-provider"
+    ],
+    "entrypoint": "tools/weavectl bootstrap plan/apply",
+    "infraExecutor": "infra/weave-workspace/install.sh",
+    "variablePrefix": "TF_VAR_"
+  },
+  "requiredVariables": [
+    "tenant_slug",
+    "tenant_domain",
+    "public_scheme",
+    "auth_subdomain",
+    "api_subdomain",
+    "admin_subdomain",
+    "matrix_subdomain",
+    "nextcloud_subdomain",
+    "proxy_host_port",
+    "proxy_http_host_port",
+    "local_lan_host"
+  ],
+  "profiles": [
+    {
+      "id": "local-dogfood",
+      "profileClass": "development",
+      "tenantDomainDefault": "weave.test",
+      "endpointClass": "local-dns-first",
+      "localLanHost": "optional-non-canonical-break-glass",
+      "requiresPublicDns": false,
+      "requiresTrustedInternetTls": false,
+      "mutationAllowedByDefault": false,
+      "approvalRequiredForMutation": true,
+      "evidenceGates": [
+        "python3 tools/bootstrap_foundation_check.py",
+        "./gradlew infraStatic"
+      ]
+    },
+    {
+      "id": "local-lan-dogfood",
+      "profileClass": "development",
+      "tenantDomainDefault": "weave.test",
+      "endpointClass": "dns-first-with-rfc1918-lan-ca-bootstrap",
+      "localLanHost": "required-non-canonical-break-glass",
+      "requiresPublicDns": false,
+      "requiresTrustedInternetTls": false,
+      "mutationAllowedByDefault": false,
+      "approvalRequiredForMutation": true,
+      "evidenceGates": [
+        "python3 tools/bootstrap_foundation_check.py",
+        "./gradlew infraStatic"
+      ]
+    },
+    {
+      "id": "production",
+      "profileClass": "production",
+      "tenantDomainDefault": "operator-owned-domain",
+      "endpointClass": "public-dns-first-trusted-tls",
+      "localLanHost": "forbidden",
+      "requiresPublicDns": true,
+      "requiresTrustedInternetTls": true,
+      "mutationAllowedByDefault": false,
+      "approvalRequiredForMutation": true,
+      "evidenceGates": [
+        "./gradlew specCorpusConformance",
+        "./gradlew acceptanceContract",
+        "./gradlew infraStatic",
+        "./gradlew releaseEvidenceCheck",
+        "./gradlew releaseReadinessCheck"
+      ]
+    }
+  ],
+  "forbiddenProfileDrift": [
+    "development-only topology as a separate product architecture",
+    "production-only hand-edited Caddy/provider wiring",
+    "member-facing LAN host or provider endpoint leakage",
+    "disabled TLS verification as final evidence",
+    "implicit mutation without --execute and approval reference"
+  ]
+}

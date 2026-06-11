@@ -863,7 +863,7 @@ ensure_default_inputs() {
   local defaults=(
     "TF_VAR_docker_network_name=weave_network"
     "TF_VAR_tenant_slug=weave"
-    "TF_VAR_tenant_domain=weave.local"
+    "TF_VAR_tenant_domain=weave.test"
     "TF_VAR_local_lan_host="
     "TF_VAR_auth_subdomain=auth"
     "TF_VAR_api_subdomain=api"

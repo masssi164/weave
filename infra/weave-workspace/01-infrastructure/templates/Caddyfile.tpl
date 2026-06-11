@@ -3,6 +3,20 @@
 	default_sni ${ca_bootstrap_host}
 }
 
+# Certificate bootstrap must work before DNS and trust are configured.
+# Serve the local CA on the HTTP bootstrap port regardless of Host header so
+# phones can fetch it via the Mac LAN IP as a break-glass path.
+http:// {
+	@local_ca path /weave-local-ca.pem
+	handle @local_ca {
+		root * /certs
+		rewrite * /${tls_ca_filename}
+		file_server
+	}
+
+	respond "Weave local dogfood HTTP endpoint. Download /weave-local-ca.pem, trust the Weave Local Development CA, then use https://${ca_bootstrap_host}." 200
+}
+
 http://${ca_bootstrap_host} {
 	@local_ca path /weave-local-ca.pem
 	handle @local_ca {
