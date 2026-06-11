@@ -6,6 +6,10 @@ body:
   - type: markdown
     attributes:
       value: |
+        Quality Reset: technical debt work must not change observable product behavior or claims without repo-local spec traceability, mapped Gherkin acceptance, evidence mode/reality level, and Fachveto gates.
+  - type: markdown
+    attributes:
+      value: |
         Use this for cleanup after the rebuild: stale branches/worktrees, duplicated specs, unfinished migrations, brittle tests, old provider assumptions, missing docs links, or architecture drift.
   - type: textarea
     id: debt
@@ -47,6 +51,18 @@ body:
       description: What should be true when this debt is resolved?
     validations:
       required: true
+
+  - type: textarea
+    id: behavior-change-traceability
+    attributes:
+      label: Behavior-change traceability, evidence mode, and Fachveto
+      description: Required if the cleanup changes observable product behavior or product/release claims; otherwise state "No observable behavior or claim change".
+      value: |
+        Behavior/claim change: none / describe
+        Spec link: N/A or specs/...
+        Mapped Gherkin scenario: N/A or e2e/features/... + e2e/scenario_mappings.json
+        Evidence mode / reality level: N/A or offline-spec/live-runtime + realityLevel
+        Fachveto owner/path: N/A or named owner/path
   - type: textarea
     id: cleanup-plan
     attributes:
