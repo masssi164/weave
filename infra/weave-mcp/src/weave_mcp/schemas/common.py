@@ -15,6 +15,7 @@ GOVERNED_MCP_TOOL_ALLOWLIST = frozenset(
         "admin.get_readiness",
         "weaver.get_runtime_profile_projection",
         "calendar.search_events",
+        "calendar.create_event",
         "boards.comment",
     }
 )
@@ -38,6 +39,7 @@ class RuntimeContext:
     capability_grants: frozenset[str]
     allowed_tools: frozenset[str]
     audit_ref: str
+    always_allow_grants: frozenset[str] = frozenset()
 
     @staticmethod
     def from_headers(
@@ -56,7 +58,8 @@ class RuntimeContext:
         tools = frozenset(str(tool) for tool in projection.get("allowedTools", []))
         audit_ref = str(projection.get("auditRef", "audit://mcp/runtime-profile/support-safe"))
         token_ref = str(projection.get("runtimeTokenRef", "")).strip()
-        return RuntimeContext(org_id, user_ref, profile, token_ref, grants, tools, audit_ref)
+        always_allow_grants = frozenset(str(grant) for grant in projection.get("alwaysAllowGrants", []))
+        return RuntimeContext(org_id, user_ref, profile, token_ref, grants, tools, audit_ref, always_allow_grants)
 
 
 def _runtime_profile_projection(
@@ -204,3 +207,22 @@ def require_approval(payload: dict[str, Any], action: str) -> str:
     if not receipt.startswith("approval://"):
         raise McpDenied(f"approval-required-for-{action}")
     return receipt
+
+
+def require_approval_or_scoped_always_allow(ctx: RuntimeContext, payload: dict[str, Any], action: str) -> str:
+    """Require an ApprovalReceipt unless scoped persistent approval is present.
+
+    The persistent path intentionally models the risky but allowed user choice
+    "always allow". It is still scoped to the narrow action, auditable, and
+    revokable by profile regeneration; broad grants such as "write calendar"
+    are not accepted here.
+    """
+
+    receipt = str(payload.get("approvalReceiptRef", "")).strip()
+    if receipt.startswith("approval://"):
+        return receipt
+    always_allow = str(payload.get("alwaysAllowGrantRef", "")).strip()
+    expected = f"always-allow://weave/{action}/"
+    if always_allow.startswith(expected) and always_allow in ctx.always_allow_grants:
+        return always_allow
+    raise McpDenied(f"approval-required-for-{action}")

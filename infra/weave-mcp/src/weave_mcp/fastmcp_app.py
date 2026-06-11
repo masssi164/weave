@@ -42,6 +42,21 @@ def build_fastmcp(config: WeaveMcpConfig | None = None) -> Any:
     def calendar_search_events(context_headers: dict[str, str], query: str = "") -> dict[str, Any]:
         return gateway.invoke_tool(_headers(context_headers), {"tool": "calendar.search_events", "input": {"query": query}})
 
+    @mcp.tool(name="calendar.create_event")
+    def calendar_create_event(
+        context_headers: dict[str, str],
+        title: str,
+        starts_at: str,
+        approval_receipt_ref: str | None = None,
+        always_allow_grant_ref: str | None = None,
+    ) -> dict[str, Any]:
+        payload = {"title": title, "startsAt": starts_at}
+        if approval_receipt_ref:
+            payload["approvalReceiptRef"] = approval_receipt_ref
+        if always_allow_grant_ref:
+            payload["alwaysAllowGrantRef"] = always_allow_grant_ref
+        return gateway.invoke_tool(_headers(context_headers), {"tool": "calendar.create_event", "input": payload})
+
     @mcp.tool(name="boards.comment")
     def boards_comment(
         context_headers: dict[str, str],

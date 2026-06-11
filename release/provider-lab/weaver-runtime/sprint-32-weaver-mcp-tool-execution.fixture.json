@@ -1,0 +1,56 @@
+{
+  "artifactKind": "weave-weaver-runtime-sprint-32-mcp-tool-execution-proof",
+  "supportSafe": true,
+  "githubIssue": 717,
+  "parentIssue": 711,
+  "userPrompt": "lege ein Ereignis für mich heute um 19:00 Uhr an",
+  "runtimeProfile": {
+    "modelBinding": "qwen3.5-9b",
+    "providerBinding": "support-safe-provider-ref",
+    "containsSecrets": false,
+    "runtimeProfileHash": "sha256:sprint32-mcp-tool-execution",
+    "mcpConnectionVisible": true,
+    "mcpEndpointRef": "internal://weave-mcp/streamable-http"
+  },
+  "toolSurface": {
+    "visibleToolsWhenGrantedAndOptedIn": ["calendar.search_events", "calendar.create_event"],
+    "hiddenWithoutOrganizationGrant": ["calendar.create_event"],
+    "hiddenWithoutUserOptIn": ["calendar.create_event"],
+    "narrowActionName": "calendar.create_event",
+    "rejectedBroadGrantNames": ["write calendar"]
+  },
+  "approvalPolicy": {
+    "withoutAlwaysAllow": {
+      "approvalRequestRequired": true,
+      "approvalReceiptRequiredBeforeInvocation": true,
+      "missingReceiptDecision": "deny_approval_required"
+    },
+    "withAlwaysAllow": {
+      "persistsAcrossSessions": true,
+      "source": "signed RuntimeProfile projection",
+      "callerSuppliedOnlyGrantAccepted": false,
+      "scope": "calendar.create_event",
+      "auditable": true,
+      "revokable": true,
+      "grantRefPrefix": "always-allow://weave/calendar.create_event/"
+    }
+  },
+  "execution": {
+    "tool": "calendar.create_event",
+    "input": {"title": "Testereignis", "startsAt": "19:00"},
+    "stateChange": "fixture_event_created",
+    "eventRef": "calendar-event://fixture/sprint32-1900",
+    "readbackTool": "calendar.search_events",
+    "readbackVerified": true,
+    "providerMutationPerformedByMcp": false,
+    "finalChatAnswerIncludesAuditRef": true,
+    "auditRef": "audit://mcp/calendar-create/support-safe"
+  },
+  "negativeCases": [
+    {"id": "no-group-grant", "decision": "deny", "auditRequired": true},
+    {"id": "no-user-opt-in", "decision": "deny", "auditRequired": true},
+    {"id": "revoked-profile", "decision": "deny", "auditRequired": true},
+    {"id": "missing-approval-without-always-allow", "decision": "deny_approval_required", "auditRequired": true},
+    {"id": "overbroad-grant-write-calendar", "decision": "deny_overbroad_grant", "auditRequired": true}
+  ]
+}
