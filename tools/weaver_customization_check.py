@@ -17,6 +17,7 @@ TOOLS = ARTIFACT_DIR / "tool-approval-gate-proof.fixture.json"
 CLAIMS = ARTIFACT_DIR / "sprint-25-claim-gate.fixture.json"
 SCOREBOARD = ARTIFACT_DIR / "sprint-25-scoreboard.json"
 SPRINT32_GOVERNED = ARTIFACT_DIR / "sprint-32-governed-foundation.fixture.json"
+SPRINT32_MCP_EXECUTION = ARTIFACT_DIR / "sprint-32-weaver-mcp-tool-execution.fixture.json"
 EVIDENCE = ROOT / "docs" / "evidence" / "weaver-customization-report.md"
 CLOSURE = ROOT / "docs" / "sprint-25-closure-report.md"
 
@@ -226,6 +227,53 @@ def validate_sprint32_governed_foundation(artifact: dict[str, Any]) -> None:
             fail(f"Sprint 32 rejected claims missing {phrase}")
 
 
+def validate_sprint32_mcp_execution(artifact: dict[str, Any]) -> None:
+    if artifact.get("artifactKind") != "weave-weaver-runtime-sprint-32-mcp-tool-execution-proof":
+        fail("Sprint 32 MCP tool execution artifact kind mismatch")
+    if artifact.get("githubIssue") != 717 or artifact.get("parentIssue") != 711:
+        fail("Sprint 32 MCP tool execution artifact must link #717 and #711")
+    if "lege ein Ereignis" not in str(artifact.get("userPrompt", "")):
+        fail("Sprint 32 MCP tool execution artifact must include the German event creation prompt")
+    runtime = artifact.get("runtimeProfile", {})
+    if runtime.get("modelBinding") != "qwen3.5-9b" or runtime.get("containsSecrets") is not False:
+        fail("Sprint 32 MCP execution runtime profile must expose model binding without secrets")
+    if runtime.get("mcpConnectionVisible") is not True or runtime.get("mcpEndpointRef") != "internal://weave-mcp/streamable-http":
+        fail("Sprint 32 MCP execution must show the scoped MCP connection")
+    surface = artifact.get("toolSurface", {})
+    if surface.get("narrowActionName") != "calendar.create_event":
+        fail("Sprint 32 MCP execution must use narrow calendar.create_event action")
+    if "write calendar" not in surface.get("rejectedBroadGrantNames", []):
+        fail("Sprint 32 MCP execution must reject broad write calendar grant naming")
+    if "calendar.create_event" not in surface.get("visibleToolsWhenGrantedAndOptedIn", []):
+        fail("Sprint 32 MCP execution must expose calendar.create_event only when granted and opted in")
+    approval = artifact.get("approvalPolicy", {})
+    if approval.get("withoutAlwaysAllow", {}).get("approvalReceiptRequiredBeforeInvocation") is not True:
+        fail("Sprint 32 MCP execution must require ApprovalReceipt when always-allow is absent")
+    always = approval.get("withAlwaysAllow", {})
+    if always.get("persistsAcrossSessions") is not True or always.get("scope") != "calendar.create_event" or always.get("revokable") is not True:
+        fail("Sprint 32 MCP execution must prove scoped revokable always-allow persistence")
+    execution = artifact.get("execution", {})
+    if execution.get("tool") != "calendar.create_event" or execution.get("stateChange") != "fixture_event_created":
+        fail("Sprint 32 MCP execution must create a fixture event through calendar.create_event")
+    if execution.get("readbackTool") != "calendar.search_events" or execution.get("readbackVerified") is not True:
+        fail("Sprint 32 MCP execution must read back the fixture event")
+    if execution.get("finalChatAnswerIncludesAuditRef") is not True or not str(execution.get("auditRef", "")).startswith("audit://mcp/calendar-create/"):
+        fail("Sprint 32 MCP execution final answer must include support-safe audit reference")
+    expected_negatives = {
+        "no-group-grant",
+        "no-user-opt-in",
+        "revoked-profile",
+        "missing-approval-without-always-allow",
+        "overbroad-grant-write-calendar",
+    }
+    negatives = load_case_map(artifact.get("negativeCases", []), label="negativeCases")
+    if set(negatives) != expected_negatives:
+        fail(f"Sprint 32 MCP execution negative case mismatch: {sorted(negatives)}")
+    for case_id, case in negatives.items():
+        if case.get("auditRequired") is not True or not str(case.get("decision", "")).startswith("deny"):
+            fail(f"Sprint 32 MCP execution negative case {case_id} must fail closed with audit")
+
+
 def validate_scoreboard(scoreboard: dict[str, Any]) -> None:
     if scoreboard.get("artifactKind") != "weave-weaver-runtime-sprint-25-scoreboard":
         fail("scoreboard artifact kind mismatch")
@@ -256,6 +304,8 @@ def validate_docs() -> None:
     evidence_text = EVIDENCE.read_text(encoding="utf-8")
     if "#711" not in evidence_text or str(SPRINT32_GOVERNED.relative_to(ROOT)) not in evidence_text:
         fail("Weaver customization evidence report missing Sprint 32 #711 governed foundation artifact")
+    if "#717" not in evidence_text or str(SPRINT32_MCP_EXECUTION.relative_to(ROOT)) not in evidence_text:
+        fail("Weaver customization evidence report missing Sprint 32 #717 MCP execution artifact")
 
 
 def main() -> None:
@@ -265,7 +315,8 @@ def main() -> None:
     claims = load(CLAIMS)
     scoreboard = load(SCOREBOARD)
     sprint32_governed = load(SPRINT32_GOVERNED)
-    for label, artifact in [("profile", profile), ("policy", policy), ("tools", tools), ("claims", claims), ("scoreboard", scoreboard), ("sprint32_governed", sprint32_governed)]:
+    sprint32_mcp_execution = load(SPRINT32_MCP_EXECUTION)
+    for label, artifact in [("profile", profile), ("policy", policy), ("tools", tools), ("claims", claims), ("scoreboard", scoreboard), ("sprint32_governed", sprint32_governed), ("sprint32_mcp_execution", sprint32_mcp_execution)]:
         if artifact.get("supportSafe") is not True:
             fail(f"{label} must be supportSafe")
         assert_support_safe(artifact, label)
@@ -275,8 +326,9 @@ def main() -> None:
     validate_claims(claims)
     validate_scoreboard(scoreboard)
     validate_sprint32_governed_foundation(sprint32_governed)
+    validate_sprint32_mcp_execution(sprint32_mcp_execution)
     validate_docs()
-    print("weaver-customization-check: ok issues=635,636,637,638,711 claims=scoped governed-foundation customer_ready=false")
+    print("weaver-customization-check: ok issues=635,636,637,638,711,717 claims=scoped governed-mcp-execution customer_ready=false")
 
 
 if __name__ == "__main__":

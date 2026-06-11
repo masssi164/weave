@@ -15,6 +15,7 @@ GOVERNED_MCP_TOOL_ALLOWLIST = frozenset(
         "admin.get_readiness",
         "weaver.get_runtime_profile_projection",
         "calendar.search_events",
+        "calendar.create_event",
         "boards.comment",
     }
 )
@@ -204,3 +205,22 @@ def require_approval(payload: dict[str, Any], action: str) -> str:
     if not receipt.startswith("approval://"):
         raise McpDenied(f"approval-required-for-{action}")
     return receipt
+
+
+def require_approval_or_scoped_always_allow(payload: dict[str, Any], action: str) -> str:
+    """Require an ApprovalReceipt unless scoped persistent approval is present.
+
+    The persistent path intentionally models the risky but allowed user choice
+    "always allow". It is still scoped to the narrow action, auditable, and
+    revokable by profile regeneration; broad grants such as "write calendar"
+    are not accepted here.
+    """
+
+    receipt = str(payload.get("approvalReceiptRef", "")).strip()
+    if receipt.startswith("approval://"):
+        return receipt
+    always_allow = str(payload.get("alwaysAllowGrantRef", "")).strip()
+    expected = f"always-allow://weave/{action}/"
+    if always_allow.startswith(expected):
+        return always_allow
+    raise McpDenied(f"approval-required-for-{action}")

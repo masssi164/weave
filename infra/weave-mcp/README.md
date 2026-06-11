@@ -27,11 +27,12 @@ Discovery requires runtime context headers. Policy comes from the generated Runt
 - `X-Weave-Runtime-Profile` — support-safe profile hash
 - `X-Weave-Runtime-Profile-Projection` — base64url JSON containing `runtimeProfileHash`, `enabled`, `revoked`, `serverKey`, `transport`, `credentialRef`, `capabilityGrants`, `allowedTools`, `auditRef`, and `projectionSignature` references only
 
-The Sprint 16 proof tools are:
+The Sprint 16/Sprint 32 proof tools are:
 
 - `admin.get_readiness` (read-only)
 - `weaver.get_runtime_profile_projection` (read-only)
 - `calendar.search_events` (read-only domain proof)
+- `calendar.create_event` (narrow write/action fixture; fails closed without `approvalReceiptRef` unless the signed runtime scope carries a revokable `alwaysAllowGrantRef` for `calendar.create_event`)
 - `boards.comment` (write/action stub; fails closed without `approvalReceiptRef`)
 
 Run tests through the infra gate:

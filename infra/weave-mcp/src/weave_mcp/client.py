@@ -5,6 +5,8 @@ from typing import Any
 
 from .schemas.common import RuntimeContext, ToolResult
 
+_CREATED_EVENTS: dict[str, dict[str, Any]] = {}
+
 
 @dataclass(frozen=True)
 class WeaveBackendClient:
@@ -44,6 +46,7 @@ class WeaveBackendClient:
                             "admin.get_readiness",
                             "weaver.get_runtime_profile_projection",
                             "calendar.search_events",
+                            "calendar.create_event",
                             "boards.comment",
                         ],
                         "rawEndpointExposed": False,
@@ -56,14 +59,44 @@ class WeaveBackendClient:
         )
 
     def calendar_search_events(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
+        requested_ref = str(query.get("eventRef", "")).strip()
+        items = [event for ref, event in sorted(_CREATED_EVENTS.items()) if not requested_ref or ref == requested_ref]
         return ToolResult(
             {
                 "queryRef": "query://calendar/support-safe/" + str(abs(hash(repr(sorted(query.items()))))),
-                "items": [],
+                "items": items,
                 "redactedItems": True,
                 "providerSourceMappedByBackend": True,
+                "readbackVerified": bool(requested_ref and items),
             },
             "audit://mcp/calendar-search/support-safe",
+        )
+
+    def calendar_create_event(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
+        title = str(query.get("title", "Test event")).strip() or "Test event"
+        starts_at = str(query.get("startsAt", "")).strip()
+        event_ref = "calendar-event://fixture/" + str(abs(hash((ctx.org_id, ctx.user_ref, title, starts_at))))
+        event = {
+            "eventRef": event_ref,
+            "title": title,
+            "startsAt": starts_at,
+            "createdBy": ctx.user_ref,
+            "calendarRef": "calendar://fixture/weave-governed-tool-proof",
+            "providerMutationPerformedByMcp": False,
+            "stateChangeFixtureOnly": True,
+        }
+        _CREATED_EVENTS[event_ref] = event
+        readback = self.calendar_search_events(ctx, {"eventRef": event_ref}).support_safe()
+        return ToolResult(
+            {
+                "decision": "created-test-fixture-event",
+                "eventRef": event_ref,
+                "approvalRef": str(query.get("approvalRef", "")),
+                "readbackVerified": readback.get("readbackVerified") is True,
+                "finalChatAnswer": f"Ich habe das Testereignis um {starts_at} angelegt. Audit: audit://mcp/calendar-create/support-safe",
+                "providerMutationPerformedByMcp": False,
+            },
+            "audit://mcp/calendar-create/support-safe",
         )
 
     def boards_comment(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:

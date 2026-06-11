@@ -38,12 +38,14 @@ RUNTIME_PROFILE_PROJECTION = {
         "weaver.admin_readiness_read",
         "weaver.runtime_profile_read",
         "weaver.calendar_read",
+        "weaver.calendar_create_event",
         "weaver.boards_write",
     ],
     "allowedTools": [
         "admin.get_readiness",
         "weaver.get_runtime_profile_projection",
         "calendar.search_events",
+        "calendar.create_event",
         "boards.comment",
     ],
     "auditRef": "audit://mcp/runtime-profile/local-rc-evidence",
@@ -87,7 +89,9 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertIn("admin.get_readiness", tools)
         self.assertIn("weaver.get_runtime_profile_projection", tools)
         self.assertIn("calendar.search_events", tools)
+        self.assertIn("calendar.create_event", tools)
         self.assertIn("boards.comment", tools)
+        self.assertTrue(tools["calendar.create_event"]["meta"]["approval"] == "required")
         self.assertTrue(tools["boards.comment"]["meta"]["approval"] == "required")
         self.assertTrue(all(tool["meta"]["transport"] == "streamable-http" for tool in tools.values()))
 
@@ -122,7 +126,7 @@ class WeaveMcpGatewayTest(unittest.TestCase):
             self.gateway(enabled=True).discover_tools({key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(stale)}.items()})
         self.assertEqual(expired.exception.reason, "runtime-profile-expired-or-stale")
 
-        overbroad = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events", "shell.exec"]}
+        overbroad = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events", "write calendar"]}
         with self.assertRaises(McpDenied) as denied:
             self.gateway(enabled=True).discover_tools({key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(overbroad)}.items()})
         self.assertEqual(denied.exception.reason, "runtime-profile-overbroad-tool-grant")
@@ -161,6 +165,47 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         )
         self.assertEqual(accepted["result"]["decision"], "accepted-for-backend-action-request")
         self.assertFalse(accepted["result"]["providerMutationPerformedByMcp"])
+
+    def test_calendar_create_event_requires_approval_or_persistent_scoped_always_allow(self) -> None:
+        headers = {key.lower(): value for key, value in HEADERS.items()}
+        request = {"tool": "calendar.create_event", "input": {"title": "Testereignis", "startsAt": "19:00"}}
+        with self.assertRaises(McpDenied) as missing_approval:
+            self.gateway().invoke_tool(headers, request)
+        self.assertEqual(missing_approval.exception.reason, "approval-required-for-calendar.create_event")
+
+        created = self.gateway().invoke_tool(
+            headers,
+            {
+                "tool": "calendar.create_event",
+                "input": {
+                    "title": "Testereignis",
+                    "startsAt": "19:00",
+                    "alwaysAllowGrantRef": "always-allow://weave/calendar.create_event/org-dogfood/user-support-safe",
+                },
+            },
+        )
+        self.assertEqual(created["result"]["decision"], "created-test-fixture-event")
+        self.assertTrue(created["result"]["readbackVerified"])
+        self.assertIn("Audit: audit://mcp/calendar-create/support-safe", created["result"]["finalChatAnswer"])
+        self.assertFalse(created["result"]["providerMutationPerformedByMcp"])
+
+        # Simulate a later session: same signed profile scope plus persistent always-allow grant still works.
+        later_session = self.gateway().invoke_tool(
+            {key.lower(): value for key, value in HEADERS.items()},
+            {
+                "tool": "calendar.create_event",
+                "input": {
+                    "title": "Folgetermin",
+                    "startsAt": "19:00",
+                    "alwaysAllowGrantRef": "always-allow://weave/calendar.create_event/org-dogfood/user-support-safe",
+                },
+            },
+        )
+        readback = self.gateway().invoke_tool(
+            headers,
+            {"tool": "calendar.search_events", "input": {"eventRef": later_session["result"]["eventRef"]}},
+        )
+        self.assertTrue(readback["result"]["readbackVerified"])
 
     def test_local_streamable_http_server_discovery_and_invocation(self) -> None:
         httpd = serve(WeaveMcpConfig(enabled=True), port=0)

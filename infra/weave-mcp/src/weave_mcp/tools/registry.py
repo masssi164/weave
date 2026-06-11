@@ -3,7 +3,15 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from ..client import WeaveBackendClient
-from ..schemas.common import McpDenied, RuntimeContext, ToolDefinition, require_approval, require_capability, require_tool_allowed
+from ..schemas.common import (
+    McpDenied,
+    RuntimeContext,
+    ToolDefinition,
+    require_approval,
+    require_approval_or_scoped_always_allow,
+    require_capability,
+    require_tool_allowed,
+)
 from ..redaction import assert_support_safe
 
 Handler = Callable[[RuntimeContext, dict[str, Any], WeaveBackendClient], dict[str, Any]]
@@ -34,6 +42,24 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
         description="Search calendar events via the backend Calendar facade with redacted support-safe output.",
         input_schema={"type": "object", "properties": {"query": {"type": "string"}}},
     ),
+    "calendar.create_event": ToolDefinition(
+        name="calendar.create_event",
+        capability="weaver.calendar_create_event",
+        domain="calendar",
+        read_only=False,
+        approval_required=True,
+        description="Create a support-safe test calendar event through the backend Calendar facade and return a readback reference.",
+        input_schema={
+            "type": "object",
+            "required": ["title", "startsAt"],
+            "properties": {
+                "title": {"type": "string"},
+                "startsAt": {"type": "string"},
+                "approvalReceiptRef": {"type": "string"},
+                "alwaysAllowGrantRef": {"type": "string"},
+            },
+        },
+    ),
     "boards.comment": ToolDefinition(
         name="boards.comment",
         capability="weaver.boards_write",
@@ -58,6 +84,11 @@ def _calendar_search(ctx: RuntimeContext, payload: dict[str, Any], client: Weave
     return client.calendar_search_events(ctx, payload).support_safe()
 
 
+def _calendar_create_event(ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
+    approval_ref = require_approval_or_scoped_always_allow(payload, "calendar.create_event")
+    return client.calendar_create_event(ctx, {**payload, "approvalRef": approval_ref}).support_safe()
+
+
 def _boards_comment(ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
     require_approval(payload, "boards.comment")
     return client.boards_comment(ctx, payload).support_safe()
@@ -67,6 +98,7 @@ HANDLERS: dict[str, Handler] = {
     "admin.get_readiness": _admin_get_readiness,
     "weaver.get_runtime_profile_projection": _runtime_profile,
     "calendar.search_events": _calendar_search,
+    "calendar.create_event": _calendar_create_event,
     "boards.comment": _boards_comment,
 }
 
