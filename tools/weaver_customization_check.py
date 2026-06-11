@@ -147,6 +147,23 @@ def validate_claims(artifact: dict[str, Any]) -> None:
             fail(f"claim boundary missing {phrase}")
 
 
+def load_case_map(cases: Any, *, label: str) -> dict[str, dict[str, Any]]:
+    if not isinstance(cases, list):
+        fail(f"{label} must be a list")
+
+    case_map: dict[str, dict[str, Any]] = {}
+    for index, case in enumerate(cases):
+        if not isinstance(case, dict):
+            fail(f"{label}[{index}] must be an object")
+        case_id = case.get("id")
+        if not isinstance(case_id, str):
+            fail(f"{label}[{index}].id must be a string")
+        if case_id in case_map:
+            fail(f"{label} contains duplicate id {case_id!r}")
+        case_map[case_id] = case
+    return case_map
+
+
 def validate_sprint32_governed_foundation(artifact: dict[str, Any]) -> None:
     if artifact.get("artifactKind") != "weave-weaver-runtime-sprint-32-governed-foundation-proof":
         fail("Sprint 32 governed foundation artifact kind mismatch")
@@ -156,7 +173,7 @@ def validate_sprint32_governed_foundation(artifact: dict[str, Any]) -> None:
     if default_posture.get("rawToolChannelMcpSecretSettingsEditableByMember") is not False:
         fail("normal members must not edit raw OpenClaw tool/channel/MCP/secret settings")
 
-    policy_cases = {case.get("id"): case for case in artifact.get("policyEvaluationCases", []) if isinstance(case, dict)}
+    policy_cases = load_case_map(artifact.get("policyEvaluationCases", []), label="policyEvaluationCases")
     if set(policy_cases) != set(REQUIRED_SPRINT32_POLICY_CASES):
         fail(f"Sprint 32 policy case mismatch: {sorted(policy_cases)}")
     for case_id, decision in REQUIRED_SPRINT32_POLICY_CASES.items():
