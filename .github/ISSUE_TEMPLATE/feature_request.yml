@@ -7,6 +7,8 @@ body:
     attributes:
       value: |
         Use this for new or changed product behavior. Keep Weave domain-first: client/member UX should see Weave concepts, not raw provider administration.
+
+        Quality Reset: product behavior and product claims require repo-local specs plus mapped Gherkin acceptance contracts before implementation/merge. Do not invent product meaning in this issue; link the spec work or mark it as required first.
   - type: textarea
     id: goal
     attributes:
@@ -38,10 +40,12 @@ body:
   - type: textarea
     id: spec-link
     attributes:
-      label: Repo-local spec or acceptance note
-      description: Link `specs/NNNN-slug/spec.md` when available. If not yet available, state whether this should create one or why a lightweight acceptance note is enough.
+      label: Repo-local spec / Spec Kit link
+      description: Link `specs/NNNN-slug/spec.md`, plan, tasks, or traceability entry. Product behavior changes must create/update this before implementation unless this is a pure bugfix with pragmatic acceptance notes.
       value: |
         Spec: TBD
+        Plan/tasks: TBD
+        Traceability: TBD
         Spec needed before implementation: yes/no
     validations:
       required: true
@@ -60,11 +64,14 @@ body:
   - type: textarea
     id: acceptance
     attributes:
-      label: Acceptance criteria / evidence gate
-      description: How do we know this is done? Name tests, docs, scenarios, screenshots, CI, or support-safe evidence.
+      label: Mapped Gherkin / evidence gate
+      description: Name the Gherkin feature/scenario, scenario mapping, and evidence gate. Use canonical `evidenceMode` (`offline-spec` or `live-runtime`) and `realityLevel` when applicable; only `release_ready` may support customer-ready wording.
       value: |
+        Gherkin scenario and mapping:
         -
-        -
+
+        Evidence mode / reality level: offline-spec or live-runtime; contract_only/configured/live_read/live_write/migration_dry_run/migration_apply_ready/rollback_ready/release_ready when applicable
+        Required gates:
         -
     validations:
       required: true
@@ -81,6 +88,23 @@ body:
     attributes:
       label: Accessibility and localization considerations
       description: Keyboard, screen reader, semantics, visible focus, text scaling, localization, non-color-only states.
+
+  - type: textarea
+    id: risk-veto
+    attributes:
+      label: Risk, privacy, accessibility, and Fachveto
+      description: Name the relevant review/veto owner for product/spec, architecture, security/privacy, accessibility, provider, release, or evidence risk. Small pure bugfixes may state a lightweight veto path.
+      value: |
+        Risk/privacy/a11y impact:
+        -
+
+        Fachveto owner/path:
+        -
+
+        Support-safe evidence constraints:
+        - no secrets, raw tokens, raw provider payloads, raw endpoints, openclaw.json, or SecretRef/CredentialRef values
+    validations:
+      required: true
   - type: textarea
     id: monorepo-impact
     attributes:
