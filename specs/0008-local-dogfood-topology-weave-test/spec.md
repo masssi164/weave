@@ -1,3 +1,21 @@
+---
+id: WEAVE-SPEC-0008
+title: Local dogfood topology weave.test
+version: 0.1.0
+status: planning
+domain: local-dogfood-topology
+owner: weave-devops-lead
+github_issue: null
+supersedes: []
+depends_on:
+  - WEAVE-SPEC-0000
+acceptance_features:
+  - e2e/features/v0_1_dogfood_release.feature
+evidence_gates:
+  - ./gradlew specContract
+  - ./gradlew acceptanceContract
+---
+
 # Feature 0008: Local dogfood topology (`weave.test`)
 
 Corpus sources: `WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL`, `WEAVE-MIGRATION-LEGACY-SPECS-20260612`.

@@ -1,3 +1,21 @@
+---
+id: WEAVE-SPEC-0009
+title: Domain-first MCP tools
+version: 0.1.0
+status: planning
+domain: weaver-mcp
+owner: weave-security-compliance-lead
+github_issue: null
+supersedes: []
+depends_on:
+  - WEAVE-SPEC-0000
+acceptance_features:
+  - e2e/features/v0_1_dogfood_release.feature
+evidence_gates:
+  - ./gradlew specContract
+  - ./gradlew acceptanceContract
+---
+
 # Feature 0009: Domain-first MCP tools
 
 Corpus sources: `WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL`, provider portability principles, domain context map.
