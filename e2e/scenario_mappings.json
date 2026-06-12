@@ -2119,6 +2119,46 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@northstar-claim-control",
+      "scenario": "Public customer-ready wording stays blocked until evidence is complete",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_CLAIM_CONTROL"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-identity-rbac-provider-switch",
+      "scenario": "Identity/RBAC is the first provider-switch proof",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_IDENTITY_RBAC_SWITCH"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-weaver-approval-receipts",
+      "scenario": "Weaver approvals are product-domain grants, not OpenClaw exec permissions",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_WEAVER_APPROVAL_RECEIPT"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-domain-first-mcp-hard-gate",
+      "scenario": "Domain-first MCP naming is a hard gate",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_DOMAIN_FIRST_MCP"
+      ],
+      "evidenceMode": "offline-spec"
     }
   ]
 }

@@ -23,6 +23,9 @@ evidence_gates:
 
 Define reusable provider replacement schemas so every migration classifies loss, records counts and hashes, links provider mappings and audit references, and blocks apply until a successful dry run exists.
 
+2026-06-12 Northstar amendment: provider portability uses a strict **no unaccounted data loss** policy, not a broad lossless-migration promise. The first provider-switch proof domain is Identity/RBAC, including principal continuity, role/group mapping, token/claim parity, SCIM vs SSO lifecycle behavior, orphan/trust-artifact handling, rollback/archive refs, and post-cutover validation.
+
+
 ## Product boundaries
 
 ### In scope
@@ -43,6 +46,11 @@ Define reusable provider replacement schemas so every migration classifies loss,
 - **FR-002**: Migration runs MUST require counts, hashes, provider mapping refs, and audit refs.
 - **FR-003**: Apply MUST be impossible without a successful dry-run report.
 - **FR-004**: Portability evidence MUST use support-safe redaction.
+- **FR-005**: Provider switch preflight MUST identify source provider, target adapter, object/field map, unsupported/lossy/manual-review classes, export/archive refs, rollback path, and timebox.
+- **FR-006**: Dry-run evidence MUST include object counts, stable ids/refs, mapping report, consequence preview, no-unaccounted-loss classification, and support-safe evidence refs.
+- **FR-007**: Apply/cutover MUST require fresh dry-run evidence, audit sink, rollback/archive refs, receipt counts/hashes/refs/policy/audit refs, and post-cutover validation.
+- **FR-008**: Identity/RBAC portability MUST prove principal continuity, group/role mapping, token/claim parity, SCIM lifecycle where available, SSO-staleness limits where applicable, audit trail, rollback function, and orphan/trust-artifact decommission plan.
+
 
 ## Acceptance and evidence mapping
 

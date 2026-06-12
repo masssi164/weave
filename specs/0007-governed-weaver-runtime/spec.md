@@ -23,6 +23,9 @@ evidence_gates:
 
 Define the first implementation-ready Weaver runtime contract without making Weave agent-first. Weaver remains optional, disabled by default, per-user, auditable, and generated from organization policy plus user rights.
 
+2026-06-12 Northstar amendment: Weaver is visible as an opt-in governed beta/v1 component, not default v0.1 runtime availability. Its approval UX may align with OpenClaw allow-once/deny/scoped-persistent affordances, but product approvals are Weave-domain grants that are scoped, audited, expiring/revocable where persistent, and never equivalent to OpenClaw local exec permissions. A product channel to Weaver and access to Weaver MCP servers are spec/issue work; personal runtime configuration must not be checked into this repo.
+
+
 ## In scope
 
 - OpenClaw-derived per-user runtime profile schema.
@@ -62,6 +65,11 @@ Define the first implementation-ready Weaver runtime contract without making Wea
 - **FR-017**: Every model, channel, tool, MCP, and provider call MUST emit support-safe audit metadata containing at least `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef where applicable, and policy decision.
 - **FR-018**: `calendar.search_events` MUST delegate to the Weave backend Calendar facade/capability boundary. Provider choice, including any current Nextcloud CalDAV backing, is selected by stack/admin configuration behind that facade and MUST NOT be called directly by the MCP server or exposed in member/runtime discovery metadata.
 - **FR-019**: Discovery metadata MUST expose Weave domain, capability, read/write posture, approval requirement, and support-safe schema only. `providerRef`, adapter URL, credentialRef target detail, and raw downstream diagnostics MUST remain hidden or redacted from normal runtime discovery and fail closed on missing backend authority.
+- **FR-020**: `ApprovalReceipt` MUST include subject/principal id, capability/domain/tool id, requested action and parameter summary, risk level, policy decision/version, approval mode (`once`, `scoped_persistent`, `denied`, `revoked`), expiry or revocation ref where applicable, runtime profile version/hash, MCP tool contract version, audit correlation id, and support-safe evidence refs without secrets/raw payloads.
+- **FR-021**: Weaver tool execution MUST fail closed if runtime profile, capability policy, approval receipt, revocation state, or MCP tool contract changed after approval.
+- **FR-022**: Product approval persistence MUST be scoped to the named Weave domain/capability/tool/action and MUST NOT grant generic OpenClaw exec, shell, filesystem, provider-admin, or local-host permission.
+- **FR-023**: Weaver channel/MCP access MUST be mediated by Weave policy and support-safe RuntimeProfile projection; raw personal OpenClaw channel config, MCP endpoint secrets, and operator allowlists are forbidden in repo artifacts.
+
 
 ## Initial tool set
 

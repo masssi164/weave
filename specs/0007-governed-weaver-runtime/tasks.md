@@ -25,3 +25,7 @@
 - [x] T017 [SSOT] Make governed MCP tools domain-first and forbid adapter/provider-named tool discovery.
 - [x] T018 [SSOT] Prove `calendar.search_events` delegates to the Weave backend Calendar facade and fails closed/support-safe without direct CalDAV or Nextcloud adapter access.
 - [x] T019 [SSOT] Keep providerRef/credentialRef detail hidden from normal tool discovery and support-safe in RuntimeProfile projection metadata.
+- [ ] T020 [Northstar] Add `ApprovalReceipt` schema and tests for once/scoped-persistent/denied/revoked semantics, expiry/revocation, drift fail-closed, and distinction from OpenClaw exec permissions.
+- [ ] T021 [Northstar] Add Weaver channel + MCP access spec/tasks without leaking personal runtime config.
+- [ ] T022 [#719] Add isolated Keycloak group/user opt-in/governed MCP event-creation E2E before any customer-ready or live-runtime Weaver claim.
+

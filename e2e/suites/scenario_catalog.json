@@ -78,6 +78,13 @@
       "evidenceMode": "offline-spec",
       "executionLane": "scenario-first-control-mode-contract",
       "description": "Product-mode acceptance for deploy_new, attach_existing, and hybrid bootstrap-to-client proof boundaries."
+    },
+    {
+      "id": "northstar-spec-decisions",
+      "name": "Northstar Spec Kit decision gates",
+      "evidenceMode": "offline-spec",
+      "executionLane": "spec-contract",
+      "description": "Repo-local Spec Kit projections for claim-control, Identity/RBAC portability, governed Weaver approvals, and domain-first MCP naming."
     }
   ],
   "scenarios": [
@@ -1300,6 +1307,78 @@
         "no provider/OIDC/CI/CD/SecretRef diagnostics in member app",
         "member_provider_neutral_join_passed claim boundary",
         "weave_client_e2e_passed claim boundary"
+      ]
+    },
+    {
+      "tag": "@northstar-claim-control",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "customer-ready claim gate",
+        "manual AT signoff",
+        "zero release blockers"
+      ]
+    },
+    {
+      "tag": "@northstar-identity-rbac-provider-switch",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "identity-idm",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Identity/RBAC provider-switch proof",
+        "no unaccounted data loss"
+      ]
+    },
+    {
+      "tag": "@northstar-weaver-approval-receipts",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "scoped approval receipts",
+        "OpenClaw exec permission separation"
+      ]
+    },
+    {
+      "tag": "@northstar-domain-first-mcp-hard-gate",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "domain-first MCP naming hard gate"
       ]
     }
   ]
