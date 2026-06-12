@@ -129,7 +129,7 @@ volumes = {
 fixture_files = {
     "nextcloud/files/channel-general/restore-proof.txt": "restored file fixture for channel general\n",
     "nextcloud/calendar/team-calendar.ics": "BEGIN:VCALENDAR\nVERSION:2.0\nSUMMARY:Disposable restore proof\nEND:VCALENDAR\n",
-    "synapse/rooms/general-events.jsonl": '{"room":"#general:restore-proof.local","event":"message","body":"restore proof survives destroy"}\n',
+    "synapse/rooms/general-events.jsonl": '{"room":"#general:restore-proof.weave.test","event":"message","body":"restore proof survives destroy"}\n',
     "synapse/media/attachment.sha256": "attachment:2f0b8b8a9dd5d7f6\n",
     "keycloak/realm/weave-users.json": json.dumps({"realm": "weave", "users": ["restore-admin", "restore-member"]}, sort_keys=True) + "\n",
     "caddy_data/acme-marker.txt": "disposable acme continuity marker\n",
