@@ -333,8 +333,7 @@ void main() {
               'username': 'user-123',
               'endpoints': {
                 'serverUrl': 'https://files.weave.test',
-                'caldavDiscoveryUrl':
-                    'https://files.weave.test/remote.php/dav',
+                'caldavDiscoveryUrl': 'https://files.weave.test/remote.php/dav',
                 'principalUrl':
                     'https://files.weave.test/remote.php/dav/principals/users/user-123/',
               },
