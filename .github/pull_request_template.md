@@ -13,12 +13,37 @@
 - Acceptance scenario / mapping marker when product behavior changed:
 - Product-core questions intentionally left unresolved: none / listed below
 
-## Branch, target, and release path
+## Branch, target lane, and release path
 
-- [ ] Branch started from current `origin/main`
-- [ ] PR targets protected `main`
-- [ ] No long-lived `dev`/`testing`/`staging` branch involved
+- Target lane: dev / future/* / rc/* / main exception
+- [ ] Branch started from the correct lane (`dev`, `future/*`, `rc/*`, or `main` for hotfix/main exception)
+- [ ] Linked issue(s) or explicit spec/evidence note are listed above
+- [ ] `main` target is only an `rc/*` promotion or documented emergency `hotfix/*` exception
 - [ ] Production release is not implied by this merge
+
+## Spec impact
+
+Choose one and explain when needed.
+
+- [ ] none
+- [ ] implements locked spec
+- [ ] updates spec (linked corpus/spec task required):
+- [ ] changes evidence only
+
+## Release note
+
+Use exactly one form.
+
+- Release note:
+- Release note: none — reason:
+
+## Release notes label
+
+Choose exactly one before review/merge; CI fails otherwise.
+
+- [ ] `release-notes-feature`
+- [ ] `release-notes-bugfix`
+- [ ] `release-notes-skip`
 
 ## Screenshots or docs impact
 
@@ -34,14 +59,6 @@
 - [ ] Contract/spec change documented:
 - [ ] `./gradlew specContract` run for spec/product-contract changes
 
-## Release notes label
-
-Choose exactly one before review/merge; CI fails otherwise.
-
-- [ ] `release-notes-feature`
-- [ ] `release-notes-bugfix`
-- [ ] `release-notes-skip`
-
 ## Review readiness
 
 - [ ] Copilot review requested for this review-ready PR, or Copilot exhaustion/unavailability noted
@@ -49,11 +66,14 @@ Choose exactly one before review/merge; CI fails otherwise.
 
 ## Checks run
 
+- [ ] `git diff --check`
+- [ ] `./gradlew specCorpusConformance`
 - [ ] `./gradlew specContract`
 - [ ] `./gradlew acceptanceContract`
 - [ ] `./gradlew ci` (canonical cross-stack gate; attach or cite `build/evidence/ci-summary.json`)
 - [ ] `make docs-check` / `make docs-build` (temporary Gradle-delegating aliases for docs or release notes changes)
 - [ ] `make release-notes-check` (temporary Gradle-delegating alias for release-affecting changes)
+- [ ] `python3 tools/pr_body_check.py <pr-body-file>` (when editing PR governance)
 - [ ] `flutter pub get`
 - [ ] `flutter gen-l10n`
 - [ ] `dart run build_runner build --delete-conflicting-outputs`

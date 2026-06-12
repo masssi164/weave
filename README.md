@@ -293,4 +293,4 @@ export PATH="$JAVA_HOME/bin:$PATH"
 - Keep Weaver governed, optional, and disabled by default until its gates exist.
 - Prefer accessible headings, concise bullets, descriptive links, and alt text over dense copy.
 - Do not expose provider secrets or service tokens to Flutter, support bundles, app config, logs, screenshots, or docs.
-- Follow [Developer Handbook](docs/developer-handbook.md) and [Trunk-based PR and release workflow](docs/gitflow-pr-workflow.md) before opening, reviewing, or merging PRs.
+- Follow [Developer Handbook](docs/developer-handbook.md) and [Lane-based PR and release workflow](docs/gitflow-pr-workflow.md) before opening, reviewing, or merging PRs.
