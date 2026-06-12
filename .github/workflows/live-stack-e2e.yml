@@ -130,7 +130,7 @@ jobs:
           hosts=(weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test)
           missing=()
           for host in "${hosts[@]}"; do
-            if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1'; then
+            if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address:'; then
               missing+=("$host")
             fi
           done
@@ -141,14 +141,16 @@ jobs:
               printf '%s\n' "$line" | sudo tee -a /etc/hosts >/dev/null
               sudo dscacheutil -flushcache || true
             else
-              echo "::error::Runner cannot resolve required Weave hostnames and passwordless sudo is unavailable. Add this /etc/hosts line before rerunning: $line" >&2
+              echo "::error::Runner cannot resolve required Weave hostnames and passwordless sudo is unavailable. Configure weave.test DNS for this runner or add this fallback /etc/hosts line before rerunning: $line" >&2
               exit 1
             fi
           fi
 
           for host in "${hosts[@]}"; do
-            dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1' || {
-              echo "::error::Runner still cannot resolve $host to 127.0.0.1" >&2
+            resolved="$(dscacheutil -q host -a name "$host" || true)"
+            printf '%s\n' "$resolved"
+            printf '%s\n' "$resolved" | grep -q 'ip_address:' || {
+              echo "::error::Runner still cannot resolve $host" >&2
               exit 1
             }
           done
