@@ -17,8 +17,8 @@ The repository now includes `tools/forbidden_domain_drift_scan.py` as the repeat
 
 The active drift fixed in this slice was:
 
-- provider-lab Synapse default server name: `weave-lab.local` -> `weave.test`
-- disposable restore proof Matrix fixture: `restore-proof.local` -> `restore-proof.weave.test`
+- provider-lab Synapse default server name: legacy lab-local hostname -> `weave.test`
+- disposable restore proof Matrix fixture: legacy restore-proof local hostname -> `restore-proof.weave.test`
 - raw-provider redaction and correlation negative-test examples: `.local` examples -> `.example.invalid`
 
 ## Evidence commands
