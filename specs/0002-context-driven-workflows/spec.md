@@ -22,6 +22,9 @@ evidence_gates:
 
 Define the provider-neutral workflow primitives that let teams run expert processes from Weave context objects without requiring a visual-only workflow builder. The first slice is a linear, accessible preview contract that can attach workflow templates to channels, projects, and events; reference existing Weave context nodes; and keep agent participation proposal-first, approval-gated, and auditable.
 
+2026-06-12 Northstar amendment: the first workflow execution stage is not uncontrolled automation. It is governed executable workflows with explicit policy boundaries, action preview, human approval gates for high-risk/destructive/external/provider/release actions, persisted approval receipts, outcome/compensation references, and immutable support-safe audit. Preview-only workflow UI remains insufficient for executable-workflow claims.
+
+
 ## Product boundaries
 
 ### In scope
@@ -101,6 +104,9 @@ Define the provider-neutral workflow primitives that let teams run expert proces
 - **FR-008**: Weave MUST NOT duplicate raw provider records, provider secrets, endpoints, or diagnostics into workflow objects.
 - **FR-009**: Weave MUST include sample templates for onboarding a workspace, preparing a release, and resolving a support incident.
 - **FR-010**: Workflow references that cannot be authorized or resolved through server-owned context contracts MUST fail closed before execution or provider access.
+- **FR-011**: Executable workflow runs MUST persist a workflow instance, policy decision, action preview, approval receipt when required, execution outcome, rollback or compensation reference where applicable, and support-safe audit correlation id.
+- **FR-012**: Workflow execution MUST fail closed when the workflow definition, policy version, approval receipt, tool contract, runtime profile, or referenced context node has drifted since approval.
+
 
 ## Domain model and contracts
 

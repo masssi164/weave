@@ -16,7 +16,8 @@ Weave is not a re-skinned Matrix, Nextcloud, Microsoft 365, Slack, Jira, or AI-a
 - **Weave Control / `weavectl`** is for owners, admins, and operators. It owns organization bootstrap, deploy-new / attach-existing / hybrid setup, CI/CD target binding, approved dispatch, readiness, diagnostics, support bundles, and evidence.
 - **Weave Server** is the separately deployable Java domain facade. It owns policy, provider registry, capability states, authorization, audit, SecretRef/CredentialRef handling, readiness, and support-safe errors.
 - **Weave App** is for members and guests. Members join through an organization URL, invite link, deep link, or SSO and then see Weave capabilities, not raw provider setup.
-- **Weaver** is the future optional governed PA line. It is disabled by default and must stay behind organization policy, user opt-in where required, tool allowlists, sandboxing, approval receipts, revocation, and audit.
+- **Weaver** is the future optional governed PA line. It is disabled by default and must stay behind organization policy, user opt-in where required, tool allowlists, sandboxing, approval receipts, revocation, and audit. Weaver is visible as a beta/v1 direction only after the relevant opt-in governance, isolated runtime, domain-first MCP, and evidence gates pass; it is not customer-ready or broadly available in v0.1.
+
 
 ## Bootstrap foundation
 
@@ -188,7 +189,8 @@ Weave can model three provider postures:
 - **Attach existing:** customer-owned providers are bound behind Weave domains without pretending Weave owns their internals.
 - **Hybrid:** each domain chooses deploy-new or attach-existing, while members receive one coherent Weave manifest.
 
-Provider portability is governed by a **no unaccounted data loss** principle. Exports, imports, lossy fields, conflicts, unsupported provider features, rollback limits, and archive-only paths must be reported before claims or apply actions are promoted.
+Provider portability is governed by a **no unaccounted data loss** principle. Exports, imports, lossy fields, conflicts, unsupported provider features, rollback limits, and archive-only paths must be reported before claims or apply actions are promoted. Identity/RBAC is the first required provider-switch proof domain: principal continuity, group/role mappings, token/claim parity, SCIM/SSO lifecycle limits, rollback/archive refs, and orphan/trust-artifact cleanup must be evidenced before stronger provider-neutrality claims.
+
 
 ## Boards and provider boundary
 

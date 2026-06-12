@@ -22,6 +22,9 @@ Corpus sources: `WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL`, provider portability 
 
 Weaver-facing MCP tools expose Weave domain capabilities, not provider adapters. Names, policies, audit receipts, approvals, and runtime profile grants use domain verbs and nouns (`calendar.search_events`, `files.share_item`, `chat.send_message`). Provider references remain support-safe evidence behind Weave server/domain facades.
 
+2026-06-12 Northstar amendment: domain-first MCP naming is a hard gate in both Weave and Weaver. Provider-first, adapter-first, vendor-prefixed, or raw service tool names must fail lint/review unless explicitly documented as redacted operator-only evidence outside member/runtime discovery.
+
+
 ## Acceptance
 
 - Tool taxonomy is organized by Weave domains.
