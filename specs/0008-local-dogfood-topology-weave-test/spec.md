@@ -2,7 +2,7 @@
 id: WEAVE-SPEC-0008
 title: Local dogfood topology weave.test
 version: 0.1.0
-status: planning
+status: proposed
 domain: local-dogfood-topology
 owner: weave-devops-lead
 github_issue: null

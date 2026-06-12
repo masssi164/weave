@@ -2,7 +2,7 @@
 id: WEAVE-SPEC-0009
 title: Domain-first MCP tools
 version: 0.1.0
-status: planning
+status: proposed
 domain: weaver-mcp
 owner: weave-security-compliance-lead
 github_issue: null
