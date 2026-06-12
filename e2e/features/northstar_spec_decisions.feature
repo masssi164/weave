@@ -1,0 +1,61 @@
+@northstar @spec-kit @claim-control
+# Evidence markers: NORTHSTAR_CLAIM_CONTROL NORTHSTAR_IDENTITY_RBAC_SWITCH NORTHSTAR_WEAVER_APPROVAL_RECEIPT NORTHSTAR_DOMAIN_FIRST_MCP NORTHSTAR_SPEC_COVERAGE_MATRIX NORTHSTAR_DOMAIN_REGISTRY_REALITY NORTHSTAR_SPACE_ANCHOR_CONTEXT NORTHSTAR_LOCAL_DOGFOOD_REALITY
+Feature: Northstar Spec Kit decision gates
+  Northstar decisions are encoded before implementation claims are promoted.
+
+  @northstar-claim-control
+  Scenario: Public customer-ready wording stays blocked until evidence is complete
+    Given the release evidence packet is missing manual assistive-technology signoff
+    Or open release blockers are greater than zero
+    When public v0.1 wording is evaluated
+    Then customer-ready and release-ready claims are rejected
+    And the evidence names the missing blocker or signoff item
+
+  @northstar-identity-rbac-provider-switch
+  Scenario: Identity/RBAC is the first provider-switch proof
+    Given an admin prepares an Identity/RBAC provider switch
+    When the dry-run is produced
+    Then it includes principal continuity, group and role mappings, token and claim parity, SCIM or SSO lifecycle limits, rollback refs, and orphan/trust-artifact cleanup
+    And every unsupported or lossy mapping is classified so there is no unaccounted data loss
+
+  @northstar-weaver-approval-receipts
+  Scenario: Weaver approvals are product-domain grants, not OpenClaw exec permissions
+    Given Weaver is enabled for an opted-in user by organization policy
+    When a write-like domain tool requests approval
+    Then the approval receipt is scoped to the Weave domain, capability, tool, action, policy version, runtime profile, expiry or revocation state, and audit correlation id
+    And it does not grant generic local exec, filesystem, provider-admin, or raw OpenClaw configuration permission
+
+  @northstar-domain-first-mcp-hard-gate
+  Scenario: Domain-first MCP naming is a hard gate
+    Given a Weaver MCP tool registry contains provider-prefixed or adapter-prefixed tool names
+    When the domain-first MCP gate runs
+    Then the registry is rejected before discovery or invocation is exposed to members
+
+
+  @northstar-spec-coverage-matrix
+  Scenario: Northstar decisions require per-spec acceptance coverage
+    Given a Northstar product decision changes claim boundaries, governance, provider portability, workspace context, or local dogfood evidence
+    When the Spec Kit corpus is evaluated
+    Then every affected WEAVE-SPEC projection names the decision in spec, plan or tasks
+    And every affected product claim has a mapped Gherkin scenario before implementation or promotion
+
+  @northstar-domain-registry-reality
+  Scenario: Domain registry carries reality levels and capability names for Northstar claims
+    Given provider-neutral domains are advertised through Weave
+    When domain capability and provider candidates are registered
+    Then each canonical domain uses Weave-owned names with stable capability keys, aliases, and portability metadata
+    And each provider candidate declares a reality level so contract-only evidence cannot become customer-ready wording
+
+  @northstar-space-anchor-context
+  Scenario: Space anchor binds Northstar domains without raw provider identifiers
+    Given a member enters a Space control room
+    When chat, files, boards, calendar, decisions, and Weaver context are shown together
+    Then the Space identity remains Weave-owned and provider-neutral
+    And domain bindings expose readiness, source of truth, migration state, and lossy notes without raw provider object identifiers
+
+  @northstar-local-dogfood-reality
+  Scenario: Local dogfood evidence uses weave.test and blocks live claims without runtime proof
+    Given local dogfood evidence is collected for a Northstar claim
+    When the evidence names URLs, topology, or release posture
+    Then weave.test is the only active local URL truth
+    And offline-spec evidence remains separate from live-runtime proof until the live stack gate is collected

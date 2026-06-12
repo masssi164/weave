@@ -9,7 +9,8 @@ owner: delivery-owner
 github_issue: null
 supersedes: []
 depends_on: []
-acceptance_features: []
+acceptance_features:
+  - e2e/features/northstar_spec_decisions.feature
 evidence_gates:
   - ./gradlew specContract
   - ./gradlew specContractTest
@@ -81,6 +82,8 @@ This framework does not define new member-facing product behavior. It defines th
 - **FR-009**: The pinned Weave Specification Corpus in `specs/weave-specs.lock.json` MUST remain the canonical product/domain source of truth. Repo-local specs MUST be implementation and conformance projections that trace to pinned corpus files, not competing product truth.
 - **FR-010**: Work MUST follow the Spec Kit lifecycle: Spec → Plan → Tasks → Implement → Evidence. Implementing or implemented specs MUST have a matching `plan.md`, `tasks.md`, and `traceability.yaml` unless the spec explicitly declares itself process-only and non-implementing.
 - **FR-011**: Local dogfood/runtime evidence MUST use `weave.test` / `*.weave.test` as the only local URL truth. The former `.local` dogfood alias is obsolete drift and MUST NOT appear in active specs, docs, code, config, tests, or generated fixtures.
+- **FR-012**: Northstar/product-core decisions MUST be projected across every affected repo-local spec, plan or task file before implementation or promotion.
+- **FR-013**: Each affected Northstar/product-core claim MUST have a mapped Gherkin scenario in `e2e/features/` and `e2e/scenario_mappings.json`; decorative, unmapped scenarios MUST fail acceptance review.
 
 ## Domain model and contracts
 
@@ -95,8 +98,8 @@ This framework does not define new member-facing product behavior. It defines th
 
 ## Acceptance and evidence mapping
 
-- Gherkin feature path(s): none; process-only framework.
-- `e2e/scenario_mappings.json` marker(s): none; no member-facing product behavior changes.
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature`.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_SPEC_COVERAGE_MATRIX`; no member-facing runtime behavior changes.
 - Tooling test path(s): `tools/spec_contract_check.py`, `tools/spec_contract_check_test.py`.
 - Assistant delivery templates: `.specify/templates/weave-agent-briefs.md` and `docs/agent-team-orchestration.md`.
 - Live Stack E2E required? no; repo-process only.

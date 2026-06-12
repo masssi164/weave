@@ -27,6 +27,9 @@ Weave is a provider-neutral collaboration platform. Its first product-core slice
 
 Weaver/AI runtime is explicitly out of scope for this spec. It may appear later as a governed domain, but it must not be introduced accidentally or before admin/provider governance is mature.
 
+2026-06-12 Northstar amendment: Weave's public direction is provider-neutral organization suite plus Admin Suite first. Weaver is a visible v1/beta direction only as an opt-in, governed, disabled-by-default capability after IDM/RBAC, policy, evidence, and claim-control gates are in place. v0.1 may be described as public/customer-ready only when release evidence is complete, manual assistive-technology signoff is recorded or explicitly waived by release ownership, and open release blockers are zero.
+
+
 ## Intent
 
 Define the product contract that lets Weave stay provider-neutral while still being operationally usable:
