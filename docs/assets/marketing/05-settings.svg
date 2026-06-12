@@ -52,7 +52,7 @@
 
     <rect x="104" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="132" y="444" font-size="21" font-weight="700" fill="#0369a1">OIDC issuer</text>
-    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">https://auth.weave.local/realms</text>
+    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">https://auth.weave.test/realms</text>
 <text x="132" y="507" font-size="20" font-weight="400" fill="#0f172a">/weave</text>
 
 
@@ -63,7 +63,7 @@
 
     <rect x="856" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="884" y="444" font-size="21" font-weight="700" fill="#0369a1">Nextcloud</text>
-    <text x="884" y="480" font-size="20" font-weight="400" fill="#0f172a">https://files.weave.local</text>
+    <text x="884" y="480" font-size="20" font-weight="400" fill="#0f172a">https://files.weave.test</text>
 
 
     <rect x="104" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>

@@ -18,7 +18,7 @@ readonly TEARDOWN_SCRIPT="${ROOT_DIR}/teardown.sh"
 readonly SYNAPSE_VOLUME_HELPER="${ROOT_DIR}/lib/synapse-volume.sh"
 readonly LOOPBACK_HOST="${WEAVE_LOOPBACK_HOST:-127.0.0.1}"
 LOOPBACK_RESOLVE_HOST="${WEAVE_LOOPBACK_RESOLVE_HOST:-${LOOPBACK_HOST}}"
-readonly TEST_USER_EMAIL="test@weave.local"
+readonly TEST_USER_EMAIL="test@weave.test"
 readonly PERSISTED_TF_VARS=(
   TF_VAR_docker_host
   TF_VAR_docker_network_name
@@ -956,8 +956,8 @@ ensure_default_inputs() {
     set_default_var TF_VAR_context_authorization_bootstrap_enabled false
   fi
 
-  set_default_var TF_VAR_caddy_tls_cert_file "${INFRA_DIR}/.generated/caddy/certs/weave.local.pem"
-  set_default_var TF_VAR_caddy_tls_key_file "${INFRA_DIR}/.generated/caddy/certs/weave.local-key.pem"
+  set_default_var TF_VAR_caddy_tls_cert_file "${INFRA_DIR}/.generated/caddy/certs/weave.test.pem"
+  set_default_var TF_VAR_caddy_tls_key_file "${INFRA_DIR}/.generated/caddy/certs/weave.test-key.pem"
   set_default_var TF_VAR_caddy_tls_ca_file "${INFRA_DIR}/.generated/caddy/certs/weave-local-ca.pem"
 }
 

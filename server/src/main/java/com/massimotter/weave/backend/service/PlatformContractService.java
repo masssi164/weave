@@ -85,7 +85,7 @@ public class PlatformContractService {
                 "Files",
                 workspaceProperties.files(),
                 auth,
-                "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.local.",
+                "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.test.",
                 "Enable WEAVE_WORKSPACE_FILES_ENABLED when files should be available.");
         PlatformStatusResponse.DiagnosticStatus calendar = moduleStatus(
                 "calendar",
@@ -157,7 +157,7 @@ public class PlatformContractService {
                 "Matrix chat",
                 workspaceProperties.chat(),
                 auth,
-                "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.local.",
+                "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.test.",
                 "Enable WEAVE_WORKSPACE_CHAT_ENABLED when chat should be available.");
         return new PlatformStatusResponse.MatrixStatus(
                 status.status(),
@@ -274,7 +274,7 @@ public class PlatformContractService {
                 "degraded",
                 "degraded",
                 "The canonical Nextcloud technical route is not configured.",
-                "Set WEAVE_NEXTCLOUD_BASE_URL to the raw Nextcloud/admin/protocol origin, for example https://files.weave.local.");
+                "Set WEAVE_NEXTCLOUD_BASE_URL to the raw Nextcloud/admin/protocol origin, for example https://files.weave.test.");
     }
 
     private PlatformStatusResponse.DiagnosticCheck check(

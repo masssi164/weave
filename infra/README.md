@@ -38,7 +38,7 @@ This is the concrete local provider-stack implementation path, not the canonical
 Add local host entries before opening browser-facing URLs:
 
 ```text
-127.0.0.1 weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local
+127.0.0.1 weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test
 ```
 
 Bootstrap the stack:

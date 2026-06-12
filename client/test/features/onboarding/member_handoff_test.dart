@@ -4,18 +4,18 @@ import 'package:weave/features/onboarding/domain/entities/member_handoff.dart';
 
 void main() {
   group('MemberHandoffParser', () {
-    test('accepts DNS-first weave.local invite link for local dogfood', () {
+    test('accepts DNS-first weave.test invite link for local dogfood', () {
       final handoff = const MemberHandoffParser().parse(
         Uri.parse(
-          'https://weave.local:44443/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-check',
+          'https://weave.test:44443/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-check',
         ),
       );
 
       expect(handoff.profile, 'local-lan-dogfood');
-      expect(handoff.productBaseUrl.toString(), 'https://weave.local:44443/');
+      expect(handoff.productBaseUrl.toString(), 'https://weave.test:44443/');
       expect(
         handoff.platformConfigUrl.toString(),
-        'https://weave.local:44443/api/platform/config',
+        'https://weave.test:44443/api/platform/config',
       );
     });
 
@@ -23,7 +23,7 @@ void main() {
       expect(
         () => const MemberHandoffParser().parse(
           Uri.parse(
-            'http://weave.local:8080/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check',
+            'http://weave.test:8080/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check',
           ),
         ),
         throwsA(isA<AppFailure>()),
@@ -70,20 +70,20 @@ void main() {
     test('accepts custom scheme handoff with explicit platform config', () {
       final handoff = const MemberHandoffParser().parse(
         Uri.parse(
-          'weave:/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check&product_base_url=https%3A%2F%2Fweave.local%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.local%3A44443%2Fapi%2Fplatform%2Fconfig',
+          'weave:/join?handoff_ref=handoff-abc123&org=massimo-dogfood&workspace=home&run_id=s32-check&product_base_url=https%3A%2F%2Fweave.test%3A44443&platform_config_url=https%3A%2F%2Fapi.weave.test%3A44443%2Fapi%2Fplatform%2Fconfig',
         ),
       );
 
-      expect(handoff.productBaseUrl.toString(), 'https://weave.local:44443/');
+      expect(handoff.productBaseUrl.toString(), 'https://weave.test:44443/');
       expect(
         handoff.platformConfigUrl.toString(),
-        'https://api.weave.local:44443/api/platform/config',
+        'https://api.weave.test:44443/api/platform/config',
       );
     });
 
     test('generates deterministic QR payload matching the invite contract', () {
       final payload = const MemberHandoffPayloadBuilder().qrPayload(
-        productBaseUrl: Uri.parse('https://weave.local:44443'),
+        productBaseUrl: Uri.parse('https://weave.test:44443'),
         handoffRef: 'handoff-qr123',
         organizationSlug: 'massimo-dogfood',
         workspaceSlug: 'home',
@@ -93,12 +93,12 @@ void main() {
       final decoded = Uri.parse(payload);
       final handoff = const MemberHandoffParser().parse(decoded);
 
-      expect(decoded.host, 'weave.local');
+      expect(decoded.host, 'weave.test');
       expect(decoded.path, '/join');
       expect(handoff.handoffRef, 'handoff-qr123');
       expect(
         handoff.platformConfigUrl.toString(),
-        'https://weave.local:44443/api/platform/config',
+        'https://weave.test:44443/api/platform/config',
       );
       expect(payload, isNot(contains('password')));
       expect(payload, isNot(contains('token')));

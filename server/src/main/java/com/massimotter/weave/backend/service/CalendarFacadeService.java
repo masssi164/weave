@@ -60,14 +60,14 @@ public class CalendarFacadeService {
     public CalendarFacadeService(
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
             ContextAuthorizationPort contextAuthorizationPort) {
-        this(calendarAdapterProvider, "https://files.weave.local", contextAuthorizationPort,
+        this(calendarAdapterProvider, "https://files.weave.test", contextAuthorizationPort,
                 new ContextAuthorizationProperties(null, null, null, null, null, null, null, null));
     }
 
     @Autowired
     public CalendarFacadeService(
             ObjectProvider<CalendarAdapter> calendarAdapterProvider,
-            @Value("${weave.platform.nextcloud-base-url:https://files.weave.local}") String nextcloudBaseUrl,
+            @Value("${weave.platform.nextcloud-base-url:https://files.weave.test}") String nextcloudBaseUrl,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties) {
         this.calendarAdapterProvider = calendarAdapterProvider;
@@ -76,7 +76,7 @@ public class CalendarFacadeService {
                 ? new ContextAuthorizationProperties(null, null, null, null, null, null, null, null)
                 : contextAuthorizationProperties;
         this.nextcloudBaseUrl = nextcloudBaseUrl == null || nextcloudBaseUrl.isBlank()
-                ? "https://files.weave.local"
+                ? "https://files.weave.test"
                 : nextcloudBaseUrl.trim();
         this.appleProfileRenderer = new AppleMobileConfigProfileRenderer(this.nextcloudBaseUrl);
     }
@@ -685,7 +685,7 @@ public class CalendarFacadeService {
 
     private String davx5Url() {
         URI uri = URI.create(nextcloudBaseUrl);
-        String host = uri.getHost() == null ? "files.weave.local" : uri.getHost();
+        String host = uri.getHost() == null ? "files.weave.test" : uri.getHost();
         int port = uri.getPort();
         String authority = port > 0 ? host + ":" + port : host;
         return "davx5://" + authority + "/remote.php/dav";

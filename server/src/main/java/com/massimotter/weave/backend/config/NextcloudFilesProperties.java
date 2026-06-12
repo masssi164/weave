@@ -13,7 +13,7 @@ public record NextcloudFilesProperties(
         String actorToken) {
 
     public NextcloudFilesProperties {
-        baseUrl = defaultIfBlank(baseUrl, "https://files.weave.local");
+        baseUrl = defaultIfBlank(baseUrl, "https://files.weave.test");
         webdavRootPath = normalizeWebdavRootPath(defaultIfBlank(webdavRootPath, "/remote.php/dav/files"));
         actorModel = defaultIfBlank(actorModel, "backend-service-account");
         actorUsername = trimToNull(actorUsername);

@@ -76,19 +76,19 @@ class PlatformContractServiceTest {
                 new MatrixChatProperties(false, null, null),
                 true,
                 new PlatformContractProperties(
-                        "https://weave.local",
-                        "https://api.weave.local/api",
-                        "https://auth.weave.local",
-                        "https://matrix.weave.local",
-                        "https://weave.local/files",
-                        "https://weave.local/calendar",
+                        "https://weave.test",
+                        "https://api.weave.test/api",
+                        "https://auth.weave.test",
+                        "https://matrix.weave.test",
+                        "https://weave.test/files",
+                        "https://weave.test/calendar",
                         "https://nextcloud.internal",
                         null));
 
         var config = service.config();
         var status = service.status("nextcloud-route-test");
 
-        assertThat(config.filesProductUrl()).isEqualTo("https://weave.local/files");
+        assertThat(config.filesProductUrl()).isEqualTo("https://weave.test/files");
         assertThat(config.nextcloudBaseUrl()).isEqualTo("https://nextcloud.internal");
         assertThat(status.nextcloud().readiness()).isEqualTo("ready");
         assertThat(status.nextcloud().message()).contains("technical route");
@@ -112,16 +112,16 @@ class PlatformContractServiceTest {
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(
                         new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(chatEnabled, "https://matrix.weave.local", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
+                        new WorkspaceCapabilityProperties.Capability(chatEnabled, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
                         null,
                         null));
     }
 
     private OAuth2ResourceServerProperties resourceServerProperties() {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
-        properties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        properties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
         return properties;
     }
 }

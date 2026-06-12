@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/portability/migration-run.schema.json",
+  "$id": "https://weave.test/contracts/portability/migration-run.schema.json",
   "title": "MigrationRun",
   "type": "object",
   "additionalProperties": false,

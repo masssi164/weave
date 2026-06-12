@@ -94,10 +94,10 @@ run_register_flow() {
     return 1
   }
 
-  token="$(register_matrix_user '@admin:matrix.weave.local' true)"
+  token="$(register_matrix_user '@admin:matrix.weave.test' true)"
   [[ "${token}" == "${expected_token}" ]] || fail "Matrix provisioner should return the compatibility token from MAS CLI."
 
-  if grep -q -- '--password\|set-password\|@admin:matrix.weave.local' "${calls_file}"; then
+  if grep -q -- '--password\|set-password\|@admin:matrix.weave.test' "${calls_file}"; then
     fail "Matrix provisioner should call MAS with password-free username/localpart semantics."
   fi
 
@@ -129,14 +129,14 @@ run_token_validation_flow() {
     # shellcheck disable=SC1090,SC1091
     source "$1"
     calls_file="$(mktemp)"
-    MATRIX_HOMESERVER_NAME=matrix.weave.local
+    MATRIX_HOMESERVER_NAME=matrix.weave.test
     WEAVE_MATRIX_TOKEN_VALIDATION_ATTEMPTS=1
     token_var=STALE_MATRIX_TOKEN
     export STALE_MATRIX_TOKEN=mct_stale
 
     validate_token() {
       printf "validate %s %s\n" "$1" "$2" >>"${calls_file}"
-      [[ "$1" == "mct_replacement" && "$2" == "@admin:matrix.weave.local" ]]
+      [[ "$1" == "mct_replacement" && "$2" == "@admin:matrix.weave.test" ]]
     }
 
     register_matrix_user() {
@@ -148,10 +148,10 @@ run_token_validation_flow() {
       printf "upsert %s\n" "$1" >>"${calls_file}"
     }
 
-    ensure_matrix_user_token "@admin:matrix.weave.local" "${token_var}" true
+    ensure_matrix_user_token "@admin:matrix.weave.test" "${token_var}" true
     [[ "${STALE_MATRIX_TOKEN}" == "mct_replacement" ]] || fail "Matrix provisioner should replace persisted compatibility tokens that Synapse rejects."
-    grep -q "validate mct_stale @admin:matrix.weave.local" "${calls_file}" || fail "Matrix provisioner should validate persisted tokens with Synapse whoami."
-    grep -q "validate mct_replacement @admin:matrix.weave.local" "${calls_file}" || fail "Matrix provisioner should validate newly-issued MAS compatibility tokens before Matrix room creation."
+    grep -q "validate mct_stale @admin:matrix.weave.test" "${calls_file}" || fail "Matrix provisioner should validate persisted tokens with Synapse whoami."
+    grep -q "validate mct_replacement @admin:matrix.weave.test" "${calls_file}" || fail "Matrix provisioner should validate newly-issued MAS compatibility tokens before Matrix room creation."
     grep -q "upsert STALE_MATRIX_TOKEN" "${calls_file}" || fail "Matrix provisioner should persist the validated replacement compatibility token."
 
     rm -f -- "${calls_file}"
@@ -166,14 +166,14 @@ run_token_reissue_flow() {
     # shellcheck disable=SC1090,SC1091
     source "$1"
     calls_file="$(mktemp)"
-    MATRIX_HOMESERVER_NAME=matrix.weave.local
+    MATRIX_HOMESERVER_NAME=matrix.weave.test
     WEAVE_MATRIX_TOKEN_VALIDATION_ATTEMPTS=1
     WEAVE_MATRIX_TOKEN_VALIDATION_DELAY_SECONDS=0
     WEAVE_MATRIX_TOKEN_ISSUE_ATTEMPTS=2
 
     validate_token() {
       printf "validate %s %s\n" "$1" "$2" >>"${calls_file}"
-      [[ "$1" == "mct_second" && "$2" == "@admin:matrix.weave.local" ]]
+      [[ "$1" == "mct_second" && "$2" == "@admin:matrix.weave.test" ]]
     }
 
     register_matrix_user() {
@@ -194,8 +194,8 @@ run_token_reissue_flow() {
     ensure_matrix_user_token admin REISSUED_MATRIX_TOKEN true
     [[ "${REISSUED_MATRIX_TOKEN}" == "mct_second" ]] || fail "Matrix provisioner should persist the reissued active compatibility token."
     [[ "$(grep -c "^register " "${calls_file}" | tr -d " ")" == "2" ]] || fail "Matrix provisioner should reissue once when the first fresh token is inactive."
-    grep -q "validate mct_first @admin:matrix.weave.local" "${calls_file}" || fail "Matrix provisioner should validate the first issued token."
-    grep -q "validate mct_second @admin:matrix.weave.local" "${calls_file}" || fail "Matrix provisioner should validate the reissued token."
+    grep -q "validate mct_first @admin:matrix.weave.test" "${calls_file}" || fail "Matrix provisioner should validate the first issued token."
+    grep -q "validate mct_second @admin:matrix.weave.test" "${calls_file}" || fail "Matrix provisioner should validate the reissued token."
     grep -q "upsert REISSUED_MATRIX_TOKEN mct_second" "${calls_file}" || fail "Matrix provisioner should persist only the active reissued token."
 
     rm -f -- "${calls_file}"
@@ -204,7 +204,7 @@ run_token_reissue_flow() {
 
 run_token_reissue_flow
 
-MATRIX_HOMESERVER_NAME=matrix.weave.local \
+MATRIX_HOMESERVER_NAME=matrix.weave.test \
 WEAVE_MATRIX_TOKEN_VALIDATION_ATTEMPTS=1 \
 WEAVE_MATRIX_TOKEN_VALIDATION_DELAY_SECONDS=0 \
 WEAVE_MATRIX_TOKEN_ISSUE_ATTEMPTS=1 \

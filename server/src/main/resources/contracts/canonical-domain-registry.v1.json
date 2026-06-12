@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/canonical-domain-registry.v1.json",
+  "$id": "https://weave.test/contracts/canonical-domain-registry.v1.json",
   "title": "Weave Canonical Domain Registry v1",
   "registry_version": "canonical-domain-registry-v1",
   "description": "Provider-neutral Weave product domain vocabulary. Provider IDs belong in admin/operator mapping evidence, not member-facing contracts.",

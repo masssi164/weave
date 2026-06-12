@@ -6,20 +6,20 @@ This backend is intentionally small, but operators still need a clear runtime co
 
 Required:
 
-- `WEAVE_OIDC_ISSUER_URI`: public issuer URI for the Keycloak realm used by Weave; canonical local/dev value is `https://auth.weave.local/realms/weave`
+- `WEAVE_OIDC_ISSUER_URI`: public issuer URI for the Keycloak realm used by Weave; canonical local/dev value is `https://auth.weave.test/realms/weave`
 
 Optional:
 
 - `WEAVE_OIDC_JWK_SET_URI`: internal JWKS URL when the backend cannot use the issuer metadata endpoint directly
 - `WEAVE_OIDC_REQUIRED_AUDIENCE`: required audience in Weave access tokens, defaults to `weave-app`
 - `WEAVE_CLIENT_ID`: required first-party client identifier in `azp` and/or `client_id`, defaults to `weave-app`
-- `WEAVE_PUBLIC_BASE_URL`: public product entrypoint, defaults to `https://weave.local`
-- `WEAVE_API_BASE_URL`: public backend API base URL, defaults to `https://api.weave.local/api`
-- `WEAVE_AUTH_BASE_URL`: public Keycloak base URL, defaults to `https://auth.weave.local`
-- `WEAVE_MATRIX_HOMESERVER_URL`: public Matrix homeserver URL, defaults to `https://matrix.weave.local`
-- `WEAVE_FILES_PRODUCT_URL`: public files product surface, defaults to `https://weave.local/files`
-- `WEAVE_CALENDAR_PRODUCT_URL`: public calendar product surface, defaults to `https://weave.local/calendar`
-- `WEAVE_NEXTCLOUD_BASE_URL`: canonical Nextcloud URL, defaults to `https://files.weave.local`
+- `WEAVE_PUBLIC_BASE_URL`: public product entrypoint, defaults to `https://weave.test`
+- `WEAVE_API_BASE_URL`: public backend API base URL, defaults to `https://api.weave.test/api`
+- `WEAVE_AUTH_BASE_URL`: public Keycloak base URL, defaults to `https://auth.weave.test`
+- `WEAVE_MATRIX_HOMESERVER_URL`: public Matrix homeserver URL, defaults to `https://matrix.weave.test`
+- `WEAVE_FILES_PRODUCT_URL`: public files product surface, defaults to `https://weave.test/files`
+- `WEAVE_CALENDAR_PRODUCT_URL`: public calendar product surface, defaults to `https://weave.test/calendar`
+- `WEAVE_NEXTCLOUD_BASE_URL`: canonical Nextcloud URL, defaults to `https://files.weave.test`
 - `WEAVE_ONBOARDING_MATRIX_PROVISIONING_STATE`: optional first-run Matrix provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from the chat capability
 - `WEAVE_ONBOARDING_NEXTCLOUD_PROVISIONING_STATE`: optional first-run Nextcloud provisioning override (`not_configured`, `pending`, `ready`, `degraded`, `failed`); blank derives status from files/calendar capability and Nextcloud route configuration
 - `WEAVE_PROFILE_STORAGE_PATH`: durable JSON file path for mutable profile overrides accepted by `PATCH /api/profile`, defaults to `./data/profile-overrides.json`
@@ -29,9 +29,9 @@ For the complete environment-variable reference, including Files/Calendar adapte
 
 ## Local/dev public contract
 
-The backend's canonical local/dev API base is `https://api.weave.local/api`. The product shell remains `https://weave.local`.
+The backend's canonical local/dev API base is `https://api.weave.test/api`. The product shell remains `https://weave.test`.
 
-The canonical local/dev Keycloak issuer is `https://auth.weave.local/realms/weave`. Keep any private JWKS route in `WEAVE_OIDC_JWK_SET_URI`; do not replace token issuer validation with an internal service URL.
+The canonical local/dev Keycloak issuer is `https://auth.weave.test/realms/weave`. Keep any private JWKS route in `WEAVE_OIDC_JWK_SET_URI`; do not replace token issuer validation with an internal service URL.
 
 ## Protected API behavior
 

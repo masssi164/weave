@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/portability/provider-adapter-manifest.schema.json",
+  "$id": "https://weave.test/contracts/portability/provider-adapter-manifest.schema.json",
   "title": "ProviderAdapterManifest",
   "type": "object",
   "additionalProperties": false,

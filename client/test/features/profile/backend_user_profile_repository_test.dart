@@ -49,7 +49,7 @@ void main() {
           }),
         ),
         sessionResolver: () async => WeaveAuthenticatedSession(
-          apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+          apiBaseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
         ),
       );
@@ -65,7 +65,7 @@ void main() {
       expect(capturedRequest.method, 'PATCH');
       expect(
         capturedRequest.url.toString(),
-        'https://api.weave.local/api/profile',
+        'https://api.weave.test/api/profile',
       );
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(profile.displayName, 'Alice Updated');

@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class JwtDecoderConfigTest {
 
-    private static final String ISSUER_URI = "https://auth.weave.local/realms/weave";
+    private static final String ISSUER_URI = "https://auth.weave.test/realms/weave";
 
     @Test
     void usesConfiguredJwkSetUriAndValidatesPublicIssuer() throws Exception {

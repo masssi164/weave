@@ -16,23 +16,23 @@ class WorkspaceReleaseReadinessServiceTest {
     @Test
     void returnsReadyWhenAuthChatAndFilesAreConfigured() {
         WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
-                resourceServerProperties("https://auth.weave.local/realms/weave"),
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(
                         new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null));
 
         WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(
-                resourceServerProperties("https://auth.weave.local/realms/weave"),
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(
                         new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
                         null,
                         null,
                         null),
@@ -83,11 +83,11 @@ class WorkspaceReleaseReadinessServiceTest {
                 null,
                 null);
         WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
-                resourceServerProperties("https://auth.weave.local/realms/weave"),
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 properties);
         WorkspaceReleaseReadinessService service = new WorkspaceReleaseReadinessService(
-                resourceServerProperties("https://auth.weave.local/realms/weave"),
+                resourceServerProperties("https://auth.weave.test/realms/weave"),
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 properties,
                 capabilityService);
@@ -96,8 +96,8 @@ class WorkspaceReleaseReadinessServiceTest {
 
         assertThat(snapshot.readiness()).isEqualTo(WorkspaceCapabilityReadiness.DEGRADED);
         assertThat(snapshot.actions()).containsExactly(
-                "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.local.",
-                "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.local.");
+                "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.test.",
+                "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.test.");
     }
 
     private Jwt jwt(String role) {

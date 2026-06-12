@@ -1,7 +1,7 @@
 {
   "artifactVersion": "keycloak-realm-contract-v1",
   "realm": "weave",
-  "issuer": "https://auth.weave.local/realms/weave",
+  "issuer": "https://auth.weave.test/realms/weave",
   "recommendedIdentityBroker": "keycloak",
   "organizationClaims": {
     "tenantClaim": "weave_tenant_id",
@@ -22,7 +22,7 @@
       "accessType": "PUBLIC",
       "pkce": "S256",
       "defaultScopes": ["profile", "email", "roles", "weave:workspace"],
-      "redirectUris": ["https://admin.weave.local/*"],
+      "redirectUris": ["https://admin.weave.test/*"],
       "audience": "weave-app"
     },
     {

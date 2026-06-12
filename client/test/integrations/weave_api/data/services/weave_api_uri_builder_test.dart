@@ -7,12 +7,12 @@ void main() {
       'adds the backend facade api prefix when the base is the API host',
       () {
         expect(
-          weaveApiUri(Uri.parse('https://api.weave.local'), const [
+          weaveApiUri(Uri.parse('https://api.weave.test'), const [
             'api',
             'calendar',
             'events',
           ]).toString(),
-          'https://api.weave.local/api/calendar/events',
+          'https://api.weave.test/api/calendar/events',
         );
       },
     );
@@ -21,12 +21,12 @@ void main() {
       'does not duplicate the api prefix when the base already includes it',
       () {
         expect(
-          weaveApiUri(Uri.parse('https://api.weave.local/api'), const [
+          weaveApiUri(Uri.parse('https://api.weave.test/api'), const [
             'api',
             'calendar',
             'events',
           ]).toString(),
-          'https://api.weave.local/api/calendar/events',
+          'https://api.weave.test/api/calendar/events',
         );
       },
     );

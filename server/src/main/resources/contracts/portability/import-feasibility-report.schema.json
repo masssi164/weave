@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/portability/import-feasibility-report.schema.json",
+  "$id": "https://weave.test/contracts/portability/import-feasibility-report.schema.json",
   "title": "ImportFeasibilityReport",
   "type": "object",
   "additionalProperties": false,

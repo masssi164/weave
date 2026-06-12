@@ -47,11 +47,11 @@ void main() {
       );
 
       final profile = await client.fetchProfile(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
       );
 
-      expect(capturedRequest.url.toString(), 'https://api.weave.local/api/me');
+      expect(capturedRequest.url.toString(), 'https://api.weave.test/api/me');
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(profile.displayName, 'Alice Example');
       expect(profile.roles, ['member']);
@@ -82,7 +82,7 @@ void main() {
       );
 
       final profile = await client.updateProfile(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
         update: const UserProfileUpdate(
           displayName: 'Alice Updated',
@@ -94,7 +94,7 @@ void main() {
       expect(capturedRequest.method, 'PATCH');
       expect(
         capturedRequest.url.toString(),
-        'https://api.weave.local/api/profile',
+        'https://api.weave.test/api/profile',
       );
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(profile.displayName, 'Alice Updated');

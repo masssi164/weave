@@ -24,7 +24,7 @@ The command rejects `localhost`, `127.0.0.1`, `0.0.0.0`, container-only names, a
 For tomorrow's local dogfood, the customer-friendly start page is:
 
 ```text
-https://weave.local:44443/
+https://weave.test:44443/
 ```
 
 It includes the local CA downloads, iPhone trust steps, DNS-first service links, and the no-secrets warning. To generate the deterministic no-secret invite source from the repo:
@@ -36,7 +36,7 @@ infra/weave-workspace/local-invite-link.sh --json
 Default invite link to give Massimo:
 
 ```text
-https://weave.local:44443/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood
+https://weave.test:44443/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood
 ```
 
 Give Massimo the QR/link from `handoff.json` or the deterministic local invite above and say:

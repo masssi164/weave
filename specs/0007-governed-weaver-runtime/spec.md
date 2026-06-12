@@ -46,7 +46,7 @@ Define the first implementation-ready Weaver runtime contract without making Wea
 - **FR-001**: The runtime profile MUST expose runtime provider, model provider, and tool provider as separate concepts.
 - **FR-002**: The runtime profile MUST be generated from workspace capability policy and MUST remain disabled by default.
 - **FR-003**: The runtime profile MUST use support-safe user references and MUST NOT contain raw provider tokens.
-- **FR-004**: The runtime profile MUST express tools as Weave domain capabilities, not provider APIs.
+- **FR-004**: The runtime profile MUST express tools as Weave domain capabilities, not provider APIs. MCP tool names MUST be domain-first, such as `calendar.search_events`; adapter/provider-prefixed calendar tool names are forbidden in the governed member runtime.
 - **FR-005**: Tool discovery MUST filter by the generated user grants.
 - **FR-006**: Unauthorized tool invocation MUST be blocked and audited.
 - **FR-007**: Write/delete/external-send/provider-switch actions MUST require approval receipts before invocation.
@@ -60,6 +60,8 @@ Define the first implementation-ready Weaver runtime contract without making Wea
 - **FR-015**: Raw OpenClaw configuration surfaces (`openclaw.json`, `openclaw config`, setup wizard, dashboard controls for gateway/channels/MCP/secrets/sandbox/exec/tool allowlists) MUST be disabled, read-only, or RBAC-stripped for normal members.
 - **FR-016**: Credential handling MUST use Weave Credential Broker references and short-lived runtime tokens. Weaver profiles, logs, prompts, support bundles, and release evidence MUST NOT contain provider secrets, OAuth refresh tokens, cookies, or credential-bearing provider URLs.
 - **FR-017**: Every model, channel, tool, MCP, and provider call MUST emit support-safe audit metadata containing at least `runtimeProfileHash`, user, tool, domain, providerRef, credentialRef where applicable, and policy decision.
+- **FR-018**: `calendar.search_events` MUST delegate to the Weave backend Calendar facade/capability boundary. Provider choice, including any current Nextcloud CalDAV backing, is selected by stack/admin configuration behind that facade and MUST NOT be called directly by the MCP server or exposed in member/runtime discovery metadata.
+- **FR-019**: Discovery metadata MUST expose Weave domain, capability, read/write posture, approval requirement, and support-safe schema only. `providerRef`, adapter URL, credentialRef target detail, and raw downstream diagnostics MUST remain hidden or redacted from normal runtime discovery and fail closed on missing backend authority.
 
 ## Initial tool set
 

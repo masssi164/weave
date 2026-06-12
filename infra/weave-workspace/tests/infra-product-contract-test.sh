@@ -313,7 +313,7 @@ assert_file_contains "${caddy_template}" 'reverse_proxy ${api_upstream}'
 assert_file_contains "${infra_main}" 'client_public_url     = local.client_public_url'
 assert_file_contains "${caddy_template}" 'handoff-s32-massimo-dogfood-home'
 assert_file_contains "${caddy_template}" 'passwords, tokens, client secrets, or credential URLs'
-assert_file_contains "${local_invite_script}" 'base_url="${WEAVE_PUBLIC_BASE_URL:-https://weave.local:44443}"'
+assert_file_contains "${local_invite_script}" 'base_url="${WEAVE_PUBLIC_BASE_URL:-https://weave.test:44443}"'
 assert_file_contains "${local_invite_script}" 'handoff-s32-massimo-dogfood-home'
 assert_file_contains "${local_invite_script}" 'json.dumps(result, separators=(",", ":"), sort_keys=True)'
 assert_file_absent "${install_script}" 'http://${TF_VAR_local_lan_host}:${TF_VAR_proxy_http_host_port}/weave-local-ca.pem'
@@ -321,9 +321,9 @@ assert_file_absent "${infra_outputs}" 'local_lan_url'
 
 invite_json="$(${local_invite_script} --json)"
 printf '%s' "${invite_json}" | jq -e '
-  .inviteLink == "https://weave.local:44443/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood" and
+  .inviteLink == "https://weave.test:44443/join?handoff_ref=handoff-s32-massimo-dogfood-home&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-massimo-dogfood" and
   .qrPayload == .inviteLink and
-  .platformConfigUrl == "https://weave.local:44443/api/platform/config" and
+  .platformConfigUrl == "https://weave.test:44443/api/platform/config" and
   .org == "massimo-dogfood" and
   .workspace == "home" and
   (.secretPolicy | contains(".generated/bootstrap.env"))

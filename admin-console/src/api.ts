@@ -445,11 +445,11 @@ const runtimeEnv: RuntimeEnv =
 
 export const adminConsoleConfig: AdminConsoleConfig = {
   apiBaseUrl: (
-    runtimeEnv.VITE_WEAVE_API_BASE_URL ?? "https://api.weave.local:44443/api"
+    runtimeEnv.VITE_WEAVE_API_BASE_URL ?? "https://api.weave.test:44443/api"
   ).replace(/\/$/, ""),
   oidcIssuerUrl:
     runtimeEnv.VITE_WEAVE_OIDC_ISSUER_URL ??
-    "https://auth.weave.local:44443/realms/weave",
+    "https://auth.weave.test:44443/realms/weave",
   oidcClientId:
     runtimeEnv.VITE_WEAVE_ADMIN_OIDC_CLIENT_ID ?? "weave-admin-console",
 };
@@ -2155,7 +2155,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
     id: "weave-dogfood",
     displayName: "Weave Dogfood",
     manifestUrl: "/api/organization/manifest",
-    authIssuerUrl: "https://auth.weave.local/realms/weave",
+    authIssuerUrl: "https://auth.weave.test/realms/weave",
   },
   providerConfigSource: "admin-control-plane-selected-provider-mappings",
   bootstrapDefaultsAreSuggestionsOnly: true,
@@ -2450,7 +2450,7 @@ export const sampleControlPlane: ControlPlaneResponse = {
     {
       id: "audit-1",
       action: "provider.readiness.tested",
-      actor: "operator@weave.local",
+      actor: "operator@weave.test",
       createdAt: "2026-05-24T18:00:00Z",
       summary:
         "Readiness tested for keycloak-realm; result redacted and support-safe.",

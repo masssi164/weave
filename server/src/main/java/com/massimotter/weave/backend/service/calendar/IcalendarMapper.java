@@ -29,7 +29,7 @@ public class IcalendarMapper {
 
     public EventDraft draftFrom(CreateCalendarEventRequest request) {
         return new EventDraft(
-                UUID.randomUUID() + "@weave.local",
+                UUID.randomUUID() + "@weave.test",
                 request.title(),
                 blankToNull(request.description()),
                 request.startsAt(),

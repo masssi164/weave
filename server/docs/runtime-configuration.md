@@ -4,20 +4,20 @@ This document is the backend runtime reference for operators and local integrati
 
 ## Required runtime variable
 
-- `WEAVE_OIDC_ISSUER_URI`: public issuer URI for the Keycloak realm used by Weave. Canonical local/dev value: `https://auth.weave.local/realms/weave`.
+- `WEAVE_OIDC_ISSUER_URI`: public issuer URI for the Keycloak realm used by Weave. Canonical local/dev value: `https://auth.weave.test/realms/weave`.
 
 ## Optional platform and auth variables
 
 - `WEAVE_OIDC_JWK_SET_URI`: internal JWKS URL for backend key discovery when it differs from the public issuer metadata route.
 - `WEAVE_OIDC_REQUIRED_AUDIENCE`: audience required in access tokens, defaults to `weave-app`.
 - `WEAVE_CLIENT_ID`: first-party Weave app client ID required in `azp` and/or `client_id`, defaults to `weave-app`.
-- `WEAVE_PUBLIC_BASE_URL`: public product entrypoint, defaults to `https://weave.local`.
-- `WEAVE_API_BASE_URL`: public backend API base URL, defaults to `https://api.weave.local/api`.
-- `WEAVE_AUTH_BASE_URL`: public Keycloak base URL, defaults to `https://auth.weave.local`.
-- `WEAVE_MATRIX_HOMESERVER_URL`: public Matrix homeserver URL, defaults to `https://matrix.weave.local`.
-- `WEAVE_FILES_PRODUCT_URL`: public files product surface, defaults to `https://weave.local/files`.
-- `WEAVE_CALENDAR_PRODUCT_URL`: public calendar product surface, defaults to `https://weave.local/calendar`.
-- `WEAVE_NEXTCLOUD_BASE_URL`: canonical raw Nextcloud technical/admin/protocol URL, defaults to `https://files.weave.local`.
+- `WEAVE_PUBLIC_BASE_URL`: public product entrypoint, defaults to `https://weave.test`.
+- `WEAVE_API_BASE_URL`: public backend API base URL, defaults to `https://api.weave.test/api`.
+- `WEAVE_AUTH_BASE_URL`: public Keycloak base URL, defaults to `https://auth.weave.test`.
+- `WEAVE_MATRIX_HOMESERVER_URL`: public Matrix homeserver URL, defaults to `https://matrix.weave.test`.
+- `WEAVE_FILES_PRODUCT_URL`: public files product surface, defaults to `https://weave.test/files`.
+- `WEAVE_CALENDAR_PRODUCT_URL`: public calendar product surface, defaults to `https://weave.test/calendar`.
+- `WEAVE_NEXTCLOUD_BASE_URL`: canonical raw Nextcloud technical/admin/protocol URL, defaults to `https://files.weave.test`.
 - `WEAVE_TARGET_MOBILE`: advertise mobile as a supported client target, defaults to `true`.
 - `WEAVE_TARGET_DESKTOP`: advertise desktop as a supported client target, defaults to `true`.
 - `WEAVE_TARGET_WEB`: advertise web as a supported client target, defaults to `false`.
@@ -104,7 +104,7 @@ If the actor model, username, or token is missing, files endpoints fail closed w
 
 Calendar product operations stay on `/api`; this backend is the only component that talks to Nextcloud CalDAV.
 
-- `WEAVE_CALDAV_BASE_URL`: Nextcloud origin used by the backend CalDAV adapter, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.local`.
+- `WEAVE_CALDAV_BASE_URL`: Nextcloud origin used by the backend CalDAV adapter, defaults to `WEAVE_NEXTCLOUD_BASE_URL` or `https://files.weave.test`.
 - `WEAVE_CALDAV_CALENDAR_PATH_TEMPLATE`: CalDAV calendar collection path for the backend-owned workspace calendar, defaults to `/remote.php/dav/calendars/${WEAVE_CALDAV_BACKEND_USERNAME:-weave-backend}/personal/`. Optional scope placeholders `{scopeId}`, `{scopeType}`, `{team}`, and `{channel}` can be used by operators who provision explicit workspace/team/channel collections.
 - `WEAVE_CALDAV_AUTH_MODE`: backend actor credential mode (`BASIC` or `BEARER`), defaults to `BASIC`.
 - `WEAVE_CALDAV_BACKEND_USERNAME`: backend actor username for Basic auth; required with `BASIC`.

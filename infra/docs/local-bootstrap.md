@@ -7,7 +7,7 @@ This guide contains the local/dev provider-stack implementation path that used t
 Default local `/etc/hosts` line:
 
 ```text
-127.0.0.1 weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local
+127.0.0.1 weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test
 ```
 
 Run this from the repository root to print the current default line:
@@ -51,12 +51,12 @@ Before deleting volumes, the helper lists the affected data domains: Keycloak id
 
 The public local contract is HTTPS on these hostnames:
 
-- `https://weave.local` as the Weave product gateway
-- `https://weave.local/files` and `https://weave.local/calendar` as Weave product routes
-- `https://api.weave.local/api` as the canonical backend API
-- `https://auth.weave.local`
-- `https://matrix.weave.local`
-- `https://files.weave.local` as raw Nextcloud technical/admin/protocol fallback
+- `https://weave.test` as the Weave product gateway
+- `https://weave.test/files` and `https://weave.test/calendar` as Weave product routes
+- `https://api.weave.test/api` as the canonical backend API
+- `https://auth.weave.test`
+- `https://matrix.weave.test`
+- `https://files.weave.test` as raw Nextcloud technical/admin/protocol fallback
 
 Generated-CA flow:
 
@@ -72,9 +72,9 @@ cd weave-workspace
 mkdir -p 01-infrastructure/.generated/caddy/certs
 mkcert -install
 mkcert \
-  -cert-file 01-infrastructure/.generated/caddy/certs/weave.local.pem \
-  -key-file 01-infrastructure/.generated/caddy/certs/weave.local-key.pem \
-  weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local
+  -cert-file 01-infrastructure/.generated/caddy/certs/weave.test.pem \
+  -key-file 01-infrastructure/.generated/caddy/certs/weave.test-key.pem \
+  weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test
 cp "$(mkcert -CAROOT)/rootCA.pem" 01-infrastructure/.generated/caddy/certs/weave-local-ca.pem
 ./install.sh
 ```
@@ -95,11 +95,11 @@ Do not attach `bootstrap.env` to support issues or logs.
 Integration tests should call the backend through the Caddy proxy URL, not the direct backend container port. For the default local stack:
 
 ```bash
-export WEAVE_API_BASE_URL=https://api.weave.local/api
-export WEAVE_BASE_URL=https://api.weave.local/api
-export WEAVE_OIDC_ISSUER_URL=https://auth.weave.local/realms/weave
+export WEAVE_API_BASE_URL=https://api.weave.test/api
+export WEAVE_BASE_URL=https://api.weave.test/api
+export WEAVE_OIDC_ISSUER_URL=https://auth.weave.test/realms/weave
 export WEAVE_OIDC_CLIENT_ID=weave-app
-export WEAVE_TEST_USERNAME=test@weave.local
+export WEAVE_TEST_USERNAME=test@weave.test
 export WEAVE_TEST_PASSWORD='<generated — see install.sh output or bootstrap.env>'
 ```
 
@@ -133,11 +133,11 @@ The default Keycloak client contract for the Weave mobile app is:
 
 The backend resource server contract is:
 
-- issuer URI: `https://auth.weave.local/realms/weave`
+- issuer URI: `https://auth.weave.test/realms/weave`
 - JWKS URI: `http://weave-keycloak:8080/realms/weave/protocol/openid-connect/certs`
 - required audience: `weave-app`
 - expected client ID / authorized party: `weave-app`
-- public readiness endpoint: `https://api.weave.local/api/health/ready`
+- public readiness endpoint: `https://api.weave.test/api/health/ready`
 - direct readiness endpoint: `http://127.0.0.1:8084/api/health/ready`
 
 See [../KEYCLOAK_CONTRACT.md](../KEYCLOAK_CONTRACT.md) for the full realm, client, scope, claim, and audience contract.

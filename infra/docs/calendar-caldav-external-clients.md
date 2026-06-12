@@ -7,7 +7,7 @@ Contacts/CardDAV and Forms are visible provider seams in this infra slice, but t
 ## Public discovery route
 
 - Public CalDAV/CardDAV/WebDAV base: `https://files.<tenant-domain>/remote.php/dav`.
-- Local default: `https://files.weave.local/remote.php/dav`.
+- Local default: `https://files.weave.test/remote.php/dav`.
 - Caddy forwards the whole `files.<tenant-domain>` host to Nextcloud, so no dedicated Caddy path rule is required for `/remote.php/dav`.
 - CalDAV and CardDAV discovery share this protected Nextcloud DAV root; the stack does not expose separate product-domain DAV routes.
 - `smoke-test.sh` and `release-verify.sh` probe `PROPFIND /remote.php/dav` without credentials and accept:

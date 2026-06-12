@@ -52,9 +52,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.local/realms/weave",
-        "weave.workspace.chat.dependency-url=https://matrix.weave.local",
-        "weave.workspace.files.dependency-url=https://files.weave.local"
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+        "weave.workspace.chat.dependency-url=https://matrix.weave.test",
+        "weave.workspace.files.dependency-url=https://files.weave.test"
 })
 class OnboardingControllerTest {
 

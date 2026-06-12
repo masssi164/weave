@@ -277,7 +277,7 @@ class MemberHandoffParser {
       return 'forbidden-local-only';
     }
 
-    if (host == 'weave.local' || host.endsWith('.weave.local')) {
+    if (host == 'weave.test' || host.endsWith('.weave.test')) {
       return 'lan-dns';
     }
 

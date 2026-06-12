@@ -113,15 +113,15 @@ void main() {
 
         await tester.enterText(
           _textFieldWithLabel('OIDC Issuer URL'),
-          'https://auth.weave.local/realms/weave',
+          'https://auth.weave.test/realms/weave',
         );
         await tester.tap(find.text('Next'));
         await tester.pumpAndSettle();
 
         expect(find.text('Review Service Endpoints'), findsOneWidget);
-        expect(find.text('https://matrix.weave.local'), findsWidgets);
-        expect(find.text('https://files.weave.local'), findsWidgets);
-        expect(find.text('https://api.weave.local/api'), findsWidgets);
+        expect(find.text('https://matrix.weave.test'), findsWidgets);
+        expect(find.text('https://files.weave.test'), findsWidgets);
+        expect(find.text('https://api.weave.test/api'), findsWidgets);
 
         await tester.tap(find.text('Finish'));
         await tester.pumpAndSettle();
@@ -222,7 +222,7 @@ void main() {
         );
         await tester.enterText(
           _textFieldWithLabel('Nextcloud Base URL'),
-          'https://files-alt.weave.local',
+          'https://files-alt.weave.test',
         );
         await tester.tap(find.widgetWithText(AccessibleButton, 'Save Changes'));
         await tester.pumpAndSettle();
@@ -231,11 +231,11 @@ void main() {
         await tester.tap(_navigationDestination('Files'));
         await tester.pumpAndSettle();
 
-        expect(find.text('https://files-alt.weave.local'), findsNothing);
+        expect(find.text('https://files-alt.weave.test'), findsNothing);
         expect(find.text('Connect Files'), findsWidgets);
         expect(
           filesRepository.lastConfiguredBaseUrl.toString(),
-          'https://files-alt.weave.local',
+          'https://files-alt.weave.test',
         );
 
         await tester.tap(find.text('Connect Files').first);
@@ -464,7 +464,7 @@ class _ScenarioFilesRepository
           .configuration
           ?.serviceEndpoints
           .nextcloudBaseUrl ??
-      Uri.parse('https://files.weave.local');
+      Uri.parse('https://files.weave.test');
 
   @override
   Future<FilesConnectionState> connect() async {
@@ -592,7 +592,7 @@ class _ScenarioChatRepository implements ChatRepository {
   final List<ChatMessage> _messages = <ChatMessage>[
     ChatMessage(
       id: r'$seed',
-      senderId: '@alex:weave.local',
+      senderId: '@alex:weave.test',
       senderDisplayName: 'Alex',
       sentAt: DateTime.utc(2026, 4, 20, 18),
       isMine: false,
@@ -612,7 +612,7 @@ class _ScenarioChatRepository implements ChatRepository {
   Future<List<ChatConversation>> loadConversations() async =>
       const <ChatConversation>[
         ChatConversation(
-          id: '!release:weave.local',
+          id: '!release:weave.test',
           title: 'Release Room',
           previewType: ChatConversationPreviewType.text,
           previewText: 'Golden path ready',
@@ -643,7 +643,7 @@ class _ScenarioChatRepository implements ChatRepository {
     _messages.add(
       ChatMessage(
         id: 'msg-${_messages.length + 1}',
-        senderId: '@me:weave.local',
+        senderId: '@me:weave.test',
         senderDisplayName: 'Me',
         sentAt: DateTime.utc(2026, 4, 20, 18, _messages.length),
         isMine: true,

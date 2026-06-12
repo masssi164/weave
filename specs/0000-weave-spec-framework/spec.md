@@ -78,12 +78,17 @@ This framework does not define new member-facing product behavior. It defines th
 - **FR-006**: The framework MUST define an optimization-review loop that repeats implementation/review until no material optimization remains or a product-core clarification blocks safe progress.
 - **FR-007**: The framework MUST include compact handoff/review templates and MUST forbid deployable-looking operator-runtime JSON examples in the product repo.
 - **FR-008**: This framework MUST NOT create a parallel wiki as source of truth.
+- **FR-009**: The pinned Weave Specification Corpus in `specs/weave-specs.lock.json` MUST remain the canonical product/domain source of truth. Repo-local specs MUST be implementation and conformance projections that trace to pinned corpus files, not competing product truth.
+- **FR-010**: Work MUST follow the Spec Kit lifecycle: Spec → Plan → Tasks → Implement → Evidence. Implementing or implemented specs MUST have a matching `plan.md`, `tasks.md`, and `traceability.yaml` unless the spec explicitly declares itself process-only and non-implementing.
+- **FR-011**: Local dogfood/runtime evidence MUST use `weave.test` / `*.weave.test` as the only local URL truth. The former `.local` dogfood alias is obsolete drift and MUST NOT appear in active specs, docs, code, config, tests, or generated fixtures.
 
 ## Domain model and contracts
 
-- **Spec**: Versioned product/system contract with frontmatter, acceptance/evidence links, and lifecycle status.
+- **Pinned corpus**: `../weave-specs` content selected by `specs/weave-specs.lock.json`; canonical product/domain source of truth.
+- **Repo-local spec projection**: Versioned implementation/conformance contract under `specs/` with frontmatter, acceptance/evidence links, lifecycle status, and traceability back to the pinned corpus.
 - **Plan**: Technical implementation approach constrained by a spec and the constitution.
 - **Task list**: Independently testable slices mapped to stories/areas and gates.
+- **Traceability map**: `traceability.yaml` linking pinned corpus source → repo-local projection → acceptance scenarios → evidence gates/artifacts.
 - **Assistant brief**: Scoped work order for a logical reviewer or implementer with allowed files, gate, and stop conditions.
 - **Optimization review**: Adversarial but practical review that returns only material improvements against the spec, runtime policy, and evidence.
 - **Evidence gate**: Command or artifact that proves a claim without raw secret/provider leakage.

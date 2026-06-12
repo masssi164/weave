@@ -32,7 +32,7 @@ http.StreamedResponse _jsonResponse(
 }
 
 Map<String, Object?> _organizationManifestJson({
-  String organizationAuthUrl = 'https://auth.weave.local/realms/weave',
+  String organizationAuthUrl = 'https://auth.weave.test/realms/weave',
   bool supportSafe = true,
   bool providerConfigurationExposed = false,
   bool diagnosticsExposed = false,
@@ -158,13 +158,13 @@ void main() {
         );
 
         final snapshot = await client.fetchOrganizationManifest(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
         );
 
         expect(
           capturedRequest.url.toString(),
-          'https://api.weave.local/api/v1/organization/manifest',
+          'https://api.weave.test/api/v1/organization/manifest',
         );
         expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
         expect(snapshot.safeForMemberClient, isTrue);
@@ -216,7 +216,7 @@ void main() {
 
         expect(
           () => client.fetchOrganizationManifest(
-            baseUrl: Uri.parse('https://api.weave.local/api'),
+            baseUrl: Uri.parse('https://api.weave.test/api'),
             accessToken: 'token-123',
           ),
           throwsA(isA<AppFailure>()),
@@ -228,9 +228,9 @@ void main() {
       for (final invalidAuthUrl in [
         'configured-by-organization-admin',
         'https:///realms/weave',
-        'https://user:pass@auth.weave.local/realms/weave',
-        'https://auth.weave.local/realms/weave?provider=raw',
-        'https://auth.weave.local/realms/weave#diagnostics',
+        'https://user:pass@auth.weave.test/realms/weave',
+        'https://auth.weave.test/realms/weave?provider=raw',
+        'https://auth.weave.test/realms/weave#diagnostics',
       ]) {
         final client = HttpWeaveApiClient(
           httpClient: _RecordingHttpClient((request) async {
@@ -242,7 +242,7 @@ void main() {
 
         expect(
           () => client.fetchOrganizationManifest(
-            baseUrl: Uri.parse('https://api.weave.local/api'),
+            baseUrl: Uri.parse('https://api.weave.test/api'),
             accessToken: 'token-123',
           ),
           throwsA(isA<AppFailure>()),
@@ -262,12 +262,12 @@ void main() {
                 diagnosticsExposed: true,
               )..addAll({
                 'providerUrls': [
-                  'https://matrix.weave.local',
-                  'https://files.weave.local',
+                  'https://matrix.weave.test',
+                  'https://files.weave.test',
                 ],
                 'diagnostics': {
-                  'matrix': 'matrix.weave.local',
-                  'files': 'files.weave.local',
+                  'matrix': 'matrix.weave.test',
+                  'files': 'files.weave.test',
                 },
               }),
             );
@@ -276,7 +276,7 @@ void main() {
 
         expect(
           () => client.fetchOrganizationManifest(
-            baseUrl: Uri.parse('https://api.weave.local/api'),
+            baseUrl: Uri.parse('https://api.weave.test/api'),
             accessToken: 'token-123',
           ),
           throwsA(isA<AppFailure>()),
@@ -327,13 +327,13 @@ void main() {
       );
 
       final snapshot = await client.fetchWorkspaceHome(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
       );
 
       expect(
         capturedRequest.url.toString(),
-        'https://api.weave.local/api/v1/workspace/home',
+        'https://api.weave.test/api/v1/workspace/home',
       );
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(snapshot.supportSafe, isTrue);
@@ -359,7 +359,7 @@ void main() {
 
       expect(
         () => client.fetchWorkspaceHome(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
         ),
         throwsA(isA<AppFailure>()),
@@ -413,13 +413,13 @@ void main() {
         );
 
         await client.fetchWorkspaceCapabilities(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
         );
 
         expect(
           capturedRequest.url.toString(),
-          'https://api.weave.local/api/v1/workspace/capabilities',
+          'https://api.weave.test/api/v1/workspace/capabilities',
         );
       },
     );
@@ -470,13 +470,13 @@ void main() {
       );
 
       final diagnostic = await client.fetchMatrixE2eeDiagnostic(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
       );
 
       expect(
         capturedRequest.url.toString(),
-        'https://api.weave.local/api/platform/status',
+        'https://api.weave.test/api/platform/status',
       );
       expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
       expect(diagnostic.e2eeEnabled, isFalse);
@@ -685,13 +685,13 @@ void main() {
         );
 
         final snapshot = await client.fetchProviderStackStatus(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
         );
 
         expect(
           capturedRequest.url.toString(),
-          'https://api.weave.local/api/providers/status',
+          'https://api.weave.test/api/providers/status',
         );
         expect(capturedRequest.headers['Authorization'], 'Bearer token-123');
         expect(snapshot.failClosed, isTrue);
@@ -842,7 +842,7 @@ void main() {
         );
 
         final snapshot = await client.fetchProviderStackStatus(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
         );
 
@@ -892,7 +892,7 @@ void main() {
       );
 
       final snapshot = await client.fetchProviderStackStatus(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
       );
 
@@ -944,13 +944,13 @@ void main() {
       );
 
       final devops = await client.fetchDevopsSummary(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
         workspaceId: 'workspace-1',
         channelId: 'channel-1',
       );
       final office = await client.fetchOfficeCapabilities(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
       );
 
@@ -959,12 +959,12 @@ void main() {
       expect(
         requests,
         contains(
-          'https://api.weave.local/api/workspaces/workspace-1/channels/channel-1/devops/summary',
+          'https://api.weave.test/api/workspaces/workspace-1/channels/channel-1/devops/summary',
         ),
       );
       expect(
         requests,
-        contains('https://api.weave.local/api/office/capabilities'),
+        contains('https://api.weave.test/api/office/capabilities'),
       );
     });
 
@@ -983,7 +983,7 @@ void main() {
       );
 
       final launch = await client.launchOfficeSession(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
         fileId: 'file-1',
         requestedMode: 'view',
@@ -992,7 +992,7 @@ void main() {
       expect(capturedRequest.method, 'POST');
       expect(
         capturedRequest.url.toString(),
-        'https://api.weave.local/api/office/launch',
+        'https://api.weave.test/api/office/launch',
       );
       expect(launch.launched, isFalse);
       expect(launch.failClosed, isTrue);
@@ -1010,7 +1010,7 @@ void main() {
         );
 
         final launch = await client.launchOfficeSession(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.test/api'),
           accessToken: 'token-123',
           fileId: 'file-1',
           requestedMode: 'view',
@@ -1037,7 +1037,7 @@ void main() {
       );
 
       final launch = await client.launchOfficeSession(
-        baseUrl: Uri.parse('https://api.weave.local/api'),
+        baseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token-123',
         fileId: 'file-1',
         requestedMode: 'view',

@@ -543,7 +543,7 @@ class AdminControlPlaneServiceTest {
 
     private WorkspaceCapabilityService workspaceCapabilityService() {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
-        properties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        properties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
         return new WorkspaceCapabilityService(
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
@@ -591,14 +591,14 @@ class AdminControlPlaneServiceTest {
                 List.of(new IdentityRealmDesiredState.RealmClient(
                         "weave-app",
                         true,
-                        List.of("https://weave.local/callback"),
+                        List.of("https://weave.test/callback"),
                         List.of("owner", "admin", "member"),
                         List.of("openid", "profile", "email"))),
                 List.of("owner", "admin", "member"),
                 List.of("weave-board-editors"),
                 List.of("openid", "profile", "email", "weave:workspace"),
                 List.of(new IdentityRealmDesiredState.ClaimMapper("tenant", "weave_tenant", "organizationId", true)),
-                List.of("https://weave.local/callback"),
+                List.of("https://weave.test/callback"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),
@@ -616,14 +616,14 @@ class AdminControlPlaneServiceTest {
                 List.of(new IdentityRealmDesiredState.RealmClient(
                         "weave-app",
                         true,
-                        List.of("https://weave.local/callback", "http://localhost:8080/*"),
+                        List.of("https://weave.test/callback", "http://localhost:8080/*"),
                         List.of("owner", "admin", "member"),
                         List.of("openid", "profile", "email"))),
                 List.of("owner", "admin", "member"),
                 List.of("weave-board-editors"),
                 List.of("openid", "profile", "email", "weave:workspace"),
                 List.of(new IdentityRealmDesiredState.ClaimMapper("tenant", "weave_tenant", "organizationId", true)),
-                List.of("https://weave.local/callback", "http://localhost:8080/*"),
+                List.of("https://weave.test/callback", "http://localhost:8080/*"),
                 List.of(new IdentityRealmDesiredState.FeatureMapping("boards", List.of("member"), List.of("weave-board-editors"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.ServiceAccount("subject:service:backend", List.of("operator"), List.of("openid"))),
                 List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),

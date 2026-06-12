@@ -28,7 +28,7 @@ class VikunjaBoardsMapperTest {
                 "Launch Plan",
                 "Coordinate active product follow-ups",
                 false,
-                URI.create("https://tasks.weave.local/projects/42"));
+                URI.create("https://tasks.weave.test/projects/42"));
 
         var project = mapper.toProject(source);
         var board = mapper.toBoard(source, List.of());
@@ -39,7 +39,7 @@ class VikunjaBoardsMapperTest {
         assertThat(project.providerRefs()).singleElement().satisfies(ref -> {
             assertThat(ref.provider()).isEqualTo(ProviderKind.VIKUNJA);
             assertThat(ref.externalId()).isEqualTo("project:42");
-            assertThat(ref.externalUrl()).hasToString("https://tasks.weave.local/projects/42");
+            assertThat(ref.externalUrl()).hasToString("https://tasks.weave.test/projects/42");
         });
 
         assertThat(board.id()).isEqualTo("vikunja:board:42");
@@ -85,7 +85,7 @@ class VikunjaBoardsMapperTest {
                 null,
                 updatedAt,
                 "etag-99",
-                URI.create("https://tasks.weave.local/tasks/99"));
+                URI.create("https://tasks.weave.test/tasks/99"));
 
         var task = mapper.toTask(source);
 
@@ -102,7 +102,7 @@ class VikunjaBoardsMapperTest {
         assertThat(task.providerRefs()).singleElement().satisfies(ref -> {
             assertThat(ref.provider()).isEqualTo(ProviderKind.VIKUNJA);
             assertThat(ref.externalId()).isEqualTo("task:99");
-            assertThat(ref.externalUrl()).hasToString("https://tasks.weave.local/tasks/99");
+            assertThat(ref.externalUrl()).hasToString("https://tasks.weave.test/tasks/99");
             assertThat(ref.etag()).isEqualTo("etag-99");
             assertThat(ref.lastSyncedAt()).isEqualTo(updatedAt);
         });

@@ -57,7 +57,7 @@ jobs:
       TF_VAR_create_test_user: 'true'
       TF_VAR_boards_runtime_enabled: 'true'
       TF_VAR_boards_provider: local-workspace
-      TF_VAR_tenant_domain: weave.local
+      TF_VAR_tenant_domain: weave.test
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
       TF_VAR_keycloak_host_port: '48080'
@@ -127,7 +127,7 @@ jobs:
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
           set -euo pipefail
-          hosts=(weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local)
+          hosts=(weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test)
           missing=()
           for host in "${hosts[@]}"; do
             if ! dscacheutil -q host -a name "$host" | grep -q 'ip_address: 127.0.0.1'; then
@@ -177,7 +177,7 @@ jobs:
       - name: Verify local test hostnames resolve on the runner
         run: |
           set -euo pipefail
-          for host in weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local; do
+          for host in weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test; do
             dscacheutil -q host -a name "$host" | grep -q 'ip_address:' || {
               echo "Runner cannot resolve $host to loopback" >&2
               exit 1

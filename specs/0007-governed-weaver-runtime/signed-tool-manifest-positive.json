@@ -9,7 +9,7 @@
     "read:weave.files.metadata"
   ],
   "egress": [
-    "https://api.weave.local"
+    "https://api.weave.test"
   ],
   "secretRefs": [
     "secretref://org/demo/oauth-calendar-readonly"

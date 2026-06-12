@@ -83,7 +83,7 @@ class KeycloakRealmLiveApplyAdapterTest {
             } else if (methodAndPath.equals("GET /admin/realms/weave-dogfood/groups?search=weave-board-editors")) {
                 respond(exchange, 200, "[{\"name\":\"weave-board-editors\"}]");
             } else if (methodAndPath.equals("GET /admin/realms/weave-dogfood/clients?clientId=weave-app")) {
-                respond(exchange, 200, "[{\"id\":\"client-123\",\"clientId\":\"weave-app\",\"publicClient\":true,\"redirectUris\":[\"https://weave.local/callback\"],\"defaultClientScopes\":[\"openid\"]}]");
+                respond(exchange, 200, "[{\"id\":\"client-123\",\"clientId\":\"weave-app\",\"publicClient\":true,\"redirectUris\":[\"https://weave.test/callback\"],\"defaultClientScopes\":[\"openid\"]}]");
             } else {
                 respond(exchange, 500, "unexpected");
             }
@@ -159,14 +159,14 @@ class KeycloakRealmLiveApplyAdapterTest {
                 List.of(new IdentityRealmDesiredState.RealmClient(
                         "weave-app",
                         true,
-                        List.of("https://weave.local/callback"),
+                        List.of("https://weave.test/callback"),
                         List.of("admin"),
                         List.of("openid"))),
                 List.of("admin"),
                 List.of("weave-board-editors"),
                 List.of("openid"),
                 List.of(),
-                List.of("https://weave.local/callback"),
+                List.of("https://weave.test/callback"),
                 List.of(),
                 List.of(),
                 List.of(new IdentityRealmDesiredState.RecoveryIdentity("issuer+subject:https://auth.example.invalid/realms/weave#admin-123", "last-admin recovery", true, List.of("owner"))),

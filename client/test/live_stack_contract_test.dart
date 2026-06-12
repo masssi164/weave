@@ -82,11 +82,11 @@ void main() {
       expect(
         liveConfig
             .copyWith(
-              backendApiBaseUrl: Uri.parse('https://api.weave.local/api'),
+              backendApiBaseUrl: Uri.parse('https://api.weave.test/api'),
             )
             .apiUri('/api/me')
             .toString(),
-        'https://api.weave.local/api/me',
+        'https://api.weave.test/api/me',
       );
     });
 
@@ -112,7 +112,7 @@ void main() {
           '/api/v3/',
           '/work_packages',
           'openproject.example',
-          'openproject.weave.local',
+          'openproject.weave.test',
           'gitlab.com/api',
           'forgejo/api',
           'onlyoffice',

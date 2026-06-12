@@ -10,7 +10,7 @@ class AppleMobileConfigProfileRendererTest {
 
     @Test
     void rendersNoSecretAppleCaldavProfileMetadata() {
-        AppleMobileConfigProfileRenderer renderer = new AppleMobileConfigProfileRenderer("https://files.weave.local");
+        AppleMobileConfigProfileRenderer renderer = new AppleMobileConfigProfileRenderer("https://files.weave.test");
 
         AppleMobileConfigProfile profile = renderer.renderUnsignedNoSecretProfile(
                 new CalendarPrincipal("subject-123", "maria"));
@@ -20,7 +20,7 @@ class AppleMobileConfigProfileRendererTest {
         assertThat(plist)
                 .contains("<string>com.apple.caldav.account</string>")
                 .contains("<key>CalDAVHostName</key>")
-                .contains("<string>files.weave.local</string>")
+                .contains("<string>files.weave.test</string>")
                 .contains("<key>CalDAVPort</key>")
                 .contains("<integer>443</integer>")
                 .contains("<key>CalDAVUseSSL</key>")
@@ -33,7 +33,7 @@ class AppleMobileConfigProfileRendererTest {
 
     @Test
     void doesNotRenderPasswordBearerTokenOrBackendActorSecret() {
-        AppleMobileConfigProfileRenderer renderer = new AppleMobileConfigProfileRenderer("https://files.weave.local");
+        AppleMobileConfigProfileRenderer renderer = new AppleMobileConfigProfileRenderer("https://files.weave.test");
 
         AppleMobileConfigProfile profile = renderer.renderUnsignedNoSecretProfile(
                 new CalendarPrincipal("user-with-backend-secret-sentinel", "alice"));

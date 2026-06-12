@@ -3,24 +3,24 @@
     "realmId": "weave-dogfood",
     "displayName": "Weave",
     "enabled": true,
-    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.local/callback"],"roles":["admin"],"scopes":["openid"]}],
+    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback"],"roles":["admin"],"scopes":["openid"]}],
     "roles": ["admin"],
     "groups": [],
     "scopes": ["openid"],
     "claimMappers": [],
-    "redirectOrigins": ["https://weave.local/callback"],
+    "redirectOrigins": ["https://weave.test/callback"],
     "featureMappings": []
   },
   "desiredState": {
     "realmId": "weave-dogfood",
     "displayName": "Weave Dogfood",
     "enabled": true,
-    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.local/callback"],"roles":["admin","member"],"scopes":["openid","profile"]}],
+    "clients": [{"clientId":"weave-app","publicClient":true,"redirectOrigins":["https://weave.test/callback"],"roles":["admin","member"],"scopes":["openid","profile"]}],
     "roles": ["admin", "member"],
     "groups": ["weave-board-editors"],
     "scopes": ["openid", "profile"],
     "claimMappers": [],
-    "redirectOrigins": ["https://weave.local/callback"],
+    "redirectOrigins": ["https://weave.test/callback"],
     "featureMappings": []
   },
   "reason": "fixture-update"

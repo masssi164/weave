@@ -442,7 +442,7 @@ class LiveOidcTestDriver
           host == 'localhost' ||
           host == '127.0.0.1' ||
           host.endsWith('.localhost') ||
-          host.endsWith('.weave.local') ||
+          host.endsWith('.weave.test') ||
           host == '127.0.0.1.sslip.io' ||
           host.endsWith('.127.0.0.1.sslip.io');
   }

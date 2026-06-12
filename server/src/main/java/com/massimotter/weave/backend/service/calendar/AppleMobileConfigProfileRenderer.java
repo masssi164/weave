@@ -11,13 +11,13 @@ public class AppleMobileConfigProfileRenderer {
 
     public AppleMobileConfigProfileRenderer(String nextcloudBaseUrl) {
         this.nextcloudBaseUrl = nextcloudBaseUrl == null || nextcloudBaseUrl.isBlank()
-                ? "https://files.weave.local"
+                ? "https://files.weave.test"
                 : nextcloudBaseUrl.trim();
     }
 
     public AppleMobileConfigProfile renderUnsignedNoSecretProfile(CalendarPrincipal principal) {
         URI baseUri = URI.create(nextcloudBaseUrl);
-        String host = firstNonBlank(baseUri.getHost(), "files.weave.local");
+        String host = firstNonBlank(baseUri.getHost(), "files.weave.test");
         boolean ssl = !"http".equalsIgnoreCase(firstNonBlank(baseUri.getScheme(), "https"));
         int port = baseUri.getPort() > 0 ? baseUri.getPort() : (ssl ? 443 : 80);
         String username = firstNonBlank(principal.nextcloudUserId(), principal.subject());

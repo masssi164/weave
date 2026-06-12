@@ -48,14 +48,14 @@ public_url() {
   printf '%s://%s.%s%s' \
     "${TF_VAR_public_scheme:-https}" \
     "${subdomain}" \
-    "${TF_VAR_tenant_domain:-weave.local}" \
+    "${TF_VAR_tenant_domain:-weave.test}" \
     "$(public_port_suffix)"
 }
 
 product_public_url() {
   printf '%s://%s%s' \
     "${TF_VAR_public_scheme:-https}" \
-    "${TF_VAR_tenant_domain:-weave.local}" \
+    "${TF_VAR_tenant_domain:-weave.test}" \
     "$(public_port_suffix)"
 }
 
@@ -596,12 +596,12 @@ source "${SYNAPSE_VOLUME_HELPER}"
 : "${WEAVE_OIDC_ISSUER_URL:=$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}}"
 : "${WEAVE_NEXTCLOUD_BASE_URL:=$(public_url "${TF_VAR_nextcloud_subdomain:-files}")}"
 : "${WEAVE_MATRIX_HOMESERVER_URL:=$(public_url "${TF_VAR_matrix_subdomain:-matrix}")}"
-: "${WEAVE_LOCAL_CA_URL:=http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem}"
+: "${WEAVE_LOCAL_CA_URL:=http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem}"
 
-[[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Operator check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.local}, got ${WEAVE_PUBLIC_BASE_URL}"
+[[ "${WEAVE_PUBLIC_BASE_URL}" == "$(product_public_url)" ]] || fail "Operator check failed: product URL must stay DNS-first on ${TF_VAR_tenant_domain:-weave.test}, got ${WEAVE_PUBLIC_BASE_URL}"
 [[ "${WEAVE_BASE_URL}" == "$(api_public_url)/api" ]] || fail "Operator check failed: API URL must stay DNS-first on $(public_host "${TF_VAR_api_subdomain:-api}"), got ${WEAVE_BASE_URL}"
 [[ "${WEAVE_OIDC_ISSUER_URL}" == "$(public_url "${TF_VAR_auth_subdomain:-auth}")/realms/${TF_VAR_tenant_slug:-weave}" ]] || fail "Operator check failed: OIDC issuer must stay DNS-first on $(public_host "${TF_VAR_auth_subdomain:-auth}"), got ${WEAVE_OIDC_ISSUER_URL}"
-[[ "${WEAVE_LOCAL_CA_URL}" == "http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" ]] || fail "Operator check failed: local CA URL must be advertised on weave.local, got ${WEAVE_LOCAL_CA_URL}"
+[[ "${WEAVE_LOCAL_CA_URL}" == "http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" ]] || fail "Operator check failed: local CA URL must be advertised on weave.test, got ${WEAVE_LOCAL_CA_URL}"
 if [[ -n "${TF_VAR_local_lan_host:-}" ]]; then
   for dns_first_url in "${WEAVE_PUBLIC_BASE_URL}" "${WEAVE_BASE_URL}" "${WEAVE_OIDC_ISSUER_URL}" "${WEAVE_NEXTCLOUD_BASE_URL}" "${WEAVE_MATRIX_HOMESERVER_URL}" "${WEAVE_LOCAL_CA_URL}"; do
     [[ "${dns_first_url}" != *"${TF_VAR_local_lan_host}"* ]] || fail "Operator check failed: local_lan_host is non-canonical and must not appear in DNS-first app/service URLs: ${dns_first_url}"
@@ -626,7 +626,7 @@ product_status="$(curl_status "${WEAVE_PUBLIC_BASE_URL}/")"
 [[ "${product_status}" == "200" ]] || fail "Operator check failed: Weave product gateway returned HTTP ${product_status} at ${WEAVE_PUBLIC_BASE_URL}/"
 product_start_page="$(curl_json "${WEAVE_PUBLIC_BASE_URL}/")"
 grep -Fq '<h1>Weave Local Dogfood start</h1>' <<<"${product_start_page}" || fail "Operator check failed: Weave product gateway did not render the local dogfood start page"
-grep -Fq "http://${TF_VAR_tenant_domain:-weave.local}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" <<<"${product_start_page}" || fail "Operator check failed: start page is missing the HTTP local CA link"
+grep -Fq "http://${TF_VAR_tenant_domain:-weave.test}:${TF_VAR_proxy_http_host_port:-44080}/weave-local-ca.pem" <<<"${product_start_page}" || fail "Operator check failed: start page is missing the HTTP local CA link"
 grep -Fq "${WEAVE_PUBLIC_BASE_URL}/weave-local-ca.pem" <<<"${product_start_page}" || fail "Operator check failed: start page is missing the HTTPS local CA link"
 grep -Fq 'Weave Local Development CA' <<<"${product_start_page}" || fail "Operator check failed: start page is missing iPhone trust guidance"
 grep -Fq 'handoff-s32-massimo-dogfood-home' <<<"${product_start_page}" || fail "Operator check failed: start page is missing default invite guidance"
