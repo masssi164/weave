@@ -17,7 +17,7 @@ v0.1 is dogfood-production, not preview. No scaffold, roadmap, or coming-soon UX
 Before coding, opening PRs, merging, or declaring work complete, read and follow:
 
 - `docs/developer-handbook.md` for coding conventions, Gradle gates, generated code, accessibility/i18n, and evidence expectations.
-- `docs/gitflow-pr-workflow.md` for protected `main`, short-lived branches, PR readiness, merge rules, and release-notes labels.
+- `docs/gitflow-pr-workflow.md` for lane-based DevOps flow, protected `main`/`dev`, PR readiness, merge rules, and release-notes labels.
 - `docs/weave-operating-model.md` for delivery lifecycle and governance.
 - `specs/weave-specs.lock.json`, the pinned spec corpus files, `.specify/memory/constitution.md`, `docs/spec-driven-development.md`, and transitional repo-local `specs/` for conformance context.
 - Domain docs near the changed area (`client/`, `server/`, `infra/`, `e2e/`, `docs/`).

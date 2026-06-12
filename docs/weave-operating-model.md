@@ -13,10 +13,12 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 
 ## Branch and release model
 
-- `main` is the only long-lived integration branch and must remain release-capable.
-- Work uses short-lived feature, fix, docs, or CI branches from current `origin/main`.
-- Do not introduce long-lived `dev`, `develop`, `testing`, `staging`, or `release/*` branches as the primary flow.
-- Every PR targets `main`, stays focused, and carries exactly one release-notes label:
+- `main` is protected stable and release truth; only promoted `rc/*` branches or documented emergency `hotfix/*` exceptions target it.
+- `dev` is the protected integration lane for normal issue, bugfix, documentation, and spec-integration PRs.
+- `future/*` lanes hold larger not-yet-release-ready product lines and periodically reconcile back to `dev`.
+- `rc/<version>` lanes are cut from `dev` for release-candidate stabilization, full Live Stack E2E, and release evidence before promotion to `main`.
+- `hotfix/*` lanes are cut from `main` for urgent stable-line fixes and must be backported or merged into `dev`.
+- Every PR declares its target lane, linked issue, release-note text or explicit none reason, spec impact, gates run, and exactly one release-notes label:
   - `release-notes-feature`
   - `release-notes-bugfix`
   - `release-notes-skip`
@@ -26,7 +28,7 @@ This page is the compact working contract for Weave delivery. It keeps sprint, r
 
 ## Environments
 
-- `local/dev` is a developer machine, temporary preview, or disposable worktree; it is not a durable branch.
+- Local developer machines and disposable worktrees remain temporary environments. The durable `dev` branch is an integration lane, not a deployed environment.
 - `testing`/`staging` is a GitHub Environment or workflow target for release-candidate verification and Live Stack E2E evidence.
 - `production` is a GitHub Environment guarded by manual approval and release evidence.
 - Live Stack E2E is release evidence, not a replacement for local or PR-safe gates.

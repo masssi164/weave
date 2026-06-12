@@ -40,7 +40,11 @@ nav:
       - Weave operating model: weave-operating-model.md
       - Spec-driven development: spec-driven-development.md
       - AI-assisted delivery orchestration: agent-team-orchestration.md
-      - Trunk-based PR and release workflow: gitflow-pr-workflow.md
+      - Lane-based PR and release workflow: gitflow-pr-workflow.md
+      - DevOps branching model: devops/branching-model.md
+      - DevOps release flow: devops/release-flow.md
+      - DevOps release notes policy: devops/release-notes.md
+      - DevOps spec governance: devops/spec-governance.md
       - Architecture: architecture.md
       - Canonical feature models: canonical-feature-models.md
       - Accessible workflow context contract: workflow-context-contract.md

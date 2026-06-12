@@ -54,7 +54,7 @@ Start with:
 Start with:
 
 1. [Developer Handbook](developer-handbook.md) — local prerequisites, Java 21+ requirement, Gradle gates, client/server/admin/infra workflows, and evidence expectations.
-2. [Trunk-based PR and release workflow](gitflow-pr-workflow.md) — branch, review, label, release-note, and merge rules.
+2. [Lane-based PR and release workflow](gitflow-pr-workflow.md) — branch, review, label, release-note, and merge rules.
 3. [Spec-driven development for Weave](spec-driven-development.md) — pinned spec corpus, conformance lifecycle, evidence gates, and agent orchestration.
 4. [AI-assisted delivery orchestration](agent-team-orchestration.md) — repo-safe roles, handoff briefs, runtime-boundary guardrails, and optimization loop.
 5. [Canonical domains](architecture/canonical-domains.md) — product-owned domain registry for identity, people, spaces, chat, files, documents, calendar, boards, calls, decisions, notifications, health, and Weaver.
@@ -102,7 +102,7 @@ Canonical handbooks:
 - [User Handbook](user-handbook.md)
 - [Admin/Operator Handbook](admin-operator-handbook.md)
 - [Developer Handbook](developer-handbook.md)
-- [GitFlow/PR workflow](gitflow-pr-workflow.md)
+- [Lane-based PR workflow](gitflow-pr-workflow.md)
 
 Release and evidence docs:
 

@@ -101,15 +101,15 @@ make offline-contract-test
 - Run `dart run build_runner build --delete-conflicting-outputs` after model/provider/codegen changes.
 - Keep user-facing strings localizable; do not add hard-coded English text in widgets when the surrounding feature already uses l10n.
 
-## Trunk-based PR and release workflow
+## Lane-based PR and release workflow
 
-Use protected `main` plus short-lived PR branches; do not introduce long-lived `dev`, `develop`, `testing`, `staging`, or `release/*` branches as the primary flow. Keep changes issue/spec-driven and request Copilot review on every review-ready PR. Every PR must deliberately choose exactly one release-notes label before review/merge:
+Use the lane-based DevOps flow: protected `main` for stable release truth, protected `dev` for integration, `future/*` for larger not-yet-release-ready lines, `rc/*` for release candidates and Live Stack E2E evidence, and `hotfix/*` for emergency stable-line fixes. See [Weave DevOps branching model](devops/branching-model.md), [release flow](devops/release-flow.md), [release notes policy](devops/release-notes.md), and [spec governance](devops/spec-governance.md). Every PR must deliberately choose exactly one release-notes label before review/merge:
 
 - `release-notes-feature`
 - `release-notes-bugfix`
 - `release-notes-skip`
 
-Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Trunk-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
+Release notes are generated from merged PR labels, not manually reconstructed later. The CI `Release Notes Label Check` runs on every pull-request update and fails PRs with zero or multiple release-notes labels; label-only changes run that lightweight check without re-running the full Gradle CI job. See [Weave operating model](weave-operating-model.md) for the delivery contract and [Lane-based PR and release workflow](gitflow-pr-workflow.md) for label semantics and merge rules.
 
 ## Spec-driven sprint contract
 
