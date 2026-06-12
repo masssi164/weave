@@ -8,12 +8,13 @@ owner: weave-co-leader
 github_issue: 218
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
-acceptance_features: []
+- WEAVE-SPEC-0001
+acceptance_features:
+- e2e/features/weave_spec_0002_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew acceptanceContract
-  - flutter test test/features/workflows/workflow_preview_provider_test.dart test/features/workflows/workflow_preview_panel_test.dart
+- ./gradlew specContract
+- ./gradlew acceptanceContract
+- flutter test test/features/workflows/workflow_preview_provider_test.dart test/features/workflows/workflow_preview_panel_test.dart
 ---
 
 # Feature specification: Context-driven workflow primitives
@@ -124,8 +125,8 @@ Define the provider-neutral workflow primitives that let teams run expert proces
 
 ## Acceptance and evidence mapping
 
-- Gherkin feature path(s): none for proposed MVP preview; add before backend execution or user journey expansion.
-- `e2e/scenario_mappings.json` marker(s): none for proposed MVP preview.
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature` for governed executable-workflow claim control; preview-only unit/widget coverage remains in client tests.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_WORKFLOW_GOVERNANCE_RECEIPT`.
 - Unit/widget/backend/admin/contract test path(s): `client/test/features/workflows/workflow_preview_provider_test.dart`, `client/test/features/workflows/workflow_preview_panel_test.dart`.
 - Live Stack E2E required? no; MVP is local preview/domain contract only.
 - Support-safe evidence artifact(s): local Flutter test output; later CI summary under `build/evidence/**` when merged through PR.

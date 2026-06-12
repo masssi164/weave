@@ -8,13 +8,13 @@ owner: weave-security-compliance-lead
 github_issue: 433
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
+- WEAVE-SPEC-0001
 acceptance_features:
-  - e2e/features/v0_1_dogfood_release.feature
+- e2e/features/weave_spec_0007_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew acceptanceContract
-  - ./gradlew serverCi
+- ./gradlew specContract
+- ./gradlew acceptanceContract
+- ./gradlew serverCi
 ---
 
 # Feature specification: Governed Weaver runtime and tool approval contract

@@ -4,35 +4,58 @@ status: proposed
 github_issue: 218
 release_notes_label: release-notes-feature
 depends_on:
-  - WEAVE-SPEC-0001
+- WEAVE-SPEC-0001
 issue_dag:
   sequential:
-    - issue: 218
-      title: Context-driven workflows
+  - issue: 218
+    title: Context-driven workflows
 domain_entities:
-  - WorkflowTemplate
-  - WorkflowRun
-  - WorkflowStep
-  - WorkflowContextReference
-  - WorkflowEvidenceReference
-  - WorkflowBlocker
-  - WorkflowAssignee
+- WorkflowTemplate
+- WorkflowRun
+- WorkflowStep
+- WorkflowContextReference
+- WorkflowEvidenceReference
+- WorkflowBlocker
+- WorkflowAssignee
 provider_neutral_invariants:
-  - workflow objects reference Context Graph nodes instead of duplicating provider records
-  - member workflow views do not expose raw provider payloads, endpoints, secrets, or diagnostics
-  - unresolved or unauthorized context references fail closed before execution/provider access
-  - agent steps are dry-run/proposal-only until explicit approval and audit receipt exist
-  - linear accessible view ships before any visual workflow builder
+- workflow objects reference Context Graph nodes instead of duplicating provider records
+- member workflow views do not expose raw provider payloads, endpoints, secrets, or
+  diagnostics
+- unresolved or unauthorized context references fail closed before execution/provider
+  access
+- agent steps are dry-run/proposal-only until explicit approval and audit receipt
+  exist
+- linear accessible view ships before any visual workflow builder
 sample_workflows:
-  - workspace onboarding
-  - release preparation
-  - support incident resolution
-acceptance_features: []
+- workspace onboarding
+- release preparation
+- support incident resolution
+acceptance_features:
+- e2e/features/weave_spec_0002_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew acceptanceContract
-  - flutter test test/features/workflows/workflow_preview_provider_test.dart test/features/workflows/workflow_preview_panel_test.dart
+- ./gradlew specContract
+- ./gradlew acceptanceContract
+- flutter test test/features/workflows/workflow_preview_provider_test.dart test/features/workflows/workflow_preview_panel_test.dart
 open_product_core_decisions:
-  - backend endpoint ownership for persisted workflow templates and runs
-  - policy key names for workflow execution approval and agent dry-run visibility
-  - first Gherkin feature for persisted workflow execution
+- backend endpoint ownership for persisted workflow templates and runs
+- policy key names for workflow execution approval and agent dry-run visibility
+- first Gherkin feature for persisted workflow execution
+acceptance_scenarios:
+- tag: '@weave-spec-0002-workflow-preview-context'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - Space context preserved
+  - policy inputs visible
+  - WEAVE_SPEC_0002_WORKFLOW_PREVIEW_CONTEXT
+- tag: '@weave-spec-0002-governed-execution-receipt'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - execution receipt
+  - drift and compensation
+  - WEAVE_SPEC_0002_GOVERNED_EXECUTION_RECEIPT

@@ -8,12 +8,13 @@ owner: weave-co-leader
 github_issue: 216
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
-acceptance_features: []
+- WEAVE-SPEC-0001
+acceptance_features:
+- e2e/features/weave_spec_0003_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew acceptanceContract
-  - flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
+- ./gradlew specContract
+- ./gradlew acceptanceContract
+- flutter test test/features/chat/channel_workspace_test.dart test/architecture/meetings_contract_test.dart
 ---
 
 # Feature specification: Encrypted contextual meetings contract
@@ -115,8 +116,8 @@ Define Weave's meeting architecture and product boundaries before enabling video
 
 ## Acceptance and evidence mapping
 
-- Gherkin feature path(s): none for proposed fail-closed contract slice.
-- `e2e/scenario_mappings.json` marker(s): none for proposed fail-closed contract slice.
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature` for join/start, captions/transcripts, consent, privacy, retention, accessibility, and claim-boundary control.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_MEETING_CONSENT_BOUNDARY`.
 - Unit/widget/backend/admin/contract test path(s): `client/test/features/chat/channel_workspace_test.dart`, `client/test/architecture/meetings_contract_test.dart`.
 - Live Stack E2E required? no; join/start stays disabled.
 - Support-safe evidence artifact(s): local Flutter/Gradle test output; CI summary under `build/evidence/**` when merged through PR.

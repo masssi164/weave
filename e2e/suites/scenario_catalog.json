@@ -85,6 +85,139 @@
       "evidenceMode": "offline-spec",
       "executionLane": "spec-contract",
       "description": "Repo-local Spec Kit projections for claim-control, Identity/RBAC portability, governed Weaver approvals, and domain-first MCP naming."
+    },
+    {
+      "id": "spec-0000-framework",
+      "name": "Spec 0000 spec-driven framework acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Spec corpus metadata, acceptance wiring, and evidence-mode separation for claim control."
+    },
+    {
+      "id": "spec-0002-workflow-primitives",
+      "name": "Spec 0002 workflow primitives acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Context-driven workflow previews, governed execution receipts, drift checks, and compensation boundaries."
+    },
+    {
+      "id": "spec-0003-contextual-meetings",
+      "name": "Spec 0003 contextual meetings acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Meeting consent, encrypted boundaries, transcript retention, and follow-up artifact handling."
+    },
+    {
+      "id": "spec-0004-domain-registry",
+      "name": "Spec 0004 domain registry acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Canonical domain registry, reality levels, capability naming, and provider-neutral states."
+    },
+    {
+      "id": "spec-0005-spaces-anchor",
+      "name": "Spec 0005 Spaces anchor acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Space anchors for cross-domain context, guest bounds, and raw provider identifier exclusion."
+    },
+    {
+      "id": "spec-0006-portability-contract",
+      "name": "Spec 0006 portability contract acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "No-unaccounted-loss portability manifest, lossy field accounting, and blocked broad lossless claims."
+    },
+    {
+      "id": "spec-0007-governed-weaver-runtime",
+      "name": "Spec 0007 governed Weaver runtime acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Weaver runtime profiles, approved tool registry, consent receipts, and fail-closed policy drift."
+    },
+    {
+      "id": "spec-0008-local-dogfood-topology",
+      "name": "Spec 0008 local dogfood topology acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "weave.test topology truth, local evidence lanes, and live-claim boundaries."
+    },
+    {
+      "id": "spec-0009-domain-first-mcp",
+      "name": "Spec 0009 domain-first MCP acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Domain-first MCP tool naming, approved discovery, support-safe metadata, and provider-first rejection."
+    },
+    {
+      "id": "spec-0000-requirement-coverage",
+      "name": "WEAVE-SPEC-0000 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Weave spec-driven development framework is not only linked but covered."
+    },
+    {
+      "id": "spec-0001-requirement-coverage",
+      "name": "WEAVE-SPEC-0001 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Admin-Suite and provider-neutral product core is not only linked but covered."
+    },
+    {
+      "id": "spec-0002-requirement-coverage",
+      "name": "WEAVE-SPEC-0002 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Context-driven workflow primitives is not only linked but covered."
+    },
+    {
+      "id": "spec-0003-requirement-coverage",
+      "name": "WEAVE-SPEC-0003 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Encrypted contextual meetings contract is not only linked but covered."
+    },
+    {
+      "id": "spec-0004-requirement-coverage",
+      "name": "WEAVE-SPEC-0004 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Canonical domain registry and portability primitives is not only linked but covered."
+    },
+    {
+      "id": "spec-0005-requirement-coverage",
+      "name": "WEAVE-SPEC-0005 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Spaces as cross-domain organization anchors is not only linked but covered."
+    },
+    {
+      "id": "spec-0006-requirement-coverage",
+      "name": "WEAVE-SPEC-0006 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving No-unaccounted-data-loss portability contract is not only linked but covered."
+    },
+    {
+      "id": "spec-0007-requirement-coverage",
+      "name": "WEAVE-SPEC-0007 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Governed Weaver runtime and tool approval contract is not only linked but covered."
+    },
+    {
+      "id": "spec-0008-requirement-coverage",
+      "name": "WEAVE-SPEC-0008 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Local dogfood topology weave.test is not only linked but covered."
+    },
+    {
+      "id": "spec-0009-requirement-coverage",
+      "name": "WEAVE-SPEC-0009 requirement coverage",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Requirement-category scenarios proving Domain-first MCP tools is not only linked but covered."
     }
   ],
   "scenarios": [
@@ -1379,6 +1512,1405 @@
       "testLevel": "offline-contract",
       "assertionFocus": [
         "domain-first MCP naming hard gate"
+      ]
+    },
+    {
+      "tag": "@northstar-spec-coverage-matrix",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Spec Kit coverage matrix for Northstar decisions"
+      ]
+    },
+    {
+      "tag": "@northstar-domain-registry-reality",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops",
+        "identity-idm"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "canonical domain capability names and reality levels"
+      ]
+    },
+    {
+      "tag": "@northstar-space-anchor-context",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "calendar",
+        "boards-tasks",
+        "decisions-evidence",
+        "weaver-governed-pa"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Space-owned cross-domain context without provider leakage"
+      ]
+    },
+    {
+      "tag": "@northstar-workflow-governance-receipt",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "admin",
+        "operator",
+        "member"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "governed executable workflow receipts",
+        "approval drift fail-closed",
+        "rollback/compensation and support-safe audit"
+      ]
+    },
+    {
+      "tag": "@northstar-meeting-consent-boundary",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "member",
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "meetings-calls",
+        "calendar",
+        "chat",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "participant-visible consent before captions/transcripts/recording",
+        "meeting capability and provider-readiness boundary",
+        "no provider internals or vague E2EE metadata claims"
+      ]
+    },
+    {
+      "tag": "@northstar-portability-no-unaccounted-loss",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "no-unaccounted-data-loss classification",
+        "Identity/RBAC parity and lifecycle limits",
+        "broad lossless/customer-ready wording rejection"
+      ]
+    },
+    {
+      "tag": "@northstar-local-dogfood-reality",
+      "suiteId": "northstar-spec-decisions",
+      "personas": [
+        "operator",
+        "admin"
+      ],
+      "domains": [
+        "operator-release",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "weave.test topology and offline/live evidence separation"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-frontmatter-gates",
+      "suiteId": "spec-0000-framework",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "frontmatter acceptance_features",
+        "evidence gates present"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-product-claim-requires-scenario",
+      "suiteId": "spec-0000-framework",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "product claim scenario mapping",
+        "merge blocked without evidence"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-workflow-preview-context",
+      "suiteId": "spec-0002-workflow-primitives",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "weaver-governed-pa",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Space context preserved",
+        "policy inputs visible"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-governed-execution-receipt",
+      "suiteId": "spec-0002-workflow-primitives",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "execution receipt",
+        "drift and compensation"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-meeting-consent-boundary",
+      "suiteId": "spec-0003-contextual-meetings",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "meetings-calls",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "meeting consent boundary",
+        "join blocked until evidence"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-transcript-retention-followup",
+      "suiteId": "spec-0003-contextual-meetings",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "transcript retention",
+        "follow-up evidence"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-domain-registry-reality-levels",
+      "suiteId": "spec-0004-domain-registry",
+      "personas": [
+        "admin",
+        "member"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "capability reality levels",
+        "no provider internals"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-provider-neutral-capability-names",
+      "suiteId": "spec-0004-domain-registry",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "canonical capability names",
+        "domain switch boundary"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-space-anchor-cross-domain",
+      "suiteId": "spec-0005-spaces-anchor",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "boards-tasks",
+        "meetings-calls",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "canonical Space context",
+        "cross-domain links"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-guest-bounded-no-provider-ids",
+      "suiteId": "spec-0005-spaces-anchor",
+      "personas": [
+        "external_guest",
+        "admin"
+      ],
+      "domains": [
+        "spaces",
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "guest bounded access",
+        "no raw provider identifiers"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-portability-manifest-accounts-loss",
+      "suiteId": "spec-0006-portability-contract",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "preserved/lossy/blocked records",
+        "manual review evidence"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-lossless-claim-blocked",
+      "suiteId": "spec-0006-portability-contract",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "lossless claim blocked",
+        "reconciliation evidence"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-runtime-profile-from-policy",
+      "suiteId": "spec-0007-governed-weaver-runtime",
+      "personas": [
+        "admin",
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "runtime profile from policy",
+        "role-derived grants"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-tool-approval-receipt-fail-closed",
+      "suiteId": "spec-0007-governed-weaver-runtime",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "approval receipt",
+        "fail closed drift"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0008-weave-test-canonical-url",
+      "suiteId": "spec-0008-local-dogfood-topology",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "weave.test canonical URL",
+        "local topology truth"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0008-local-evidence-does-not-claim-live-runtime",
+      "suiteId": "spec-0008-local-dogfood-topology",
+      "personas": [
+        "operator",
+        "admin"
+      ],
+      "domains": [
+        "operator-release",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "offline evidence boundary",
+        "live runtime proof required"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0009-domain-first-tool-names",
+      "suiteId": "spec-0009-domain-first-mcp",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "domain capability tool names",
+        "provider adapter names rejected"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0009-tool-discovery-support-safe",
+      "suiteId": "spec-0009-domain-first-mcp",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "approved discovery",
+        "support-safe metadata"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-intent",
+      "suiteId": "spec-0000-requirement-coverage",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Intent",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-scope",
+      "suiteId": "spec-0000-requirement-coverage",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "In scope",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-reviewer-brief",
+      "suiteId": "spec-0000-requirement-coverage",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "US2 - Delivery lead briefs scoped reviewers safely",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-functional-requirements",
+      "suiteId": "spec-0000-requirement-coverage",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-intent",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Intent",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-constraints",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Non-negotiable constraints",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-functional-requirements",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-support-evidence",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "SupportEvidence",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-closed-questions",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Closed questions",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-intent",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Intent",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-scope",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "In scope",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-constraints",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Non-negotiable constraints",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-functional-requirements",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-support-incident",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Support incident resolution",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-sample-workflows",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Sample workflows",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-release-impact",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Release and migration impact",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-intent",
+      "suiteId": "spec-0003-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Intent",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-scope",
+      "suiteId": "spec-0003-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "In scope",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-constraints",
+      "suiteId": "spec-0003-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Non-negotiable constraints",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-stories",
+      "suiteId": "spec-0003-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "User/admin/operator stories",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-functional-requirements",
+      "suiteId": "spec-0003-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-recording-consent",
+      "suiteId": "spec-0003-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Recording/transcription defaults and consent requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-release-impact",
+      "suiteId": "spec-0003-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Release and migration impact",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-intent",
+      "suiteId": "spec-0004-requirement-coverage",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Intent",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-scope",
+      "suiteId": "spec-0004-requirement-coverage",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "In scope",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-functional-requirements",
+      "suiteId": "spec-0004-requirement-coverage",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-release-impact",
+      "suiteId": "spec-0004-requirement-coverage",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Release and migration impact",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-intent",
+      "suiteId": "spec-0005-requirement-coverage",
+      "personas": [
+        "member",
+        "external_guest"
+      ],
+      "domains": [
+        "spaces",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Intent",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-scope",
+      "suiteId": "spec-0005-requirement-coverage",
+      "personas": [
+        "member",
+        "external_guest"
+      ],
+      "domains": [
+        "spaces",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "In scope",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-functional-requirements",
+      "suiteId": "spec-0005-requirement-coverage",
+      "personas": [
+        "member",
+        "external_guest"
+      ],
+      "domains": [
+        "spaces",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-release-impact",
+      "suiteId": "spec-0005-requirement-coverage",
+      "personas": [
+        "member",
+        "external_guest"
+      ],
+      "domains": [
+        "spaces",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Release and migration impact",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-intent",
+      "suiteId": "spec-0006-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Intent",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-scope",
+      "suiteId": "spec-0006-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "In scope",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-functional-requirements",
+      "suiteId": "spec-0006-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-support-redaction",
+      "suiteId": "spec-0006-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Support-safe redaction requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-intent",
+      "suiteId": "spec-0007-requirement-coverage",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Intent",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-scope",
+      "suiteId": "spec-0007-requirement-coverage",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "In scope",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-functional-requirements",
+      "suiteId": "spec-0007-requirement-coverage",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-runtime-profile",
+      "suiteId": "spec-0007-requirement-coverage",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "RuntimeProfile projection model",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0008-functional-requirements",
+      "suiteId": "spec-0008-requirement-coverage",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "operator-release",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Functional requirements",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0009-acceptance",
+      "suiteId": "spec-0009-requirement-coverage",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Acceptance",
+        "mapped cataloged and test-guarded"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-product-boundaries",
+      "suiteId": "spec-0000-requirement-coverage",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Product boundaries",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-developer-reviewable-spec",
+      "suiteId": "spec-0000-requirement-coverage",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "US1 - Developer creates a reviewable spec",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-domain-model-contracts",
+      "suiteId": "spec-0000-requirement-coverage",
+      "personas": [
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "operator-release"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Domain model and contracts",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-decision-record",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Decision record",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-required-v01-domains",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Required v0.1 domains",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-capability-vocabulary",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Capability vocabulary",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-supportevidence-contract",
+      "suiteId": "spec-0001-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "SupportEvidence",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-governed-agent-participation",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "US3 - Governed agent participation",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-domain-model-contracts",
+      "suiteId": "spec-0002-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "decisions-evidence",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Domain model and contracts",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-domain-model-contracts",
+      "suiteId": "spec-0003-requirement-coverage",
+      "personas": [
+        "member",
+        "admin"
+      ],
+      "domains": [
+        "meetings-calls",
+        "files",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Domain model and contracts",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-product-boundaries",
+      "suiteId": "spec-0004-requirement-coverage",
+      "personas": [
+        "admin"
+      ],
+      "domains": [
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Product boundaries",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-product-boundaries",
+      "suiteId": "spec-0005-requirement-coverage",
+      "personas": [
+        "member",
+        "external_guest"
+      ],
+      "domains": [
+        "spaces",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Product boundaries",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-product-boundaries",
+      "suiteId": "spec-0006-requirement-coverage",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Product boundaries",
+        "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-initial-tool-set",
+      "suiteId": "spec-0007-requirement-coverage",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "Initial tool set",
+        "explicit scenario coverage"
       ]
     }
   ]

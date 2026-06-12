@@ -9,7 +9,7 @@
 - [x] Extend channel meeting preview domain model with contextual attach points.
 - [x] Encode device/join/mute/camera/participant/error UX requirements.
 - [x] Keep recording/transcription off by default.
-- [ ] Add first-proof scenarios for join/start plus captions/transcript consent, privacy, retention, and audit evidence.
+- [x] Add first-proof scenarios for join/start plus captions/transcript consent, privacy, retention, and audit evidence.
 
 - [x] Add contract tests that guard vague security claims.
 

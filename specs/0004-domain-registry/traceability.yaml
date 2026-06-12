@@ -1,19 +1,39 @@
 spec_id: WEAVE-SPEC-0004
 github_issues:
-  - 427
-  - 428
-  - 429
-  - 438
-  - 439
-  - 442
+- 427
+- 428
+- 429
+- 438
+- 439
+- 442
 artifacts:
   registry:
-    - server/src/main/resources/canonical-domain-registry-v1.json
-    - specs/0004-domain-registry/canonical-domain-registry-v1.json
+  - server/src/main/resources/canonical-domain-registry-v1.json
+  - specs/0004-domain-registry/canonical-domain-registry-v1.json
   validation:
-    - tools/domain_registry_check.py
+  - tools/domain_registry_check.py
   docs:
-    - docs/domain-registry-v1.md
+  - docs/domain-registry-v1.md
 gates:
-  - ./gradlew specContract
-acceptance_features: []
+- ./gradlew specContract
+acceptance_features:
+- e2e/features/weave_spec_0004_acceptance.feature
+acceptance_scenarios:
+- tag: '@weave-spec-0004-domain-registry-reality-levels'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - capability reality levels
+  - no provider internals
+  - WEAVE_SPEC_0004_DOMAIN_REGISTRY_REALITY_LEVELS
+- tag: '@weave-spec-0004-provider-neutral-capability-names'
+  evidence:
+  - client/test/live_stack_feature_mapping_test.dart
+  - e2e/scenario_mappings.json
+  - e2e/suites/scenario_catalog.json
+  assertions:
+  - canonical capability names
+  - domain switch boundary
+  - WEAVE_SPEC_0004_PROVIDER_NEUTRAL_CAPABILITY_NAMES
