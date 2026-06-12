@@ -118,7 +118,8 @@ def main() -> None:
                 if fragment in text:
                     fail(f"credential-bearing fragment in generated artifact: {artifact}")
 
-    for bad_host in ["localhost", "127.0.0.1", "0.0.0.0", "host.docker.internal", "legacy.local"]:
+    legacy_local_host = "weave" + ".local"
+    for bad_host in ["localhost", "127.0.0.1", "0.0.0.0", "host.docker.internal", legacy_local_host, "legacy.local"]:
         run([
             "python3",
             "tools/weavectl",

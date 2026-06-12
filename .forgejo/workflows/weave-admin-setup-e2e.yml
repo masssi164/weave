@@ -65,7 +65,7 @@ jobs:
       TF_VAR_create_test_user: 'true'
       TF_VAR_boards_runtime_enabled: 'true'
       TF_VAR_boards_provider: local-workspace
-      TF_VAR_tenant_domain: weave.local
+      TF_VAR_tenant_domain: weave.test
       TF_VAR_proxy_http_host_port: '44080'
       TF_VAR_proxy_host_port: '44443'
       TF_VAR_keycloak_host_port: '48080'
@@ -178,12 +178,12 @@ jobs:
           fi
           echo "WEAVE_LOOPBACK_HOST=$gateway_ip" >> "$GITHUB_ENV"
           echo "WEAVE_LOOPBACK_RESOLVE_HOST=$gateway_ip" >> "$GITHUB_ENV"
-          line="$gateway_ip weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
+          line="$gateway_ip weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test"
           if ! grep -Eq '(^|[[:space:]])api[.]weave[.]local([[:space:]]|$)' /etc/hosts \
             || ! grep -Eq '(^|[[:space:]])auth[.]weave[.]local([[:space:]]|$)' /etc/hosts; then
             echo "$line" >> /etc/hosts
           fi
-          for host in weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local; do
+          for host in weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test; do
             grep -Eq "(^|[[:space:]])${host//./[.]}([[:space:]]|$)" /etc/hosts
           done
       - name: Clean stale stack state
@@ -245,7 +245,7 @@ jobs:
       - name: Route public Weave hostnames to the deployed reverse proxy
         run: |
           set -euo pipefail
-          hosts="weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local"
+          hosts="weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test"
           candidates_file="$(mktemp)"
           proxy_networks_json="$(docker inspect -f '{{json .NetworkSettings.Networks}}' weave-proxy 2>/dev/null || true)"
           PROXY_NETWORKS_JSON="$proxy_networks_json" python3 - <<'PYROUTE' >> "$candidates_file" || true
@@ -274,7 +274,7 @@ jobs:
             case "${candidate_port:-}" in
               ''|*[!0-9]*) continue ;;
             esac
-            status="$(curl -sk --resolve "files.weave.local:${candidate_port}:$candidate" -o /dev/null -w '%{http_code}' "https://files.weave.local:${candidate_port}/status.php" || true)"
+            status="$(curl -sk --resolve "files.weave.test:${candidate_port}:$candidate" -o /dev/null -w '%{http_code}' "https://files.weave.test:${candidate_port}/status.php" || true)"
             if [ "$status" = "200" ]; then
               route_ip="$candidate"
               route_port="$candidate_port"
@@ -289,7 +289,7 @@ jobs:
           echo "WEAVE_LOOPBACK_RESOLVE_HOST=$route_ip" >> "$GITHUB_ENV"
           echo "WEAVE_PUBLIC_PROXY_PORT=$route_port" >> "$GITHUB_ENV"
           tmp_hosts="$(mktemp)"
-          awk 'BEGIN { split("weave.local api.weave.local auth.weave.local files.weave.local matrix.weave.local", blocked, " "); for (i in blocked) deny[blocked[i]]=1 } { keep=1; for (i=2; i<=NF; i++) if ($i in deny) keep=0; if (keep) print }' /etc/hosts > "$tmp_hosts"
+          awk 'BEGIN { split("weave.test api.weave.test auth.weave.test files.weave.test matrix.weave.test", blocked, " "); for (i in blocked) deny[blocked[i]]=1 } { keep=1; for (i=2; i<=NF; i++) if ($i in deny) keep=0; if (keep) print }' /etc/hosts > "$tmp_hosts"
           printf '%s %s\n' "$route_ip" "$hosts" >> "$tmp_hosts"
           cat "$tmp_hosts" > /etc/hosts
           rm -f "$tmp_hosts"

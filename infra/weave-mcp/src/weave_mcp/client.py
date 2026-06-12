@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 from threading import Lock
 from typing import Any
@@ -11,6 +12,11 @@ from .schemas.common import RuntimeContext, ToolResult
 
 _CREATED_EVENTS: dict[str, dict[str, Any]] = {}
 _CREATED_EVENTS_LOCK = Lock()
+
+
+def _stable_ref_fragment(value: Any) -> str:
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:16]
 
 
 @dataclass(frozen=True)
@@ -104,7 +110,7 @@ class WeaveBackendClient:
                 continue
             items.append(
                 {
-                    "eventRef": "calendar-event://redacted/" + str(abs(hash(str(item.get("id", "unknown"))))),
+                    "eventRef": "calendar-event://redacted/" + _stable_ref_fragment(str(item.get("id", "unknown"))),
                     "titlePresent": bool(item.get("title")),
                     "startsAt": item.get("startsAt"),
                     "endsAt": item.get("endsAt"),
@@ -123,7 +129,7 @@ class WeaveBackendClient:
             ]
         items.extend(fixture_items)
         result = {
-            "queryRef": "query://calendar/support-safe/" + str(abs(hash(repr(sorted(query.items()))))),
+            "queryRef": "query://calendar/support-safe/" + _stable_ref_fragment(query),
             "items": items,
             "redactedItems": True,
             "providerSourceMappedByBackend": backend_available,
@@ -136,7 +142,7 @@ class WeaveBackendClient:
     def calendar_create_event(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
         title = str(query.get("title", "Test event")).strip() or "Test event"
         starts_at = str(query.get("startsAt", "")).strip()
-        event_ref = "calendar-event://fixture/" + str(abs(hash((ctx.org_id, ctx.user_ref, title, starts_at))))
+        event_ref = "calendar-event://fixture/" + _stable_ref_fragment([ctx.org_id, ctx.user_ref, title, starts_at])
         event = {
             "eventRef": event_ref,
             "title": title,
