@@ -33,7 +33,7 @@ class CalDavCalendarAdapterTest {
     @Test
     void failsClosedWhenBackendActorCredentialIsMissing() {
         CalDavCalendarAdapter adapter = new CalDavCalendarAdapter(new CalendarCalDavProperties(
-                "https://files.weave.local", null, null, null, null, 1));
+                "https://files.weave.test", null, null, null, null, 1));
 
         assertThatThrownBy(() -> adapter.list(principal(), null, null))
                 .isInstanceOf(CalendarAdapterException.class)
@@ -44,7 +44,7 @@ class CalDavCalendarAdapterTest {
     @Test
     void rejectsPrivateUserCalendarTemplatesUntilAccessModelIsContracted() {
         CalDavCalendarAdapter adapter = new CalDavCalendarAdapter(new CalendarCalDavProperties(
-                "https://files.weave.local",
+                "https://files.weave.test",
                 "/remote.php/dav/calendars/{user}/personal/",
                 CalendarCalDavProperties.AuthMode.BASIC,
                 "weave-backend",

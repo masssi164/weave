@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/import-manifest.schema.json",
+  "$id": "https://weave.test/contracts/import-manifest.schema.json",
   "title": "Weave Import Manifest",
   "type": "object",
   "additionalProperties": false,

@@ -211,7 +211,7 @@ void main() {
       final chatRepository = FakeChatRepository(
         loadConversationsHandler: () async => [
           ChatConversation(
-            id: '!general:weave.local',
+            id: '!general:weave.test',
             title: 'General',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Standup notes are ready',
@@ -224,7 +224,7 @@ void main() {
       );
       final filesRepository = FakeFilesRepository(
         connectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.test/api'),
           accountLabel: 'Weave files',
         ),
         listings: {
@@ -276,7 +276,7 @@ void main() {
       final chatRepository = FakeChatRepository(
         loadConversationsHandler: () async => [
           ChatConversation(
-            id: '!quiet-latest:weave.local',
+            id: '!quiet-latest:weave.test',
             title: 'Quiet latest',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Latest quiet update',
@@ -286,7 +286,7 @@ void main() {
             isDirectMessage: false,
           ),
           const ChatConversation(
-            id: '!unread-older:weave.local',
+            id: '!unread-older:weave.test',
             title: 'Unread older',
             previewType: ChatConversationPreviewType.text,
             previewText: 'Still unread',
@@ -313,7 +313,7 @@ void main() {
       tester,
     ) async {
       final conversation = ChatConversation(
-        id: '!general:weave.local',
+        id: '!general:weave.test',
         title: 'General',
         previewType: ChatConversationPreviewType.text,
         previewText: 'Standup notes are ready',
@@ -332,7 +332,7 @@ void main() {
           messages: [
             ChatMessage(
               id: 'message-1',
-              senderId: '@alice:weave.local',
+              senderId: '@alice:weave.test',
               senderDisplayName: 'Alice',
               sentAt: DateTime.now().subtract(const Duration(minutes: 5)),
               isMine: false,
@@ -357,7 +357,7 @@ void main() {
     ) async {
       final filesRepository = FakeFilesRepository(
         connectionState: FilesConnectionState.connected(
-          baseUrl: Uri.parse('https://api.weave.local/api'),
+          baseUrl: Uri.parse('https://api.weave.test/api'),
           accountLabel: 'Weave files',
         ),
         listings: {

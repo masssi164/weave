@@ -45,7 +45,7 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run
 ```
 
-The app accepts local development service URLs such as `https://api.weave.local/api`, `https://auth.weave.local`, `https://matrix.weave.local`, and `https://files.weave.local` when a live stack is available.
+The app accepts local development service URLs such as `https://api.weave.test/api`, `https://auth.weave.test`, `https://matrix.weave.test`, and `https://files.weave.test` when a live stack is available.
 
 Android debug/profile runs use the production package identity `com.massimotter.weave` and the same OIDC redirect scheme. Keep identity-provider clients configured for `com.massimotter.weave:/oauthredirect` and `com.massimotter.weave:/logout`. Release artifact tasks require a local untracked `client/android/key.properties` file and keystore; they fail closed instead of using debug signing keys.
 

@@ -25,22 +25,22 @@ class _RecordingServerConfigurationRepository
 }
 
 void main() {
-  test('saves DNS-first weave.local app-start configuration', () async {
+  test('saves DNS-first weave.test app-start configuration', () async {
     final repository = _RecordingServerConfigurationRepository();
     final httpClient = MockClient((request) async {
       expect(
         request.url.toString(),
-        'https://weave.local:44443/api/platform/config',
+        'https://weave.test:44443/api/platform/config',
       );
       return http.Response(
         jsonEncode({
-          'publicBaseUrl': 'https://weave.local:44443',
-          'apiBaseUrl': 'https://api.weave.local:44443/api',
-          'authBaseUrl': 'https://auth.weave.local:44443',
-          'oidcIssuerUrl': 'https://auth.weave.local:44443/realms/weave',
+          'publicBaseUrl': 'https://weave.test:44443',
+          'apiBaseUrl': 'https://api.weave.test:44443/api',
+          'authBaseUrl': 'https://auth.weave.test:44443',
+          'oidcIssuerUrl': 'https://auth.weave.test:44443/realms/weave',
           'oidcClientId': 'weave-app',
-          'matrixHomeserverUrl': 'https://matrix.weave.local:44443',
-          'filesProductUrl': 'https://weave.local:44443/files',
+          'matrixHomeserverUrl': 'https://matrix.weave.test:44443',
+          'filesProductUrl': 'https://weave.test:44443/files',
         }),
         200,
         headers: {'content-type': 'application/json'},
@@ -52,7 +52,7 @@ void main() {
       discoveryClient: AppStartDiscoveryClient(httpClient: httpClient),
     ).call(
       Uri.parse(
-        'https://weave.local:44443/join?handoff_ref=invite-abc123&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-check',
+        'https://weave.test:44443/join?handoff_ref=invite-abc123&org=massimo-dogfood&workspace=home&profile=local-lan-dogfood&run_id=s32-check',
       ),
     );
 
@@ -60,19 +60,19 @@ void main() {
     expect(saved, isNotNull);
     expect(
       saved!.oidcIssuerUrl.toString(),
-      'https://auth.weave.local:44443/realms/weave',
+      'https://auth.weave.test:44443/realms/weave',
     );
     expect(
       saved.serviceEndpoints.backendApiBaseUrl.toString(),
-      'https://api.weave.local:44443/api',
+      'https://api.weave.test:44443/api',
     );
     expect(
       saved.serviceEndpoints.matrixHomeserverUrl.toString(),
-      'https://matrix.weave.local:44443',
+      'https://matrix.weave.test:44443',
     );
     expect(
       saved.serviceEndpoints.nextcloudBaseUrl.toString(),
-      'https://weave.local:44443/files',
+      'https://weave.test:44443/files',
     );
   });
 

@@ -14,13 +14,13 @@ public record PlatformContractProperties(
         Targets targets) {
 
     public PlatformContractProperties {
-        publicBaseUrl = defaultIfBlank(publicBaseUrl, "https://weave.local");
-        apiBaseUrl = defaultIfBlank(apiBaseUrl, "https://api.weave.local/api");
-        authBaseUrl = defaultIfBlank(authBaseUrl, "https://auth.weave.local");
-        matrixHomeserverUrl = defaultIfBlank(matrixHomeserverUrl, "https://matrix.weave.local");
-        filesProductUrl = defaultIfBlank(filesProductUrl, "https://weave.local/files");
-        calendarProductUrl = defaultIfBlank(calendarProductUrl, "https://weave.local/calendar");
-        nextcloudBaseUrl = defaultIfBlank(nextcloudBaseUrl, "https://files.weave.local");
+        publicBaseUrl = defaultIfBlank(publicBaseUrl, "https://weave.test");
+        apiBaseUrl = defaultIfBlank(apiBaseUrl, "https://api.weave.test/api");
+        authBaseUrl = defaultIfBlank(authBaseUrl, "https://auth.weave.test");
+        matrixHomeserverUrl = defaultIfBlank(matrixHomeserverUrl, "https://matrix.weave.test");
+        filesProductUrl = defaultIfBlank(filesProductUrl, "https://weave.test/files");
+        calendarProductUrl = defaultIfBlank(calendarProductUrl, "https://weave.test/calendar");
+        nextcloudBaseUrl = defaultIfBlank(nextcloudBaseUrl, "https://files.weave.test");
         targets = targets == null ? new Targets(true, true, false) : targets;
     }
 

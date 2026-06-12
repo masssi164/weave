@@ -51,8 +51,8 @@ SCREENS: tuple[Screen, ...] = (
         hero="Set up your Weave workspace",
         subhero="Connect identity, chat, files, and backend services through one guided setup path.",
         metrics=(
-            Metric("API", "https://api.weave.local/api"),
-            Metric("Auth", "https://auth.weave.local"),
+            Metric("API", "https://api.weave.test/api"),
+            Metric("Auth", "https://auth.weave.test"),
             Metric("Client", "Flutter desktop + mobile"),
         ),
         cards=(
@@ -71,9 +71,9 @@ SCREENS: tuple[Screen, ...] = (
         hero="Review Service Endpoints",
         subhero="Weave keeps raw services behind clear product boundaries and explicit local URLs.",
         metrics=(
-            Metric("Matrix", "https://matrix.weave.local"),
-            Metric("Files", "https://files.weave.local"),
-            Metric("Backend", "https://api.weave.local/api"),
+            Metric("Matrix", "https://matrix.weave.test"),
+            Metric("Files", "https://files.weave.test"),
+            Metric("Backend", "https://api.weave.test/api"),
         ),
         cards=(
             ("✓", "Identity authority", "Keycloak owns login, sessions, and user identity claims."),
@@ -131,9 +131,9 @@ SCREENS: tuple[Screen, ...] = (
         hero="Workspace Settings",
         subhero="Review server configuration, update service URLs, and manage the current session.",
         metrics=(
-            Metric("OIDC issuer", "https://auth.weave.local/realms/weave"),
+            Metric("OIDC issuer", "https://auth.weave.test/realms/weave"),
             Metric("Client ID", "weave-app"),
-            Metric("Nextcloud", "https://files.weave.local"),
+            Metric("Nextcloud", "https://files.weave.test"),
         ),
         cards=(
             ("⚙", "Server configuration", "One persisted setup model shared by onboarding and settings."),

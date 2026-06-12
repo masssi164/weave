@@ -48,7 +48,7 @@ def main():
  for name,title in REQUIRED.items():
   if schemas[name].get('title')!=title: fail(f'{name} title must be {title}')
   if schemas[name].get('$schema')!='https://json-schema.org/draft/2020-12/schema': fail(f'{name} must declare draft 2020-12')
-  expected_id=f'https://weave.local/contracts/portability/{name}'
+  expected_id=f'https://weave.test/contracts/portability/{name}'
   if schemas[name].get('$id')!=expected_id: fail(f'{name} $id must be {expected_id}')
  if schemas['loss-class.schema.json'].get('enum')!=LOSS: fail('loss classes must match canonical list/order')
  required_contains(schemas['provider-adapter-manifest.schema.json'], ['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary'], 'ProviderAdapterManifest')

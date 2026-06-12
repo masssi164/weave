@@ -7,14 +7,14 @@
     {
       "clientId": "weave-app",
       "publicClient": true,
-      "redirectOrigins": ["https://weave.local/callback", "weave://auth/callback"],
+      "redirectOrigins": ["https://weave.test/callback", "weave://auth/callback"],
       "roles": ["owner", "admin", "operator", "member", "guest"],
       "scopes": ["openid", "profile", "email", "weave:workspace"]
     },
     {
       "clientId": "weave-admin-console",
       "publicClient": true,
-      "redirectOrigins": ["https://admin.weave.local/callback"],
+      "redirectOrigins": ["https://admin.weave.test/callback"],
       "roles": ["owner", "admin", "operator"],
       "scopes": ["openid", "profile", "email", "weave:workspace"]
     }

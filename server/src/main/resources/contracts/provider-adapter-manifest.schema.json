@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/provider-adapter-manifest.schema.json",
+  "$id": "https://weave.test/contracts/provider-adapter-manifest.schema.json",
   "title": "Weave Provider Adapter Manifest",
   "type": "object",
   "additionalProperties": false,

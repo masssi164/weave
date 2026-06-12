@@ -9,7 +9,7 @@ terraform {
 locals {
   test_user = {
     username   = "test"
-    email      = "test@weave.local"
+    email      = "test@weave.test"
     first_name = "Test"
     last_name  = "User"
     password   = var.test_user_password

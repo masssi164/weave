@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/context-graph.schema.json",
+  "$id": "https://weave.test/contracts/context-graph.schema.json",
   "title": "Weave Context Graph Contract",
   "description": "Contract draft for tenant-scoped Weave contexts, graph edges, memberships, provider bindings, and ReBAC tuples. Team and channel are templates/kinds, not the hard backend hierarchy.",
   "type": "object",

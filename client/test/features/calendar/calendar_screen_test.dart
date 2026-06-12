@@ -62,10 +62,10 @@ class _FakeCalendarRepository implements CalendarRepository {
     scope: CalendarScope.workspace,
     username: 'user-123',
     endpoints: CalendarExternalEndpoints(
-      serverUrl: 'https://files.weave.local',
-      caldavDiscoveryUrl: 'https://files.weave.local/remote.php/dav',
+      serverUrl: 'https://files.weave.test',
+      caldavDiscoveryUrl: 'https://files.weave.test/remote.php/dav',
       principalUrl:
-          'https://files.weave.local/remote.php/dav/principals/users/user-123/',
+          'https://files.weave.test/remote.php/dav/principals/users/user-123/',
     ),
     credentialPolicy:
         'The backend never returns passwords, app passwords, or bearer tokens.',
@@ -99,7 +99,7 @@ class _FakeCalendarRepository implements CalendarRepository {
         platform: 'android',
         method: 'davx5',
         available: true,
-        actionUrl: 'davx5://files.weave.local/remote.php/dav',
+        actionUrl: 'davx5://files.weave.test/remote.php/dav',
       ),
     ],
   );
@@ -352,7 +352,7 @@ void main() {
       expect(find.text('Use Calendar in other apps'), findsOneWidget);
       expect(find.text('CalDAV discovery URL'), findsOneWidget);
       expect(
-        find.text('https://files.weave.local/remote.php/dav'),
+        find.text('https://files.weave.test/remote.php/dav'),
         findsOneWidget,
       );
       expect(find.text('android via davx5: available'), findsOneWidget);

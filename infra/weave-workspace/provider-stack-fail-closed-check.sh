@@ -171,7 +171,7 @@ curl_auth_json() {
 
 fetch_workspace_token() {
   local token_endpoint="${WEAVE_OIDC_ISSUER_URL}/protocol/openid-connect/token"
-  local username="${WEAVE_TEST_USERNAME:-test@weave.local}"
+  local username="${WEAVE_TEST_USERNAME:-test@weave.test}"
   local password="${WEAVE_TEST_PASSWORD:-${TF_VAR_test_user_password:-}}"
   local client_id="${WEAVE_OIDC_CLIENT_ID:-weave-app}"
   local -a args=()

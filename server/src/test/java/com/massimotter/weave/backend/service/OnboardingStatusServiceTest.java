@@ -21,13 +21,13 @@ class OnboardingStatusServiceTest {
     @Test
     void derivesNotConfiguredAndDegradedProvisioningStatesFromCapabilities() {
         OAuth2ResourceServerProperties resourceServerProperties = new OAuth2ResourceServerProperties();
-        resourceServerProperties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        resourceServerProperties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
         OnboardingStatusService service = new OnboardingStatusService(
                 resourceServerProperties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(
                         new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", WorkspaceCapabilityReadiness.DEGRADED),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", WorkspaceCapabilityReadiness.DEGRADED),
                         new WorkspaceCapabilityProperties.Capability(false, null, null),
                         new WorkspaceCapabilityProperties.Capability(false, null, null),
                         new WorkspaceCapabilityProperties.Capability(false, null, null),
@@ -45,14 +45,14 @@ class OnboardingStatusServiceTest {
     @Test
     void honorsExplicitPendingAndFailedProvisioningOverrides() {
         OAuth2ResourceServerProperties resourceServerProperties = new OAuth2ResourceServerProperties();
-        resourceServerProperties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        resourceServerProperties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
         OnboardingStatusService service = new OnboardingStatusService(
                 resourceServerProperties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 new WorkspaceCapabilityProperties(
                         new WorkspaceCapabilityProperties.Capability(true, null, null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", null),
-                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", null),
+                        new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", null),
                         new WorkspaceCapabilityProperties.Capability(false, null, null),
                         new WorkspaceCapabilityProperties.Capability(false, null, null),
                         null),

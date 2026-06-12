@@ -85,7 +85,7 @@ void main() {
           (request) =>
               request.method == 'POST' &&
               request.url.toString() ==
-                  'https://api.weave.local/api/boards/tasks/task-1/complete',
+                  'https://api.weave.test/api/boards/tasks/task-1/complete',
         ),
         isTrue,
       );
@@ -292,7 +292,7 @@ List<dynamic> _backendWorkspaceOverrides(
 ) => [
   weaveAuthenticatedSessionProvider.overrideWith(
     (ref) async => WeaveAuthenticatedSession(
-      apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+      apiBaseUrl: Uri.parse('https://api.weave.test/api'),
       accessToken: 'token',
     ),
   ),

@@ -12,7 +12,7 @@ variable "tenant_slug" {
 variable "tenant_domain" {
   description = "Base domain used to derive public service hostnames."
   type        = string
-  default     = "weave.local"
+  default     = "weave.test"
 }
 
 variable "auth_subdomain" {
@@ -63,7 +63,7 @@ variable "proxy_host_port" {
 }
 
 variable "local_lan_host" {
-  description = "Deprecated/non-canonical LAN host/IP compatibility input. Keycloak public issuer and redirects remain DNS-first on weave.local / *.weave.local."
+  description = "Deprecated/non-canonical LAN host/IP compatibility input. Keycloak public issuer and redirects remain DNS-first on weave.test / *.weave.test."
   type        = string
   default     = ""
 }

@@ -46,7 +46,7 @@ synapse_gid() {
 }
 
 synapse_matrix_public_host() {
-  printf '%s.%s\n' "${TF_VAR_matrix_subdomain:-matrix}" "${TF_VAR_tenant_domain:-weave.local}"
+  printf '%s.%s\n' "${TF_VAR_matrix_subdomain:-matrix}" "${TF_VAR_tenant_domain:-weave.test}"
 }
 
 synapse_signing_key_path() {

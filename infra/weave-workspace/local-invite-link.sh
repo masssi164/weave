@@ -8,7 +8,7 @@ usage() {
   cat <<'USAGE'
 Usage: local-invite-link.sh [--json] [--run-id ID] [--handoff-ref REF] [--org ORG] [--workspace WORKSPACE] [--profile PROFILE] [--base-url URL]
 
-Defaults emit the Massimo local dogfood/home invite using DNS-first https://weave.local:44443.
+Defaults emit the Massimo local dogfood/home invite using DNS-first https://weave.test:44443.
 No tokens, passwords, or secrets are generated or embedded.
 USAGE
 }
@@ -19,7 +19,7 @@ workspace="home"
 profile="local-lan-dogfood"
 run_id="s32-massimo-dogfood"
 handoff_ref="handoff-s32-massimo-dogfood-home"
-base_url="${WEAVE_PUBLIC_BASE_URL:-https://weave.local:44443}"
+base_url="${WEAVE_PUBLIC_BASE_URL:-https://weave.test:44443}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -47,8 +47,8 @@ parsed = urlparse(base_url)
 errors = []
 if parsed.scheme != "https":
     errors.append("base URL must use https")
-if parsed.hostname != "weave.local":
-    errors.append("base URL must be DNS-first weave.local")
+if parsed.hostname != "weave.test":
+    errors.append("base URL must be DNS-first weave.test")
 if parsed.port != 44443:
     errors.append("base URL must include local dogfood port 44443")
 if parsed.username or parsed.password or parsed.query or parsed.fragment:

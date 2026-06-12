@@ -263,11 +263,11 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.credentialReadiness.readOnlySubscriptionTokensAvailable").value(false))
                 .andExpect(jsonPath("$.credentialReadiness.backendActorCredentialsExposed").value(false))
                 .andExpect(jsonPath("$.username").value("user-123"))
-                .andExpect(jsonPath("$.endpoints.serverUrl").value("https://files.weave.local"))
+                .andExpect(jsonPath("$.endpoints.serverUrl").value("https://files.weave.test"))
                 .andExpect(jsonPath("$.endpoints.caldavDiscoveryUrl")
-                        .value("https://files.weave.local/remote.php/dav"))
+                        .value("https://files.weave.test/remote.php/dav"))
                 .andExpect(jsonPath("$.endpoints.principalUrl")
-                        .value("https://files.weave.local/remote.php/dav/principals/users/user-123/"))
+                        .value("https://files.weave.test/remote.php/dav/principals/users/user-123/"))
                 .andExpect(jsonPath("$.options[0].platform").value("apple"))
                 .andExpect(jsonPath("$.options[0].method").value("mobileconfig"))
                 .andExpect(jsonPath("$.options[0].available").value(false))
@@ -275,7 +275,7 @@ class FilesCalendarFacadeControllerTest {
                 .andExpect(jsonPath("$.options[1].method").value("davx5"))
                 .andExpect(jsonPath("$.options[1].available").value(true))
                 .andExpect(jsonPath("$.options[1].actionUrl")
-                        .value("davx5://files.weave.local/remote.php/dav"))
+                        .value("davx5://files.weave.test/remote.php/dav"))
                 .andExpect(jsonPath("$.options[3].platform").value("subscription"))
                 .andExpect(jsonPath("$.options[3].available").value(false));
     }

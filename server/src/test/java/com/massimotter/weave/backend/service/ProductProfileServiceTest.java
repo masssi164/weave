@@ -63,7 +63,7 @@ class ProductProfileServiceTest {
         assertThat(service.authenticatedUser(renamedEmail).userId())
                 .isEqualTo(service.authenticatedUser(original).userId());
         assertThat(service.authenticatedUser(renamedEmail).primaryIdentityKey())
-                .isEqualTo("issuer+subject:https://auth.weave.local/realms/weave#user-123");
+                .isEqualTo("issuer+subject:https://auth.weave.test/realms/weave#user-123");
         assertThat(service.authenticatedUser(renamedEmail).displayName()).isEqualTo("Alice Stable");
         assertThat(service.authenticatedUser(renamedEmail).emailPrimaryKey()).isFalse();
     }
@@ -85,7 +85,7 @@ class ProductProfileServiceTest {
 
         assertThat(service.profile(profileJwt()).displayName()).isEqualTo("Alice Legacy");
         String persisted = java.nio.file.Files.readString(storagePath);
-        assertThat(persisted).contains("issuer+subject:https://auth.weave.local/realms/weave#user-123");
+        assertThat(persisted).contains("issuer+subject:https://auth.weave.test/realms/weave#user-123");
         assertThat(persisted).doesNotContain("\"user-123\"");
     }
 
@@ -97,7 +97,7 @@ class ProductProfileServiceTest {
         return Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject("user-123")
-                .claim("iss", "https://auth.weave.local/realms/weave")
+                .claim("iss", "https://auth.weave.test/realms/weave")
                 .claim("preferred_username", "alice")
                 .claim("name", "Alice Example")
                 .claim("email", email)

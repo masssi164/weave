@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/task-board-event.schema.json",
+  "$id": "https://weave.test/contracts/task-board-event.schema.json",
   "title": "TaskBoardEvent",
   "description": "Provider-neutral normalized Boards/Tasks event envelope for support-safe audit and sync evidence. Publication remains feature-gated until runtime semantics pass.",
   "type": "object",

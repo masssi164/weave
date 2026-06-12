@@ -236,7 +236,7 @@ class FilesFacadeServiceTest {
 
     private WorkspaceCapabilityService workspaceCapabilityService() {
         OAuth2ResourceServerProperties properties = new OAuth2ResourceServerProperties();
-        properties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        properties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
         return new WorkspaceCapabilityService(
                 properties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),

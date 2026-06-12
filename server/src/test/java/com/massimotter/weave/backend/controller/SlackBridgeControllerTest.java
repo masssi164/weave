@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "weave.interop.slack.token-ref=secret://slack/bot-token",
         "weave.interop.slack.workspace-id=T123",
         "weave.interop.slack.channel-id=C123",
-        "weave.interop.slack.room-id=!room:weave.local"
+        "weave.interop.slack.room-id=!room:weave.test"
 })
 @AutoConfigureMockMvc
 class SlackBridgeControllerTest {
@@ -78,7 +78,7 @@ class SlackBridgeControllerTest {
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.provider").value("slack"))
-                .andExpect(jsonPath("$.roomRef").value("!room:weave.local"))
+                .andExpect(jsonPath("$.roomRef").value("!room:weave.test"))
                 .andExpect(jsonPath("$.dryRunOnly").value(true))
                 .andExpect(content().string(not(containsString("secret://slack"))));
     }

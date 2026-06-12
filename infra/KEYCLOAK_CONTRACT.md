@@ -5,14 +5,14 @@ This is the local identity contract for the Weave self-hosted development stack.
 ## Realm
 
 - Realm name: `weave`
-- Default public issuer URI: `https://auth.weave.local/realms/weave`
+- Default public issuer URI: `https://auth.weave.test/realms/weave`
 - OpenTofu module source: `weave-workspace/02-keycloak-setup/modules/tenant-identity`
 
 The issuer URI follows the infrastructure inputs:
 
 - `tenant_slug`: realm name, default `weave`
 - `auth_subdomain`: default `auth`
-- `tenant_domain`: default `weave.local`
+- `tenant_domain`: default `weave.test`
 - `public_scheme`: default `https`
 - `proxy_host_port`: default `443`
 
@@ -23,7 +23,7 @@ The Keycloak setup stage can create a local integration test user. It is disable
 Enable it with `TF_VAR_create_test_user=true` when running `weave-workspace/install.sh`, or by setting `create_test_user=true` for the `02-keycloak-setup` OpenTofu stage. `TF_VAR_*` remains the OpenTofu/Terraform-compatible variable environment prefix.
 
 - Username: `test`
-- Email and login identifier: `test@weave.local`
+- Email and login identifier: `test@weave.test`
 - First name: `Test`
 - Last name: `User`
 - Password: `<generated — see bootstrap.env>`
@@ -33,16 +33,16 @@ Enable it with `TF_VAR_create_test_user=true` when running `weave-workspace/inst
 For integration tests, use:
 
 ```bash
-export WEAVE_TEST_USERNAME=test@weave.local
+export WEAVE_TEST_USERNAME=test@weave.test
 export WEAVE_TEST_PASSWORD='<generated — see bootstrap.env>'
 ```
 
 `install.sh` also writes non-secret Flutter integration settings when the test user is enabled:
 
 ```bash
-export WEAVE_API_BASE_URL=https://api.weave.local/api
-export WEAVE_BASE_URL=https://api.weave.local/api
-export WEAVE_OIDC_ISSUER_URL=https://auth.weave.local/realms/weave
+export WEAVE_API_BASE_URL=https://api.weave.test/api
+export WEAVE_BASE_URL=https://api.weave.test/api
+export WEAVE_OIDC_ISSUER_URL=https://auth.weave.test/realms/weave
 export WEAVE_OIDC_CLIENT_ID=weave-app
 ```
 
@@ -69,27 +69,27 @@ The Flutter app may request `openid profile email`; `weave:workspace` is assigne
 - Expected token audience: `weave-app`
 - Expected token `azp` or `client_id`: `weave-app`
 - Backend environment:
-  - `WEAVE_OIDC_ISSUER_URI=https://auth.weave.local/realms/weave`
+  - `WEAVE_OIDC_ISSUER_URI=https://auth.weave.test/realms/weave`
   - `WEAVE_OIDC_JWK_SET_URI=http://weave-keycloak:8080/realms/weave/protocol/openid-connect/certs`
   - `WEAVE_OIDC_REQUIRED_AUDIENCE=weave-app`
   - `WEAVE_CLIENT_ID=weave-app`
-- Public API URL: `https://api.weave.local/api`
+- Public API URL: `https://api.weave.test/api`
 - Direct readiness URL: `http://127.0.0.1:8084/api/health/ready`
 
 ### Matrix Authentication Service
 
 - Client ID: `matrix-mas`
 - Access type: confidential
-- Redirect URI: `https://matrix.weave.local/upstream/callback/01JQ7N9R4QK6W3M5X8Y2ZC1DHF`
+- Redirect URI: `https://matrix.weave.test/upstream/callback/01JQ7N9R4QK6W3M5X8Y2ZC1DHF`
 - Web origins: `+`
 
 ### Nextcloud
 
 - Client ID: `nextcloud`
 - Access type: confidential
-- Redirect URI: `https://files.weave.local/*`
-- Post-logout redirect URI: `https://files.weave.local/*`
-- Backchannel logout URL: `https://files.weave.local/index.php/apps/user_oidc/backchannel-logout/keycloak`
+- Redirect URI: `https://files.weave.test/*`
+- Post-logout redirect URI: `https://files.weave.test/*`
+- Backchannel logout URL: `https://files.weave.test/index.php/apps/user_oidc/backchannel-logout/keycloak`
 - Token claims include `groups` for Nextcloud group provisioning.
 
 ## Client Scopes
@@ -113,7 +113,7 @@ The scope carries an audience mapper:
 
 A mobile access token for `weave-app` must include:
 
-- `iss`: `https://auth.weave.local/realms/weave`
+- `iss`: `https://auth.weave.test/realms/weave`
 - `azp`: `weave-app`
 - `client_id`: `weave-app` when present
 - `aud`: includes `weave-app`

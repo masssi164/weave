@@ -4,16 +4,16 @@
 
 ## Stable aliases and names
 
-For the default local tenant (`matrix.weave.local`):
+For the default local tenant (`matrix.weave.test`):
 
 | Structure | Name | Alias |
 |---|---|---|
-| Workspace space | `Weave Workspace` | `#weave-workspace:matrix.weave.local` |
-| Announcements room | `announcements` | `#announcements:matrix.weave.local` |
-| General room | `general` | `#general:matrix.weave.local` |
-| Help room | `help` | `#help:matrix.weave.local` |
+| Workspace space | `Weave Workspace` | `#weave-workspace:matrix.weave.test` |
+| Announcements room | `announcements` | `#announcements:matrix.weave.test` |
+| General room | `general` | `#general:matrix.weave.test` |
+| Help room | `help` | `#help:matrix.weave.test` |
 
-For a non-local tenant, replace `matrix.weave.local` with `matrix.<tenant_domain>` or the configured `TF_VAR_matrix_subdomain`.`TF_VAR_tenant_domain` value.
+For a non-local tenant, replace `matrix.weave.test` with `matrix.<tenant_domain>` or the configured `TF_VAR_matrix_subdomain`.`TF_VAR_tenant_domain` value.
 
 ## Access policy in this slice
 
@@ -28,7 +28,7 @@ For a non-local tenant, replace `matrix.weave.local` with `matrix.<tenant_domain
 
 The current Synapse/MAS stack delegates Matrix authentication to Matrix Authentication Service (MAS), so the default workspace provisioner does **not** use Synapse shared-secret admin registration. Instead, `provision-matrix-default-workspace.sh` preflights the running MAS container, registers the local provisioning users with `mas-cli`, reconciles admin policy for existing users on reruns, issues MAS compatibility tokens, and validates each token against Synapse `/_matrix/client/v3/account/whoami` before any Matrix Client-Server API room creation.
 
-The generated MAS config disables password authentication (`passwords.enabled=false`). Provisioning therefore creates MAS users without `--password`/`set-password`; the room setup path authenticates only through compatibility tokens stored in the private generated bootstrap environment. MAS CLI user arguments are Matrix localparts/usernames such as `admin`, not full MXIDs such as `@admin:matrix.weave.local`.
+The generated MAS config disables password authentication (`passwords.enabled=false`). Provisioning therefore creates MAS users without `--password`/`set-password`; the room setup path authenticates only through compatibility tokens stored in the private generated bootstrap environment. MAS CLI user arguments are Matrix localparts/usernames such as `admin`, not full MXIDs such as `@admin:matrix.weave.test`.
 
 By default the MAS container is `weave-mas`. Override `WEAVE_MATRIX_MAS_CONTAINER_NAME` only if the deployment intentionally uses a different container name. If MAS is not running, the image does not provide `mas-cli`, or Synapse rejects a freshly issued compatibility token, provisioning fails before room creation with an actionable error. Matrix API calls also retry transient rate-limit/service-unavailable responses.
 

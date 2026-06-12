@@ -46,9 +46,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OAuth2ResourceServerProperties.class
 })
 @TestPropertySource(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.local/realms/weave",
-        "weave.workspace.chat.dependency-url=https://matrix.weave.local",
-        "weave.workspace.files.dependency-url=https://files.weave.local",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+        "weave.workspace.chat.dependency-url=https://matrix.weave.test",
+        "weave.workspace.files.dependency-url=https://files.weave.test",
         "weave.workspace.calendar.enabled=true"
 })
 class PlatformControllerTest {
@@ -63,15 +63,15 @@ class PlatformControllerTest {
     void exposesPublicPlatformConfig() throws Exception {
         mockMvc.perform(get("/api/platform/config"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.publicBaseUrl").value("https://weave.local"))
-                .andExpect(jsonPath("$.apiBaseUrl").value("https://api.weave.local/api"))
-                .andExpect(jsonPath("$.authBaseUrl").value("https://auth.weave.local"))
-                .andExpect(jsonPath("$.oidcIssuerUrl").value("https://auth.weave.local/realms/weave"))
+                .andExpect(jsonPath("$.publicBaseUrl").value("https://weave.test"))
+                .andExpect(jsonPath("$.apiBaseUrl").value("https://api.weave.test/api"))
+                .andExpect(jsonPath("$.authBaseUrl").value("https://auth.weave.test"))
+                .andExpect(jsonPath("$.oidcIssuerUrl").value("https://auth.weave.test/realms/weave"))
                 .andExpect(jsonPath("$.oidcClientId").value("weave-app"))
-                .andExpect(jsonPath("$.matrixHomeserverUrl").value("https://matrix.weave.local"))
-                .andExpect(jsonPath("$.filesProductUrl").value("https://weave.local/files"))
-                .andExpect(jsonPath("$.calendarProductUrl").value("https://weave.local/calendar"))
-                .andExpect(jsonPath("$.nextcloudBaseUrl").value("https://files.weave.local"))
+                .andExpect(jsonPath("$.matrixHomeserverUrl").value("https://matrix.weave.test"))
+                .andExpect(jsonPath("$.filesProductUrl").value("https://weave.test/files"))
+                .andExpect(jsonPath("$.calendarProductUrl").value("https://weave.test/calendar"))
+                .andExpect(jsonPath("$.nextcloudBaseUrl").value("https://files.weave.test"))
                 .andExpect(jsonPath("$.targets.mobile").value(true))
                 .andExpect(jsonPath("$.targets.desktop").value(true))
                 .andExpect(jsonPath("$.targets.web").value(false))

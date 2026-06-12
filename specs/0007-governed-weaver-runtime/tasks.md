@@ -22,3 +22,6 @@
 - [x] T015 [#526] Define the per-user runtime context/container lifecycle with signed RuntimeProfile input, isolated state/workspace/agentDir, internal-only network, quota/memory boundaries, and reload/restart/rollback/revocation gates.
 - [x] T016 [#526] Add infra static evidence for lifecycle contract and support-bundle redaction of Weaver runtime tokens, SecretRefs, and raw provider material.
 - [x] T015 [#524] Add Admin Console support-safe RuntimeProfile projection management for Chat, model, tool, skill, MCP, revocation, and audit previews.
+- [x] T017 [SSOT] Make governed MCP tools domain-first and forbid adapter/provider-named tool discovery.
+- [x] T018 [SSOT] Prove `calendar.search_events` delegates to the Weave backend Calendar facade and fails closed/support-safe without direct CalDAV or Nextcloud adapter access.
+- [x] T019 [SSOT] Keep providerRef/credentialRef detail hidden from normal tool discovery and support-safe in RuntimeProfile projection metadata.

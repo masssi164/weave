@@ -14,7 +14,7 @@ services:
     shm_size: ${TF_VAR_devops_gitlab_shm_size:-256m}
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url '${TF_VAR_devops_gitlab_external_url:-http://gitlab.weave.local:48088}'
+        external_url '${TF_VAR_devops_gitlab_external_url:-http://gitlab.weave.test:48088}'
         gitlab_rails['gitlab_shell_ssh_port'] = ${TF_VAR_devops_gitlab_ssh_host_port:-48022}
     ports:
       - "${TF_VAR_devops_gitlab_http_host_port:-48088}:80"
@@ -37,8 +37,8 @@ services:
     environment:
       USER_UID: ${TF_VAR_devops_forgejo_uid:-1000}
       USER_GID: ${TF_VAR_devops_forgejo_gid:-1000}
-      FORGEJO__server__DOMAIN: ${TF_VAR_devops_forgejo_domain:-forgejo.weave.local}
-      FORGEJO__server__ROOT_URL: ${TF_VAR_devops_forgejo_root_url:-http://forgejo.weave.local:48089/}
+      FORGEJO__server__DOMAIN: ${TF_VAR_devops_forgejo_domain:-forgejo.weave.test}
+      FORGEJO__server__ROOT_URL: ${TF_VAR_devops_forgejo_root_url:-http://forgejo.weave.test:48089/}
       FORGEJO__server__SSH_PORT: ${TF_VAR_devops_forgejo_ssh_host_port:-48023}
     ports:
       - "${TF_VAR_devops_forgejo_http_host_port:-48089}:3000"

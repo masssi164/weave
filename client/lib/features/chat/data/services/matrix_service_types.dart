@@ -4,7 +4,7 @@
 
 const matrixOidcClientName = 'Weave';
 const matrixOidcClientUri = 'https://github.com/masssi164/weave';
-const matrixOidcContact = 'support@weave.local';
+const matrixOidcContact = 'support@weave.test';
 const matrixOidcLoopbackRedirectHost = '127.0.0.1';
 const matrixOidcRedirectPath = '/oauthredirect';
 

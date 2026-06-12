@@ -6,9 +6,11 @@ import hashlib
 import hmac
 import threading
 import unittest
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from unittest.mock import patch
 
 from weave_mcp.app import WeaveMcpGateway, serve
 from weave_mcp.config import WeaveMcpConfig
@@ -95,6 +97,12 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertTrue(tools["calendar.create_event"]["meta"]["approval"] == "required")
         self.assertTrue(tools["boards.comment"]["meta"]["approval"] == "required")
         self.assertTrue(all(tool["meta"]["transport"] == "streamable-http" for tool in tools.values()))
+        discovery_text = json.dumps(body, sort_keys=True).lower()
+        self.assertNotIn("nextcloud", discovery_text)
+        self.assertNotIn("caldav", discovery_text)
+        self.assertNotIn("providerref", discovery_text)
+        self.assertNotIn("credentialref://", discovery_text)
+        self.assertFalse(any(tool["name"].startswith(("nextcloud.", "caldav.")) for tool in tools.values()))
 
     def test_discovery_uses_runtime_profile_projection_not_caller_grant_headers(self) -> None:
         profile = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events"], "capabilityGrants": ["weaver.calendar_read"]}
@@ -223,6 +231,44 @@ class WeaveMcpGatewayTest(unittest.TestCase):
             {"tool": "calendar.search_events", "input": {"eventRef": later_session["result"]["eventRef"]}},
         )
         self.assertTrue(readback["result"]["readbackVerified"])
+
+    def test_calendar_search_delegates_to_backend_calendar_facade(self) -> None:
+        class BackendResponse:
+            @contextmanager
+            def __call__(self, request: Request, timeout: int = 0):
+                self.request = request
+                yield self
+
+            def read(self) -> bytes:
+                return json.dumps(
+                    {
+                        "items": [
+                            {
+                                "id": "nextcloud-event-1",
+                                "title": "Private title",
+                                "startsAt": "2026-06-12T08:00:00Z",
+                                "endsAt": "2026-06-12T08:30:00Z",
+                                "allDay": False,
+                                "scope": {"type": "workspace"},
+                            }
+                        ]
+                    }
+                ).encode("utf-8")
+
+        backend = BackendResponse()
+        headers = {key.lower(): value for key, value in HEADERS.items()}
+        with patch("weave_mcp.client.urlopen", backend):
+            result = self.gateway().invoke_tool(
+                headers,
+                {"tool": "calendar.search_events", "input": {"from": "2026-06-12T00:00:00Z", "to": "2026-06-13T00:00:00Z"}},
+            )["result"]
+
+        self.assertIn("/calendar/events?from=2026-06-12T00%3A00%3A00Z&to=2026-06-13T00%3A00%3A00Z", backend.request.full_url)
+        self.assertEqual(backend.request.headers["Authorization"], "Bearer dev-runtime-token")
+        self.assertTrue(result["providerSourceMappedByBackend"])
+        self.assertTrue(result["redactedItems"])
+        self.assertEqual(result["items"][0]["titlePresent"], True)
+        self.assertNotIn("Private title", repr(result))
 
     def test_local_streamable_http_server_discovery_and_invocation(self) -> None:
         httpd = serve(WeaveMcpConfig(enabled=True), port=0)

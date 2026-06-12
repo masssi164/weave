@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/provider-mapping.schema.json",
+  "$id": "https://weave.test/contracts/provider-mapping.schema.json",
   "title": "Weave Provider Mapping",
   "type": "object",
   "additionalProperties": false,

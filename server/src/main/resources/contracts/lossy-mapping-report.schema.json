@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/lossy-mapping-report.schema.json",
+  "$id": "https://weave.test/contracts/lossy-mapping-report.schema.json",
   "title": "Weave Lossy Mapping Report",
   "type": "object",
   "additionalProperties": false,

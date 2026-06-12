@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/portability/permission-impact-report.schema.json",
+  "$id": "https://weave.test/contracts/portability/permission-impact-report.schema.json",
   "title": "PermissionImpactReport",
   "type": "object",
   "additionalProperties": false,

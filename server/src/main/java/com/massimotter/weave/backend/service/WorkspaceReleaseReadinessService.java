@@ -103,7 +103,7 @@ public class WorkspaceReleaseReadinessService {
                     "Matrix chat route",
                     readiness,
                     "Chat is enabled but no Matrix route is configured yet.",
-                    "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.local.");
+                    "Set WEAVE_MATRIX_HOMESERVER_URL to the public Matrix base URL, for example https://matrix.weave.test.");
             case BLOCKED -> new WorkspaceReleaseReadinessCheckResponse(
                     "chat",
                     "Matrix chat route",
@@ -136,7 +136,7 @@ public class WorkspaceReleaseReadinessService {
                     "Nextcloud files route",
                     readiness,
                     "Files are enabled but no Nextcloud route is configured yet.",
-                    "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.local.");
+                    "Set WEAVE_NEXTCLOUD_BASE_URL to the canonical Nextcloud URL, for example https://files.weave.test.");
             case BLOCKED -> new WorkspaceReleaseReadinessCheckResponse(
                     "files",
                     "Nextcloud files route",

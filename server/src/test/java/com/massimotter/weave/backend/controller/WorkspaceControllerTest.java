@@ -58,9 +58,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         OAuth2ResourceServerProperties.class
 })
 @org.springframework.test.context.TestPropertySource(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.local/realms/weave",
-        "weave.workspace.chat.dependency-url=https://matrix.weave.local",
-        "weave.workspace.files.dependency-url=https://files.weave.local",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
+        "weave.workspace.chat.dependency-url=https://matrix.weave.test",
+        "weave.workspace.files.dependency-url=https://files.weave.test",
         "weave.workspace.calendar.enabled=true",
         "weave.workspace.calendar.readiness=degraded",
         "weave.workspace.meetings-calls.enabled=true"
@@ -95,7 +95,7 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.manifestVersion").value("org-manifest-v1"))
                 .andExpect(jsonPath("$.organizationId").value("weave-dogfood"))
                 .andExpect(jsonPath("$.displayName").value("Weave Dogfood"))
-                .andExpect(jsonPath("$.organizationAuthUrl").value("https://auth.weave.local/realms/weave"))
+                .andExpect(jsonPath("$.organizationAuthUrl").value("https://auth.weave.test/realms/weave"))
                 .andExpect(jsonPath("$.supportSafe").value(true))
                 .andExpect(jsonPath("$.providerConfigurationExposed").value(false))
                 .andExpect(jsonPath("$.diagnosticsExposed").value(false))
@@ -121,8 +121,8 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.memberCapabilityStates['forms-contacts']").value("coming_later"))
                 .andExpect(jsonPath("$.capabilities.calendar.grantedCapabilities", hasItems("calendar.manage_events")))
                 .andExpect(jsonPath("$.capabilities.weaver.policyState").value("disabled"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.local"))))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.local"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("matrix.weave.test"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("files.weave.test"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("providerDiagnostics"))))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string(not(containsString("Authorization: Bearer"))));
     }
@@ -130,7 +130,7 @@ class WorkspaceControllerTest {
     @Test
     void rejectsOrganizationManifestWhenAuthUrlWouldExposeUserInfo() throws Exception {
         String originalIssuerUri = resourceServerProperties.getJwt().getIssuerUri();
-        resourceServerProperties.getJwt().setIssuerUri("https://user:pass@auth.weave.local/realms/weave");
+        resourceServerProperties.getJwt().setIssuerUri("https://user:pass@auth.weave.test/realms/weave");
         try {
             mockMvc.perform(get("/api/v1/organization/manifest").with(jwt()
                             .jwt(jwt -> jwt

@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.local/realms/weave",
+        "spring.security.oauth2.resourceserver.jwt.issuer-uri=https://auth.weave.test/realms/weave",
         "weave.security.required-audience=weave-app",
         "weave.security.client-id=weave-app"
 })
@@ -143,7 +143,7 @@ class FirstPartyIdentityContractTest {
                 .andExpect(jsonPath("$.issuedFor").value(FIRST_PARTY_CLIENT_ID))
                 .andExpect(jsonPath("$.audience[0]").value(REQUIRED_AUDIENCE))
                 .andExpect(jsonPath("$.subject").value("user-123"))
-                .andExpect(jsonPath("$.primaryIdentityKey").value("issuer+subject:https://auth.weave.local/realms/weave#user-123"))
+                .andExpect(jsonPath("$.primaryIdentityKey").value("issuer+subject:https://auth.weave.test/realms/weave#user-123"))
                 .andExpect(jsonPath("$.providerRoleMappings[0]").value("role_claim:member"));
     }
 
@@ -197,7 +197,7 @@ class FirstPartyIdentityContractTest {
         Instant now = Instant.parse("2026-04-18T12:00:00Z");
         Jwt.Builder builder = Jwt.withTokenValue(tokenValue)
                 .header("alg", "none")
-                .issuer("https://auth.weave.local/realms/weave")
+                .issuer("https://auth.weave.test/realms/weave")
                 .subject("user-123")
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(300))

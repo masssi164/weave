@@ -68,7 +68,7 @@ keycloak_public_url() {
   printf '%s://%s.%s%s' \
     "${TF_VAR_public_scheme:-https}" \
     "${TF_VAR_auth_subdomain:-auth}" \
-    "${TF_VAR_tenant_domain:-weave.local}" \
+    "${TF_VAR_tenant_domain:-weave.test}" \
     "$(public_port_suffix)"
 }
 

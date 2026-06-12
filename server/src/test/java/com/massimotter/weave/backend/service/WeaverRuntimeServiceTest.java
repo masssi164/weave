@@ -221,7 +221,7 @@ class WeaverRuntimeServiceTest {
         var mismatched = service.profileByHash(otherMember, issued.runtimeProfileHash());
         assertThat(mismatched.enabled()).isFalse();
         assertThat(mismatched.posture()).isEqualTo("runtime-profile-fetch-denied");
-        assertThat(mismatched.toString()).doesNotContain("Bearer ", "openclaw.json", "refresh_token", "https://matrix.weave.local");
+        assertThat(mismatched.toString()).doesNotContain("Bearer ", "openclaw.json", "refresh_token", "https://matrix.weave.test");
     }
 
     @Test
@@ -314,7 +314,7 @@ class WeaverRuntimeServiceTest {
                 Map.of(
                         "weaverMemory", "memory://alice/private prompt about Bob",
                         "openclawConfig", "openclaw.json {\"apiKey\":\"sk-secret\"}",
-                        "providerDiagnostic", "Bearer raw-token refresh_token=raw https://matrix.weave.local/_matrix/private",
+                        "providerDiagnostic", "Bearer raw-token refresh_token=raw https://matrix.weave.test/_matrix/private",
                         "health", "runtime labels ok"));
 
         assertThat(bundle)
@@ -333,13 +333,13 @@ class WeaverRuntimeServiceTest {
             InMemoryAuditEventPublisher audit) {
         WorkspaceCapabilityProperties capabilities = new WorkspaceCapabilityProperties(
                 new WorkspaceCapabilityProperties.Capability(true, null, null),
-                new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.local", WorkspaceCapabilityReadiness.READY),
-                new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.local", WorkspaceCapabilityReadiness.READY),
+                new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", WorkspaceCapabilityReadiness.READY),
+                new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.READY),
                 new WorkspaceCapabilityProperties.Capability(true, null, WorkspaceCapabilityReadiness.READY),
                 new WorkspaceCapabilityProperties.Capability(true, null, WorkspaceCapabilityReadiness.READY),
                 new WorkspaceCapabilityProperties.Capability(workspaceWeaverEnabled, null, WorkspaceCapabilityReadiness.READY));
         OAuth2ResourceServerProperties resourceServerProperties = new OAuth2ResourceServerProperties();
-        resourceServerProperties.getJwt().setIssuerUri("https://auth.weave.local/realms/weave");
+        resourceServerProperties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
         WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
                 resourceServerProperties,
                 new WeaveSecurityProperties("weave-app", "weave-app"),

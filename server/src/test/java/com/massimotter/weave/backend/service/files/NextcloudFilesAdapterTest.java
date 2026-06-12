@@ -44,7 +44,7 @@ class NextcloudFilesAdapterTest {
     void remainsUnconfiguredUntilBackendActorCredentialsArePresent() {
         NextcloudFilesAdapter unconfigured = new NextcloudFilesAdapter(
                 new NextcloudFilesProperties(
-                        "https://files.weave.local",
+                        "https://files.weave.test",
                         "/remote.php/dav/files",
                         "backend-service-account",
                         "",

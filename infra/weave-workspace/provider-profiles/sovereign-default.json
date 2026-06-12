@@ -5,9 +5,9 @@
   "description": "Recommended self-hosted Weave dev/demo/default organization profile. This is the default bootstrap posture, not the only supported product shape.",
   "adminConsoleDeployTarget": {
     "app": "organization-admin-console",
-    "route": "https://admin.weave.local",
-    "backendApi": "https://api.weave.local/api",
-    "oidcIssuer": "https://auth.weave.local/realms/weave",
+    "route": "https://admin.weave.test",
+    "backendApi": "https://api.weave.test/api",
+    "oidcIssuer": "https://auth.weave.test/realms/weave",
     "oidcClientId": "weave-admin-console"
   },
   "serverControlPlane": {

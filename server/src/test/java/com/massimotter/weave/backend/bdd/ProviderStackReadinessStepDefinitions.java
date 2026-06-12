@@ -67,7 +67,7 @@ public class ProviderStackReadinessStepDefinitions {
     public void aWorkspaceScopedProductCaller() {
         caller = jwt().jwt(jwt -> jwt
                         .subject("user-123")
-                        .claim("iss", "https://auth.weave.local/realms/weave")
+                        .claim("iss", "https://auth.weave.test/realms/weave")
                         .claim("aud", List.of("weave-app")))
                 .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"));
     }
@@ -76,7 +76,7 @@ public class ProviderStackReadinessStepDefinitions {
     public void aWorkspaceScopedAdminProductCaller() {
         caller = jwt().jwt(jwt -> jwt
                         .subject("admin-123")
-                        .claim("iss", "https://auth.weave.local/realms/weave")
+                        .claim("iss", "https://auth.weave.test/realms/weave")
                         .claim("aud", List.of("weave-app"))
                         .claim("realm_access", Map.of("roles", List.of("admin"))))
                 .authorities(

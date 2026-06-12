@@ -103,12 +103,12 @@ docker build -t weave-backend:e2e .
 
 ## Canonical local/dev contract
 
-- Product shell: `https://weave.local`
-- Backend API base: `https://api.weave.local/api`
-- Keycloak issuer: `https://auth.weave.local/realms/weave`
-- Matrix homeserver: `https://matrix.weave.local`
-- Weave files/calendar product routes: `https://weave.local/files` and `https://weave.local/calendar`
-- Raw Nextcloud technical/admin/protocol fallback: `https://files.weave.local`
+- Product shell: `https://weave.test`
+- Backend API base: `https://api.weave.test/api`
+- Keycloak issuer: `https://auth.weave.test/realms/weave`
+- Matrix homeserver: `https://matrix.weave.test`
+- Weave files/calendar product routes: `https://weave.test/files` and `https://weave.test/calendar`
+- Raw Nextcloud technical/admin/protocol fallback: `https://files.weave.test`
 
 Protected `/api/**` routes require a bearer token whose issuer, audience, authorized party/client id, and scope match the first-party Weave app contract. Public health, platform config/status, and OpenAPI endpoints support bootstrap and diagnostics.
 

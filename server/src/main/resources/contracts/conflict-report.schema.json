@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/conflict-report.schema.json",
+  "$id": "https://weave.test/contracts/conflict-report.schema.json",
   "title": "Weave Conflict Report",
   "type": "object",
   "additionalProperties": false,

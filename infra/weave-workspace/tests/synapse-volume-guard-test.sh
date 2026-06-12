@@ -108,7 +108,7 @@ run_helper_case() {
     export TF_VAR_synapse_uid=991
     export TF_VAR_synapse_gid=991
     export TF_VAR_matrix_subdomain=matrix
-    export TF_VAR_tenant_domain=weave.local
+    export TF_VAR_tenant_domain=weave.test
     # shellcheck disable=SC1090
     source "${HELPER}"
     case "${action}" in

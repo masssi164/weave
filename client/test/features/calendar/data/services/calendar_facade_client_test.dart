@@ -332,11 +332,10 @@ void main() {
               },
               'username': 'user-123',
               'endpoints': {
-                'serverUrl': 'https://files.weave.local',
-                'caldavDiscoveryUrl':
-                    'https://files.weave.local/remote.php/dav',
+                'serverUrl': 'https://files.weave.test',
+                'caldavDiscoveryUrl': 'https://files.weave.test/remote.php/dav',
                 'principalUrl':
-                    'https://files.weave.local/remote.php/dav/principals/users/user-123/',
+                    'https://files.weave.test/remote.php/dav/principals/users/user-123/',
               },
               'credentialPolicy':
                   'The backend never returns Nextcloud passwords, app passwords, bearer tokens, or static profile secrets.',
@@ -353,7 +352,7 @@ void main() {
                   'platform': 'android',
                   'method': 'davx5',
                   'available': true,
-                  'actionUrl': 'davx5://files.weave.local/remote.php/dav',
+                  'actionUrl': 'davx5://files.weave.test/remote.php/dav',
                   'guidance': ['Use DAVx5 for two-way sync.'],
                 },
               ],
@@ -384,17 +383,17 @@ void main() {
         setup.credentialReadiness.blockers,
         contains('Apple profiles are unsigned.'),
       );
-      expect(setup.endpoints.serverUrl, 'https://files.weave.local');
+      expect(setup.endpoints.serverUrl, 'https://files.weave.test');
       expect(
         setup.endpoints.principalUrl,
-        'https://files.weave.local/remote.php/dav/principals/users/user-123/',
+        'https://files.weave.test/remote.php/dav/principals/users/user-123/',
       );
       expect(setup.credentialPolicy, contains('never returns'));
       expect(setup.options.first.platform, 'apple');
       expect(setup.options.first.available, isFalse);
       expect(
         setup.options.last.actionUrl,
-        'davx5://files.weave.local/remote.php/dav',
+        'davx5://files.weave.test/remote.php/dav',
       );
     });
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://weave.local/contracts/audit-consent.schema.json",
+  "$id": "https://weave.test/contracts/audit-consent.schema.json",
   "title": "Weave Audit and Consent Internal Seam",
   "description": "Internal append-only audit/consent envelope for future connector and assistant writes. This contract does not enable provider writes or public connector SDK behavior.",
   "type": "object",

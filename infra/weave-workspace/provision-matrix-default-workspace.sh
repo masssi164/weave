@@ -692,7 +692,7 @@ main() {
 
   load_bootstrap_env
   set_default_var TF_VAR_tenant_slug weave
-  set_default_var TF_VAR_tenant_domain weave.local
+  set_default_var TF_VAR_tenant_domain weave.test
   set_default_var TF_VAR_matrix_subdomain matrix
   set_default_var TF_VAR_public_scheme https
   set_default_var TF_VAR_proxy_host_port 44443

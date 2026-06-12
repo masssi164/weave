@@ -14,6 +14,13 @@ github_issues:
 release_notes_label: release-notes-feature
 acceptance_features:
   - e2e/features/v0_1_dogfood_release.feature
+pinned_corpus_sources:
+  - specs/weave-specs.lock.json
+  - ../weave-specs (locked corpus; product/domain SSOT)
+repo_projection:
+  - specs/0007-governed-weaver-runtime/spec.md
+  - specs/0007-governed-weaver-runtime/plan.md
+  - specs/0007-governed-weaver-runtime/tasks.md
 acceptance_scenarios:
   - tag: '@weave-v01-governed-weaver-runtime-policy'
     evidence:
@@ -27,6 +34,13 @@ acceptance_scenarios:
   - tag: '@weave-v01-governed-weaver-tool-registry'
     evidence:
       - server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java
+      - infra/weave-mcp/tests/test_weave_mcp.py
+      - infra/weave-mcp/src/weave_mcp/tools/registry.py
+      - infra/weave-mcp/src/weave_mcp/client.py
+    assertions:
+      - MCP tools are named for Weave domains/capabilities, not providers or adapters.
+      - calendar.search_events delegates to the backend Calendar facade and never directly to CalDAV/Nextcloud.
+      - Discovery omits providerRef/credentialRef target detail and returns only support-safe metadata.
   - tag: '@weave-v01-provider-switch-portability'
     evidence:
       - admin-console/src/App.test.tsx

@@ -11,7 +11,7 @@ void main() {
       httpClient: MockClient((request) async {
         expect(
           request.url.toString(),
-          'https://api.weave.local/api/boards/workspace',
+          'https://api.weave.test/api/boards/workspace',
         );
         expect(request.headers['Authorization'], 'Bearer token');
         return http.Response(
@@ -69,7 +69,7 @@ void main() {
           headers: {'content-type': 'application/json'},
         );
       }),
-      apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+      apiBaseUrl: Uri.parse('https://api.weave.test/api'),
       accessToken: 'token',
     );
 
@@ -100,7 +100,7 @@ void main() {
       httpClient: MockClient((request) async {
         expect(
           request.url.toString(),
-          'https://api.weave.local/api/boards/workspace',
+          'https://api.weave.test/api/boards/workspace',
         );
         return http.Response(
           '''
@@ -132,7 +132,7 @@ void main() {
           headers: {'content-type': 'application/json'},
         );
       }),
-      apiBaseUrl: Uri.parse('https://api.weave.local'),
+      apiBaseUrl: Uri.parse('https://api.weave.test'),
       accessToken: 'token',
     );
 
@@ -150,7 +150,7 @@ void main() {
         httpClient: MockClient((request) async {
           expect(
             request.url.toString(),
-            'https://api.weave.local/api/boards/workspace',
+            'https://api.weave.test/api/boards/workspace',
           );
           return http.Response(
             '{"code":"boards-provider_unavailable","details":{"module":"boards"}}',
@@ -158,7 +158,7 @@ void main() {
             headers: {'content-type': 'application/json'},
           );
         }),
-        apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+        apiBaseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token',
       );
 
@@ -180,7 +180,7 @@ void main() {
           headers: {'content-type': 'application/json'},
         );
       }),
-      apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+      apiBaseUrl: Uri.parse('https://api.weave.test/api'),
       accessToken: 'token',
     );
 
@@ -213,7 +213,7 @@ void main() {
             headers: {'content-type': 'application/json'},
           );
         }),
-        apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+        apiBaseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token',
       );
 
@@ -248,7 +248,7 @@ void main() {
           seenRequests.add(request);
           return http.Response('{"id":"task-1"}', 200);
         }),
-        apiBaseUrl: Uri.parse('https://api.weave.local/api'),
+        apiBaseUrl: Uri.parse('https://api.weave.test/api'),
         accessToken: 'token',
       );
 
@@ -271,7 +271,7 @@ void main() {
       expect(seenRequests, hasLength(4));
       expect(
         seenRequests[0].url.toString(),
-        'https://api.weave.local/api/boards/tasks/task-1/move',
+        'https://api.weave.test/api/boards/tasks/task-1/move',
       );
       expect(seenRequests[0].method, 'POST');
       expect(seenRequests[0].headers['Authorization'], 'Bearer token');
@@ -281,7 +281,7 @@ void main() {
       );
       expect(
         seenRequests[1].url.toString(),
-        'https://api.weave.local/api/boards/tasks/task-1/status',
+        'https://api.weave.test/api/boards/tasks/task-1/status',
       );
       expect(seenRequests[1].method, 'POST');
       expect(
@@ -290,13 +290,13 @@ void main() {
       );
       expect(
         seenRequests[2].url.toString(),
-        'https://api.weave.local/api/boards/tasks/task-1/decision-links',
+        'https://api.weave.test/api/boards/tasks/task-1/decision-links',
       );
       expect(seenRequests[2].method, 'POST');
       expect(seenRequests[2].body, '{"decisionRef":"decision:release-v0.1"}');
       expect(
         seenRequests[3].url.toString(),
-        'https://api.weave.local/api/boards/tasks/task-1/complete',
+        'https://api.weave.test/api/boards/tasks/task-1/complete',
       );
       expect(seenRequests[3].method, 'POST');
     },

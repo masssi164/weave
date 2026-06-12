@@ -35,6 +35,7 @@ class RuntimeContext:
     org_id: str
     user_ref: str
     runtime_profile_hash: str
+    runtime_token: str
     token_ref: str
     capability_grants: frozenset[str]
     allowed_tools: frozenset[str]
@@ -59,7 +60,7 @@ class RuntimeContext:
         audit_ref = str(projection.get("auditRef", "audit://mcp/runtime-profile/support-safe"))
         token_ref = str(projection.get("runtimeTokenRef", "")).strip()
         always_allow_grants = frozenset(str(grant) for grant in projection.get("alwaysAllowGrants", []))
-        return RuntimeContext(org_id, user_ref, profile, token_ref, grants, tools, audit_ref, always_allow_grants)
+        return RuntimeContext(org_id, user_ref, profile, configured_token, token_ref, grants, tools, audit_ref, always_allow_grants)
 
 
 def _runtime_profile_projection(

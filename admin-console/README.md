@@ -30,7 +30,7 @@ npm run ci
 Configure with Vite env vars when needed:
 
 ```bash
-VITE_WEAVE_API_BASE_URL=https://api.weave.local:44443/api
-VITE_WEAVE_OIDC_ISSUER_URL=https://auth.weave.local:44443/realms/weave
+VITE_WEAVE_API_BASE_URL=https://api.weave.test:44443/api
+VITE_WEAVE_OIDC_ISSUER_URL=https://auth.weave.test:44443/realms/weave
 VITE_WEAVE_ADMIN_OIDC_CLIENT_ID=weave-admin-console
 ```

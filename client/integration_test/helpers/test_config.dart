@@ -18,7 +18,7 @@ class TestConfig {
     const apiBaseUrl = String.fromEnvironment('WEAVE_API_BASE_URL');
     const legacyBaseUrl = String.fromEnvironment(
       'WEAVE_BASE_URL',
-      defaultValue: 'https://api.weave.local/api',
+      defaultValue: 'https://api.weave.test/api',
     );
     final baseUrl = _parseUrl(
       apiBaseUrl.trim().isNotEmpty ? apiBaseUrl : legacyBaseUrl,

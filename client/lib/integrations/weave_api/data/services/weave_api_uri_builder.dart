@@ -1,7 +1,7 @@
 /// Builds public Weave backend facade URIs from the configured backend base.
 ///
-/// Local/dev defaults historically stored `https://api.weave.local` while the
-/// binding product contract is `https://api.weave.local/api`. This helper keeps
+/// Local/dev defaults historically stored `https://api.weave.test` while the
+/// binding product contract is `https://api.weave.test/api`. This helper keeps
 /// both forms safe by appending the `/api` facade prefix only when it is not
 /// already the last configured path segment.
 Uri weaveApiUri(Uri baseUrl, Iterable<String> pathSegments) {

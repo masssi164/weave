@@ -354,7 +354,7 @@ class CalendarFacadeServiceTest {
         beanFactory.addBean("calendarAdapter", adapter);
         return new CalendarFacadeService(
                 beanFactory.getBeanProvider(CalendarAdapter.class),
-                "https://files.weave.local",
+                "https://files.weave.test",
                 contextAuthorizationPort,
                 contextAuthorizationProperties());
     }

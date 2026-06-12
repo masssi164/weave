@@ -4,6 +4,18 @@ status: implemented
 issue: null
 pull_request: null
 release_notes_label: release-notes-skip
+pinned_corpus_sources:
+  - specs/weave-specs.lock.json
+  - ../weave-specs (locked corpus; product/domain SSOT)
+repo_projection:
+  - specs/0000-weave-spec-framework/spec.md
+  - specs/0000-weave-spec-framework/plan.md
+  - specs/0000-weave-spec-framework/tasks.md
+  - specs/0000-weave-spec-framework/traceability.yaml
+spec_kit_lifecycle:
+  order: Spec -> Plan -> Tasks -> Implement -> Evidence
+  local_url_truth: weave.test
+  obsolete_legacy_local_alias: removed_from_active_paths
 acceptance:
   gherkin: []
   scenario_mapping_markers: []
