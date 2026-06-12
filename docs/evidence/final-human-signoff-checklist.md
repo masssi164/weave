@@ -7,7 +7,7 @@ Human testing is final signoff only after automated gates/evidence are complete 
 - GitHub CI is green for the release/merge candidate.
 - Spec/conformance gates have passed: `specCorpusConformance`, `specContract`, `acceptanceContract`.
 - Relevant stack gates have passed or have support-safe blockers: `clientCi`, `serverCi`, `adminCi`, `infraStatic`, docs/release evidence.
-- `rg weave.local` returns no active drift.
+- the forbidden-domain drift scan returns no active local-domain drift.
 - Live Stack E2E is run only when safe; otherwise record exact blocker and rerun command.
 
 ## Human checks
