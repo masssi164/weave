@@ -1,0 +1,12 @@
+corpus:
+  - WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL
+  - WEAVE-MIGRATION-LEGACY-SPECS-20260612
+repo_feature: specs/0008-local-dogfood-topology-weave-test
+prs:
+  - https://github.com/masssi164/weave/pull/723
+gates:
+  - rg weave.local
+  - ./gradlew clientCi
+  - ./gradlew acceptanceContract
+  - ./gradlew specContract
+  - ./gradlew infraStatic

@@ -1,0 +1,8 @@
+corpus:
+  - WEAVE-STEERING-SPEC-KIT-OPERATING-MODEL
+repo_feature: specs/0009-domain-first-mcp-tools
+related_repos:
+  - /Users/flotterotter/code/weaver/specs
+gates:
+  - ./gradlew specContract
+  - rg "nextcloud|caldav|matrix" server admin-console client specs -g "*.md" -g "*.yaml"
