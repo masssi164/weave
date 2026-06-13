@@ -101,7 +101,7 @@ class WeaverRuntimeServiceTest {
                 .contains("fetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
                 .contains("signatureRequired=true", "revocationChecked=true", "rawProfileBodyReturnedToMembers=false");
         assertThat(profile.channelProjection().get("mcpServerBindings").toString())
-                .contains("weave-domain-tools", "streamable-http", "calendar.search_events", "boards.comment")
+                .contains("weave-domain-tools", "streamable-http")
                 .contains("runtimeProfileFetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
                 .contains("runtimeTokenRef=credentialref://weave/runtime/short-lived/")
                 .doesNotContain("Bearer ", "openclaw.json", "rawMcpServerConfig");
@@ -140,6 +140,27 @@ class WeaverRuntimeServiceTest {
                 .containsEntry("decision", "generated");
         assertThat(audit.events().get(0).payload()).containsEntry("supportSafe", true);
         assertThat(audit.events().get(0).payload()).containsEntry("execEnabled", false);
+    }
+
+    @Test
+    void projectsGovernedMcpCalendarToolsFromKeycloakDerivedGroups() {
+        WeaverRuntimeService service = service(true, runtimeProperties(
+                true,
+                List.of("weaver.files_read", "weaver.exec_disabled", "weaver.calendar_read", "weaver.calendar_create_event"),
+                List.of("calendar.search_events", "calendar.create_event")), new InMemoryAuditEventPublisher());
+
+        var profile = service.profileFor(jwt(
+                "member@example.invalid",
+                List.of("member"),
+                List.of("weave-weaver-runtime", "weave-weaver-pilot", "weave-calendar-editors")));
+
+        assertThat(profile.enabled()).isTrue();
+        assertThat(profile.allowedCapabilities()).contains("weaver.calendar_read", "weaver.calendar_create_event");
+        assertThat(profile.channelProjection().get("mcpServerBindings").toString())
+                .contains("enabled=true", "calendar.search_events", "calendar.create_event")
+                .contains("approvalRequiredFor=[calendar.create_event]")
+                .contains("runtimeProfileFetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
+                .doesNotContain("write calendar", "Bearer ", "rawMcpServerConfig");
     }
 
     @Test
@@ -376,6 +397,10 @@ class WeaverRuntimeServiceTest {
     }
 
     private WeaverRuntimeProperties runtimeProperties(boolean enabled) {
+        return runtimeProperties(enabled, List.of("weaver.files_read", "weaver.exec_disabled"), List.of("files.read"));
+    }
+
+    private WeaverRuntimeProperties runtimeProperties(boolean enabled, List<String> allowedCapabilities, List<String> toolAllowlist) {
         return new WeaverRuntimeProperties(
                 enabled,
                 null,
@@ -383,10 +408,10 @@ class WeaverRuntimeServiceTest {
                 null,
                 null,
                 null,
-                List.of("weave-weaver-runtime"),
-                List.of("weaver.files_read", "weaver.exec_disabled"),
+                List.of("weave-weaver-runtime", "weaver-group"),
+                allowedCapabilities,
                 List.of("weave-files-readonly"),
-                List.of("files.read"),
+                toolAllowlist,
                 false,
                 false,
                 true,

@@ -55,10 +55,16 @@ locals {
     meeting_hosts    = "weave-meeting-hosts"
     decision_records = "weave-decision-recorders"
     weaver_pilot     = "weave-weaver-pilot"
+    weaver_runtime   = "weave-weaver-runtime"
+    weaver_group     = "weaver-group"
   }
 
   live_e2e_test_user_capability_groups = [
     "board_editors",
+    "calendar_editors",
+    "weaver_pilot",
+    "weaver_runtime",
+    "weaver_group",
   ]
 
   client_defaults = {

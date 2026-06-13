@@ -69,7 +69,7 @@ public class WorkspaceCapabilityService {
             "release_evidence.read",
             "weaver.exec_disabled");
     private static final Map<String, List<String>> GROUP_CAPABILITIES = Map.of(
-            "weave-calendar-editors", List.of("calendar.manage_events"),
+            "weave-calendar-editors", List.of("calendar.manage_events", "weaver.calendar_read", "weaver.calendar_create_event"),
             "weave-board-editors", List.of("boards.update_task"),
             "weave-meeting-hosts", List.of("meetings.host"),
             "weave-document-editors", List.of("documents.edit"),
