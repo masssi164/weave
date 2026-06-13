@@ -218,6 +218,20 @@
       "evidenceMode": "offline-spec",
       "executionLane": "pr-safe-offline-contract",
       "description": "Requirement-category scenarios proving Domain-first MCP tools is not only linked but covered."
+    },
+    {
+      "id": "spec-0010-full-product-target",
+      "name": "Spec 0010 full product target acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Full Weave target product setup, space work, provider change, decisions/evidence, and Weaver boundary acceptance."
+    },
+    {
+      "id": "spec-0011-weaver-governed-pa-target",
+      "name": "Spec 0011 Weaver governed PA target acceptance",
+      "evidenceMode": "offline-spec",
+      "executionLane": "pr-safe-offline-contract",
+      "description": "Weaver group gating, policy, per-user memory, domain-first tools, approvals, heartbeat, fallback, and audit acceptance."
     }
   ],
   "scenarios": [
@@ -2911,6 +2925,152 @@
       "assertionFocus": [
         "Initial tool set",
         "explicit scenario coverage"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-setup-governance",
+      "suiteId": "spec-0010-full-product-target",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "identity-idm",
+        "spaces",
+        "admin-health-ops",
+        "provider-portability"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "organization setup",
+        "provider-neutral capabilities"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-space-work",
+      "suiteId": "spec-0010-full-product-target",
+      "personas": [
+        "member"
+      ],
+      "domains": [
+        "spaces",
+        "chat",
+        "files",
+        "calendar",
+        "boards-tasks",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "cross-domain context",
+        "space work loop"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-provider-change",
+      "suiteId": "spec-0010-full-product-target",
+      "personas": [
+        "admin",
+        "operator"
+      ],
+      "domains": [
+        "provider-portability",
+        "admin-health-ops",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "dry-run approval rollback audit",
+        "no silent mutation"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-evidence-audit",
+      "suiteId": "spec-0010-full-product-target",
+      "personas": [
+        "operator",
+        "operator"
+      ],
+      "domains": [
+        "decisions-evidence",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "decision provenance",
+        "support-safe audit"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-group-policy-gating",
+      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "personas": [
+        "admin",
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "weaver-group gating",
+        "policy controlled provisioning"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-memory-isolation",
+      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "identity-idm",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "per-user memory isolation",
+        "export delete retention privacy"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-domain-tool-approval",
+      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "domain-first tools",
+        "approval receipt validation"
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-heartbeat-fallback-audit",
+      "suiteId": "spec-0011-weaver-governed-pa-target",
+      "personas": [
+        "weaver_user",
+        "operator"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops",
+        "decisions-evidence"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "heartbeat scope enforcement",
+        "safe fallback audit"
       ]
     }
   ]

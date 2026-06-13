@@ -1,0 +1,57 @@
+spec_id: WEAVE-SPEC-0010
+version: 0.1.0
+status: accepted
+github_issues: []
+release_notes_label: release-notes-skip
+acceptance_features: []
+pinned_corpus_sources:
+  - specs/weave-specs.lock.json
+  - ../weave-specs/steering/product-constitution.md
+  - ../weave-specs/steering/domain-context-map.md
+  - ../weave-specs/steering/provider-portability-principles.md
+  - ../weave-specs/domains/weaver-governed-pa/spec.md
+repo_projection:
+  - specs/0010-full-product-target/spec.md
+  - specs/0010-full-product-target/plan.md
+  - specs/0010-full-product-target/tasks.md
+acceptance_scenarios:
+  - tag: @weave-spec-0010-setup-governance
+    evidence:
+      - client/test/live_stack_feature_mapping_test.dart
+      - specs/0010-full-product-target/traceability.yaml
+    assertions:
+      - WEAVE_SPEC_0010_SETUP_GOVERNANCE
+  - tag: @weave-spec-0010-space-work
+    evidence:
+      - client/test/live_stack_feature_mapping_test.dart
+      - specs/0010-full-product-target/traceability.yaml
+    assertions:
+      - WEAVE_SPEC_0010_SPACE_WORK
+  - tag: @weave-spec-0010-provider-change
+    evidence:
+      - client/test/live_stack_feature_mapping_test.dart
+      - specs/0010-full-product-target/traceability.yaml
+    assertions:
+      - WEAVE_SPEC_0010_PROVIDER_CHANGE
+  - tag: @weave-spec-0010-evidence-audit
+    evidence:
+      - client/test/live_stack_feature_mapping_test.dart
+      - specs/0010-full-product-target/traceability.yaml
+    assertions:
+      - WEAVE_SPEC_0010_EVIDENCE_AUDIT
+evidence_gates:
+  - ./gradlew specCorpusConformance
+  - ./gradlew specContract
+  - ./gradlew acceptanceContract
+handoff_inputs:
+  - /Users/flotterotter/.openclaw/workspace/tmp/weave-waterfall-spec-kit-handoff-20260613.md
+  - /Users/flotterotter/server/nextcloud-forms/weave-waterfall-submissions/weave-waterfall-answers-summary.md
+implementation_tasks:
+  - specs/0010-full-product-target/tasks.md#T020
+  - specs/0010-full-product-target/tasks.md#T021
+  - specs/0010-full-product-target/tasks.md#T022
+  - specs/0010-full-product-target/tasks.md#T023
+forbidden_leakage:
+  - local OpenClaw paths as product truth
+  - private model routing or allowlists
+  - weave-co-leader as product concept

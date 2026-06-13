@@ -3742,6 +3742,214 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@weave-spec-0010-setup-governance",
+      "scenario": "Admin setup governs provider-neutral organization capabilities",
+      "feature": "e2e/features/weave_spec_0010_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0010_SETUP_GOVERNANCE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0010-full-product-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0010",
+            "e2e/features/weave_spec_0010_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0010-setup-governance",
+            "WEAVE_SPEC_0010_SETUP_GOVERNANCE"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-space-work",
+      "scenario": "Space work joins context across domains",
+      "feature": "e2e/features/weave_spec_0010_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0010_SPACE_WORK"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0010-full-product-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0010",
+            "e2e/features/weave_spec_0010_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0010-space-work",
+            "WEAVE_SPEC_0010_SPACE_WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-provider-change",
+      "scenario": "Provider changes require dry-run approval rollback and audit",
+      "feature": "e2e/features/weave_spec_0010_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0010_PROVIDER_CHANGE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0010-full-product-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0010",
+            "e2e/features/weave_spec_0010_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0010-provider-change",
+            "WEAVE_SPEC_0010_PROVIDER_CHANGE"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-evidence-audit",
+      "scenario": "Decisions and evidence are product domains",
+      "feature": "e2e/features/weave_spec_0010_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0010_EVIDENCE_AUDIT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0010-full-product-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0010",
+            "e2e/features/weave_spec_0010_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0010-evidence-audit",
+            "WEAVE_SPEC_0010_EVIDENCE_AUDIT"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-group-policy-gating",
+      "scenario": "Weaver provisioning is gated by organization policy and weaver-group membership",
+      "feature": "e2e/features/weave_spec_0011_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0011_GROUP_POLICY_GATING"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0011-weaver-governed-pa-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0011",
+            "e2e/features/weave_spec_0011_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0011-group-policy-gating",
+            "WEAVE_SPEC_0011_GROUP_POLICY_GATING"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-memory-isolation",
+      "scenario": "Weaver memory is isolated per user",
+      "feature": "e2e/features/weave_spec_0011_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0011_MEMORY_ISOLATION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0011-weaver-governed-pa-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0011",
+            "e2e/features/weave_spec_0011_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0011-memory-isolation",
+            "WEAVE_SPEC_0011_MEMORY_ISOLATION"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-domain-tool-approval",
+      "scenario": "Weaver uses domain-first tools with approval receipts",
+      "feature": "e2e/features/weave_spec_0011_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0011-weaver-governed-pa-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0011",
+            "e2e/features/weave_spec_0011_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0011-domain-tool-approval",
+            "WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-heartbeat-fallback-audit",
+      "scenario": "Weaver automation heartbeat fails closed with support-safe audit and fallback",
+      "feature": "e2e/features/weave_spec_0011_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0011-weaver-governed-pa-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0011",
+            "e2e/features/weave_spec_0011_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0011-heartbeat-fallback-audit",
+            "WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT"
+          ]
+        }
+      ]
     }
   ]
 }

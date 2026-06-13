@@ -1,0 +1,67 @@
+spec_id: WEAVE-SPEC-0011
+version: 0.1.0
+status: accepted
+github_issues:
+  - 719
+release_notes_label: release-notes-skip
+acceptance_features: []
+pinned_corpus_sources:
+  - specs/weave-specs.lock.json
+  - ../weave-specs/domains/weaver-governed-pa/spec.md
+  - ../weave-specs/steering/product-constitution.md
+  - ../weave-specs/steering/domain-context-map.md
+repo_projection:
+  - specs/0011-weaver-governed-pa-target/spec.md
+  - specs/0011-weaver-governed-pa-target/plan.md
+  - specs/0011-weaver-governed-pa-target/tasks.md
+acceptance_scenarios:
+  - tag: @weave-spec-0011-group-policy-gating
+    evidence:
+      - client/test/live_stack_feature_mapping_test.dart
+      - specs/0011-weaver-governed-pa-target/traceability.yaml
+    assertions:
+      - WEAVE_SPEC_0011_GROUP_POLICY_GATING
+  - tag: @weave-spec-0011-memory-isolation
+    evidence:
+      - client/test/live_stack_feature_mapping_test.dart
+      - specs/0011-weaver-governed-pa-target/traceability.yaml
+    assertions:
+      - WEAVE_SPEC_0011_MEMORY_ISOLATION
+  - tag: @weave-spec-0011-domain-tool-approval
+    evidence:
+      - client/test/live_stack_feature_mapping_test.dart
+      - specs/0011-weaver-governed-pa-target/traceability.yaml
+    assertions:
+      - WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL
+  - tag: @weave-spec-0011-heartbeat-fallback-audit
+    evidence:
+      - client/test/live_stack_feature_mapping_test.dart
+      - specs/0011-weaver-governed-pa-target/traceability.yaml
+    assertions:
+      - WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT
+evidence_gates:
+  - ./gradlew specCorpusConformance
+  - ./gradlew specContract
+  - ./gradlew acceptanceContract
+  - ./gradlew serverCi
+repo_sources:
+  - specs/0007-governed-weaver-runtime/spec.md
+  - specs/0009-domain-first-mcp-tools/spec.md
+handoff_inputs:
+  - /Users/flotterotter/.openclaw/workspace/tmp/weave-waterfall-spec-kit-handoff-20260613.md
+  - /Users/flotterotter/server/nextcloud-forms/weave-waterfall-submissions/weave-waterfall-answers-summary.md
+implementation_tasks:
+  - specs/0011-weaver-governed-pa-target/tasks.md#T020
+  - specs/0011-weaver-governed-pa-target/tasks.md#T021
+  - specs/0011-weaver-governed-pa-target/tasks.md#T022
+  - specs/0011-weaver-governed-pa-target/tasks.md#T023
+  - specs/0011-weaver-governed-pa-target/tasks.md#T024
+  - specs/0011-weaver-governed-pa-target/tasks.md#T025
+  - specs/0011-weaver-governed-pa-target/tasks.md#T026
+blocked_release_claim:
+  - GitHub issue #719 remains required before live Weaver availability claims
+forbidden_leakage:
+  - raw openclaw.json product config
+  - local operator paths
+  - private allowlists/model routing
+  - weave-co-leader as product concept
