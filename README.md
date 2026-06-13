@@ -2,13 +2,13 @@
 
 **Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Terms.**
 
-Provider-neutral collaboration with explicit control over data, adapters, and governed AI assistance.
+Weave lets organizations own their collaboration layer: provider-neutral workspaces with explicit control over data, adapters, and governed AI assistance.
 
 <p align="center">
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
 </p>
 
-Weave is a sovereign-by-design collaboration product line. It gives an organization one Weave-owned layer for member collaboration, admin readiness, policy, audit, support evidence, portability, and future governed personal assistance while concrete providers stay behind adapters.
+Weave is a sovereign-by-design product line; start with the [v0.1 golden path](docs/v0.1-golden-path.md), then follow the evidence links below for admin readiness, policy, audit, portability, and future governed assistance.
 
 Weave does not claim to be Cloud-Act-proof, compliance-certified, fully sovereign, broadly public-production-ready, or fully accessible. It makes provider and jurisdiction exposure visible and requires evidence before stronger claims or migrations are promoted.
 
