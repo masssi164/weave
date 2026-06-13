@@ -119,10 +119,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Set up OpenTofu
-        uses: opentofu/setup-opentofu@v1
-        with:
-          tofu_version: 1.10.6
-          tofu_wrapper: false
+        run: weave/tools/ci/install_opentofu.sh 1.10.6
 
       - name: Ensure local Weave hostnames resolve on the runner
         run: |
