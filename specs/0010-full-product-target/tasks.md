@@ -15,17 +15,17 @@ Task format: `- [ ] T001 [P?] [US?/Area] Description with exact path and gate`
 ## Phase 1: Acceptance and contracts first
 
 - [x] T010 [Spec] Create target-product Spec Kit artifacts under `specs/0010-full-product-target/`.
-- [ ] T011 [Acceptance] Create `e2e/features/weave_spec_0010_acceptance.feature` for setup/governance, space work, provider change, evidence/audit.
-- [ ] T012 [Acceptance] Map target-product scenarios in `e2e/scenario_mappings.json`.
+- [x] T011 [Acceptance] Create `e2e/features/weave_spec_0010_acceptance.feature` for setup/governance, space work, provider change, evidence/audit.
+- [x] T012 [Acceptance] Map target-product scenarios in `e2e/scenario_mappings.json`.
 - [ ] T013 [Contracts] Add/repair provider-change and Decisions/Evidence contract fixtures where gaps remain.
-- [ ] T014 [Evidence] Run `./gradlew specCorpusConformance`, `./gradlew specContract`, and `./gradlew acceptanceContract`; expected red/green state documented.
+- [x] T014 [Evidence] Run `./gradlew specCorpusConformance`, `./gradlew specContract`, and `./gradlew acceptanceContract`; expected red/green state documented.
 
 ## Phase 2: Implementation slices
 
-- [ ] T020 [P] [US1/Admin] Implement or repair Control organization setup/provider mapping evidence in `admin-console/`, `server/`, and `e2e/`; gate `./gradlew adminCi serverCi acceptanceContract`.
-- [ ] T021 [P] [US2/Member] Implement or repair Space-work cross-domain context/evidence in `client/`, `server/`, and `e2e/`; gate `./gradlew clientCi serverCi acceptanceContract`.
-- [ ] T022 [US1/Provider] Implement provider-change dry-run/cutover/rollback contract gaps in `server/`, `infra/`, and `e2e/`; gate `./gradlew serverCi infraStatic acceptanceContract`.
-- [ ] T023 [P] [US2/Evidence] Implement Decisions/Evidence domain evidence/export gaps in `server/`, `client/`, and `e2e/`; gate `./gradlew serverCi clientCi acceptanceContract`.
+- [ ] T020 [P] [US1/Admin] Implement or repair Control organization setup/provider mapping evidence in `admin-console/`, `server/`, and `e2e/`; gate `./gradlew adminCi serverCi acceptanceContract`. (GitHub issue #731)
+- [ ] T021 [P] [US2/Member] Implement or repair Space-work cross-domain context/evidence in `client/`, `server/`, and `e2e/`; gate `./gradlew clientCi serverCi acceptanceContract`. (GitHub issue #732)
+- [ ] T022 [US1/Provider] Implement provider-change dry-run/cutover/rollback contract gaps in `server/`, `infra/`, and `e2e/`; gate `./gradlew serverCi infraStatic acceptanceContract`. (GitHub issue #733)
+- [ ] T023 [P] [US2/Evidence] Implement Decisions/Evidence domain evidence/export gaps in `server/`, `client/`, and `e2e/`; gate `./gradlew serverCi clientCi acceptanceContract`. (GitHub issue #734)
 
 ## Phase 3: Cross-cutting quality
 
@@ -39,5 +39,5 @@ Task format: `- [ ] T001 [P?] [US?/Area] Description with exact path and gate`
 - [ ] T040 Run required area gates.
 - [ ] T041 Run `./gradlew ci` for cross-stack/release-relevant changes.
 - [ ] T042 Run Integration-Gate or Optimization-Review; loop on material findings.
-- [ ] T043 Open/update GitHub issues/PRs with this Spec Kit chain and exactly one release-notes label.
+- [x] T043 Open/update GitHub issues/PRs with this Spec Kit chain and exactly one release-notes label.
 - [ ] T044 Keep spec status accepted until implementation tasks are complete; do not claim implemented from spec-only work.
