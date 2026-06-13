@@ -77,7 +77,9 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.signature()).startsWith("weave-signature:v1:");
         assertThat(profile.revoked()).isFalse();
         assertThat(profile.revocationStatus()).isEqualTo("active");
+        assertThat(profile.revocationGeneration()).isZero();
         assertThat(profile.previousProfileHash()).isEqualTo("none");
+        assertThat(profile.rollbackProfileHash()).isEqualTo("none");
         assertThat(profile.workspacePath()).startsWith("/var/lib/weave/weaver/");
         assertThat(profile.isolatedAgentDirectory()).isEqualTo(".weaver/agents");
         assertThat(profile.dockerNetworkMode()).isEqualTo("none");
@@ -213,6 +215,12 @@ class WeaverRuntimeServiceTest {
         assertThat(fetched.runtimeProfileHash()).isEqualTo(issued.runtimeProfileHash());
         assertThat(fetched.supportSafeProfileReceipt()).containsEntry("fetchByHashRequired", true);
 
+        var customized = service.applyRuntimeCustomization(member, Map.of("style", "concise"));
+        assertThat(customized.accepted()).isTrue();
+        var stale = service.profileByHash(member, issued.runtimeProfileHash());
+        assertThat(stale.enabled()).isFalse();
+        assertThat(stale.posture()).isEqualTo("runtime-profile-fetch-denied");
+
         var unknown = service.profileByHash(member, "sha256:not-issued");
         assertThat(unknown.enabled()).isFalse();
         assertThat(unknown.posture()).isEqualTo("runtime-profile-hash-not-issued");
@@ -222,6 +230,23 @@ class WeaverRuntimeServiceTest {
         assertThat(mismatched.enabled()).isFalse();
         assertThat(mismatched.posture()).isEqualTo("runtime-profile-fetch-denied");
         assertThat(mismatched.toString()).doesNotContain("Bearer ", "openclaw.json", "refresh_token", "https://matrix.weave.test");
+    }
+
+    @Test
+    void revokesPreviouslyIssuedProfilesWhenEligibilityIsRemoved() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt eligible = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var issued = service.profileFor(eligible);
+        var blocked = service.profileFor(jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-pilot")));
+
+        assertThat(blocked.enabled()).isFalse();
+        assertThat(blocked.posture()).isEqualTo("policy-blocked");
+        assertThat(blocked.revocationGeneration()).isEqualTo(1);
+
+        var revokedFetch = service.profileByHash(eligible, issued.runtimeProfileHash());
+        assertThat(revokedFetch.enabled()).isFalse();
+        assertThat(revokedFetch.posture()).isEqualTo("runtime-profile-fetch-denied");
     }
 
     @Test

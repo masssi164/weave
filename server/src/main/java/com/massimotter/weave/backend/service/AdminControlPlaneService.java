@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.audit.FileAuditEventPublisher;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyReport;
@@ -45,6 +46,7 @@ import com.massimotter.weave.backend.model.admin.ReleaseClaimControlResponse;
 import com.massimotter.weave.backend.model.admin.SecretRefResponse;
 import com.massimotter.weave.backend.model.admin.SuiteDomainReadinessResponse;
 import com.massimotter.weave.backend.model.admin.WeaverDistributionPolicyResponse;
+import com.massimotter.weave.backend.model.admin.WeaverEligibilityPreviewResponse;
 import com.massimotter.weave.backend.model.admin.WeaverMcpGrantResponse;
 import com.massimotter.weave.backend.model.admin.WeaverModelAliasResponse;
 import com.massimotter.weave.backend.model.admin.WeaverRuntimeProfileChangeResponse;
@@ -96,6 +98,7 @@ public class AdminControlPlaneService {
             "weave-meeting-hosts",
             "weave-document-editors",
             "weave-decision-recorders",
+            "weaver-group",
             "weave-weaver-pilot");
     private static final Map<String, List<String>> SIMULATION_GROUP_CAPABILITIES = Map.of(
             "weave-calendar-editors", List.of("calendar.manage_events"),
@@ -103,6 +106,7 @@ public class AdminControlPlaneService {
             "weave-meeting-hosts", List.of("meetings.host"),
             "weave-document-editors", List.of("documents.edit"),
             "weave-decision-recorders", List.of("decisions.record"),
+            "weaver-group", List.of("weaver.files_read", "weaver.exec_disabled"),
             "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
     private static final Set<String> SIMULATION_KNOWN_CAPABILITIES = Set.of(
             "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
@@ -124,6 +128,7 @@ public class AdminControlPlaneService {
     private final List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters;
     private final IdentityRealmApplyProperties identityRealmApplyProperties;
     private final Clock clock;
+    private final WeaverRuntimeProperties weaverRuntimeProperties;
 
     @Autowired
     public AdminControlPlaneService(
@@ -135,7 +140,8 @@ public class AdminControlPlaneService {
             List<IdentityRealmProvider> identityRealmProviders,
             ObjectProvider<IdentityRealmEvidenceRepository> identityRealmEvidenceRepository,
             ObjectProvider<List<IdentityRealmLiveApplyAdapter>> identityRealmLiveApplyAdapters,
-            ObjectProvider<IdentityRealmApplyProperties> identityRealmApplyProperties) {
+            ObjectProvider<IdentityRealmApplyProperties> identityRealmApplyProperties,
+            ObjectProvider<WeaverRuntimeProperties> weaverRuntimeProperties) {
         IdentityRealmApplyProperties properties = identityRealmApplyProperties.getIfAvailable(IdentityRealmApplyProperties::new);
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
@@ -151,6 +157,8 @@ public class AdminControlPlaneService {
         this.identityRealmLiveApplyAdapters = adapters == null || adapters.isEmpty()
                 ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
                 : List.copyOf(adapters);
+        this.weaverRuntimeProperties = weaverRuntimeProperties.getIfAvailable(
+                () -> new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
         this.clock = Clock.systemUTC();
     }
 
@@ -162,7 +170,8 @@ public class AdminControlPlaneService {
             AuditEventPublisher auditEventPublisher,
             Clock clock) {
         this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
-                List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock);
+                List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock,
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
     }
 
     AdminControlPlaneService(
@@ -175,7 +184,8 @@ public class AdminControlPlaneService {
             IdentityRealmEvidenceRepository identityRealmEvidenceRepository,
             List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
             IdentityRealmApplyProperties identityRealmApplyProperties,
-            Clock clock) {
+            Clock clock,
+            WeaverRuntimeProperties weaverRuntimeProperties) {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionRepository = providerSelectionRepository;
@@ -194,6 +204,9 @@ public class AdminControlPlaneService {
                 ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
                 : List.copyOf(identityRealmLiveApplyAdapters);
         this.clock = clock;
+        this.weaverRuntimeProperties = weaverRuntimeProperties == null
+                ? new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false)
+                : weaverRuntimeProperties;
     }
 
     public AdminControlPlaneResponse overview(Jwt jwt) {
@@ -219,6 +232,7 @@ public class AdminControlPlaneService {
                         .toList(),
                 whitelist(jwt),
                 weaverDistributionPolicy(registry),
+                weaverEligibilityPreview(),
                 weaverRuntimeProjection(registry),
                 identityReadiness,
                 suiteReadiness,
@@ -885,6 +899,7 @@ public class AdminControlPlaneService {
         profileCapabilities.put("member-default", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "weaver.exec_disabled"));
         profileCapabilities.put("guest-deny-default", List.of());
+        profileCapabilities.put("group:weaver-group", List.of("weaver.files_read", "weaver.exec_disabled"));
         profileCapabilities.put("group:weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
         return new CapabilityWhitelistResponse(
                 policy.denyByDefault(),
@@ -1705,6 +1720,30 @@ public class AdminControlPlaneService {
                         projectionItem("tool-boards-comment", "tool", "boards.comment", readinessFor("boards-tasks", registry), "disabled_by_policy", "Write-like tool requires explicit approval receipt and audit.", true),
                         projectionItem("mcp-weave-domain-tools", "mcp", "weave-domain-tools via streamable-http", "configured", "disabled_by_policy", "Admin-bound MCP server is discoverable only to granted RuntimeProfiles and remains disabled until org policy enables Weaver.", true),
                         projectionItem("consent-shared-space", "mcp", "shared-space consent gate", "admin-action-required", "disabled_by_policy", "Group chat/shared-space participation requires org policy and consent evidence.", true)));
+    }
+
+    private WeaverEligibilityPreviewResponse weaverEligibilityPreview() {
+        boolean policyEnabled = weaverRuntimeProperties.enabled();
+        List<String> requiredGroups = weaverRuntimeProperties.enabledGroups();
+        String canonicalGroup = requiredGroups.isEmpty() ? "weaver-group" : requiredGroups.get(0);
+        List<String> blockedReasons = new ArrayList<>();
+        if (!policyEnabled) {
+            blockedReasons.add("weaver.enabled remains blocked until organization policy enables governed Weaver runtime provisioning");
+        }
+        blockedReasons.add("members outside " + canonicalGroup + " stay deny-by-default for Weaver runtime provisioning");
+        return new WeaverEligibilityPreviewResponse(
+                policyEnabled,
+                true,
+                requiredGroups,
+                List.of("weaver.files_read", "weaver.exec_disabled"),
+                "disabled_by_policy",
+                "disabled_by_policy",
+                policyEnabled ? "coming_later" : "disabled_by_policy",
+                blockedReasons,
+                List.of(
+                        "Grant weaver.enabled through organization policy before runtime rollout.",
+                        "Map eligible members into " + canonicalGroup + " only after member impact preview and audit review."),
+                List.of("audit://weaver/eligibility-preview"));
     }
 
     private WeaverRuntimeProjectionItemResponse projectionItem(

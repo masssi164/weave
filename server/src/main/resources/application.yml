@@ -117,7 +117,7 @@ weave:
       workspace-root-template: ${WEAVE_WEAVER_RUNTIME_WORKSPACE_ROOT_TEMPLATE:/var/lib/weave/weaver/{userId}}
       isolated-agent-directory: ${WEAVE_WEAVER_RUNTIME_AGENT_DIRECTORY:.weaver/agents}
       docker-network-mode: ${WEAVE_WEAVER_RUNTIME_DOCKER_NETWORK_MODE:none}
-      enabled-groups: ${WEAVE_WEAVER_RUNTIME_ENABLED_GROUPS:weave-weaver-runtime}
+      enabled-groups: ${WEAVE_WEAVER_RUNTIME_ENABLED_GROUPS:weaver-group,weave-weaver-runtime}
       allowed-capabilities: ${WEAVE_WEAVER_RUNTIME_ALLOWED_CAPABILITIES:weaver.files_read,weaver.exec_disabled}
       plugin-allowlist: ${WEAVE_WEAVER_RUNTIME_PLUGIN_ALLOWLIST:weave-files-readonly}
       tool-allowlist: ${WEAVE_WEAVER_RUNTIME_TOOL_ALLOWLIST:files.read}

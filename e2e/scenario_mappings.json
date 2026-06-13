@@ -3876,6 +3876,20 @@
             "provenance",
             "no-raw-provider-secrets"
           ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "fragments": [
+            "decisionsExposeSupportSafeProvenanceAuditAndExportPosture",
+            "raw provider secrets stay backend-only"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/chat_room_screen_test.dart",
+          "fragments": [
+            "Weave-owned provenance links this decision",
+            "audit://chat/decision-ledger/"
+          ]
         }
       ]
     },

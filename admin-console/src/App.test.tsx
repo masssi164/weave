@@ -374,6 +374,7 @@ describe("Admin Console MVP", () => {
     expect(screen.getByText(/chat summary read tool/i)).toBeInTheDocument();
     expect(screen.getByText(/workspace triage skill package/i)).toBeInTheDocument();
     expect(screen.getByText(/approved knowledge connector/i)).toBeInTheDocument();
+    expect(screen.getByText(/eligibility preview: policy enabled no; required groups: weaver-group, weave-weaver-runtime; eligible member preview: coming_later/i)).toBeInTheDocument();
     expect(screen.getByText(/admin-bound MCP server registry/i)).toBeInTheDocument();
     expect(screen.getByText(/weave governed domain tools \(streamable-http\)/i)).toBeInTheDocument();
     expect(screen.getByText(/members never wire raw MCP endpoints/i)).toBeInTheDocument();
@@ -397,6 +398,9 @@ describe("Admin Console MVP", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/audit receipt refs:/i)).toHaveTextContent(
       /receipt:\/\/weaver\/runtime\/profile-regeneration/i,
+    );
+    expect(screen.getByText(/eligibility blockers:/i)).toHaveTextContent(
+      /weaver.enabled remains blocked until organization policy enables governed weaver runtime provisioning/i,
     );
     expect(screen.getByText(/revocation refs:/i)).toHaveTextContent(
       /receipt:\/\/weaver\/runtime\/revocation-preview/i,

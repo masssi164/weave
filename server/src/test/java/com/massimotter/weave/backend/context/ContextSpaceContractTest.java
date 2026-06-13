@@ -33,6 +33,7 @@ class ContextSpaceContractTest {
         assertThat(schema).contains("\"memberships\"");
         assertThat(schema).contains("\"provider_bindings\"");
         assertThat(schema).contains("\"rebac_tuples\"");
+        assertThat(schema).contains("\"object_links\"");
         assertThat(schema).contains("\"from_context_id\"");
         assertThat(schema).contains("\"to_context_id\"");
         assertThat(schema).contains("\"principal_ref\"");
@@ -58,6 +59,20 @@ class ContextSpaceContractTest {
         assertThat(schema).contains("\"agentic_writes_allowed\"");
         assertThat(schema).contains("\"const\": false");
         assertThat(schema).contains("\"audit_required\"");
+    }
+
+    @Test
+    void contextSchemaLinksSpaceWorkObjectsAcrossDomainsWithSupportSafeEvidence() throws Exception {
+        String schema = Files.readString(Path.of("src/main/resources/contracts/context-space.schema.json"));
+
+        assertThat(schema).contains("\"domain\"");
+        assertThat(schema).contains("\"documents\"");
+        assertThat(schema).contains("\"boards_tasks\"");
+        assertThat(schema).contains("\"decisions\"");
+        assertThat(schema).contains("\"evidence\"");
+        assertThat(schema).contains("\"evidence_ref\"");
+        assertThat(schema).contains("\"support_safe\"");
+        assertThat(schema).contains("\"const\": true");
     }
 
     @Test

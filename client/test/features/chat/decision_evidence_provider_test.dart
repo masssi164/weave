@@ -85,8 +85,18 @@ void main() {
       DecisionLedgerReferenceType.chatMessage,
     );
     expect(decision.references.single.label, 'Message from Alex');
+    expect(
+      decision.auditMetadata.provenanceSummary,
+      contains('Weave-owned provenance'),
+    );
+    expect(decision.auditMetadata.auditRefs, hasLength(2));
+    expect(
+      decision.auditMetadata.exportPosture,
+      contains('raw provider secrets stay hidden'),
+    );
     expect(decision.isReadable, isTrue);
     expect(snapshot.decisionLedgerRecords.single.id, decision.id);
+    expect(snapshot.auditMetadata.supportSafe, isTrue);
     expect(snapshot.isDecisionLedgerMvpReady, isTrue);
     expect(snapshot.backgroundRoomReadingEnabled, isFalse);
   });

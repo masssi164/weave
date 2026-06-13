@@ -1493,6 +1493,12 @@ export default function App({
                   </Alert>
                   <Stack spacing={1} sx={{ mb: 2 }}>
                     <Typography>
+                      Eligibility preview: policy enabled {controlPlane.weaverEligibilityPreview.policyEnabled ? "yes" : "no"}; required group{controlPlane.weaverEligibilityPreview.requiredGroups.length === 1 ? "" : "s"}: {controlPlane.weaverEligibilityPreview.requiredGroups.join(", ")}; eligible member preview: {controlPlane.weaverEligibilityPreview.memberStateWhenEligible}.
+                    </Typography>
+                    <Typography>
+                      Blocked without policy: {controlPlane.weaverEligibilityPreview.memberStateWithoutPolicy}; blocked without group: {controlPlane.weaverEligibilityPreview.memberStateWithoutGroup}.
+                    </Typography>
+                    <Typography>
                       Profile version: {" "}
                       <code>
                         {controlPlane.weaverRuntimeProjection.profileVersion}
@@ -1515,6 +1521,9 @@ export default function App({
                       {controlPlane.weaverRuntimeProjection.pendingRevocationRefs.join(
                         ", ",
                       ) || "no pending revocation reported"}
+                    </Typography>
+                    <Typography>
+                      Eligibility blockers: {controlPlane.weaverEligibilityPreview.blockedReasons.join("; ") || "none"}
                     </Typography>
                   </Stack>
                   <Stack
