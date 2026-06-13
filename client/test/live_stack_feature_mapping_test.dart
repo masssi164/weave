@@ -262,6 +262,14 @@ void main() {
         'Admin validates domains, dry-runs identity, checks portability, and members see provider-neutral states',
         'Admin bootstraps organization, validates domains, configures providers, enables Weaver, and member works provider-neutrally',
         'Weaver AI runtime stays excluded from Spec 0001 acceptance',
+        'Admin setup governs provider-neutral organization capabilities',
+        'Space work joins context across domains',
+        'Provider changes require dry-run approval rollback and audit',
+        'Decisions and evidence are product domains',
+        'Weaver provisioning is gated by organization policy and weaver-group membership',
+        'Weaver memory is isolated per user',
+        'Weaver uses domain-first tools with approval receipts',
+        'Weaver automation heartbeat fails closed with support-safe audit and fallback',
       ]),
     );
   });
