@@ -5,7 +5,7 @@ version: 0.1.0
 status: accepted
 domain: product-core
 owner: weave-product-lead
-github_issue: null
+github_issue: 731
 supersedes: []
 depends_on:
   - WEAVE-SPEC-0000
@@ -15,7 +15,8 @@ depends_on:
   - WEAVE-SPEC-0006
   - WEAVE-SPEC-0007
   - WEAVE-SPEC-0009
-acceptance_features: []
+acceptance_features:
+  - e2e/features/weave_spec_0010_acceptance.feature
 evidence_gates:
   - ./gradlew specCorpusConformance
   - ./gradlew specContract

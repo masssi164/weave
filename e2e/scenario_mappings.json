@@ -3774,6 +3774,20 @@
             "admin-controlled-support-safe-baseline",
             "hide-provider-setup-mechanics"
           ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "specifies guided setup and per-domain readiness before member go-live",
+            "keeps admin/provider setup separate from the member client"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "fragments": [
+            "supportSafe",
+            "provider"
+          ]
         }
       ]
     },
@@ -3808,6 +3822,20 @@
             "boards-tasks",
             "providerIdentifiers"
           ]
+        },
+        {
+          "path": "client/test/features/chat/channel_workspace_test.dart",
+          "fragments": [
+            "providerContractId",
+            "decisions"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/context/ContextSpaceContractTest.java",
+          "fragments": [
+            "context-space.schema.json",
+            "provider_bindings"
+          ]
         }
       ]
     },
@@ -3841,6 +3869,20 @@
             "preflight",
             "dry-run",
             "silentMutation"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "applies selected providers only after fresh dry-run evidence and consequence confirmation",
+            "blocks provider apply when dry-run evidence becomes stale after selection changes"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "fragments": [
+            "dryRun",
+            "rollback"
           ]
         }
       ]
@@ -3923,6 +3965,20 @@
             "weaver-group",
             "deny-runtime-profile-tool-grants-memory-automation"
           ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "shows Weaver projection as an inspect-only member-safe preview",
+            "weaver.enabled remains blocked"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "weave-weaver-runtime",
+            "policy"
+          ]
         }
       ]
     },
@@ -3956,6 +4012,13 @@
             "per-user",
             "export",
             "retention"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "per-user",
+            "memory"
           ]
         }
       ]
@@ -3991,6 +4054,20 @@
             "facade-only",
             "approvalReceiptChecks"
           ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "renders support-safe Weaver projection labels for chat, models, tools, skills, and MCPs",
+            "approval"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "approval",
+            "domain"
+          ]
         }
       ]
     },
@@ -4023,6 +4100,13 @@
           "fragments": [
             "fail-closed",
             "support-safe-no-raw-provider-secrets-no-private-runtime-paths"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "reconcile",
+            "admin-disabled"
           ]
         }
       ]

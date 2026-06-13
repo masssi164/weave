@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -29,7 +30,7 @@ public class WeaverRuntimeService {
 
     private static final String MANAGED_BY = "weave-weaver-runtime-reconciler";
     private static final Pattern UNSAFE_DIAGNOSTIC = Pattern.compile(
-            "(?i)(bearer\\s+[^\\s]+|refresh_token[=:][^\\s,}]+|api[_-]?key[=:][^\\s,}]+|secret[=:][^\\s,}]+|openclaw\\.json|memory://[^\\s,}]+|/memory/[^\\s,}]+)");
+            "(?i)(bearer\\s+[^\\s]+|refresh_token[=:][^\\s,}]+|api[_-]?key[=:][^\\s,}]+|secret[=:][^\\s,}]+|openclaw\\.json|memory://[^\\s,}]+|/memory/[^\\s,}]+|https?://[^\\s,}]*(@|token=|access_token=|refresh_token=|api[_-]?key=|secret=)[^\\s,}]*|https?://[^\\s,}]*(/_matrix/private|/private|/admin)[^\\s,}]*)");
 
     private final ConcurrentMap<String, WeaverRuntimeProfileResponse> issuedProfiles = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, WeaverRuntimeInstance> runtimeInstances = new ConcurrentHashMap<>();
@@ -245,8 +246,9 @@ public class WeaverRuntimeService {
         if (workspacePath == null || workspacePath.isBlank()) {
             return false;
         }
-        String expected = workspacePath(supportSafeUserRef(jwt));
-        return workspacePath.equals(expected) || workspacePath.startsWith(expected + "/");
+        Path expected = Path.of(workspacePath(supportSafeUserRef(jwt))).normalize();
+        Path requested = Path.of(workspacePath).normalize();
+        return requested.equals(expected) || requested.startsWith(expected);
     }
 
     public List<WeaverRuntimeReconcileDecision> reconcile(

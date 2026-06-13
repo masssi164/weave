@@ -3,8 +3,13 @@ version: 0.1.0
 status: accepted
 github_issues:
   - 719
+  - 735
+  - 736
+  - 737
+  - 738
 release_notes_label: release-notes-skip
-acceptance_features: []
+acceptance_features:
+  - e2e/features/weave_spec_0011_acceptance.feature
 pinned_corpus_sources:
   - specs/weave-specs.lock.json
   - ../weave-specs/domains/weaver-governed-pa/spec.md
@@ -19,24 +24,32 @@ acceptance_scenarios:
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
+      - admin-console/src/App.test.tsx
+      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_GROUP_POLICY_GATING
   - tag: @weave-spec-0011-memory-isolation
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
+      - specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json
+      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_MEMORY_ISOLATION
   - tag: @weave-spec-0011-domain-tool-approval
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
+      - admin-console/src/App.test.tsx
+      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL
   - tag: @weave-spec-0011-heartbeat-fallback-audit
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0011-weaver-governed-pa-target/traceability.yaml
+      - specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json
+      - server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java
     assertions:
       - WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT
 evidence_gates:

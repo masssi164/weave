@@ -1,9 +1,14 @@
 spec_id: WEAVE-SPEC-0010
 version: 0.1.0
 status: accepted
-github_issues: []
+github_issues:
+  - 731
+  - 732
+  - 733
+  - 734
 release_notes_label: release-notes-skip
-acceptance_features: []
+acceptance_features:
+  - e2e/features/weave_spec_0010_acceptance.feature
 pinned_corpus_sources:
   - specs/weave-specs.lock.json
   - ../weave-specs/steering/product-constitution.md
@@ -19,24 +24,33 @@ acceptance_scenarios:
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0010-full-product-target/traceability.yaml
+      - admin-console/src/App.test.tsx
+      - server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java
     assertions:
       - WEAVE_SPEC_0010_SETUP_GOVERNANCE
   - tag: @weave-spec-0010-space-work
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0010-full-product-target/traceability.yaml
+      - client/test/features/chat/channel_workspace_test.dart
+      - client/test/features/chat/chat_room_screen_test.dart
+      - server/src/test/java/com/massimotter/weave/backend/context/ContextSpaceContractTest.java
     assertions:
       - WEAVE_SPEC_0010_SPACE_WORK
   - tag: @weave-spec-0010-provider-change
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0010-full-product-target/traceability.yaml
+      - specs/0010-full-product-target/provider-change-decisions-evidence-contract.json
+      - server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java
     assertions:
       - WEAVE_SPEC_0010_PROVIDER_CHANGE
   - tag: @weave-spec-0010-evidence-audit
     evidence:
       - client/test/live_stack_feature_mapping_test.dart
       - specs/0010-full-product-target/traceability.yaml
+      - client/test/features/chat/decision_evidence_provider_test.dart
+      - server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java
     assertions:
       - WEAVE_SPEC_0010_EVIDENCE_AUDIT
 evidence_gates:

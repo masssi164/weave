@@ -11,7 +11,8 @@ depends_on:
   - WEAVE-SPEC-0007
   - WEAVE-SPEC-0009
   - WEAVE-SPEC-0010
-acceptance_features: []
+acceptance_features:
+  - e2e/features/weave_spec_0011_acceptance.feature
 evidence_gates:
   - ./gradlew specCorpusConformance
   - ./gradlew specContract
