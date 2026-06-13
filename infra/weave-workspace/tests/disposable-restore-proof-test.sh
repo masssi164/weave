@@ -31,8 +31,17 @@ receipt = json.load(open(sys.argv[1], encoding='utf-8'))
 assert receipt['validationMode'] == 'disposable_stack_rehearsal'
 assert receipt['destroyStep']['performed'] is True
 assert receipt['provesRestoredDomainData'] is True
-assert receipt['releaseEligible'] is True
+assert receipt['releaseEligible'] is False
+assert receipt['releaseReadinessClaim'] is False
+assert 'production rollback' in ' '.join(receipt['limitations']).lower()
 PY
+fi
+
+grep -Fq '"supportSafe": True' "${SCRIPT}" || { echo "manifest/receipt must remain support-safe" >&2; exit 1; }
+grep -Fq 'releaseReadinessClaim' "${SCRIPT}" || { echo "receipt must explicitly block release readiness claims" >&2; exit 1; }
+if grep -Eq 'release-ready|customer-ready|lossless migration claim|production rollback claim' "${SCRIPT}"; then
+  echo "script wording must not imply release/customer-ready or production/lossless claims" >&2
+  exit 1
 fi
 
 printf 'disposable restore proof tests passed\n'
