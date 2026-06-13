@@ -21,8 +21,7 @@ provider_neutral_invariants:
 - meeting surfaces attach to Weave context instead of generic provider links
 - LiveKit remains the active meetings provider contract while MatrixRTC/Element Call
   is future comparison only unless provider contracts migrate together
-- encryption claims name signaling, media, captions, transcripts, recordings, and
-  metadata boundaries
+- encryption claims name signaling, media, captions, transcripts, recordings, and metadata boundaries
 - recording and transcription are off by default and require explicit participant-visible
   consent
 - member meeting views do not expose provider URLs, tokens, SFU internals, credentials,
