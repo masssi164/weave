@@ -144,7 +144,7 @@ public class WeaverRuntimeService {
                 elevatedEnabled,
                 weaverRuntimeProperties.auditRequired(),
                 weaverRuntimeProperties.forkRequired(),
-                channelProjection(runtimeProfileHash, profileVersion, previousProfileHash, userRef, expiresAt, runtimeTokenExpiresAt),
+                channelProjection(runtimeProfileHash, profileVersion, previousProfileHash, userRef, expiresAt, runtimeTokenExpiresAt, allowedCapabilities, toolAllowlist),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
                 supportSafeProfileReceipt(profileVersion, runtimeProfileHash, signature, expiresAt, runtimeTokenExpiresAt, false, "active"),
@@ -372,7 +372,7 @@ public class WeaverRuntimeService {
                 false,
                 true,
                 false,
-                channelProjection(runtimeProfileHash, profileVersion, "none", userRef, expiresAt, expiresAt),
+                channelProjection(runtimeProfileHash, profileVersion, "none", userRef, expiresAt, expiresAt, List.of(), List.of()),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
                 supportSafeProfileReceipt(
@@ -654,7 +654,9 @@ public class WeaverRuntimeService {
             String previousProfileHash,
             String userRef,
             String expiresAt,
-            String runtimeTokenExpiresAt) {
+            String runtimeTokenExpiresAt,
+            List<String> allowedCapabilities,
+            List<String> toolAllowlist) {
         String runtimeTokenRef = "credentialref://weave/runtime/short-lived/" + userRef.replace("user:", "");
         Map<String, Object> runtimeProfileFetch = Map.of(
                 "fetchRef", "weave-runtime-profile://" + runtimeProfileHash,
@@ -667,6 +669,7 @@ public class WeaverRuntimeService {
                 "revocationChecked", true,
                 "supportSafe", true,
                 "rawProfileBodyReturnedToMembers", false);
+        List<String> mcpAllowedTools = governedMcpAllowedTools(allowedCapabilities, toolAllowlist);
         return Map.ofEntries(
                 Map.entry("channelId", "channels.weave-chat"),
                 Map.entry("domain", "chat"),
@@ -687,11 +690,31 @@ public class WeaverRuntimeService {
                         Map.entry("runtimeTokenRef", runtimeTokenRef),
                         Map.entry("runtimeTokenExpiresAt", runtimeTokenExpiresAt),
                         Map.entry("runtimeProfileFetchRef", "weave-runtime-profile://" + runtimeProfileHash),
-                        Map.entry("enabled", false),
+                        Map.entry("enabled", !mcpAllowedTools.isEmpty()),
                         Map.entry("supportSafe", true),
                         Map.entry("rawEndpointExposed", false),
-                        Map.entry("allowedTools", List.of("admin.get_readiness", "weaver.get_runtime_profile_projection", "calendar.search_events", "boards.comment")),
-                        Map.entry("approvalRequiredFor", List.of("boards.comment"))))));
+                        Map.entry("allowedTools", mcpAllowedTools),
+                        Map.entry("approvalRequiredFor", mcpAllowedTools.stream()
+                                .filter(tool -> tool.equals("calendar.create_event") || tool.equals("boards.comment"))
+                                .toList())))));
+    }
+
+    private List<String> governedMcpAllowedTools(List<String> allowedCapabilities, List<String> toolAllowlist) {
+        LinkedHashSet<String> tools = new LinkedHashSet<>();
+        if (allowedCapabilities.contains("weaver.calendar_read") && toolAllowlist.contains("calendar.search_events")) {
+            tools.add("calendar.search_events");
+        }
+        if (allowedCapabilities.contains("weaver.calendar_create_event") && toolAllowlist.contains("calendar.create_event")) {
+            tools.add("calendar.create_event");
+        }
+        if (allowedCapabilities.contains("weaver.boards_write") && toolAllowlist.contains("boards.comment")) {
+            tools.add("boards.comment");
+        }
+        if (!tools.isEmpty()) {
+            tools.add("admin.get_readiness");
+            tools.add("weaver.get_runtime_profile_projection");
+        }
+        return List.copyOf(tools);
     }
 
     private Map<String, Object> credentialBrokerContract(String userRef) {

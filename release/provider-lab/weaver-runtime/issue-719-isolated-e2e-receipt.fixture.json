@@ -1,0 +1,62 @@
+{
+  "artifactKind": "weave-weaver-runtime-issue-719-isolated-e2e-receipt",
+  "githubIssue": 719,
+  "supportSafe": true,
+  "evidenceBoundary": "isolated dogfood E2E receipt schema; no raw provider secrets or customer-ready Weaver claim",
+  "keycloakDerivedIdentity": {
+    "realmContract": "infra/weave-workspace/keycloak/weave-dev-realm-contract.json",
+    "terraformModule": "infra/weave-workspace/02-keycloak-setup/modules/tenant-identity/main.tf",
+    "testUserGroups": [
+      "workspace-members",
+      "weave-calendar-editors",
+      "weave-weaver-pilot",
+      "weave-weaver-runtime",
+      "weaver-group"
+    ],
+    "requiredCapabilityGrants": [
+      "weaver.enabled",
+      "weaver.files_read",
+      "weaver.exec_disabled",
+      "weaver.calendar_read",
+      "weaver.calendar_create_event"
+    ]
+  },
+  "runtimeProfileProjection": {
+    "source": "Keycloak group token -> WorkspaceCapabilityService -> signed RuntimeProfile projection",
+    "header": "X-Weave-Runtime-Profile-Projection",
+    "mcpServerEnabledWhenGranted": true,
+    "endpointRef": "internal://weave-mcp/streamable-http",
+    "allowedTools": [
+      "calendar.search_events",
+      "calendar.create_event",
+      "admin.get_readiness",
+      "weaver.get_runtime_profile_projection"
+    ],
+    "rejectedBroadGrantNames": ["write calendar"],
+    "containsRawProviderSecrets": false
+  },
+  "eventCreationScenario": {
+    "prompt": "lege ein Ereignis für mich heute um 19:00 Uhr an",
+    "writeTool": "calendar.create_event",
+    "readbackTool": "calendar.search_events",
+    "approvalRequiredForWrite": true,
+    "providerMutationPerformedByMcp": false,
+    "auditRefRequired": true
+  },
+  "negativeCases": [
+    {"id": "missing-weaver-group", "decision": "deny-policy-blocked", "auditRequired": true},
+    {"id": "runtime-generator-disabled", "decision": "deny-runtime-generator-disabled", "auditRequired": true},
+    {"id": "missing-calendar-editor", "decision": "deny-tool-not-allowed", "auditRequired": true},
+    {"id": "broad-write-calendar-grant", "decision": "deny-runtime-profile-overbroad-tool-grant", "auditRequired": true},
+    {"id": "missing-approval", "decision": "deny-approval-required", "auditRequired": true}
+  ],
+  "claimGate": {
+    "acceptedClaim": "Issue #719 adds isolated dogfood E2E proof points for Keycloak-derived weaver.enabled, governed MCP calendar.create_event exposure, approval-gated writes, and support-safe readback receipts.",
+    "rejectedClaims": [
+      "customer-ready Weaver is complete",
+      "raw provider payloads or secrets are available to the runtime",
+      "broad write calendar grants are accepted",
+      "providerMutationPerformedByMcp=true"
+    ]
+  }
+}
