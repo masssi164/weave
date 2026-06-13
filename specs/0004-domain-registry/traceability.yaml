@@ -6,7 +6,10 @@ github_issues:
   - 438
   - 439
   - 442
+  - 743
 artifacts:
+  acceptance:
+    - specs/0004-domain-registry/issue-743-domain-lock-acceptance.yaml
   registry:
     - server/src/main/resources/canonical-domain-registry-v1.json
     - specs/0004-domain-registry/canonical-domain-registry-v1.json
@@ -14,6 +17,11 @@ artifacts:
     - tools/domain_registry_check.py
   docs:
     - docs/domain-registry-v1.md
+    - docs/sovereign-domain-contracts.md
 gates:
   - ./gradlew specContract
-acceptance_features: []
+  - ./gradlew acceptanceContract
+  - ./gradlew docsCheck
+  - python3 tools/domain_registry_check.py
+acceptance_features:
+  - e2e/features/product_readiness_waterfall.feature

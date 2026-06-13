@@ -11,6 +11,10 @@ MEMBER=['available','disabled_by_policy','not_configured','degraded','unavailabl
 ADMIN=['provider_not_configured','secret_missing','ready','degraded','dry_run_required','lossy_mapping_pending','apply_blocked','migration_ready']
 MANIFEST=['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary']
 REALITY=['contract_only','configured','live_read','live_write','migration_dry_run','migration_apply_ready','rollback_ready','release_ready']
+CONTRACT_REQUIRED=['domainId','userObjects','organizationObjects','readCapabilities','writeCapabilities','minimumOpenProtocols','authIdentityAssumptions','auditRequirements','portabilityExportContract','jurisdictionVendorExposureDescriptor','weaverToolMode','primaryAdapterCandidates','secondaryAdapterCandidates']
+WEAVER_MODES={'none','read-only','approval-write','governed-write'}
+PLACEHOLDER_IDS={'ai-runtime-gateway','mcp-tool-registry','search','notes','secrets','mail','backup-export'}
+COMMERCIAL_OR_LICENSE_CAVEAT_TOKENS=('commercial','license caveat','jurisdiction caveat','candidate blocked','vendor exposure')
 REQUIRED_CANONICAL={
  'chat':{'WeaveSpace','WeaveConversation','WeaveMessage','WeaveThread','WeaveReaction','WeaveAttachment','WeaveMembership','WeaveHistoryPolicy','ProviderRef','MigrationReceipt','RollbackReceipt','LossyFieldReport'},
  'files':{'WeaveDrive','WeaveFolder','WeaveFile','WeaveVersion','WeaveShare','WeavePermission','WeaveLock','WeaveQuota','ProviderRef'},
@@ -32,6 +36,14 @@ def main():
  if data.get('adminStates')!=ADMIN: fail('top-level admin states are not canonical')
  if data.get('adapterManifestRequirements')!=MANIFEST: fail('top-level adapter manifest requirements are incomplete')
  if data.get('providerRealityLevels')!=REALITY: fail('top-level provider reality levels are not canonical')
+ if data.get('domainContractRequiredFields')!=CONTRACT_REQUIRED: fail('top-level domain contract required fields are incomplete')
+ placeholders=data.get('futureDomainPlaceholders')
+ if not isinstance(placeholders,list): fail('futureDomainPlaceholders must be a list')
+ placeholder_ids={p.get('domainId') for p in placeholders if isinstance(p,dict)}
+ if not PLACEHOLDER_IDS.issubset(placeholder_ids): fail(f'missing Wave 2/later placeholder(s): {sorted(PLACEHOLDER_IDS-placeholder_ids)}')
+ for p in placeholders:
+  if p.get('domainId')=='search' and p.get('sourceOfTruthMode')!='derived_rebuildable': fail('search placeholder must be marked derived/rebuildable, not canonical source of truth')
+  if p.get('status')!='placeholder': fail(f"{p.get('domainId')} placeholder must not imply shipped capability")
  domains=data.get('domains')
  if not isinstance(domains,list): fail('domains must be a list')
  by_key={d.get('key'):d for d in domains if isinstance(d,dict)}
@@ -43,9 +55,25 @@ def main():
    if not str(d.get(field,'')).strip(): fail(f'{key} missing {field}')
   for field in ['canonicalObjects','capabilityKeys','providerCandidates','portabilityRequirements','sourceOfTruthModes','compatibilityAliases','portabilityRisks']:
    if not isinstance(d.get(field),list) or not d[field]: fail(f'{key} {field} must be a non-empty list')
-   for field in ['canonicalObjects','capabilityKeys','providerCandidates','portabilityRequirements','sourceOfTruthModes','compatibilityAliases','portabilityRisks']:
-    values=d[field]
-    if len(values)!=len(set(values)): fail(f'{key} {field} contains duplicate values')
+  for field in ['canonicalObjects','capabilityKeys','providerCandidates','portabilityRequirements','sourceOfTruthModes','compatibilityAliases','portabilityRisks']:
+   values=d[field]
+   if len(values)!=len(set(values)): fail(f'{key} {field} contains duplicate values')
+  for field in CONTRACT_REQUIRED:
+   value=d.get(field)
+   if isinstance(value,list):
+    if not value: fail(f'{key} {field} must be a non-empty list')
+   elif not str(value or '').strip(): fail(f'{key} missing {field}')
+  if d.get('wave')!='wave1': fail(f'{key} must be marked wave1')
+  if d.get('weaverToolMode') not in WEAVER_MODES: fail(f'{key} has invalid Weaver tool mode')
+  primary=d.get('primaryAdapterCandidates',[]); secondary=d.get('secondaryAdapterCandidates',[])
+  if len(primary)+len(secondary)<2: fail(f'{key} needs at least two adapter paths where realistic')
+  caveated=[c for c in primary+secondary if any(token in c.lower() for token in COMMERCIAL_OR_LICENSE_CAVEAT_TOKENS)]
+  if caveated and not any(c in secondary for c in caveated): fail(f'{key} commercial/license/jurisdiction-caveated candidates must be secondary, not primary')
+  if secondary and any('license caveat' in c.lower() or 'commercial' in c.lower() or 'jurisdiction caveat' in c.lower() for c in primary): fail(f'{key} primary adapter candidates must prefer free/open/self-hostable paths before caveated candidates')
+  for candidate in secondary:
+   lowered=candidate.lower()
+   if any(marker in lowered for marker in ('onlyoffice','slack','teams','microsoft','entra','auth0')) and not any(token in lowered for token in COMMERCIAL_OR_LICENSE_CAVEAT_TOKENS): fail(f'{key} secondary adapter candidate {candidate!r} must record commercial/license/jurisdiction caveat')
+  if key=='health' and 'derived' not in d.get('sourceOfTruthNote',''): fail('health/control-room views must be marked derived')
   if d.get('memberStates')!=MEMBER: fail(f'{key} member states differ from canonical list')
   if d.get('adminStates')!=ADMIN: fail(f'{key} admin states differ from canonical list')
   if d.get('adapterManifestRequirements')!=MANIFEST: fail(f'{key} manifest requirements differ from canonical list')
