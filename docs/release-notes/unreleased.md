@@ -15,6 +15,7 @@ Use this page for release-affecting changes that have merged but are not include
 ## Changed
 
 - Public docs and README evidence pointers now identify `v0.1.0-rc.3` as the latest published prerelease and link the RC3 evidence audit.
+- Sprint 32 post-PR-706 setup wording now treats the DNS-first `*.weave.test` onboarding baseline as implementation evidence while keeping Massimo-owned LAN validation and #591 manual assistive-technology signoff outside automated sprint completion.
 - Sprint 21 product-reality gates now require free/self-hosted provider proof, explicit reality levels, and automated claim blocking before any customer-ready, Weaver-available, provider-interchangeable, production-rollback, or release-ready wording.
 
 ## Fixed
@@ -23,7 +24,7 @@ Use this page for release-affecting changes that have merged but are not include
 
 ## Security
 
-- No post-`v0.1.0-rc.3` security release notes yet.
+- Sprint 32 extends release-readiness claim control with negative checks for public/production release approval, full accessibility, broad provider interchangeability, production restore, and unsupported governed-PA availability wording; support evidence remains limited to redacted summaries that exclude credentials, provider bodies, private prompts, member data, and raw runtime settings.
 
 ## Accessibility
 

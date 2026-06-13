@@ -53,6 +53,23 @@ FORBIDDEN_PATTERNS = (
     (re.compile(r"BEGIN PRIVATE KEY"), "private key"),
 )
 
+REQUIRED_SUPPORT_SAFE_POLICY_TERMS = (
+    "secrets",
+    "credential-bearing URLs",
+    "provider bodies",
+    "private prompts",
+    "member data",
+    "raw runtime settings",
+)
+
+PROHIBITED_RELEASE_CLAIMS = (
+    (re.compile(r"\b(public|production) release (is )?(ready|approved|complete|completed)\b", re.IGNORECASE), "public/production release readiness claim"),
+    (re.compile(r"\bfull accessibility (is )?(ready|approved|complete|completed|passed)\b", re.IGNORECASE), "full accessibility claim"),
+    (re.compile(r"\bprovider interchangeability (is )?(ready|available|complete|completed|proved)\b", re.IGNORECASE), "broad provider-interchangeability claim"),
+    (re.compile(r"\bproduction restore (is )?(ready|available|complete|completed|proved)\b", re.IGNORECASE), "production restore claim"),
+    (re.compile(r"\bWeaver (is )?(available|customer-ready|release-ready|production-ready)\b", re.IGNORECASE), "broad Weaver availability claim"),
+)
+
 
 @dataclass
 class Check:
@@ -145,7 +162,28 @@ def check_support_safe(paths: list[Path]) -> Check:
         for pattern, label in FORBIDDEN_PATTERNS:
             if pattern.search(text):
                 return Check("support-safe", "fail", f"{rel(path)} contains {label}", scanned)
-    return Check("support-safe", "pass", "checked summaries contain no known credential patterns", scanned)
+    return Check("support-safe", "pass", "checked summaries contain no known secret, credential, payload, prompt, member-content, or raw-runtime-config patterns", scanned)
+
+
+def check_support_safe_policy(paths: list[Path]) -> Check:
+    combined = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in paths if path.exists() and not path.is_dir())
+    missing = [term for term in REQUIRED_SUPPORT_SAFE_POLICY_TERMS if term.lower() not in combined.lower()]
+    if missing:
+        return Check("support-safe-policy", "fail", "support-safe policy missing: " + ", ".join(missing), [rel(path) for path in paths if path.exists()])
+    return Check("support-safe-policy", "pass", "support-safe evidence policy covers secrets, credential-bearing URLs, provider bodies, private prompts, member data, and raw runtime settings", [rel(path) for path in paths if path.exists()])
+
+
+def check_claim_control(paths: list[Path]) -> Check:
+    scanned: list[str] = []
+    for path in paths:
+        if not path.exists() or path.is_dir():
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        scanned.append(rel(path))
+        for pattern, label in PROHIBITED_RELEASE_CLAIMS:
+            if pattern.search(text):
+                return Check("claim-control", "fail", f"{rel(path)} contains prohibited {label}", scanned)
+    return Check("claim-control", "pass", "checked release wording for public/production readiness, full accessibility, broad interchangeability, production restore, and Weaver availability overclaims", scanned)
 
 
 def check_inputs(version: str, tag: str, commit: str) -> Check:
@@ -421,6 +459,8 @@ def build_result(args: argparse.Namespace) -> dict[str, Any]:
                     *( [args.waiver] if args.waiver else [] ),
                 ]
             ),
+            check_support_safe_policy([ROOT / "README.md", ROOT / "docs" / "enterprise-release-foundation.md", ROOT / "docs" / "quality-and-evidence.md"]),
+            check_claim_control([args.release_notes, ROOT / "README.md", ROOT / "docs" / "index.md"]),
         ]
     )
     failures = [check for check in checks if check.status == "fail"]
