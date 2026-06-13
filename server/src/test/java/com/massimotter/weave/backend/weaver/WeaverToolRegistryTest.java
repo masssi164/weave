@@ -19,10 +19,10 @@ class WeaverToolRegistryTest {
         var tools = registry.discover(List.of("weaver.files_read", "weaver.boards_write"));
 
         assertThat(tools).extracting(WeaverDomainToolDefinition::name)
-                .containsExactly("files.search", "boards.comment");
+                .containsExactly("files.read", "files.search", "boards.comment");
         assertThat(tools).extracting(WeaverDomainToolDefinition::version).containsOnly("v1");
         assertThat(tools).extracting(WeaverDomainToolDefinition::requiredCapability)
-                .containsExactly("weaver.files_read", "weaver.boards_write");
+                .containsExactly("weaver.files_read", "weaver.files_read", "weaver.boards_write");
         assertThat(tools).allSatisfy(tool -> {
             assertThat(tool.name()).contains(".");
             assertThat(tool.inputSchema()).containsEntry("additionalProperties", false);
@@ -175,6 +175,59 @@ class WeaverToolRegistryTest {
         assertThat(result.status()).isEqualTo("scoped_grant_missing");
         assertThat(result.redactedResult()).containsEntry("auditRef", "audit://weaver-tool/boards.comment/scoped_grant_missing");
         assertThat(audit.events().get(0).payload()).containsEntry("decision", "scoped_grant_missing");
+    }
+
+    @Test
+    void exposesWaveOneReadOnlyMcpFacadeToolsAndFailsClosedForUnknownTools() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var tools = registry.discover(List.of(
+                "weaver.model_chat",
+                "weaver.identity_read",
+                "weaver.registry_tools_read",
+                "weaver.audit_query",
+                "weaver.files_read",
+                "weaver.calendar_read",
+                "weaver.contacts_read",
+                "weaver.chat_read",
+                "weaver.tasks_read",
+                "weaver.search_query"));
+
+        assertThat(tools).extracting(WeaverDomainToolDefinition::name).contains(
+                "model.chat",
+                "identity.read",
+                "registry.tools.read",
+                "audit.query",
+                "files.read",
+                "calendar.read",
+                "contacts.read",
+                "chat.read",
+                "tasks.read",
+                "search.query");
+        assertThat(tools.stream().filter(tool -> tool.name().endsWith(".read") || tool.name().equals("model.chat") || tool.name().equals("audit.query") || tool.name().equals("search.query")))
+                .allSatisfy(tool -> {
+                    assertThat(tool.mode()).isEqualTo(WeaverToolMode.READ);
+                    assertThat(tool.approvalRequirement()).isEqualTo(WeaverApprovalRequirement.NONE);
+                });
+
+        var unknown = registry.invoke(new WeaverToolInvocationRequest(
+                "raw.unknown",
+                "user:abc123",
+                "sha256:unknown000000000000000000000000000000000000000000000000",
+                "user:abc123",
+                signature(),
+                false,
+                future(),
+                true,
+                List.of("weaver.raw_read"),
+                List.of("raw.unknown"),
+                Map.of("prompt", "do not leak"),
+                null));
+
+        assertThat(unknown.status()).isEqualTo("blocked");
+        assertThat(unknown.supportSafeMessage()).doesNotContain("do not leak");
+        assertThat(audit.events().get(0).payload()).containsEntry("reason", "not_granted");
     }
 
     private WeaverToolInvocationRequest governedRequest(
