@@ -1,0 +1,31 @@
+{
+  "contractId": "WEAVE-SPEC-0011-weaver-runtime-governance",
+  "sourceSpec": "specs/0011-weaver-governed-pa-target/spec.md",
+  "status": "target-contract-fixture",
+  "eligibility": {
+    "requiresOrganizationPolicy": true,
+    "requiresGroup": "weaver-group",
+    "ineligibleProvisioning": "deny-runtime-profile-tool-grants-memory-automation"
+  },
+  "runtimeProfile": {
+    "subject": "per-user",
+    "signatureRequired": true,
+    "revocation": "fail-closed",
+    "staleProfileBehavior": "deny-with-support-safe-audit"
+  },
+  "memoryScope": {
+    "isolation": "per-user",
+    "requiredControls": ["export", "delete", "retention", "privacy", "audit"]
+  },
+  "toolExecution": {
+    "discovery": "domain-first-mcp-tools",
+    "providerAccess": "facade-only",
+    "riskyActionsRequireApprovalReceipt": true,
+    "approvalReceiptChecks": ["current-policy-version", "profile-hash", "tool-contract", "user-scope"]
+  },
+  "heartbeatAutomation": {
+    "missingAuthority": "fail-closed",
+    "fallback": "explain-block-and-request-minimal-follow-up",
+    "audit": "support-safe-no-raw-provider-secrets-no-private-runtime-paths"
+  }
+}

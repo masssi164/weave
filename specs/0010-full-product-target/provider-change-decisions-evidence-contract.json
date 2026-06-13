@@ -1,0 +1,23 @@
+{
+  "contractId": "WEAVE-SPEC-0010-provider-change-decisions-evidence",
+  "sourceSpec": "specs/0010-full-product-target/spec.md",
+  "status": "target-contract-fixture",
+  "organizationSetup": {
+    "capabilityVocabulary": "provider-neutral-weave-capabilities",
+    "providerMappingEvidence": "admin-controlled-support-safe-baseline",
+    "memberExposure": "hide-provider-setup-mechanics"
+  },
+  "spaceWorkContext": {
+    "linkedObjects": ["chat", "files", "documents", "calendar", "meetings", "boards-tasks", "decisions", "evidence"],
+    "providerIdentifiers": "not-user-facing"
+  },
+  "providerChange": {
+    "requiredStages": ["preflight", "dry-run", "approval", "cutover", "rollback-plan", "audit"],
+    "silentMutation": "blocked",
+    "rawSecretExposure": "blocked"
+  },
+  "decisionsEvidence": {
+    "requiredFields": ["decision", "provenance", "audit-metadata", "export-posture"],
+    "supportSafety": "no-raw-provider-secrets"
+  }
+}

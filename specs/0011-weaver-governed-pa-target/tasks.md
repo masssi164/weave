@@ -17,7 +17,7 @@ Task format: `- [ ] T001 [P?] [US?/Area] Description with exact path and gate`
 - [x] T010 [Spec] Create Weaver target Spec Kit artifacts under `specs/0011-weaver-governed-pa-target/`.
 - [x] T011 [Acceptance] Create `e2e/features/weave_spec_0011_acceptance.feature` for eligibility, policy preview, memory isolation, approvals, audit, heartbeat/fallback.
 - [x] T012 [Acceptance] Map Weaver target scenarios in `e2e/scenario_mappings.json`.
-- [ ] T013 [Contracts] Add/repair runtime profile, approval receipt, memory scope, heartbeat, and audit fixtures.
+- [x] T013 [Contracts] Add/repair runtime profile, approval receipt, memory scope, heartbeat, and audit fixtures.
 - [x] T014 [Evidence] Run `./gradlew specCorpusConformance`, `./gradlew specContract`, and `./gradlew acceptanceContract`; expected red/green state documented.
 
 ## Phase 2: Implementation slices

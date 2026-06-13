@@ -3766,6 +3766,14 @@
             "@weave-spec-0010-setup-governance",
             "WEAVE_SPEC_0010_SETUP_GOVERNANCE"
           ]
+        },
+        {
+          "path": "specs/0010-full-product-target/provider-change-decisions-evidence-contract.json",
+          "fragments": [
+            "provider-neutral-weave-capabilities",
+            "admin-controlled-support-safe-baseline",
+            "hide-provider-setup-mechanics"
+          ]
         }
       ]
     },
@@ -3791,6 +3799,14 @@
           "fragments": [
             "@weave-spec-0010-space-work",
             "WEAVE_SPEC_0010_SPACE_WORK"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/provider-change-decisions-evidence-contract.json",
+          "fragments": [
+            "chat",
+            "boards-tasks",
+            "providerIdentifiers"
           ]
         }
       ]
@@ -3818,6 +3834,14 @@
             "@weave-spec-0010-provider-change",
             "WEAVE_SPEC_0010_PROVIDER_CHANGE"
           ]
+        },
+        {
+          "path": "specs/0010-full-product-target/provider-change-decisions-evidence-contract.json",
+          "fragments": [
+            "preflight",
+            "dry-run",
+            "silentMutation"
+          ]
         }
       ]
     },
@@ -3843,6 +3867,14 @@
           "fragments": [
             "@weave-spec-0010-evidence-audit",
             "WEAVE_SPEC_0010_EVIDENCE_AUDIT"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/provider-change-decisions-evidence-contract.json",
+          "fragments": [
+            "decision",
+            "provenance",
+            "no-raw-provider-secrets"
           ]
         }
       ]
@@ -3870,6 +3902,13 @@
             "@weave-spec-0011-group-policy-gating",
             "WEAVE_SPEC_0011_GROUP_POLICY_GATING"
           ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
+          "fragments": [
+            "weaver-group",
+            "deny-runtime-profile-tool-grants-memory-automation"
+          ]
         }
       ]
     },
@@ -3895,6 +3934,14 @@
           "fragments": [
             "@weave-spec-0011-memory-isolation",
             "WEAVE_SPEC_0011_MEMORY_ISOLATION"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
+          "fragments": [
+            "per-user",
+            "export",
+            "retention"
           ]
         }
       ]
@@ -3922,6 +3969,14 @@
             "@weave-spec-0011-domain-tool-approval",
             "WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL"
           ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
+          "fragments": [
+            "domain-first-mcp-tools",
+            "facade-only",
+            "approvalReceiptChecks"
+          ]
         }
       ]
     },
@@ -3947,6 +4002,13 @@
           "fragments": [
             "@weave-spec-0011-heartbeat-fallback-audit",
             "WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
+          "fragments": [
+            "fail-closed",
+            "support-safe-no-raw-provider-secrets-no-private-runtime-paths"
           ]
         }
       ]

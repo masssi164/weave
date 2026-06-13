@@ -17,7 +17,7 @@ Task format: `- [ ] T001 [P?] [US?/Area] Description with exact path and gate`
 - [x] T010 [Spec] Create target-product Spec Kit artifacts under `specs/0010-full-product-target/`.
 - [x] T011 [Acceptance] Create `e2e/features/weave_spec_0010_acceptance.feature` for setup/governance, space work, provider change, evidence/audit.
 - [x] T012 [Acceptance] Map target-product scenarios in `e2e/scenario_mappings.json`.
-- [ ] T013 [Contracts] Add/repair provider-change and Decisions/Evidence contract fixtures where gaps remain.
+- [x] T013 [Contracts] Add/repair provider-change and Decisions/Evidence contract fixtures where gaps remain.
 - [x] T014 [Evidence] Run `./gradlew specCorpusConformance`, `./gradlew specContract`, and `./gradlew acceptanceContract`; expected red/green state documented.
 
 ## Phase 2: Implementation slices
