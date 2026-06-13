@@ -9,5 +9,6 @@ public record DecisionLedgerRecordsResponse(
         String contextId,
         @Schema(description = "Whether background room reading was used to populate this response. Always false for Sprint 4.", example = "false")
         boolean backgroundRoomReadingEnabled,
+        DecisionLedgerEvidencePostureResponse evidencePosture,
         List<DecisionLedgerRecordResponse> records) {
 }

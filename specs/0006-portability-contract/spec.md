@@ -9,12 +9,13 @@ owner: delivery-owner
 github_issue: 429
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
-  - WEAVE-SPEC-0004
-acceptance_features: []
+- WEAVE-SPEC-0001
+- WEAVE-SPEC-0004
+acceptance_features:
+- e2e/features/weave_spec_0006_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew portabilityContractCheck
+- ./gradlew specContract
+- ./gradlew portabilityContractCheck
 ---
 
 # Feature specification: No-unaccounted-data-loss portability contract
@@ -57,7 +58,9 @@ Define reusable provider replacement schemas so every migration classifies loss,
 - Tooling test path(s): `tools/portability_contract_check.py`.
 - Schemas: `server/src/main/resources/contracts/portability/*.schema.json`.
 - Fixtures: `specs/0006-portability-contract/migration-run-*.json`.
-- Evidence gates: `./gradlew specContract`, `./gradlew portabilityContractCheck`, `./gradlew docsCheck`.
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature` for no-unaccounted-data-loss and Identity/RBAC provider-switch claim control.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_IDENTITY_RBAC_SWITCH`, `NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS`.
+- Evidence gates: `./gradlew specContract`, `./gradlew acceptanceContract`, `./gradlew portabilityContractCheck`, `./gradlew docsCheck`.
 
 ## Release and migration impact
 

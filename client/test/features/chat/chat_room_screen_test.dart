@@ -121,9 +121,11 @@ void main() {
     expect(find.text('Project Space control room'), findsOneWidget);
     expect(find.text('Chat'), findsOneWidget);
     expect(find.text('Files'), findsOneWidget);
-    expect(find.text('Boards'), findsOneWidget);
+    expect(find.text('Documents/collaboration'), findsOneWidget);
     expect(find.text('Calendar'), findsOneWidget);
     expect(find.text('Meetings'), findsOneWidget);
+    expect(find.text('Boards'), findsOneWidget);
+    expect(find.text('Evidence'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
         (widget) =>
@@ -145,6 +147,20 @@ void main() {
     expect(find.textContaining('files-link-not-configured'), findsOneWidget);
     expect(find.textContaining('Provider seam'), findsNothing);
 
+    await tester.ensureVisible(find.text('Documents/collaboration'));
+    await tester.tap(find.text('Documents/collaboration'));
+    await tester.pumpAndSettle();
+    expect(find.text('Documents/collaboration'), findsWidgets);
+    expect(find.text('available'), findsOneWidget);
+    expect(
+      find.textContaining('backend-owned launch path is configured'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('document-cabinet'), findsOneWidget);
+    expect(find.textContaining('documents-linked'), findsOneWidget);
+    expect(find.textContaining('Provider seam'), findsNothing);
+
+    await tester.ensureVisible(find.text('Boards'));
     await tester.tap(find.text('Boards'));
     await tester.pumpAndSettle();
     expect(find.text('Channel boards and tasks'), findsOneWidget);
@@ -161,6 +177,22 @@ void main() {
     expect(find.textContaining('calendar-policy-block'), findsOneWidget);
     expect(find.textContaining('Provider seam'), findsNothing);
 
+    await tester.ensureVisible(find.text('Evidence'));
+    await tester.tap(find.text('Evidence'));
+    await tester.pumpAndSettle();
+    expect(find.text('Decisions and evidence'), findsOneWidget);
+    expect(find.text('available'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'supporting links can be cited without exposing graph internals',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('evidence-ledger'), findsOneWidget);
+    expect(find.textContaining('cross-domain-evidence'), findsOneWidget);
+    expect(find.textContaining('Provider seam'), findsNothing);
+
+    await tester.ensureVisible(find.text('Meetings'));
     await tester.tap(find.text('Meetings'));
     await tester.pumpAndSettle();
     expect(find.text('Channel meetings'), findsOneWidget);
@@ -232,6 +264,20 @@ void main() {
     expect(find.text('Hey there'), findsAtLeastNWidgets(1));
     expect(
       find.text('Proposed. Recorded by You. Source: Message from Alex.'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Weave-owned provenance links this decision'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'Export decision records, source refs, and audit refs',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('audit://chat/decision-ledger/'),
       findsOneWidget,
     );
     expect(

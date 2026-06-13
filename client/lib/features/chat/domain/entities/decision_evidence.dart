@@ -10,6 +10,29 @@ enum DecisionLedgerStatus { proposed, accepted, superseded, rejected }
 
 enum DecisionLedgerReferenceType { chatMessage, file, meeting, task }
 
+class DecisionEvidenceAuditMetadata {
+  const DecisionEvidenceAuditMetadata({
+    required this.provenanceSummary,
+    required this.auditRefs,
+    required this.exportPosture,
+    required this.supportSafe,
+  });
+
+  final String provenanceSummary;
+  final List<String> auditRefs;
+  final String exportPosture;
+  final bool supportSafe;
+
+  bool get isSupportSafe =>
+      supportSafe &&
+      provenanceSummary.isNotEmpty &&
+      exportPosture.isNotEmpty &&
+      auditRefs.isNotEmpty &&
+      auditRefs.every(
+        (ref) => ref.startsWith('audit://') || ref.startsWith('evidence:'),
+      );
+}
+
 class DecisionEvidenceSource {
   const DecisionEvidenceSource({
     required this.type,
@@ -140,6 +163,7 @@ class ChannelDecisionRecord {
     required this.authorLabel,
     required this.decidedAt,
     required this.references,
+    required this.auditMetadata,
   });
 
   factory ChannelDecisionRecord.fromEvidenceRecord({
@@ -155,6 +179,17 @@ class ChannelDecisionRecord {
       authorLabel: record.ownerLabel,
       decidedAt: record.createdAt,
       references: [DecisionLedgerReference.fromEvidenceSource(record.source)],
+      auditMetadata: DecisionEvidenceAuditMetadata(
+        provenanceSummary:
+            'Weave-owned provenance links this decision to explicit source references and actor labels.',
+        auditRefs: [
+          'audit://chat/decision-ledger/${Uri.encodeComponent(channelId)}',
+          'evidence:${Uri.encodeComponent(channelId)}:decision-final-state',
+        ],
+        exportPosture:
+            'Export decision records, source refs, and audit refs through the Weave decisions/evidence contract; raw provider secrets stay hidden.',
+        supportSafe: true,
+      ),
     );
   }
 
@@ -165,6 +200,7 @@ class ChannelDecisionRecord {
   final String authorLabel;
   final DateTime decidedAt;
   final List<DecisionLedgerReference> references;
+  final DecisionEvidenceAuditMetadata auditMetadata;
 
   bool get hasLifecycleState => DecisionLedgerStatus.values.contains(status);
 
@@ -178,7 +214,8 @@ class ChannelDecisionRecord {
       title.isNotEmpty &&
       authorLabel.isNotEmpty &&
       hasLifecycleState &&
-      isSourceLinked;
+      isSourceLinked &&
+      auditMetadata.isSupportSafe;
 }
 
 class RoomDecisionEvidenceSnapshot {
@@ -227,4 +264,22 @@ class RoomDecisionEvidenceSnapshot {
   bool get isDecisionLedgerMvpReady =>
       !backgroundRoomReadingEnabled &&
       decisionLedgerRecords.every((decision) => decision.isReadable);
+
+  DecisionEvidenceAuditMetadata get auditMetadata {
+    final ledger = decisionLedgerRecords;
+    if (ledger.isNotEmpty) {
+      return ledger.first.auditMetadata;
+    }
+    return DecisionEvidenceAuditMetadata(
+      provenanceSummary:
+          'Weave keeps decisions evidence explicit, support-safe, and source linked before export.',
+      auditRefs: [
+        'audit://chat/decision-ledger/${Uri.encodeComponent(roomId)}',
+        'evidence:${Uri.encodeComponent(roomId)}:decision-final-state',
+      ],
+      exportPosture:
+          'Export decision records, source refs, and audit refs through the Weave decisions/evidence contract; raw provider secrets stay hidden.',
+      supportSafe: true,
+    );
+  }
 }

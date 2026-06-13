@@ -8,12 +8,12 @@ owner: weave-security-compliance-lead
 github_issue: null
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0000
+- WEAVE-SPEC-0000
 acceptance_features:
-  - e2e/features/v0_1_dogfood_release.feature
+- e2e/features/weave_spec_0009_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew acceptanceContract
+- ./gradlew specContract
+- ./gradlew acceptanceContract
 ---
 
 # Feature 0009: Domain-first MCP tools

@@ -4,7 +4,7 @@
   "title": "Weave Context Graph Contract",
   "description": "Contract draft for tenant-scoped Weave contexts, graph edges, memberships, provider bindings, and ReBAC tuples. Team and channel are templates/kinds, not the hard backend hierarchy.",
   "type": "object",
-  "required": ["tenant_id", "contexts", "edges", "memberships", "provider_bindings", "rebac_tuples"],
+  "required": ["tenant_id", "contexts", "edges", "memberships", "provider_bindings", "rebac_tuples", "object_links"],
   "properties": {
     "tenant_id": { "type": "string", "minLength": 1 },
     "contexts": {
@@ -26,6 +26,10 @@
     "rebac_tuples": {
       "type": "array",
       "items": { "$ref": "#/$defs/rebac_tuple" }
+    },
+    "object_links": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/object_link" }
     }
   },
   "$defs": {
@@ -128,6 +132,22 @@
         },
         "subject_ref": { "type": "string", "minLength": 1 },
         "caveat": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "object_link": {
+      "type": "object",
+      "required": ["tenant_id", "context_id", "domain", "object_ref", "evidence_ref", "support_safe"],
+      "properties": {
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "context_id": { "type": "string", "minLength": 1 },
+        "domain": {
+          "type": "string",
+          "enum": ["chat", "files", "documents", "calendar", "meetings", "boards_tasks", "decisions", "evidence"]
+        },
+        "object_ref": { "type": "string", "minLength": 1 },
+        "evidence_ref": { "type": "string", "minLength": 1 },
+        "support_safe": { "type": "boolean", "const": true }
       },
       "additionalProperties": false
     },

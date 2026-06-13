@@ -25,6 +25,7 @@ import com.massimotter.weave.backend.model.chat.ChatProviderReplacementDryRunRes
 import com.massimotter.weave.backend.model.chat.ChatReadinessResponse;
 import com.massimotter.weave.backend.model.chat.ChatSendMessageRequest;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerCreateRequest;
+import com.massimotter.weave.backend.model.chat.DecisionLedgerEvidencePostureResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerRecordsResponse;
 import com.massimotter.weave.backend.model.chat.DecisionLedgerReferenceRequest;
@@ -375,6 +376,13 @@ public class ChatFacadeService {
                 conversation.id(),
                 conversation.contextId(),
                 false,
+                new DecisionLedgerEvidencePostureResponse(
+                        "Decisions keep Weave-owned provenance through support-safe source refs and actor labels.",
+                        List.of(
+                                "audit://chat/decision-ledger/" + conversation.id(),
+                                "audit://chat/decision-evidence/" + conversation.contextId()),
+                        "Export decision records, source refs, and audit refs through the Weave decisions/evidence contract; raw provider secrets stay backend-only.",
+                        true),
                 List.copyOf(decisionsFor(conversation.id())));
     }
 

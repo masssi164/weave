@@ -77,7 +77,9 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.signature()).startsWith("weave-signature:v1:");
         assertThat(profile.revoked()).isFalse();
         assertThat(profile.revocationStatus()).isEqualTo("active");
+        assertThat(profile.revocationGeneration()).isZero();
         assertThat(profile.previousProfileHash()).isEqualTo("none");
+        assertThat(profile.rollbackProfileHash()).isEqualTo("none");
         assertThat(profile.workspacePath()).startsWith("/var/lib/weave/weaver/");
         assertThat(profile.isolatedAgentDirectory()).isEqualTo(".weaver/agents");
         assertThat(profile.dockerNetworkMode()).isEqualTo("none");
@@ -213,6 +215,12 @@ class WeaverRuntimeServiceTest {
         assertThat(fetched.runtimeProfileHash()).isEqualTo(issued.runtimeProfileHash());
         assertThat(fetched.supportSafeProfileReceipt()).containsEntry("fetchByHashRequired", true);
 
+        var customized = service.applyRuntimeCustomization(member, Map.of("style", "concise"));
+        assertThat(customized.accepted()).isTrue();
+        var stale = service.profileByHash(member, issued.runtimeProfileHash());
+        assertThat(stale.enabled()).isFalse();
+        assertThat(stale.posture()).isEqualTo("runtime-profile-fetch-denied");
+
         var unknown = service.profileByHash(member, "sha256:not-issued");
         assertThat(unknown.enabled()).isFalse();
         assertThat(unknown.posture()).isEqualTo("runtime-profile-hash-not-issued");
@@ -222,6 +230,23 @@ class WeaverRuntimeServiceTest {
         assertThat(mismatched.enabled()).isFalse();
         assertThat(mismatched.posture()).isEqualTo("runtime-profile-fetch-denied");
         assertThat(mismatched.toString()).doesNotContain("Bearer ", "openclaw.json", "refresh_token", "https://matrix.weave.test");
+    }
+
+    @Test
+    void revokesPreviouslyIssuedProfilesWhenEligibilityIsRemoved() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt eligible = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var issued = service.profileFor(eligible);
+        var blocked = service.profileFor(jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-pilot")));
+
+        assertThat(blocked.enabled()).isFalse();
+        assertThat(blocked.posture()).isEqualTo("policy-blocked");
+        assertThat(blocked.revocationGeneration()).isEqualTo(1);
+
+        var revokedFetch = service.profileByHash(eligible, issued.runtimeProfileHash());
+        assertThat(revokedFetch.enabled()).isFalse();
+        assertThat(revokedFetch.posture()).isEqualTo("runtime-profile-fetch-denied");
     }
 
     @Test
@@ -306,6 +331,7 @@ class WeaverRuntimeServiceTest {
         var bobRuntime = service.provisionRuntime(bob, "org:acme", "policy:v24");
 
         assertThat(service.canReadWorkspace(aliceJwt, aliceRuntime.workspacePath() + "/notes.md")).isTrue();
+        assertThat(service.canReadWorkspace(aliceJwt, aliceRuntime.workspacePath() + "/../" + bob.userRef() + "/memory/session.json")).isFalse();
         assertThat(service.canReadWorkspace(aliceJwt, bobRuntime.workspacePath() + "/memory/session.json")).isFalse();
         assertThat(service.canReadWorkspace(bobJwt, aliceRuntime.workspacePath() + "/memory/session.json")).isFalse();
 
@@ -315,6 +341,7 @@ class WeaverRuntimeServiceTest {
                         "weaverMemory", "memory://alice/private prompt about Bob",
                         "openclawConfig", "openclaw.json {\"apiKey\":\"sk-secret\"}",
                         "providerDiagnostic", "Bearer raw-token refresh_token=raw https://matrix.weave.test/_matrix/private",
+                        "providerUrl", "https://svc-user:svc-pass@matrix.weave.test/_matrix/admin?access_token=raw",
                         "health", "runtime labels ok"));
 
         assertThat(bundle)
@@ -323,7 +350,7 @@ class WeaverRuntimeServiceTest {
                 .containsEntry("rawOpenClawConfigExported", false)
                 .containsEntry("rawProviderSecretsExported", false);
         assertThat(bundle.toString())
-                .doesNotContain("memory://alice", "private prompt", "openclaw.json", "sk-secret", "Bearer raw-token", "refresh_token=raw")
+                .doesNotContain("memory://alice", "private prompt", "openclaw.json", "sk-secret", "Bearer raw-token", "refresh_token=raw", "svc-pass", "access_token=raw", "_matrix/admin")
                 .contains("[redacted]");
     }
 

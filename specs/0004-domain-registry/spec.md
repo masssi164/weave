@@ -9,11 +9,12 @@ owner: delivery-owner
 github_issue: 427
 supersedes: []
 depends_on:
-  - WEAVE-SPEC-0001
-acceptance_features: []
+- WEAVE-SPEC-0001
+acceptance_features:
+- e2e/features/weave_spec_0004_acceptance.feature
 evidence_gates:
-  - ./gradlew specContract
-  - ./gradlew serverCi
+- ./gradlew specContract
+- ./gradlew serverCi
 ---
 
 # Feature specification: Canonical domain registry v1
@@ -49,9 +50,13 @@ Weave needs a stable, provider-neutral registry of product domains so server, ad
 - **FR-005**: Portability artifacts MUST include no-unaccounted-data-loss loss classes and migration run lifecycle states.
 - **FR-006**: The validation gate MUST fail when required domains, states, aliases, or portability schemas are missing.
 - **FR-007**: Every provider candidate MUST declare exactly one of `contract_only`, `configured`, `live_read`, `live_write`, `migration_dry_run`, `migration_apply_ready`, `rollback_ready`, or `release_ready`; `contract_only` candidates MUST NOT produce member state `available` and only `release_ready` may be described as customer-ready.
+- **FR-008**: Northstar capability names, Identity/RBAC portability claims, and domain-first Weaver tool names MUST resolve to canonical Weave-owned domain and capability keys before they can appear in product copy, admin policy, provider manifests, or MCP/tool registries.
+- **FR-009**: Registry evidence MUST keep `offline-spec` and `live-runtime` reality levels separate so fixture, dry-run, or contract evidence cannot be promoted into customer-ready or release-ready domain claims.
 
 ## Acceptance and evidence mapping
 
+- Gherkin feature path(s): `e2e/features/northstar_spec_decisions.feature`.
+- `e2e/scenario_mappings.json` marker(s): `NORTHSTAR_DOMAIN_REGISTRY_REALITY`.
 - Tooling test path(s): `tools/domain_registry_check.py`.
 - Registry artifacts: `server/src/main/resources/canonical-domain-registry-v1.json` and `specs/0004-domain-registry/canonical-domain-registry-v1.json`.
 - Live Stack E2E required? no; registry contract only.

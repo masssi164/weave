@@ -8,6 +8,7 @@ import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -29,11 +30,14 @@ public class WeaverRuntimeService {
 
     private static final String MANAGED_BY = "weave-weaver-runtime-reconciler";
     private static final Pattern UNSAFE_DIAGNOSTIC = Pattern.compile(
-            "(?i)(bearer\\s+[^\\s]+|refresh_token[=:][^\\s,}]+|api[_-]?key[=:][^\\s,}]+|secret[=:][^\\s,}]+|openclaw\\.json|memory://[^\\s,}]+|/memory/[^\\s,}]+)");
+            "(?i)(bearer\\s+[^\\s]+|refresh_token[=:][^\\s,}]+|api[_-]?key[=:][^\\s,}]+|secret[=:][^\\s,}]+|openclaw\\.json|memory://[^\\s,}]+|/memory/[^\\s,}]+|https?://[^\\s,}]*(@|token=|access_token=|refresh_token=|api[_-]?key=|secret=)[^\\s,}]*|https?://[^\\s,}]*(/_matrix/private|/private|/admin)[^\\s,}]*)");
 
     private final ConcurrentMap<String, WeaverRuntimeProfileResponse> issuedProfiles = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, WeaverRuntimeInstance> runtimeInstances = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> latestProfileHashByUser = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> currentProfileHashByUser = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, String> rollbackProfileHashByUser = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Integer> revocationGenerationByUser = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, String> profileFingerprintByUser = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Integer> profileSequenceByUser = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Map<String, Object>> customizationByUser = new ConcurrentHashMap<>();
@@ -58,18 +62,21 @@ public class WeaverRuntimeService {
         List<String> grantedCapabilities = workspaceCapabilityService.grantedCapabilities(jwt);
         String userRef = supportSafeUserRef(jwt);
         if (!workspaceCapabilityProperties.weaver().enabled()) {
+            revokeProfilesForUser(userRef, "disabled-by-default");
             return disabledProfile(
                     userRef,
                     "disabled-by-default",
                     "Weaver is disabled by organization policy until an admin enables the provider category.");
         }
         if (!weaverRuntimeProperties.enabled()) {
+            revokeProfilesForUser(userRef, "runtime-generator-disabled");
             return disabledProfile(
                     userRef,
                     "runtime-generator-disabled",
                     "Weaver runtime generation is disabled until the organization enables a governed runtime profile.");
         }
         if (!grantedCapabilities.contains("weaver.enabled")) {
+            revokeProfilesForUser(userRef, "policy-blocked");
             return disabledProfile(
                     userRef,
                     "policy-blocked",
@@ -86,6 +93,7 @@ public class WeaverRuntimeService {
         String expiresAt = Instant.now().plus(1, ChronoUnit.HOURS).toString();
         String runtimeTokenExpiresAt = Instant.now().plus(10, ChronoUnit.MINUTES).toString();
         String previousProfileHash = latestProfileHashByUser.getOrDefault(userRef, "none");
+        String rollbackProfileHash = currentProfileHashByUser.getOrDefault(userRef, "none");
         String runtimeProfileHash = runtimeProfileHash(
                 userRef,
                 profileVersion,
@@ -121,7 +129,9 @@ public class WeaverRuntimeService {
                 expiresAt,
                 false,
                 "active",
+                revocationGenerationByUser.getOrDefault(userRef, 0),
                 previousProfileHash,
+                rollbackProfileHash,
                 weaverRuntimeProperties.baselineProfile(),
                 weaverRuntimeProperties.image(),
                 workspacePath(userRef),
@@ -144,6 +154,8 @@ public class WeaverRuntimeService {
                 "Weaver runtime profile is governed by organization policy; unavailable tools are hidden from the runtime.");
         auditGeneratedProfile(response);
         issuedProfiles.put(runtimeProfileHash, response);
+        rollbackProfileHashByUser.put(userRef, rollbackProfileHash);
+        currentProfileHashByUser.put(userRef, runtimeProfileHash);
         latestProfileHashByUser.put(userRef, runtimeProfileHash);
         return response;
     }
@@ -165,10 +177,13 @@ public class WeaverRuntimeService {
     public WeaverRuntimeProfileResponse rollbackRuntimeProfile(Jwt jwt, String rollbackProfileHash) {
         String userRef = supportSafeUserRef(jwt);
         WeaverRuntimeProfileResponse rollback = issuedProfiles.get(rollbackProfileHash == null ? "" : rollbackProfileHash.strip());
-        if (rollback == null || !rollback.userRef().equals(userRef) || rollback.revoked()) {
+        if (rollback == null || !rollback.userRef().equals(userRef) || rollback.revoked() || Instant.parse(rollback.expiresAt()).isBefore(Instant.now())) {
             auditRollback(userRef, rollbackProfileHash, "rollback_denied");
             return disabledProfile(userRef, "runtime-profile-rollback-denied", "RuntimeProfile rollback failed closed.");
         }
+        String currentProfileHash = currentProfileHashByUser.getOrDefault(userRef, "none");
+        rollbackProfileHashByUser.put(userRef, currentProfileHash);
+        currentProfileHashByUser.put(userRef, rollback.runtimeProfileHash());
         latestProfileHashByUser.put(userRef, rollback.runtimeProfileHash());
         auditRollback(userRef, rollback.runtimeProfileHash(), "rollback_restored");
         return rollback;
@@ -180,7 +195,10 @@ public class WeaverRuntimeService {
         if (issued == null) {
             return disabledProfile(userRef, "runtime-profile-hash-not-issued", "RuntimeProfile fetch-by-hash failed closed.");
         }
-        if (!issued.userRef().equals(userRef) || issued.revoked() || Instant.parse(issued.expiresAt()).isBefore(Instant.now())) {
+        if (!issued.userRef().equals(userRef)
+                || issued.revoked()
+                || Instant.parse(issued.expiresAt()).isBefore(Instant.now())
+                || !runtimeProfileHash.strip().equals(currentProfileHashByUser.getOrDefault(userRef, ""))) {
             return disabledProfile(userRef, "runtime-profile-fetch-denied", "RuntimeProfile fetch-by-hash failed closed.");
         }
         if (!Boolean.TRUE.equals(issued.supportSafeProfileReceipt().get("signed"))
@@ -228,8 +246,9 @@ public class WeaverRuntimeService {
         if (workspacePath == null || workspacePath.isBlank()) {
             return false;
         }
-        String expected = workspacePath(supportSafeUserRef(jwt));
-        return workspacePath.equals(expected) || workspacePath.startsWith(expected + "/");
+        Path expected = Path.of(workspacePath(supportSafeUserRef(jwt))).normalize();
+        Path requested = Path.of(workspacePath).normalize();
+        return requested.equals(expected) || requested.startsWith(expected);
     }
 
     public List<WeaverRuntimeReconcileDecision> reconcile(
@@ -338,7 +357,9 @@ public class WeaverRuntimeService {
                 expiresAt,
                 true,
                 posture,
+                revocationGenerationByUser.getOrDefault(userRef, 0),
                 "none",
+                rollbackProfileHashByUser.getOrDefault(userRef, "none"),
                 weaverRuntimeProperties.baselineProfile(),
                 "",
                 "",
@@ -366,6 +387,71 @@ public class WeaverRuntimeService {
                 "secretrefs-only-no-raw-provider-tokens",
                 "disabled-runtime-has-no-workspace-memory-session-store",
                 impact);
+    }
+
+    private void revokeProfilesForUser(String userRef, String reason) {
+        boolean revokedAny = false;
+        for (Map.Entry<String, WeaverRuntimeProfileResponse> entry : issuedProfiles.entrySet()) {
+            WeaverRuntimeProfileResponse issued = entry.getValue();
+            if (!issued.userRef().equals(userRef) || issued.revoked()) {
+                continue;
+            }
+            issuedProfiles.put(entry.getKey(), revokeProfile(issued, reason));
+            revokedAny = true;
+        }
+        currentProfileHashByUser.remove(userRef);
+        rollbackProfileHashByUser.remove(userRef);
+        if (revokedAny) {
+            revocationGenerationByUser.merge(userRef, 1, Integer::sum);
+        }
+    }
+
+    private WeaverRuntimeProfileResponse revokeProfile(WeaverRuntimeProfileResponse issued, String reason) {
+        return new WeaverRuntimeProfileResponse(
+                issued.enabled(),
+                issued.posture(),
+                issued.runtimeKind(),
+                issued.runtimeProvider(),
+                issued.modelProvider(),
+                issued.toolProvider(),
+                issued.generatedFrom(),
+                issued.userRef(),
+                issued.profileVersion(),
+                issued.runtimeProfileHash(),
+                issued.signature(),
+                issued.expiresAt(),
+                true,
+                reason,
+                issued.revocationGeneration() + 1,
+                issued.previousProfileHash(),
+                issued.rollbackProfileHash(),
+                issued.baselineProfile(),
+                issued.containerImage(),
+                issued.workspacePath(),
+                issued.isolatedAgentDirectory(),
+                issued.dockerNetworkMode(),
+                issued.allowedCapabilities(),
+                issued.pluginAllowlist(),
+                issued.toolAllowlist(),
+                issued.execEnabled(),
+                issued.elevatedEnabled(),
+                issued.auditRequired(),
+                issued.forkRequired(),
+                issued.channelProjection(),
+                issued.credentialBrokerContract(),
+                issued.auditPolicy(),
+                supportSafeProfileReceipt(
+                        issued.profileVersion(),
+                        issued.runtimeProfileHash(),
+                        issued.signature(),
+                        issued.expiresAt(),
+                        String.valueOf(issued.supportSafeProfileReceipt().getOrDefault("runtimeTokenExpiresAt", issued.expiresAt())),
+                        true,
+                        reason),
+                issued.approvalPolicy(),
+                issued.secretPosture(),
+                issued.isolationBoundary(),
+                issued.memberImpact());
     }
 
     private Map<String, String> runtimeLabels(WeaverRuntimeProfileResponse profile, String orgRef, String policyVersion) {

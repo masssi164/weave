@@ -25,3 +25,8 @@
 
 - [ ] T030 Run `./gradlew specContract`.
 - [ ] T031 Run downstream server/admin/client consumers in follow-up PRs.
+## Phase 4: Northstar reality/capability coverage
+
+- [x] T040 [Spec] Project Northstar domain/capability naming and reality-level boundaries into the canonical registry spec.
+- [x] T041 [Acceptance] Map registry reality-level coverage to `NORTHSTAR_DOMAIN_REGISTRY_REALITY`.
+- [x] T042 [Gate] Keep contract-only provider evidence from becoming customer-ready wording.

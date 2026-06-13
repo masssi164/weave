@@ -2,11 +2,13 @@ import 'package:weave/features/chat/domain/entities/chat_conversation.dart';
 
 enum ChannelWorkspaceSurfaceKind {
   chat,
-  decisions,
   files,
-  boards,
+  documents,
   calendar,
   meetings,
+  boards,
+  decisions,
+  evidence,
   weaver,
 }
 
@@ -589,14 +591,6 @@ class ChannelWorkspacePreview {
           supportSafeEvidenceRef: 'evidence:$spaceSlug:chat-context-seen',
         ),
         ChannelWorkspaceSurface(
-          kind: ChannelWorkspaceSurfaceKind.decisions,
-          availability: ChannelWorkspaceSurfaceAvailability.available,
-          providerContractId: 'weave-decision-ledger-channel',
-          contextId: contextId,
-          canonicalObjectRef: 'weave:$spaceSlug:decision-ledger',
-          supportSafeEvidenceRef: 'evidence:$spaceSlug:decision-final-state',
-        ),
-        ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.files,
           availability: ChannelWorkspaceSurfaceAvailability.notConfigured,
           providerContractId: 'weave-files-channel-link',
@@ -606,12 +600,12 @@ class ChannelWorkspacePreview {
               'evidence:$spaceSlug:files-link-not-configured',
         ),
         ChannelWorkspaceSurface(
-          kind: ChannelWorkspaceSurfaceKind.boards,
-          availability: ChannelWorkspaceSurfaceAvailability.degraded,
-          providerContractId: 'weave-boards-channel-link',
+          kind: ChannelWorkspaceSurfaceKind.documents,
+          availability: ChannelWorkspaceSurfaceAvailability.available,
+          providerContractId: 'weave-documents-space-collaboration',
           contextId: contextId,
-          canonicalObjectRef: 'weave:$spaceSlug:board-lane',
-          supportSafeEvidenceRef: 'evidence:$spaceSlug:board-degraded',
+          canonicalObjectRef: 'weave:$spaceSlug:document-cabinet',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:documents-linked',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.calendar,
@@ -628,6 +622,30 @@ class ChannelWorkspacePreview {
           contextId: contextId,
           canonicalObjectRef: 'weave:$spaceSlug:meeting-capsule',
           supportSafeEvidenceRef: 'evidence:$spaceSlug:meeting-coming-later',
+        ),
+        ChannelWorkspaceSurface(
+          kind: ChannelWorkspaceSurfaceKind.boards,
+          availability: ChannelWorkspaceSurfaceAvailability.degraded,
+          providerContractId: 'weave-boards-channel-link',
+          contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:board-lane',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:board-degraded',
+        ),
+        ChannelWorkspaceSurface(
+          kind: ChannelWorkspaceSurfaceKind.decisions,
+          availability: ChannelWorkspaceSurfaceAvailability.available,
+          providerContractId: 'weave-decision-ledger-channel',
+          contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:decision-ledger',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:decision-final-state',
+        ),
+        ChannelWorkspaceSurface(
+          kind: ChannelWorkspaceSurfaceKind.evidence,
+          availability: ChannelWorkspaceSurfaceAvailability.available,
+          providerContractId: 'weave-evidence-linked-record',
+          contextId: contextId,
+          canonicalObjectRef: 'weave:$spaceSlug:evidence-ledger',
+          supportSafeEvidenceRef: 'evidence:$spaceSlug:cross-domain-evidence',
         ),
         ChannelWorkspaceSurface(
           kind: ChannelWorkspaceSurfaceKind.weaver,

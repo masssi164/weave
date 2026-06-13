@@ -211,6 +211,19 @@ export interface WeaverRuntimeProjection {
   items: WeaverProjectionItem[];
 }
 
+export interface WeaverEligibilityPreview {
+  policyEnabled: boolean;
+  groupMembershipRequired: boolean;
+  requiredGroups: string[];
+  eligibleCapabilities: string[];
+  memberStateWithoutPolicy: MemberCapabilityState;
+  memberStateWithoutGroup: MemberCapabilityState;
+  memberStateWhenEligible: MemberCapabilityState;
+  blockedReasons: string[];
+  nextActions: string[];
+  auditRefs: string[];
+}
+
 export interface SuiteDomainReadiness {
   domain: string;
   label: string;
@@ -417,6 +430,7 @@ export interface ControlPlaneResponse {
   providerCategories: ProviderCategory[];
   identityProviderReadiness: IdentityProviderReadiness;
   weaverRuntimeProjection: WeaverRuntimeProjection;
+  weaverEligibilityPreview: WeaverEligibilityPreview;
   suiteDomainReadiness: SuiteDomainReadiness[];
   goLiveReadiness: GoLiveReadiness;
   whitelistPolicy: WhitelistPolicy;
@@ -479,6 +493,7 @@ interface ServerControlPlaneResponse {
   weaverDistributionPolicy?: ServerWeaverDistributionPolicy;
   identityProviderReadiness?: ServerIdentityProviderReadiness;
   weaverRuntimeProjection?: ServerWeaverRuntimeProjection;
+  weaverEligibilityPreview?: ServerWeaverEligibilityPreview;
   suiteDomainReadiness?: ServerSuiteDomainReadiness[];
   goLiveReadiness?: ServerGoLiveReadiness;
   secretRefs?: Array<{ ref?: string; providerKey?: string }>;
@@ -568,6 +583,19 @@ interface ServerWeaverRuntimeProjection {
     defaultSelected?: boolean;
     fallbackOrder?: number;
   }>;
+}
+
+interface ServerWeaverEligibilityPreview {
+  policyEnabled?: boolean;
+  groupMembershipRequired?: boolean;
+  requiredGroups?: string[];
+  eligibleCapabilities?: string[];
+  memberStateWithoutPolicy?: string;
+  memberStateWithoutGroup?: string;
+  memberStateWhenEligible?: string;
+  blockedReasons?: string[];
+  nextActions?: string[];
+  auditRefs?: string[];
 }
 
 interface ServerSuiteDomainReadiness {
@@ -934,6 +962,9 @@ function normalizeControlPlane(
     identityProviderReadiness: normalizeIdentityProviderReadiness(
       controlPlane.identityProviderReadiness,
     ),
+    weaverEligibilityPreview: normalizeWeaverEligibilityPreview(
+      controlPlane.weaverEligibilityPreview,
+    ),
     weaverRuntimeProjection: normalizeWeaverRuntimeProjection(
       controlPlane.weaverRuntimeProjection,
     ),
@@ -948,6 +979,36 @@ function normalizeControlPlane(
     ),
     mcpServerBindings: normalizeMcpServerBindings(controlPlane.mcpServerBindings),
     auditEvents,
+  };
+}
+
+function normalizeWeaverEligibilityPreview(
+  preview?: ServerWeaverEligibilityPreview,
+): WeaverEligibilityPreview {
+  return {
+    policyEnabled: preview?.policyEnabled ?? false,
+    groupMembershipRequired: preview?.groupMembershipRequired ?? true,
+    requiredGroups: preview?.requiredGroups ?? ["weaver-group"],
+    eligibleCapabilities: preview?.eligibleCapabilities ?? [
+      "weaver.files_read",
+      "weaver.exec_disabled",
+    ],
+    memberStateWithoutPolicy:
+      normalizeMemberCapabilityState(preview?.memberStateWithoutPolicy) ??
+      "disabled_by_policy",
+    memberStateWithoutGroup:
+      normalizeMemberCapabilityState(preview?.memberStateWithoutGroup) ??
+      "disabled_by_policy",
+    memberStateWhenEligible:
+      normalizeMemberCapabilityState(preview?.memberStateWhenEligible) ??
+      "coming_later",
+    blockedReasons: preview?.blockedReasons ?? [
+      "weaver.enabled remains blocked until organization policy enables governed Weaver runtime provisioning",
+    ],
+    nextActions: preview?.nextActions ?? [
+      "Grant weaver.enabled through organization policy before runtime rollout.",
+    ],
+    auditRefs: preview?.auditRefs ?? ["audit://weaver/eligibility-preview"],
   };
 }
 
@@ -2355,6 +2416,24 @@ export const sampleControlPlane: ControlPlaneResponse = {
     pendingRevocationRefs: ["receipt://weaver/runtime/revocation-preview"],
     auditReceiptRefs: ["receipt://weaver/runtime/profile-regeneration"],
     items: sampleWeaverProjectionItems,
+  },
+  weaverEligibilityPreview: {
+    policyEnabled: false,
+    groupMembershipRequired: true,
+    requiredGroups: ["weaver-group", "weave-weaver-runtime"],
+    eligibleCapabilities: ["weaver.files_read", "weaver.exec_disabled"],
+    memberStateWithoutPolicy: "disabled_by_policy",
+    memberStateWithoutGroup: "disabled_by_policy",
+    memberStateWhenEligible: "coming_later",
+    blockedReasons: [
+      "weaver.enabled remains blocked until organization policy enables governed Weaver runtime provisioning",
+      "members outside weaver-group stay deny-by-default for Weaver runtime provisioning",
+    ],
+    nextActions: [
+      "Grant weaver.enabled through organization policy before runtime rollout.",
+      "Map eligible members into weaver-group only after member impact preview and audit review.",
+    ],
+    auditRefs: ["audit://weaver/eligibility-preview"],
   },
   identityProviderReadiness: {
     contractVersion: "identity-provider-readiness-v1",

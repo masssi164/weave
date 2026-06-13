@@ -23,6 +23,7 @@ public record AdminControlPlaneResponse(
         List<ProviderSelectionResponse> selectedProviderMappings,
         CapabilityWhitelistResponse whitelist,
         WeaverDistributionPolicyResponse weaverDistributionPolicy,
+        WeaverEligibilityPreviewResponse weaverEligibilityPreview,
         WeaverRuntimeProjectionResponse weaverRuntimeProjection,
         IdentityProviderReadinessResponse identityProviderReadiness,
         List<SuiteDomainReadinessResponse> suiteDomainReadiness,

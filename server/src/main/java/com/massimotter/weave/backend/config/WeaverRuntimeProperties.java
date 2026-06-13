@@ -26,7 +26,7 @@ public record WeaverRuntimeProperties(
         workspaceRootTemplate = hasText(workspaceRootTemplate) ? workspaceRootTemplate : "/var/lib/weave/weaver/{userId}";
         isolatedAgentDirectory = hasText(isolatedAgentDirectory) ? isolatedAgentDirectory : ".weaver/agents";
         dockerNetworkMode = hasText(dockerNetworkMode) ? dockerNetworkMode : "none";
-        enabledGroups = normalize(enabledGroups, List.of("weave-weaver-runtime"));
+        enabledGroups = normalize(enabledGroups, List.of("weaver-group", "weave-weaver-runtime"));
         allowedCapabilities = normalize(allowedCapabilities, List.of("weaver.files_read", "weaver.exec_disabled"));
         pluginAllowlist = normalize(pluginAllowlist, List.of("weave-files-readonly"));
         toolAllowlist = normalize(toolAllowlist, List.of("files.read"));

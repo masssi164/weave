@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
+import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
@@ -485,6 +486,8 @@ class AdminControlPlaneServiceTest {
             assertThat(gate.key()).isEqualTo("conformance-gates");
             assertThat(gate.blocksReleaseClaim()).isTrue();
         });
+        assertThat(response.weaverEligibilityPreview().requiredGroups()).contains("weaver-group", "weave-weaver-runtime");
+        assertThat(response.weaverEligibilityPreview().memberStateWhenEligible()).isEqualTo("disabled_by_policy");
         assertThat(response.weaverRuntimeProjection().disabledByDefault()).isTrue();
         assertThat(response.weaverRuntimeProjection().rawRuntimeInternalsExposed()).isFalse();
         assertThat(response.weaverRuntimeProjection().items()).extracting(item -> item.id())
@@ -538,7 +541,8 @@ class AdminControlPlaneServiceTest {
                 new InMemoryIdentityRealmEvidenceRepository(),
                 List.of(new KeycloakRealmLiveApplyAdapter(properties)),
                 properties,
-                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService() {

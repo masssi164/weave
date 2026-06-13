@@ -2159,6 +2159,1957 @@
         "NORTHSTAR_DOMAIN_FIRST_MCP"
       ],
       "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-spec-coverage-matrix",
+      "scenario": "Northstar decisions require per-spec acceptance coverage",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_SPEC_COVERAGE_MATRIX"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-domain-registry-reality",
+      "scenario": "Domain registry carries reality levels and capability names for Northstar claims",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_DOMAIN_REGISTRY_REALITY"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-space-anchor-context",
+      "scenario": "Space anchor binds Northstar domains without raw provider identifiers",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_SPACE_ANCHOR_CONTEXT"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-workflow-governance-receipt",
+      "scenario": "Executable workflows require governed receipts and drift checks",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_WORKFLOW_GOVERNANCE_RECEIPT"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-meeting-consent-boundary",
+      "scenario": "Meeting join and transcript claims stay blocked without consent and boundary evidence",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_MEETING_CONSENT_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-portability-no-unaccounted-loss",
+      "scenario": "Provider portability rejects unaccounted-loss and broad lossless claims",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_PORTABILITY_NO_UNACCOUNTED_LOSS"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@northstar-local-dogfood-reality",
+      "scenario": "Local dogfood evidence uses weave.test and blocks live claims without runtime proof",
+      "feature": "e2e/features/northstar_spec_decisions.feature",
+      "executableTest": "e2e/features/northstar_spec_decisions.feature",
+      "evidenceMarkers": [
+        "NORTHSTAR_LOCAL_DOGFOOD_REALITY"
+      ],
+      "evidenceMode": "offline-spec"
+    },
+    {
+      "tag": "@weave-spec-0000-frontmatter-gates",
+      "scenario": "Spec frontmatter declares acceptance features and evidence gates",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_FRONTMATTER_GATES"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "e2e/features/weave_spec_0000_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0000-weave-spec-framework/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0000-frontmatter-gates",
+            "WEAVE_SPEC_0000_FRONTMATTER_GATES"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-product-claim-requires-scenario",
+      "scenario": "Product claims require mapped Gherkin before merge",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_PRODUCT_CLAIM_REQUIRES_SCENARIO"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "e2e/features/weave_spec_0000_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0000-weave-spec-framework/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0000-product-claim-requires-scenario",
+            "WEAVE_SPEC_0000_PRODUCT_CLAIM_REQUIRES_SCENARIO"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-workflow-preview-context",
+      "scenario": "Workflow preview preserves Space context and policy inputs",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_WORKFLOW_PREVIEW_CONTEXT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "e2e/features/weave_spec_0002_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0002-context-driven-workflows/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0002-workflow-preview-context",
+            "WEAVE_SPEC_0002_WORKFLOW_PREVIEW_CONTEXT"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-governed-execution-receipt",
+      "scenario": "Governed workflow execution records receipt drift and compensation state",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_GOVERNED_EXECUTION_RECEIPT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "e2e/features/weave_spec_0002_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0002-context-driven-workflows/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0002-governed-execution-receipt",
+            "WEAVE_SPEC_0002_GOVERNED_EXECUTION_RECEIPT"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-meeting-consent-boundary",
+      "scenario": "Meeting join stays blocked without consent and boundary evidence",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_MEETING_CONSENT_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "e2e/features/weave_spec_0003_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0003-contextual-meetings/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0003-meeting-consent-boundary",
+            "WEAVE_SPEC_0003_MEETING_CONSENT_BOUNDARY"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-transcript-retention-followup",
+      "scenario": "Transcript and follow-up artifacts stay encrypted retained and policy-linked",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_TRANSCRIPT_RETENTION_FOLLOWUP"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "e2e/features/weave_spec_0003_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0003-contextual-meetings/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0003-transcript-retention-followup",
+            "WEAVE_SPEC_0003_TRANSCRIPT_RETENTION_FOLLOWUP"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-domain-registry-reality-levels",
+      "scenario": "Domain registry exposes capability reality levels without provider internals",
+      "feature": "e2e/features/weave_spec_0004_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0004_DOMAIN_REGISTRY_REALITY_LEVELS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0004-domain-registry/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0004",
+            "e2e/features/weave_spec_0004_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0004-domain-registry/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0004-domain-registry-reality-levels",
+            "WEAVE_SPEC_0004_DOMAIN_REGISTRY_REALITY_LEVELS"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-provider-neutral-capability-names",
+      "scenario": "Provider-neutral capability names stay canonical across domain switches",
+      "feature": "e2e/features/weave_spec_0004_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0004_PROVIDER_NEUTRAL_CAPABILITY_NAMES"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0004-domain-registry/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0004",
+            "e2e/features/weave_spec_0004_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0004-domain-registry/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0004-provider-neutral-capability-names",
+            "WEAVE_SPEC_0004_PROVIDER_NEUTRAL_CAPABILITY_NAMES"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-space-anchor-cross-domain",
+      "scenario": "Space anchor links chat files boards meetings and decisions by canonical context",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0005_SPACE_ANCHOR_CROSS_DOMAIN"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0005-spaces-anchor/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0005",
+            "e2e/features/weave_spec_0005_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0005-spaces-anchor/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0005-space-anchor-cross-domain",
+            "WEAVE_SPEC_0005_SPACE_ANCHOR_CROSS_DOMAIN"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-guest-bounded-no-provider-ids",
+      "scenario": "Guest Space access remains policy bounded without raw provider identifiers",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0005_GUEST_BOUNDED_NO_PROVIDER_IDS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0005-spaces-anchor/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0005",
+            "e2e/features/weave_spec_0005_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0005-spaces-anchor/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0005-guest-bounded-no-provider-ids",
+            "WEAVE_SPEC_0005_GUEST_BOUNDED_NO_PROVIDER_IDS"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-portability-manifest-accounts-loss",
+      "scenario": "Portability manifest accounts for preserved lossy and blocked records",
+      "feature": "e2e/features/weave_spec_0006_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0006_PORTABILITY_MANIFEST_ACCOUNTS_LOSS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0006-portability-contract/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0006",
+            "e2e/features/weave_spec_0006_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0006-portability-contract/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0006-portability-manifest-accounts-loss",
+            "WEAVE_SPEC_0006_PORTABILITY_MANIFEST_ACCOUNTS_LOSS"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-lossless-claim-blocked",
+      "scenario": "Broad lossless provider-switch claims stay blocked without reconciliation evidence",
+      "feature": "e2e/features/weave_spec_0006_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0006_LOSSLESS_CLAIM_BLOCKED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0006-portability-contract/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0006",
+            "e2e/features/weave_spec_0006_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0006-portability-contract/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0006-lossless-claim-blocked",
+            "WEAVE_SPEC_0006_LOSSLESS_CLAIM_BLOCKED"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-runtime-profile-from-policy",
+      "scenario": "Weaver runtime profile is generated from organization policy and roles",
+      "feature": "e2e/features/weave_spec_0007_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0007_RUNTIME_PROFILE_FROM_POLICY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0007-governed-weaver-runtime/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0007",
+            "e2e/features/weave_spec_0007_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0007-governed-weaver-runtime/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0007-runtime-profile-from-policy",
+            "WEAVE_SPEC_0007_RUNTIME_PROFILE_FROM_POLICY"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-tool-approval-receipt-fail-closed",
+      "scenario": "Weaver tool invocation requires approval receipt and fails closed on drift",
+      "feature": "e2e/features/weave_spec_0007_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0007_TOOL_APPROVAL_RECEIPT_FAIL_CLOSED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0007-governed-weaver-runtime/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0007",
+            "e2e/features/weave_spec_0007_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0007-governed-weaver-runtime/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0007-tool-approval-receipt-fail-closed",
+            "WEAVE_SPEC_0007_TOOL_APPROVAL_RECEIPT_FAIL_CLOSED"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0008-weave-test-canonical-url",
+      "scenario": "weave.test remains the canonical local dogfood URL truth",
+      "feature": "e2e/features/weave_spec_0008_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0008_WEAVE_TEST_CANONICAL_URL"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0008-local-dogfood-topology-weave-test/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0008",
+            "e2e/features/weave_spec_0008_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0008-local-dogfood-topology-weave-test/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0008-weave-test-canonical-url",
+            "WEAVE_SPEC_0008_WEAVE_TEST_CANONICAL_URL"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0008-local-evidence-does-not-claim-live-runtime",
+      "scenario": "Local dogfood evidence blocks live-runtime claims until runtime proof exists",
+      "feature": "e2e/features/weave_spec_0008_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0008_LOCAL_EVIDENCE_DOES_NOT_CLAIM_LIVE_RUNTIME"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0008-local-dogfood-topology-weave-test/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0008",
+            "e2e/features/weave_spec_0008_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0008-local-dogfood-topology-weave-test/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0008-local-evidence-does-not-claim-live-runtime",
+            "WEAVE_SPEC_0008_LOCAL_EVIDENCE_DOES_NOT_CLAIM_LIVE_RUNTIME"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0009-domain-first-tool-names",
+      "scenario": "MCP tools are named by Weave domain capability not provider adapter",
+      "feature": "e2e/features/weave_spec_0009_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0009_DOMAIN_FIRST_TOOL_NAMES"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0009-domain-first-mcp-tools/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0009",
+            "e2e/features/weave_spec_0009_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0009-domain-first-mcp-tools/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0009-domain-first-tool-names",
+            "WEAVE_SPEC_0009_DOMAIN_FIRST_TOOL_NAMES"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0009-tool-discovery-support-safe",
+      "scenario": "Tool discovery returns approved support-safe metadata only",
+      "feature": "e2e/features/weave_spec_0009_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0009_TOOL_DISCOVERY_SUPPORT_SAFE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0009-domain-first-mcp-tools/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0009",
+            "e2e/features/weave_spec_0009_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0009-domain-first-mcp-tools/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0009-tool-discovery-support-safe",
+            "WEAVE_SPEC_0009_TOOL_DISCOVERY_SUPPORT_SAFE"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-intent",
+      "scenario": "Spec framework intent stays reviewable before implementation",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_INTENT_REVIEWABLE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "Intent"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-scope",
+      "scenario": "Spec framework separates in-scope delivery evidence from out-of-scope live claims",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_SCOPE_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "In scope"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-reviewer-brief",
+      "scenario": "Delivery lead briefs scoped reviewers without leaking unsupported claims",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_REVIEWER_BRIEF"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "US2 - Delivery lead briefs scoped reviewers safely"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-functional-requirements",
+      "scenario": "Spec functional requirements are traceable to acceptance artifacts",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-intent",
+      "scenario": "Admin product core intent remains provider-neutral and support-safe",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_INTENT_PROVIDER_NEUTRAL"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "Intent"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-constraints",
+      "scenario": "Admin product core enforces non-negotiable provider facade constraints",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_NON_NEGOTIABLE_CONSTRAINTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "Non-negotiable constraints"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-functional-requirements",
+      "scenario": "Admin product core functional requirements are scenario-backed",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-support-evidence",
+      "scenario": "SupportEvidence remains redacted backend-owned and member-safe",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_SUPPORT_EVIDENCE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "SupportEvidence"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-closed-questions",
+      "scenario": "Closed product questions remain encoded as acceptance boundaries",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_CLOSED_QUESTIONS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "Closed questions"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-intent",
+      "scenario": "Workflow primitive intent keeps context-driven automation bounded",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_INTENT_CONTEXT_DRIVEN"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "Intent"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-scope",
+      "scenario": "Workflow primitives separate preview execution and out-of-scope automation",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_SCOPE_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "In scope"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-constraints",
+      "scenario": "Workflow primitives enforce governed approval and drift constraints",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_NON_NEGOTIABLE_CONSTRAINTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "Non-negotiable constraints"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-functional-requirements",
+      "scenario": "Workflow primitive functional requirements are scenario-backed",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-support-incident",
+      "scenario": "Support incident workflow links notes tasks dry-run summaries and owner approval",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_SUPPORT_INCIDENT_RESOLUTION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "Support incident resolution"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-sample-workflows",
+      "scenario": "Sample workflows remain mapped to explicit acceptance evidence",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_SAMPLE_WORKFLOWS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "Sample workflows"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-release-impact",
+      "scenario": "Workflow release impact requires support-safe evidence artifacts",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_RELEASE_IMPACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "Release and migration impact"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-intent",
+      "scenario": "Meeting contract intent keeps contextual collaboration encrypted and bounded",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_INTENT_ENCRYPTED_CONTEXT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "Intent"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-scope",
+      "scenario": "Meetings separate allowed contextual surfaces from out-of-scope recording claims",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_SCOPE_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "In scope"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-constraints",
+      "scenario": "Meetings enforce consent retention caption and accessibility constraints",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_NON_NEGOTIABLE_CONSTRAINTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "Non-negotiable constraints"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-stories",
+      "scenario": "Meeting user admin and operator stories are scenario-backed",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_USER_ADMIN_OPERATOR_STORIES"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "User/admin/operator stories"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-functional-requirements",
+      "scenario": "Meeting functional requirements are scenario-backed",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-recording-consent",
+      "scenario": "Recording transcription and captions stay blocked without explicit consent and retention evidence",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_RECORDING_CONSENT_RETENTION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "Recording/transcription defaults and consent requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-release-impact",
+      "scenario": "Meeting release impact requires local and CI evidence before claims",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_RELEASE_IMPACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "Release and migration impact"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-intent",
+      "scenario": "Domain registry intent makes capability truth canonical before claims",
+      "feature": "e2e/features/weave_spec_0004_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0004_INTENT_CANONICAL_REGISTRY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0004-domain-registry/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0004",
+            "Intent"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-scope",
+      "scenario": "Domain registry separates supported canonical fields from out-of-scope provider internals",
+      "feature": "e2e/features/weave_spec_0004_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0004_SCOPE_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0004-domain-registry/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0004",
+            "In scope"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-functional-requirements",
+      "scenario": "Domain registry functional requirements are scenario-backed",
+      "feature": "e2e/features/weave_spec_0004_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0004_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0004-domain-registry/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0004",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-release-impact",
+      "scenario": "Domain registry release impact blocks provider-neutral claims without registry evidence",
+      "feature": "e2e/features/weave_spec_0004_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0004_RELEASE_IMPACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0004-domain-registry/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0004",
+            "Release and migration impact"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-intent",
+      "scenario": "Spaces intent keeps organization context anchored across domains",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0005_INTENT_SPACE_ANCHOR"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0005-spaces-anchor/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0005",
+            "Intent"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-scope",
+      "scenario": "Spaces separate canonical cross-domain anchors from raw provider identifiers",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0005_SCOPE_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0005-spaces-anchor/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0005",
+            "In scope"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-functional-requirements",
+      "scenario": "Spaces functional requirements are scenario-backed",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0005_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0005-spaces-anchor/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0005",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-release-impact",
+      "scenario": "Spaces release impact requires anchor evidence before workspace claims",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0005_RELEASE_IMPACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0005-spaces-anchor/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0005",
+            "Release and migration impact"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-intent",
+      "scenario": "Portability intent prevents unaccounted data loss before provider-switch claims",
+      "feature": "e2e/features/weave_spec_0006_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0006_INTENT_NO_UNACCOUNTED_LOSS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0006-portability-contract/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0006",
+            "Intent"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-scope",
+      "scenario": "Portability separates preserved lossy blocked and out-of-scope transfer data",
+      "feature": "e2e/features/weave_spec_0006_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0006_SCOPE_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0006-portability-contract/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0006",
+            "In scope"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-functional-requirements",
+      "scenario": "Portability functional requirements are scenario-backed",
+      "feature": "e2e/features/weave_spec_0006_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0006_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0006-portability-contract/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0006",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-support-redaction",
+      "scenario": "Portability support evidence remains redacted and safe to review",
+      "feature": "e2e/features/weave_spec_0006_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0006_SUPPORT_REDACTION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0006-portability-contract/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0006",
+            "Support-safe redaction requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-intent",
+      "scenario": "Governed Weaver intent keeps runtime tools policy-derived and auditable",
+      "feature": "e2e/features/weave_spec_0007_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0007_INTENT_GOVERNED_RUNTIME"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0007-governed-weaver-runtime/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0007",
+            "Intent"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-scope",
+      "scenario": "Governed Weaver separates approved tool execution from out-of-scope autonomous actions",
+      "feature": "e2e/features/weave_spec_0007_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0007_SCOPE_BOUNDARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0007-governed-weaver-runtime/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0007",
+            "In scope"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-functional-requirements",
+      "scenario": "Governed Weaver functional requirements are scenario-backed",
+      "feature": "e2e/features/weave_spec_0007_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0007_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0007-governed-weaver-runtime/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0007",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-runtime-profile",
+      "scenario": "RuntimeProfile projection model reflects policy roles grants and denied tools",
+      "feature": "e2e/features/weave_spec_0007_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0007_RUNTIME_PROFILE_PROJECTION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0007-governed-weaver-runtime/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0007",
+            "RuntimeProfile projection model"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0008-functional-requirements",
+      "scenario": "Local dogfood topology functional requirements are scenario-backed",
+      "feature": "e2e/features/weave_spec_0008_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0008_FUNCTIONAL_REQUIREMENTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0008-local-dogfood-topology-weave-test/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0008",
+            "Functional requirements"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0009-acceptance",
+      "scenario": "Domain-first MCP acceptance rejects provider-first tool claims",
+      "feature": "e2e/features/weave_spec_0009_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0009_ACCEPTANCE_PROVIDER_FIRST_REJECTED"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0009-domain-first-mcp-tools/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0009",
+            "Acceptance"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-product-boundaries",
+      "scenario": "Spec product boundaries separate product claims from implementation evidence",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_PRODUCT_BOUNDARIES"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "Product boundaries"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-developer-reviewable-spec",
+      "scenario": "Developer creates a reviewable spec before implementation work starts",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_DEVELOPER_REVIEWABLE_SPEC"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "US1 - Developer creates a reviewable spec"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0000-domain-model-contracts",
+      "scenario": "Spec domain model and contracts stay linked to acceptance evidence",
+      "feature": "e2e/features/weave_spec_0000_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0000_DOMAIN_MODEL_CONTRACTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0000-weave-spec-framework/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0000",
+            "Domain model and contracts"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-decision-record",
+      "scenario": "Decision record fixes provider-neutral product-core choices",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_DECISION_RECORD"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "Decision record"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-required-v01-domains",
+      "scenario": "Required v0.1 domains expose capability states before member use",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_REQUIRED_V01_DOMAINS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "Required v0.1 domains"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-capability-vocabulary",
+      "scenario": "Capability vocabulary stays stable across providers and UI surfaces",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_CAPABILITY_VOCABULARY"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "Capability vocabulary"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0001-supportevidence-contract",
+      "scenario": "SupportEvidence is redacted backend-owned and scenario-visible",
+      "feature": "e2e/features/weave_spec_0001_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0001_SUPPORTEVIDENCE_CONTRACT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0001-organization-embedding-product-core/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0001",
+            "SupportEvidence"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-governed-agent-participation",
+      "scenario": "Governed agent participation requires receipts dry-run and owner approval",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_GOVERNED_AGENT_PARTICIPATION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "US3 - Governed agent participation"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0002-domain-model-contracts",
+      "scenario": "Workflow domain model and contracts link preview execution receipt and compensation",
+      "feature": "e2e/features/weave_spec_0002_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0002_DOMAIN_MODEL_CONTRACTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0002-context-driven-workflows/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0002",
+            "Domain model and contracts"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0003-domain-model-contracts",
+      "scenario": "Meeting domain model and contracts link capsule consent transcript and follow-up artifacts",
+      "feature": "e2e/features/weave_spec_0003_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0003_DOMAIN_MODEL_CONTRACTS"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0003-contextual-meetings/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0003",
+            "Domain model and contracts"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0004-product-boundaries",
+      "scenario": "Domain registry product boundaries hide provider internals behind canonical capability state",
+      "feature": "e2e/features/weave_spec_0004_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0004_PRODUCT_BOUNDARIES"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0004-domain-registry/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0004",
+            "Product boundaries"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0005-product-boundaries",
+      "scenario": "Spaces product boundaries keep cross-domain anchors canonical and provider-id free",
+      "feature": "e2e/features/weave_spec_0005_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0005_PRODUCT_BOUNDARIES"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0005-spaces-anchor/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0005",
+            "Product boundaries"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0006-product-boundaries",
+      "scenario": "Portability product boundaries reject unverified lossless migration promises",
+      "feature": "e2e/features/weave_spec_0006_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0006_PRODUCT_BOUNDARIES"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0006-portability-contract/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0006",
+            "Product boundaries"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0007-initial-tool-set",
+      "scenario": "Initial Weaver tool set is explicit approved and policy bounded",
+      "feature": "e2e/features/weave_spec_0007_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0007_INITIAL_TOOL_SET"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0007-governed-weaver-runtime/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0007",
+            "Initial tool set"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-setup-governance",
+      "scenario": "Admin setup governs provider-neutral organization capabilities",
+      "feature": "e2e/features/weave_spec_0010_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0010_SETUP_GOVERNANCE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0010-full-product-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0010",
+            "e2e/features/weave_spec_0010_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0010-setup-governance",
+            "WEAVE_SPEC_0010_SETUP_GOVERNANCE"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/provider-change-decisions-evidence-contract.json",
+          "fragments": [
+            "provider-neutral-weave-capabilities",
+            "admin-controlled-support-safe-baseline",
+            "hide-provider-setup-mechanics"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "specifies guided setup and per-domain readiness before member go-live",
+            "keeps admin/provider setup separate from the member client"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "fragments": [
+            "supportSafe",
+            "provider"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-space-work",
+      "scenario": "Space work joins context across domains",
+      "feature": "e2e/features/weave_spec_0010_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0010_SPACE_WORK"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0010-full-product-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0010",
+            "e2e/features/weave_spec_0010_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0010-space-work",
+            "WEAVE_SPEC_0010_SPACE_WORK"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/provider-change-decisions-evidence-contract.json",
+          "fragments": [
+            "chat",
+            "boards-tasks",
+            "providerIdentifiers"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/channel_workspace_test.dart",
+          "fragments": [
+            "providerContractId",
+            "decisions"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/context/ContextSpaceContractTest.java",
+          "fragments": [
+            "context-space.schema.json",
+            "provider_bindings"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-provider-change",
+      "scenario": "Provider changes require dry-run approval rollback and audit",
+      "feature": "e2e/features/weave_spec_0010_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0010_PROVIDER_CHANGE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0010-full-product-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0010",
+            "e2e/features/weave_spec_0010_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0010-provider-change",
+            "WEAVE_SPEC_0010_PROVIDER_CHANGE"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/provider-change-decisions-evidence-contract.json",
+          "fragments": [
+            "preflight",
+            "dry-run",
+            "silentMutation"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "applies selected providers only after fresh dry-run evidence and consequence confirmation",
+            "blocks provider apply when dry-run evidence becomes stale after selection changes"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/AdminControlPlaneServiceTest.java",
+          "fragments": [
+            "dryRun",
+            "rollback"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0010-evidence-audit",
+      "scenario": "Decisions and evidence are product domains",
+      "feature": "e2e/features/weave_spec_0010_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0010_EVIDENCE_AUDIT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0010-full-product-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0010",
+            "e2e/features/weave_spec_0010_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0010-evidence-audit",
+            "WEAVE_SPEC_0010_EVIDENCE_AUDIT"
+          ]
+        },
+        {
+          "path": "specs/0010-full-product-target/provider-change-decisions-evidence-contract.json",
+          "fragments": [
+            "decision",
+            "provenance",
+            "no-raw-provider-secrets"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/ChatFacadeServiceTest.java",
+          "fragments": [
+            "decisionsExposeSupportSafeProvenanceAuditAndExportPosture",
+            "raw provider secrets stay backend-only"
+          ]
+        },
+        {
+          "path": "client/test/features/chat/chat_room_screen_test.dart",
+          "fragments": [
+            "Weave-owned provenance links this decision",
+            "audit://chat/decision-ledger/"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-group-policy-gating",
+      "scenario": "Weaver provisioning is gated by organization policy and weaver-group membership",
+      "feature": "e2e/features/weave_spec_0011_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0011_GROUP_POLICY_GATING"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0011-weaver-governed-pa-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0011",
+            "e2e/features/weave_spec_0011_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0011-group-policy-gating",
+            "WEAVE_SPEC_0011_GROUP_POLICY_GATING"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
+          "fragments": [
+            "weaver-group",
+            "deny-runtime-profile-tool-grants-memory-automation"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "shows Weaver projection as an inspect-only member-safe preview",
+            "weaver.enabled remains blocked"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "weave-weaver-runtime",
+            "policy"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-memory-isolation",
+      "scenario": "Weaver memory is isolated per user",
+      "feature": "e2e/features/weave_spec_0011_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0011_MEMORY_ISOLATION"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0011-weaver-governed-pa-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0011",
+            "e2e/features/weave_spec_0011_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0011-memory-isolation",
+            "WEAVE_SPEC_0011_MEMORY_ISOLATION"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
+          "fragments": [
+            "per-user",
+            "export",
+            "retention"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "per-user",
+            "memory"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-domain-tool-approval",
+      "scenario": "Weaver uses domain-first tools with approval receipts",
+      "feature": "e2e/features/weave_spec_0011_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0011-weaver-governed-pa-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0011",
+            "e2e/features/weave_spec_0011_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0011-domain-tool-approval",
+            "WEAVE_SPEC_0011_DOMAIN_TOOL_APPROVAL"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
+          "fragments": [
+            "domain-first-mcp-tools",
+            "facade-only",
+            "approvalReceiptChecks"
+          ]
+        },
+        {
+          "path": "admin-console/src/App.test.tsx",
+          "fragments": [
+            "renders support-safe Weaver projection labels for chat, models, tools, skills, and MCPs",
+            "approval"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "approval",
+            "domain"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-spec-0011-heartbeat-fallback-audit",
+      "scenario": "Weaver automation heartbeat fails closed with support-safe audit and fallback",
+      "feature": "e2e/features/weave_spec_0011_acceptance.feature",
+      "executableTest": "client/test/live_stack_feature_mapping_test.dart",
+      "evidenceMarkers": [
+        "WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "specs/0011-weaver-governed-pa-target/spec.md",
+          "fragments": [
+            "WEAVE-SPEC-0011",
+            "e2e/features/weave_spec_0011_acceptance.feature"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/traceability.yaml",
+          "fragments": [
+            "@weave-spec-0011-heartbeat-fallback-audit",
+            "WEAVE_SPEC_0011_HEARTBEAT_FALLBACK_AUDIT"
+          ]
+        },
+        {
+          "path": "specs/0011-weaver-governed-pa-target/weaver-runtime-governance-contract.json",
+          "fragments": [
+            "fail-closed",
+            "support-safe-no-raw-provider-secrets-no-private-runtime-paths"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/service/WeaverRuntimeServiceTest.java",
+          "fragments": [
+            "reconcile",
+            "admin-disabled"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -194,11 +194,30 @@ class ChatFacadeServiceTest {
         ChatFacadeService service = serviceWithMissingAuditPublisher();
 
         assertThat(service.decisions(jwt(), "channel-general").records()).isEmpty();
+        assertThat(service.decisions(jwt(), "channel-general").evidencePosture().supportSafe()).isTrue();
 
         assertThatThrownBy(() -> service.createDecision(jwt(), "channel-general", decisionRequest()))
                 .isInstanceOf(AuditRequiredException.class);
 
         assertThat(service.decisions(jwt(), "channel-general").records()).isEmpty();
+    }
+
+    @Test
+    void decisionsExposeSupportSafeProvenanceAuditAndExportPosture() {
+        ChatFacadeService service = service(new InMemoryAuditEventPublisher());
+
+        var response = service.decisions(jwt(), "channel-general");
+
+        assertThat(response.backgroundRoomReadingEnabled()).isFalse();
+        assertThat(response.evidencePosture().provenance())
+                .contains("Weave-owned provenance")
+                .doesNotContain("token", "Bearer", "http://", "https://");
+        assertThat(response.evidencePosture().auditRefs())
+                .allMatch(ref -> ref.startsWith("audit://chat/decision"));
+        assertThat(response.evidencePosture().exportPosture())
+                .contains("Export decision records, source refs, and audit refs")
+                .contains("raw provider secrets stay backend-only");
+        assertThat(response.evidencePosture().supportSafe()).isTrue();
     }
 
     @Test
