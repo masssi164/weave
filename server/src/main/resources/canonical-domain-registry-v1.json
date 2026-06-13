@@ -131,7 +131,56 @@
         "entra-id": "contract_only",
         "authentik": "contract_only",
         "auth0": "contract_only"
-      }
+      },
+      "domainId": "identity",
+      "wave": "wave1",
+      "userObjects": [
+        "Subject",
+        "Organization",
+        "Group",
+        "Role"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "subject.read",
+        "group.read"
+      ],
+      "writeCapabilities": [
+        "subject.provision",
+        "role.assign"
+      ],
+      "minimumOpenProtocols": [
+        "OIDC",
+        "SAML 2.0",
+        "SCIM 2.0",
+        "LDAP"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "Keycloak realm",
+        "Authentik",
+        "generic OIDC/SAML plus SCIM/LDAP"
+      ],
+      "secondaryAdapterCandidates": [
+        "Entra ID (commercial jurisdiction caveat)",
+        "Auth0 (commercial jurisdiction caveat)"
+      ]
     },
     {
       "key": "people",
@@ -217,7 +266,53 @@
         "oidc-profile": "contract_only",
         "ldap-directory": "contract_only",
         "weave-directory": "contract_only"
-      }
+      },
+      "domainId": "contacts",
+      "wave": "wave1",
+      "userObjects": [
+        "Person",
+        "AddressBook",
+        "OrganizationDirectory"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "person.read",
+        "directory.search"
+      ],
+      "writeCapabilities": [
+        "person.update",
+        "address_book.sync"
+      ],
+      "minimumOpenProtocols": [
+        "CardDAV",
+        "vCard",
+        "SCIM"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "Radicale CardDAV",
+        "Nextcloud Contacts/CardDAV"
+      ],
+      "secondaryAdapterCandidates": [
+        "LDAP directory",
+        "Weave directory fixture"
+      ]
     },
     {
       "key": "spaces",
@@ -310,7 +405,53 @@
         "slack-workspace": "contract_only",
         "openproject-project": "contract_only",
         "nextcloud-folder": "contract_only"
-      }
+      },
+      "domainId": "spaces",
+      "wave": "wave1",
+      "userObjects": [
+        "WeaveSpace",
+        "Organization",
+        "Membership"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "space.read",
+        "membership.read"
+      ],
+      "writeCapabilities": [
+        "space.create",
+        "membership.update"
+      ],
+      "minimumOpenProtocols": [
+        "Matrix Spaces",
+        "ActivityPub collections",
+        "WebDAV collection metadata"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "Weave space manifest",
+        "Matrix Spaces"
+      ],
+      "secondaryAdapterCandidates": [
+        "Nextcloud group folders",
+        "OpenProject projects"
+      ]
     },
     {
       "key": "chat",
@@ -402,7 +543,52 @@
         "microsoft-teams": "contract_only",
         "slack": "contract_only",
         "nextcloud-talk": "contract_only"
-      }
+      },
+      "domainId": "chat",
+      "wave": "wave1",
+      "userObjects": [
+        "WeaveConversation",
+        "WeaveMessage",
+        "WeaveMembership"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "message.read",
+        "conversation.read"
+      ],
+      "writeCapabilities": [
+        "message.send",
+        "reaction.write"
+      ],
+      "minimumOpenProtocols": [
+        "Matrix Client-Server API",
+        "XMPP MUC where mapped"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "Matrix/Synapse",
+        "Zulip"
+      ],
+      "secondaryAdapterCandidates": [
+        "Nextcloud Talk",
+        "Slack/Teams candidates blocked by commercial evidence"
+      ]
     },
     {
       "key": "files",
@@ -496,7 +682,53 @@
         "onedrive": "contract_only",
         "s3-compatible": "live_write",
         "smb": "live_write"
-      }
+      },
+      "domainId": "files",
+      "wave": "wave1",
+      "userObjects": [
+        "WeaveDrive",
+        "WeaveFile",
+        "WeaveShare"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "file.read",
+        "file.search"
+      ],
+      "writeCapabilities": [
+        "file.write",
+        "share.update"
+      ],
+      "minimumOpenProtocols": [
+        "WebDAV",
+        "S3-compatible object APIs",
+        "OCI artifacts for bundles"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "Nextcloud Files/WebDAV",
+        "MinIO/S3-compatible storage"
+      ],
+      "secondaryAdapterCandidates": [
+        "Seafile community",
+        "local filesystem fixture"
+      ]
     },
     {
       "key": "documents",
@@ -583,7 +815,52 @@
         "onlyoffice": "contract_only",
         "microsoft-365-office": "contract_only",
         "google-workspace-docs": "contract_only"
-      }
+      },
+      "domainId": "documents",
+      "wave": "wave1",
+      "userObjects": [
+        "WeaveDocument",
+        "DocumentVersion",
+        "DocumentComment"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "document.read",
+        "document.render"
+      ],
+      "writeCapabilities": [
+        "document.edit",
+        "comment.write"
+      ],
+      "minimumOpenProtocols": [
+        "ODF",
+        "WebDAV",
+        "WOPI where available"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "Collabora CODE",
+        "LibreOffice headless conversion"
+      ],
+      "secondaryAdapterCandidates": [
+        "ONLYOFFICE Community with license caveat"
+      ]
     },
     {
       "key": "calendar",
@@ -671,7 +948,52 @@
         "google-workspace-calendar": "contract_only",
         "generic-caldav": "live_read",
         "weave-calendar": "contract_only"
-      }
+      },
+      "domainId": "calendar",
+      "wave": "wave1",
+      "userObjects": [
+        "WeaveCalendar",
+        "WeaveEvent",
+        "WeaveAvailability"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "calendar.read",
+        "availability.read"
+      ],
+      "writeCapabilities": [
+        "event.create",
+        "event.update"
+      ],
+      "minimumOpenProtocols": [
+        "CalDAV",
+        "iCalendar"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "Radicale CalDAV",
+        "Nextcloud Calendar/CalDAV"
+      ],
+      "secondaryAdapterCandidates": [
+        "DAViCal",
+        "Baikal"
+      ]
     },
     {
       "key": "boards",
@@ -765,7 +1087,53 @@
         "microsoft-planner": "contract_only",
         "nextcloud-deck": "live_read",
         "vikunja": "contract_only"
-      }
+      },
+      "domainId": "tasks",
+      "wave": "wave1",
+      "userObjects": [
+        "WeaveBoard",
+        "WeaveTask",
+        "TaskComment"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "task.read",
+        "board.read"
+      ],
+      "writeCapabilities": [
+        "task.create",
+        "task.update"
+      ],
+      "minimumOpenProtocols": [
+        "OpenProject API export",
+        "Kanboard API",
+        "CalDAV VTODO where mapped"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "OpenProject Community",
+        "Kanboard"
+      ],
+      "secondaryAdapterCandidates": [
+        "Vikunja",
+        "Nextcloud Deck"
+      ]
     },
     {
       "key": "calls",
@@ -857,7 +1225,52 @@
         "microsoft-teams-meetings": "contract_only",
         "google-meet": "contract_only",
         "external-meeting-link": "contract_only"
-      }
+      },
+      "domainId": "meetings",
+      "wave": "wave1",
+      "userObjects": [
+        "WeaveMeeting",
+        "MediaSession",
+        "RecordingRef"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "meeting.read",
+        "token.request"
+      ],
+      "writeCapabilities": [
+        "meeting.schedule",
+        "moderation.request"
+      ],
+      "minimumOpenProtocols": [
+        "WebRTC",
+        "SIP bridge where mapped",
+        "iCalendar for meeting metadata"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "LiveKit self-hosted",
+        "Jitsi Meet"
+      ],
+      "secondaryAdapterCandidates": [
+        "Nextcloud Talk"
+      ]
     },
     {
       "key": "decisions",
@@ -944,7 +1357,53 @@
         "openproject-wiki": "contract_only",
         "nextcloud-docs": "contract_only",
         "github-issues": "contract_only"
-      }
+      },
+      "domainId": "audit",
+      "wave": "wave1",
+      "userObjects": [
+        "DecisionRecord",
+        "ApprovalReceipt",
+        "EvidenceBundle"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "decision.read",
+        "receipt.read"
+      ],
+      "writeCapabilities": [
+        "decision.record",
+        "receipt.issue"
+      ],
+      "minimumOpenProtocols": [
+        "W3C PROV",
+        "JSON Lines",
+        "OpenTelemetry traces"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "governed-write",
+      "primaryAdapterCandidates": [
+        "Weave audit log",
+        "Forgejo/Git signed evidence"
+      ],
+      "secondaryAdapterCandidates": [
+        "OpenSearch/Loki derived views"
+      ],
+      "sourceOfTruthNote": "Decision receipts and audit records are canonical evidence; search views over them remain derived."
     },
     {
       "key": "notifications",
@@ -1034,7 +1493,53 @@
         "slack-notifications": "contract_only",
         "teams-notifications": "contract_only",
         "webhook": "contract_only"
-      }
+      },
+      "domainId": "notifications",
+      "wave": "wave1",
+      "userObjects": [
+        "Notification",
+        "Preference",
+        "DeliveryReceipt"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "notification.read",
+        "preference.read"
+      ],
+      "writeCapabilities": [
+        "notification.send",
+        "preference.update"
+      ],
+      "minimumOpenProtocols": [
+        "Web Push",
+        "SMTP",
+        "Matrix notifications"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "ntfy self-hosted",
+        "Gotify"
+      ],
+      "secondaryAdapterCandidates": [
+        "SMTP relay",
+        "Matrix bot notification bridge"
+      ]
     },
     {
       "key": "health",
@@ -1121,7 +1626,53 @@
         "weave-health-facade": "contract_only",
         "provider-stack-health": "contract_only",
         "release-evidence": "contract_only"
-      }
+      },
+      "domainId": "control-room",
+      "wave": "wave1",
+      "userObjects": [
+        "ReadinessCheck",
+        "SupportBundle",
+        "IncidentSignal"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "readiness.read",
+        "diagnostic.read"
+      ],
+      "writeCapabilities": [
+        "support_bundle.create",
+        "remediation.request"
+      ],
+      "minimumOpenProtocols": [
+        "OpenTelemetry",
+        "Prometheus exposition",
+        "JSON support bundles"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "approval-write",
+      "primaryAdapterCandidates": [
+        "Prometheus/Grafana stack",
+        "OpenTelemetry Collector"
+      ],
+      "secondaryAdapterCandidates": [
+        "Loki/OpenSearch derived logs"
+      ],
+      "sourceOfTruthNote": "Health and support views are derived from readiness checks, telemetry, and redacted support bundles; they are not canonical business records."
     },
     {
       "key": "weaver",
@@ -1203,7 +1754,53 @@
       ],
       "providerRealityLevelByCandidate": {
         "openclaw-derived-profile": "contract_only"
-      }
+      },
+      "domainId": "weaver-runtime",
+      "wave": "wave1",
+      "userObjects": [
+        "WeaverRuntimeProfile",
+        "WeaverToolGrant",
+        "WeaverApprovalReceipt"
+      ],
+      "organizationObjects": [
+        "Organization",
+        "Workspace",
+        "Policy",
+        "ProviderBinding"
+      ],
+      "readCapabilities": [
+        "runtime.read",
+        "tool_grant.read"
+      ],
+      "writeCapabilities": [
+        "runtime.request",
+        "tool.invoke_with_approval"
+      ],
+      "minimumOpenProtocols": [
+        "MCP",
+        "OCI artifacts",
+        "OpenAPI/JSON Schema tool descriptors"
+      ],
+      "authIdentityAssumptions": "Every access is resolved to a Weave Subject and Organization; adapters receive scoped credentials or delegated tokens through SecretRef/CredentialRef boundaries; member UI does not expose raw provider setup.",
+      "auditRequirements": [
+        "capability_state_changed",
+        "adapter_binding_changed",
+        "read_access",
+        "write_attempt",
+        "export_requested",
+        "policy_denied"
+      ],
+      "portabilityExportContract": "Exports canonical Weave objects plus ProviderRef, LossyFieldReport, unsupported fields, conflicts, archive-only data, and migration receipts before promotion beyond dry-run.",
+      "jurisdictionVendorExposureDescriptor": "Records hosting model, provider operator, data residency/jurisdiction, subprocessors where known, export limitations, and commercial/vendor lock-in risk without claiming immunity from legal process.",
+      "weaverToolMode": "governed-write",
+      "primaryAdapterCandidates": [
+        "OpenClaw-derived local runtime",
+        "MCP server registry"
+      ],
+      "secondaryAdapterCandidates": [
+        "containerized per-user sandbox"
+      ],
+      "sourceOfTruthNote": "Weaver runtime state is governed metadata; generated indexes and tool caches are rebuildable derived state."
     }
   ],
   "providerRealityLevels": [
@@ -1215,5 +1812,155 @@
     "migration_apply_ready",
     "rollback_ready",
     "release_ready"
+  ],
+  "futureDomainPlaceholders": [
+    {
+      "domainId": "ai-runtime-gateway",
+      "displayName": "AI runtime gateway",
+      "wave": "wave2_or_later_placeholder",
+      "status": "placeholder",
+      "sourceOfTruthMode": "domain_contract_pending",
+      "requiredBeforePromotion": [
+        "canonical objects",
+        "read/write capabilities",
+        "open protocols",
+        "auth assumptions",
+        "audit requirements",
+        "portability/export contract",
+        "jurisdiction/vendor exposure descriptor",
+        "Weaver mode",
+        "primary and secondary adapter candidates"
+      ],
+      "notes": "Placeholder keeps the domain visible without claiming shipped capability or release readiness."
+    },
+    {
+      "domainId": "mcp-tool-registry",
+      "displayName": "MCP/tool registry",
+      "wave": "wave2_or_later_placeholder",
+      "status": "placeholder",
+      "sourceOfTruthMode": "domain_contract_pending",
+      "requiredBeforePromotion": [
+        "canonical objects",
+        "read/write capabilities",
+        "open protocols",
+        "auth assumptions",
+        "audit requirements",
+        "portability/export contract",
+        "jurisdiction/vendor exposure descriptor",
+        "Weaver mode",
+        "primary and secondary adapter candidates"
+      ],
+      "notes": "Placeholder keeps the domain visible without claiming shipped capability or release readiness."
+    },
+    {
+      "domainId": "search",
+      "displayName": "Search and indexing",
+      "wave": "wave2_or_later_placeholder",
+      "status": "placeholder",
+      "sourceOfTruthMode": "derived_rebuildable",
+      "requiredBeforePromotion": [
+        "canonical objects",
+        "read/write capabilities",
+        "open protocols",
+        "auth assumptions",
+        "audit requirements",
+        "portability/export contract",
+        "jurisdiction/vendor exposure descriptor",
+        "Weaver mode",
+        "primary and secondary adapter candidates"
+      ],
+      "notes": "Placeholder keeps the domain visible without claiming shipped capability or release readiness."
+    },
+    {
+      "domainId": "notes",
+      "displayName": "Notes",
+      "wave": "wave2_or_later_placeholder",
+      "status": "placeholder",
+      "sourceOfTruthMode": "domain_contract_pending",
+      "requiredBeforePromotion": [
+        "canonical objects",
+        "read/write capabilities",
+        "open protocols",
+        "auth assumptions",
+        "audit requirements",
+        "portability/export contract",
+        "jurisdiction/vendor exposure descriptor",
+        "Weaver mode",
+        "primary and secondary adapter candidates"
+      ],
+      "notes": "Placeholder keeps the domain visible without claiming shipped capability or release readiness."
+    },
+    {
+      "domainId": "secrets",
+      "displayName": "Secrets",
+      "wave": "wave2_or_later_placeholder",
+      "status": "placeholder",
+      "sourceOfTruthMode": "domain_contract_pending",
+      "requiredBeforePromotion": [
+        "canonical objects",
+        "read/write capabilities",
+        "open protocols",
+        "auth assumptions",
+        "audit requirements",
+        "portability/export contract",
+        "jurisdiction/vendor exposure descriptor",
+        "Weaver mode",
+        "primary and secondary adapter candidates"
+      ],
+      "notes": "Placeholder keeps the domain visible without claiming shipped capability or release readiness."
+    },
+    {
+      "domainId": "mail",
+      "displayName": "Mail",
+      "wave": "wave2_or_later_placeholder",
+      "status": "placeholder",
+      "sourceOfTruthMode": "domain_contract_pending",
+      "requiredBeforePromotion": [
+        "canonical objects",
+        "read/write capabilities",
+        "open protocols",
+        "auth assumptions",
+        "audit requirements",
+        "portability/export contract",
+        "jurisdiction/vendor exposure descriptor",
+        "Weaver mode",
+        "primary and secondary adapter candidates"
+      ],
+      "notes": "Placeholder keeps the domain visible without claiming shipped capability or release readiness."
+    },
+    {
+      "domainId": "backup-export",
+      "displayName": "Backup and export",
+      "wave": "wave2_or_later_placeholder",
+      "status": "placeholder",
+      "sourceOfTruthMode": "domain_contract_pending",
+      "requiredBeforePromotion": [
+        "canonical objects",
+        "read/write capabilities",
+        "open protocols",
+        "auth assumptions",
+        "audit requirements",
+        "portability/export contract",
+        "jurisdiction/vendor exposure descriptor",
+        "Weaver mode",
+        "primary and secondary adapter candidates"
+      ],
+      "notes": "Placeholder keeps the domain visible without claiming shipped capability or release readiness."
+    }
+  ],
+  "domainContractRequiredFields": [
+    "domainId",
+    "userObjects",
+    "organizationObjects",
+    "readCapabilities",
+    "writeCapabilities",
+    "minimumOpenProtocols",
+    "authIdentityAssumptions",
+    "auditRequirements",
+    "portabilityExportContract",
+    "jurisdictionVendorExposureDescriptor",
+    "weaverToolMode",
+    "primaryAdapterCandidates",
+    "secondaryAdapterCandidates"
   ]
 }
