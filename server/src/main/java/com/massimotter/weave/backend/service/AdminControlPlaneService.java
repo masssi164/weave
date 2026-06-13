@@ -1533,8 +1533,13 @@ public class AdminControlPlaneService {
                 Stream.concat(definition.readCapabilities().stream(), definition.writeCapabilities().stream()).toList(),
                 List.of("support-safe-error-codes-only", "raw-provider-bodies-redacted", "credential-bearing-urls-blocked"),
                 portabilityNotes,
+                List.of("provider jurisdiction is visible as procurement-risk metadata", "do not claim Cloud-Act-proof or legally sovereign posture"),
                 List.of("audit://suite/" + definition.domain() + "/readiness"),
                 nextAction,
+                "provider and jurisdiction exposure visible; raw diagnostics redacted",
+                "export/import/lossy/conflict/rollback reports required before provider replacement",
+                "support-safe audit event required for readiness, policy, export, import, and Weaver access decisions",
+                "model_first_read_only_governed",
                 true,
                 true,
                 false,
@@ -1542,7 +1547,9 @@ public class AdminControlPlaneService {
                         "providerCategoryCount", definition.providerCategoryKeys().size(),
                         "supportSafe", true,
                         "rawProviderConfigReturned", false,
-                        "memberProviderSetupControlsReturned", false));
+                        "memberProviderSetupControlsReturned", false,
+                        "exposureDescriptor", "provider and jurisdiction exposure visible; raw diagnostics redacted",
+                        "weaverMode", "model_first_read_only_governed"));
     }
 
     private String aggregateDomainReadiness(List<String> states) {

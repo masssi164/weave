@@ -223,8 +223,13 @@ export interface SuiteDomainReadiness {
   capabilityStates: string[];
   supportSafeErrors: string[];
   portabilityNotes: string[];
+  jurisdictionExposureNotes: string[];
   auditRefs: string[];
   nextAction: string;
+  exposureDescriptor: string;
+  portabilityContractRef: string;
+  auditRequirement: string;
+  weaverMode: string;
   backendOwnedFacade: boolean;
   providerMappingOwnedByServer: boolean;
   rawProviderConfigExposedToMembers: boolean;
@@ -582,8 +587,13 @@ interface ServerSuiteDomainReadiness {
   capabilityStates?: string[];
   supportSafeErrors?: string[];
   portabilityNotes?: string[];
+  jurisdictionExposureNotes?: string[];
   auditRefs?: string[];
   nextAction?: string;
+  exposureDescriptor?: string;
+  portabilityContractRef?: string;
+  auditRequirement?: string;
+  weaverMode?: string;
   backendOwnedFacade?: boolean;
   providerMappingOwnedByServer?: boolean;
   rawProviderConfigExposedToMembers?: boolean;
@@ -1002,10 +1012,23 @@ function normalizeSuiteDomainReadiness(
       "support-safe-errors-required",
     ],
     portabilityNotes: domain.portabilityNotes ?? [],
+    jurisdictionExposureNotes: domain.jurisdictionExposureNotes ?? [
+      "provider/jurisdiction exposure visible to admins only",
+    ],
     auditRefs: domain.auditRefs ?? [],
     nextAction:
       domain.nextAction ??
       "Resolve backend readiness evidence before member go-live.",
+    exposureDescriptor:
+      domain.exposureDescriptor ??
+      "provider and jurisdiction exposure visible; raw diagnostics redacted",
+    portabilityContractRef:
+      domain.portabilityContractRef ??
+      "export/import/lossy/conflict/rollback reports required",
+    auditRequirement:
+      domain.auditRequirement ??
+      "support-safe audit required for readiness and Weaver decisions",
+    weaverMode: domain.weaverMode ?? "model_first_read_only_governed",
     backendOwnedFacade: domain.backendOwnedFacade ?? true,
     providerMappingOwnedByServer: domain.providerMappingOwnedByServer ?? true,
     rawProviderConfigExposedToMembers:
@@ -1577,7 +1600,12 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
       "Export manifests required before provider replacement",
       "Credential-bearing editor URLs remain blocked from support views",
     ],
+    jurisdictionExposureNotes: ["selected adapters may carry provider and subprocessor jurisdiction exposure"],
     auditRefs: ["receipt://suite/files-docs/readiness"],
+    exposureDescriptor: "provider and jurisdiction exposure visible; raw diagnostics redacted",
+    portabilityContractRef: "export/import/lossy/conflict/rollback reports required",
+    auditRequirement: "support-safe audit required for readiness and Weaver decisions",
+    weaverMode: "model_first_read_only_governed",
     nextAction:
       "Confirm checksum, permission, and editor-launch evidence before member writes.",
     backendOwnedFacade: true,
@@ -1602,7 +1630,12 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
     portabilityNotes: [
       "Lossy mapping and conflict reports are required before provider-write apply",
     ],
+    jurisdictionExposureNotes: ["selected adapters may carry provider and subprocessor jurisdiction exposure"],
     auditRefs: ["receipt://suite/boards-tasks/readiness"],
+    exposureDescriptor: "provider and jurisdiction exposure visible; raw diagnostics redacted",
+    portabilityContractRef: "export/import/lossy/conflict/rollback reports required",
+    auditRequirement: "support-safe audit required for readiness and Weaver decisions",
+    weaverMode: "model_first_read_only_governed",
     nextAction:
       "Verify keyboard task flows, conflict states, and audit events before writes.",
     backendOwnedFacade: true,
@@ -1627,7 +1660,12 @@ const sampleSuiteDomainReadiness: SuiteDomainReadiness[] = [
     portabilityNotes: [
       "Private calendar ingestion and credential profile downloads are out of scope",
     ],
+    jurisdictionExposureNotes: ["selected adapters may carry provider and subprocessor jurisdiction exposure"],
     auditRefs: ["receipt://suite/calendar-meetings/readiness"],
+    exposureDescriptor: "provider and jurisdiction exposure visible; raw diagnostics redacted",
+    portabilityContractRef: "export/import/lossy/conflict/rollback reports required",
+    auditRequirement: "support-safe audit required for readiness and Weaver decisions",
+    weaverMode: "model_first_read_only_governed",
     nextAction:
       "Confirm workspace/team/channel event readiness and private-calendar blockers.",
     backendOwnedFacade: true,
