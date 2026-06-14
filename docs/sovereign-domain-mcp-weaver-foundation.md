@@ -16,4 +16,4 @@ Admin Control Room suite-domain readiness rows expose support-safe posture only:
 
 Allowed wording: Weave makes provider and jurisdiction exposure visible, reduces dependency on single-vendor stacks, and preserves portability evidence through export/import/lossy/conflict/rollback reports.
 
-Forbidden wording: Cloud-Act-proof, fully sovereign, legally sovereign, compliance certified, public/customer-ready, full accessibility, broad Weaver availability, or autonomous PA availability. Public/final/full accessibility claims remain blocked by #591 until manual assistive-technology evidence is complete.
+Forbidden wording: Cloud-Act-proof, fully sovereign, legally sovereign, compliance certified, public/customer-ready, full accessibility, broad Weaver availability, or autonomous PA availability. Public/final/full accessibility claims remain blocked by #762, the open successor carrying the unresolved #591 manual assistive-technology gap, until manual assistive-technology evidence is complete.

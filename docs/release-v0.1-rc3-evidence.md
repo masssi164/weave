@@ -49,4 +49,4 @@ The release closed the stale RC3 draft blocker #557 after refreshing the candida
 
 ## Current post-publication blockers
 
-After RC3 publication, Sprint 18 added stronger workspace/migration/trust evidence and closed the live-stack evidence gap in PR #596. The remaining release-blocking carryover is #591: actual manual assistive-technology signoff is still required before Sprint 18 milestone closure or public/production release signoff. Automated tests, support-safe artifacts, release notes, and green Live Stack E2E cannot substitute for real AT reviewer evidence.
+After RC3 publication, Sprint 18 added stronger workspace/migration/trust evidence and closed the live-stack evidence gap in PR #596. The remaining release-blocking carryover is the unresolved #591 manual assistive-technology gap, now tracked by open successor blocker #762: actual manual assistive-technology signoff is still required before public/production release signoff. Automated tests, support-safe artifacts, release notes, and green Live Stack E2E cannot substitute for real AT reviewer evidence.

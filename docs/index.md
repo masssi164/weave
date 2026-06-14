@@ -133,7 +133,7 @@ The canonical product/domain truth is the pinned Weave Specification Corpus refe
 
 Weaver remains optional, governed, auditable, support-safe, and disabled by default. Any future per-user PA runtime must be generated from Weave organization policy as an isolated OpenClaw-derived profile and follow the rule: user-rights, organization-whitelisted capabilities. See [Governed Weaver runtime security contract](governed-weaver-runtime-security-contract.md) for the runtime/model/tool-provider split, approval receipts, and support-safe evidence boundary.
 
-v0.1 is a dogfood-ready review baseline, not a general production release claim or scaffold preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md). The latest published prerelease audit is [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md); current post-publication release readiness still blocks on #591 manual assistive-technology evidence.
+v0.1 is a dogfood-ready review baseline, not a general production release claim or scaffold preview. A normal member should see Weave-owned work surfaces and effective capability states, not raw provider configuration or provider secrets. The shortest status summary for reviewers is [v0.1 Golden Path readiness](v0.1-golden-path.md). The latest published prerelease audit is [v0.1.0-rc.3 release evidence](release-v0.1-rc3-evidence.md); current post-publication release readiness still blocks on #762, the open successor carrying the unresolved #591 manual assistive-technology evidence gap.
 
 ## Documentation stack
 
