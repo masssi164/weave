@@ -57,9 +57,13 @@ class WeaveBackendClient:
                         "discoverableTools": [
                             "admin.get_readiness",
                             "weaver.get_runtime_profile_projection",
-                            "calendar.search_events",
-                            "calendar.create_event",
-                            "boards.comment",
+                        "calendar.search_events",
+                        "calendar.create_event",
+                        "files.search",
+                        "files.read",
+                        "chat.list_threads",
+                        "chat.send_message",
+                        "boards.comment",
                         ],
                         "rawEndpointExposed": False,
                         "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
@@ -166,6 +170,66 @@ class WeaveBackendClient:
                 "providerMutationPerformedByMcp": False,
             },
             "audit://mcp/calendar-create/support-safe",
+        )
+
+    def files_search(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
+        return ToolResult(
+            {
+                "queryRef": "query://files/support-safe/" + _stable_ref_fragment(query),
+                "items": [
+                    {
+                        "fileRef": "file://weave/support-safe/onboarding-note",
+                        "namePresent": True,
+                        "spaceRef": str(query.get("spaceRef", "space:dogfood")),
+                    }
+                ],
+                "providerSourceMappedByBackend": True,
+                "rawProviderPayloadExposed": False,
+            },
+            "audit://mcp/files-search/support-safe",
+        )
+
+    def files_read(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
+        return ToolResult(
+            {
+                "fileRef": str(query.get("fileRef", "file://weave/support-safe/unknown")),
+                "metadataOnly": True,
+                "contentRedacted": True,
+                "providerSourceMappedByBackend": True,
+                "rawProviderPayloadExposed": False,
+            },
+            "audit://mcp/files-read/support-safe",
+        )
+
+    def chat_list_threads(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
+        channel_id = str(query.get("channelId", "channels.weave-chat"))
+        return ToolResult(
+            {
+                "channelId": channel_id,
+                "threads": [
+                    {
+                        "threadRef": "chat-thread://weave/support-safe/pa-weaver",
+                        "channelId": channel_id,
+                        "titlePresent": True,
+                    }
+                ],
+                "providerSourceMappedByBackend": True,
+                "rawProviderThreadIdsExposed": False,
+            },
+            "audit://mcp/chat-list-threads/support-safe",
+        )
+
+    def chat_send_message(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
+        return ToolResult(
+            {
+                "decision": "accepted-for-weave-chat-domain-send",
+                "threadRef": str(query.get("threadRef", "chat-thread://weave/support-safe/unknown")),
+                "messageRef": "chat-message://pending/support-safe/" + _stable_ref_fragment([ctx.user_ref, query.get("threadRef"), query.get("body")]),
+                "channelId": "channels.weave-chat",
+                "providerMutationPerformedByMcp": False,
+                "rawProviderChannelExposed": False,
+            },
+            "audit://mcp/chat-send-message/support-safe",
         )
 
     def boards_comment(self, ctx: RuntimeContext, query: dict[str, Any]) -> ToolResult:
