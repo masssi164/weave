@@ -41,6 +41,8 @@ registerRootCommandTask('spaceAnchorCheck', ['python3', 'tools/space_anchor_chec
 registerRootCommandTask('portabilityContractCheck', ['python3', 'tools/portability_contract_check.py'], 'Validate provider portability and no-unaccounted-data-loss migration schemas.')
 registerRootCommandTask('productTrustClaimMatrixCheck', ['python3', 'tools/product_trust_claim_matrix_check.py'], 'Validate Sprint 14 product-trust claim matrix evidence boundaries and overclaim guards.')
 registerRootCommandTask('productRealityClaimGateCheck', ['python3', 'tools/product_reality_claim_gate_check.py'], 'Validate Sprint 21 product-reality levels and forbidden release-claim gates.')
+registerRootCommandTask('productArchitectureClaimGuard', ['python3', 'tools/product_architecture_claim_guard.py'], 'Validate product architecture SSOT, Weave/Weaver boundary, legal-risk wording, and registry shape.')
+registerRootCommandTask('productArchitectureClaimGuardTest', ['python3', 'tools/product_architecture_claim_guard_test.py'], 'Run fixture tests for the product architecture claim guard.')
 registerRootCommandTask('providerLabCheck', ['python3', 'tools/provider_lab_check.py'], 'Validate Sprint 22 free-provider-lab manifests, fixture completeness, redaction evidence, and Sprint 23 entry gate scoreboard.')
 registerRootCommandTask('chatProviderSwitchCheck', ['python3', 'tools/chat_provider_switch_check.py'], 'Validate Sprint 23 Chat Provider Switch canonical object coverage, LossyFieldReport enforcement, and ProviderRef redaction fixtures.')
 registerRootCommandTask('weaverRuntimeFactoryCheck', ['python3', 'tools/weaver_runtime_factory_check.py'], 'Validate Sprint 24 Weaver Runtime Factory lifecycle, reconciliation, isolation, and claim-gate fixtures.')
@@ -95,7 +97,7 @@ tasks.register('releaseReadinessCheck', Exec) {
     commandLine execCommand(args)
     outputs.upToDateWhen { false }
 }
-registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/weaver_runtime_factory_check.py && python3 tools/weaver_customization_check.py && python3 tools/admin_cicd_orchestration_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/local_cicd_bootstrapper_check.py && python3 tools/local_forgejo_runner_readiness_check.py && python3 tools/local_forgejo_e2e_handoff_check.py && python3 tools/weave_control_modes_check.py && python3 tools/bootstrap_foundation_check.py && python3 tools/local_domain_adapter_plan_check.py && python3 tools/local_forgejo_pipeline_provider_check.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/commercial_adapter_readiness_check.py && python3 tools/sprint30_hot_phase_check.py && python3 tools/sprint31_lan_dogfood_check.py && python3 tools/sprint29_human_validation_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes, README markers, provider reality, Sprint 26/27/28/29 evidence gates, claim matrices, labels, generator fixtures, project readiness, enterprise release gates, and RC readiness fixtures.')
+registerRootCommandTask('releaseEvidenceCheck', ['bash', '-lc', 'PYTHON=python3; [ -x build/docs-venv/bin/python ] && PYTHON=build/docs-venv/bin/python; "$PYTHON" tools/docs_check.py --release-notes-only && python3 tools/readme_release_notes.py --check && python3 tools/release_claim_matrix_check.py && python3 tools/product_trust_claim_matrix_check.py && python3 tools/product_reality_claim_gate_check.py && python3 tools/product_architecture_claim_guard.py && python3 tools/product_architecture_claim_guard_test.py && python3 tools/provider_lab_check.py && python3 tools/chat_provider_switch_check.py && python3 tools/weaver_runtime_factory_check.py && python3 tools/weaver_customization_check.py && python3 tools/admin_cicd_orchestration_check.py && python3 tools/operator_recovery_check.py && python3 tools/operator_recovery_check_test.py && python3 tools/local_cicd_bootstrapper_check.py && python3 tools/local_forgejo_runner_readiness_check.py && python3 tools/local_forgejo_e2e_handoff_check.py && python3 tools/weave_control_modes_check.py && python3 tools/bootstrap_foundation_check.py && python3 tools/local_domain_adapter_plan_check.py && python3 tools/local_forgejo_pipeline_provider_check.py && python3 tools/cross_domain_provider_proof_check.py && python3 tools/commercial_adapter_readiness_check.py && python3 tools/sprint30_hot_phase_check.py && python3 tools/sprint31_lan_dogfood_check.py && python3 tools/sprint29_human_validation_check.py && python3 tools/release_trust_claim_control_check.py && python3 tools/release_notes_label_check_test.py && python3 tools/release_notes_generate.py --input tools/fixtures/release_notes_prs.json --output tools/fixtures/release_notes_unreleased.expected.md --check && python3 tools/project_readiness_evidence_check.py && python3 tools/release_gate_check.py && python3 tools/release_readiness_check_test.py'], 'Validate release notes, README markers, provider reality, Sprint 26/27/28/29 evidence gates, claim matrices, labels, generator fixtures, project readiness, enterprise release gates, and RC readiness fixtures.')
 
 tasks.register('docsCheck') {
     group = 'verification'
@@ -136,6 +138,8 @@ ext.ciEvidenceGates = [
     'portabilityContractCheck',
     'productTrustClaimMatrixCheck',
     'productRealityClaimGateCheck',
+    'productArchitectureClaimGuard',
+    'productArchitectureClaimGuardTest',
     'weaverRuntimeFactoryCheck',
     'weaverCustomizationCheck',
     'adminCicdOrchestrationCheck',
@@ -264,6 +268,10 @@ List<String> artifactPathsForGate(String gateName) {
             return ['docs/product-trust-provider-choice-claim-matrix.md', 'tools/product_trust_claim_matrix_check.py']
         case 'productRealityClaimGateCheck':
             return ['docs/product-reality-foundation.md', 'release/product-reality-gates.json', 'tools/product_reality_claim_gate_check.py']
+        case 'productArchitectureClaimGuard':
+            return ['README.md', 'docs/product-architecture.md', 'docs/repository-boundary.md', 'tools/product_architecture_claim_guard.py']
+        case 'productArchitectureClaimGuardTest':
+            return ['tools/product_architecture_claim_guard_test.py']
         case 'weaverCustomizationCheck':
             return ['release/provider-lab/weaver-runtime/sprint-25-scoreboard.json', 'release/provider-lab/weaver-runtime/sprint-25-claim-gate.fixture.json', 'tools/weaver_customization_check.py']
         case 'adminCicdOrchestrationCheck':

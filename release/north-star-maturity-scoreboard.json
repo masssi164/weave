@@ -13,7 +13,7 @@
     "target": 85,
     "hardExitThreshold": 80,
     "status": "sprint-20-closure-ready-above-hard-exit-threshold-release-promotion-blocked-by-manual-at",
-    "rationale": "Post-closure main head e39c06c4d2315bb741df79a67e744196b249a205 has green GitHub CI run 26832803943. The latest Sprint 20 Live Stack E2E evidence remains run 26829660573 on the immediately preceding candidate 3b351e8efc333bb8b6e4755dca5b39b84a62c715, not an exact e39c06c rerun. Real external human assistive-technology signoff remains missing and cannot receive pass credit, so Sprint 20 is closed above the hard exit threshold while RC/production release promotion and the desired 85+ target remain blocked by #591."
+    "rationale": "Post-closure main head e39c06c4d2315bb741df79a67e744196b249a205 has green GitHub CI run 26832803943. The latest Sprint 20 Live Stack E2E evidence remains run 26829660573 on the immediately preceding candidate 3b351e8efc333bb8b6e4755dca5b39b84a62c715, not an exact e39c06c rerun. Real external human assistive-technology signoff remains missing and cannot receive pass credit, so Sprint 20 is closed above the hard exit threshold while RC/production release promotion and the desired 85+ target remain blocked by open successor blocker #762 for the unresolved #591 gap."
   },
   "dimensions": [
     {
@@ -47,7 +47,7 @@
         "python3 tools/release_readiness_check.py ... --ci-summary build/evidence/ci-summary.json --live-evidence-dir /tmp/weave-s20/live-26829660573 reported RC readiness: ready when run against the downloaded support-safe artifact and supplied local blocker summary"
       ],
       "blockers": [
-        "External human manual AT signoff remains #591; an exact post-closure-head Live Stack rerun is also not claimed in this scoreboard refresh."
+        "External human manual AT signoff remains tracked by #762 as the open successor to #591; an exact post-closure-head Live Stack rerun is also not claimed in this scoreboard refresh."
       ]
     },
     {
@@ -57,7 +57,7 @@
       "score": 2,
       "evidenceClass": "blocked manual evidence with current automated/accessibility support evidence only",
       "evidence": [
-        "GitHub issue #591 remains open and release-blocking.",
+        "GitHub issue #762 is open and release-blocking as the successor for the closed #591 accounting thread.",
         "docs/evidence/accessibility/sprint-18-manual-at-blocker.md records the missing manual AT evidence boundary.",
         "release/accessibility-gate.json keeps manual AT promotion blocked."
       ],
@@ -180,7 +180,7 @@
       "number": 613,
       "url": "https://github.com/masssi164/weave/issues/613",
       "state": "closed",
-      "reason": "Scoreboard is published and proves 82/100 above the hard exit threshold; 85+ remains blocked by #591/manual AT."
+      "reason": "Scoreboard is published and proves 82/100 above the hard exit threshold; 85+ remains blocked by #762 / unresolved #591 manual AT."
     }
   ],
   "nonClaims": [

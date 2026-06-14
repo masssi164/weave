@@ -38,6 +38,13 @@ nav:
   - Developer Handbook:
       - Overview: developer-handbook.md
       - Weave operating model: weave-operating-model.md
+      - Product architecture SSOT: product-architecture.md
+      - Product glossary: glossary.md
+      - Contract docs index: contract-docs-index.md
+      - Repository boundary: repository-boundary.md
+      - Jurisdiction legal-risk note: jurisdiction-legal-risk-note.md
+      - Adapter/provider registry: architecture/canonical-domain-adapter-registry.md
+      - MCP/domain-tool action registry: architecture/mcp-domain-tool-action-registry.md
       - Spec-driven development: spec-driven-development.md
       - AI-assisted delivery orchestration: agent-team-orchestration.md
       - Lane-based PR and release workflow: gitflow-pr-workflow.md
