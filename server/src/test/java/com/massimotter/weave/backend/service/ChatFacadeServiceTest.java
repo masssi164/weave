@@ -156,7 +156,13 @@ class ChatFacadeServiceTest {
         assertThat(capturedRequest.get().providerRef()).isEqualTo("provider:model:custom-lmstudio");
         assertThat(capturedRequest.get().supportSafeContext())
                 .containsEntry("chatProviderRef", "provider:chat:selected-by-admin")
+                .containsEntry("mcpServerKey", "weave-domain-tools")
+                .containsEntry("mcpTransport", "streamable-http")
                 .containsEntry("rawProviderContentIncluded", false);
+        assertThat(capturedRequest.get().supportSafeContext().get("allowedDomainTools"))
+                .isEqualTo(List.of("chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"));
+        assertThat(capturedRequest.get().supportSafeContext().toString())
+                .doesNotContain("raw_chat_provider.", "raw_files_provider.", "raw_calendar_provider.", "credentialref://");
     }
 
     @Test

@@ -60,6 +60,42 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
             },
         },
     ),
+    "files.search": ToolDefinition(
+        name="files.search",
+        capability="weaver.files_read",
+        domain="files",
+        read_only=True,
+        approval_required=False,
+        description="Search Weave Files through the backend Files facade with support-safe references only.",
+        input_schema={"type": "object", "properties": {"query": {"type": "string"}, "spaceRef": {"type": "string"}}},
+    ),
+    "files.read": ToolDefinition(
+        name="files.read",
+        capability="weaver.files_read",
+        domain="files",
+        read_only=True,
+        approval_required=False,
+        description="Read Weave Files metadata through the backend Files facade without exposing raw provider payloads.",
+        input_schema={"type": "object", "required": ["fileRef"], "properties": {"fileRef": {"type": "string"}}},
+    ),
+    "chat.list_threads": ToolDefinition(
+        name="chat.list_threads",
+        capability="weaver.chat_read",
+        domain="chat",
+        read_only=True,
+        approval_required=False,
+        description="List Weave Chat threads through the Chat-domain facade; provider room ids remain hidden.",
+        input_schema={"type": "object", "properties": {"channelId": {"type": "string"}, "spaceRef": {"type": "string"}}},
+    ),
+    "chat.send_message": ToolDefinition(
+        name="chat.send_message",
+        capability="weaver.chat_send",
+        domain="chat",
+        read_only=False,
+        approval_required=True,
+        description="Send a message through the Weave Chat-domain facade, never directly to a provider-native channel.",
+        input_schema={"type": "object", "required": ["threadRef", "body", "approvalReceiptRef"]},
+    ),
     "boards.comment": ToolDefinition(
         name="boards.comment",
         capability="weaver.boards_write",
@@ -89,6 +125,23 @@ def _calendar_create_event(ctx: RuntimeContext, payload: dict[str, Any], client:
     return client.calendar_create_event(ctx, {**payload, "approvalRef": approval_ref}).support_safe()
 
 
+def _files_search(ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
+    return client.files_search(ctx, payload).support_safe()
+
+
+def _files_read(ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
+    return client.files_read(ctx, payload).support_safe()
+
+
+def _chat_list_threads(ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
+    return client.chat_list_threads(ctx, payload).support_safe()
+
+
+def _chat_send_message(ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
+    require_approval(payload, "chat.send_message")
+    return client.chat_send_message(ctx, payload).support_safe()
+
+
 def _boards_comment(ctx: RuntimeContext, payload: dict[str, Any], client: WeaveBackendClient) -> dict[str, Any]:
     require_approval(payload, "boards.comment")
     return client.boards_comment(ctx, payload).support_safe()
@@ -99,6 +152,10 @@ HANDLERS: dict[str, Handler] = {
     "weaver.get_runtime_profile_projection": _runtime_profile,
     "calendar.search_events": _calendar_search,
     "calendar.create_event": _calendar_create_event,
+    "files.search": _files_search,
+    "files.read": _files_read,
+    "chat.list_threads": _chat_list_threads,
+    "chat.send_message": _chat_send_message,
     "boards.comment": _boards_comment,
 }
 

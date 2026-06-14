@@ -11,7 +11,8 @@ Wire names use existing executable snake_case domain-tool names where they alrea
 | Chat | chat.list_threads | read | low | not required by default policy | query audit ref | conversation ids and state only | matrix-synapse or selected chat adapter |
 | Chat | chat.send_message | external_send/write | high | required for Weaver-initiated sends unless explicit governed policy covers exact channel | message action evidence id | redacted body summary, refs, recipients | matrix-synapse or selected chat adapter |
 | Chat | chat.switch_provider | provider_switch/migration | high | required | switch plan, dry-run/apply evidence | provider refs, lossy-field summary | matrix-synapse, zulip-candidate |
-| Files/documents | files.read_metadata | read | low | not required by default policy | file metadata audit ref | file id, owner, classification, not raw content | nextcloud-files |
+| Files/documents | files.search | read | low | not required by default policy | file search audit ref | file refs, names-present flags, space refs, not raw content | selected files adapter |
+| Files/documents | files.read | read | low | not required by default policy | file metadata audit ref | file ref, owner/classification flags, not raw content | selected files adapter |
 | Files/documents | files.propose_update | write | high | required for commit-write; draft-only may be policy-scoped | diff evidence id | file ref and diff summary | nextcloud-files |
 | Files/documents | files.delete | delete | high | required | deletion/tombstone evidence | file refs and rollback hint | nextcloud-files |
 | Calendar | calendar.search_events | read | medium | policy-scoped; required for sensitive calendars | calendar query audit ref | event ids/time windows/redacted summaries | radicale-caldav |

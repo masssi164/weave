@@ -604,8 +604,17 @@ public class WeaverRuntimeService {
                         Map.entry("enabled", false),
                         Map.entry("supportSafe", true),
                         Map.entry("rawEndpointExposed", false),
-                        Map.entry("allowedTools", List.of("admin.get_readiness", "weaver.get_runtime_profile_projection", "calendar.search_events", "boards.comment")),
-                        Map.entry("approvalRequiredFor", List.of("boards.comment"))))));
+                        Map.entry("allowedTools", List.of(
+                                "admin.get_readiness",
+                                "weaver.get_runtime_profile_projection",
+                                "calendar.search_events",
+                                "calendar.create_event",
+                                "files.search",
+                                "files.read",
+                                "chat.list_threads",
+                                "chat.send_message",
+                                "boards.comment")),
+                        Map.entry("approvalRequiredFor", List.of("calendar.create_event", "chat.send_message", "boards.comment"))))));
     }
 
     private Map<String, Object> credentialBrokerContract(String userRef) {

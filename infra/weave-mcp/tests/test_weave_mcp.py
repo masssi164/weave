@@ -41,6 +41,9 @@ RUNTIME_PROFILE_PROJECTION = {
         "weaver.runtime_profile_read",
         "weaver.calendar_read",
         "weaver.calendar_create_event",
+        "weaver.files_read",
+        "weaver.chat_read",
+        "weaver.chat_send",
         "weaver.boards_write",
     ],
     "allowedTools": [
@@ -48,6 +51,10 @@ RUNTIME_PROFILE_PROJECTION = {
         "weaver.get_runtime_profile_projection",
         "calendar.search_events",
         "calendar.create_event",
+        "files.search",
+        "files.read",
+        "chat.list_threads",
+        "chat.send_message",
         "boards.comment",
     ],
     "alwaysAllowGrants": ["always-allow://weave/calendar.create_event/org-dogfood/user-support-safe"],
@@ -93,16 +100,62 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertIn("weaver.get_runtime_profile_projection", tools)
         self.assertIn("calendar.search_events", tools)
         self.assertIn("calendar.create_event", tools)
+        self.assertIn("files.search", tools)
+        self.assertIn("files.read", tools)
+        self.assertIn("chat.list_threads", tools)
+        self.assertIn("chat.send_message", tools)
         self.assertIn("boards.comment", tools)
         self.assertTrue(tools["calendar.create_event"]["meta"]["approval"] == "required")
+        self.assertTrue(tools["chat.send_message"]["meta"]["approval"] == "required")
         self.assertTrue(tools["boards.comment"]["meta"]["approval"] == "required")
         self.assertTrue(all(tool["meta"]["transport"] == "streamable-http" for tool in tools.values()))
         discovery_text = json.dumps(body, sort_keys=True).lower()
-        self.assertNotIn("nextcloud", discovery_text)
-        self.assertNotIn("caldav", discovery_text)
+        self.assertNotIn("raw_files_provider", discovery_text)
+        self.assertNotIn("raw_calendar_provider", discovery_text)
         self.assertNotIn("providerref", discovery_text)
         self.assertNotIn("credentialref://", discovery_text)
-        self.assertFalse(any(tool["name"].startswith(("nextcloud.", "caldav.")) for tool in tools.values()))
+        self.assertFalse(any(tool["name"].startswith(("raw_files_provider.", "raw_calendar_provider.")) for tool in tools.values()))
+
+    def test_user_weave_chat_send_uses_only_profile_governed_domain_tools(self) -> None:
+        profile = {
+            **RUNTIME_PROFILE_PROJECTION,
+            "allowedTools": ["chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"],
+            "capabilityGrants": ["weaver.chat_read", "weaver.chat_send", "weaver.calendar_read", "weaver.files_read"],
+        }
+        headers = {key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(profile)}.items()}
+
+        discovered = self.gateway().discover_tools(headers)
+        tool_names = {tool["name"] for tool in discovered["tools"]}
+        self.assertEqual(tool_names, {"chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"})
+        discovery_text = json.dumps(discovered, sort_keys=True).lower()
+        for forbidden in ["raw_chat_provider.", "raw_files_provider.", "raw_calendar_provider.", "providerref", "credentialref://"]:
+            self.assertNotIn(forbidden, discovery_text)
+
+        listed = self.gateway().invoke_tool(headers, {"tool": "chat.list_threads", "input": {"channelId": "channels.weave-chat"}})
+        self.assertEqual(listed["result"]["threads"][0]["threadRef"], "chat-thread://weave/support-safe/pa-weaver")
+        with self.assertRaises(McpDenied) as denied:
+            self.gateway().invoke_tool(
+                headers,
+                {"tool": "chat.send_message", "input": {"threadRef": "chat-thread://weave/support-safe/pa-weaver", "body": "Hello Weaver"}},
+            )
+        self.assertEqual(denied.exception.reason, "approval-required-for-chat.send_message")
+
+        sent = self.gateway().invoke_tool(
+            headers,
+            {
+                "tool": "chat.send_message",
+                "input": {
+                    "threadRef": "chat-thread://weave/support-safe/pa-weaver",
+                    "body": "Hello Weaver",
+                    "approvalReceiptRef": "approval://chat-send/1",
+                },
+            },
+        )
+        self.assertEqual(sent["result"]["decision"], "accepted-for-weave-chat-domain-send")
+        self.assertEqual(sent["result"]["channelId"], "channels.weave-chat")
+        self.assertFalse(sent["result"]["providerMutationPerformedByMcp"])
+        self.assertFalse(sent["result"]["rawProviderChannelExposed"])
+        self.assertNotIn("Hello Weaver", json.dumps(sent, sort_keys=True))
 
     def test_discovery_uses_runtime_profile_projection_not_caller_grant_headers(self) -> None:
         profile = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events"], "capabilityGrants": ["weaver.calendar_read"]}
@@ -244,7 +297,7 @@ class WeaveMcpGatewayTest(unittest.TestCase):
                     {
                         "items": [
                             {
-                                "id": "nextcloud-event-1",
+                                "id": "calendar-event-1",
                                 "title": "Private title",
                                 "startsAt": "2026-06-12T08:00:00Z",
                                 "endsAt": "2026-06-12T08:30:00Z",

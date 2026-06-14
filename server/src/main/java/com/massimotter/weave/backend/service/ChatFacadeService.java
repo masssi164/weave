@@ -316,6 +316,9 @@ public class ChatFacadeService {
                     Map.of(
                             "contextId", conversation.contextId(),
                             "chatProviderRef", WEAVER_CHAT_PROVIDER_REF,
+                            "mcpServerKey", "weave-domain-tools",
+                            "mcpTransport", "streamable-http",
+                            "allowedDomainTools", List.of("chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"),
                             "supportSafe", true,
                             "rawProviderContentIncluded", false)));
         } catch (WeaverPaChatUnavailableException exception) {
