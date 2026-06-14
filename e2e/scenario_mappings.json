@@ -1921,12 +1921,7 @@
           "fragments": [
             "WCP-CHAN-001",
             "no MCP server or tool invocation is required for the inbound or outbound channel path",
-            "MCP `chat.send_message` remains a governed outbound domain tool"
-          ]
-        },
-        {
-          "path": "/Users/flotterotter/code/weaver/WEAVER.md",
-          "fragments": [
+            "MCP `chat.send_message` remains a governed outbound domain tool",
             "Stable `weave-chat` channel plugin",
             "Talk only to Weave Chat-domain runtime APIs with a short-lived runtime token and `runtimeProfileHash`."
           ]

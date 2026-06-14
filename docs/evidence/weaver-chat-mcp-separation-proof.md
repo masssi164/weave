@@ -19,6 +19,10 @@ Current evidence posture:
 | MCP only | `WCP-MCP-001` | Weaver discovers and invokes `mcp.servers.weave-domain-tools` from a signed RuntimeProfile without any inbound chat turn. Tool visibility, approval receipts, deny paths, and audit refs are proved without any inbound channel message. | Weave PR #769 server tests plus Weaver PR #26 RuntimeProfile MCP-consumer proof. PR #769 includes `deniesUnknownOrOverbroadToolsBeforeProviderAccess`, `containsEntry("channelPlaneRef", "channels.weave-chat")`, and `contains("weave-domain-tools", "streamable-http")` coverage on its PR head. |
 | Combined same turn | `WCP-COMB-001` | One inbound `weave-chat` turn may trigger one governed MCP/domain-tool action during the turn, while the user-facing reply or approval hint still returns through `weave-chat`. | Combined synthesis of PR #25, PR #26, PR #769, and wording fix PR #767. |
 
+## Weaver channel contract evidence
+
+The Weaver channel side is represented by the stable `weave-chat` channel plugin. Stable `weave-chat` channel plugin. It talks only to Weave Chat-domain runtime APIs with a short-lived runtime token and `runtimeProfileHash`. Talk only to Weave Chat-domain runtime APIs with a short-lived runtime token and `runtimeProfileHash`. This keeps provider-native chat configuration out of the member runtime and keeps MCP tooling out of the inbound user-message transport.
+
 ## Correlation-id boundary
 
 The proof must keep these ids distinct:
