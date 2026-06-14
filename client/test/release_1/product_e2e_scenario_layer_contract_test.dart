@@ -21,6 +21,9 @@ void main() {
       'PRODUCT_E2E_BACKUP_RESTORE_READINESS',
       'PRODUCT_E2E_EXPORT_DELETE_RETENTION',
       'PRODUCT_E2E_WEAVER_CONSENT_APPROVAL_RECEIPT',
+      'PRODUCT_E2E_WEAVER_CHANNEL_ONLY_ROUNDTRIP',
+      'PRODUCT_E2E_WEAVER_MCP_ONLY_VISIBILITY',
+      'PRODUCT_E2E_WEAVER_SAME_TURN_CHANNEL_MCP_SEPARATION',
       'PRODUCT_E2E_PROVIDER_SWITCH_MANUAL_REVIEW',
     };
 
@@ -35,6 +38,9 @@ void main() {
       '@weave-product-backup-restore-readiness',
       '@weave-product-export-delete-retention',
       '@weave-product-weaver-consent-approval-receipt',
+      '@weave-product-weaver-channel-only-roundtrip',
+      '@weave-product-weaver-mcp-only-visibility',
+      '@weave-product-weaver-same-turn-channel-mcp-separation',
       '@weave-product-provider-switch-manual-review',
     };
 
@@ -48,6 +54,10 @@ void main() {
     expect(featureText, contains('backup manifest and restore receipt'));
     expect(featureText, contains('approval receipt'));
     expect(featureText, contains('portable, lossy, unsupported'));
+    expect(featureText, contains('weave-chat without requiring any MCP server or domain tool'));
+    expect(featureText, contains('MCP chat.send_message is not accepted as inbound channel transport'));
+    expect(featureText, contains('approval ids, MCP server ids, tool ids, and domain audit ids'));
+    expect(featureText, contains('#762 manual accessibility evidence remains open'));
     expect(
       featureText,
       isNot(
@@ -101,6 +111,21 @@ void main() {
         },
         '@weave-product-weaver-consent-approval-receipt': {
           'weaver-governed-pa',
+          'admin-health-ops',
+        },
+        '@weave-product-weaver-channel-only-roundtrip': {
+          'weaver-governed-pa',
+          'chat',
+          'spaces',
+        },
+        '@weave-product-weaver-mcp-only-visibility': {
+          'weaver-governed-pa',
+          'admin-health-ops',
+        },
+        '@weave-product-weaver-same-turn-channel-mcp-separation': {
+          'weaver-governed-pa',
+          'chat',
+          'spaces',
           'admin-health-ops',
         },
         '@weave-product-provider-switch-manual-review': {

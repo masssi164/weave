@@ -74,6 +74,31 @@ Feature: Product E2E scenario layer before runtime implementation
     And the action runs only with the user's rights and approved capabilities
     And the user and admin can later audit or revoke the grant
 
+  @weave-product-weaver-channel-only-roundtrip
+  Scenario: Weaver chat channel roundtrip stays separate from MCP tools
+    Given a member sends one personal Weaver message through the Weave chat entry point
+    When Weaver handles the turn through the stable weave-chat channel
+    Then the reply returns through weave-chat without requiring any MCP server or domain tool
+    And support-safe tenant, conversation, message, and turn ids remain distinguishable from tool and audit ids
+    And MCP chat.send_message is not accepted as inbound channel transport
+
+  @weave-product-weaver-mcp-only-visibility
+  Scenario: Weaver discovers and invokes Weave MCP tools without a chat message
+    Given a signed RuntimeProfile grants Weaver access to the weave-domain-tools MCP server
+    When Weaver discovers tools or invokes a governed domain tool outside any inbound chat turn
+    Then tool visibility, deny paths, approval receipts, and audit refs are proved without weave-chat message semantics
+    And support-safe tool, server, approval, and audit ids stay separate from channel ids
+    And raw provider payloads, secrets, and member transcripts stay out of the proof
+
+  @weave-product-weaver-same-turn-channel-mcp-separation
+  Scenario: Weaver keeps channel and MCP planes separate in one same-turn flow
+    Given a member starts one Weaver turn through weave-chat
+    And the turn needs a governed Weave domain tool
+    When Weaver invokes the tool during that same turn
+    Then the user-facing reply or approval hint still returns through weave-chat
+    And the evidence distinguishes channel message ids, turn ids, approval ids, MCP server ids, tool ids, and domain audit ids
+    And the proof stays clearly marked as pre-release while #762 manual accessibility evidence remains open
+
   @weave-product-provider-switch-manual-review
   Scenario: Admin handles provider-switch manual review without changing member language
     Given a provider replacement dry-run finds lossy, unsupported, and vendor-locked items
