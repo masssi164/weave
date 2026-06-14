@@ -54,10 +54,24 @@ void main() {
     expect(featureText, contains('backup manifest and restore receipt'));
     expect(featureText, contains('approval receipt'));
     expect(featureText, contains('portable, lossy, unsupported'));
-    expect(featureText, contains('weave-chat without requiring any MCP server or domain tool'));
-    expect(featureText, contains('MCP chat.send_message is not accepted as inbound channel transport'));
-    expect(featureText, contains('approval ids, MCP server ids, tool ids, and domain audit ids'));
-    expect(featureText, contains('#762 manual accessibility evidence remains open'));
+    expect(
+      featureText,
+      contains('weave-chat without requiring any MCP server or domain tool'),
+    );
+    expect(
+      featureText,
+      contains(
+        'MCP chat.send_message is not accepted as inbound channel transport',
+      ),
+    );
+    expect(
+      featureText,
+      contains('approval ids, MCP server ids, tool ids, and domain audit ids'),
+    );
+    expect(
+      featureText,
+      contains('#762 manual accessibility evidence remains open'),
+    );
     expect(
       featureText,
       isNot(
