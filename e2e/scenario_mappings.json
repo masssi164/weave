@@ -1953,11 +1953,10 @@
           ]
         },
         {
-          "path": "docs/evidence/weaver-chat-mcp-separation-proof.md",
+          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java",
           "fragments": [
-            "PR #769 server tests",
-            "approval receipts, deny paths, and audit refs are proved without any inbound channel message",
-            "deniesUnknownOrOverbroadToolsBeforeProviderAccess"
+            "requiresApprovalReceiptForWriteLikeToolsBeforeInvocation",
+            "approval_required"
           ]
         }
       ]
