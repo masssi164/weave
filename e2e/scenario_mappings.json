@@ -1906,6 +1906,86 @@
       "evidenceMode": "offline-spec"
     },
     {
+      "tag": "@weave-product-weaver-channel-only-roundtrip",
+      "scenario": "Weaver chat channel roundtrip stays separate from MCP tools",
+      "feature": "e2e/features/product_e2e_scenario_layer.feature",
+      "executableTest": "client/test/release_1/product_e2e_scenario_layer_contract_test.dart",
+      "evidenceMarkers": [
+        "PRODUCT_E2E_WEAVER_CHANNEL_ONLY_ROUNDTRIP",
+        "PRODUCT_E2E_SCENARIO_CATALOG_COVERAGE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/evidence/weaver-chat-mcp-separation-proof.md",
+          "fragments": [
+            "WCP-CHAN-001",
+            "no MCP server or tool invocation is required for the inbound or outbound channel path",
+            "MCP `chat.send_message` remains a governed outbound domain tool",
+            "Stable `weave-chat` channel plugin",
+            "Talk only to Weave Chat-domain runtime APIs with a short-lived runtime token and `runtimeProfileHash`."
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-product-weaver-mcp-only-visibility",
+      "scenario": "Weaver discovers and invokes Weave MCP tools without a chat message",
+      "feature": "e2e/features/product_e2e_scenario_layer.feature",
+      "executableTest": "client/test/release_1/product_e2e_scenario_layer_contract_test.dart",
+      "evidenceMarkers": [
+        "PRODUCT_E2E_WEAVER_MCP_ONLY_VISIBILITY",
+        "PRODUCT_E2E_SCENARIO_CATALOG_COVERAGE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/evidence/weaver-chat-mcp-separation-proof.md",
+          "fragments": [
+            "WCP-MCP-001",
+            "approval receipts, deny paths, and audit refs are proved without any inbound channel message",
+            "not final-release proof"
+          ]
+        },
+        {
+          "path": "server/src/test/java/com/massimotter/weave/backend/weaver/WeaverToolRegistryTest.java",
+          "fragments": [
+            "requiresApprovalReceiptForWriteLikeToolsBeforeInvocation",
+            "approval_required"
+          ]
+        }
+      ]
+    },
+    {
+      "tag": "@weave-product-weaver-same-turn-channel-mcp-separation",
+      "scenario": "Weaver keeps channel and MCP planes separate in one same-turn flow",
+      "feature": "e2e/features/product_e2e_scenario_layer.feature",
+      "executableTest": "client/test/release_1/product_e2e_scenario_layer_contract_test.dart",
+      "evidenceMarkers": [
+        "PRODUCT_E2E_WEAVER_SAME_TURN_CHANNEL_MCP_SEPARATION",
+        "PRODUCT_E2E_SCENARIO_CATALOG_COVERAGE"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/evidence/weaver-chat-mcp-separation-proof.md",
+          "fragments": [
+            "WCP-COMB-001",
+            "channel message ids, OpenClaw turn ids, approval ids, MCP server ids, tool ids, and domain audit ids stay distinct",
+            "#762 remains a release/customer-ready blocker"
+          ]
+        },
+        {
+          "path": "docs/evidence/weaver-chat-mcp-separation-proof.md",
+          "fragments": [
+            "PR #769 server tests",
+            "containsEntry(\"channelPlaneRef\", \"channels.weave-chat\")",
+            "contains(\"weave-domain-tools\", \"streamable-http\")"
+          ]
+        }
+      ]
+    },
+    {
       "tag": "@weave-product-provider-switch-manual-review",
       "scenario": "Admin handles provider-switch manual review without changing member language",
       "feature": "e2e/features/product_e2e_scenario_layer.feature",

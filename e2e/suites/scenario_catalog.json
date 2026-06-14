@@ -1145,6 +1145,64 @@
       ]
     },
     {
+      "tag": "@weave-product-weaver-channel-only-roundtrip",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "weaver_user"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "chat",
+        "spaces"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "channel-only roundtrip",
+        "channel/tool plane separation",
+        "support-safe correlation ids"
+      ]
+    },
+    {
+      "tag": "@weave-product-weaver-mcp-only-visibility",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "MCP-only tool discovery",
+        "approval and deny paths",
+        "no inbound chat semantics"
+      ]
+    },
+    {
+      "tag": "@weave-product-weaver-same-turn-channel-mcp-separation",
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "member",
+        "weaver_user",
+        "admin"
+      ],
+      "domains": [
+        "weaver-governed-pa",
+        "chat",
+        "spaces",
+        "admin-health-ops"
+      ],
+      "testLevel": "offline-contract",
+      "assertionFocus": [
+        "same-turn channel/tool separation",
+        "approval hint return path",
+        "release blocker honesty"
+      ]
+    },
+    {
       "tag": "@weave-product-provider-switch-manual-review",
       "suiteId": "product-e2e-scenario-layer",
       "personas": [
