@@ -2,11 +2,15 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.OrganizationManifestResponse;
+import com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
+import com.massimotter.weave.backend.weaver.WeaverToolInvocationResult;
+import java.util.List;
+import java.util.Map;
 import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
@@ -24,6 +28,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -147,6 +154,31 @@ public class WorkspaceController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String runtimeProfileHash) {
         return weaverRuntimeService.profileByHash(jwt, runtimeProfileHash);
+    }
+
+    @GetMapping({"/api/workspace/weaver/mcp/servers/{serverKey}", "/api/v1/workspace/weaver/mcp/servers/{serverKey}"})
+    public Map<String, Object> weaverMcpServerProjection(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String serverKey,
+            @RequestParam String runtimeProfileHash) {
+        return weaverRuntimeService.mcpServerProjection(jwt, runtimeProfileHash, serverKey);
+    }
+
+    @GetMapping({"/api/workspace/weaver/mcp/servers/{serverKey}/tools", "/api/v1/workspace/weaver/mcp/servers/{serverKey}/tools"})
+    public List<Map<String, Object>> weaverMcpToolDiscovery(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String serverKey,
+            @RequestParam String runtimeProfileHash) {
+        return weaverRuntimeService.discoverMcpTools(jwt, runtimeProfileHash, serverKey);
+    }
+
+    @PostMapping({"/api/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke", "/api/v1/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke"})
+    public WeaverToolInvocationResult weaverMcpToolInvoke(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable String serverKey,
+            @PathVariable String toolName,
+            @RequestBody WeaverMcpToolInvocationRequest request) {
+        return weaverRuntimeService.invokeMcpTool(jwt, serverKey, toolName, request);
     }
 
     @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})

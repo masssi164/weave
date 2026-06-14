@@ -87,14 +87,37 @@ public class WeaverToolRegistry {
                 "ok",
                 false,
                 true,
-                Map.of(
-                        "domain", definition.domain(),
-                        "result", "support-safe-placeholder",
-                        "canonicalRefs", canonicalRefs(request.input()),
-                        "approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef(),
-                        "rawProviderPayload", "redacted",
-                        "auditRef", auditRef(request.toolName(), "invoked")),
+                successResult(request, definition),
                 "Tool invocation went through a Weave domain capability boundary; raw provider APIs are not exposed.");
+    }
+
+    private Map<String, Object> successResult(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {
+        Map<String, Object> base = new LinkedHashMap<>();
+        base.put("domain", definition.domain());
+        base.put("canonicalRefs", canonicalRefs(request.input()));
+        base.put("approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef());
+        base.put("rawProviderPayload", "redacted");
+        base.put("auditRef", auditRef(request.toolName(), "invoked"));
+        if ("identity.read".equals(definition.name())) {
+            base.put("identity", Map.of(
+                    "userRef", request.userRef(),
+                    "runtimeProfileHash", request.runtimeProfileHash(),
+                    "supportSafe", true,
+                    "rawClaimsExposed", false));
+        } else if ("registry.tools.read".equals(definition.name())) {
+            base.put("tools", definitions.values().stream()
+                    .filter(tool -> request.grantedCapabilities().contains(tool.requiredCapability()))
+                    .filter(tool -> request.scopedToolGrants().contains(tool.name()))
+                    .map(tool -> Map.of(
+                            "name", tool.name(),
+                            "mode", tool.mode().name(),
+                            "domain", tool.domain(),
+                            "approvalRequirement", tool.approvalRequirement().name()))
+                    .toList());
+        } else {
+            base.put("result", "support-safe-placeholder");
+        }
+        return Map.copyOf(base);
     }
 
     private String governanceDenial(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {

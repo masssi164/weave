@@ -6,7 +6,10 @@ import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
+import com.massimotter.weave.backend.weaver.WeaverToolInvocationResult;
+import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -42,16 +45,19 @@ public class WeaverRuntimeService {
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WeaverRuntimeProperties weaverRuntimeProperties;
     private final AuditEventPublisher auditEventPublisher;
+    private final WeaverToolRegistry weaverToolRegistry;
 
     public WeaverRuntimeService(
             WorkspaceCapabilityService workspaceCapabilityService,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
             WeaverRuntimeProperties weaverRuntimeProperties,
-            AuditEventPublisher auditEventPublisher) {
+            AuditEventPublisher auditEventPublisher,
+            WeaverToolRegistry weaverToolRegistry) {
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.weaverRuntimeProperties = weaverRuntimeProperties;
         this.auditEventPublisher = auditEventPublisher;
+        this.weaverToolRegistry = weaverToolRegistry;
     }
 
     public WeaverRuntimeProfileResponse profileFor(Jwt jwt) {
@@ -135,6 +141,7 @@ public class WeaverRuntimeService {
                 weaverRuntimeProperties.auditRequired(),
                 weaverRuntimeProperties.forkRequired(),
                 channelProjection(runtimeProfileHash, profileVersion, previousProfileHash, userRef, expiresAt, runtimeTokenExpiresAt),
+                mcpProjection(runtimeProfileHash, profileVersion, previousProfileHash, userRef, expiresAt, runtimeTokenExpiresAt, toolAllowlist, allowedCapabilities),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
                 supportSafeProfileReceipt(profileVersion, runtimeProfileHash, signature, expiresAt, runtimeTokenExpiresAt, false, "active"),
@@ -352,6 +359,7 @@ public class WeaverRuntimeService {
                 true,
                 false,
                 channelProjection(runtimeProfileHash, profileVersion, "none", userRef, expiresAt, expiresAt),
+                mcpProjection(runtimeProfileHash, profileVersion, "none", userRef, expiresAt, expiresAt, List.of(), List.of()),
                 credentialBrokerContract(userRef),
                 auditPolicy(runtimeProfileHash, userRef),
                 supportSafeProfileReceipt(
@@ -593,28 +601,115 @@ public class WeaverRuntimeService {
                 Map.entry("reloadStrategy", "reload-or-restart-stable-channel"),
                 Map.entry("rawProviderChannelConfigsRendered", false),
                 Map.entry("memberMaySwitchProviderAdapters", false),
-                Map.entry("mcpServerBindings", List.of(Map.ofEntries(
-                        Map.entry("serverKey", "weave-domain-tools"),
-                        Map.entry("transport", "streamable-http"),
-                        Map.entry("endpointRef", "internal://weave-mcp/streamable-http"),
-                        Map.entry("credentialRef", "credentialref://weave/mcp/weave-domain-tools/runtime-token"),
-                        Map.entry("runtimeTokenRef", runtimeTokenRef),
-                        Map.entry("runtimeTokenExpiresAt", runtimeTokenExpiresAt),
-                        Map.entry("runtimeProfileFetchRef", "weave-runtime-profile://" + runtimeProfileHash),
-                        Map.entry("enabled", false),
-                        Map.entry("supportSafe", true),
-                        Map.entry("rawEndpointExposed", false),
-                        Map.entry("allowedTools", List.of(
-                                "admin.get_readiness",
-                                "weaver.get_runtime_profile_projection",
-                                "calendar.search_events",
-                                "calendar.create_event",
-                                "files.search",
-                                "files.read",
-                                "chat.list_threads",
-                                "chat.send_message",
-                                "boards.comment")),
-                        Map.entry("approvalRequiredFor", List.of("calendar.create_event", "chat.send_message", "boards.comment"))))));
+                Map.entry("mcpServersProjectedSeparately", true));
+    }
+
+    private Map<String, Object> mcpProjection(
+            String runtimeProfileHash,
+            String profileVersion,
+            String previousProfileHash,
+            String userRef,
+            String expiresAt,
+            String runtimeTokenExpiresAt,
+            List<String> toolAllowlist,
+            List<String> allowedCapabilities) {
+        String runtimeTokenRef = "credentialref://weave/runtime/short-lived/" + userRef.replace("user:", "");
+        Map<String, Object> binding = Map.ofEntries(
+                Map.entry("serverKey", "weave-domain-tools"),
+                Map.entry("displayName", "Weave governed domain tools"),
+                Map.entry("transport", "streamable-http"),
+                Map.entry("endpointRef", "internal://weave-mcp/streamable-http"),
+                Map.entry("credentialRef", "credentialref://weave/mcp/weave-domain-tools/runtime-token"),
+                Map.entry("runtimeTokenRef", runtimeTokenRef),
+                Map.entry("runtimeTokenExpiresAt", runtimeTokenExpiresAt),
+                Map.entry("runtimeProfileFetchRef", "weave-runtime-profile://" + runtimeProfileHash),
+                Map.entry("routingChannelRef", "channels.weave-chat"),
+                Map.entry("routingPlaneSeparated", true),
+                Map.entry("enabled", !toolAllowlist.isEmpty()),
+                Map.entry("supportSafe", true),
+                Map.entry("rawEndpointExposed", false),
+                Map.entry("rawServerConfigExposed", false),
+                Map.entry("secretValuesExposed", false),
+                Map.entry("previousProfileHash", previousProfileHash),
+                Map.entry("profileVersion", profileVersion),
+                Map.entry("expiresAt", expiresAt),
+                Map.entry("allowedTools", toolAllowlist),
+                Map.entry("allowedCapabilities", allowedCapabilities),
+                Map.entry("approvalRequiredFor", List.of("calendar.create_event", "chat.send_message", "boards.comment")));
+        return Map.of(
+                "servers", Map.of("weave-domain-tools", binding),
+                "supportSafe", true,
+                "denyByDefault", true,
+                "channelPlaneRef", "channels.weave-chat",
+                "memberMayMutateServerBindings", false,
+                "rawProviderEndpointsExposed", false);
+    }
+
+    public Map<String, Object> mcpServerProjection(Jwt jwt, String runtimeProfileHash, String serverKey) {
+        WeaverRuntimeProfileResponse profile = profileByHash(jwt, runtimeProfileHash);
+        if (!profile.enabled()) {
+            return Map.of(
+                    "serverKey", serverKey,
+                    "status", profile.posture(),
+                    "enabled", false,
+                    "supportSafe", true,
+                    "message", "MCP server discovery failed closed.");
+        }
+        Object server = profile.mcpProjection().getOrDefault("servers", Map.of());
+        if (!(server instanceof Map<?, ?> servers) || !servers.containsKey(serverKey)) {
+            return Map.of(
+                    "serverKey", serverKey,
+                    "status", "server_not_projected",
+                    "enabled", false,
+                    "supportSafe", true,
+                    "message", "Requested MCP server is not projected by this RuntimeProfile.");
+        }
+        return Map.of("server", servers.get(serverKey), "supportSafe", true);
+    }
+
+    public List<Map<String, Object>> discoverMcpTools(Jwt jwt, String runtimeProfileHash, String serverKey) {
+        WeaverRuntimeProfileResponse profile = profileByHash(jwt, runtimeProfileHash);
+        if (!profile.enabled() || !"weave-domain-tools".equals(serverKey)) {
+            return List.of();
+        }
+        return weaverToolRegistry.discover(profile.allowedCapabilities()).stream()
+                .filter(definition -> profile.toolAllowlist().contains(definition.name()))
+                .map(definition -> Map.<String, Object>of(
+                        "name", definition.name(),
+                        "version", definition.version(),
+                        "domain", definition.domain(),
+                        "mode", definition.mode().name(),
+                        "requiredCapability", definition.requiredCapability(),
+                        "approvalRequirement", definition.approvalRequirement().name(),
+                        "inputSchema", definition.inputSchema(),
+                        "supportSafeDescription", definition.supportSafeDescription(),
+                        "resultRedactionRules", definition.resultRedactionRules()))
+                .toList();
+    }
+
+    public WeaverToolInvocationResult invokeMcpTool(
+            Jwt jwt,
+            String serverKey,
+            String toolName,
+            WeaverMcpToolInvocationRequest request) {
+        WeaverRuntimeProfileResponse profile = profileByHash(jwt, request.runtimeProfileHash());
+        if (!profile.enabled() || !"weave-domain-tools".equals(serverKey)) {
+            return new WeaverToolInvocationResult(toolName, "runtime_profile_fetch_denied", false, true, Map.of("supportSafe", true), "MCP invocation failed closed.");
+        }
+        return weaverToolRegistry.invoke(new com.massimotter.weave.backend.weaver.WeaverToolInvocationRequest(
+                toolName,
+                profile.userRef(),
+                profile.runtimeProfileHash(),
+                profile.userRef(),
+                profile.signature(),
+                profile.revoked(),
+                String.valueOf(profile.supportSafeProfileReceipt().getOrDefault("runtimeTokenExpiresAt", "")),
+                true,
+                profile.allowedCapabilities(),
+                profile.toolAllowlist(),
+                request.input(),
+                request.approvalReceipt() == null ? null : request.approvalReceipt().receiptRef(),
+                request.approvalReceipt()));
     }
 
     private Map<String, Object> credentialBrokerContract(String userRef) {

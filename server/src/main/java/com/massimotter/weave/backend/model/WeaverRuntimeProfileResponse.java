@@ -33,6 +33,7 @@ public record WeaverRuntimeProfileResponse(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean auditRequired,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) boolean forkRequired,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> channelProjection,
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> mcpProjection,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> credentialBrokerContract,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> auditPolicy,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED) Map<String, Object> supportSafeProfileReceipt,
@@ -46,6 +47,7 @@ public record WeaverRuntimeProfileResponse(
         pluginAllowlist = List.copyOf(pluginAllowlist == null ? List.of() : pluginAllowlist);
         toolAllowlist = List.copyOf(toolAllowlist == null ? List.of() : toolAllowlist);
         channelProjection = Map.copyOf(channelProjection == null ? Map.of() : channelProjection);
+        mcpProjection = Map.copyOf(mcpProjection == null ? Map.of() : mcpProjection);
         credentialBrokerContract = Map.copyOf(credentialBrokerContract == null ? Map.of() : credentialBrokerContract);
         auditPolicy = Map.copyOf(auditPolicy == null ? Map.of() : auditPolicy);
         supportSafeProfileReceipt = Map.copyOf(supportSafeProfileReceipt == null ? Map.of() : supportSafeProfileReceipt);
