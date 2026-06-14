@@ -40,9 +40,20 @@ def with_fixture() -> Path:
     tmp = Path(tempfile.mkdtemp(prefix="weave-product-guard-"))
     docs = tmp / "docs"
     arch = docs / "architecture"
-    write(tmp / "README.md", """# Weave\n\nper-user OpenClaw-derived harness/agent via the Weave channel and Weave-provided MCP/domain tools.\n\n## Repository boundary\n\n## Bootstrap foundation\n""")
-    write(docs / "product-architecture.md", """# Product\n\nWeave and Weaver are distinct. OpenClaw-derived clone/harness profile. Weave-provided MCP/domain tools. member-editable OpenClaw config.\n""")
-    write(docs / "glossary.md", """# Glossary\n\nOpenClaw-derived clone/harness profile.\n""")
+    write(tmp / "README.md", """# Weave\n\nper-user OpenClaw-derived AI harness/runtime via the Weave channel and Weave-provided MCP/domain tools. WeaverRuntimeProfile.\n\n## Repository boundary\n\n## Bootstrap foundation\n""")
+    write(docs / "product-architecture.md", """# Product
+
+Weave and Weaver are distinct. Weaver is a separate OpenClaw-derived AI harness/runtime. per-user OpenClaw-derived AI harness/runtime. WeaverRuntimeProfile. Weave-provided MCP/domain tools. member-editable OpenClaw config.
+
+## Product components
+
+- **Server** owns canonical domains and adapter assignment.
+- **Client** is the Flutter member app.
+- **Control/Admin** lets admins manage organizations.
+- **Infrastructure** is used for full greenfield/base setup.
+- **MCP server/domain tools** expose governed tools.
+""")
+    write(docs / "glossary.md", """# Glossary\n\nper-user OpenClaw-derived AI harness/runtime.\n""")
     write(docs / "contract-docs-index.md", "# Index\n")
     write(docs / "repository-boundary.md", """# Boundary\n\nWeave repository owns product policy. Weaver repository owns runtime truth. weave-chat. Provider-native transports stay Weave backend `providerRef` values.\n""")
     write(docs / "jurisdiction-legal-risk-note.md", """# Legal risk\n\n18 U.S.C. § 2713\nhttps://www.justice.gov/dag/cloudact\nhttps://edpb.europa.eu/\nnot legal advice\n""")
@@ -61,7 +72,7 @@ def run_with_root(root: Path) -> None:
         mod.LEGAL = root / "docs/jurisdiction-legal-risk-note.md"
         mod.REPO_BOUNDARY = root / "docs/repository-boundary.md"
         mod.DOCS = [mod.README, root / "docs/product-architecture.md", mod.ADAPTER, mod.TOOLS, root / "docs/glossary.md", root / "docs/contract-docs-index.md", mod.LEGAL, mod.REPO_BOUNDARY]
-        mod.guard_readme(); mod.guard_forbidden_claims(); mod.guard_legal_note(); mod.guard_adapter_registry(); mod.guard_repository_boundary(); mod.guard_tool_registry()
+        mod.guard_readme(); mod.guard_forbidden_claims(); mod.guard_private_local_context(); mod.guard_legal_note(); mod.guard_adapter_registry(); mod.guard_product_components(); mod.guard_repository_boundary(); mod.guard_tool_registry()
     finally:
         mod.ROOT, mod.README, mod.ADAPTER, mod.TOOLS, mod.LEGAL, mod.REPO_BOUNDARY, mod.DOCS = old_root, old_readme, old_adapter, old_tools, old_legal, old_boundary, old_docs
 
@@ -91,9 +102,17 @@ def test_rejects_missing_repository_boundary_phrase() -> None:
     expect_fail(lambda: run_with_root(root), "repository boundary missing Weaver repository owns")
 
 
+def test_rejects_private_local_orchestration_context() -> None:
+    root = with_fixture()
+    product = root / "docs/product-architecture.md"
+    product.write_text(product.read_text(encoding="utf-8") + "\nLocal orchestration note: weave-co-leader handles implementation.\n", encoding="utf-8")
+    expect_fail(lambda: run_with_root(root), "private")
+
+
 if __name__ == "__main__":
     test_positive_fixture()
     test_rejects_cloud_act_readme_claim()
     test_rejects_camel_case_tool_wire_name()
     test_rejects_missing_repository_boundary_phrase()
+    test_rejects_private_local_orchestration_context()
     print("product-architecture-claim-guard-test: ok")

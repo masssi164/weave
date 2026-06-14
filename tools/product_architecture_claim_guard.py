@@ -41,7 +41,7 @@ def guard_forbidden_claims() -> None:
     forbidden_patterns = [
         r"Weave (is|as|provides|delivers)[^.\n]*Cloud-?Act-?proof", r"CLOUD Act solution", r"legal shield", r"Weave (guarantees|provides)[^.\n]*sovereignty",
         r"Weave (guarantees|provides)[^.\n]*no leaks", r"leak prevention guarantee", r"Weave (is|as|provides|delivers)[^.\n]*compliance-certified", r"Weave (guarantees|provides)[^.\n]*full compliance",
-        r"OpenClaw is (Weave|the product|product truth)", r"possible runtime/harness adapter candidate", r"runtime/harness candidate only; not product truth", r"private request history", r"Massimo['’]s request",
+        r"OpenClaw is (Weave|the product|product truth)", r"possible runtime/harness adapter candidate", r"runtime/harness candidate only; not product truth", r"private request history", r"personal request",
     ]
     for pat in forbidden_patterns:
         if re.search(pat, combined, re.IGNORECASE):
@@ -50,10 +50,10 @@ def guard_forbidden_claims() -> None:
     glossary = text(ROOT / "docs/glossary.md")
     architecture = text(ROOT / "docs/product-architecture.md")
     required_model_phrases = [
-        "per-user OpenClaw-derived harness/agent",
+        "per-user OpenClaw-derived AI harness/runtime",
         "Weave channel",
         "Weave-provided MCP/domain tools",
-        "OpenClaw-derived clone/harness profile",
+        "WeaverRuntimeProfile",
     ]
     combined_model = "\n".join([readme, glossary, architecture])
     for phrase in required_model_phrases:
@@ -98,6 +98,20 @@ def guard_adapter_registry() -> None:
 
 
 
+
+def guard_product_components() -> None:
+    content = text(ROOT / "docs/product-architecture.md")
+    for required in [
+        "**Server** owns canonical domains",
+        "**Client** is the Flutter member app",
+        "**Control/Admin** lets admins",
+        "**Infrastructure** is used for full greenfield/base setup",
+        "**MCP server/domain tools** expose governed tools",
+        "Weaver is a separate OpenClaw-derived AI harness/runtime",
+    ]:
+        if required not in content:
+            fail(f"product architecture missing component/boundary statement: {required}")
+
 def guard_repository_boundary() -> None:
     content = text(REPO_BOUNDARY)
     for required in [
@@ -128,11 +142,37 @@ def guard_tool_registry() -> None:
             fail(f"tool-action registry row {i} uses non-wire/camelCase tool action: {action}")
 
 
+
+def guard_private_local_context() -> None:
+    forbidden = [
+        "local agreement",
+        "local orchestration note",
+        "private local convention",
+        "weave-co-leader",
+        "local orchestrator",
+    ]
+    scoped_docs = [
+        README,
+        ROOT / "docs/product-architecture.md",
+        REPO_BOUNDARY,
+        ROOT / "docs/contract-docs-index.md",
+        ROOT / "docs/glossary.md",
+        TOOLS,
+        ADAPTER,
+    ]
+    for path in scoped_docs:
+        lower = text(path).lower()
+        for term in forbidden:
+            if term in lower:
+                fail(f"product/boundary docs contain private or local orchestration context: {path.relative_to(ROOT)} -> {term}")
+
 def main() -> None:
     guard_readme()
     guard_forbidden_claims()
+    guard_private_local_context()
     guard_legal_note()
     guard_adapter_registry()
+    guard_product_components()
     guard_repository_boundary()
     guard_tool_registry()
     print("product-architecture-claim-guard: ok")

@@ -21,9 +21,17 @@ Weave enables adapter/provider exchange, readiness evidence, governance, auditab
 2. **Adapters/providers implement domains.** An adapter entry records provider/service identity, authoritative provider links, sovereignty posture, implementation state, jurisdiction/provider posture, hosting/control model, evidence/readiness, caveats, and migration/replacement path.
 3. **MCP/domain-tool actions own action semantics.** Read, write, send, delete, migration, provider-switch, approval, audit, and evidence behavior belongs to registered tool actions, not domains and not adapters.
 4. **ApprovalReceipt belongs to actions.** Risky MCP/domain-tool actions fail closed unless a valid ApprovalReceipt or explicit governed policy covers the exact action scope.
-5. **Weave and Weaver are distinct.** Weave is the product suite and governance layer. Weaver is the governed AI assistant product line inside Weave.
-6. **Weaver is OpenClaw-derived but Weave-governed.** A Weaver runtime is a per-user OpenClaw-derived clone/harness profile generated from Weave policy. Users reach it through the Weave channel; it acts through Weave-provided MCP/domain tools, which route to domains, adapters, providers, approval policy, and audit.
+5. **Weave and Weaver are distinct.** Weave is the provider-neutral collaboration suite and governance/control plane. Weaver is a separate OpenClaw-derived AI harness/runtime that users communicate with through Weave.
+6. **Weaver consumes Weave contracts.** A Weaver runtime loads a per-user `WeaverRuntimeProfile` generated from Weave policy. Users reach it through the Weave channel; it acts through Weave-provided MCP/domain tools, which route to domains, adapters, providers, approval policy, and audit.
 7. **The harness is embedded by product boundaries.** OpenClaw runtime concepts/capabilities are central to Weaver execution, but raw OpenClaw configuration, direct provider APIs, raw adapters, databases, unrestricted tools, and member-edited runtime dashboards must not bypass Weave policy, channel identity, domain tools, or registries.
+
+## Product components
+
+- **Server** owns canonical domains, domain services, abstract adapter contracts, active organization/domain configuration, and the mapping from each canonical domain to its assigned adapter/provider implementation.
+- **Client** is the Flutter member app and primary user journey surface for provider-neutral collaboration.
+- **Control/Admin** lets admins manage organizations, user groups including Weaver-facing groups, adapter assignment, policy preview/apply, diagnostics, and support-safe evidence.
+- **Infrastructure** is used for full greenfield/base setup. Existing deployments may instead attach Weave to already-running providers/adapters; self-hosted deployments use the infra layer when needed.
+- **MCP server/domain tools** expose governed tools for canonical domains. Initial tool families start with calendar and files and expand through the MCP/domain-tool action registry.
 
 ## Architecture layers
 

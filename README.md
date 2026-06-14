@@ -22,7 +22,7 @@ Weave separates the product from the implementation:
 - **Adapters and providers** implement those domains and carry posture, readiness, caveats, evidence, and migration boundaries.
 - **MCP/domain tools** are the action surface. Reads, writes, sends, deletes, provider switches, migrations, approvals, audit, and evidence belong to tool actions, not to domains or adapters by themselves.
 - **The Admin Control Room** shows provider posture, readiness, support-safe diagnostics, policy preview, and next safe actions.
-- **Weaver** is the governed AI assistant line: a per-user OpenClaw-derived harness/agent that is reached through the Weave channel and can act only through Weave-provided MCP/domain tools.
+- **Weaver** is the governed AI assistant line: a per-user OpenClaw-derived AI harness/runtime that is reached through the Weave channel and can act only through Weave-provided MCP/domain tools.
 
 ## Release notes
 
