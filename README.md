@@ -37,6 +37,16 @@ Weave separates the product from the implementation:
 - **The Admin Control Room** shows provider posture, readiness, support-safe diagnostics, policy preview, and next safe actions.
 - **Weaver** is the governed AI assistant line: a per-user OpenClaw-derived harness/agent that is reached through the Weave channel and can act only through Weave-provided MCP/domain tools.
 
+
+## Repository boundary
+
+Weave and Weaver are separate repositories with separate responsibilities:
+
+- **Weave (`masssi164/weave`) owns product truth:** domains, adapters/providers, policy, approval rules, audit/evidence, bootstrap/control-plane setup, the Weave MCP/domain-tool server, and the signed `WeaverRuntimeProfile` projection.
+- **Weaver (`masssi164/weaver`) owns runtime truth:** the OpenClaw-derived per-user runtime, member-mode lockdown, signed profile consumption, generated OpenClaw config, the `weave-chat` channel plugin, and enforcement that all actions go back through Weave MCP/domain tools.
+- The stable member entry point is the **Weave channel**. In Weave docs this means the product/channel contract and runtime-profile projection. In Weaver code this is implemented as the `weave-chat` channel plugin.
+- Provider-native channels such as Matrix, Slack, Teams, Telegram, or iMessage stay behind Weave as adapter/provider refs; they must not become normal member-editable Weaver channel config.
+
 ## Weaver
 
 Weaver is separate from Weave, but built for it.
@@ -68,6 +78,13 @@ Screenshots are checked-in product assets for current dogfood-ready paths and sh
 - [Custom Weave chat](docs/assets/marketing/03-chat-room.svg)
 - [Files and documents](docs/assets/marketing/04-files-documents.svg)
 - [Settings and readiness](docs/assets/marketing/05-settings.svg)
+
+
+## Bootstrap foundation
+
+Bootstrap is a Weave Control concern. It plans, validates, and applies the Control Plane = Weave Server + Admin Console (`server/` plus `admin-console/`) and optional provider stack according to profile and approval policy. It does not deploy the Flutter/member client and it does not configure Weaver directly. Weaver enablement is expressed through Weave policy, MCP/domain-tool grants, and signed runtime-profile projection.
+
+See [Bootstrap foundation contract](docs/bootstrap-foundation-contract.md).
 
 ## Repository layout
 

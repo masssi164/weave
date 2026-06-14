@@ -11,7 +11,8 @@ README = ROOT / "README.md"
 ADAPTER = ROOT / "docs/architecture/canonical-domain-adapter-registry.md"
 TOOLS = ROOT / "docs/architecture/mcp-domain-tool-action-registry.md"
 LEGAL = ROOT / "docs/jurisdiction-legal-risk-note.md"
-DOCS = [README, ROOT / "docs/product-architecture.md", ADAPTER, TOOLS, ROOT / "docs/glossary.md", ROOT / "docs/contract-docs-index.md", LEGAL]
+REPO_BOUNDARY = ROOT / "docs/repository-boundary.md"
+DOCS = [README, ROOT / "docs/product-architecture.md", ADAPTER, TOOLS, ROOT / "docs/glossary.md", ROOT / "docs/contract-docs-index.md", LEGAL, REPO_BOUNDARY]
 UNKNOWN = "unknown/not-yet-selected"
 
 

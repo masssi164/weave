@@ -4,7 +4,7 @@ This index classifies contract-like Weave docs so product truth, implementation 
 
 | Class | Meaning | Examples | Rules |
 | --- | --- | --- | --- |
-| Conceptual SSOT | Product architecture and vocabulary | [Product architecture](product-architecture.md), [Glossary](glossary.md) | Must not encode live personal/operator configuration or unsourced legal claims. |
+| Conceptual SSOT | Product architecture and vocabulary | [Product architecture](product-architecture.md), [Glossary](glossary.md), [Repository boundary](repository-boundary.md) | Must not encode live personal/operator configuration or unsourced legal claims. |
 | Registry contract | Central registries with required fields | [Adapter/provider registry](architecture/canonical-domain-adapter-registry.md), [MCP/domain-tool action registry](architecture/mcp-domain-tool-action-registry.md), [Domain registry v1](domain-registry-v1.md) | Missing provider links require explicit `unknown/not-yet-selected`; action authority belongs only to tool actions. |
 | Implementation contract | Repo-local product contracts used by code/tests | [Acceptance contracts](acceptance-contracts.md), `server/src/main/resources/contracts/`, `e2e/scenario_mappings.json` | Must map to executable or fixture-backed gates where feasible. |
 | Operator contract | Deployment, readiness, migration, recovery, and support evidence | [Bootstrap foundation](bootstrap-foundation-contract.md), [Provider portability](architecture/provider-portability.md), [Operator recovery limits](operator-recovery-known-limitations.md) | Must keep destructive/live actions approval-gated and support-safe. |
