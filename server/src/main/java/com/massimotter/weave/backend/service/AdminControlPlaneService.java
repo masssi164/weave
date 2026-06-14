@@ -103,7 +103,7 @@ public class AdminControlPlaneService {
             "weave-meeting-hosts", List.of("meetings.host"),
             "weave-document-editors", List.of("documents.edit"),
             "weave-decision-recorders", List.of("decisions.record"),
-            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
+            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.boards_read", "weaver.exec_disabled"));
     private static final Set<String> SIMULATION_KNOWN_CAPABILITIES = Set.of(
             "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
             "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
@@ -885,7 +885,7 @@ public class AdminControlPlaneService {
         profileCapabilities.put("member-default", List.of(
                 "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "weaver.exec_disabled"));
         profileCapabilities.put("guest-deny-default", List.of());
-        profileCapabilities.put("group:weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
+        profileCapabilities.put("group:weave-weaver-pilot", List.of("weaver.files_read", "weaver.boards_read", "weaver.exec_disabled"));
         return new CapabilityWhitelistResponse(
                 policy.denyByDefault(),
                 false,

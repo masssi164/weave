@@ -238,7 +238,7 @@ class WorkspaceCapabilityServiceTest {
         assertThat(snapshot.weaver().enabled()).isFalse();
         assertThat(snapshot.weaver().readiness()).isEqualTo(WorkspaceCapabilityReadiness.UNAVAILABLE);
         assertThat(snapshot.weaver().policyState()).isEqualTo(WorkspaceCapabilityPolicyState.DISABLED);
-        assertThat(snapshot.weaver().grantedCapabilities()).contains("weaver.files_read", "weaver.exec_disabled");
+        assertThat(snapshot.weaver().grantedCapabilities()).contains("weaver.files_read", "weaver.boards_read", "weaver.exec_disabled");
         assertThat(snapshot.weaver().grantedCapabilities()).doesNotContain("weaver.enabled");
     }
 

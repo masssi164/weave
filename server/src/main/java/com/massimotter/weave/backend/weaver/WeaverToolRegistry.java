@@ -9,6 +9,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.springframework.stereotype.Service;
 
@@ -51,6 +52,14 @@ public class WeaverToolRegistry {
                     "requiredTool", request.toolName(),
                     "auditRef", auditRef(request.toolName(), "scoped_grant_missing")));
             return blocked(request.toolName(), "scoped_grant_missing", "Tool is not included in the signed scoped grant.");
+        }
+        String inputDenial = inputDenial(request, definition);
+        if (inputDenial != null) {
+            audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), inputDenial, Map.of(
+                    "reason", inputDenial,
+                    "domain", definition.domain(),
+                    "auditRef", auditRef(request.toolName(), inputDenial)));
+            return blocked(request.toolName(), inputDenial, "Tool input was rejected by Weave policy before provider access.");
         }
         boolean approvalReceiptValidated = false;
         if (definition.writeLike()) {
@@ -114,10 +123,75 @@ public class WeaverToolRegistry {
                             "domain", tool.domain(),
                             "approvalRequirement", tool.approvalRequirement().name()))
                     .toList());
+        } else if ("boards.search_tasks".equals(definition.name())) {
+            base.put("tasks", boardSearchResults(request.input()));
         } else {
             base.put("result", "support-safe-placeholder");
         }
         return Map.copyOf(base);
+    }
+
+    private String inputDenial(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {
+        if (definition == null) {
+            return null;
+        }
+        if ("boards.search_tasks".equals(definition.name())) {
+            return boardsSearchInputDenial(request.input());
+        }
+        return null;
+    }
+
+    private String boardsSearchInputDenial(Map<String, Object> input) {
+        if (!input.keySet().stream().allMatch(key -> List.of("spaceRef", "query", "limit").contains(key))) {
+            return "overbroad_args";
+        }
+        Object spaceRef = input.get("spaceRef");
+        if (!(spaceRef instanceof String ref) || !canonicalRef(ref) || !ref.startsWith("space:")) {
+            return "invalid_args";
+        }
+        Object query = input.get("query");
+        if (!(query instanceof String queryText)) {
+            return "invalid_args";
+        }
+        String normalizedQuery = queryText.trim();
+        if (normalizedQuery.length() < 2 || normalizedQuery.length() > 80 || normalizedQuery.contains("*") || normalizedQuery.contains("..")) {
+            return "overbroad_args";
+        }
+        Object limit = input.getOrDefault("limit", 3);
+        if (!(limit instanceof Number number) || number.intValue() < 1 || number.intValue() > 5) {
+            return "overbroad_args";
+        }
+        return null;
+    }
+
+    private List<Map<String, Object>> boardSearchResults(Map<String, Object> input) {
+        String query = String.valueOf(input.getOrDefault("query", "")).trim().toLowerCase(Locale.ROOT);
+        int limit = ((Number) input.getOrDefault("limit", 3)).intValue();
+        List<Map<String, Object>> catalog = List.of(
+                Map.of(
+                        "taskRef", "board-task:WEAVE-771",
+                        "title", "Prove governed Qwen tool-call loop",
+                        "status", "in_progress",
+                        "spaceRef", "space:control-room",
+                        "supportSafeSummary", "Validates local tool call routing through Weave MCP."),
+                Map.of(
+                        "taskRef", "board-task:WEAVE-762",
+                        "title", "Preserve release blocker reconciliation",
+                        "status", "blocked",
+                        "spaceRef", "space:control-room",
+                        "supportSafeSummary", "Keeps release/customer-ready claims blocked until docs are reconciled."),
+                Map.of(
+                        "taskRef", "board-task:WEAVE-768",
+                        "title", "Weaver chat bridge answered through local Qwen",
+                        "status", "done",
+                        "spaceRef", "space:control-room",
+                        "supportSafeSummary", "Earlier slice proved channel-plane answer path without exposing provider secrets."));
+        return catalog.stream()
+                .filter(task -> task.get("title").toString().toLowerCase(Locale.ROOT).contains(query)
+                        || task.get("supportSafeSummary").toString().toLowerCase(Locale.ROOT).contains(query)
+                        || task.get("status").toString().toLowerCase(Locale.ROOT).contains(query))
+                .limit(limit)
+                .toList();
     }
 
     private String governanceDenial(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {
@@ -238,7 +312,22 @@ public class WeaverToolRegistry {
         add(registry, tool("tasks.read", "boards-tasks", WeaverToolMode.READ, "weaver.tasks_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("search.query", "weave-search", WeaverToolMode.READ, "weaver.search_query", WeaverApprovalRequirement.NONE));
         add(registry, tool("calendar.search_events", "calendar-events", WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("boards.search_tasks", "boards-tasks", WeaverToolMode.READ, "weaver.boards_read", WeaverApprovalRequirement.NONE));
+        add(registry, tool(
+                "boards.search_tasks",
+                "boards-tasks",
+                WeaverToolMode.READ,
+                "weaver.boards_read",
+                WeaverApprovalRequirement.NONE,
+                Map.of(
+                        "type", "object",
+                        "additionalProperties", false,
+                        "required", List.of("spaceRef", "query"),
+                        "properties", Map.of(
+                                "spaceRef", Map.of("type", "string", "pattern", "^space:[a-z0-9-]+$"),
+                                "query", Map.of("type", "string", "minLength", 2, "maxLength", 80),
+                                "limit", Map.of("type", "integer", "minimum", 1, "maximum", 5)),
+                        "description", "Searches support-safe board tasks within one canonical space."),
+                "Support-safe board task search fixture exposed only through Weave capability grants."));
         add(registry, tool("files.search", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("files.read", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("chat.list_threads", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
@@ -259,9 +348,8 @@ public class WeaverToolRegistry {
             WeaverToolMode mode,
             String requiredCapability,
             WeaverApprovalRequirement approvalRequirement) {
-        return new WeaverDomainToolDefinition(
+        return tool(
                 name,
-                "v1",
                 domain,
                 mode,
                 requiredCapability,
@@ -270,7 +358,26 @@ public class WeaverToolRegistry {
                         "type", "object",
                         "additionalProperties", false,
                         "description", "Validated by the Weave " + domain + " facade before provider access."),
-                List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
                 "Weaver domain tool exposed only through Weave capability grants.");
+    }
+
+    private WeaverDomainToolDefinition tool(
+            String name,
+            String domain,
+            WeaverToolMode mode,
+            String requiredCapability,
+            WeaverApprovalRequirement approvalRequirement,
+            Map<String, Object> inputSchema,
+            String supportSafeDescription) {
+        return new WeaverDomainToolDefinition(
+                name,
+                "v1",
+                domain,
+                mode,
+                requiredCapability,
+                approvalRequirement,
+                inputSchema,
+                List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
+                supportSafeDescription);
     }
 }

@@ -289,7 +289,7 @@ class ChatFacadeServiceTest {
                 ".weaver/agents",
                 "weave-runtime-net",
                 List.of("weave-weaver-runtime"),
-                List.of("weaver.files_read", "weaver.exec_disabled"),
+                List.of("weaver.files_read", "weaver.boards_read", "weaver.exec_disabled"),
                 List.of("weave-chat"),
                 List.of("message.send"),
                 false,

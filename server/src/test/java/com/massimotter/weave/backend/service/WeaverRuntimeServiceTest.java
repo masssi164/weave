@@ -82,9 +82,9 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.workspacePath()).startsWith("/var/lib/weave/weaver/");
         assertThat(profile.isolatedAgentDirectory()).isEqualTo(".weaver/agents");
         assertThat(profile.dockerNetworkMode()).isEqualTo("none");
-        assertThat(profile.allowedCapabilities()).containsExactly("weaver.files_read", "weaver.exec_disabled");
-        assertThat(profile.pluginAllowlist()).containsExactly("weave-files-readonly");
-        assertThat(profile.toolAllowlist()).containsExactly("files.read");
+        assertThat(profile.allowedCapabilities()).containsExactly("weaver.files_read", "weaver.boards_read", "weaver.exec_disabled");
+        assertThat(profile.pluginAllowlist()).containsExactly("weave-files-readonly", "weave-boards-readonly");
+        assertThat(profile.toolAllowlist()).containsExactly("files.read", "boards.search_tasks");
         assertThat(profile.execEnabled()).isFalse();
         assertThat(profile.elevatedEnabled()).isFalse();
         assertThat(profile.auditRequired()).isTrue();
@@ -164,10 +164,53 @@ class WeaverRuntimeServiceTest {
         assertThat(serverProjection.toString())
                 .contains("weave-domain-tools", "routingPlaneSeparated=true", "channels.weave-chat")
                 .doesNotContain("Bearer ", "openclaw.json");
-        assertThat(tools).extracting(tool -> tool.get("name")).containsExactly("files.read");
+        assertThat(tools).extracting(tool -> tool.get("name")).containsExactly("files.read", "boards.search_tasks");
         assertThat(invocation.status()).isEqualTo("ok");
         assertThat(invocation.redactedResult()).containsEntry("rawProviderPayload", "redacted");
         assertThat(invocation.redactedResult().get("canonicalRefs").toString()).contains("space:control-room");
+
+        var boardSearch = service.invokeMcpTool(
+                member,
+                "weave-domain-tools",
+                "boards.search_tasks",
+                new com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest(
+                        profile.runtimeProfileHash(),
+                        Map.of("spaceRef", "space:control-room", "query", "tool", "limit", 2),
+                        null));
+        assertThat(boardSearch.status()).isEqualTo("ok");
+        assertThat(boardSearch.redactedResult().get("tasks").toString())
+                .contains("board-task:WEAVE-771")
+                .doesNotContain("providerRoom", "Bearer ");
+    }
+
+    @Test
+    void deniesCrossUserProfileHashAndWriteToolOutsideScopedRuntimeProfile() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        Jwt otherMember = jwt("other@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var active = service.profileFor(member);
+        var crossUser = service.invokeMcpTool(
+                otherMember,
+                "weave-domain-tools",
+                "boards.search_tasks",
+                new com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest(
+                        active.runtimeProfileHash(),
+                        Map.of("spaceRef", "space:control-room", "query", "tool"),
+                        null));
+        var unsafeWrite = service.invokeMcpTool(
+                member,
+                "weave-domain-tools",
+                "boards.comment",
+                new com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest(
+                        active.runtimeProfileHash(),
+                        Map.of("spaceRef", "space:control-room", "boardTaskRef", "board-task:WEAVE-771", "body", "ship it"),
+                        null));
+
+        assertThat(crossUser.status()).isEqualTo("runtime_profile_fetch_denied");
+        assertThat(unsafeWrite.status()).isEqualTo("blocked");
+        assertThat(unsafeWrite.approvalRequired()).isFalse();
+        assertThat(unsafeWrite.redactedResult()).containsEntry("auditRef", "audit://weaver-tool/boards.comment/blocked");
     }
 
     @Test
@@ -387,9 +430,9 @@ class WeaverRuntimeServiceTest {
                 null,
                 null,
                 List.of("weave-weaver-runtime"),
-                List.of("weaver.files_read", "weaver.exec_disabled"),
-                List.of("weave-files-readonly"),
-                List.of("files.read"),
+                List.of("weaver.files_read", "weaver.boards_read", "weaver.exec_disabled"),
+                List.of("weave-files-readonly", "weave-boards-readonly"),
+                List.of("files.read", "boards.search_tasks"),
                 false,
                 false,
                 true,

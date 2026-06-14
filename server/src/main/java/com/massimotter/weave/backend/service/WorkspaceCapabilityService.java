@@ -74,7 +74,7 @@ public class WorkspaceCapabilityService {
             "weave-meeting-hosts", List.of("meetings.host"),
             "weave-document-editors", List.of("documents.edit"),
             "weave-decision-recorders", List.of("decisions.record"),
-            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
+            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.boards_read", "weaver.exec_disabled"));
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties weaveSecurityProperties;
@@ -193,7 +193,7 @@ public class WorkspaceCapabilityService {
                         workspaceCapabilityProperties.weaver(),
                         WorkspaceCapabilityReadiness.UNAVAILABLE,
                         "Weaver",
-                        List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
+                        List.of("weaver.enabled", "weaver.files_read", "weaver.boards_read", "weaver.exec_disabled"),
                         policy,
                         "Weaver is disabled by default until an admin enables a governed runtime profile."));
     }

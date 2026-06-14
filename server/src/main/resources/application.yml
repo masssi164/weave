@@ -118,9 +118,9 @@ weave:
       isolated-agent-directory: ${WEAVE_WEAVER_RUNTIME_AGENT_DIRECTORY:.weaver/agents}
       docker-network-mode: ${WEAVE_WEAVER_RUNTIME_DOCKER_NETWORK_MODE:none}
       enabled-groups: ${WEAVE_WEAVER_RUNTIME_ENABLED_GROUPS:weave-weaver-runtime}
-      allowed-capabilities: ${WEAVE_WEAVER_RUNTIME_ALLOWED_CAPABILITIES:weaver.files_read,weaver.exec_disabled}
-      plugin-allowlist: ${WEAVE_WEAVER_RUNTIME_PLUGIN_ALLOWLIST:weave-files-readonly}
-      tool-allowlist: ${WEAVE_WEAVER_RUNTIME_TOOL_ALLOWLIST:files.read}
+      allowed-capabilities: ${WEAVE_WEAVER_RUNTIME_ALLOWED_CAPABILITIES:weaver.files_read,weaver.boards_read,weaver.exec_disabled}
+      plugin-allowlist: ${WEAVE_WEAVER_RUNTIME_PLUGIN_ALLOWLIST:weave-files-readonly,weave-boards-readonly}
+      tool-allowlist: ${WEAVE_WEAVER_RUNTIME_TOOL_ALLOWLIST:files.read,boards.search_tasks}
       exec-enabled: ${WEAVE_WEAVER_RUNTIME_EXEC_ENABLED:false}
       elevated-enabled: ${WEAVE_WEAVER_RUNTIME_ELEVATED_ENABLED:false}
       audit-required: true

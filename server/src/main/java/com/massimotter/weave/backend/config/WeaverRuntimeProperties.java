@@ -27,9 +27,9 @@ public record WeaverRuntimeProperties(
         isolatedAgentDirectory = hasText(isolatedAgentDirectory) ? isolatedAgentDirectory : ".weaver/agents";
         dockerNetworkMode = hasText(dockerNetworkMode) ? dockerNetworkMode : "none";
         enabledGroups = normalize(enabledGroups, List.of("weave-weaver-runtime"));
-        allowedCapabilities = normalize(allowedCapabilities, List.of("weaver.files_read", "weaver.exec_disabled"));
-        pluginAllowlist = normalize(pluginAllowlist, List.of("weave-files-readonly"));
-        toolAllowlist = normalize(toolAllowlist, List.of("files.read"));
+        allowedCapabilities = normalize(allowedCapabilities, List.of("weaver.files_read", "weaver.boards_read", "weaver.exec_disabled"));
+        pluginAllowlist = normalize(pluginAllowlist, List.of("weave-files-readonly", "weave-boards-readonly"));
+        toolAllowlist = normalize(toolAllowlist, List.of("files.read", "boards.search_tasks"));
         // Even when an admin enables the runtime, audit remains required by default.
         auditRequired = true;
     }

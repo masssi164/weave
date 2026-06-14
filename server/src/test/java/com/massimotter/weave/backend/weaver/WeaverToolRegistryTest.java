@@ -192,7 +192,8 @@ class WeaverToolRegistryTest {
                 "weaver.contacts_read",
                 "weaver.chat_read",
                 "weaver.tasks_read",
-                "weaver.search_query"));
+                "weaver.search_query",
+                "weaver.boards_read"));
 
         assertThat(tools).extracting(WeaverDomainToolDefinition::name).contains(
                 "model.chat",
@@ -204,7 +205,8 @@ class WeaverToolRegistryTest {
                 "contacts.read",
                 "chat.read",
                 "tasks.read",
-                "search.query");
+                "search.query",
+                "boards.search_tasks");
         assertThat(tools.stream().filter(tool -> tool.name().endsWith(".read") || tool.name().equals("model.chat") || tool.name().equals("audit.query") || tool.name().equals("search.query")))
                 .allSatisfy(tool -> {
                     assertThat(tool.mode()).isEqualTo(WeaverToolMode.READ);
@@ -228,6 +230,47 @@ class WeaverToolRegistryTest {
         assertThat(unknown.status()).isEqualTo("blocked");
         assertThat(unknown.supportSafeMessage()).doesNotContain("do not leak");
         assertThat(audit.events().get(0).payload()).containsEntry("reason", "not_granted");
+    }
+
+    @Test
+    void deniesOverbroadBoardSearchArgsAndReturnsSupportSafeFixtureForScopedReadTool() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var denied = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.search_tasks",
+                "user:abc123",
+                "sha256:boardsargs000000000000000000000000000000000000000000000000",
+                "user:abc123",
+                signature(),
+                false,
+                future(),
+                true,
+                List.of("weaver.boards_read"),
+                List.of("boards.search_tasks"),
+                Map.of("spaceRef", "space:control-room", "query", "tool*", "limit", 50),
+                null));
+
+        assertThat(denied.status()).isEqualTo("overbroad_args");
+        assertThat(audit.events().get(0).payload()).containsEntry("decision", "overbroad_args");
+
+        var allowed = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.search_tasks",
+                "user:abc123",
+                "sha256:boardsok00000000000000000000000000000000000000000000000000",
+                "user:abc123",
+                signature(),
+                false,
+                future(),
+                true,
+                List.of("weaver.boards_read"),
+                List.of("boards.search_tasks"),
+                Map.of("spaceRef", "space:control-room", "query", "tool", "limit", 2),
+                null));
+
+        assertThat(allowed.status()).isEqualTo("ok");
+        assertThat(allowed.redactedResult().get("tasks").toString()).contains("board-task:WEAVE-771");
+        assertThat(allowed.redactedResult().toString()).doesNotContain("Bearer ", "providerRoom");
     }
 
     private WeaverToolInvocationRequest governedRequest(

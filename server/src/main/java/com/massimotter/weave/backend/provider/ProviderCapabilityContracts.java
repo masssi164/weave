@@ -113,7 +113,7 @@ public final class ProviderCapabilityContracts {
                     "export support-safe readiness/audit records; delete follows audit retention policy",
                     "admin tooling replacement requires policy/readiness/audit dry-run and delegated-scope review")),
             Map.entry("weaver", new Definition(
-                    List.of("weaver.enabled", "weaver.files_read", "weaver.exec_disabled"),
+                    List.of("weaver.enabled", "weaver.files_read", "weaver.boards_read", "weaver.exec_disabled"),
                     List.of("openclaw-derived-profile"),
                     List.of(),
                     List.of("WeaverRuntimeProfile", "WeaverRuntimeInstance", "WeaverUserWorkspace", "WeaverToolGrant", "WeaverApprovalReceipt", "WeaverAuditEvent", "WeaverCustomizationProfile"),
