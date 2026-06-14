@@ -9,7 +9,7 @@ Wire names use existing executable snake_case domain-tool names where they alrea
 | Identity/admin | identity.lookup_actor | read | low | not required by default policy | actor lookup audit ref | actor id, org id, result state | keycloak-oidc |
 | Identity/admin | identity.change_role | write | high | required unless pre-approved admin policy covers exact scope | role-change evidence id | actor id, target id, role diff summary | keycloak-oidc |
 | Chat | chat.list_threads | read | low | not required by default policy | query audit ref | conversation ids and state only | matrix-synapse or selected chat adapter |
-| Chat | chat.send_message | external_send/write | high | required for Weaver-initiated sends unless explicit governed policy covers exact channel | message action evidence id | redacted body summary, refs, recipients | matrix-synapse or selected chat adapter |
+| Chat | chat.send_message | external_send/write | high | required for Weaver-initiated domain sends unless explicit governed policy covers exact channel; not the user-to-Weaver channel transport | message action evidence id | redacted body summary, refs, recipients | Weave Chat domain facade / selected chat adapter |
 | Chat | chat.switch_provider | provider_switch/migration | high | required | switch plan, dry-run/apply evidence | provider refs, lossy-field summary | matrix-synapse, zulip-candidate |
 | Files/documents | files.search | read | low | not required by default policy | file search audit ref | file refs, names-present flags, space refs, not raw content | selected files adapter |
 | Files/documents | files.read | read | low | not required by default policy | file metadata audit ref | file ref, owner/classification flags, not raw content | selected files adapter |
