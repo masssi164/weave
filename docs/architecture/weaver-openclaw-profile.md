@@ -11,7 +11,7 @@ Weaver is the optional personal-assistant product line inside Weave. Sprint 8 de
 
 ## Runtime profile contract
 
-The signed `WeaverRuntimeProfile` is the single source consumed by the OpenClaw-derived Weaver runtime. The runtime may render an internal `openclaw.json`, channel/plugin entries, MCP server entries, tool filters, model defaults, and sandbox settings, but those files are generated implementation artifacts. Normal members must not edit them or use the raw OpenClaw dashboard/config wizard to bypass Weave policy.
+The signed `WeaverRuntimeProfile` is the single source consumed by the OpenClaw-derived Weaver runtime. The runtime may render an internal `openclaw.json`, channel/plugin entries, MCP server entries, tool filters, model defaults, and sandbox settings, but those files are generated implementation artifacts. Normal members must not edit them or use the raw OpenClaw dashboard/config wizard to bypass Weave policy. Channel/plugin entries and MCP server entries are different planes: `channels.weave-chat` is the user-to-agent channel plugin, while MCP entries are tool servers the agent may call after an OpenClaw session turn starts.
 
 A Weaver runtime profile must be generated per user and per organization. The profile contains only support-safe, auditable grants.
 
@@ -41,6 +41,28 @@ Minimum profile fields for the next implementation slice:
 
 Admin Chat provider changes are provider migrations, not member adapter switches: Weave checks readiness/migration, binds credentials through the Credential Broker, updates backend Chat-domain routing and providerRefs, generates RuntimeProfile vNext while preserving `channels.weave-chat`, reloads or restarts the stable channel/runtime when needed, and keeps member UX inside Weave.
 
+## Channel and MCP planes
+
+```mermaid
+flowchart LR
+  subgraph Channel["Messaging / channel plane"]
+    WeaveChat["Weave UI/API"] --> Plugin["Weaver weave-chat ChannelPlugin"]
+    Plugin --> Session["OpenClaw session and agent run"]
+    Session --> Plugin --> Reply["Weave Chat reply / approval hint"]
+  end
+  subgraph MCP["Tool / MCP plane"]
+    Agent["Weaver agent / LLM"] --> RuntimeProfile["RuntimeProfile MCP client config"]
+    RuntimeProfile --> Server["Weave MCP server"]
+    Server --> Domain["Weave domain APIs, policy, audit"]
+    Domain --> Server --> Agent
+  end
+  Session -. "optional same-turn tool call" .-> Agent
+```
+
+Screen-reader description: a member message enters through Weave UI/API and the Weaver-owned `weave-chat` OpenClaw ChannelPlugin, reaches OpenClaw session routing and the agent run, then returns through the same plugin as a reply or approval hint. Separately, the running Weaver agent may use MCP client configuration from the RuntimeProfile to call the Weave MCP server, which delegates to Weave domain APIs under policy and audit. The planes can be used in one turn, but MCP `chat.send_message` is not the inbound user-to-Weaver channel.
+
+OpenClaw references for this boundary: message flow is inbound message to routing/session to agent run to outbound replies; channel plugins own config, security, pairing, session grammar, outbound delivery, threading, and approval capability presentation while OpenClaw core owns the shared `message` tool and dispatch; plugin registration distinguishes `api.registerChannel(...)` from `api.registerTool(...)`; `openclaw mcp serve` is a bridge exposing routed channel conversations over MCP and is distinct from implementing a normal `weave-chat` channel plugin; ACP plugin/core MCP bridges and custom `mcpServers` are explicit tool-server configuration, not channel transport; `tools.allow`/`tools.deny` policy is separate from channels.
+
 ## Per-user runtime container lifecycle
 
 The infrastructure lifecycle contract is defined in `infra/docs/weaver-runtime-lifecycle.md` and the executable static projection is `infra/weave-workspace/weaver-runtime-lifecycle.contract.json`. One active user/trust boundary maps to one active runtime context/container. The trust boundary is the organization, immutable subject, effective capability profile, signed `runtimeProfileHash`, and revocation generation; another browser session for the same boundary attaches to that context instead of creating a second container.
@@ -68,3 +90,12 @@ Weaver runtime execution stays blocked until implementation proves:
 - audit and support bundles are redacted and reviewer-verifiable.
 
 Until then, normal members should not see a half-built assistant surface. Admin/operator views may show readiness blockers and next actions.
+
+## Open implementation decisions before code
+
+Track the remaining work in owning issues instead of duplicating one checklist across every document:
+
+- Weaver channel work owns `channels.weave-chat`, the message envelope, session mapping, idempotency, approval hint rendering, failure UX, and channel-only tests.
+- Weave MCP work owns `mcp.servers.weave-domain-tools`, tool manifest/discovery/invoke, CredentialRef handling, ApprovalReceipt policy, domain API/audit boundaries, and MCP-only tests.
+- E2E evidence owns the separated channel-only, MCP-only, and combined same-turn proof matrix, including denial, duplicate, failure, and tenant-isolation cases.
+- #762 remains the release/customer-ready blocker for manual accessibility evidence.
