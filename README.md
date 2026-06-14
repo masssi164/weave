@@ -1,5 +1,7 @@
 # Weave Monorepo
 
+Weave lets organizations own their collaboration layer.
+
 Weave gives organizations a collaboration layer that stays understandable and controllable when legal, jurisdictional, contractual, operational, cost, security, governance, or provider requirements change.
 
 It combines stable member-facing collaboration with admin/operator control over provider posture, adapter exchange, evidence, readiness, audit, and governed AI assistance.
@@ -99,6 +101,7 @@ Read next:
 - [Glossary](docs/glossary.md)
 - [Product architecture SSOT](docs/product-architecture.md)
 - [Contract and docs index](docs/contract-docs-index.md)
+- [v0.1 golden path](docs/v0.1-golden-path.md)
 - [Release notes](docs/release-notes/index.md)
 
 
