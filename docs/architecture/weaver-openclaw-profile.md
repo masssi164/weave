@@ -95,7 +95,7 @@ Until then, normal members should not see a half-built assistant surface. Admin/
 
 Track the remaining work in owning issues instead of duplicating one checklist across every document:
 
-- Weaver channel work owns `channels.weave-chat`, the message envelope, session mapping, idempotency, approval hint rendering, failure UX, and channel-only tests.
-- Weave MCP work owns `mcp.servers.weave-domain-tools`, tool manifest/discovery/invoke, CredentialRef handling, ApprovalReceipt policy, domain API/audit boundaries, and MCP-only tests.
-- E2E evidence owns the separated channel-only, MCP-only, and combined same-turn proof matrix, including denial, duplicate, failure, and tenant-isolation cases.
-- #762 remains the release/customer-ready blocker for manual accessibility evidence.
+- Weaver channel work (`masssi164/weaver#20`) owns `channels.weave-chat`, the message envelope, session mapping, idempotency, approval hint rendering, failure UX, and channel-only tests.
+- Weave MCP work (`#764`) owns `mcp.servers.weave-domain-tools`, tool manifest/discovery/invoke, CredentialRef handling, ApprovalReceipt policy, domain API/audit boundaries, and MCP-only tests.
+- E2E evidence (`#765`) owns the separated channel-only, MCP-only, and combined same-turn proof matrix, including denial, duplicate, failure, and tenant-isolation cases.
+- `#762` remains the release/customer-ready blocker for manual accessibility evidence.

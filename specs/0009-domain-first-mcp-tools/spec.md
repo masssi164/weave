@@ -69,13 +69,13 @@ Screen-reader description: the messaging plane starts with a member message in W
 
 - Do not implement user-to-agent messaging through MCP `chat.send_message` or any MCP conversation bridge.
 - Do not expose raw provider channels, raw provider tools, secrets, or OpenClaw dashboard/config surfaces to normal members.
-- Do not claim release/customer readiness while the manual assistive-technology release blocker remains open.
+- Do not claim release/customer readiness while the manual assistive-technology release blocker (`#762`) remains open.
 
 ## Spike plan
 
-1. **Weaver `weave-chat` ChannelPlugin spike**: implement and validate the OpenClaw channel plugin SDK contract for inbound Weave Chat events, session grammar, outbound replies, threading, and approval hints. MCP is out of scope except for tools an agent might call after the channel starts a turn.
-2. **Weave MCP server spike**: implement and validate the Weave domain-tool server exposed to Weaver through RuntimeProfile/custom MCP server config. It has no user messaging semantics.
-3. **Separated E2E proof spike**: prove a user message through `weave-chat` triggers a Weaver reply, and optionally prove a same-turn Weave MCP tool call with approval/policy/audit. Tests must assert channel roundtrip and MCP tool execution as separate evidence.
+1. **Weaver `weave-chat` ChannelPlugin spike** (`masssi164/weaver#20`): implement and validate the OpenClaw channel plugin SDK contract for inbound Weave Chat events, session grammar, outbound replies, threading, and approval hints. MCP is out of scope except for tools an agent might call after the channel starts a turn.
+2. **Weave MCP server spike** (`#764`): implement and validate the Weave domain-tool server exposed to Weaver through RuntimeProfile/custom MCP server config. It has no user messaging semantics.
+3. **Separated E2E proof spike** (`#765`): prove a user message through `weave-chat` triggers a Weaver reply, and optionally prove a same-turn Weave MCP tool call with approval/policy/audit. Tests must assert channel roundtrip and MCP tool execution as separate evidence.
 
 ## Acceptance
 
