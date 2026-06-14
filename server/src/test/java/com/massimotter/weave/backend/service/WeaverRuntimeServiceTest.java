@@ -6,6 +6,7 @@ import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -94,12 +95,18 @@ class WeaverRuntimeServiceTest {
                 .containsEntry("runtimeTokenExpiresAt", profile.supportSafeProfileReceipt().get("runtimeTokenExpiresAt"))
                 .containsEntry("rawProviderChannelConfigsRendered", false)
                 .containsEntry("memberMaySwitchProviderAdapters", false)
-                .containsKey("mcpServerBindings");
+                .containsEntry("mcpServersProjectedSeparately", true)
+                .doesNotContainKeys("mcp", "mcpServerBindings");
         assertThat(profile.channelProjection().get("runtimeProfileFetch").toString())
                 .contains("fetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
                 .contains("signatureRequired=true", "revocationChecked=true", "rawProfileBodyReturnedToMembers=false");
-        assertThat(profile.channelProjection().get("mcpServerBindings").toString())
-                .contains("weave-domain-tools", "streamable-http", "calendar.search_events", "boards.comment")
+        assertThat(profile.mcpProjection())
+                .containsEntry("supportSafe", true)
+                .containsEntry("denyByDefault", true)
+                .containsEntry("channelPlaneRef", "channels.weave-chat")
+                .containsEntry("memberMayMutateServerBindings", false);
+        assertThat(profile.mcpProjection().get("servers").toString())
+                .contains("weave-domain-tools", "streamable-http")
                 .contains("runtimeProfileFetchRef=weave-runtime-profile://" + profile.runtimeProfileHash())
                 .contains("runtimeTokenRef=credentialref://weave/runtime/short-lived/")
                 .doesNotContain("Bearer ", "openclaw.json", "rawMcpServerConfig");
@@ -138,6 +145,29 @@ class WeaverRuntimeServiceTest {
                 .containsEntry("decision", "generated");
         assertThat(audit.events().get(0).payload()).containsEntry("supportSafe", true);
         assertThat(audit.events().get(0).payload()).containsEntry("execEnabled", false);
+    }
+
+    @Test
+    void exposesSeparateMcpProjectionAndSafeReadOnlyFixtureTool() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var profile = service.profileFor(member);
+        var serverProjection = service.mcpServerProjection(member, profile.runtimeProfileHash(), "weave-domain-tools");
+        var tools = service.discoverMcpTools(member, profile.runtimeProfileHash(), "weave-domain-tools");
+        var invocation = service.invokeMcpTool(
+                member,
+                "weave-domain-tools",
+                "files.read",
+                new com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest(profile.runtimeProfileHash(), Map.of("spaceRef", "space:control-room"), null));
+
+        assertThat(serverProjection.toString())
+                .contains("weave-domain-tools", "routingPlaneSeparated=true", "channels.weave-chat")
+                .doesNotContain("Bearer ", "openclaw.json");
+        assertThat(tools).extracting(tool -> tool.get("name")).containsExactly("files.read");
+        assertThat(invocation.status()).isEqualTo("ok");
+        assertThat(invocation.redactedResult()).containsEntry("rawProviderPayload", "redacted");
+        assertThat(invocation.redactedResult().get("canonicalRefs").toString()).contains("space:control-room");
     }
 
     @Test
@@ -345,7 +375,7 @@ class WeaverRuntimeServiceTest {
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 capabilities,
                 runtimeProperties);
-        return new WeaverRuntimeService(capabilityService, capabilities, runtimeProperties, audit);
+        return new WeaverRuntimeService(capabilityService, capabilities, runtimeProperties, audit, new WeaverToolRegistry(audit));
     }
 
     private WeaverRuntimeProperties runtimeProperties(boolean enabled) {

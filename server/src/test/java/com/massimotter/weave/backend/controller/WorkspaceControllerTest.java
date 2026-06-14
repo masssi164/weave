@@ -14,6 +14,7 @@ import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
 import com.massimotter.weave.backend.service.WeaverRuntimeService;
+import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -46,6 +47,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         WorkspaceReleaseReadinessService.class,
         WorkspaceHomeService.class,
         WeaverRuntimeService.class,
+        WeaverToolRegistry.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class
