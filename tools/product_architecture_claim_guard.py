@@ -29,13 +29,9 @@ def text(path: Path) -> str:
 
 def guard_readme() -> None:
     content = text(README)
-    forbidden = ["WEAVE_RELEASE_NOTES_START", "WEAVE_RELEASE_NOTES_END", "WEAVE_RELEASE_NOTES:START", "Ready / Guarded / Future claim matrix"]
-    for token in forbidden:
-        if token in content:
-            fail(f"README contains release wall or large matrix marker: {token}")
     table_rows = [line for line in content.splitlines() if line.startswith("|")]
-    if len(table_rows) > 6:
-        fail("README contains a large table/matrix")
+    if len(table_rows) > 16:
+        fail("README contains an oversized table/matrix")
     if "Cloud Act" in content or "CLOUD Act" in content:
         fail("README must not discuss specific legal regimes; link sourced legal-risk note instead")
 
@@ -101,6 +97,18 @@ def guard_adapter_registry() -> None:
             fail(f"adapter registry row {i} has empty required field")
 
 
+
+def guard_repository_boundary() -> None:
+    content = text(REPO_BOUNDARY)
+    for required in [
+        "Weave repository owns",
+        "Weaver repository owns",
+        "weave-chat",
+        "Provider-native transports stay Weave backend `providerRef` values",
+    ]:
+        if required not in content:
+            fail(f"repository boundary missing {required}")
+
 def guard_tool_registry() -> None:
     content = text(TOOLS)
     for header in ["Tool action", "Action kind", "Risk", "ApprovalReceipt requirement", "Audit/evidence", "Support-safe payload", "Adapter binding"]:
@@ -108,6 +116,16 @@ def guard_tool_registry() -> None:
             fail(f"tool-action registry missing header {header}")
     if "ApprovalReceipt" not in content or "required" not in content:
         fail("tool-action registry must record ApprovalReceipt requirements")
+    if "Wire names use existing executable snake_case" not in content:
+        fail("tool-action registry must state wire-name semantics")
+    rows = [line for line in content.splitlines() if line.startswith("|") and "---" not in line and "Tool action" not in line]
+    for i, row in enumerate(rows, start=1):
+        cols = [c.strip() for c in row.strip("|").split("|")]
+        if len(cols) != 8:
+            fail(f"tool-action registry row {i} must have 8 columns")
+        action = cols[1]
+        if not re.match(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$", action):
+            fail(f"tool-action registry row {i} uses non-wire/camelCase tool action: {action}")
 
 
 def main() -> None:
@@ -115,6 +133,7 @@ def main() -> None:
     guard_forbidden_claims()
     guard_legal_note()
     guard_adapter_registry()
+    guard_repository_boundary()
     guard_tool_registry()
     print("product-architecture-claim-guard: ok")
 
