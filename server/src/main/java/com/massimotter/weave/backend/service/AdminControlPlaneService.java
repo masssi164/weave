@@ -90,27 +90,6 @@ public class AdminControlPlaneService {
             "disabled",
             "degraded",
             "policy-blocked");
-    private static final Set<String> SIMULATION_ROLES = Set.of("owner", "admin", "operator", "member", "guest");
-    private static final Set<String> SIMULATION_GROUPS = Set.of(
-            "weave-calendar-editors",
-            "weave-board-editors",
-            "weave-meeting-hosts",
-            "weave-document-editors",
-            "weave-decision-recorders",
-            "weave-weaver-pilot");
-    private static final Map<String, List<String>> SIMULATION_GROUP_CAPABILITIES = Map.of(
-            "weave-calendar-editors", List.of("calendar.manage_events"),
-            "weave-board-editors", List.of("boards.update_task"),
-            "weave-meeting-hosts", List.of("meetings.host"),
-            "weave-document-editors", List.of("documents.edit"),
-            "weave-decision-recorders", List.of("decisions.record"),
-            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
-    private static final Set<String> SIMULATION_KNOWN_CAPABILITIES = Set.of(
-            "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
-            "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
-            "decisions.read", "decisions.record", "manuals.read", "manuals.admin", "release_evidence.read", "release_evidence.manage",
-            "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure", "operator.support_bundle.create",
-            "weaver.enabled", "weaver.files_read", "weaver.exec_disabled");
     private static final int MAX_BOOTSTRAP_ADMIN_KEYS = 25;
     private static final int MAX_BOOTSTRAP_ADMIN_KEY_LENGTH = MAX_PRIMARY_IDENTITY_KEY_LENGTH;
     private static final Pattern PRIMARY_IDENTITY_KEY_REGEX = Pattern.compile(PRIMARY_IDENTITY_KEY_PATTERN);
@@ -119,6 +98,7 @@ public class AdminControlPlaneService {
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ProviderSelectionService providerSelectionService;
     private final ProviderReplacementDryRunService providerReplacementDryRunService;
+    private final EffectivePolicySimulationService effectivePolicySimulationService;
     private final OrganizationBootstrapRepository organizationBootstrapRepository;
     private final AuditEventPublisher auditEventPublisher;
     private final List<IdentityRealmProvider> identityRealmProviders;
@@ -133,6 +113,7 @@ public class AdminControlPlaneService {
             WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionService providerSelectionService,
             ProviderReplacementDryRunService providerReplacementDryRunService,
+            EffectivePolicySimulationService effectivePolicySimulationService,
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
             List<IdentityRealmProvider> identityRealmProviders,
@@ -145,6 +126,7 @@ public class AdminControlPlaneService {
         this.providerSelectionService = providerSelectionService;
         this.clock = Clock.systemUTC();
         this.providerReplacementDryRunService = providerReplacementDryRunService;
+        this.effectivePolicySimulationService = effectivePolicySimulationService;
         this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
         this.identityRealmProviders = identityRealmProviders == null || identityRealmProviders.isEmpty()
@@ -165,7 +147,7 @@ public class AdminControlPlaneService {
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
             Clock clock) {
-        this(providerRegistry, workspaceCapabilityService, new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock), null, organizationBootstrapRepository, auditEventPublisher,
+        this(providerRegistry, workspaceCapabilityService, new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock), null, null, organizationBootstrapRepository, auditEventPublisher,
                 List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock);
     }
 
@@ -174,6 +156,7 @@ public class AdminControlPlaneService {
             WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionService providerSelectionService,
             ProviderReplacementDryRunService providerReplacementDryRunService,
+            EffectivePolicySimulationService effectivePolicySimulationService,
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
             List<IdentityRealmProvider> identityRealmProviders,
@@ -188,6 +171,9 @@ public class AdminControlPlaneService {
         this.providerReplacementDryRunService = providerReplacementDryRunService == null
                 ? new ProviderReplacementDryRunService(providerSelectionService, auditEventPublisher, this.clock)
                 : providerReplacementDryRunService;
+        this.effectivePolicySimulationService = effectivePolicySimulationService == null
+                ? new EffectivePolicySimulationService(auditEventPublisher, this.clock)
+                : effectivePolicySimulationService;
         this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
         this.identityRealmProviders = identityRealmProviders == null || identityRealmProviders.isEmpty()
@@ -215,7 +201,7 @@ public class AdminControlPlaneService {
             List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
             IdentityRealmApplyProperties identityRealmApplyProperties,
             Clock clock) {
-        this(providerRegistry, workspaceCapabilityService, new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock), null, organizationBootstrapRepository, auditEventPublisher,
+        this(providerRegistry, workspaceCapabilityService, new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock), null, null, organizationBootstrapRepository, auditEventPublisher,
                 identityRealmProviders, identityRealmEvidenceRepository, identityRealmLiveApplyAdapters, identityRealmApplyProperties, clock);
     }
 
@@ -313,79 +299,7 @@ public class AdminControlPlaneService {
 
     public EffectivePolicySimulationResponse simulateEffectivePolicy(EffectivePolicySimulationRequest request, Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "effective-policy-simulation");
-        List<String> deniedInputs = Stream.of(
-                        deniedInputCodes(request == null ? null : request.roles(), "role", SIMULATION_ROLES),
-                        deniedInputCodes(request == null ? null : request.groups(), "group", SIMULATION_GROUPS),
-                        deniedInputCodes(request == null ? null : request.requestedCapabilities(), "capability", SIMULATION_KNOWN_CAPABILITIES))
-                .flatMap(List::stream)
-                .distinct()
-                .sorted()
-                .toList();
-        List<String> roles = normalizedKnownValues(request == null ? null : request.roles(), SIMULATION_ROLES);
-        List<String> groups = normalizedKnownValues(request == null ? null : request.groups(), SIMULATION_GROUPS);
-        List<String> requestedCapabilities = normalizedKnownValues(request == null ? null : request.requestedCapabilities(), SIMULATION_KNOWN_CAPABILITIES);
-        boolean failClosed = !deniedInputs.isEmpty();
-        LinkedHashSet<String> grants = new LinkedHashSet<>();
-        if (!failClosed) {
-            if (roles.stream().anyMatch(role -> role.equals("owner") || role.equals("admin"))) {
-                grants.addAll(List.of(
-                        "chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "calendar.manage_events",
-                        "boards.read", "boards.update_task", "meetings.join", "meetings.host", "documents.view", "documents.edit",
-                        "decisions.read", "decisions.record", "manuals.read", "manuals.admin", "release_evidence.read", "release_evidence.manage",
-                        "admin_control_plane.readiness_read", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"));
-            }
-            if (roles.contains("operator")) {
-                grants.addAll(List.of("admin_control_plane.readiness_read", "operator.support_bundle.create", "release_evidence.read", "manuals.admin", "manuals.read", "weaver.exec_disabled"));
-            }
-            if (roles.contains("member")) {
-                grants.addAll(List.of("chat.read", "chat.send", "files.read", "files.upload", "calendar.read", "boards.read", "meetings.join", "documents.view", "decisions.read", "manuals.read", "release_evidence.read", "weaver.exec_disabled"));
-            }
-            for (String group : groups) {
-                grants.addAll(SIMULATION_GROUP_CAPABILITIES.getOrDefault(group, List.of()));
-            }
-            grants.remove("weaver.enabled");
-        }
-        List<EffectivePolicySimulationResponse.CapabilityState> capabilityStates = requestedCapabilities.stream()
-                .map(capability -> simulationState(capability, grants, failClosed))
-                .toList();
-        String auditRef = "effective-policy-simulation-" + Instant.now(clock).toEpochMilli();
-        auditEventPublisher.publish(new AuditEvent(
-                organizationId(jwt),
-                "admin-control-plane",
-                actorRef(jwt),
-                "effective-policy-simulation",
-                AuditAction.EFFECTIVE_POLICY_SIMULATED,
-                Instant.now(clock),
-                auditRef,
-                AuditRedactionLevel.SECRET_REDACTED,
-                Map.of(
-                        "subjectProvided", request != null && request.subject() != null && !request.subject().isBlank(),
-                        "organizationProvided", request != null && request.organizationId() != null && !request.organizationId().isBlank(),
-                        "roleCount", roles.size(),
-                        "groupCount", groups.size(),
-                        "requestedCapabilityCount", requestedCapabilities.size(),
-                        "unknownInputCount", deniedInputs.size(),
-                        "unknownInputsFailClosed", failClosed,
-                        "supportSafe", true,
-                        "reasonProvided", request != null && request.reason() != null && !request.reason().isBlank())));
-        return new EffectivePolicySimulationResponse(
-                safeSimulationIdentityRef(request == null ? null : request.subject()),
-                request == null || request.organizationId() == null || request.organizationId().isBlank()
-                        ? organizationId(jwt)
-                        : safeText(request.organizationId()),
-                roles,
-                groups,
-                requestedCapabilities,
-                grants.stream().filter(requestedCapabilities::contains).sorted().toList(),
-                deniedInputs,
-                failClosed,
-                true,
-                true,
-                capabilityStates,
-                failClosed
-                        ? List.of("Map unknown roles, groups, or capabilities before provider activation.")
-                        : List.of("Review member-visible states before applying provider or realm changes."),
-                List.of(auditRef));
+        return effectivePolicySimulationService.simulate(request, organizationId(jwt), actorRef(jwt));
     }
 
     public IdentityRealmDryRunReport dryRunIdentityRealm(IdentityRealmDryRunRequest request, Jwt jwt) {
@@ -1516,93 +1430,6 @@ public class AdminControlPlaneService {
                         false))
                 .toList();
     }
-
-    private List<String> normalizedKnownValues(List<String> values, Set<String> knownValues) {
-        if (values == null) {
-            return List.of();
-        }
-        return values.stream()
-                .filter(value -> value != null && !value.isBlank())
-                .map(value -> value.trim().toLowerCase(Locale.ROOT))
-                .filter(this::safeSimulationInputToken)
-                .filter(knownValues::contains)
-                .distinct()
-                .sorted()
-                .toList();
-    }
-
-    private List<String> deniedInputCodes(List<String> values, String kind, Set<String> knownValues) {
-        if (values == null) {
-            return List.of();
-        }
-        return values.stream()
-                .map(value -> {
-                    if (value == null || value.isBlank()) {
-                        return "invalid-" + kind;
-                    }
-                    String normalized = value.trim().toLowerCase(Locale.ROOT);
-                    if (!safeSimulationInputToken(normalized)) {
-                        return "invalid-" + kind;
-                    }
-                    if (!knownValues.contains(normalized)) {
-                        return "unknown-" + kind;
-                    }
-                    return null;
-                })
-                .filter(value -> value != null)
-                .distinct()
-                .sorted()
-                .toList();
-    }
-
-    private boolean safeSimulationInputToken(String value) {
-        return value != null && value.matches("[a-z][a-z0-9_.:-]*");
-    }
-
-    private EffectivePolicySimulationResponse.CapabilityState simulationState(
-            String capability,
-            Set<String> grants,
-            boolean failClosed) {
-        if (failClosed) {
-            return new EffectivePolicySimulationResponse.CapabilityState(
-                    capability,
-                    "policy-blocked",
-                    "unknown-identity-inputs-fail-closed",
-                    "Admins must map unknown provider inputs before members receive this capability.");
-        }
-        if ("weaver.enabled".equals(capability)) {
-            return new EffectivePolicySimulationResponse.CapabilityState(
-                    capability,
-                    "disabled",
-                    "weaver-default-disabled",
-                    "Weaver remains opt-in, governed, audited, and disabled by default.");
-        }
-        if (grants.contains(capability)) {
-            return new EffectivePolicySimulationResponse.CapabilityState(
-                    capability,
-                    "ready",
-                    "granted-by-effective-policy",
-                    "Member-visible capability state may be ready if provider readiness also passes.");
-        }
-        return new EffectivePolicySimulationResponse.CapabilityState(
-                capability,
-                "policy-blocked",
-                "deny-by-default-capability-policy",
-                "This capability remains blocked unless a known org role or group grants it.");
-    }
-
-    private String safeSimulationIdentityRef(String value) {
-        if (value == null || value.isBlank()) {
-            return "not-provided";
-        }
-        String trimmed = value.trim();
-        if (trimmed.contains("@") || trimmed.matches("(?i).*(bearer\\s+|xox[baprs]-|secret(ref)?://|https?://|token|secret).*")) {
-            return "identity-ref-redacted";
-        }
-        return safeText(trimmed);
-    }
-
-
 
     private boolean providerKeyMatches(ProviderStatusResponse provider, String providerKey) {
         String normalized = providerKey.toLowerCase(Locale.ROOT);
