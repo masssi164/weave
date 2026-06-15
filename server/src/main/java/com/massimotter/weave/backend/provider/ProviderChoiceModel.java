@@ -27,6 +27,12 @@ public final class ProviderChoiceModel {
         return SUPPORTED;
     }
 
+    public static boolean requiresMigrationDryRun(String value) {
+        return EXTERNAL_EXISTING_PROVIDER.equals(value)
+                || MANAGED_CLOUD_PROVIDER.equals(value)
+                || HYBRID_COMPOSITE.equals(value);
+    }
+
     public static String normalize(String value) {
         if (value == null || value.isBlank()) {
             return defaultValue();
