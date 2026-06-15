@@ -30,9 +30,9 @@ class ProviderChoiceModelTest {
     void providerSelectionRoundTripsHybridComposite() {
         ProviderSelection selection = new ProviderSelection(
                 " CHAT ",
-                "slack",
+                "synapse-homeserver",
                 " hybrid_composite ",
-                "secretref://weave/provider/slack",
+                "secretref://weave/provider/synapse-homeserver",
                 "actor:admin-123",
                 null,
                 true,
@@ -43,6 +43,6 @@ class ProviderChoiceModelTest {
         assertThat(selection.category()).isEqualTo("chat");
         assertThat(selection.choiceModel()).isEqualTo("hybrid_composite");
         assertThat(selection.supportSafe()).isTrue();
-        assertThat(selection.secretRef()).isEqualTo("secretref://weave/provider/slack");
+        assertThat(selection.secretRef()).isEqualTo("secretref://weave/provider/synapse-homeserver");
     }
 }

@@ -64,9 +64,9 @@ class FileProviderSelectionRepositoryTest {
         var memoryRepository = new InMemoryProviderSelectionRepository();
         ProviderSelection selection = new ProviderSelection(
                 " CHAT ",
-                "slack",
+                "synapse-homeserver",
                 "hybrid_composite",
-                "secretref://weave/provider/slack",
+                "secretref://weave/provider/synapse-homeserver",
                 "actor:admin-123",
                 Instant.parse("2026-05-31T08:00:00Z"),
                 true,
