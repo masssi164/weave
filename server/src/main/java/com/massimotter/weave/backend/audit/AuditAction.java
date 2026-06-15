@@ -17,6 +17,7 @@ public enum AuditAction {
     EFFECTIVE_POLICY_SIMULATED("effective_policy.simulated"),
     IDENTITY_REALM_APPLY_GUARDED("identity.realm.apply.guarded"),
     ADMIN_POLICY_UPDATED("admin.policy.updated"),
+    ATTACH_EXISTING_PORTABILITY_PLAN_INSPECTED("attach_existing.portability_plan.inspected"),
     PROVIDER_READINESS_TESTED("provider.readiness.tested"),
     PROVIDER_REPLACEMENT_DRY_RUN("provider.replacement.dry_run"),
     CHAT_MIGRATION_PREFLIGHTED("chat.migration.preflighted"),

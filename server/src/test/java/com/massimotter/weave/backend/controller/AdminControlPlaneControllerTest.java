@@ -824,6 +824,60 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true));
     }
 
+    @Test
+    void operatorCanInspectAttachExistingFilesPortabilityPlanWithoutApplySurface() throws Exception {
+        mockMvc.perform(get("/api/admin/portability/attach-existing/files/plan").with(operatorJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contractVersion").value("admin-attach-existing-portability-plan-v1"))
+                .andExpect(jsonPath("$.mode").value("attach_existing"))
+                .andExpect(jsonPath("$.domainKey").value("files"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.adminOnlyProviderDetails").value(true))
+                .andExpect(jsonPath("$.destructiveActionAllowed").value(false))
+                .andExpect(jsonPath("$.providerMutationPerformed").value(false))
+                .andExpect(jsonPath("$.memberVisibleProviderInternals").value(false))
+                .andExpect(jsonPath("$.negativeChecks.noDestructiveActionInDiscoveryMode").value(true))
+                .andExpect(jsonPath("$.negativeChecks.noMemberVisibleProviderInternals").value(true))
+                .andExpect(jsonPath("$.negativeChecks.exactlyOneActiveBindingPerDomain").value(true))
+                .andExpect(jsonPath("$.capabilityMap[*].canonicalCapability", hasItems("files.read", "files.share_links", "files.retention_labels")))
+                .andExpect(jsonPath("$.capabilityMap[*].memberState", hasItems("available", "degraded", "coming_later")))
+                .andExpect(jsonPath("$.adapterBindings[?(@.bindingStatus == 'active')].adapterKey", hasItems("cloud-drive-files-existing")))
+                .andExpect(jsonPath("$.adapterBindings[?(@.activeBinding == true)]").isArray())
+                .andExpect(jsonPath("$.permissionImpactRef").value("permission-impact:attach-existing-files:mvp"))
+                .andExpect(jsonPath("$.lossReportRef").value("loss-report:attach-existing-files:mvp"))
+                .andExpect(jsonPath("$.conflictReportRef").value("conflict-report:attach-existing-files:mvp"))
+                .andExpect(jsonPath("$.recommendedTarget.providerKey").value("nextcloud-files-sovereign-target"))
+                .andExpect(jsonPath("$.nextSteps.cutover[*]", hasItems("Keep cloud-drive-files active while discovery_read_only evidence is reviewed.")))
+                .andExpect(content().string(not(containsString("applyUrl"))))
+                .andExpect(content().string(not(containsString("secretref://"))))
+                .andExpect(content().string(not(containsString("token"))));
+
+        mockMvc.perform(get("/api/admin/audit/events").with(operatorJwt()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].action", hasItems("attach_existing.portability_plan.inspected")))
+                .andExpect(jsonPath("$[*].payload.planId", hasItems("attach-existing-files-portability-plan-mvp")))
+                .andExpect(jsonPath("$[*].payload.destructiveActionAllowed", hasItems(false)))
+                .andExpect(jsonPath("$[*].payload.providerMutationPerformed", hasItems(false)))
+                .andExpect(jsonPath("$[*].payload.memberVisibleProviderInternals", hasItems(false)))
+                .andExpect(jsonPath("$[*].payload.token", hasItems("[redacted]")))
+                .andExpect(content().string(not(containsString("secretref://"))))
+                .andExpect(content().string(not(containsString("Bearer"))));
+    }
+
+    @Test
+    void memberCannotInspectAttachExistingFilesPortabilityPlan() throws Exception {
+        mockMvc.perform(get("/api/admin/portability/attach-existing/files/plan").with(memberJwt()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("capability-policy-blocked"))
+                .andExpect(jsonPath("$.details.requiredCapability").value("admin_control_plane.readiness_read"))
+                .andExpect(jsonPath("$.details.diagnosticsRedacted").value(true))
+                .andExpect(content().string(not(containsString("cloud-drive-files-existing"))))
+                .andExpect(content().string(not(containsString("nextcloud-files-sovereign-target"))))
+                .andExpect(content().string(not(containsString("provider_native_retention_label"))))
+                .andExpect(content().string(not(containsString("secretref://"))))
+                .andExpect(content().string(not(containsString("token"))));
+    }
+
     private WorkspaceCapabilityStatusResponse capability(
             WorkspaceCapabilityReadiness readiness,
             WorkspaceCapabilityPolicyState policyState,

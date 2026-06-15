@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.identity.realm.IdentityRealmDryRunRequest;
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
+import com.massimotter.weave.backend.model.admin.AttachExistingPortabilityPlanResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
@@ -179,6 +180,15 @@ public class AdminControlPlaneController {
             @Valid @RequestBody ProviderReplacementDryRunRequest request,
             @AuthenticationPrincipal Jwt jwt) {
         return adminControlPlaneService.dryRunProviderReplacement(request, jwt);
+    }
+
+    @GetMapping({"/api/admin/portability/attach-existing/files/plan", "/api/v1/admin/portability/attach-existing/files/plan"})
+    @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
+    @Operation(summary = "Inspect the support-safe attach-existing Files portability plan")
+    @ApiResponse(responseCode = "200", description = "Read-only Admin/Operator portability plan inspection.",
+            content = @Content(schema = @Schema(implementation = AttachExistingPortabilityPlanResponse.class)))
+    public AttachExistingPortabilityPlanResponse attachExistingFilesPortabilityPlan(@AuthenticationPrincipal Jwt jwt) {
+        return adminControlPlaneService.attachExistingFilesPortabilityPlan(jwt);
     }
 
     @GetMapping({"/api/admin/audit/events", "/api/v1/admin/audit/events"})
