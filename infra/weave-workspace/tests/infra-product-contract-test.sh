@@ -35,6 +35,7 @@ assert_file_contains_once() {
 backend_main="${ROOT_DIR}/01-infrastructure/modules/backend/main.tf"
 infra_main="${ROOT_DIR}/01-infrastructure/main.tf"
 infra_outputs="${ROOT_DIR}/01-infrastructure/outputs.tf"
+variables_tf="${ROOT_DIR}/01-infrastructure/variables.tf"
 install_script="${ROOT_DIR}/install.sh"
 keycloak_main="${ROOT_DIR}/02-keycloak-setup/modules/tenant-identity/main.tf"
 release_env="${ROOT_DIR}/release.env.example"
@@ -53,7 +54,7 @@ caddy_template="${ROOT_DIR}/01-infrastructure/templates/Caddyfile.tpl"
 support_bundle="${ROOT_DIR}/support-bundle.sh"
 local_invite_script="${ROOT_DIR}/local-invite-link.sh"
 
-for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}"; do
+for file in "${backend_main}" "${infra_main}" "${infra_outputs}" "${variables_tf}" "${install_script}" "${release_verify}" "${keycloak_main}" "${release_env}" "${admin_doc}" "${caldav_doc}" "${connector_doc}" "${matrix_workspace_doc}" "${matrix_e2ee_doc}" "${openproject_doc}" "${openproject_compose}" "${provider_stack_compose}" "${provider_stack_check}" "${openproject_live_e2e}" "${support_bundle}" "${caddy_template}" "${local_invite_script}"; do
   [[ -f "${file}" ]] || fail "Missing expected contract file: ${file}"
 done
 
@@ -310,6 +311,15 @@ assert_file_contains "${caddy_template}" '${ca_bootstrap_url}/weave-local-ca.pem
 assert_file_contains "${caddy_template}" '${client_public_url}/weave-local-ca.pem'
 assert_file_contains "${caddy_template}" '@product_api path /api/*'
 assert_file_contains "${caddy_template}" 'reverse_proxy ${api_upstream}'
+assert_file_contains "${infra_main}" 'mcp    = "${var.mcp_subdomain}.${var.tenant_domain}"'
+assert_file_contains "${infra_main}" 'mcp_site_addresses    = local.site_addresses.mcp'
+assert_file_contains "${variables_tf}" 'variable "mcp_subdomain"'
+assert_file_contains "${variables_tf}" 'default     = "mcp"'
+assert_file_contains "${variables_tf}" 'variable "mcp_upstream"'
+assert_file_contains "${caddy_template}" '${mcp_site_addresses}'
+assert_file_contains "${caddy_template}" 'X-Weave-Endpoint "governed-mcp"'
+assert_file_contains "${caddy_template}" 'reverse_proxy ${mcp_upstream}'
+assert_file_contains "${ROOT_DIR}/docker-compose.yml" '${TF_VAR_mcp_subdomain:-mcp}.${TF_VAR_tenant_domain:-weave.test}'
 assert_file_contains "${infra_main}" 'client_public_url     = local.client_public_url'
 assert_file_contains "${caddy_template}" 'handoff-s32-massimo-dogfood-home'
 assert_file_contains "${caddy_template}" 'passwords, tokens, client secrets, or credential URLs'

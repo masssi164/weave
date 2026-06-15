@@ -141,6 +141,18 @@ ${admin_site_addresses} {
 	respond "Weave Organization/Admin Console deploy target. Build the React app from admin-console/ and configure it to call only the Weave backend admin APIs." 200
 }
 
+${mcp_site_addresses} {
+	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
+	encode zstd gzip
+
+	header {
+		X-Weave-Endpoint "governed-mcp"
+		X-Weave-MCP-Transport "streamable-http"
+	}
+
+	reverse_proxy ${mcp_upstream}
+}
+
 ${auth_site_addresses} {
 	tls /certs/${tls_cert_filename} /certs/${tls_key_filename}
 	encode zstd gzip

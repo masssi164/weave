@@ -68,6 +68,12 @@ variable "admin_subdomain" {
   default     = "admin"
 }
 
+variable "mcp_subdomain" {
+  description = "Subdomain used for the governed Weave MCP Streamable HTTP gateway."
+  type        = string
+  default     = "mcp"
+}
+
 variable "public_scheme" {
   description = "Public URL scheme for browser-facing services."
   type        = string
@@ -185,6 +191,12 @@ variable "api_upstream" {
   description = "Internal upstream address reserved for the future Weave backend API."
   type        = string
   default     = "weave-backend:8080"
+}
+
+variable "mcp_upstream" {
+  description = "Internal upstream address for the governed Weave MCP Streamable HTTP gateway."
+  type        = string
+  default     = "host.docker.internal:8765"
 }
 
 variable "connector_provider_callbacks_exposed" {
