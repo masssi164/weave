@@ -10,6 +10,7 @@ import com.massimotter.weave.backend.config.ApiErrorResponseWriter;
 import com.massimotter.weave.backend.config.DevopsProviderConfiguration;
 import com.massimotter.weave.backend.config.ProviderCoreConfiguration;
 import com.massimotter.weave.backend.config.SecurityConfig;
+import com.massimotter.weave.backend.config.TimeConfiguration;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.exception.ApiExceptionHandler;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
@@ -18,6 +19,10 @@ import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityStatusResponse;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyDenyResponse;
+import com.massimotter.weave.backend.identity.realm.IdentityRealmApplyProperties;
+import com.massimotter.weave.backend.identity.realm.InMemoryIdentityRealmEvidenceRepository;
+import com.massimotter.weave.backend.identity.realm.KeycloakRealmDryRunProvider;
+import com.massimotter.weave.backend.identity.realm.KeycloakRealmLiveApplyAdapter;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
 import com.massimotter.weave.backend.office.port.DisabledOfficeProvider;
 import com.massimotter.weave.backend.provider.InMemoryProviderSelectionRepository;
@@ -27,6 +32,7 @@ import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.EffectivePolicySimulationService;
+import com.massimotter.weave.backend.service.IdentityRealmWorkflowService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.ProviderReplacementDryRunService;
@@ -80,6 +86,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         DevopsProviderConfiguration.class,
         DisabledOfficeProvider.class,
         AdminControlPlaneService.class,
+        IdentityRealmWorkflowService.class,
+        TimeConfiguration.class,
+        IdentityRealmApplyProperties.class,
+        InMemoryIdentityRealmEvidenceRepository.class,
+        KeycloakRealmDryRunProvider.class,
+        KeycloakRealmLiveApplyAdapter.class,
         EffectivePolicySimulationService.class,
         ProviderSelectionService.class,
         ProviderReplacementDryRunService.class,
