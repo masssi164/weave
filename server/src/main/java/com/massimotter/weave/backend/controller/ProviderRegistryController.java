@@ -1,6 +1,7 @@
 package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
+import com.massimotter.weave.backend.provider.DomainBindingsResponse;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -15,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -45,5 +47,16 @@ public class ProviderRegistryController {
     public ProviderRegistryResponse status(@AuthenticationPrincipal Jwt jwt) {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "provider-registry", "status");
         return providerRegistry.status();
+    }
+
+    @GetMapping({"/api/admin/domains/bindings", "/api/admin/domains/{domainKey}/bindings"})
+    @PreAuthorize("hasAuthority('SCOPE_weave:workspace')")
+    @Operation(summary = "Read generic domain binding and provider connection readiness state")
+    @ApiResponse(responseCode = "200", description = "Provider-neutral domain binding snapshot.",
+            content = @Content(schema = @Schema(implementation = DomainBindingsResponse.class)))
+    public DomainBindingsResponse domainBindings(@AuthenticationPrincipal Jwt jwt,
+            @PathVariable(name = "domainKey", required = false) String domainKey) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "domain-bindings", "status");
+        return providerRegistry.domainBindings(domainKey);
     }
 }

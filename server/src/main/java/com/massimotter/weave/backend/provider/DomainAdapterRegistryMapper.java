@@ -13,7 +13,8 @@ final class DomainAdapterRegistryMapper {
 
     static DomainAdapterRegistryResponse fromCategories(List<ProviderCategoryStatusResponse> categories, Instant generatedAt) {
         List<DomainAdapterStatusResponse> domains = (categories == null ? List.<ProviderCategoryStatusResponse>of() : categories).stream()
-                .map(DomainAdapterRegistryMapper::fromCategory)
+                .flatMap(category -> CanonicalDomainBindingCatalog.domainsForCategory(category.category()).stream()
+                        .map(domain -> fromCategory(category, domain.key(), domain.displayName())))
                 .toList();
         return new DomainAdapterRegistryResponse(
                 "domain-adapter-registry-preview",
@@ -25,6 +26,12 @@ final class DomainAdapterRegistryMapper {
     }
 
     static DomainAdapterStatusResponse fromCategory(ProviderCategoryStatusResponse category) {
+        return CanonicalDomainBindingCatalog.primaryDomainForCategory(category.category())
+                .map(domain -> fromCategory(category, domain.key(), domain.displayName()))
+                .orElseGet(() -> fromCategory(category, category.category(), category.label()));
+    }
+
+    private static DomainAdapterStatusResponse fromCategory(ProviderCategoryStatusResponse category, String domainKey, String label) {
         boolean enabled = category.policyState() != WorkspaceCapabilityPolicyState.DISABLED
                 && category.readiness() != ProviderCategoryReadiness.DISABLED;
         List<String> adapterKeys = new ArrayList<>();
@@ -55,8 +62,8 @@ final class DomainAdapterRegistryMapper {
             failClosed = true;
         }
         return new DomainAdapterStatusResponse(
-                category.category(),
-                category.label(),
+                domainKey,
+                label,
                 enabled,
                 activeCount == 1 ? activeAdapter : null,
                 failClosed ? ProviderCategoryReadiness.MISCONFIGURED : category.readiness(),

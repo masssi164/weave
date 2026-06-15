@@ -153,7 +153,7 @@ class DomainAdapterRegistryMapperTest {
                 category("meetings-calls", ProviderCategoryReadiness.READY, ProviderModule.MEETINGS)), null).domains();
 
         assertThat(domains).extracting(DomainAdapterStatusResponse::domain)
-                .contains("chat", "files", "calendar", "boards-tasks", "meetings-calls");
+                .contains("identity", "chat", "files", "calendar", "boards", "calls");
         assertThat(domains).allSatisfy(domain -> {
             assertThat(domain.singleActiveAdapterValid()).isTrue();
             assertThat(domain.supportSafe()).isTrue();
@@ -164,8 +164,15 @@ class DomainAdapterRegistryMapperTest {
                         .containsEntry("rawProviderErrorsReturned", false);
             });
         });
+        Map<String, String> canonicalDomainsByCategory = Map.of(
+                "identity-idm", "identity",
+                "chat", "chat",
+                "files", "files",
+                "calendar", "calendar",
+                "boards-tasks", "boards",
+                "meetings-calls", "calls");
         MIXED_PROVIDER_POSTURE.forEach((category, adapterKeys) -> assertThat(domains)
-                .filteredOn(domain -> domain.domain().equals(category))
+                .filteredOn(domain -> domain.domain().equals(canonicalDomainsByCategory.get(category)))
                 .singleElement()
                 .satisfies(domain -> assertThat(domain.candidates())
                         .extracting(DomainAdapterCandidateResponse::adapterKey)
