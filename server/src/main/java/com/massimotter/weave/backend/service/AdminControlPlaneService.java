@@ -56,6 +56,7 @@ import com.massimotter.weave.backend.provider.ProviderCategoryCatalog;
 import com.massimotter.weave.backend.provider.ProviderRegistry;
 import com.massimotter.weave.backend.provider.ProviderModule;
 import com.massimotter.weave.backend.provider.ProviderRegistryResponse;
+import com.massimotter.weave.backend.provider.ProviderChoiceModel;
 import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import com.massimotter.weave.backend.provider.ProviderState;
@@ -1459,21 +1460,15 @@ public class AdminControlPlaneService {
     }
 
     private String selectionChoiceModel(String value) {
-        if (value == null || value.isBlank()) {
-            return "recommended_self_hosted_default";
+        try {
+            return ProviderChoiceModel.normalize(value);
+        } catch (IllegalArgumentException exception) {
+            throw new ApiErrorException(
+                    HttpStatus.BAD_REQUEST,
+                    "provider-selection-choice-model-invalid",
+                    "Provider selection choice model is not part of the Weave provider choice contract.",
+                    Map.of("choiceModel", "invalid-choice-model-redacted"));
         }
-        String trimmed = value.trim();
-        if (trimmed.equals("recommended_self_hosted_default")
-                || trimmed.equals("external_existing_provider")
-                || trimmed.equals("managed_cloud_provider")
-                || trimmed.equals("hybrid_composite")) {
-            return trimmed;
-        }
-        throw new ApiErrorException(
-                HttpStatus.BAD_REQUEST,
-                "provider-selection-choice-model-invalid",
-                "Provider selection choice model is not part of the Weave provider choice contract.",
-                Map.of("choiceModel", "invalid-choice-model-redacted"));
     }
 
     private String selectionSecretRef(String value) {
@@ -1528,9 +1523,9 @@ public class AdminControlPlaneService {
 
     private boolean requiresMigrationDryRun(ProviderSelectionRequest request) {
         return request.lossyMappingNotes() != null && !request.lossyMappingNotes().isEmpty()
-                || "external_existing_provider".equals(request.choiceModel())
-                || "managed_cloud_provider".equals(request.choiceModel())
-                || "hybrid_composite".equals(request.choiceModel());
+                || ProviderChoiceModel.EXTERNAL_EXISTING_PROVIDER.equals(request.choiceModel())
+                || ProviderChoiceModel.MANAGED_CLOUD_PROVIDER.equals(request.choiceModel())
+                || ProviderChoiceModel.HYBRID_COMPOSITE.equals(request.choiceModel());
     }
 
     private List<String> safeLossyMappingNotes(List<String> notes) {

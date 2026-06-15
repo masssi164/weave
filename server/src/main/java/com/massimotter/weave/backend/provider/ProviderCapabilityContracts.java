@@ -206,28 +206,28 @@ public final class ProviderCapabilityContracts {
             List<String> externalAdapters) {
         return List.of(
                 new ProviderChoiceModelResponse(
-                        "recommended_self_hosted_default",
+                        ProviderChoiceModel.RECOMMENDED_SELF_HOSTED_DEFAULT,
                         defaultAdapters,
                         List.of(
                                 "recommended sovereign/default posture",
                                 "admin still verifies backup, jurisdiction, lifecycle, and operator evidence"),
                         true),
                 new ProviderChoiceModelResponse(
-                        "external_existing_provider",
+                        ProviderChoiceModel.EXTERNAL_EXISTING_PROVIDER,
                         externalAdapters,
                         List.of(
                                 "allowed when the organization already operates this provider category elsewhere",
                                 "admin records tenant, data residency, retention, audit, and support boundary risk outside member UX"),
                         false),
                 new ProviderChoiceModelResponse(
-                        "managed_cloud_provider",
+                        ProviderChoiceModel.MANAGED_CLOUD_PROVIDER,
                         externalAdapters,
                         List.of(
                                 "allowed as an interchangeable adapter posture, not a product boundary",
                                 "admin must assess privacy, compliance, export, availability, and vendor lock-in risks"),
                         false),
                 new ProviderChoiceModelResponse(
-                        "hybrid_composite",
+                        ProviderChoiceModel.HYBRID_COMPOSITE,
                         java.util.stream.Stream.concat(defaultAdapters.stream(), externalAdapters.stream()).distinct().sorted().toList(),
                         List.of(
                                 "allowed when an organization mixes self-hosted, managed-cloud, and external providers across one capability boundary",
