@@ -1,0 +1,125 @@
+{
+  "planId": "attach-existing-files-portability-plan-mvp",
+  "scenario": "existing organization attaches current cloud files provider for discovery before any migration",
+  "domainKey": "files",
+  "redaction": "support_safe",
+  "mode": "attach_existing",
+  "claimBoundary": "Read-only discovery and portability planning only. This does not prove destructive migration, production cutover, release readiness, legal compliance, or lossless provider migration.",
+  "adapterMapper": {
+    "mapperKey": "files-attach-existing-portability-mapper",
+    "capabilityMap": [
+      {
+        "canonicalCapability": "files.read",
+        "sourceProviderCapability": "cloud-drive-file-read",
+        "targetProviderCapability": "nextcloud-files-read",
+        "memberState": "available"
+      },
+      {
+        "canonicalCapability": "files.share_links",
+        "sourceProviderCapability": "cloud-drive-external-link-read",
+        "targetProviderCapability": "nextcloud-share-link-policy-review",
+        "memberState": "degraded"
+      },
+      {
+        "canonicalCapability": "files.retention_labels",
+        "sourceProviderCapability": "cloud-drive-proprietary-retention-labels",
+        "targetProviderCapability": "manual-policy-rebuild-required",
+        "memberState": "coming_later"
+      }
+    ],
+    "permissionImpactRef": "permission-impact:attach-existing-files:mvp",
+    "lossReportRef": "loss-report:attach-existing-files:mvp",
+    "conflictReportRef": "conflict-report:attach-existing-files:mvp",
+    "auditRefs": [
+      "audit:attach-existing-files:discovery-read-only",
+      "audit:attach-existing-files:plan-generated"
+    ],
+    "recommendedTarget": {
+      "providerKey": "nextcloud-files-sovereign-target",
+      "reason": "Self-hosted Files candidate improves data-sovereignty posture because data plane, audit sink, and retention policy can be operated under the organization-controlled stack after a separately approved migration path."
+    },
+    "nextSteps": {
+      "cutover": [
+        "Keep cloud-drive-files active while discovery_read_only evidence is reviewed.",
+        "Run export dry-run and archive manifest checks before requesting migration_source or migration_target status.",
+        "Require admin approval of loss, permission, and conflict reports before any guarded apply."
+      ],
+      "rollback": [
+        "Retain the existing cloud-drive-files binding as the active binding until post-cutover verification passes.",
+        "Keep rollback retention and restore-smoke refs support-safe and admin-visible only."
+      ]
+    }
+  },
+  "adapterBindings": [
+    {
+      "adapterKey": "cloud-drive-files-existing",
+      "domainKeys": ["files"],
+      "providerPosture": "hyperscaler_cloud_existing",
+      "activeBindingStatus": "active",
+      "discoveryMode": "read_only",
+      "providerMutationPerformed": false,
+      "memberVisibleProviderInternals": false,
+      "auditRef": "audit:attach-existing-files:current-active-binding"
+    },
+    {
+      "adapterKey": "cloud-drive-files-discovery-source",
+      "domainKeys": ["files"],
+      "providerPosture": "hyperscaler_cloud_existing",
+      "activeBindingStatus": "discovery_read_only",
+      "discoveryMode": "read_only",
+      "providerMutationPerformed": false,
+      "memberVisibleProviderInternals": false,
+      "auditRef": "audit:attach-existing-files:discovery-source"
+    },
+    {
+      "adapterKey": "nextcloud-files-sovereign-target",
+      "domainKeys": ["files"],
+      "providerPosture": "self_hosted_sovereign_candidate",
+      "activeBindingStatus": "candidate",
+      "discoveryMode": "plan_only",
+      "providerMutationPerformed": false,
+      "memberVisibleProviderInternals": false,
+      "auditRef": "audit:attach-existing-files:candidate-target"
+    }
+  ],
+  "reports": {
+    "permissionImpact": [
+      {
+        "canonicalObject": "FileShare",
+        "impact": "External share links need admin policy review before a Nextcloud target can reproduce equivalent exposure.",
+        "fieldClass": "manual_review"
+      }
+    ],
+    "loss": [
+      {
+        "canonicalObject": "File",
+        "field": "provider_native_retention_label",
+        "fieldClass": "vendor_locked",
+        "reason": "Source retention labels are proprietary metadata and must be exported to an archive report or manually rebuilt."
+      },
+      {
+        "canonicalObject": "FileVersion",
+        "field": "historic_version_blob",
+        "fieldClass": "archive_only",
+        "reason": "Historic versions are discoverable but not imported in this MVP plan."
+      }
+    ],
+    "conflicts": [
+      {
+        "canonicalObject": "FileShare",
+        "reason": "Two source groups map to one target group slug; admin must choose merge or split before cutover."
+      }
+    ]
+  },
+  "memberCapabilityStates": [
+    "available",
+    "degraded",
+    "coming_later"
+  ],
+  "adminOnlyProviderDetails": true,
+  "negativeChecks": {
+    "noDestructiveActionInDiscoveryMode": true,
+    "noMemberVisibleProviderInternals": true,
+    "exactlyOneActiveBindingPerDomain": true
+  }
+}
