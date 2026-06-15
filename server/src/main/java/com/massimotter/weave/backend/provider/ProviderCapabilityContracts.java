@@ -136,17 +136,19 @@ public final class ProviderCapabilityContracts {
 
     static ProviderCategoryContractResponse contract(String category, Set<ProviderModule> modules) {
         Definition definition = definition(category);
+        List<String> defaultAdapters = defaultAdapters(category, definition);
+        List<String> externalAdapters = externalAdapters(category, definition);
         return new ProviderCategoryContractResponse(
                 category,
                 definition.featureCapabilities(),
-                definition.defaultAdapters(),
-                definition.externalAdapters(),
+                defaultAdapters,
+                externalAdapters,
                 definition.canonicalObjects(),
                 definition.sourceOfTruth(),
                 definition.lossyMappingRisks(),
                 definition.exportDeleteExpectation(),
                 definition.replacementRequirement(),
-                choiceModels(definition.defaultAdapters(), definition.externalAdapters()),
+                choiceModels(defaultAdapters, externalAdapters),
                 moduleNames(modules),
                 STABLE_MEMBER_IMPACT_STATES,
                 true,
@@ -165,10 +167,33 @@ public final class ProviderCapabilityContracts {
 
     public static List<String> providerCandidates(String category) {
         Definition definition = definition(category);
-        return java.util.stream.Stream.concat(definition.defaultAdapters().stream(), definition.externalAdapters().stream())
-                .distinct()
-                .sorted()
-                .toList();
+        return ProviderCategoryCatalog.category(category)
+                .map(ProviderCategoryDefinition::providerCandidates)
+                .orElseGet(() -> java.util.stream.Stream.concat(definition.defaultAdapters().stream(), definition.externalAdapters().stream())
+                        .distinct()
+                        .sorted()
+                        .toList());
+    }
+
+
+    public static List<String> defaultAdapters(String category) {
+        return defaultAdapters(category, definition(category));
+    }
+
+    public static List<String> externalAdapters(String category) {
+        return externalAdapters(category, definition(category));
+    }
+
+    private static List<String> defaultAdapters(String category, Definition definition) {
+        return ProviderCategoryCatalog.category(category)
+                .map(ProviderCategoryDefinition::defaultAdapters)
+                .orElseGet(definition::defaultAdapters);
+    }
+
+    private static List<String> externalAdapters(String category, Definition definition) {
+        return ProviderCategoryCatalog.category(category)
+                .map(ProviderCategoryDefinition::externalAdapters)
+                .orElseGet(definition::externalAdapters);
     }
 
     public static List<String> canonicalObjects(String category) {
