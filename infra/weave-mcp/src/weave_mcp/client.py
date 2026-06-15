@@ -45,30 +45,34 @@ class WeaveBackendClient:
         )
 
     def runtime_profile_projection(self, ctx: RuntimeContext) -> ToolResult:
+        server_binding = {
+            "serverKey": "weave-domain-tools",
+            "transport": "streamable-http",
+            "endpointRef": "internal://weave-mcp/streamable-http",
+            "enabled": False,
+            "discoverableTools": [
+                "admin.get_readiness",
+                "weaver.get_runtime_profile_projection",
+                "calendar.search_events",
+                "calendar.create_event",
+                "files.search",
+                "files.read",
+                "chat.list_threads",
+                "chat.send_message",
+                "boards.comment",
+            ],
+            "rawEndpointExposed": False,
+            "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+        }
         return ToolResult(
             {
                 "runtimeProfileHash": ctx.runtime_profile_hash,
-                "mcpServerBindings": [
-                    {
-                        "serverKey": "weave-domain-tools",
-                        "transport": "streamable-http",
-                        "endpointRef": "internal://weave-mcp/streamable-http",
-                        "enabled": False,
-                        "discoverableTools": [
-                            "admin.get_readiness",
-                            "weaver.get_runtime_profile_projection",
-                        "calendar.search_events",
-                        "calendar.create_event",
-                        "files.search",
-                        "files.read",
-                        "chat.list_threads",
-                        "chat.send_message",
-                        "boards.comment",
-                        ],
-                        "rawEndpointExposed": False,
-                        "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+                "mcp": {
+                    "servers": {
+                        "weave-domain-tools": server_binding,
                     }
-                ],
+                },
+                "mcpServerBindings": [server_binding],
                 "supportSafe": True,
             },
             "audit://mcp/runtime-profile-projection/support-safe",
@@ -87,7 +91,7 @@ class WeaveBackendClient:
             }.items()
             if isinstance(value, str) and value.strip()
         }
-        path = "/calendar/events"
+        path = "/api/calendar/events"
         url = self.backend_base_url.rstrip("/") + path + (("?" + urlencode(params)) if params else "")
         request = Request(
             url,
