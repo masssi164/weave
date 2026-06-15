@@ -52,6 +52,8 @@ Matrix E2EE status is diagnostic-only until Matrix-native encrypted-room, device
 - `WEAVE_WORKSPACE_BOARDS_ENABLED`: enable the boards capability, defaults to `false`.
 - `WEAVE_WORKSPACE_BOARDS_READINESS`: optional explicit boards readiness override (`ready`, `degraded`, `blocked`, `unavailable`).
 
+Runtime defaults are dogfood-stack adapter bindings, not the product model. The product model is domain-first: each domain has exactly one active binding at a time, selected through Control/Admin/Operator setup. Additional providers for the same domain may be candidates, discovery/read-only sources, migration sources/targets, coexistence preflight evidence, deprecated, or superseded; they must not be advertised as simultaneous member-visible product truth. Member clients receive only provider-agnostic capability states.
+
 Capability readiness is intentionally conservative:
 
 - `shellAccess` is `unavailable` when disabled, otherwise `ready` only when JWT validation can be enforced with issuer, audience, and client contract.

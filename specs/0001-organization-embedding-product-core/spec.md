@@ -25,6 +25,8 @@ Massimo decided the `WEAVE-SPEC-0001` product core through the Nextcloud Forms r
 
 Weave is a provider-neutral collaboration platform. Its first product-core slice is the first-class Admin-Suite plus provider-neutral domain/capability contracts. Admins bind, unbind, validate, switch, and detach provider adapters per domain. Normal members do not manage providers, status, reachability, diagnostics, OIDC setup, secrets, or repair flows. Members join an already configured organization through invite/SSO/passkey and then see stable Weave capabilities.
 
+The product supports three first-class organization starting scenarios: `deploy_new` for greenfield organizations, `attach_existing` for brownfield organizations that attach their current provider landscape, and `hybrid` for per-domain coexistence during discovery, migration planning, and cutover. Weave recommends self-hosted or otherwise sovereign providers where practical, while allowing existing commercial/hyperscaler providers as active bindings during attach, discovery, coexistence preflight, and migration. Product and operator copy may explain portability, auditability, jurisdiction, data-sovereignty, and compliance benefits, but must include a non-legal-advice boundary and must not promise legal outcomes.
+
 Weaver/AI runtime is explicitly out of scope for this spec. It may appear later as a governed domain, but it must not be introduced accidentally or before admin/provider governance is mature.
 
 ## Intent
@@ -162,6 +164,9 @@ Weave uses this stable vocabulary for member-safe capability manifests and admin
 - **FR-008**: Weave MUST keep Weaver/AI runtime out of WEAVE-SPEC-0001 acceptance and implementation.
 - **FR-009**: Weave MUST support validated adapter packages with safe rollback rather than uncontrolled arbitrary runtime plugins.
 - **FR-010**: Weave MUST produce support-safe audit/evidence for provider readiness and switching without secrets/raw provider payloads.
+- **FR-011**: Each Weave product domain MUST have exactly one active adapter/provider binding at a time; additional providers may only be candidates, discovery/read-only sources, migration sources or targets, coexistence/preflight evidence, deprecated, or superseded.
+- **FR-012**: Every provider adapter MUST declare an `AdapterMapper` that maps provider objects, capabilities, permissions, events, and errors to canonical Weave contracts with provenance, loss, permission-impact, conflict, portability-manifest, and support-safe audit references.
+- **FR-013**: Member clients and app-store surfaces MUST remain provider-agnostic; organization setup, provider choice, endpoint/secret handling, diagnostics, policy, whitelisting, and migration planning belong to the Control/Admin/Operator plane.
 
 ## Domain model and contracts
 

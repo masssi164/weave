@@ -37,6 +37,7 @@ locals {
     weave  = var.tenant_domain
     api    = "${var.api_subdomain}.${var.tenant_domain}"
     admin  = "${var.admin_subdomain}.${var.tenant_domain}"
+    mcp    = "${var.mcp_subdomain}.${var.tenant_domain}"
     auth   = "${var.auth_subdomain}.${var.tenant_domain}"
     matrix = "${var.matrix_subdomain}.${var.tenant_domain}"
     files  = "${var.nextcloud_subdomain}.${var.tenant_domain}"
@@ -62,6 +63,7 @@ locals {
     weave  = [local.public_hosts.weave]
     api    = [local.public_hosts.api]
     admin  = [local.public_hosts.admin]
+    mcp    = [local.public_hosts.mcp]
     auth   = [local.public_hosts.auth]
     matrix = [local.public_hosts.matrix]
     files  = [local.public_hosts.files]
@@ -92,6 +94,7 @@ locals {
     weave_site_addresses  = local.site_addresses.weave
     api_site_addresses    = local.site_addresses.api
     admin_site_addresses  = local.site_addresses.admin
+    mcp_site_addresses    = local.site_addresses.mcp
     auth_site_addresses   = local.site_addresses.auth
     files_site_addresses  = local.site_addresses.files
     matrix_site_addresses = local.site_addresses.matrix
@@ -106,6 +109,7 @@ locals {
     synapse_upstream      = "${local.service_names.synapse}:8008"
     # Backend is routed via Caddy (api_upstream); no Traefik labels needed
     api_upstream                       = "${local.service_names.backend}:${var.backend_container_port}"
+    mcp_upstream                       = var.mcp_upstream
     tls_cert_filename                  = basename(local.caddy_tls_cert_file)
     tls_key_filename                   = basename(local.caddy_tls_key_file)
     connector_provider_callbacks_guard = local.connector_provider_callbacks_guard

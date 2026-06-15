@@ -127,7 +127,7 @@ class AdminControlPlaneControllerTest {
                 List.of("chat.read", "files.read", "boards.update_task", "admin.policy.edit", "admin.provider.configure", "weaver.exec_disabled"),
                 true,
                 true,
-                "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later"));
+                "disabled-by-default; signed WeaverRuntimeProfile may only create a logical runtime context from org policy later"));
         when(workspaceCapabilityService.effectivePolicySnapshot(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(new EffectivePolicyResponse(
                 "admin-123",
                 "weave-dogfood",

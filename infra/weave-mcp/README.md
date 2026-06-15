@@ -25,7 +25,7 @@ Discovery requires runtime context headers. Policy comes from the generated Runt
 - `X-Weave-Org-Id`
 - `X-Weave-User-Ref`
 - `X-Weave-Runtime-Profile` — support-safe profile hash
-- `X-Weave-Runtime-Profile-Projection` — base64url JSON containing `runtimeProfileHash`, `enabled`, `revoked`, `serverKey`, `transport`, `credentialRef`, `capabilityGrants`, `allowedTools`, `auditRef`, and `projectionSignature` references only
+- `X-Weave-Runtime-Profile-Projection` — base64url JSON containing `runtimeProfileHash`, `enabled`, `revoked`, the exact RuntimeProfile server binding `mcp.servers.weave-domain-tools`, `transport`, `credentialRef`, `capabilityGrants`, `allowedTools`, `auditRef`, and `projectionSignature` references only
 
 The Sprint 16/Sprint 32 proof tools are:
 

@@ -51,7 +51,9 @@ def main():
   expected_id=f'https://weave.test/contracts/portability/{name}'
   if schemas[name].get('$id')!=expected_id: fail(f'{name} $id must be {expected_id}')
  if schemas['loss-class.schema.json'].get('enum')!=LOSS: fail('loss classes must match canonical list/order')
- required_contains(schemas['provider-adapter-manifest.schema.json'], ['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary'], 'ProviderAdapterManifest')
+ required_contains(schemas['provider-adapter-manifest.schema.json'], ['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary','adapterMapperKey','activeBindingStatus','provenanceReportRef','lossReportRef','permissionImpactReportRef','conflictReportRef','portabilityManifestRef','auditRef'], 'ProviderAdapterManifest')
+ binding_enum=schemas['provider-adapter-manifest.schema.json'].get('properties',{}).get('activeBindingStatus',{}).get('enum',[])
+ if binding_enum!=['active','candidate','discovery_read_only','migration_source','migration_target','coexistence_preflight','deprecated','superseded']: fail('ProviderAdapterManifest activeBindingStatus enum must match canonical binding statuses')
  required_contains(schemas['export-manifest.schema.json'], ['objectCounts','contentHashes','mappingRef','auditRef','redaction'], 'ExportManifest')
  required_contains(schemas['import-manifest.schema.json'], ['objectCounts','contentHashes','mappingRef','dryRunReportRef','auditRef','redaction'], 'ImportManifest')
  required_contains(schemas['migration-run.schema.json'], ['objectCounts','contentHashes','providerMappingRef','auditRefs','dryRunReportRef','applyAllowed','redaction'], 'MigrationRun')

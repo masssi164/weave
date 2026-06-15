@@ -45,30 +45,34 @@ class WeaveBackendClient:
         )
 
     def runtime_profile_projection(self, ctx: RuntimeContext) -> ToolResult:
+        server_binding = {
+            "serverKey": "weave-domain-tools",
+            "transport": "streamable-http",
+            "endpointRef": "internal://weave-mcp/streamable-http",
+            "enabled": False,
+            "discoverableTools": [
+                "admin.get_readiness",
+                "weaver.get_runtime_profile_projection",
+                "calendar.search_events",
+                "calendar.create_event",
+                "files.search",
+                "files.read",
+                "chat.list_threads",
+                "chat.send_message",
+                "boards.comment",
+            ],
+            "rawEndpointExposed": False,
+            "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+        }
         return ToolResult(
             {
                 "runtimeProfileHash": ctx.runtime_profile_hash,
-                "mcpServerBindings": [
-                    {
-                        "serverKey": "weave-domain-tools",
-                        "transport": "streamable-http",
-                        "endpointRef": "internal://weave-mcp/streamable-http",
-                        "enabled": False,
-                        "discoverableTools": [
-                            "admin.get_readiness",
-                            "weaver.get_runtime_profile_projection",
-                        "calendar.search_events",
-                        "calendar.create_event",
-                        "files.search",
-                        "files.read",
-                        "chat.list_threads",
-                        "chat.send_message",
-                        "boards.comment",
-                        ],
-                        "rawEndpointExposed": False,
-                        "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+                "mcp": {
+                    "servers": {
+                        "weave-domain-tools": server_binding,
                     }
-                ],
+                },
+                "mcpServerBindings": [server_binding],
                 "supportSafe": True,
             },
             "audit://mcp/runtime-profile-projection/support-safe",
@@ -87,7 +91,7 @@ class WeaveBackendClient:
             }.items()
             if isinstance(value, str) and value.strip()
         }
-        path = "/calendar/events"
+        path = "/api/calendar/events"
         url = self.backend_base_url.rstrip("/") + path + (("?" + urlencode(params)) if params else "")
         request = Request(
             url,
@@ -112,16 +116,18 @@ class WeaveBackendClient:
         for item in raw_items if isinstance(raw_items, list) else []:
             if not isinstance(item, dict):
                 continue
-            items.append(
-                {
-                    "eventRef": "calendar-event://redacted/" + _stable_ref_fragment(str(item.get("id", "unknown"))),
-                    "titlePresent": bool(item.get("title")),
-                    "startsAt": item.get("startsAt"),
-                    "endsAt": item.get("endsAt"),
-                    "allDay": bool(item.get("allDay")),
-                    "scope": item.get("scope"),
-                }
-            )
+            support_safe_title = item.get("title") if item.get("supportSafe") is True else None
+            mapped_item = {
+                "eventRef": "calendar-event://redacted/" + _stable_ref_fragment(str(item.get("id", "unknown"))),
+                "titlePresent": bool(item.get("title")),
+                "startsAt": item.get("startsAt"),
+                "endsAt": item.get("endsAt"),
+                "allDay": bool(item.get("allDay")),
+                "scope": item.get("scope"),
+            }
+            if isinstance(support_safe_title, str) and support_safe_title.strip():
+                mapped_item["supportSafeTitle"] = support_safe_title.strip()
+            items.append(mapped_item)
 
         with _CREATED_EVENTS_LOCK:
             fixture_items = [

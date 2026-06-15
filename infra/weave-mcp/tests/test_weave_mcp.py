@@ -218,6 +218,19 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertNotIn("Bearer ", repr(readiness))
         self.assertNotIn("openclaw.json", repr(readiness))
 
+        projection = self.gateway().invoke_tool(headers, {"tool": "weaver.get_runtime_profile_projection", "input": {}})
+        self.assertIn("mcp", projection["result"])
+        self.assertIn("servers", projection["result"]["mcp"])
+        self.assertEqual(
+            projection["result"]["mcp"]["servers"]["weave-domain-tools"]["endpointRef"],
+            "internal://weave-mcp/streamable-http",
+        )
+        self.assertEqual(
+            projection["result"]["mcp"]["servers"]["weave-domain-tools"]["credentialRef"],
+            "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+        )
+        self.assertNotIn("channels.weave-chat", json.dumps(projection, sort_keys=True))
+
         with self.assertRaises(McpDenied):
             self.gateway().invoke_tool(headers, {"tool": "boards.comment", "input": {"taskRef": "task://one", "body": "ok"}})
 
@@ -303,7 +316,16 @@ class WeaveMcpGatewayTest(unittest.TestCase):
                                 "endsAt": "2026-06-12T08:30:00Z",
                                 "allDay": False,
                                 "scope": {"type": "workspace"},
-                            }
+                            },
+                            {
+                                "id": "support-safe-seeded",
+                                "title": "Support-safe seeded calendar check",
+                                "startsAt": "2026-06-12T09:00:00Z",
+                                "endsAt": "2026-06-12T09:30:00Z",
+                                "allDay": False,
+                                "scope": {"type": "workspace"},
+                                "supportSafe": True,
+                            },
                         ]
                     }
                 ).encode("utf-8")
@@ -316,12 +338,13 @@ class WeaveMcpGatewayTest(unittest.TestCase):
                 {"tool": "calendar.search_events", "input": {"from": "2026-06-12T00:00:00Z", "to": "2026-06-13T00:00:00Z"}},
             )["result"]
 
-        self.assertIn("/calendar/events?from=2026-06-12T00%3A00%3A00Z&to=2026-06-13T00%3A00%3A00Z", backend.request.full_url)
+        self.assertIn("/api/calendar/events?from=2026-06-12T00%3A00%3A00Z&to=2026-06-13T00%3A00%3A00Z", backend.request.full_url)
         self.assertEqual(backend.request.headers["Authorization"], "Bearer dev-runtime-token")
         self.assertTrue(result["providerSourceMappedByBackend"])
         self.assertTrue(result["redactedItems"])
         self.assertEqual(result["items"][0]["titlePresent"], True)
         self.assertNotIn("Private title", repr(result))
+        self.assertEqual(result["items"][1]["supportSafeTitle"], "Support-safe seeded calendar check")
 
     def test_local_streamable_http_server_discovery_and_invocation(self) -> None:
         httpd = serve(WeaveMcpConfig(enabled=True), port=0)
@@ -360,6 +383,67 @@ class WeaveMcpGatewayTest(unittest.TestCase):
             raised.exception.close()
             self.assertEqual(error["auditRef"], "audit://mcp/denied/support-safe")
             self.assertTrue(error["supportSafe"])
+
+            initialize = Request(
+                base + "/mcp",
+                method="POST",
+                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+                data=json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}).encode(),
+            )
+            with urlopen(initialize, timeout=5) as response:
+                rpc = json.loads(response.read())
+            self.assertEqual(rpc["result"]["capabilities"]["tools"]["listChanged"], False)
+
+            list_tools = Request(
+                base + "/mcp",
+                method="POST",
+                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+                data=json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}).encode(),
+            )
+            with urlopen(list_tools, timeout=5) as response:
+                rpc = json.loads(response.read())
+            tools = {tool["name"]: tool for tool in rpc["result"]["tools"]}
+            self.assertIn("calendar.search_events", tools)
+            self.assertIn("inputSchema", tools["calendar.search_events"])
+
+            call_tool = Request(
+                base + "/mcp",
+                method="POST",
+                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+                data=json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 3,
+                        "method": "tools/call",
+                        "params": {"name": "calendar.search_events", "arguments": {"query": "heute"}},
+                    }
+                ).encode(),
+            )
+            with urlopen(call_tool, timeout=5) as response:
+                rpc = json.loads(response.read())
+            self.assertFalse(rpc["result"]["isError"])
+            self.assertEqual(rpc["result"]["content"][0]["type"], "text")
+            self.assertIn("redactedItems", rpc["result"]["content"][0]["text"])
+
+            denied_tool = Request(
+                base + "/mcp",
+                method="POST",
+                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+                data=json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 4,
+                        "method": "tools/call",
+                        "params": {"name": "boards.comment", "arguments": {"taskRef": "task://one", "body": "ok"}},
+                    }
+                ).encode(),
+            )
+            with urlopen(denied_tool, timeout=5) as response:
+                rpc = json.loads(response.read())
+            self.assertEqual(rpc["id"], 4)
+            self.assertEqual(rpc["error"]["code"], -32000)
+            self.assertEqual(rpc["error"]["data"]["auditRef"], "audit://mcp/denied/support-safe")
+            self.assertTrue(rpc["error"]["data"]["supportSafe"])
         finally:
             httpd.shutdown()
             httpd.server_close()

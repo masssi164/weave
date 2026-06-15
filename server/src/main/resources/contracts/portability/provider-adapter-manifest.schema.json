@@ -19,7 +19,15 @@
     "realityLevelByDomain",
     "historyPosture",
     "riskNotes",
-    "secretStoragePosture"
+    "secretStoragePosture",
+    "adapterMapperKey",
+    "activeBindingStatus",
+    "provenanceReportRef",
+    "lossReportRef",
+    "permissionImpactReportRef",
+    "conflictReportRef",
+    "portabilityManifestRef",
+    "auditRef"
   ],
   "properties": {
     "adapterKey": {
@@ -139,6 +147,47 @@
         "server_secret_ref_only",
         "operator_vault_ref_only"
       ]
+    },
+    "adapterMapperKey": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "activeBindingStatus": {
+      "type": "string",
+      "enum": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ]
+    },
+    "provenanceReportRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "lossReportRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "permissionImpactReportRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "conflictReportRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "portabilityManifestRef": {
+      "type": "string",
+      "minLength": 1
+    },
+    "auditRef": {
+      "type": "string",
+      "minLength": 1
     }
   }
 }

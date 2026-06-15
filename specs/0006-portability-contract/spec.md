@@ -27,7 +27,7 @@ Define reusable provider replacement schemas so every migration classifies loss,
 
 ### In scope
 
-- ProviderAdapterManifest, ProviderMapping, ExportManifest, ImportManifest, LossyMappingReport, ConflictReport, MigrationRun, MigrationAuditRef, and LossClass schemas.
+- ProviderAdapterManifest, AdapterMapper metadata, ProviderMapping, ExportManifest, ImportManifest, LossyMappingReport, ConflictReport, PermissionImpactReport, MigrationRun, MigrationAuditRef, and LossClass schemas.
 - Dry-run-before-apply validation.
 - Support-safe redaction requirements.
 
@@ -43,6 +43,8 @@ Define reusable provider replacement schemas so every migration classifies loss,
 - **FR-002**: Migration runs MUST require counts, hashes, provider mapping refs, and audit refs.
 - **FR-003**: Apply MUST be impossible without a successful dry-run report.
 - **FR-004**: Portability evidence MUST use support-safe redaction.
+- **FR-005**: ProviderAdapterManifest MUST declare `adapterMapperKey`, `activeBindingStatus`, provenance, loss, permission-impact, conflict, portability-manifest, and audit references.
+- **FR-006**: Migration/coexistence providers MUST NOT become product truth until the domain binding promotion leaves exactly one active provider binding.
 
 ## Acceptance and evidence mapping
 
