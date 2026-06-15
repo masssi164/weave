@@ -2026,6 +2026,17 @@
             "member_provider_neutral_join_passed",
             "weave_client_e2e_passed"
           ]
+        },
+        {
+          "path": "specs/0006-portability-contract/attach-existing-files-portability-plan-mvp.json",
+          "fragments": [
+            "attach_existing",
+            "discovery_read_only",
+            "nextcloud-files-sovereign-target",
+            "noDestructiveActionInDiscoveryMode",
+            "noMemberVisibleProviderInternals",
+            "exactlyOneActiveBindingPerDomain"
+          ]
         }
       ]
     },
