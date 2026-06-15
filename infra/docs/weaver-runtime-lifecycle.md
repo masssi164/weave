@@ -1,10 +1,10 @@
-# Weaver per-user runtime lifecycle contract
+# Weaver logical runtime lifecycle contract
 
-Status: Sprint 13 infrastructure definition only. Weaver runtime execution remains disabled by default until the signed profile loader, credential broker, approval policy, audit sink, and sandbox hardening gates are implemented and reviewed.
+Status: Sprint 13 infrastructure definition only, sharpened for the v0.1 runtime-pool stance. Weaver runtime execution remains disabled by default until the signed profile loader, credential broker, approval policy, audit sink, runtime-pool scheduler, sidecar/job-runner isolation, and sandbox hardening gates are implemented and reviewed.
 
 ## Runtime context boundary
 
-One active user/trust boundary maps to one active Weaver runtime context and at most one active container. The trust boundary is the tuple of organization, immutable subject, effective capability profile, and signed `WeaverRuntimeProfile` hash. A second login session for the same boundary attaches to the existing active context; a changed organization, subject, capability profile, profile hash, revocation generation, or rollback pointer creates a distinct context and requires the old context to stop or become inactive before activation.
+One active user/trust boundary maps to one active Weaver runtime context in a managed runtime pool. The trust boundary is the tuple of organization, immutable subject, effective capability profile, and signed `WeaverRuntimeProfile` hash. A second login session for the same boundary attaches to the existing active context; a changed organization, subject, capability profile, profile hash, revocation generation, or rollback pointer creates a distinct context and requires the old context to stop or become inactive before activation. Per-user Docker containers or MicroVMs may back a runtime context in a high-isolation deployment, but they are advanced options after gates pass, not the v0.1 default product architecture.
 
 Containers and volumes must use opaque support-safe references such as `runtimeContextRef` and `userRefHash`. They must not contain usernames, email addresses, room IDs, provider IDs, credential IDs with secret meaning, OAuth refresh tokens, or raw provider URLs.
 
@@ -20,9 +20,11 @@ Profile input must contain references only:
 - `CredentialRef` and short-lived runtime token references, never provider secrets or OAuth refresh tokens;
 - sandbox, network, memory, workspace, and support-bundle policy.
 
-## Container, filesystem, and memory boundaries
+## Runtime pool, filesystem, and memory boundaries
 
-A staged runtime container must be created with:
+A staged logical runtime context must be created with separate state, workspace, memory, and agent directories. High-risk tools run through a mediated sidecar or job runner with stricter network, filesystem, quota, and audit policy than routine read-only domain tools.
+
+When a deployment uses a dedicated container or MicroVM for a runtime context, it must be created with:
 
 - a read-only base filesystem and no implicit host mounts;
 - separate writable volumes for `stateDir`, `workspaceDir`, and `agentDir` scoped to the runtime context;
@@ -51,7 +53,7 @@ The lifecycle is deterministic and auditable:
 1. `profile_received`: store support-safe profile metadata and hash only.
 2. `verified`: signature, expiry, issuer, org/user binding, and revocation generation pass.
 3. `staged`: create isolated volumes and render generated runtime artifacts from the profile.
-4. `active`: start the one allowed container for the runtime context after image, network, quota, and token gates pass.
+4. `active`: activate the logical runtime context in the runtime pool after profile, network, quota, token, sidecar/job-runner, and audit gates pass; if a container/MicroVM backs the context, start exactly one backing sandbox for that context.
 5. `reload_requested`: apply profile changes that only affect generated config or grants that the loader can reload safely.
 6. `restart_required`: stop and recreate the container when image, network, filesystem, memory, workspace, or sandbox boundaries change.
 7. `rollback_pending`: activate the previous signed profile only after it is still unexpired, not revoked, and compatible with the current policy floor.
@@ -64,4 +66,4 @@ Reload, restart, rollback, and revocation are fail-closed. Rollback to the previ
 
 Runtime diagnostics are support-safe by default. Bundles may include runtime context refs, profile hash, lifecycle state, image digest, SBOM/scan refs, quota summaries, redacted logs, policy decision IDs, and audit event refs. Bundles must redact or omit prompts, raw provider payloads, OAuth/access/refresh tokens, cookies, private keys, credential-bearing URLs, `SecretRef` values, runtime tokens, member names, emails, room IDs, event IDs, filenames, and direct provider identifiers.
 
-Dogfood-production honesty: this contract defines the required lifecycle and evidence shape. It does not claim that production Weaver containers are enabled or safe to expose to normal members yet.
+Dogfood-production honesty: this contract defines the required lifecycle and evidence shape. It does not claim that production Weaver runtime pools, sidecars, containers, or MicroVMs are enabled or safe to expose to normal members yet.

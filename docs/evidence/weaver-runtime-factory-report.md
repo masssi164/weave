@@ -4,7 +4,7 @@ Status: Sprint 24 provider-lab evidence for issues #631-#634.
 
 ## Claim boundary
 
-Sprint 24 proves a support-safe provider-lab Weaver Runtime Factory fixture for admin enablement, user opt-in, per-user Docker runtime lifecycle, health, audit, revoke, desired-state reconciliation, and per-user isolation checks. It does not claim production PA availability, customer-ready Weaver, release-ready Weaver, broad autonomous AI availability, unrestricted tools, raw provider access, or production sandbox strength.
+Sprint 24 proves support-safe provider-lab Weaver Runtime Factory fixtures for admin enablement, user opt-in, per-user Docker-backed lab lifecycle, health, audit, revoke, desired-state reconciliation, and per-user isolation checks. These fixtures are lab evidence for a possible high-isolation backing sandbox; they are not production architecture destiny and do not override the v0.1 runtime-pool/logical-context/sidecar-job-runner stance. They do not claim production PA availability, customer-ready Weaver, release-ready Weaver, broad autonomous AI availability, unrestricted tools, raw provider access, or production sandbox strength.
 
 ## Issue evidence
 
