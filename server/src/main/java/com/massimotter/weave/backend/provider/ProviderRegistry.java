@@ -1,7 +1,6 @@
 package com.massimotter.weave.backend.provider;
 
 import com.massimotter.weave.backend.domainregistry.CanonicalDomainRegistry;
-import com.massimotter.weave.backend.domainregistry.CanonicalDomainRegistryEntryResponse;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.time.Instant;
 import java.util.Comparator;
@@ -10,6 +9,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,14 +20,25 @@ public class ProviderRegistry {
     private final List<ProviderPort> providers;
     private final WorkspaceCapabilityService workspaceCapabilityService;
     private final ProviderSelectionRepository selectionRepository;
+    private final DomainBindingService domainBindingService;
 
+    @Autowired
     public ProviderRegistry(
             List<ProviderPort> providers,
             WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionRepository selectionRepository) {
+        this(providers, workspaceCapabilityService, selectionRepository, new DomainBindingService());
+    }
+
+    ProviderRegistry(
+            List<ProviderPort> providers,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository selectionRepository,
+            DomainBindingService domainBindingService) {
         this.providers = providers == null ? List.of() : List.copyOf(providers);
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.selectionRepository = selectionRepository;
+        this.domainBindingService = domainBindingService == null ? new DomainBindingService() : domainBindingService;
     }
 
     public ProviderRegistryResponse status() {
@@ -56,21 +67,7 @@ public class ProviderRegistry {
     }
 
     public DomainBindingsResponse domainBindings(String requestedDomainKey) {
-        ProviderRegistryResponse snapshot = status();
-        String normalizedDomainKey = requestedDomainKey == null ? null : requestedDomainKey.trim();
-        List<DomainBindingResponse> bindings = snapshot.categories().stream()
-                .flatMap(category -> CanonicalDomainBindingCatalog.domainsForCategory(category.category()).stream()
-                        .filter(domain -> normalizedDomainKey == null || normalizedDomainKey.isBlank() || domain.key().equals(normalizedDomainKey))
-                        .map(domain -> binding(domain, category, snapshot.selectedProviderMappings(), snapshot.generatedAt())))
-                .toList();
-        return new DomainBindingsResponse(
-                "domain-binding-provider-connection-v1",
-                PROVIDER_CONFIG_SOURCE,
-                true,
-                false,
-                bindings.stream().allMatch(DomainBindingResponse::supportSafe),
-                snapshot.generatedAt(),
-                bindings);
+        return domainBindingService.bindings(status(), requestedDomainKey);
     }
 
     private List<ProviderStatusResponse> providerStatuses(List<ProviderSelection> selections) {
@@ -83,54 +80,6 @@ public class ProviderRegistry {
                 .toList();
     }
 
-    private DomainBindingResponse binding(
-            CanonicalDomainRegistryEntryResponse domain,
-            ProviderCategoryStatusResponse category,
-            List<ProviderSelection> selections,
-            Instant generatedAt) {
-        String activeBinding = category.selectedByAdmin()
-                ? CanonicalDomainBindingCatalog.stableBindingId(domain, category.selectedProviderKey())
-                : null;
-        ProviderConnectionRefResponse connectionRef = category.selectedByAdmin()
-                ? connectionRef(domain, category, selections, generatedAt)
-                : null;
-        List<String> transitionArtifacts = category.contract().replacementRequirement() == null
-                ? List.of("preflight_or_impact_report_required_for_attach_existing_switch_export_import_migration_cutover_rollback")
-                : List.of(category.contract().replacementRequirement());
-        return new DomainBindingResponse(
-                domain.key(),
-                domain.displayName(),
-                category.readiness(),
-                activeBinding,
-                connectionRef,
-                DomainAdapterRegistryMapper.fromCategory(category).candidates(),
-                category.adapterEvidence(),
-                transitionArtifacts,
-                true,
-                true);
-    }
-
-    private ProviderConnectionRefResponse connectionRef(
-            CanonicalDomainRegistryEntryResponse domain,
-            ProviderCategoryStatusResponse category,
-            List<ProviderSelection> selections,
-            Instant generatedAt) {
-        Optional<ProviderSelection> selection = selections.stream()
-                .filter(value -> value.category().equals(category.category()))
-                .findFirst();
-        boolean hasSecretRef = selection.map(ProviderSelection::hasSecretRef).orElse(false);
-        return new ProviderConnectionRefResponse(
-                category.selectedProviderKey(),
-                CanonicalDomainBindingCatalog.stableConnectionId(category.selectedProviderKey()),
-                List.of(domain.key()),
-                category.readiness(),
-                hasSecretRef ? "SecretRef" : "GrantRef-or-none",
-                hasSecretRef,
-                domain.capabilityKeys(),
-                generatedAt,
-                true,
-                true);
-    }
 
     private ProviderStatusResponse applyAdminSelection(ProviderStatusResponse status, List<ProviderSelection> selections) {
         Optional<String> maybeCategory = ProviderCategoryCatalog.categoryForModule(status.module());

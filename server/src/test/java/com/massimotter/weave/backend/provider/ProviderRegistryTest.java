@@ -115,6 +115,74 @@ class ProviderRegistryTest {
                 .containsEntry("rawProviderErrorsReturned", false);
     }
 
+    @Test
+    void domainBindingServiceBuildsCanonicalSecretFreeConnectionRefs() {
+        InMemoryProviderSelectionRepository selections = new InMemoryProviderSelectionRepository();
+        selections.save(new ProviderSelection(
+                "chat",
+                "slack",
+                "external_existing_provider",
+                "secretref://weave/provider/slack",
+                "actor:admin",
+                Instant.parse("2026-05-24T18:00:00Z"),
+                true,
+                true,
+                true,
+                List.of("Thread and channel semantics require migration dry-run.")));
+        ProviderRegistry registry = new ProviderRegistry(
+                List.of(StaticProviderPort.pending(
+                        ProviderModule.MATRIX,
+                        "synapse-homeserver",
+                        "Chat adapter candidate.",
+                        Set.of("chat.read"),
+                        Set.of("direct-flutter-provider-api"),
+                        List.of("synapse", "slack", "microsoft-teams"),
+                        Map.of())),
+                capabilityService(),
+                selections,
+                new DomainBindingService());
+
+        DomainBindingsResponse response = registry.domainBindings(" chat ");
+
+        assertThat(response.releaseStatus()).isEqualTo("domain-binding-provider-connection-v1");
+        assertThat(response.transitionPlansAreSecondaryArtifacts()).isTrue();
+        assertThat(response.memberProviderInternalsExposed()).isFalse();
+        assertThat(response.bindings()).singleElement().satisfies(binding -> {
+            assertThat(binding.domainKey()).isEqualTo("chat");
+            assertThat(binding.activeBinding()).isEqualTo("binding:chat:provider:slack");
+            assertThat(binding.providerConnectionRef()).satisfies(connection -> {
+                assertThat(connection.providerKey()).isEqualTo("slack");
+                assertThat(connection.connectionId()).isEqualTo("provider-connection:slack");
+                assertThat(connection.domainKeys()).containsExactly("chat");
+                assertThat(connection.credentialRefKind()).isEqualTo("SecretRef");
+                assertThat(connection.credentialRefConfigured()).isTrue();
+                assertThat(connection.supportSafe()).isTrue();
+            });
+            assertThat(binding.supportSafe()).isTrue();
+        });
+        assertThat(response.toString()).doesNotContain("secretref://");
+    }
+
+    @Test
+    void domainBindingFilterDoesNotLeakProviderCategoriesAsDomains() {
+        ProviderRegistry registry = new ProviderRegistry(
+                List.of(StaticProviderPort.pending(
+                        ProviderModule.FILES,
+                        "nextcloud",
+                        "Files adapter candidate.",
+                        Set.of("files.read"),
+                        Set.of("direct-flutter-provider-api"),
+                        List.of("nextcloud", "sharepoint"),
+                        Map.of())),
+                capabilityService(),
+                new InMemoryProviderSelectionRepository(),
+                new DomainBindingService());
+
+        DomainBindingsResponse response = registry.domainBindings("storage");
+
+        assertThat(response.bindings()).isEmpty();
+    }
+
     private WorkspaceCapabilityService capabilityService() {
         WorkspaceCapabilityService service = Mockito.mock(WorkspaceCapabilityService.class);
         when(service.snapshot()).thenReturn(new WorkspaceCapabilitiesResponse(
