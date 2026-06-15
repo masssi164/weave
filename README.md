@@ -12,9 +12,30 @@ Weave – Collaboration Seamlessly Woven with Agentic AI, Activated on Your Term
   <img src="client/assets/images/weave_logo.png" alt="Weave logo, an interlaced blue and teal knot" width="220">
 </p>
 
-## Product architecture
+## What Weave is
 
-Collaboration should belong to the organization, not to whichever provider happens to host chat, files, calendars, tasks, identity, or AI this year. Weave keeps product semantics stable while the implementation underneath can be inspected, governed, staged, replaced, or migrated with evidence.
+Weave is a provider-neutral organization collaboration suite. It gives members stable Weave surfaces for chat, files, calendar, tasks/boards, meetings, decisions, help, search, identity-aware access, and support status while keeping provider choice, readiness, migration risk, and audit evidence under admin/operator control.
+
+Weave is for organizations that want collaboration to remain understandable and portable when legal, jurisdictional, contractual, operational, cost, security, governance, or provider requirements change. It is not a homelab manager and does not depend on one private deployment shape; self-hosted provider labs and reference provider packs are evidence substrates for the product, not the product boundary.
+
+## Who it is for
+
+- **Members** who need one stable workspace even when the organization changes providers underneath.
+- **Organization admins** who need identity, role, policy, provider readiness, capability, and whitelist control before member go-live.
+- **Operators** who need support-safe diagnostics, backup/restore evidence, portability manifests, and no raw secrets or provider payloads in normal product evidence.
+- **Governed Weaver users** who may later receive an opt-in, disabled-by-default personal-assistant runtime constrained by their user rights and organization-whitelisted capabilities.
+
+## Main use scenarios
+
+- **`deploy_new`** — a greenfield organization starts with Weave-recommended sovereign/self-hostable providers where practical. Reference provider packs may include Matrix/Synapse for chat, Nextcloud for files, Authentik or Keycloak for identity, Forgejo for source collaboration, and adjacent services when evidence supports them.
+- **`attach_existing`** — an existing organization attaches its current provider landscape to Weave to regain operational visibility, portability leverage, policy control, and evidence without requiring a disruptive day-one migration.
+- **`hybrid`** — domains move at different times. One category can be self-hosted while another remains on an existing external provider during discovery, coexistence preflight, migration, or cutover planning.
+
+## Why it matters
+
+Weave keeps collaboration semantics owned by the organization instead of by whichever provider currently hosts chat, files, calendars, tasks, identity, or AI. The promise is provider independence with evidence: data-sovereignty leverage, admin-visible readiness, support-safe audit trails, explicit lossy-field and rollback limits, no unaccounted data loss in promoted portability paths, and stable member UX while implementation details change behind Weave contracts.
+
+## Product architecture
 
 Weave separates the product from the implementation:
 
@@ -22,7 +43,18 @@ Weave separates the product from the implementation:
 - **Adapters and providers** implement those domains and carry posture, readiness, caveats, evidence, and migration boundaries.
 - **MCP/domain tools** are the action surface. Reads, writes, sends, deletes, provider switches, migrations, approvals, audit, and evidence belong to tool actions, not to domains or adapters by themselves.
 - **The Admin Control Room** shows provider posture, readiness, support-safe diagnostics, policy preview, and next safe actions.
-- **Weaver** is the governed AI assistant line: a per-user OpenClaw-derived AI harness/runtime that is reached through the Weave channel and can act only through Weave-provided MCP/domain tools.
+- **Weaver** is the governed AI assistant line: a per-user OpenClaw-derived AI harness/runtime that is reached through the Weave channel and can act only through Weave-provided MCP/domain tools. It is opt-in, governed, auditable, disabled by default, and focused on effectiveness/time savings through **user-rights, organization-whitelisted capabilities** rather than broad autonomy.
+
+## How Weave is used by role
+
+- **Members** use Weave capabilities and capability states; they do not configure raw provider URLs, secrets, endpoint rotation, backups, or diagnostics.
+- **Organization admins** select provider categories, connect identity/IDM, map roles/groups, preview policy impact, enable capabilities, and decide whether Weaver can ever be offered.
+- **Operators** run bootstrap, readiness, backup/restore, support-bundle, migration, and recovery workflows with redacted evidence.
+- **Governed Weaver users** use the optional PA runtime only when the organization enables it and only through Weave policy, audit, approvals, revocation, and MCP/domain-tool channels.
+
+## Current status
+
+Weave is a dogfood foundation with guarded portability evidence. Current work proves provider-neutral contracts, admin readiness, support-safe evidence, and runtime-policy boundaries; it does **not** claim public production release readiness, lossless migration, broad provider interchangeability, production restore, or broadly available autonomous-agent operation. Open release and CI blockers remain visible until their evidence gates close.
 
 ## Release notes
 
