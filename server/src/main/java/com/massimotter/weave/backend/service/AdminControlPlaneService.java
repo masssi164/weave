@@ -132,7 +132,7 @@ public class AdminControlPlaneService {
             ProviderRegistry providerRegistry,
             WorkspaceCapabilityService workspaceCapabilityService,
             ProviderSelectionService providerSelectionService,
-            ObjectProvider<ProviderReplacementDryRunService> providerReplacementDryRunService,
+            ProviderReplacementDryRunService providerReplacementDryRunService,
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
             List<IdentityRealmProvider> identityRealmProviders,
@@ -144,8 +144,7 @@ public class AdminControlPlaneService {
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionService = providerSelectionService;
         this.clock = Clock.systemUTC();
-        this.providerReplacementDryRunService = providerReplacementDryRunService.getIfAvailable(
-                () -> new ProviderReplacementDryRunService(providerSelectionService, auditEventPublisher, this.clock));
+        this.providerReplacementDryRunService = providerReplacementDryRunService;
         this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
         this.identityRealmProviders = identityRealmProviders == null || identityRealmProviders.isEmpty()
