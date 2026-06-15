@@ -28,6 +28,7 @@ import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
+import com.massimotter.weave.backend.service.ProviderReplacementDryRunService;
 import com.massimotter.weave.backend.service.ProviderSelectionService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import java.util.List;
@@ -79,6 +80,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         DisabledOfficeProvider.class,
         AdminControlPlaneService.class,
         ProviderSelectionService.class,
+        ProviderReplacementDryRunService.class,
         AdminControlPlaneControllerTest.AuditTestConfig.class
 })
 @TestPropertySource(properties = {

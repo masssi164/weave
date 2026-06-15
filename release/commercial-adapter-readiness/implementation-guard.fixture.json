@@ -73,6 +73,7 @@
     "server/src/main/java/com/massimotter/weave/backend/model/interop/TeamsContractResponse.java",
     "server/src/main/java/com/massimotter/weave/backend/provider/ProviderCapabilityContracts.java",
     "server/src/main/java/com/massimotter/weave/backend/service/AdminControlPlaneService.java",
+    "server/src/main/java/com/massimotter/weave/backend/service/ProviderReplacementDryRunService.java",
     "server/src/main/java/com/massimotter/weave/backend/service/interop/InteropGatewayService.java",
     "server/src/main/java/com/massimotter/weave/backend/service/interop/NoopSlackSecretResolver.java",
     "server/src/main/java/com/massimotter/weave/backend/service/interop/SlackSecretResolver.java",
