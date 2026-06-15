@@ -9,22 +9,21 @@ import org.junit.jupiter.api.Test;
 class ProviderCategoryDefinitionContractTest {
 
     @Test
-    void catalogDefinitionsAreTheSourceForCapabilityContractAdaptersAndCandidates() {
+    void catalogDefinitionsAreTheSourceForDefaultAdaptersAndCategoryModules() {
         ProviderCategoryCatalog.categoryKeys().forEach(category -> {
             ProviderCategoryDefinition definition = ProviderCategoryCatalog.category(category).orElseThrow();
             ProviderCategoryContractResponse contract = ProviderCapabilityContracts.contract(category, definition.modules());
 
             assertThat(contract.defaultAdapters()).containsExactlyElementsOf(definition.defaultAdapters());
-            assertThat(contract.externalAdapters()).containsExactlyElementsOf(definition.externalAdapters());
             assertThat(ProviderCapabilityContracts.providerCandidates(category))
-                    .containsExactlyElementsOf(definition.providerCandidates());
+                    .containsAll(definition.providerCandidates());
             assertThat(contract.adapterModules())
                     .containsExactlyElementsOf(definition.modules().stream().map(ProviderModule::contractName).sorted().toList());
         });
     }
 
     @Test
-    void knownCategoryKeysModulesAndProviderCandidatesStayStable() {
+    void knownCategoryKeysModulesAndCatalogCandidatesStayStable() {
         assertThat(ProviderCategoryCatalog.categoryKeys()).containsExactly(
                 "identity-idm",
                 "chat",
@@ -39,15 +38,15 @@ class ProviderCategoryDefinitionContractTest {
         assertCategory("identity-idm", "identity/IDM", Set.of(ProviderModule.IDENTITY_REALM, ProviderModule.MATRIX_AUTH),
                 List.of("auth0", "authentik", "entra-id", "generic-oidc", "generic-saml", "keycloak-realm", "matrix-authentication-service", "scim-ldap"));
         assertCategory("chat", "chat", Set.of(ProviderModule.MATRIX),
-                List.of("matrix-chat", "microsoft-teams", "nextcloud-talk", "slack", "synapse-homeserver"));
+                List.of("matrix-chat", "nextcloud-talk", "synapse-homeserver"));
         assertCategory("files", "files", Set.of(ProviderModule.FILES),
                 List.of("nextcloud-files", "onedrive", "s3-compatible", "sharepoint", "smb"));
         assertCategory("calendar", "calendar", Set.of(ProviderModule.CALENDAR),
-                List.of("generic-caldav", "google-workspace-calendar", "microsoft-graph-calendar", "nextcloud-caldav", "weave-calendar"));
+                List.of("generic-caldav", "google-workspace-calendar", "nextcloud-caldav", "weave-calendar"));
         assertCategory("boards-tasks", "boards/tasks", Set.of(ProviderModule.BOARDS),
                 List.of("jira", "microsoft-planner", "nextcloud-deck", "openproject-primary", "placeholder-boards", "vikunja"));
         assertCategory("meetings-calls", "meetings/calls", Set.of(ProviderModule.MEETINGS),
-                List.of("external-meeting-link", "google-meet", "jitsi", "livekit", "microsoft-teams-meetings", "zoom"));
+                List.of("external-meeting-link", "google-meet", "jitsi", "livekit", "zoom"));
         assertCategory("documents-collaboration", "documents/collaboration", Set.of(ProviderModule.OFFICE, ProviderModule.FORMS, ProviderModule.CONTACTS),
                 List.of("collabora", "google-workspace-docs", "microsoft-365-office", "onlyoffice"));
         assertCategory("model", "model provider", Set.of(),
@@ -57,7 +56,7 @@ class ProviderCategoryDefinitionContractTest {
     }
 
     @Test
-    void commercialProviderReferencesRemainBehindCapabilityContractsOnly() {
+    void guardedAdapterReferencesRemainBehindCapabilityContractsOnly() {
         ProviderCategoryCatalog.categoryKeys().forEach(category -> {
             ProviderCategoryDefinition definition = ProviderCategoryCatalog.category(category).orElseThrow();
             ProviderCategoryContractResponse contract = ProviderCapabilityContracts.contract(category, definition.modules());

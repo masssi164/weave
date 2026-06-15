@@ -167,12 +167,10 @@ public final class ProviderCapabilityContracts {
 
     public static List<String> providerCandidates(String category) {
         Definition definition = definition(category);
-        return ProviderCategoryCatalog.category(category)
-                .map(ProviderCategoryDefinition::providerCandidates)
-                .orElseGet(() -> java.util.stream.Stream.concat(definition.defaultAdapters().stream(), definition.externalAdapters().stream())
-                        .distinct()
-                        .sorted()
-                        .toList());
+        return java.util.stream.Stream.concat(defaultAdapters(category, definition).stream(), externalAdapters(category, definition).stream())
+                .distinct()
+                .sorted()
+                .toList();
     }
 
 
@@ -191,9 +189,7 @@ public final class ProviderCapabilityContracts {
     }
 
     private static List<String> externalAdapters(String category, Definition definition) {
-        return ProviderCategoryCatalog.category(category)
-                .map(ProviderCategoryDefinition::externalAdapters)
-                .orElseGet(definition::externalAdapters);
+        return definition.externalAdapters();
     }
 
     public static List<String> canonicalObjects(String category) {
