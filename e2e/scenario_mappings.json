@@ -642,7 +642,7 @@
           "path": "docs/product-line-and-weaver-plan.md",
           "fragments": [
             "Governed Weaver runtime integration",
-            "per-user Dockerized Weaver/OpenClaw-derived runtime profile",
+            "support-safe signed Weaver/OpenClaw-derived `WeaverRuntimeProfile`",
             "Generated Weaver/OpenClaw config is implementation output from Weave policy"
           ]
         },
@@ -665,7 +665,7 @@
         {
           "path": "infra/docs/weaver-runtime-lifecycle.md",
           "fragments": [
-            "One active user/trust boundary maps to one active Weaver runtime context",
+            "One active user/trust boundary maps to one active Weaver runtime context in a managed runtime pool",
             "The only runtime input is a signed `WeaverRuntimeProfile`",
             "Default egress is deny",
             "Rollback to the previous signed profile"
