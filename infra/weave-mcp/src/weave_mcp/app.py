@@ -90,7 +90,10 @@ class WeaveMcpGateway:
             params = body.get("params") if isinstance(body.get("params"), dict) else {}
             name = str(params.get("name", ""))
             arguments = params.get("arguments") if isinstance(params.get("arguments"), dict) else {}
-            result = self.invoke_tool(headers, {"tool": name, "input": arguments})["result"]
+            try:
+                result = self.invoke_tool(headers, {"tool": name, "input": arguments})["result"]
+            except McpDenied as error:
+                return jsonrpc_error(request_id, -32000, error.reason, error.audit_ref)
             return {
                 "jsonrpc": "2.0",
                 "id": request_id,
@@ -99,11 +102,14 @@ class WeaveMcpGateway:
                     "isError": False,
                 },
             }
-        return {
-            "jsonrpc": "2.0",
-            "id": request_id,
-            "error": {"code": -32601, "message": "method not found"},
-        }
+        return jsonrpc_error(request_id, -32601, "method not found")
+
+
+def jsonrpc_error(request_id: Any, code: int, message: str, audit_ref: str | None = None) -> dict[str, Any]:
+    error: dict[str, Any] = {"code": code, "message": message}
+    if audit_ref:
+        error["data"] = {"auditRef": audit_ref, "supportSafe": True}
+    return {"jsonrpc": "2.0", "id": request_id, "error": error}
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -148,9 +154,15 @@ class _Handler(BaseHTTPRequestHandler):
             else:
                 self._error(404, "not-found")
         except McpDenied as error:
-            self._error(403, error.reason, error.audit_ref)
+            if self.path == "/mcp":
+                self._send(200, jsonrpc_error(None, -32000, error.reason, error.audit_ref))
+            else:
+                self._error(403, error.reason, error.audit_ref)
         except json.JSONDecodeError:
-            self._error(400, "invalid-json")
+            if self.path == "/mcp":
+                self._send(200, jsonrpc_error(None, -32700, "parse error"))
+            else:
+                self._error(400, "invalid-json")
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         return

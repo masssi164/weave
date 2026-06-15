@@ -424,6 +424,26 @@ class WeaveMcpGatewayTest(unittest.TestCase):
             self.assertFalse(rpc["result"]["isError"])
             self.assertEqual(rpc["result"]["content"][0]["type"], "text")
             self.assertIn("redactedItems", rpc["result"]["content"][0]["text"])
+
+            denied_tool = Request(
+                base + "/mcp",
+                method="POST",
+                headers={**HEADERS, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"},
+                data=json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": 4,
+                        "method": "tools/call",
+                        "params": {"name": "boards.comment", "arguments": {"taskRef": "task://one", "body": "ok"}},
+                    }
+                ).encode(),
+            )
+            with urlopen(denied_tool, timeout=5) as response:
+                rpc = json.loads(response.read())
+            self.assertEqual(rpc["id"], 4)
+            self.assertEqual(rpc["error"]["code"], -32000)
+            self.assertEqual(rpc["error"]["data"]["auditRef"], "audit://mcp/denied/support-safe")
+            self.assertTrue(rpc["error"]["data"]["supportSafe"])
         finally:
             httpd.shutdown()
             httpd.server_close()
