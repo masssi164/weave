@@ -23,6 +23,7 @@ import com.massimotter.weave.backend.identity.realm.KeycloakRealmLiveApplyAdapte
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.admin.AdminAuditEventResponse;
 import com.massimotter.weave.backend.model.admin.AdminControlPlaneResponse;
+import com.massimotter.weave.backend.model.admin.AttachExistingPortabilityPlanResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistResponse;
 import com.massimotter.weave.backend.model.admin.CapabilityWhitelistUpdateRequest;
 import com.massimotter.weave.backend.model.admin.EffectivePolicyResponse;
@@ -231,6 +232,7 @@ public class AdminControlPlaneService {
                         Map.entry("audit", "/api/admin/audit/events"),
                         Map.entry("readinessTest", "/api/admin/providers/readiness-tests"),
                         Map.entry("providerReplacementDryRun", "/api/admin/providers/replacements/dry-run"),
+                        Map.entry("attachExistingFilesPortabilityPlan", "/api/admin/portability/attach-existing/files/plan"),
                         Map.entry("identityReadiness", "/api/admin/identity/readiness"),
                         Map.entry("identityRealmDryRun", "/api/admin/identity/realm/dry-run"),
                         Map.entry("identityRealmApply", "/api/admin/identity/realm/apply"),
@@ -1026,6 +1028,74 @@ public class AdminControlPlaneService {
                         "secretsReturned", false,
                         "rawProviderErrorsReturned", false,
                         "secretRef", safeSecretRef(request.secretRef())));
+    }
+
+    public AttachExistingPortabilityPlanResponse attachExistingFilesPortabilityPlan(Jwt jwt) {
+        workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "attach-existing-files-portability-plan");
+        Instant inspectedAt = Instant.now(clock);
+        String auditRef = "attach-existing-files-portability-plan-inspected-" + inspectedAt.toEpochMilli();
+        List<AttachExistingPortabilityPlanResponse.AdapterBinding> bindings = List.of(
+                new AttachExistingPortabilityPlanResponse.AdapterBinding("cloud-drive-files-existing", List.of("files"), "hyperscaler_cloud_existing", "active", "read_only", true, false, false, "audit:attach-existing-files:current-active-binding"),
+                new AttachExistingPortabilityPlanResponse.AdapterBinding("cloud-drive-files-discovery-source", List.of("files"), "hyperscaler_cloud_existing", "discovery_read_only", "read_only", false, false, false, "audit:attach-existing-files:discovery-source"),
+                new AttachExistingPortabilityPlanResponse.AdapterBinding("nextcloud-files-sovereign-target", List.of("files"), "self_hosted_sovereign_candidate", "candidate", "plan_only", false, false, false, "audit:attach-existing-files:candidate-target"));
+        auditEventPublisher.publish(new AuditEvent(
+                organizationId(jwt),
+                "admin-control-plane",
+                actorRef(jwt),
+                "attach-existing-files-portability-plan",
+                AuditAction.ATTACH_EXISTING_PORTABILITY_PLAN_INSPECTED,
+                inspectedAt,
+                auditRef,
+                AuditRedactionLevel.SECRET_REDACTED,
+                Map.of(
+                        "planId", "attach-existing-files-portability-plan-mvp",
+                        "mode", "attach_existing",
+                        "domainKey", "files",
+                        "destructiveActionAllowed", false,
+                        "providerMutationPerformed", false,
+                        "memberVisibleProviderInternals", false,
+                        "providerDetailsAudience", "admin_operator_only",
+                        "token", "not-stored")));
+        return new AttachExistingPortabilityPlanResponse(
+                "attach-existing-files-portability-plan-mvp",
+                "admin-attach-existing-portability-plan-v1",
+                "attach_existing",
+                "files",
+                "inspection-ready-read-only",
+                "Read-only discovery and portability planning only. This does not prove destructive migration, production cutover, release readiness, legal compliance, or lossless provider migration.",
+                true,
+                true,
+                false,
+                false,
+                false,
+                List.of(
+                        new AttachExistingPortabilityPlanResponse.CapabilityMapItem("files.read", "cloud-drive-file-read", "nextcloud-files-read", "available"),
+                        new AttachExistingPortabilityPlanResponse.CapabilityMapItem("files.share_links", "cloud-drive-external-link-read", "nextcloud-share-link-policy-review", "degraded"),
+                        new AttachExistingPortabilityPlanResponse.CapabilityMapItem("files.retention_labels", "cloud-drive-proprietary-retention-labels", "manual-policy-rebuild-required", "coming_later")),
+                bindings,
+                "permission-impact:attach-existing-files:mvp",
+                List.of(new AttachExistingPortabilityPlanResponse.ReportItem("FileShare", null, "manual_review", "External share links need admin policy review before a Nextcloud target can reproduce equivalent exposure.", null)),
+                "loss-report:attach-existing-files:mvp",
+                List.of(
+                        new AttachExistingPortabilityPlanResponse.ReportItem("File", "provider_native_retention_label", "vendor_locked", null, "Source retention labels are proprietary metadata and must be exported to an archive report or manually rebuilt."),
+                        new AttachExistingPortabilityPlanResponse.ReportItem("FileVersion", "historic_version_blob", "archive_only", null, "Historic versions are discoverable but not imported in this MVP plan.")),
+                "conflict-report:attach-existing-files:mvp",
+                List.of(new AttachExistingPortabilityPlanResponse.ReportItem("FileShare", null, null, null, "Two source groups map to one target group slug; admin must choose merge or split before cutover.")),
+                List.of("audit:attach-existing-files:discovery-read-only", "audit:attach-existing-files:plan-generated", auditRef),
+                new AttachExistingPortabilityPlanResponse.RecommendedTarget("nextcloud-files-sovereign-target", "Self-hosted Files candidate improves data-sovereignty posture because data plane, audit sink, and retention policy can be operated under the organization-controlled stack after a separately approved migration path."),
+                new AttachExistingPortabilityPlanResponse.NextSteps(
+                        List.of("Keep cloud-drive-files active while discovery_read_only evidence is reviewed.", "Run export dry-run and archive manifest checks before requesting migration_source or migration_target status.", "Require admin approval of loss, permission, and conflict reports before any guarded apply."),
+                        List.of("Retain the existing cloud-drive-files binding as the active binding until post-cutover verification passes.", "Keep rollback retention and restore-smoke refs support-safe and admin-visible only.")),
+                List.of("available", "degraded", "coming_later"),
+                new AttachExistingPortabilityPlanResponse.NegativeChecks(true, true, exactlyOneActiveBindingPerDomain(bindings)));
+    }
+
+    private boolean exactlyOneActiveBindingPerDomain(List<AttachExistingPortabilityPlanResponse.AdapterBinding> bindings) {
+        Map<String, Long> activeCounts = bindings.stream()
+                .filter(AttachExistingPortabilityPlanResponse.AdapterBinding::activeBinding)
+                .flatMap(binding -> binding.domainKeys().stream())
+                .collect(java.util.stream.Collectors.groupingBy(domain -> domain, LinkedHashMap::new, java.util.stream.Collectors.counting()));
+        return activeCounts.values().stream().allMatch(count -> count == 1L);
     }
 
     public List<AdminAuditEventResponse> auditEvents(Jwt jwt) {
