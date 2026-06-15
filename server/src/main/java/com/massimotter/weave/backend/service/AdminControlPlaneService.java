@@ -113,13 +113,9 @@ public class AdminControlPlaneService {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.providerSelectionService = providerSelectionService;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
-        this.providerReplacementDryRunService = providerReplacementDryRunService == null
-                ? new ProviderReplacementDryRunService(providerSelectionService, auditEventPublisher, this.clock)
-                : providerReplacementDryRunService;
-        this.effectivePolicySimulationService = effectivePolicySimulationService == null
-                ? new EffectivePolicySimulationService(auditEventPublisher, this.clock)
-                : effectivePolicySimulationService;
+        this.clock = Objects.requireNonNull(clock, "clock");
+        this.providerReplacementDryRunService = Objects.requireNonNull(providerReplacementDryRunService, "providerReplacementDryRunService");
+        this.effectivePolicySimulationService = Objects.requireNonNull(effectivePolicySimulationService, "effectivePolicySimulationService");
         this.organizationBootstrapRepository = organizationBootstrapRepository;
         this.auditEventPublisher = auditEventPublisher;
         this.identityRealmWorkflowService = Objects.requireNonNull(identityRealmWorkflowService, "identityRealmWorkflowService");
@@ -132,7 +128,9 @@ public class AdminControlPlaneService {
             OrganizationBootstrapRepository organizationBootstrapRepository,
             AuditEventPublisher auditEventPublisher,
             Clock clock) {
-        this(providerRegistry, workspaceCapabilityService, new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock), null, null, organizationBootstrapRepository, auditEventPublisher,
+        this(providerRegistry, workspaceCapabilityService, new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock),
+                new ProviderReplacementDryRunService(new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock), auditEventPublisher, clock),
+                new EffectivePolicySimulationService(auditEventPublisher, clock), organizationBootstrapRepository, auditEventPublisher,
                 new IdentityRealmWorkflowService(workspaceCapabilityService, auditEventPublisher, List.of(new com.massimotter.weave.backend.identity.realm.KeycloakRealmDryRunProvider()), new com.massimotter.weave.backend.identity.realm.InMemoryIdentityRealmEvidenceRepository(), List.of(new com.massimotter.weave.backend.identity.realm.KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock), clock);
     }
 
@@ -147,7 +145,9 @@ public class AdminControlPlaneService {
             List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
             IdentityRealmApplyProperties identityRealmApplyProperties,
             Clock clock) {
-        this(providerRegistry, workspaceCapabilityService, new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock), null, null, organizationBootstrapRepository, auditEventPublisher,
+        this(providerRegistry, workspaceCapabilityService, new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock),
+                new ProviderReplacementDryRunService(new ProviderSelectionService(providerRegistry, providerSelectionRepository, clock), auditEventPublisher, clock),
+                new EffectivePolicySimulationService(auditEventPublisher, clock), organizationBootstrapRepository, auditEventPublisher,
                 new IdentityRealmWorkflowService(workspaceCapabilityService, auditEventPublisher, identityRealmProviders, identityRealmEvidenceRepository, identityRealmLiveApplyAdapters, identityRealmApplyProperties, clock), clock);
     }
 
