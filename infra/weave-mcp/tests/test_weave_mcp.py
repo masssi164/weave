@@ -316,7 +316,16 @@ class WeaveMcpGatewayTest(unittest.TestCase):
                                 "endsAt": "2026-06-12T08:30:00Z",
                                 "allDay": False,
                                 "scope": {"type": "workspace"},
-                            }
+                            },
+                            {
+                                "id": "support-safe-seeded",
+                                "title": "Support-safe seeded calendar check",
+                                "startsAt": "2026-06-12T09:00:00Z",
+                                "endsAt": "2026-06-12T09:30:00Z",
+                                "allDay": False,
+                                "scope": {"type": "workspace"},
+                                "supportSafe": True,
+                            },
                         ]
                     }
                 ).encode("utf-8")
@@ -335,6 +344,7 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertTrue(result["redactedItems"])
         self.assertEqual(result["items"][0]["titlePresent"], True)
         self.assertNotIn("Private title", repr(result))
+        self.assertEqual(result["items"][1]["supportSafeTitle"], "Support-safe seeded calendar check")
 
     def test_local_streamable_http_server_discovery_and_invocation(self) -> None:
         httpd = serve(WeaveMcpConfig(enabled=True), port=0)

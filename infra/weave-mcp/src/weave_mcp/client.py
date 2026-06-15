@@ -116,16 +116,18 @@ class WeaveBackendClient:
         for item in raw_items if isinstance(raw_items, list) else []:
             if not isinstance(item, dict):
                 continue
-            items.append(
-                {
-                    "eventRef": "calendar-event://redacted/" + _stable_ref_fragment(str(item.get("id", "unknown"))),
-                    "titlePresent": bool(item.get("title")),
-                    "startsAt": item.get("startsAt"),
-                    "endsAt": item.get("endsAt"),
-                    "allDay": bool(item.get("allDay")),
-                    "scope": item.get("scope"),
-                }
-            )
+            support_safe_title = item.get("title") if item.get("supportSafe") is True else None
+            mapped_item = {
+                "eventRef": "calendar-event://redacted/" + _stable_ref_fragment(str(item.get("id", "unknown"))),
+                "titlePresent": bool(item.get("title")),
+                "startsAt": item.get("startsAt"),
+                "endsAt": item.get("endsAt"),
+                "allDay": bool(item.get("allDay")),
+                "scope": item.get("scope"),
+            }
+            if isinstance(support_safe_title, str) and support_safe_title.strip():
+                mapped_item["supportSafeTitle"] = support_safe_title.strip()
+            items.append(mapped_item)
 
         with _CREATED_EVENTS_LOCK:
             fixture_items = [
