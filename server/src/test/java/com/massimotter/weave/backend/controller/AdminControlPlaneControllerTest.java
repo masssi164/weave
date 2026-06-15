@@ -26,6 +26,7 @@ import com.massimotter.weave.backend.provider.ProviderSelection;
 import com.massimotter.weave.backend.provider.ProviderSelectionRepository;
 import java.time.Instant;
 import com.massimotter.weave.backend.service.AdminControlPlaneService;
+import com.massimotter.weave.backend.service.AttachExistingPortabilityPlanLoader;
 import com.massimotter.weave.backend.service.InMemoryOrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.OrganizationBootstrapRepository;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -77,6 +78,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         DevopsProviderConfiguration.class,
         DisabledOfficeProvider.class,
         AdminControlPlaneService.class,
+        AttachExistingPortabilityPlanLoader.class,
         AdminControlPlaneControllerTest.AuditTestConfig.class
 })
 @TestPropertySource(properties = {

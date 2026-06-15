@@ -124,6 +124,7 @@ public class AdminControlPlaneService {
     private final IdentityRealmEvidenceRepository identityRealmEvidenceRepository;
     private final List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters;
     private final IdentityRealmApplyProperties identityRealmApplyProperties;
+    private final AttachExistingPortabilityPlanLoader attachExistingPortabilityPlanLoader;
     private final Clock clock;
 
     @Autowired
@@ -136,7 +137,8 @@ public class AdminControlPlaneService {
             List<IdentityRealmProvider> identityRealmProviders,
             ObjectProvider<IdentityRealmEvidenceRepository> identityRealmEvidenceRepository,
             ObjectProvider<List<IdentityRealmLiveApplyAdapter>> identityRealmLiveApplyAdapters,
-            ObjectProvider<IdentityRealmApplyProperties> identityRealmApplyProperties) {
+            ObjectProvider<IdentityRealmApplyProperties> identityRealmApplyProperties,
+            AttachExistingPortabilityPlanLoader attachExistingPortabilityPlanLoader) {
         IdentityRealmApplyProperties properties = identityRealmApplyProperties.getIfAvailable(IdentityRealmApplyProperties::new);
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
@@ -148,6 +150,7 @@ public class AdminControlPlaneService {
                 : List.copyOf(identityRealmProviders);
         this.identityRealmEvidenceRepository = identityRealmEvidenceRepository.getIfAvailable(InMemoryIdentityRealmEvidenceRepository::new);
         this.identityRealmApplyProperties = properties;
+        this.attachExistingPortabilityPlanLoader = attachExistingPortabilityPlanLoader;
         List<IdentityRealmLiveApplyAdapter> adapters = identityRealmLiveApplyAdapters.getIfAvailable(List::of);
         this.identityRealmLiveApplyAdapters = adapters == null || adapters.isEmpty()
                 ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
@@ -163,7 +166,7 @@ public class AdminControlPlaneService {
             AuditEventPublisher auditEventPublisher,
             Clock clock) {
         this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
-                List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock);
+                List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), new AttachExistingPortabilityPlanLoader(new com.fasterxml.jackson.databind.ObjectMapper()), clock);
     }
 
     AdminControlPlaneService(
@@ -176,6 +179,23 @@ public class AdminControlPlaneService {
             IdentityRealmEvidenceRepository identityRealmEvidenceRepository,
             List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
             IdentityRealmApplyProperties identityRealmApplyProperties,
+            Clock clock) {
+        this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
+                identityRealmProviders, identityRealmEvidenceRepository, identityRealmLiveApplyAdapters, identityRealmApplyProperties,
+                new AttachExistingPortabilityPlanLoader(new com.fasterxml.jackson.databind.ObjectMapper()), clock);
+    }
+
+    AdminControlPlaneService(
+            ProviderRegistry providerRegistry,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ProviderSelectionRepository providerSelectionRepository,
+            OrganizationBootstrapRepository organizationBootstrapRepository,
+            AuditEventPublisher auditEventPublisher,
+            List<IdentityRealmProvider> identityRealmProviders,
+            IdentityRealmEvidenceRepository identityRealmEvidenceRepository,
+            List<IdentityRealmLiveApplyAdapter> identityRealmLiveApplyAdapters,
+            IdentityRealmApplyProperties identityRealmApplyProperties,
+            AttachExistingPortabilityPlanLoader attachExistingPortabilityPlanLoader,
             Clock clock) {
         this.providerRegistry = providerRegistry;
         this.workspaceCapabilityService = workspaceCapabilityService;
@@ -194,6 +214,9 @@ public class AdminControlPlaneService {
         this.identityRealmLiveApplyAdapters = identityRealmLiveApplyAdapters == null || identityRealmLiveApplyAdapters.isEmpty()
                 ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
                 : List.copyOf(identityRealmLiveApplyAdapters);
+        this.attachExistingPortabilityPlanLoader = attachExistingPortabilityPlanLoader == null
+                ? new AttachExistingPortabilityPlanLoader(new com.fasterxml.jackson.databind.ObjectMapper())
+                : attachExistingPortabilityPlanLoader;
         this.clock = clock;
     }
 
@@ -1034,10 +1057,7 @@ public class AdminControlPlaneService {
         workspaceCapabilityService.requireCapability(jwt, "admin_control_plane.readiness_read", "admin-control-plane", "attach-existing-files-portability-plan");
         Instant inspectedAt = Instant.now(clock);
         String auditRef = "attach-existing-files-portability-plan-inspected-" + inspectedAt.toEpochMilli();
-        List<AttachExistingPortabilityPlanResponse.AdapterBinding> bindings = List.of(
-                new AttachExistingPortabilityPlanResponse.AdapterBinding("cloud-drive-files-existing", List.of("files"), "hyperscaler_cloud_existing", "active", "read_only", true, false, false, "audit:attach-existing-files:current-active-binding"),
-                new AttachExistingPortabilityPlanResponse.AdapterBinding("cloud-drive-files-discovery-source", List.of("files"), "hyperscaler_cloud_existing", "discovery_read_only", "read_only", false, false, false, "audit:attach-existing-files:discovery-source"),
-                new AttachExistingPortabilityPlanResponse.AdapterBinding("nextcloud-files-sovereign-target", List.of("files"), "self_hosted_sovereign_candidate", "candidate", "plan_only", false, false, false, "audit:attach-existing-files:candidate-target"));
+        AttachExistingPortabilityPlanResponse plan = attachExistingPortabilityPlanLoader.load(auditRef);
         auditEventPublisher.publish(new AuditEvent(
                 organizationId(jwt),
                 "admin-control-plane",
@@ -1048,54 +1068,15 @@ public class AdminControlPlaneService {
                 auditRef,
                 AuditRedactionLevel.SECRET_REDACTED,
                 Map.of(
-                        "planId", "attach-existing-files-portability-plan-mvp",
-                        "mode", "attach_existing",
-                        "domainKey", "files",
-                        "destructiveActionAllowed", false,
-                        "providerMutationPerformed", false,
-                        "memberVisibleProviderInternals", false,
+                        "planId", plan.planId(),
+                        "mode", plan.mode(),
+                        "domainKey", plan.domainKey(),
+                        "destructiveActionAllowed", plan.destructiveActionAllowed(),
+                        "providerMutationPerformed", plan.providerMutationPerformed(),
+                        "memberVisibleProviderInternals", plan.memberVisibleProviderInternals(),
                         "providerDetailsAudience", "admin_operator_only",
                         "token", "not-stored")));
-        return new AttachExistingPortabilityPlanResponse(
-                "attach-existing-files-portability-plan-mvp",
-                "admin-attach-existing-portability-plan-v1",
-                "attach_existing",
-                "files",
-                "inspection-ready-read-only",
-                "Read-only discovery and portability planning only. This does not prove destructive migration, production cutover, release readiness, legal compliance, or lossless provider migration.",
-                true,
-                true,
-                false,
-                false,
-                false,
-                List.of(
-                        new AttachExistingPortabilityPlanResponse.CapabilityMapItem("files.read", "cloud-drive-file-read", "nextcloud-files-read", "available"),
-                        new AttachExistingPortabilityPlanResponse.CapabilityMapItem("files.share_links", "cloud-drive-external-link-read", "nextcloud-share-link-policy-review", "degraded"),
-                        new AttachExistingPortabilityPlanResponse.CapabilityMapItem("files.retention_labels", "cloud-drive-proprietary-retention-labels", "manual-policy-rebuild-required", "coming_later")),
-                bindings,
-                "permission-impact:attach-existing-files:mvp",
-                List.of(new AttachExistingPortabilityPlanResponse.ReportItem("FileShare", null, "manual_review", "External share links need admin policy review before a Nextcloud target can reproduce equivalent exposure.", null)),
-                "loss-report:attach-existing-files:mvp",
-                List.of(
-                        new AttachExistingPortabilityPlanResponse.ReportItem("File", "provider_native_retention_label", "vendor_locked", null, "Source retention labels are proprietary metadata and must be exported to an archive report or manually rebuilt."),
-                        new AttachExistingPortabilityPlanResponse.ReportItem("FileVersion", "historic_version_blob", "archive_only", null, "Historic versions are discoverable but not imported in this MVP plan.")),
-                "conflict-report:attach-existing-files:mvp",
-                List.of(new AttachExistingPortabilityPlanResponse.ReportItem("FileShare", null, null, null, "Two source groups map to one target group slug; admin must choose merge or split before cutover.")),
-                List.of("audit:attach-existing-files:discovery-read-only", "audit:attach-existing-files:plan-generated", auditRef),
-                new AttachExistingPortabilityPlanResponse.RecommendedTarget("nextcloud-files-sovereign-target", "Self-hosted Files candidate improves data-sovereignty posture because data plane, audit sink, and retention policy can be operated under the organization-controlled stack after a separately approved migration path."),
-                new AttachExistingPortabilityPlanResponse.NextSteps(
-                        List.of("Keep cloud-drive-files active while discovery_read_only evidence is reviewed.", "Run export dry-run and archive manifest checks before requesting migration_source or migration_target status.", "Require admin approval of loss, permission, and conflict reports before any guarded apply."),
-                        List.of("Retain the existing cloud-drive-files binding as the active binding until post-cutover verification passes.", "Keep rollback retention and restore-smoke refs support-safe and admin-visible only.")),
-                List.of("available", "degraded", "coming_later"),
-                new AttachExistingPortabilityPlanResponse.NegativeChecks(true, true, exactlyOneActiveBindingPerDomain(bindings)));
-    }
-
-    private boolean exactlyOneActiveBindingPerDomain(List<AttachExistingPortabilityPlanResponse.AdapterBinding> bindings) {
-        Map<String, Long> activeCounts = bindings.stream()
-                .filter(AttachExistingPortabilityPlanResponse.AdapterBinding::activeBinding)
-                .flatMap(binding -> binding.domainKeys().stream())
-                .collect(java.util.stream.Collectors.groupingBy(domain -> domain, LinkedHashMap::new, java.util.stream.Collectors.counting()));
-        return activeCounts.values().stream().allMatch(count -> count == 1L);
+        return plan;
     }
 
     public List<AdminAuditEventResponse> auditEvents(Jwt jwt) {
