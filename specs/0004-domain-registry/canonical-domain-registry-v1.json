@@ -35,7 +35,15 @@
     "unsupportedFields",
     "migrationLimits",
     "auditEvents",
-    "secretBoundary"
+    "secretBoundary",
+    "adapterMapperKey",
+    "activeBindingStatus",
+    "provenanceReport",
+    "lossReport",
+    "permissionImpactReport",
+    "conflictReport",
+    "portabilityManifest",
+    "auditRef"
   ],
   "domains": [
     {
@@ -114,7 +122,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "email_rename",
@@ -180,6 +196,32 @@
       "secondaryAdapterCandidates": [
         "Entra ID (commercial jurisdiction caveat)",
         "Auth0 (commercial jurisdiction caveat)"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -253,7 +295,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "identity_person_merge",
@@ -312,6 +362,32 @@
       "secondaryAdapterCandidates": [
         "LDAP directory",
         "Weave directory fixture"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -390,7 +466,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "split_provider_ownership",
@@ -451,6 +535,32 @@
       "secondaryAdapterCandidates": [
         "Nextcloud group folders",
         "OpenProject projects"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -530,7 +640,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "thread_semantics",
@@ -588,6 +706,32 @@
       "secondaryAdapterCandidates": [
         "Nextcloud Talk",
         "Slack/Teams candidates blocked by commercial evidence"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -666,7 +810,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "permissions",
@@ -728,6 +880,32 @@
       "secondaryAdapterCandidates": [
         "Seafile community",
         "local filesystem fixture"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -802,7 +980,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "native_format_conversion",
@@ -860,6 +1046,32 @@
       ],
       "secondaryAdapterCandidates": [
         "ONLYOFFICE Community with license caveat"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -933,7 +1145,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "rrule_fidelity",
@@ -993,6 +1213,32 @@
       "secondaryAdapterCandidates": [
         "DAViCal",
         "Baikal"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -1071,7 +1317,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "custom_fields",
@@ -1133,6 +1387,32 @@
       "secondaryAdapterCandidates": [
         "Vikunja",
         "Nextcloud Deck"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -1209,7 +1489,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "e2ee_boundary",
@@ -1270,6 +1558,32 @@
       ],
       "secondaryAdapterCandidates": [
         "Nextcloud Talk"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -1344,7 +1658,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "legal_retention",
@@ -1403,7 +1725,33 @@
       "secondaryAdapterCandidates": [
         "OpenSearch/Loki derived views"
       ],
-      "sourceOfTruthNote": "Decision receipts and audit records are canonical evidence; search views over them remain derived."
+      "sourceOfTruthNote": "Decision receipts and audit records are canonical evidence; search views over them remain derived.",
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
+      ]
     },
     {
       "key": "notifications",
@@ -1477,7 +1825,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "duplicate_delivery",
@@ -1539,6 +1895,32 @@
       "secondaryAdapterCandidates": [
         "SMTP relay",
         "Matrix bot notification bridge"
+      ],
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
       ]
     },
     {
@@ -1614,7 +1996,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "raw_provider_leakage",
@@ -1672,7 +2062,33 @@
       "secondaryAdapterCandidates": [
         "Loki/OpenSearch derived logs"
       ],
-      "sourceOfTruthNote": "Health and support views are derived from readiness checks, telemetry, and redacted support bundles; they are not canonical business records."
+      "sourceOfTruthNote": "Health and support views are derived from readiness checks, telemetry, and redacted support bundles; they are not canonical business records.",
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
+      ]
     },
     {
       "key": "weaver",
@@ -1743,7 +2159,15 @@
         "unsupportedFields",
         "migrationLimits",
         "auditEvents",
-        "secretBoundary"
+        "secretBoundary",
+        "adapterMapperKey",
+        "activeBindingStatus",
+        "provenanceReport",
+        "lossReport",
+        "permissionImpactReport",
+        "conflictReport",
+        "portabilityManifest",
+        "auditRef"
       ],
       "portabilityRisks": [
         "overbroad_tools",
@@ -1800,7 +2224,33 @@
       "secondaryAdapterCandidates": [
         "containerized per-user sandbox"
       ],
-      "sourceOfTruthNote": "Weaver runtime state is governed metadata; generated indexes and tool caches are rebuildable derived state."
+      "sourceOfTruthNote": "Weaver runtime state is governed metadata; generated indexes and tool caches are rebuildable derived state.",
+      "activeBindingPolicy": "exactly_one_active_adapter_binding_per_domain",
+      "bindingStatusVocabulary": [
+        "active",
+        "candidate",
+        "discovery_read_only",
+        "migration_source",
+        "migration_target",
+        "coexistence_preflight",
+        "deprecated",
+        "superseded"
+      ],
+      "adapterMapperRequirements": [
+        "map_provider_objects_to_canonical_weave_objects",
+        "map_capabilities_permissions_events_errors",
+        "emit_provenance_report",
+        "emit_loss_report",
+        "emit_permission_impact_report",
+        "emit_conflict_report",
+        "emit_portability_manifest",
+        "link_support_safe_audit_refs"
+      ],
+      "setupScenarios": [
+        "deploy_new",
+        "attach_existing",
+        "hybrid"
+      ]
     }
   ],
   "providerRealityLevels": [
@@ -1962,5 +2412,21 @@
     "weaverToolMode",
     "primaryAdapterCandidates",
     "secondaryAdapterCandidates"
-  ]
+  ],
+  "bindingStatuses": [
+    "active",
+    "candidate",
+    "discovery_read_only",
+    "migration_source",
+    "migration_target",
+    "coexistence_preflight",
+    "deprecated",
+    "superseded"
+  ],
+  "activeBindingPolicy": {
+    "perDomainActiveBinding": "exactly_one",
+    "memberProviderLeakage": "forbidden",
+    "setupPlane": "control_admin_operator",
+    "memberPlane": "provider_agnostic_capability_manifest"
+  }
 }

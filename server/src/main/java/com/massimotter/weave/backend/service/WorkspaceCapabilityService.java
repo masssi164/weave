@@ -214,7 +214,7 @@ public class WorkspaceCapabilityService {
                 true,
                 weaverRuntimeProperties.enabled()
                         ? "governed per-user Dockerized Weaver profiles are generated only when org policy grants weaver.enabled"
-                        : "disabled-by-default; per-user Dockerized Weaver runtime may only be generated from org policy later");
+                        : "disabled-by-default; signed WeaverRuntimeProfile may only create a logical runtime context from org policy later");
     }
 
     public List<String> grantedCapabilities(Jwt jwt) {

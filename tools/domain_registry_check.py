@@ -9,8 +9,9 @@ SERVER_COPY=ROOT/'server/src/main/resources/canonical-domain-registry-v1.json'
 REQUIRED_KEYS=['identity','people','spaces','chat','files','documents','calendar','boards','calls','decisions','notifications','health','weaver']
 MEMBER=['available','disabled_by_policy','not_configured','degraded','unavailable','coming_later']
 ADMIN=['provider_not_configured','secret_missing','ready','degraded','dry_run_required','lossy_mapping_pending','apply_blocked','migration_ready']
-MANIFEST=['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary']
+MANIFEST=['adapterKey','domainKeys','apiProfile','canonicalObjects','capabilityKeys','readinessChecks','unsupportedFields','migrationLimits','auditEvents','secretBoundary','adapterMapperKey','activeBindingStatus','provenanceReport','lossReport','permissionImpactReport','conflictReport','portabilityManifest','auditRef']
 REALITY=['contract_only','configured','live_read','live_write','migration_dry_run','migration_apply_ready','rollback_ready','release_ready']
+BINDING_STATUSES=['active','candidate','discovery_read_only','migration_source','migration_target','coexistence_preflight','deprecated','superseded']
 CONTRACT_REQUIRED=['domainId','userObjects','organizationObjects','readCapabilities','writeCapabilities','minimumOpenProtocols','authIdentityAssumptions','auditRequirements','portabilityExportContract','jurisdictionVendorExposureDescriptor','weaverToolMode','primaryAdapterCandidates','secondaryAdapterCandidates']
 WEAVER_MODES={'none','read-only','approval-write','governed-write'}
 PLACEHOLDER_IDS={'ai-runtime-gateway','mcp-tool-registry','search','notes','secrets','mail','backup-export'}
@@ -36,6 +37,9 @@ def main():
  if data.get('adminStates')!=ADMIN: fail('top-level admin states are not canonical')
  if data.get('adapterManifestRequirements')!=MANIFEST: fail('top-level adapter manifest requirements are incomplete')
  if data.get('providerRealityLevels')!=REALITY: fail('top-level provider reality levels are not canonical')
+ if data.get('bindingStatuses')!=BINDING_STATUSES: fail('top-level binding statuses are not canonical')
+ active_policy=data.get('activeBindingPolicy') or {}
+ if active_policy.get('perDomainActiveBinding')!='exactly_one' or active_policy.get('memberProviderLeakage')!='forbidden': fail('active binding policy must require exactly one active domain binding and forbid member provider leakage')
  if data.get('domainContractRequiredFields')!=CONTRACT_REQUIRED: fail('top-level domain contract required fields are incomplete')
  placeholders=data.get('futureDomainPlaceholders')
  if not isinstance(placeholders,list): fail('futureDomainPlaceholders must be a list')
@@ -77,6 +81,12 @@ def main():
   if d.get('memberStates')!=MEMBER: fail(f'{key} member states differ from canonical list')
   if d.get('adminStates')!=ADMIN: fail(f'{key} admin states differ from canonical list')
   if d.get('adapterManifestRequirements')!=MANIFEST: fail(f'{key} manifest requirements differ from canonical list')
+  if d.get('activeBindingPolicy')!='exactly_one_active_adapter_binding_per_domain': fail(f'{key} must require exactly one active adapter binding')
+  if d.get('bindingStatusVocabulary')!=BINDING_STATUSES: fail(f'{key} binding statuses differ from canonical list')
+  mapper=d.get('adapterMapperRequirements',[])
+  for required in ['map_provider_objects_to_canonical_weave_objects','map_capabilities_permissions_events_errors','emit_provenance_report','emit_loss_report','emit_permission_impact_report','emit_conflict_report','emit_portability_manifest','link_support_safe_audit_refs']:
+   if required not in mapper: fail(f'{key} AdapterMapper requirements missing {required}')
+  if d.get('setupScenarios')!=['deploy_new','attach_existing','hybrid']: fail(f'{key} must support deploy_new, attach_existing, and hybrid setup scenarios')
   for obj in d['canonicalObjects']:
    if not isinstance(obj,str) or not obj[:1].isupper() or '/' in obj: fail(f'{key} canonical object {obj!r} must be a PascalCase Weave object name')
   for capability in d['capabilityKeys']:
