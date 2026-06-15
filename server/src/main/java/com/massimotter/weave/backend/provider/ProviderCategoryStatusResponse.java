@@ -21,7 +21,7 @@ public record ProviderCategoryStatusResponse(
         @Schema(description = "Provider registry modules contributing to this category.") List<String> modules,
         @Schema(description = "Support-safe provider choices/candidates for admin diagnostics.") List<String> providerCandidates,
         @Schema(description = "Admin Console-selected provider key, or awaiting_admin_selection when not applied.") String selectedProviderKey,
-        @Schema(description = "Selected provider choice model: recommended_self_hosted_default, external_existing_provider, or managed_cloud_provider.") String choiceModel,
+        @Schema(description = "Selected provider choice model: recommended_self_hosted_default, external_existing_provider, managed_cloud_provider, or hybrid_composite.") String choiceModel,
         @Schema(description = "True only after an admin has applied a provider mapping for this category.") boolean selectedByAdmin,
         @Schema(description = "True when defaults are being shown only as bootstrap/profile suggestions, not product truth.") boolean bootstrapSuggestionOnly,
         @Schema(description = "Support-safe notes for known lossy mappings across provider families.") List<String> lossyMappingNotes,

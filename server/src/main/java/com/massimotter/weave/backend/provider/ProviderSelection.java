@@ -17,9 +17,9 @@ public record ProviderSelection(
         List<String> lossyMappingNotes) {
 
     public ProviderSelection {
-        category = requireText(category, "category");
+        category = ProviderSelectionKey.category(category);
         providerKey = requireText(providerKey, "providerKey");
-        choiceModel = normalizeChoiceModel(choiceModel);
+        choiceModel = ProviderChoiceModel.normalize(choiceModel);
         secretRef = normalizeSecretRef(secretRef);
         selectedBy = selectedBy == null || selectedBy.isBlank() ? "actor:system" : selectedBy.trim();
         selectedAt = selectedAt == null ? Instant.EPOCH : selectedAt;
@@ -36,19 +36,6 @@ public record ProviderSelection(
             throw new IllegalArgumentException(field + " must not be blank");
         }
         return value.trim();
-    }
-
-    private static String normalizeChoiceModel(String value) {
-        if (value == null || value.isBlank()) {
-            return "recommended_self_hosted_default";
-        }
-        String normalized = value.trim();
-        if (normalized.equals("recommended_self_hosted_default")
-                || normalized.equals("external_existing_provider")
-                || normalized.equals("managed_cloud_provider")) {
-            return normalized;
-        }
-        throw new IllegalArgumentException("choiceModel must be a provider choice contract value");
     }
 
     private static String normalizeSecretRef(String value) {

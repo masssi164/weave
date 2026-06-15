@@ -8,7 +8,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -46,7 +45,7 @@ public class FileProviderSelectionRepository implements ProviderSelectionReposit
         if (category == null || category.isBlank()) {
             return Optional.empty();
         }
-        return Optional.ofNullable(selections.get(normalizeCategory(category)));
+        return Optional.ofNullable(selections.get(ProviderSelectionKey.category(category)));
     }
 
     @Override
@@ -63,9 +62,10 @@ public class FileProviderSelectionRepository implements ProviderSelectionReposit
         }
         synchronized (persistenceLock) {
             Map<String, ProviderSelection> nextSelections = new TreeMap<>(selections);
-            nextSelections.put(normalizeCategory(selection.category()), selection);
+            String categoryKey = ProviderSelectionKey.category(selection.category());
+            nextSelections.put(categoryKey, selection);
             persist(nextSelections);
-            selections.put(normalizeCategory(selection.category()), selection);
+            selections.put(categoryKey, selection);
             return selection;
         }
     }
@@ -83,7 +83,7 @@ public class FileProviderSelectionRepository implements ProviderSelectionReposit
             Map<String, ProviderSelection> loaded = objectMapper.readValue(storagePath.toFile(), SELECTION_MAP);
             selections.clear();
             if (loaded != null) {
-                loaded.values().forEach(selection -> selections.put(normalizeCategory(selection.category()), selection));
+                loaded.values().forEach(selection -> selections.put(ProviderSelectionKey.category(selection.category()), selection));
             }
         } catch (IOException exception) {
             throw new ProviderSelectionStoreException(
@@ -108,9 +108,5 @@ public class FileProviderSelectionRepository implements ProviderSelectionReposit
             throw new ProviderSelectionStoreException(
                     "Failed to persist provider selections to " + storagePath, exception);
         }
-    }
-
-    private String normalizeCategory(String category) {
-        return category.trim().toLowerCase(Locale.ROOT);
     }
 }

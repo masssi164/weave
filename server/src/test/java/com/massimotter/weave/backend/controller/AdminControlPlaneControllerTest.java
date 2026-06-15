@@ -744,13 +744,15 @@ class AdminControlPlaneControllerTest {
         mockMvc.perform(post("/api/admin/providers/selections")
                         .with(adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"category\":\"chat\",\"providerKey\":\"slack\",\"choiceModel\":\"external_existing_provider\",\"secretRef\":\"secretref://weave/provider/slack\",\"lossyMappingNotes\":[\"Slack thread/broadcast semantics require migration dry-run.\"],\"reason\":\"compare external provider\"}"))
+                        .content("{\"category\":\"chat\",\"providerKey\":\"slack\",\"choiceModel\":\"hybrid_composite\",\"secretRef\":\"secretref://weave/provider/slack\",\"lossyMappingNotes\":[\"Slack thread/broadcast semantics require migration dry-run.\"],\"reason\":\"compare external provider\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.category").value("chat"))
                 .andExpect(jsonPath("$.providerKey").value("slack"))
+                .andExpect(jsonPath("$.choiceModel").value("hybrid_composite"))
                 .andExpect(jsonPath("$.applied").value(true))
                 .andExpect(jsonPath("$.supportSafe").value(true))
-                .andExpect(jsonPath("$.migrationDryRunRequired").value(true));
+                .andExpect(jsonPath("$.migrationDryRunRequired").value(true))
+                .andExpect(content().string(not(containsString("xoxb-raw-token"))));
 
         mockMvc.perform(post("/api/admin/providers/selections")
                         .with(adminJwt())
