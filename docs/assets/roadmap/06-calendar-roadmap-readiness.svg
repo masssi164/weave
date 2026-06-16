@@ -82,7 +82,7 @@
     <circle cx="534" cy="624" r="28" fill="#ecfeff" stroke="#67e8f9" stroke-width="2"/>
     <text x="522" y="634" font-size="26" font-weight="800" fill="#0e7490">🔐</text>
     <text x="576" y="631" font-size="24" font-weight="800" fill="#0f172a">Credential readiness</text>
-    <text x="512" y="678" font-size="22" font-weight="400" fill="#475569">Backend actor</text>
+    <text x="512" y="678" font-size="22" font-weight="400" fill="#475569">Workspace API actor</text>
 <text x="512" y="708" font-size="22" font-weight="400" fill="#475569">credentials are not</text>
 <text x="512" y="738" font-size="22" font-weight="400" fill="#475569">exposed to generated</text>
 <text x="512" y="768" font-size="22" font-weight="400" fill="#475569">setup artifacts.</text>

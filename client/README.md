@@ -59,7 +59,7 @@ A first look at the active product-maturity experience: guided setup, service re
 
 [<img src="../docs/assets/marketing/01-setup-start.svg" alt="Weave setup start screen showing a guided workspace setup path and canonical local service URLs." width="560">](../docs/assets/marketing/01-setup-start.svg)
 
-[<img src="../docs/assets/marketing/02-review-service-endpoints.svg" alt="Weave setup endpoint review screenshot listing Matrix, files, and backend service URLs before finishing setup." width="560">](../docs/assets/marketing/02-review-service-endpoints.svg)
+[<img src="../docs/assets/marketing/02-review-workspace-readiness.svg" alt="Weave setup workspace readiness screenshot showing configured capabilities before finishing setup." width="560">](../docs/assets/marketing/02-review-workspace-readiness.svg)
 
 ### Daily collaboration
 

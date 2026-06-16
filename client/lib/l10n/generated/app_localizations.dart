@@ -131,25 +131,25 @@ abstract class AppLocalizations {
   /// Title for the setup provider and issuer step
   ///
   /// In en, this message translates to:
-  /// **'Configure provider categories'**
+  /// **'Configure workspace capabilities'**
   String get setupProviderStepTitle;
 
   /// Description shown in the setup provider step
   ///
   /// In en, this message translates to:
-  /// **'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.'**
+  /// **'Admin setup starts with organization sign-in and keeps Chat, Files, Calendar, Boards, Meetings, Documents, and Weaver visible as workspace capabilities before members join.'**
   String get setupProviderStepDescription;
 
   /// Title for the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Review Service Endpoints'**
+  /// **'Review Workspace Readiness'**
   String get setupServicesStepTitle;
 
   /// Description shown in the setup services step
   ///
   /// In en, this message translates to:
-  /// **'Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.'**
+  /// **'Review product-level workspace readiness. Raw service configuration stays in admin/operator recovery, not normal member setup.'**
   String get setupServicesStepDescription;
 
   /// Title for the provider category summary shown to admins during setup and workspace health
