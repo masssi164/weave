@@ -1,0 +1,30 @@
+{
+  "artifactKind": "weave-runtime-profile-revocation-contract-v1",
+  "issue": 795,
+  "scope": "weaver_runtime_profile_durable_revocation",
+  "dependsOn": [794],
+  "requiredBehavior": [
+    "revocation_is_durable_across_service_restart",
+    "revoked_profile_fails_closed_before_runtime_provisioning",
+    "revocation_event_is_audit_linked",
+    "revocation_decision_uses_signed_profile_identity",
+    "support_evidence_excludes_secrets_and_raw_provider_payloads"
+  ],
+  "revocationRecord": {
+    "runtimeProfileId": "signed-profile-id-required",
+    "profileSignatureId": "required",
+    "revokedAt": "required",
+    "revokedBy": "required_actor_ref",
+    "reason": "support_safe_required",
+    "auditEventRef": "required"
+  },
+  "requiredFailureState": "policy_blocked",
+  "forbiddenResponseFragments": [
+    "private_key",
+    "client_secret",
+    "rawProviderPayload",
+    "Authorization: Bearer",
+    "signingKeyMaterial",
+    "runtimeToken"
+  ]
+}
