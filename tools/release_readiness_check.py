@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from support_safe_redaction import classify_text
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_LIVE_EVIDENCE_DIR = ROOT / "weave-live-stack-acceptance-evidence"
 DEFAULT_CI_SUMMARY = ROOT / "build" / "evidence" / "ci-summary.json"
@@ -47,10 +49,6 @@ REQUIRED_LIVE_ARTIFACTS = {
 FORBIDDEN_PATTERNS = (
     (re.compile(r"https://x-access-token:[^\s)]+", re.IGNORECASE), "credential-bearing Git URL"),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b"), "GitHub token"),
-    (re.compile(r"\bBearer\s+[A-Za-z0-9._~+/=-]{12,}\b", re.IGNORECASE), "bearer token"),
-    (re.compile(r"\b(access_token|refresh_token)=[^\s)]+", re.IGNORECASE), "token query value"),
-    (re.compile(r"\b(client_secret|password|api[_-]?key)=([^\s)]+)", re.IGNORECASE), "credential value"),
-    (re.compile(r"BEGIN PRIVATE KEY"), "private key"),
 )
 
 REQUIRED_SUPPORT_SAFE_POLICY_TERMS = (
@@ -162,6 +160,16 @@ def check_support_safe(paths: list[Path]) -> Check:
         for pattern, label in FORBIDDEN_PATTERNS:
             if pattern.search(text):
                 return Check("support-safe", "fail", f"{rel(path)} contains {label}", scanned)
+        findings = classify_text(text)
+        if findings:
+            finding = findings[0]
+            return Check(
+                "support-safe",
+                "fail",
+                f"{rel(path)} contains {finding.reason}",
+                scanned,
+                {"category": finding.category},
+            )
     return Check("support-safe", "pass", "checked summaries contain no known secret, credential, payload, prompt, member-content, or raw-runtime-config patterns", scanned)
 
 
