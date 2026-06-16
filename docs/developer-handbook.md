@@ -2,6 +2,11 @@
 
 This handbook is the practical entry point for contributing to the Weave monorepo, especially the Flutter client. It complements the repo README and links to deeper docs instead of repeating every contract.
 
+
+## Non-chat domain facade boundary
+
+Files, Calendar, and Boards implementation work must follow `docs/non-chat-domain-facade-contract.md`. Product/runtime callers consume canonical domain facades, not provider adapters. Provider-specific details belong in admin/operator seams, adapter tests, or support-safe diagnostics only.
+
 ## Repository role
 
 Weave is now a monorepo product stack:
