@@ -129,7 +129,7 @@ void main() {
 
       expect(imageMatches.map((match) => match.group(1)).toList(), <String>[
         '../docs/assets/marketing/01-setup-start.svg',
-        '../docs/assets/marketing/02-review-service-endpoints.svg',
+        '../docs/assets/marketing/02-review-workspace-readiness.svg',
         '../docs/assets/marketing/03-chat-room.svg',
         '../docs/assets/marketing/04-files-documents.svg',
         '../docs/assets/marketing/05-settings.svg',
