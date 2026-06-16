@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
   <title id="title">Weave settings screen</title>
-  <desc id="desc">The Weave settings screen shows saved local service configuration and sign-out controls.</desc>
+  <desc id="desc">The Weave settings screen shows saved workspace configuration and sign-out controls.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#eff6ff"/>
@@ -47,29 +47,28 @@
 
   <rect x="104" y="212" width="1096" height="150" rx="34" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
   <text x="144" y="270" font-size="42" font-weight="900" fill="#0f172a">Workspace Settings</text>
-  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">Review server configuration, update service URLs, and manage the</text>
-<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">current session.</text>
+  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">Review workspace configuration, support-safe connection details,</text>
+<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">and the current session.</text>
 
     <rect x="104" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
-    <text x="132" y="444" font-size="21" font-weight="700" fill="#0369a1">OIDC issuer</text>
-    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">https://auth.weave.test/realms/</text>
-<text x="132" y="507" font-size="20" font-weight="400" fill="#0f172a">weave</text>
+    <text x="132" y="444" font-size="21" font-weight="700" fill="#0369a1">Sign-in status</text>
+    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">Ready</text>
 
 
     <rect x="480" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
-    <text x="508" y="444" font-size="21" font-weight="700" fill="#0369a1">Client ID</text>
-    <text x="508" y="480" font-size="20" font-weight="400" fill="#0f172a">weave-app</text>
+    <text x="508" y="444" font-size="21" font-weight="700" fill="#0369a1">App</text>
+    <text x="508" y="480" font-size="20" font-weight="400" fill="#0f172a">Configured</text>
 
 
     <rect x="856" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
-    <text x="884" y="444" font-size="21" font-weight="700" fill="#0369a1">Nextcloud</text>
-    <text x="884" y="480" font-size="20" font-weight="400" fill="#0f172a">https://files.weave.test</text>
+    <text x="884" y="444" font-size="21" font-weight="700" fill="#0369a1">Files</text>
+    <text x="884" y="480" font-size="20" font-weight="400" fill="#0f172a">Ready</text>
 
 
     <rect x="104" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
     <circle cx="158" cy="624" r="28" fill="#ecfeff" stroke="#67e8f9" stroke-width="2"/>
     <text x="146" y="634" font-size="26" font-weight="800" fill="#0e7490">⚙</text>
-    <text x="200" y="631" font-size="24" font-weight="800" fill="#0f172a">Server configuration</text>
+    <text x="200" y="631" font-size="24" font-weight="800" fill="#0f172a">Workspace configuration</text>
     <text x="136" y="678" font-size="22" font-weight="400" fill="#475569">One persisted setup</text>
 <text x="136" y="708" font-size="22" font-weight="400" fill="#475569">model shared by</text>
 <text x="136" y="738" font-size="22" font-weight="400" fill="#475569">onboarding and settings.</text>

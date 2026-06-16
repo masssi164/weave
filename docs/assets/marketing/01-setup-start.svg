@@ -47,12 +47,12 @@
 
   <rect x="104" y="212" width="1096" height="150" rx="34" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
   <text x="144" y="270" font-size="42" font-weight="900" fill="#0f172a">Set up your Weave workspace</text>
-  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">Connect identity, chat, files, and backend services through one</text>
-<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">guided setup path.</text>
+  <text x="144" y="316" font-size="26" font-weight="400" fill="#475569">Connect identity, chat, files, and workspace capabilities through</text>
+<text x="144" y="350" font-size="26" font-weight="400" fill="#475569">one guided setup path.</text>
 
     <rect x="104" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
     <text x="132" y="444" font-size="21" font-weight="700" fill="#0369a1">API</text>
-    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">https://api.weave.test/api</text>
+    <text x="132" y="480" font-size="20" font-weight="400" fill="#0f172a">Ready</text>
 
 
     <rect x="480" y="402" width="346" height="116" rx="28" fill="#ffffff" stroke="#dbeafe" stroke-width="2"/>
@@ -68,21 +68,20 @@
     <rect x="104" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
     <circle cx="158" cy="624" r="28" fill="#ecfeff" stroke="#67e8f9" stroke-width="2"/>
     <text x="146" y="634" font-size="26" font-weight="800" fill="#0e7490">1</text>
-    <text x="200" y="631" font-size="24" font-weight="800" fill="#0f172a">OIDC sign-in</text>
-    <text x="136" y="678" font-size="22" font-weight="400" fill="#475569">Use Keycloak-backed</text>
-<text x="136" y="708" font-size="22" font-weight="400" fill="#475569">single sign-on with the</text>
-<text x="136" y="738" font-size="22" font-weight="400" fill="#475569">infra-managed weave-app</text>
-<text x="136" y="768" font-size="22" font-weight="400" fill="#475569">client.</text>
+    <text x="200" y="631" font-size="24" font-weight="800" fill="#0f172a">Workspace sign-in</text>
+    <text x="136" y="678" font-size="22" font-weight="400" fill="#475569">Use organization-managed</text>
+<text x="136" y="708" font-size="22" font-weight="400" fill="#475569">single sign-on without</text>
+<text x="136" y="738" font-size="22" font-weight="400" fill="#475569">exposing provider setup</text>
+<text x="136" y="768" font-size="22" font-weight="400" fill="#475569">to members.</text>
 
 
     <rect x="480" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
     <circle cx="534" cy="624" r="28" fill="#ecfeff" stroke="#67e8f9" stroke-width="2"/>
     <text x="522" y="634" font-size="26" font-weight="800" fill="#0e7490">2</text>
-    <text x="576" y="631" font-size="24" font-weight="800" fill="#0f172a">Service endpoints</text>
-    <text x="512" y="678" font-size="22" font-weight="400" fill="#475569">Review Matrix, files,</text>
-<text x="512" y="708" font-size="22" font-weight="400" fill="#475569">and backend URLs before</text>
-<text x="512" y="738" font-size="22" font-weight="400" fill="#475569">saving the local</text>
-<text x="512" y="768" font-size="22" font-weight="400" fill="#475569">workspace.</text>
+    <text x="576" y="631" font-size="24" font-weight="800" fill="#0f172a">Workspace capabilities</text>
+    <text x="512" y="678" font-size="22" font-weight="400" fill="#475569">Review Chat, Files, and</text>
+<text x="512" y="708" font-size="22" font-weight="400" fill="#475569">Workspace readiness</text>
+<text x="512" y="738" font-size="22" font-weight="400" fill="#475569">before inviting members.</text>
 
 
     <rect x="856" y="566" width="336" height="210" rx="32" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>

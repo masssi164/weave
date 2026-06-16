@@ -20,19 +20,19 @@
   "@setupTitle": {
     "description": "Title for the setup flow screen"
   },
-  "setupProviderStepTitle": "Configure provider categories",
+  "setupProviderStepTitle": "Configure workspace capabilities",
   "@setupProviderStepTitle": {
     "description": "Title for the setup provider and issuer step"
   },
-  "setupProviderStepDescription": "Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.",
+  "setupProviderStepDescription": "Admin setup starts with organization sign-in and keeps Chat, Files, Calendar, Boards, Meetings, Documents, and Weaver visible as workspace capabilities before members join.",
   "@setupProviderStepDescription": {
     "description": "Description shown in the setup provider step"
   },
-  "setupServicesStepTitle": "Review Service Endpoints",
+  "setupServicesStepTitle": "Review Workspace Readiness",
   "@setupServicesStepTitle": {
     "description": "Title for the setup services step"
   },
-  "setupServicesStepDescription": "Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.",
+  "setupServicesStepDescription": "Review product-level workspace readiness. Raw service configuration stays in admin/operator recovery, not normal member setup.",
   "@setupServicesStepDescription": {
     "description": "Description shown in the setup services step"
   },
