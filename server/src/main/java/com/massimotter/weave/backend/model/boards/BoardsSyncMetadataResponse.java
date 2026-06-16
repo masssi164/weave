@@ -14,9 +14,12 @@ public record BoardsSyncMetadataResponse(
         boolean contextScoped,
         boolean supportSafe,
         Map<String, String> nextCursors,
+        Map<String, String> mappingRefs,
+        String replacementPreviewState,
         Instant lastSyncedAt) {
 
     public BoardsSyncMetadataResponse {
         nextCursors = nextCursors == null ? Map.of() : Map.copyOf(nextCursors);
+        mappingRefs = mappingRefs == null ? Map.of() : Map.copyOf(mappingRefs);
     }
 }
