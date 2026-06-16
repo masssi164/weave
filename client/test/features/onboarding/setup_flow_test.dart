@@ -88,13 +88,13 @@ void main() {
     });
 
     testWidgets(
-      'renders first step with identity endpoint and client id fields',
+      'renders first step with workspace capability fields',
       (tester) async {
         await tester.pumpWidget(buildApp());
         await tester.pumpAndSettle();
 
         expect(find.byType(WeaveLogo), findsOneWidget);
-        expect(find.text('Configure provider categories'), findsOneWidget);
+        expect(find.text('Configure workspace capabilities'), findsOneWidget);
         expect(find.text('Provider categories'), findsOneWidget);
         expect(find.text('Identity/IDM'), findsOneWidget);
         expect(find.text('Documents/collaboration'), findsOneWidget);
@@ -125,7 +125,7 @@ void main() {
       await tester.tap(find.text('Next'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Review Service Endpoints'), findsOneWidget);
+      expect(find.text('Review Workspace Readiness'), findsOneWidget);
       expect(find.text('https://matrix.home.internal'), findsWidgets);
       expect(find.text('https://files.home.internal'), findsWidgets);
       expect(find.text('https://api.home.internal/api'), findsWidgets);
@@ -160,7 +160,7 @@ void main() {
       expect(json['backendApiBaseUrl'], 'https://api.home.internal/api');
     });
 
-    testWidgets('goes back to provider step from services step', (
+    testWidgets('goes back to capability step from readiness step', (
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
@@ -176,7 +176,7 @@ void main() {
       await tester.tap(find.text('Back'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Configure provider categories'), findsOneWidget);
+      expect(find.text('Configure workspace capabilities'), findsOneWidget);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {

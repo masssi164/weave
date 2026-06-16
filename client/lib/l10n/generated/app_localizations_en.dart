@@ -25,18 +25,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setupTitle => 'Setup';
 
   @override
-  String get setupProviderStepTitle => 'Configure provider categories';
+  String get setupProviderStepTitle => 'Configure workspace capabilities';
 
   @override
   String get setupProviderStepDescription =>
-      'Admin setup starts with the identity/IDM category and keeps chat, files, calendar, boards/tasks, meetings/calls, documents/collaboration, and Weaver visible as provider categories before members join.';
+      'Admin setup starts with organization sign-in and keeps Chat, Files, Calendar, Boards, Meetings, Documents, and Weaver visible as workspace capabilities before members join.';
 
   @override
-  String get setupServicesStepTitle => 'Review Service Endpoints';
+  String get setupServicesStepTitle => 'Review Workspace Readiness';
 
   @override
   String get setupServicesStepDescription =>
-      'Review the current dogfood service endpoints derived from the identity issuer. These provider URLs stay admin/operator configuration, not normal member setup.';
+      'Review product-level workspace readiness. Raw service configuration stays in admin/operator recovery, not normal member setup.';
 
   @override
   String get providerCategorySummaryTitle => 'Provider categories';
