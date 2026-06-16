@@ -1,5 +1,8 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditRequiredException;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.ContextAuthorizationConfiguration;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
@@ -15,7 +18,10 @@ import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,12 +56,12 @@ class FilesFacadeServiceTest {
     void failsClosedWhenAdapterIsMissingOrUnconfigured() {
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
         FilesFacadeService missing = service(null);
-        FilesFacadeService unconfigured = service(new StubAdapter(false));
+        FilesFacadeService unconfigured = service(new StubAdapter(false), new InMemoryAuditEventPublisher());
 
         assertThatThrownBy(() -> missing.list("/"))
                 .isInstanceOfSatisfying(ApiErrorException.class, exception -> {
                     assertThat(exception.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-                    assertThat(exception.code()).isEqualTo("nextcloud-adapter-not-configured");
+                    assertThat(exception.code()).isEqualTo("files-adapter-not-configured");
                     assertThat(exception.details()).containsEntry("operation", "list-files");
                 });
         assertThatThrownBy(() -> unconfigured.upload("/", null))
@@ -134,6 +140,47 @@ class FilesFacadeServiceTest {
                     assertThat(exception.details()).containsEntry("diagnosticsRedacted", true);
                 });
         assertThat(contextChecked).isFalse();
+    }
+
+
+    @Test
+    void mutatingOperationsPublishSupportSafeAuditWithCanonicalMappingRefs() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        FilesFacadeService service = service(new StubAdapter(true), audit);
+
+        FileItemResponse folder = service.createFolder(new CreateFolderRequest("/Team", "Design"));
+        FileUploadResponse upload = service.upload("/Team", null);
+        service.delete("files:test-delete");
+
+        assertThat(folder.id()).startsWith("files:");
+        assertThat(upload.item().id()).startsWith("files:");
+        assertThat(audit.events()).extracting(event -> event.action()).containsExactly(
+                AuditAction.FILE_FOLDER_CREATED,
+                AuditAction.FILE_UPLOADED,
+                AuditAction.FILE_DELETED);
+        assertThat(audit.events()).allSatisfy(event -> {
+            assertThat(event.tenantId()).isEqualTo("tenant-default");
+            assertThat(event.contextId()).isEqualTo("workspace-default");
+            assertThat(event.actorRef()).isEqualTo("user:user-123");
+            assertThat(event.sourceRef()).isEqualTo("files-facade");
+            assertThat(event.payload()).containsEntry("module", "files");
+            assertThat(event.payload().get("mappingRef").toString()).startsWith("provider-mapping://files/");
+            String rendered = event.toString();
+            assertThat(rendered)
+                    .doesNotContain("nextcloud")
+                    .doesNotContain("/remote.php/dav")
+                    .doesNotContain("https://files")
+                    .doesNotContain("app-password");
+        });
+    }
+
+    @Test
+    void mutatingOperationsFailClosedWhenAuditPublisherIsMissingBeforeReturningSuccess() {
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+
+        assertThatThrownBy(() -> service(new StubAdapter(true)).delete("files:test-delete"))
+                .isInstanceOf(AuditRequiredException.class);
     }
 
     @Test
@@ -227,7 +274,25 @@ class FilesFacadeServiceTest {
             FilesStorageAdapter adapter,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties) {
-        return new FilesFacadeService(provider(adapter), contextAuthorizationPort, contextAuthorizationProperties, workspaceCapabilityService());
+        return service(adapter, contextAuthorizationPort, contextAuthorizationProperties, null);
+    }
+
+    private FilesFacadeService service(FilesStorageAdapter adapter, InMemoryAuditEventPublisher auditPublisher) {
+        return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"), defaultContextAuthorizationProperties(), auditPublisher);
+    }
+
+    private FilesFacadeService service(
+            FilesStorageAdapter adapter,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            InMemoryAuditEventPublisher auditPublisher) {
+        return new FilesFacadeService(
+                provider(adapter),
+                contextAuthorizationPort,
+                contextAuthorizationProperties,
+                workspaceCapabilityService(),
+                auditPublisher,
+                Clock.fixed(Instant.parse("2026-06-16T12:00:00Z"), ZoneOffset.UTC));
     }
 
     private ContextAuthorizationProperties defaultContextAuthorizationProperties() {
@@ -321,12 +386,28 @@ class FilesFacadeServiceTest {
 
         @Override
         public FileItemResponse createFolder(CreateFolderRequest request) {
-            throw new UnsupportedOperationException("not needed");
+            return new FileItemResponse(
+                    "files:folder-design",
+                    request.name(),
+                    request.parentPath() + "/" + request.name(),
+                    "folder",
+                    null,
+                    null,
+                    OffsetDateTime.parse("2026-04-26T08:00:00Z"),
+                    false);
         }
 
         @Override
         public FileUploadResponse upload(String parentPath, MultipartFile file) {
-            throw new UnsupportedOperationException("not needed");
+            return new FileUploadResponse(new FileItemResponse(
+                    "files:uploaded-readme",
+                    "readme.md",
+                    parentPath + "/readme.md",
+                    "file",
+                    "text/markdown",
+                    12L,
+                    OffsetDateTime.parse("2026-04-26T08:00:00Z"),
+                    true));
         }
 
         @Override
@@ -336,7 +417,6 @@ class FilesFacadeServiceTest {
 
         @Override
         public void delete(String id) {
-            throw new UnsupportedOperationException("not needed");
         }
     }
 }

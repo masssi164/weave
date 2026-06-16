@@ -1,5 +1,10 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.AuditEvent;
+import com.massimotter.weave.backend.audit.AuditEventPublisher;
+import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.backend.audit.AuditWriteGate;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
@@ -11,8 +16,10 @@ import com.massimotter.weave.backend.model.files.FileListResponse;
 import com.massimotter.weave.backend.model.files.FileUploadResponse;
 import com.massimotter.weave.backend.service.files.DownloadedFile;
 import com.massimotter.weave.backend.service.files.FilesStorageAdapter;
+import java.time.Clock;
 import java.util.Map;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -29,16 +36,32 @@ public class FilesFacadeService {
     private final ContextAuthorizationPort contextAuthorizationPort;
     private final ContextAuthorizationProperties contextAuthorizationProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
+    private final AuditEventPublisher auditEventPublisher;
+    private final Clock clock;
 
+    @Autowired
     public FilesFacadeService(
             ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
             ContextAuthorizationPort contextAuthorizationPort,
             ContextAuthorizationProperties contextAuthorizationProperties,
-            WorkspaceCapabilityService workspaceCapabilityService) {
+            WorkspaceCapabilityService workspaceCapabilityService,
+            ObjectProvider<AuditEventPublisher> auditEventPublisherProvider) {
+        this(filesStorageAdapterProvider, contextAuthorizationPort, contextAuthorizationProperties, workspaceCapabilityService, auditEventPublisherProvider.getIfAvailable(), Clock.systemUTC());
+    }
+
+    FilesFacadeService(
+            ObjectProvider<FilesStorageAdapter> filesStorageAdapterProvider,
+            ContextAuthorizationPort contextAuthorizationPort,
+            ContextAuthorizationProperties contextAuthorizationProperties,
+            WorkspaceCapabilityService workspaceCapabilityService,
+            AuditEventPublisher auditEventPublisher,
+            Clock clock) {
         this.filesStorageAdapter = filesStorageAdapterProvider.getIfAvailable();
         this.contextAuthorizationPort = contextAuthorizationPort;
         this.contextAuthorizationProperties = contextAuthorizationProperties;
         this.workspaceCapabilityService = workspaceCapabilityService;
+        this.auditEventPublisher = auditEventPublisher;
+        this.clock = clock;
     }
 
     public FileListResponse list(String path) {
@@ -47,13 +70,19 @@ public class FilesFacadeService {
     }
 
     public FileItemResponse createFolder(CreateFolderRequest request) {
-        requireContextPermission(ContextPermission.EDIT, "create-folder");
-        return configuredAdapter("create-folder").createFolder(request);
+        PrincipalContext context = requireContextPermission(ContextPermission.EDIT, "create-folder");
+        requireAuditPublisher();
+        FileItemResponse created = configuredAdapter("create-folder").createFolder(request);
+        publishMutationAudit(context, AuditAction.FILE_FOLDER_CREATED, "create-folder", created.id(), created.path());
+        return created;
     }
 
     public FileUploadResponse upload(String parentPath, MultipartFile file) {
-        requireContextPermission(ContextPermission.EDIT, "upload-file");
-        return configuredAdapter("upload-file").upload(parentPath, file);
+        PrincipalContext context = requireContextPermission(ContextPermission.EDIT, "upload-file");
+        requireAuditPublisher();
+        FileUploadResponse uploaded = configuredAdapter("upload-file").upload(parentPath, file);
+        publishMutationAudit(context, AuditAction.FILE_UPLOADED, "upload-file", uploaded.item().id(), uploaded.item().path());
+        return uploaded;
     }
 
     public DownloadedFile download(String id) {
@@ -62,11 +91,13 @@ public class FilesFacadeService {
     }
 
     public void delete(String id) {
-        requireContextPermission(ContextPermission.EDIT, "delete-file");
+        PrincipalContext context = requireContextPermission(ContextPermission.EDIT, "delete-file");
+        requireAuditPublisher();
         configuredAdapter("delete-file").delete(id);
+        publishMutationAudit(context, AuditAction.FILE_DELETED, "delete-file", id, null);
     }
 
-    private void requireContextPermission(ContextPermission permission, String operation) {
+    private PrincipalContext requireContextPermission(ContextPermission permission, String operation) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null) {
             throw new ApiErrorException(
@@ -95,6 +126,39 @@ public class FilesFacadeService {
                             "contextId", DEFAULT_CONTEXT_ID,
                             "permission", permission.name().toLowerCase()));
         }
+        return principalContext;
+    }
+
+    private void requireAuditPublisher() {
+        if (auditEventPublisher == null) {
+            throw new com.massimotter.weave.backend.audit.AuditRequiredException("audit publisher is required before files mutations are allowed");
+        }
+    }
+
+    private void publishMutationAudit(PrincipalContext context, AuditAction action, String operation, String canonicalId, String canonicalPath) {
+        AuditWriteGate.publishRequired(auditEventPublisher, new AuditEvent(
+                context.tenantId(),
+                DEFAULT_CONTEXT_ID,
+                context.principalRef(),
+                "files-facade",
+                action,
+                clock.instant(),
+                "files:" + operation + ":" + stableAuditRef(canonicalId, canonicalPath),
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.of(
+                        "module", "files",
+                        "operation", operation,
+                        "canonicalId", stableAuditRef(canonicalId, canonicalPath),
+                        "mappingRef", "provider-mapping://files/" + stableAuditRef(canonicalId, canonicalPath),
+                        "contextId", DEFAULT_CONTEXT_ID)));
+    }
+
+    private String stableAuditRef(String canonicalId, String canonicalPath) {
+        String source = canonicalId != null && !canonicalId.isBlank() ? canonicalId : canonicalPath;
+        if (source == null || source.isBlank()) {
+            return "unknown";
+        }
+        return Integer.toHexString(source.hashCode());
     }
 
     private Jwt jwtPrincipal(Authentication authentication, String operation) {
@@ -166,8 +230,8 @@ public class FilesFacadeService {
     private ApiErrorException adapterNotConfigured(String operation) {
         return new ApiErrorException(
                 HttpStatus.SERVICE_UNAVAILABLE,
-                "nextcloud-adapter-not-configured",
-                "Files facade is available, but the downstream Nextcloud adapter is not configured yet.",
+                "files-adapter-not-configured",
+                "Files capability is unavailable until an admin completes workspace storage configuration.",
                 Map.of("module", "files", "operation", operation));
     }
 }
