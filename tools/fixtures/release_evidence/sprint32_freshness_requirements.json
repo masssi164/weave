@@ -1,0 +1,36 @@
+{
+  "artifactKind": "weave-sprint32-release-evidence-freshness-v1",
+  "issue": 796,
+  "scope": "dogfood_production_closure_evidence",
+  "requiredEvidence": [
+    {
+      "id": "live_stack_e2e",
+      "state": "fresh_required",
+      "maximumAgeHours": 24,
+      "mustBeSupportSafe": true,
+      "claimBoundary": "live stack exercised without leaking secrets or raw provider payloads"
+    },
+    {
+      "id": "backup_restore_posture",
+      "state": "fresh_required",
+      "maximumAgeHours": 72,
+      "mustBeSupportSafe": true,
+      "claimBoundary": "backup and restore posture reviewed before closure claims"
+    },
+    {
+      "id": "release_claim_hygiene",
+      "state": "required",
+      "maximumAgeHours": 72,
+      "mustBeSupportSafe": true,
+      "claimBoundary": "claims reflect merged capabilities only"
+    }
+  ],
+  "forbiddenEvidenceFragments": [
+    "access_token",
+    "refresh_token",
+    "client_secret",
+    "Authorization: Bearer",
+    "rawProviderPayload",
+    "private_key"
+  ]
+}
