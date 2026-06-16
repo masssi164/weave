@@ -1,0 +1,35 @@
+{
+  "artifactKind": "weave-member-handoff-onboarding-contract-v1",
+  "issue": 786,
+  "scope": "normal_member_onboarding",
+  "acceptedEntryPoints": ["invite_link", "join_url", "organization_auth_url", "signed_organization_manifest"],
+  "normalMemberMustNotConfigure": [
+    "oidc_issuer_url",
+    "matrix_homeserver",
+    "nextcloud_url",
+    "backend_service_endpoint",
+    "client_id",
+    "provider_diagnostics"
+  ],
+  "productStates": [
+    "handoff_valid",
+    "invite_expired",
+    "organization_not_ready",
+    "capability_disabled",
+    "admin_action_required",
+    "handoff_invalid"
+  ],
+  "supportSafeRecoveryCopy": {
+    "invite_expired": "This invite has expired. Ask your workspace admin for a new invite.",
+    "organization_not_ready": "Your organization is not ready for members yet. Ask an admin to finish workspace setup.",
+    "capability_disabled": "This workspace feature is not available for your account yet.",
+    "admin_action_required": "Your workspace needs admin review before you can continue.",
+    "handoff_invalid": "This join link cannot be used. Ask your admin for a fresh Weave invite."
+  },
+  "accessibilityRequirements": [
+    "screenreader_labels_for_state_and_action",
+    "deterministic_focus_order",
+    "no_image_only_state"
+  ],
+  "forbiddenMemberCopyFragments": ["OIDC", "Matrix", "Nextcloud", "homeserver", "issuer", "client ID", "service endpoint", "provider diagnostics"]
+}
