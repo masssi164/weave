@@ -1,5 +1,7 @@
 package com.massimotter.weave.backend.service;
 
+import com.massimotter.weave.backend.audit.AuditAction;
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.exception.ApiErrorException;
 import com.massimotter.weave.backend.config.ContextAuthorizationProperties;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
@@ -12,7 +14,10 @@ import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapter;
 import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.service.calendar.CalendarPrincipal;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
@@ -345,18 +350,78 @@ class CalendarFacadeServiceTest {
         assertThat(captured.get().permission()).isEqualTo(ContextPermission.EDIT);
     }
 
+
+    @Test
+    void createPublishesSupportSafeCalendarAuditWithMappingRef() {
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-04-26T10:00:00+02:00");
+        OffsetDateTime endsAt = OffsetDateTime.parse("2026-04-26T11:00:00+02:00");
+        CalendarEventResponse event = new CalendarEventResponse(
+                "raw-event-id", "Planning", null, startsAt, endsAt, "Europe/Berlin", null, false, "etag");
+        CalendarAdapter adapter = new StubCalendarAdapter() {
+            @Override
+            public CalendarEventResponse create(CalendarPrincipal principal, CreateCalendarEventRequest request) {
+                return event;
+            }
+        };
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        CreateCalendarEventRequest request = new CreateCalendarEventRequest(
+                "Planning", null, startsAt, endsAt, "Europe/Berlin", null, false,
+                CalendarScopeResponse.team("engineering", "Engineering team calendar"));
+
+        service(adapter, authzRequest -> ContextAuthorizationDecision.allow("test allow"), auditPublisher).create(request);
+
+        assertThat(auditPublisher.events()).hasSize(1);
+        var audit = auditPublisher.events().get(0);
+        assertThat(audit.tenantId()).isEqualTo("tenant-default");
+        assertThat(audit.contextId()).isEqualTo("team-engineering");
+        assertThat(audit.actorRef()).isEqualTo("user:massimo");
+        assertThat(audit.sourceRef()).isEqualTo("calendar-facade");
+        assertThat(audit.action()).isEqualTo(AuditAction.CALENDAR_EVENT_CREATED);
+        assertThat(audit.payload()).containsEntry("module", "calendar");
+        assertThat(audit.payload()).containsEntry("operation", "create-event");
+        assertThat(audit.payload()).containsEntry("contextId", "team-engineering");
+        assertThat((String) audit.payload().get("mappingRef")).startsWith("provider-mapping://calendar/");
+    }
+
+    @Test
+    void createFailsClosedWithoutCalendarAuditPublisherBeforeAdapterMutation() {
+        AtomicReference<Boolean> adapterCalled = new AtomicReference<>(false);
+        CalendarAdapter adapter = new StubCalendarAdapter() {
+            @Override
+            public CalendarEventResponse create(CalendarPrincipal principal, CreateCalendarEventRequest request) {
+                adapterCalled.set(true);
+                return null;
+            }
+        };
+        SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(jwt(), null));
+        CreateCalendarEventRequest request = new CreateCalendarEventRequest(
+                "Planning", null, OffsetDateTime.parse("2026-04-26T10:00:00+02:00"),
+                OffsetDateTime.parse("2026-04-26T11:00:00+02:00"), "Europe/Berlin", null, false);
+
+        assertThatThrownBy(() -> service(adapter, authzRequest -> ContextAuthorizationDecision.allow("test allow"), null).create(request))
+                .isInstanceOf(com.massimotter.weave.backend.audit.AuditRequiredException.class);
+        assertThat(adapterCalled.get()).isFalse();
+    }
+
     private CalendarFacadeService service(CalendarAdapter adapter) {
         return service(adapter, request -> ContextAuthorizationDecision.allow("test allow"));
     }
 
     private CalendarFacadeService service(CalendarAdapter adapter, ContextAuthorizationPort contextAuthorizationPort) {
+        return service(adapter, contextAuthorizationPort, new InMemoryAuditEventPublisher());
+    }
+
+    private CalendarFacadeService service(CalendarAdapter adapter, ContextAuthorizationPort contextAuthorizationPort, InMemoryAuditEventPublisher auditPublisher) {
         StaticListableBeanFactory beanFactory = new StaticListableBeanFactory();
         beanFactory.addBean("calendarAdapter", adapter);
         return new CalendarFacadeService(
                 beanFactory.getBeanProvider(CalendarAdapter.class),
                 "https://files.weave.test",
                 contextAuthorizationPort,
-                contextAuthorizationProperties());
+                contextAuthorizationProperties(),
+                auditPublisher,
+                Clock.fixed(Instant.parse("2026-06-16T20:15:00Z"), ZoneOffset.UTC));
     }
 
     private ContextAuthorizationProperties contextAuthorizationProperties() {
