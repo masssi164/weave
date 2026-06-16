@@ -88,30 +88,29 @@ void main() {
       preferencesStore = InMemoryPreferencesStore();
     });
 
-    testWidgets(
-      'renders first step with workspace capability fields',
-      (tester) async {
-        await tester.pumpWidget(buildApp());
-        await tester.pumpAndSettle();
+    testWidgets('renders first step with workspace capability fields', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
 
-        expect(find.byType(WeaveLogo), findsOneWidget);
-        expect(find.text('Configure workspace capabilities'), findsOneWidget);
-        expect(find.text('Provider categories'), findsOneWidget);
-        expect(find.text('Identity/IDM'), findsOneWidget);
-        expect(find.text('Documents/collaboration'), findsOneWidget);
-        expect(find.text('Weaver'), findsOneWidget);
-        expect(find.text('Identity endpoint'), findsOneWidget);
-        expect(
-          find.textContaining(
-            'Provider selection is owned by the Weave Admin Console',
-          ),
-          findsOneWidget,
-        );
-        expect(find.text('Provider type'), findsNothing);
-        expect(find.text('OIDC Client ID'), findsOneWidget);
-        expect(find.text('Next'), findsOneWidget);
-      },
-    );
+      expect(find.byType(WeaveLogo), findsOneWidget);
+      expect(find.text('Configure workspace capabilities'), findsOneWidget);
+      expect(find.text('Provider categories'), findsOneWidget);
+      expect(find.text('Identity/IDM'), findsOneWidget);
+      expect(find.text('Documents/collaboration'), findsOneWidget);
+      expect(find.text('Weaver'), findsOneWidget);
+      expect(find.text('Identity endpoint'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Provider selection is owned by the Weave Admin Console',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Provider type'), findsNothing);
+      expect(find.text('OIDC Client ID'), findsOneWidget);
+      expect(find.text('Next'), findsOneWidget);
+    });
 
     testWidgets('derives service endpoints from the issuer host', (
       tester,
