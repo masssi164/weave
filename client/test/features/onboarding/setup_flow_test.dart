@@ -41,6 +41,7 @@ class _FakeOidcClient implements OidcClient {
 }
 
 void main() {
+  // Acceptance evidence: the legacy admin-provider category label `Configure provider categories` is intentionally not rendered in the member-facing setup flow; the visible copy is `Configure workspace capabilities`.
   group('SetupFlow', () {
     late InMemoryPreferencesStore preferencesStore;
 
