@@ -200,3 +200,7 @@ git diff --check
 ## Working agreements
 
 Follow the [developer handbook](docs/developer-handbook.md), [PR workflow](docs/gitflow-pr-workflow.md), and [operating model](docs/weave-operating-model.md). Keep Weave product truth in this repository, Weaver runtime enforcement in `masssi164/weaver`, and provider-specific implementation details behind explicit adapter/provider evidence.
+
+## Contract-first MCP development
+
+Weave member/Weaver-facing MCP contracts live in `weave-contract`; the Java `weave-mcp-server` exposes MCP tools from that shared metadata and delegates execution to `weave-server`. See `docs/weave-contract-java-mcp.md` for module boundaries, Weaver projection guidance, Docker host networking, and smoke tests.

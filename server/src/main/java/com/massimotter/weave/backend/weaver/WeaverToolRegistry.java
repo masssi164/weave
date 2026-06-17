@@ -4,7 +4,7 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
-import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
+import com.massimotter.weave.contract.mcp.MemberMcpToolCatalog;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Collections;
@@ -228,25 +228,16 @@ public class WeaverToolRegistry {
 
     private Map<String, WeaverDomainToolDefinition> initialDefinitions() {
         Map<String, WeaverDomainToolDefinition> registry = new LinkedHashMap<>();
-        add(registry, tool("model.chat", "weaver", WeaverToolMode.READ, "weaver.model_chat", WeaverApprovalRequirement.NONE));
-        add(registry, tool("identity.read", "identity", WeaverToolMode.READ, "weaver.identity_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("registry.tools.read", "weaver", WeaverToolMode.READ, "weaver.registry_tools_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("audit.query", "health", WeaverToolMode.READ, "weaver.audit_query", WeaverApprovalRequirement.NONE));
-        add(registry, canonicalTool("files.read", CanonicalDomainDefinition.FILES_DOCS, WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
-        add(registry, canonicalTool("calendar.read", CanonicalDomainDefinition.CALENDAR_MEETINGS, WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("contacts.read", "people", WeaverToolMode.READ, "weaver.contacts_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("chat.read", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
-        add(registry, canonicalTool("tasks.read", CanonicalDomainDefinition.BOARDS_TASKS, WeaverToolMode.READ, "weaver.tasks_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("search.query", "weave-search", WeaverToolMode.READ, "weaver.search_query", WeaverApprovalRequirement.NONE));
-        add(registry, canonicalTool("calendar.search_events", CanonicalDomainDefinition.CALENDAR_MEETINGS, WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
-        add(registry, canonicalTool("boards.search_tasks", CanonicalDomainDefinition.BOARDS_TASKS, WeaverToolMode.READ, "weaver.boards_read", WeaverApprovalRequirement.NONE));
-        add(registry, canonicalTool("files.search", CanonicalDomainDefinition.FILES_DOCS, WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
-        add(registry, canonicalTool("files.read", CanonicalDomainDefinition.FILES_DOCS, WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("chat.list_threads", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("chat.send_message", "chat-channels", WeaverToolMode.EXTERNAL_SEND, "weaver.chat_send", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
-        add(registry, tool("chat.search_messages", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("notifications.create_action_request", "notifications", WeaverToolMode.EXTERNAL_SEND, "weaver.notifications_write", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
-        add(registry, canonicalTool("boards.comment", CanonicalDomainDefinition.BOARDS_TASKS, WeaverToolMode.WRITE, "weaver.boards_write", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
+        MemberMcpToolCatalog.tools().forEach(tool -> add(registry, new WeaverDomainToolDefinition(
+                tool.name(),
+                tool.version(),
+                tool.domain(),
+                toWeaverMode(tool.mode()),
+                tool.requiredCapability(),
+                tool.approvalRequired() ? WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION : WeaverApprovalRequirement.NONE,
+                tool.inputSchema(),
+                List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
+                tool.description())));
         return Collections.unmodifiableMap(registry);
     }
 
@@ -254,33 +245,11 @@ public class WeaverToolRegistry {
         registry.put(definition.name(), definition);
     }
 
-    private WeaverDomainToolDefinition canonicalTool(
-            String name,
-            CanonicalDomainDefinition canonicalDomain,
-            WeaverToolMode mode,
-            String requiredCapability,
-            WeaverApprovalRequirement approvalRequirement) {
-        return tool(name, canonicalDomain.domain(), mode, requiredCapability, approvalRequirement);
-    }
-
-    private WeaverDomainToolDefinition tool(
-            String name,
-            String domain,
-            WeaverToolMode mode,
-            String requiredCapability,
-            WeaverApprovalRequirement approvalRequirement) {
-        return new WeaverDomainToolDefinition(
-                name,
-                "v1",
-                domain,
-                mode,
-                requiredCapability,
-                approvalRequirement,
-                Map.of(
-                        "type", "object",
-                        "additionalProperties", false,
-                        "description", "Validated by the Weave " + domain + " domain capability boundary before execution."),
-                List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
-                "Weaver domain tool exposed only through Weave capability grants.");
+    private WeaverToolMode toWeaverMode(com.massimotter.weave.contract.mcp.MemberMcpToolMode mode) {
+        return switch (mode) {
+            case READ -> WeaverToolMode.READ;
+            case WRITE -> WeaverToolMode.WRITE;
+            case EXTERNAL_SEND -> WeaverToolMode.EXTERNAL_SEND;
+        };
     }
 }

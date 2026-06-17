@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.weaver;
 
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
-import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
+import com.massimotter.weave.contract.mcp.MemberMcpDomainDefinition;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -17,18 +17,18 @@ class WeaverToolRegistryTest {
         WeaverToolRegistry registry = new WeaverToolRegistry(new InMemoryAuditEventPublisher());
 
         var tools = registry.discover(List.of(
-                "weaver.files_read",
-                "weaver.calendar_read",
-                "weaver.tasks_read",
-                "weaver.boards_read",
-                "weaver.boards_write"));
+                "files.read",
+                "calendar.read",
+                "boards.read",
+                "boards.read",
+                "boards.update_task"));
 
         assertThat(tools).filteredOn(tool -> tool.name().startsWith("files."))
-                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(CanonicalDomainDefinition.FILES_DOCS.domain()));
+                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(MemberMcpDomainDefinition.FILES_DOCS.domain()));
         assertThat(tools).filteredOn(tool -> tool.name().startsWith("calendar."))
-                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(CanonicalDomainDefinition.CALENDAR_MEETINGS.domain()));
+                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(MemberMcpDomainDefinition.CALENDAR_MEETINGS.domain()));
         assertThat(tools).filteredOn(tool -> tool.name().startsWith("boards.") || tool.name().startsWith("tasks."))
-                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(CanonicalDomainDefinition.BOARDS_TASKS.domain()));
+                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(MemberMcpDomainDefinition.BOARDS_TASKS.domain()));
         assertThat(tools).extracting(WeaverDomainToolDefinition::domain)
                 .doesNotContain("calendar-events", "files_documents", "boards_tasks", "provider", "adapter");
         assertThat(tools).allSatisfy(tool -> assertThat(tool.inputSchema().toString().toLowerCase())
@@ -40,13 +40,13 @@ class WeaverToolRegistryTest {
         // V01_GOVERNED_WEAVER_TOOL_REGISTRY
         WeaverToolRegistry registry = new WeaverToolRegistry(new InMemoryAuditEventPublisher());
 
-        var tools = registry.discover(List.of("weaver.files_read", "weaver.boards_write"));
+        var tools = registry.discover(List.of("files.read", "boards.update_task"));
 
         assertThat(tools).extracting(WeaverDomainToolDefinition::name)
-                .containsExactly("files.read", "files.search", "boards.comment");
+                .containsExactly("files.search", "files.read", "boards.comment");
         assertThat(tools).extracting(WeaverDomainToolDefinition::version).containsOnly("v1");
         assertThat(tools).extracting(WeaverDomainToolDefinition::requiredCapability)
-                .containsExactly("weaver.files_read", "weaver.files_read", "weaver.boards_write");
+                .containsExactly("files.read", "files.read", "boards.update_task");
         assertThat(tools).allSatisfy(tool -> {
             assertThat(tool.name()).contains(".");
             assertThat(tool.inputSchema()).containsEntry("additionalProperties", false);
@@ -59,14 +59,14 @@ class WeaverToolRegistryTest {
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         WeaverToolRegistry registry = new WeaverToolRegistry(audit);
 
-        assertThat(registry.discover(List.of("weaver.files_read"))).extracting(WeaverDomainToolDefinition::name)
+        assertThat(registry.discover(List.of("files.read"))).extracting(WeaverDomainToolDefinition::name)
                 .doesNotContain("boards.comment", "notifications.create_action_request");
 
         var result = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
                 "user:abc123",
                 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                List.of("weaver.files_read"),
+                List.of("files.read"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 null));
 
@@ -96,7 +96,7 @@ class WeaverToolRegistryTest {
                 "boards.comment",
                 "user:abc123",
                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-                List.of("weaver.boards_write"),
+                List.of("boards.update_task"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 null));
 
@@ -113,7 +113,7 @@ class WeaverToolRegistryTest {
                 false,
                 future(),
                 true,
-                List.of("weaver.boards_write"),
+                List.of("boards.update_task"),
                 List.of("boards.comment"),
                 Map.of(
                         "spaceRef", "space:control-room",
@@ -207,29 +207,17 @@ class WeaverToolRegistryTest {
         WeaverToolRegistry registry = new WeaverToolRegistry(audit);
 
         var tools = registry.discover(List.of(
-                "weaver.model_chat",
-                "weaver.identity_read",
-                "weaver.registry_tools_read",
-                "weaver.audit_query",
-                "weaver.files_read",
-                "weaver.calendar_read",
-                "weaver.contacts_read",
-                "weaver.chat_read",
-                "weaver.tasks_read",
-                "weaver.search_query"));
-
-        assertThat(tools).extracting(WeaverDomainToolDefinition::name).contains(
-                "model.chat",
-                "identity.read",
                 "registry.tools.read",
-                "audit.query",
                 "files.read",
                 "calendar.read",
-                "contacts.read",
-                "chat.read",
-                "tasks.read",
-                "search.query");
-        assertThat(tools.stream().filter(tool -> tool.name().endsWith(".read") || tool.name().equals("model.chat") || tool.name().equals("audit.query") || tool.name().equals("search.query")))
+                "boards.read"));
+
+        assertThat(tools).extracting(WeaverDomainToolDefinition::name).contains(
+                "registry.tools.read",
+                "files.read",
+                "calendar.search_events",
+                "boards.search_tasks");
+        assertThat(tools.stream().filter(tool -> !tool.writeLike()))
                 .allSatisfy(tool -> {
                     assertThat(tool.mode()).isEqualTo(WeaverToolMode.READ);
                     assertThat(tool.approvalRequirement()).isEqualTo(WeaverApprovalRequirement.NONE);
@@ -244,7 +232,7 @@ class WeaverToolRegistryTest {
                 false,
                 future(),
                 true,
-                List.of("weaver.raw_read"),
+                List.of("raw.read"),
                 List.of("raw.unknown"),
                 Map.of("prompt", "do not leak"),
                 null));
@@ -271,7 +259,7 @@ class WeaverToolRegistryTest {
                 revoked,
                 runtimeTokenExpiresAt,
                 consentGranted,
-                List.of("weaver.boards_write"),
+                List.of("boards.update_task"),
                 scopedToolGrants,
                 Map.of(
                         "spaceRef", "space:control-room",
