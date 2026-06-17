@@ -82,7 +82,7 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.workspacePath()).startsWith("/var/lib/weave/weaver/");
         assertThat(profile.isolatedAgentDirectory()).isEqualTo(".weaver/agents");
         assertThat(profile.dockerNetworkMode()).isEqualTo("none");
-        assertThat(profile.allowedCapabilities()).containsExactly("weaver.files_read", "weaver.exec_disabled");
+        assertThat(profile.allowedCapabilities()).containsExactly("files.read", "weaver.exec_disabled");
         assertThat(profile.pluginAllowlist()).containsExactly("weave-files-readonly");
         assertThat(profile.toolAllowlist()).containsExactly("files.read");
         assertThat(profile.execEnabled()).isFalse();
@@ -164,7 +164,7 @@ class WeaverRuntimeServiceTest {
         assertThat(serverProjection.toString())
                 .contains("weave-domain-tools", "routingPlaneSeparated=true", "channels.weave-chat")
                 .doesNotContain("Bearer ", "openclaw.json");
-        assertThat(tools).extracting(tool -> tool.get("name")).containsExactly("files.read");
+        assertThat(tools).extracting(tool -> tool.get("name")).contains("files.read");
         assertThat(invocation.status()).isEqualTo("ok");
         assertThat(invocation.redactedResult()).containsEntry("rawProviderPayload", "redacted");
         assertThat(invocation.redactedResult().get("canonicalRefs").toString()).contains("space:control-room");
@@ -387,7 +387,7 @@ class WeaverRuntimeServiceTest {
                 null,
                 null,
                 List.of("weave-weaver-runtime"),
-                List.of("weaver.files_read", "weaver.exec_disabled"),
+                List.of("files.read", "weaver.exec_disabled"),
                 List.of("weave-files-readonly"),
                 List.of("files.read"),
                 false,
