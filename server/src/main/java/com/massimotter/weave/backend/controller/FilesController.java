@@ -34,7 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @Validated
-@Tag(name = "Files", description = "Authenticated product files facade backed by Nextcloud APIs.")
+@Tag(name = "Files", description = "Authenticated product files-docs facade backed by Weave canonical domain contracts.")
 @SecurityRequirement(name = "bearer-jwt")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "Missing or invalid bearer token.",

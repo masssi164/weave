@@ -21,7 +21,6 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -334,34 +333,21 @@ class PlatformProductContractControllerTest {
     }
 
     @Test
-    void calendarAccessPolicyAndSetupCredentialsAreRevocableWithoutSecretOutput() throws Exception {
+    void calendarAccessPolicyStaysCanonicalAndMemberSetupDiagnosticsAreNotPublic() throws Exception {
         mockMvc.perform(get("/api/calendar/access-policy").with(workspaceJwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.backendActorMayReadPrivateUserCalendars").value(false))
-                .andExpect(jsonPath("$.deniedScopes[0]").value("private-personal-calendar.read"));
+                .andExpect(jsonPath("$.deniedScopes[0]").value("private-personal-calendar.read"))
+                .andExpect(content().string(not(containsString("Nextcloud"))))
+                .andExpect(content().string(not(containsString("CalDAV"))))
+                .andExpect(content().string(not(containsString("external-client"))));
 
-        MvcResult created = mockMvc.perform(post("/api/calendar/client-setup/credentials")
-                        .with(workspaceJwt())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"label\":\"iPhone\",\"clientType\":\"apple-mobileconfig\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("active-no-secret-issued"))
-                .andExpect(jsonPath("$.secretMaterialReturned").value(false))
-                .andExpect(jsonPath("$.profilePasswordEligible").value(false))
-                .andExpect(content().string(not(containsString("password"))))
-                .andExpect(content().string(not(containsString("bearer"))))
-                .andReturn();
-
-        String credentialId = com.jayway.jsonpath.JsonPath.read(created.getResponse().getContentAsString(), "$.credentialId");
+        mockMvc.perform(get("/api/calendar/client-setup").with(workspaceJwt()))
+                .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/calendar/client-setup/credentials").with(workspaceJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.credentials[0].credentialId").value(credentialId));
-
-        mockMvc.perform(delete("/api/calendar/client-setup/credentials/{credentialId}", credentialId)
-                        .with(workspaceJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.state").value("revoked"))
-                .andExpect(jsonPath("$.secretMaterialReturned").value(false));
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/calendar/client-setup/apple.mobileconfig").with(workspaceJwt()))
+                .andExpect(status().isNotFound());
     }
 
     private org.springframework.test.web.servlet.request.RequestPostProcessor workspaceJwt() {

@@ -89,10 +89,10 @@ class BoardsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.workspace").value(true))
                 .andExpect(jsonPath("$.releaseStatus").value("active-dogfood-production"))
-                .andExpect(jsonPath("$.source").value("local-workspace-backend-facade"))
-                .andExpect(jsonPath("$.capabilities.enabled").value(true))
-                .andExpect(jsonPath("$.syncMetadata.provider").value("in-memory"))
-                .andExpect(jsonPath("$.syncMetadata.mode").value("local-workspace-backend-facade"))
+                .andExpect(jsonPath("$.source").value("weave-boards-tasks-facade"))
+                .andExpect(jsonPath("$.capabilities").doesNotExist())
+                .andExpect(jsonPath("$.syncMetadata.provider").value("boards-tasks"))
+                .andExpect(jsonPath("$.syncMetadata.mode").value("canonical-domain-facade"))
                 .andExpect(jsonPath("$.syncMetadata.userWriteAudited").value(true))
                 .andExpect(jsonPath("$.syncMetadata.contextScoped").value(true))
                 .andExpect(jsonPath("$.syncMetadata.supportSafe").value(true))
@@ -101,8 +101,17 @@ class BoardsControllerTest {
                 .andExpect(jsonPath("$.projects[0].id").value("local-project-1"))
                 .andExpect(jsonPath("$.boards[0].id").value("local-board-1"))
                 .andExpect(jsonPath("$.boards[0].columns[0].semanticStatus").value("not_started"))
+                .andExpect(jsonPath("$.projects[0].mappingRef").value(org.hamcrest.Matchers.startsWith("provider-mapping://boards/project/")))
+                .andExpect(jsonPath("$.boards[0].mappingRef").value(org.hamcrest.Matchers.startsWith("provider-mapping://boards/board/")))
+                .andExpect(jsonPath("$.boards[0].columns[0].mappingRef").value(org.hamcrest.Matchers.startsWith("provider-mapping://boards/column/")))
                 .andExpect(jsonPath("$.tasks.length()").value(greaterThanOrEqualTo(4)))
-                .andExpect(jsonPath("$.tasks[0].providerRefs[0].provider").value("in-memory"));
+                .andExpect(jsonPath("$.tasks[0].mappingRef").value(org.hamcrest.Matchers.startsWith("provider-mapping://boards/task/")))
+                .andExpect(jsonPath("$.projects[0].providerRefs").doesNotExist())
+                .andExpect(jsonPath("$.boards[0].providerRefs").doesNotExist())
+                .andExpect(jsonPath("$.boards[0].columns[0].providerRefs").doesNotExist())
+                .andExpect(jsonPath("$.tasks[0].providerRefs").doesNotExist())
+                .andExpect(jsonPath("$.tasks[0].externalId").doesNotExist())
+                .andExpect(jsonPath("$.tasks[0].externalUrl").doesNotExist());
     }
 
     @Test

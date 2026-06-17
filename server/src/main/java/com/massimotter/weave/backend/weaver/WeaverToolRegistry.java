@@ -232,12 +232,12 @@ public class WeaverToolRegistry {
         add(registry, tool("registry.tools.read", "weaver", WeaverToolMode.READ, "weaver.registry_tools_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("audit.query", "health", WeaverToolMode.READ, "weaver.audit_query", WeaverApprovalRequirement.NONE));
         add(registry, tool("files.read", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("calendar.read", "calendar-events", WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
+        add(registry, tool("calendar.read", "calendar-meetings", WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("contacts.read", "people", WeaverToolMode.READ, "weaver.contacts_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("chat.read", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("tasks.read", "boards-tasks", WeaverToolMode.READ, "weaver.tasks_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("search.query", "weave-search", WeaverToolMode.READ, "weaver.search_query", WeaverApprovalRequirement.NONE));
-        add(registry, tool("calendar.search_events", "calendar-events", WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
+        add(registry, tool("calendar.search_events", "calendar-meetings", WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("boards.search_tasks", "boards-tasks", WeaverToolMode.READ, "weaver.boards_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("files.search", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("files.read", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));

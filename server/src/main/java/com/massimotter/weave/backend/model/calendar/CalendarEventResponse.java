@@ -30,8 +30,8 @@ public record CalendarEventResponse(
         CalendarThreadRefResponse threadRef,
         @Schema(description = "Safe attendee metadata when supplied by the backing calendar data.")
         List<CalendarAttendeeResponse> attendees,
-        @Schema(description = "Safe provider reference. Does not expose raw CalDAV paths, URLs, or credentials.")
-        CalendarProviderRefResponse providerRef,
+        @Schema(description = "Opaque support-safe provenance reference. Does not expose provider names, raw paths, URLs, or credentials.")
+        CalendarProvenanceRefResponse provenanceRef,
         @Schema(description = "Last known event update timestamp when available.")
         OffsetDateTime updatedAt) {
 
@@ -67,6 +67,6 @@ public record CalendarEventResponse(
         scope = scope == null ? CalendarScopeResponse.workspace() : scope;
         threadRef = threadRef == null ? CalendarThreadRefResponse.forEvent(scope, id) : threadRef;
         attendees = attendees == null ? List.of() : List.copyOf(attendees);
-        providerRef = providerRef == null ? CalendarProviderRefResponse.caldavEvent(id, etag, updatedAt) : providerRef;
+        provenanceRef = provenanceRef == null ? CalendarProvenanceRefResponse.calendarMeeting(id, etag, updatedAt) : provenanceRef;
     }
 }

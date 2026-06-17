@@ -3,7 +3,7 @@ package com.massimotter.weave.backend.model.calendar;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
-@Schema(description = "Safety readiness for downloadable profiles, external credentials, and read-only feeds.")
+@Schema(description = "Safety readiness for downloadable profiles, user-controlled credentials, and read-only feeds.")
 public record CalendarCredentialReadinessResponse(
         @Schema(description = "Stable machine-readable readiness status.", example = "blocked_until_revocable_credentials")
         String status,
@@ -11,7 +11,7 @@ public record CalendarCredentialReadinessResponse(
         boolean appleProfileSigned,
         @Schema(description = "Whether generated Apple profiles include a password or token.", example = "false")
         boolean appleProfilePasswordIncluded,
-        @Schema(description = "Whether Weave can issue/revoke per-client CalDAV credentials.", example = "false")
+        @Schema(description = "Whether Weave can issue/revoke scoped per-client credentials.", example = "false")
         boolean revocableCredentialsAvailable,
         @Schema(description = "Whether read-only ICS/webcal feed tokens are available.", example = "false")
         boolean readOnlySubscriptionTokensAvailable,

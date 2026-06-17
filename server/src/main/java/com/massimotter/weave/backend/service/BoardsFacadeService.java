@@ -25,10 +25,14 @@ import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
 import com.massimotter.weave.backend.context.authz.ContextAuthorizationRequest;
 import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.exception.ApiErrorException;
+import com.massimotter.weave.backend.model.boards.BoardsBoardResponse;
+import com.massimotter.weave.backend.model.boards.BoardsColumnResponse;
 import com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest;
 import com.massimotter.weave.backend.model.boards.BoardsLinkDecisionRequest;
 import com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest;
+import com.massimotter.weave.backend.model.boards.BoardsProjectResponse;
 import com.massimotter.weave.backend.model.boards.BoardsSyncMetadataResponse;
+import com.massimotter.weave.backend.model.boards.BoardsTaskResponse;
 import com.massimotter.weave.backend.model.boards.BoardsUpdateTaskStatusRequest;
 import com.massimotter.weave.backend.model.boards.BoardsWorkspaceResponse;
 import java.time.Instant;
@@ -109,17 +113,16 @@ public class BoardsFacadeService {
                     true,
                     "active-dogfood-production",
                     source,
-                    capabilities,
-                    syncMetadata(capabilities.provider(), source, nextCursors, projects, boards, tasks),
-                    projects,
-                    boards,
-                    tasks);
+                    syncMetadata(source, nextCursors, projects, boards, tasks),
+                    projects.stream().map(this::projectResponse).toList(),
+                    boards.stream().map(this::boardResponse).toList(),
+                    tasks.stream().map(this::taskResponse).toList());
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
     }
 
-    public TaskItem createTask(Jwt jwt, String boardId, BoardsCreateTaskRequest request) {
+    public BoardsTaskResponse createTask(Jwt jwt, String boardId, BoardsCreateTaskRequest request) {
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
         try {
             publishTaskWriteAudit(principal, AuditAction.BOARD_TASK_CREATED, "create_task:" + boardId, Map.of(
@@ -127,20 +130,20 @@ public class BoardsFacadeService {
                     "boardId", boardId,
                     "columnId", request.columnId(),
                     "mappingRef", mappingRef("task", boardId + ":" + request.columnId() + ":" + request.title())));
-            return boardsRepository.createTask(new CreateTaskCommand(
+            return taskResponse(boardsRepository.createTask(new CreateTaskCommand(
                     boardId,
                     request.columnId(),
                     request.title(),
                     request.description(),
                     request.assigneeRefs(),
                     request.labelRefs(),
-                    request.dueAt()));
+                    request.dueAt())));
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
     }
 
-    public TaskItem moveTask(Jwt jwt, String taskId, BoardsMoveTaskRequest request) {
+    public BoardsTaskResponse moveTask(Jwt jwt, String taskId, BoardsMoveTaskRequest request) {
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
         try {
             publishTaskWriteAudit(principal, AuditAction.BOARD_TASK_MOVED, "move_task:" + taskId, Map.of(
@@ -149,29 +152,29 @@ public class BoardsFacadeService {
                     "targetColumnId", request.targetColumnId(),
                     "targetPosition", request.targetPosition(),
                     "mappingRef", mappingRef("task", taskId)));
-            return boardsRepository.moveTask(new MoveTaskCommand(
+            return taskResponse(boardsRepository.moveTask(new MoveTaskCommand(
                     taskId,
                     request.targetColumnId(),
-                    request.targetPosition()));
+                    request.targetPosition())));
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
     }
 
-    public TaskItem completeTask(Jwt jwt, String taskId) {
+    public BoardsTaskResponse completeTask(Jwt jwt, String taskId) {
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
         try {
             publishTaskWriteAudit(principal, AuditAction.BOARD_TASK_COMPLETED, "complete_task:" + taskId, Map.of(
                     "command", "complete_task",
                     "taskId", taskId,
                     "mappingRef", mappingRef("task", taskId)));
-            return boardsRepository.completeTask(taskId);
+            return taskResponse(boardsRepository.completeTask(taskId));
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
     }
 
-    public TaskItem updateTaskStatus(Jwt jwt, String taskId, BoardsUpdateTaskStatusRequest request) {
+    public BoardsTaskResponse updateTaskStatus(Jwt jwt, String taskId, BoardsUpdateTaskStatusRequest request) {
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
         TaskStatus status = parseStatus(request.status());
         try {
@@ -181,13 +184,13 @@ public class BoardsFacadeService {
                     "status", status.contractName(),
                     "targetColumnId", request.targetColumnId() == null ? "" : request.targetColumnId(),
                     "mappingRef", mappingRef("task", taskId)));
-            return boardsRepository.updateTaskStatus(taskId, status, request.targetColumnId());
+            return taskResponse(boardsRepository.updateTaskStatus(taskId, status, request.targetColumnId()));
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
     }
 
-    public TaskItem linkDecision(Jwt jwt, String taskId, BoardsLinkDecisionRequest request) {
+    public BoardsTaskResponse linkDecision(Jwt jwt, String taskId, BoardsLinkDecisionRequest request) {
         PrincipalContext principal = requireContextPermission(jwt, ContextPermission.EDIT);
         try {
             publishTaskWriteAudit(principal, AuditAction.TASK_DECISION_LINKED, "link_decision:" + taskId, Map.of(
@@ -195,7 +198,7 @@ public class BoardsFacadeService {
                     "taskId", taskId,
                     "decisionRef", request.decisionRef() == null ? "" : request.decisionRef(),
                     "mappingRef", mappingRef("task", taskId)));
-            return boardsRepository.linkDecision(taskId, request.decisionRef());
+            return taskResponse(boardsRepository.linkDecision(taskId, request.decisionRef()));
         } catch (BoardsException exception) {
             throw apiError(exception);
         }
@@ -354,23 +357,65 @@ public class BoardsFacadeService {
     }
 
     private String sourceFor(ProviderKind provider) {
-        return switch (provider) {
-            case OPEN_PROJECT -> "openproject-workspace-sync-backend-facade";
-            case IN_MEMORY -> "local-workspace-backend-facade";
-            default -> "provider-neutral-workspace-backend-facade";
-        };
+        return "weave-boards-tasks-facade";
+    }
+
+    private BoardsProjectResponse projectResponse(WeaveProject project) {
+        return new BoardsProjectResponse(
+                project.id(),
+                project.name(),
+                project.visibility(),
+                project.memberRefs(),
+                mappingRef("project", project.id()));
+    }
+
+    private BoardsBoardResponse boardResponse(Board board) {
+        return new BoardsBoardResponse(
+                board.id(),
+                board.projectId(),
+                board.name(),
+                board.description(),
+                board.columns().stream().map(column -> new BoardsColumnResponse(
+                        column.id(),
+                        column.boardId(),
+                        column.name(),
+                        column.position(),
+                        column.semanticStatus(),
+                        column.wipLimit(),
+                        mappingRef("column", column.id()))).toList(),
+                board.archived(),
+                mappingRef("board", board.id()));
+    }
+
+    private BoardsTaskResponse taskResponse(TaskItem task) {
+        return new BoardsTaskResponse(
+                task.id(),
+                task.boardId(),
+                task.columnId(),
+                task.title(),
+                task.description(),
+                task.status(),
+                task.position(),
+                task.assigneeRefs(),
+                task.labelRefs(),
+                task.decisionRefs(),
+                task.priority(),
+                task.startAt(),
+                task.dueAt(),
+                task.completedAt(),
+                task.updatedAt(),
+                mappingRef("task", task.id()));
     }
 
     private BoardsSyncMetadataResponse syncMetadata(
-            ProviderKind provider,
             String source,
             Map<String, String> nextCursors,
             List<WeaveProject> projects,
             List<Board> boards,
             List<TaskItem> tasks) {
         return new BoardsSyncMetadataResponse(
-                provider.contractName(),
-                provider == ProviderKind.OPEN_PROJECT ? "workspace-sync" : source,
+                "boards-tasks",
+                "canonical-domain-facade",
                 true,
                 true,
                 true,

@@ -126,7 +126,7 @@ components:
 
     BoardsWorkspaceResponse:
       type: object
-      required: [workspace, releaseStatus, source, capabilities, syncMetadata, projects, boards, tasks]
+      required: [workspace, releaseStatus, source, syncMetadata, projects, boards, tasks]
       properties:
         workspace: { type: boolean }
         releaseStatus:
@@ -134,30 +134,29 @@ components:
           enum: [active-dogfood-production]
         source:
           type: string
-          enum: [local-workspace-backend-facade, openproject-workspace-sync-backend-facade, provider-neutral-workspace-backend-facade]
-        capabilities:
-          $ref: '#/components/schemas/BoardProviderCapabilities'
+          enum: [weave-boards-tasks-facade]
         syncMetadata:
           $ref: '#/components/schemas/BoardsSyncMetadataResponse'
         projects:
           type: array
-          items: { $ref: '#/components/schemas/WeaveProject' }
+          items: { $ref: '#/components/schemas/BoardsProjectResponse' }
         boards:
           type: array
-          items: { $ref: '#/components/schemas/Board' }
+          items: { $ref: '#/components/schemas/BoardsBoardResponse' }
         tasks:
           type: array
-          items: { $ref: '#/components/schemas/TaskItem' }
+          items: { $ref: '#/components/schemas/BoardsTaskResponse' }
     BoardsSyncMetadataResponse:
       type: object
       required: [provider, mode, userWriteAudited, contextScoped, supportSafe, nextCursors]
       properties:
         provider:
           type: string
-          enum: [vikunja, openproject, nextcloud-deck, in-memory, unknown]
+          enum: [boards-tasks]
         mode:
           type: string
-          description: Support-safe source/mode such as workspace-sync or local-workspace-backend-facade.
+          enum: [canonical-domain-facade]
+          description: Support-safe canonical facade mode.
         userWriteAudited:
           type: boolean
         contextScoped:
@@ -172,25 +171,6 @@ components:
         lastSyncedAt:
           type: string
           format: date-time
-    BoardProviderCapabilities:
-      type: object
-      required: [provider, enabled, supported, unsupported, supportSafeSummary]
-      properties:
-        provider:
-          type: string
-          enum: [vikunja, openproject, nextcloud-deck, in-memory, unknown]
-        enabled: { type: boolean }
-        supported:
-          type: array
-          items:
-            type: string
-            enum: [comments, attachments, non_destructive_archive, status_updates, decision_links, webhook_events, incremental_sync, checklists, custom_fields, accessible_non_drag_moves]
-        unsupported:
-          type: array
-          items:
-            type: string
-            enum: [comments, attachments, non_destructive_archive, status_updates, decision_links, webhook_events, incremental_sync, checklists, custom_fields, accessible_non_drag_moves]
-        supportSafeSummary: { type: string }
     BoardsCreateTaskRequest:
       type: object
       required: [columnId, title]
@@ -225,28 +205,9 @@ components:
       properties:
         decisionRef: { type: string, maxLength: 160 }
 
-    ProviderRef:
+    BoardsProjectResponse:
       type: object
-      required: [provider, externalId]
-      properties:
-        provider:
-          type: string
-          enum: [vikunja, openproject, nextcloud-deck, in-memory, unknown]
-        externalId:
-          type: string
-        externalUrl:
-          type: string
-          format: uri
-        version:
-          type: string
-        etag:
-          type: string
-        lastSyncedAt:
-          type: string
-          format: date-time
-    WeaveProject:
-      type: object
-      required: [id, name, visibility, memberRefs, providerRefs]
+      required: [id, name, visibility, memberRefs, mappingRef]
       properties:
         id: { type: string }
         name: { type: string }
@@ -256,12 +217,12 @@ components:
         memberRefs:
           type: array
           items: { type: string }
-        providerRefs:
-          type: array
-          items: { $ref: '#/components/schemas/ProviderRef' }
-    Board:
+        mappingRef:
+          type: string
+          description: Opaque support-safe mapping reference; provider kind, external ID, and external URL are not exposed.
+    BoardsBoardResponse:
       type: object
-      required: [id, projectId, name, columns, archived, providerRefs]
+      required: [id, projectId, name, columns, archived, mappingRef]
       properties:
         id: { type: string }
         projectId: { type: string }
@@ -269,14 +230,14 @@ components:
         description: { type: string }
         columns:
           type: array
-          items: { $ref: '#/components/schemas/BoardColumn' }
+          items: { $ref: '#/components/schemas/BoardsColumnResponse' }
         archived: { type: boolean }
-        providerRefs:
-          type: array
-          items: { $ref: '#/components/schemas/ProviderRef' }
-    BoardColumn:
+        mappingRef:
+          type: string
+          description: Opaque support-safe mapping reference; provider kind, external ID, and external URL are not exposed.
+    BoardsColumnResponse:
       type: object
-      required: [id, boardId, name, position, semanticStatus, providerRefs]
+      required: [id, boardId, name, position, semanticStatus, mappingRef]
       properties:
         id: { type: string }
         boardId: { type: string }
@@ -288,12 +249,12 @@ components:
         wipLimit:
           type: integer
           minimum: 1
-        providerRefs:
-          type: array
-          items: { $ref: '#/components/schemas/ProviderRef' }
-    TaskItem:
+        mappingRef:
+          type: string
+          description: Opaque support-safe mapping reference; provider kind, external ID, and external URL are not exposed.
+    BoardsTaskResponse:
       type: object
-      required: [id, boardId, columnId, title, status, position, assigneeRefs, labelRefs, decisionRefs, updatedAt, providerRefs]
+      required: [id, boardId, columnId, title, status, position, assigneeRefs, labelRefs, decisionRefs, updatedAt, mappingRef]
       properties:
         id: { type: string }
         boardId: { type: string }
@@ -320,9 +281,9 @@ components:
         dueAt: { type: string, format: date-time }
         completedAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-        providerRefs:
-          type: array
-          items: { $ref: '#/components/schemas/ProviderRef' }
+        mappingRef:
+          type: string
+          description: Opaque support-safe mapping reference; provider kind, external ID, and external URL are not exposed.
     TaskBoardEvent:
       type: object
       required: [idempotencyKey, type, actorRef, occurredAt, workspaceId, redactionLevel, payload]
@@ -349,7 +310,9 @@ components:
         projectId: { type: string }
         boardId: { type: string }
         taskId: { type: string }
-        providerRef: { $ref: '#/components/schemas/ProviderRef' }
+        mappingRef:
+          type: string
+          description: Opaque support-safe mapping reference for event correlation.
         redactionLevel:
           type: string
           enum: [public_metadata, workspace_internal, support_safe, private_content]

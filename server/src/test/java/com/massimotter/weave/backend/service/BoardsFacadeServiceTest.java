@@ -285,10 +285,9 @@ class BoardsFacadeServiceTest {
 
         var response = service.workspace(jwt());
 
-        assertThat(response.source()).isEqualTo("openproject-workspace-sync-backend-facade");
-        assertThat(response.capabilities().provider()).isEqualTo(ProviderKind.OPEN_PROJECT);
-        assertThat(response.syncMetadata().provider()).isEqualTo("openproject");
-        assertThat(response.syncMetadata().mode()).isEqualTo("workspace-sync");
+        assertThat(response.source()).isEqualTo("weave-boards-tasks-facade");
+        assertThat(response.syncMetadata().provider()).isEqualTo("boards-tasks");
+        assertThat(response.syncMetadata().mode()).isEqualTo("canonical-domain-facade");
         assertThat(response.syncMetadata().userWriteAudited()).isTrue();
         assertThat(response.syncMetadata().contextScoped()).isTrue();
         assertThat(response.syncMetadata().supportSafe()).isTrue();

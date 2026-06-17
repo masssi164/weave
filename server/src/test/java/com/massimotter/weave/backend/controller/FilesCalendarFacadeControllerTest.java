@@ -137,9 +137,9 @@ class FilesCalendarFacadeControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("nextcloud-adapter-not-configured"))
+                .andExpect(jsonPath("$.code").value("calendar-adapter-not-configured"))
                 .andExpect(jsonPath("$.message").value(
-                        "Calendar facade is available, but the downstream Nextcloud adapter is not configured yet."))
+                        "Calendar facade is available, but calendar storage is not configured yet."))
                 .andExpect(jsonPath("$.details.module").value("calendar"))
                 .andExpect(jsonPath("$.details.operation").value("list-events"));
     }
@@ -241,64 +241,22 @@ class FilesCalendarFacadeControllerTest {
                         .with(workspaceJwt()))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("nextcloud-adapter-not-configured"))
+                .andExpect(jsonPath("$.code").value("calendar-adapter-not-configured"))
                 .andExpect(jsonPath("$.details.module").value("calendar"))
                 .andExpect(jsonPath("$.details.operation").value("read-event"));
     }
 
     @Test
-    void calendarClientSetupExposesSecretFreePlatformOptionsWithoutAdapterCredentials() throws Exception {
+    void memberCalendarApiDoesNotExposeClientSetupOrReadinessDiagnostics() throws Exception {
         mockMvc.perform(get("/api/calendar/client-setup")
                         .with(workspaceJwt()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.scope.type").value("workspace"))
-                .andExpect(jsonPath("$.scope.label").value("Weave workspace calendar"))
-                .andExpect(jsonPath("$.accessModel.type").value("workspace-team-channel-calendar"))
-                .andExpect(jsonPath("$.accessModel.productScope").value("workspace-team-channel"))
-                .andExpect(jsonPath("$.accessModel.privateUserCalendarsAvailable").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.status").value("blocked_until_revocable_credentials"))
-                .andExpect(jsonPath("$.credentialReadiness.appleProfileSigned").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.appleProfilePasswordIncluded").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.revocableCredentialsAvailable").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.readOnlySubscriptionTokensAvailable").value(false))
-                .andExpect(jsonPath("$.credentialReadiness.backendActorCredentialsExposed").value(false))
-                .andExpect(jsonPath("$.username").value("user-123"))
-                .andExpect(jsonPath("$.endpoints.serverUrl").value("https://files.weave.test"))
-                .andExpect(jsonPath("$.endpoints.caldavDiscoveryUrl")
-                        .value("https://files.weave.test/remote.php/dav"))
-                .andExpect(jsonPath("$.endpoints.principalUrl")
-                        .value("https://files.weave.test/remote.php/dav/principals/users/user-123/"))
-                .andExpect(jsonPath("$.options[0].platform").value("apple"))
-                .andExpect(jsonPath("$.options[0].method").value("mobileconfig"))
-                .andExpect(jsonPath("$.options[0].available").value(false))
-                .andExpect(jsonPath("$.options[1].platform").value("android"))
-                .andExpect(jsonPath("$.options[1].method").value("davx5"))
-                .andExpect(jsonPath("$.options[1].available").value(true))
-                .andExpect(jsonPath("$.options[1].actionUrl")
-                        .value("davx5://files.weave.test/remote.php/dav"))
-                .andExpect(jsonPath("$.options[3].platform").value("subscription"))
-                .andExpect(jsonPath("$.options[3].available").value(false));
-    }
-
-
-    @Test
-    void calendarAppleProfileRequiresAuthenticatedWorkspaceScope() throws Exception {
-        mockMvc.perform(get("/api/calendar/client-setup/apple.mobileconfig"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("unauthorized"));
-    }
-
-    @Test
-    void calendarAppleProfileDownloadStaysFailClosedUntilSigningExists() throws Exception {
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/calendar/client-setup/credentials")
+                        .with(workspaceJwt()))
+                .andExpect(status().isNotFound());
         mockMvc.perform(get("/api/calendar/client-setup/apple.mobileconfig")
                         .with(workspaceJwt()))
-                .andExpect(status().isServiceUnavailable())
-                .andExpect(header().exists("X-Request-Id"))
-                .andExpect(jsonPath("$.code").value("calendar-apple-profile-unavailable"))
-                .andExpect(jsonPath("$.details.operation").value("download-apple-mobileconfig"))
-                .andExpect(jsonPath("$.details.requiresSignedProfile").value(true))
-                .andExpect(jsonPath("$.details.passwordIncluded").value(false))
-                .andExpect(jsonPath("$.details.backendActorCredentialsExposed").value(false));
+                .andExpect(status().isNotFound());
     }
 
     @Test

@@ -107,7 +107,7 @@ END:VCALENDAR&#13;
         assertThat(events.get(0).updatedAt()).isEqualTo(OffsetDateTime.parse("2026-04-25T09:00:00Z"));
         assertThat(events.get(0).attendees()).singleElement()
                 .satisfies(attendee -> assertThat(attendee.email()).isEqualTo("ada@example.com"));
-        assertThat(events.get(0).providerRef().rawProviderPathExposed()).isFalse();
+        assertThat(events.get(0).provenanceRef().rawBackingPathExposed()).isFalse();
     }
 
     @Test

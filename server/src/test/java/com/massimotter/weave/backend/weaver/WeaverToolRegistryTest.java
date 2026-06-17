@@ -205,6 +205,11 @@ class WeaverToolRegistryTest {
                 "chat.read",
                 "tasks.read",
                 "search.query");
+        assertThat(tools).extracting(WeaverDomainToolDefinition::domain)
+                .contains("files-docs", "calendar-meetings", "boards-tasks")
+                .doesNotContain("calendar-events", "nextcloud-caldav", "openproject", "native", "provider");
+        assertThat(tools).allSatisfy(tool -> assertThat(tool.inputSchema().toString())
+                .doesNotContain("nextcloud", "caldav", "openproject", "externalId", "externalUrl"));
         assertThat(tools.stream().filter(tool -> tool.name().endsWith(".read") || tool.name().equals("model.chat") || tool.name().equals("audit.query") || tool.name().equals("search.query")))
                 .allSatisfy(tool -> {
                     assertThat(tool.mode()).isEqualTo(WeaverToolMode.READ);

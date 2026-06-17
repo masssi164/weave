@@ -135,7 +135,8 @@ class BoardsWorkspaceContractTest {
         assertThat(contract).contains("/api/boards/workspace");
         assertThat(contract).contains("/api/boards/{boardId}/tasks");
         assertThat(contract).contains("active-dogfood-production");
-        assertThat(contract).contains("openproject-workspace-sync-backend-facade");
+        assertThat(contract).contains("weave-boards-tasks-facade");
+        assertThat(contract).doesNotContain("openproject-workspace-sync-backend-facade", "providerRefs", "externalId", "externalUrl");
         assertThat(contract).contains("TaskBoardEvent");
         assertThat(contract).contains("task.moved");
     }

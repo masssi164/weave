@@ -15,7 +15,6 @@ import com.massimotter.weave.backend.model.calendar.CalendarAccessPolicyResponse
 import com.massimotter.weave.backend.model.calendar.CalendarClientSetupOptionResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarClientSetupResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarCredentialReadinessResponse;
-import com.massimotter.weave.backend.model.calendar.CalendarExternalEndpointsResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventsResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
@@ -30,7 +29,6 @@ import com.massimotter.weave.backend.service.calendar.CalendarAdapterException;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfile;
 import com.massimotter.weave.backend.service.calendar.AppleMobileConfigProfileRenderer;
 import com.massimotter.weave.backend.service.calendar.CalendarPrincipal;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -49,7 +47,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
-import org.springframework.web.util.UriComponentsBuilder;
 
 @Service
 public class CalendarFacadeService {
@@ -183,60 +180,52 @@ public class CalendarFacadeService {
     public CalendarClientSetupResponse clientSetup() {
         requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "client-setup");
         CalendarPrincipal principal = principal();
-        String username = principal.nextcloudUserId();
-        String discoveryUrl = davUrl("remote.php", "dav");
-        String principalUrl = davUrl("remote.php", "dav", "principals", "users", username) + "/";
-        String davx5Url = davx5Url();
+        String accountReference = "calendar-account:" + principal.subject();
 
         return new CalendarClientSetupResponse(
                 CalendarScopeResponse.workspace(),
                 accessModel(),
                 credentialReadiness(),
-                username,
-                new CalendarExternalEndpointsResponse(nextcloudBaseUrl, discoveryUrl, principalUrl),
-                "The backend never returns Nextcloud passwords, app passwords, bearer tokens, or static profile secrets. "
-                        + "External clients must use a revocable per-client app password/login flow now, or a future "
-                        + "Weave-issued scoped setup token once implemented.",
+                accountReference,
+                "The backend never returns provider passwords, app passwords, bearer tokens, or static profile secrets. "
+                        + "User-controlled setup flows must use revocable scoped credentials once available.",
                 List.of(
                         new CalendarClientSetupOptionResponse(
                                 "apple",
-                                "mobileconfig",
+                                "signed-profile",
                                 false,
                                 null,
-                                "Signed .mobileconfig download remains fail-closed until profile signing and revocable credentials are implemented.",
+                                "Signed profile download remains fail-closed until profile signing and revocable credentials are implemented.",
                                 List.of(
-                                        "iOS, iPadOS, and macOS can install a CalDAV configuration profile with host, port, SSL, principal URL, and username.",
-                                        "Profile generation must not embed a permanent password or backend service credential in the profile.",
+                                        "Profile generation must not embed a permanent password or backend service credential.",
                                         "The backend route is reserved for a signed no-secret profile and currently returns 503 rather than serving an unsigned artifact.")),
                         new CalendarClientSetupOptionResponse(
                                 "android",
-                                "davx5",
-                                true,
-                                davx5Url,
-                                null,
-                                List.of(
-                                        "Android has no universal native CalDAV account profile equivalent.",
-                                        "DAVx5 can open a secret-free davx5:// setup URL and can use the Nextcloud login flow for per-client credentials.",
-                                        "Webcal/ICS subscriptions are read-only and should remain a separate fallback.")),
-                        new CalendarClientSetupOptionResponse(
-                                "desktop",
-                                "caldav-manual",
-                                true,
-                                discoveryUrl,
-                                null,
-                                List.of(
-                                        "Use the CalDAV discovery or principal URL in clients such as Thunderbird, Apple Calendar, GNOME, or KDE calendar apps.",
-                                        "Microsoft Outlook generally needs an add-in for CalDAV; read-only ICS/webcal can be offered later where acceptable.",
-                                        "Use username " + username + " with a revocable per-client app password/login-flow credential.")),
-                        new CalendarClientSetupOptionResponse(
-                                "subscription",
-                                "webcal-ics",
+                                "guided-setup",
                                 false,
                                 null,
-                                "A revocable read-only ICS/webcal feed token is not implemented yet.",
+                                "Guided setup is blocked until Weave can issue and revoke scoped per-client credentials.",
                                 List.of(
-                                        "ICS/webcal is one-way subscription/download, not full two-way CalDAV sync.",
-                                        "It is useful for clients without CalDAV support once scoped feed tokens and revocation are available."))));
+                                        "Android setup must use a user-controlled credential flow.",
+                                        "Read-only subscriptions remain a separate fallback once scoped feed tokens exist.")),
+                        new CalendarClientSetupOptionResponse(
+                                "desktop",
+                                "guided-setup",
+                                false,
+                                null,
+                                "Desktop setup is blocked until Weave can issue and revoke scoped per-client credentials.",
+                                List.of(
+                                        "Desktop setup must not require provider-specific discovery details from the member API.",
+                                        "Support-only diagnostics may expose technical routing data outside the member contract.")),
+                        new CalendarClientSetupOptionResponse(
+                                "subscription",
+                                "read-only-feed",
+                                false,
+                                null,
+                                "A revocable read-only feed token is not implemented yet.",
+                                List.of(
+                                        "Read-only feeds are one-way subscription/download, not full two-way sync.",
+                                        "Feeds become available only with scoped tokens and revocation."))));
     }
 
 
@@ -257,7 +246,7 @@ public class CalendarFacadeService {
                         "backendActorCredentialsExposed", false,
                         "blockers", List.of(
                                 "Profile signing is not configured or implemented in this backend slice.",
-                                "Revocable per-client CalDAV credential issuance remains a prerequisite for password-bearing profiles.",
+                                "Revocable scoped per-client credential issuance remains a prerequisite for password-bearing profiles.",
                                 "Unsigned profiles are deliberately not downloadable from the authenticated API.")));
     }
 
@@ -265,12 +254,12 @@ public class CalendarFacadeService {
         requireContextPermission(CalendarScopeResponse.workspace(), ContextPermission.VIEW, "access-policy");
         return new CalendarAccessPolicyResponse(
                 accessModel(),
-                List.of("workspace-calendar.read", "workspace-calendar.write", "client-setup.metadata"),
+                List.of("workspace-calendar.read", "workspace-calendar.write"),
                 List.of("private-personal-calendar.read", "backend-actor-private-personal-calendar.read"),
                 List.of(
-                        "Choose and document a private calendar access model: user sharing/provisioning, Nextcloud Login Flow/app password, delegated token exchange, or a Weave token bridge.",
+                        "Choose and document a private calendar access model: user sharing/provisioning, delegated token exchange, or a Weave token bridge.",
                         "Add operator diagnostics proving private calendar templates are explicitly authorized.",
-                        "Add revocation and audit tests before any private personal CalDAV endpoint is enabled."),
+                        "Add revocation and audit tests before any private personal calendar access path is enabled."),
                 false);
     }
 
@@ -492,12 +481,12 @@ public class CalendarFacadeService {
                 "workspace-team-channel-calendar",
                 "workspace-team-channel",
                 false,
-                "Private per-user CalDAV calendars are not exposed until provisioning, sharing, or delegated-token access is specified and tested.",
-                "external clients use user-owned revocable per-client credentials; backend actor credentials are never issued to clients",
+                "Private per-user calendars are not exposed until provisioning, sharing, or delegated-token access is specified and tested.",
+                "user-controlled setup uses revocable scoped credentials; backend actor credentials are never issued to clients",
                 List.of(
                         "The product calendar facade exposes workspace, team, and channel scope metadata.",
-                        "Backend CalDAV configuration that targets arbitrary private personal calendars must stay fail-closed.",
-                        "External clients may use CalDAV discovery URLs, but credentials must come from a user-controlled revocable flow."));
+                        "Backend calendar configuration that targets arbitrary private personal calendars must stay fail-closed.",
+                        "User-controlled setup flows must not receive backend actor credentials or provider-specific routing data from the member contract."));
     }
 
     private String defaultIfBlank(String value, String fallback) {
@@ -514,7 +503,7 @@ public class CalendarFacadeService {
                 false,
                 List.of(
                         "Signed Apple .mobileconfig generation is not implemented yet.",
-                        "Weave-issued revocable per-client CalDAV credentials are not implemented yet.",
+                        "Weave-issued revocable scoped per-client credentials are not implemented yet.",
                         "Read-only ICS/webcal feed tokens are not implemented yet."));
     }
 
@@ -686,8 +675,8 @@ public class CalendarFacadeService {
         return switch (exception.type()) {
             case NOT_CONFIGURED -> new ApiErrorException(
                     HttpStatus.SERVICE_UNAVAILABLE,
-                    "nextcloud-adapter-not-configured",
-                    "Calendar facade is available, but the downstream Nextcloud adapter is not configured yet.",
+                    "calendar-adapter-not-configured",
+                    "Calendar facade is available, but calendar storage is not configured yet.",
                     details);
             case INVALID_REQUEST -> new ApiErrorException(
                     HttpStatus.BAD_REQUEST,
@@ -696,8 +685,8 @@ public class CalendarFacadeService {
                     details);
             case AUTH_FAILED -> new ApiErrorException(
                     HttpStatus.SERVICE_UNAVAILABLE,
-                    "nextcloud-calendar-auth-failed",
-                    "Calendar storage is unavailable because the backend actor is not authorized.",
+                    "calendar-storage-auth-failed",
+                    "Calendar storage is unavailable because the backend service is not authorized.",
                     details);
             case NOT_FOUND -> new ApiErrorException(
                     HttpStatus.NOT_FOUND,
@@ -711,7 +700,7 @@ public class CalendarFacadeService {
                     details);
             case DOWNSTREAM_UNAVAILABLE, INVALID_RESPONSE -> new ApiErrorException(
                     HttpStatus.SERVICE_UNAVAILABLE,
-                    "nextcloud-calendar-unavailable",
+                    "calendar-storage-unavailable",
                     "Calendar storage is currently unavailable.",
                     details);
         };
@@ -720,8 +709,8 @@ public class CalendarFacadeService {
     private ApiErrorException adapterNotConfigured(String operation) {
         return new ApiErrorException(
                 HttpStatus.SERVICE_UNAVAILABLE,
-                "nextcloud-adapter-not-configured",
-                "Calendar facade is available, but the downstream Nextcloud adapter is not configured yet.",
+                "calendar-adapter-not-configured",
+                "Calendar facade is available, but calendar storage is not configured yet.",
                 Map.of("module", "calendar", "operation", operation));
     }
 
@@ -740,18 +729,4 @@ public class CalendarFacadeService {
         return fallback;
     }
 
-    private String davUrl(String... pathSegments) {
-        return UriComponentsBuilder.fromUriString(nextcloudBaseUrl)
-                .pathSegment(pathSegments)
-                .build()
-                .toUriString();
-    }
-
-    private String davx5Url() {
-        URI uri = URI.create(nextcloudBaseUrl);
-        String host = uri.getHost() == null ? "files.weave.test" : uri.getHost();
-        int port = uri.getPort();
-        String authority = port > 0 ? host + ":" + port : host;
-        return "davx5://" + authority + "/remote.php/dav";
-    }
 }

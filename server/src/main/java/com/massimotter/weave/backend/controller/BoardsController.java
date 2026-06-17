@@ -1,10 +1,10 @@
 package com.massimotter.weave.backend.controller;
 
-import com.massimotter.weave.backend.boards.domain.TaskItem;
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.boards.BoardsCreateTaskRequest;
 import com.massimotter.weave.backend.model.boards.BoardsLinkDecisionRequest;
 import com.massimotter.weave.backend.model.boards.BoardsMoveTaskRequest;
+import com.massimotter.weave.backend.model.boards.BoardsTaskResponse;
 import com.massimotter.weave.backend.model.boards.BoardsUpdateTaskStatusRequest;
 import com.massimotter.weave.backend.model.boards.BoardsWorkspaceResponse;
 import com.massimotter.weave.backend.service.BoardsFacadeService;
@@ -57,8 +57,8 @@ public class BoardsController {
     @PostMapping("/api/boards/{boardId}/tasks")
     @Operation(summary = "Create a task in the Boards/Tasks workspace with user-write authorization")
     @ApiResponse(responseCode = "200", description = "Created provider-neutral task.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
-    public TaskItem createTask(
+            content = @Content(schema = @Schema(implementation = BoardsTaskResponse.class)))
+    public BoardsTaskResponse createTask(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String boardId,
             @Valid @RequestBody BoardsCreateTaskRequest request) {
@@ -68,8 +68,8 @@ public class BoardsController {
     @PostMapping("/api/boards/tasks/{taskId}/move")
     @Operation(summary = "Move a task without drag-and-drop in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Moved provider-neutral task.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
-    public TaskItem moveTask(
+            content = @Content(schema = @Schema(implementation = BoardsTaskResponse.class)))
+    public BoardsTaskResponse moveTask(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId,
             @Valid @RequestBody BoardsMoveTaskRequest request) {
@@ -80,8 +80,8 @@ public class BoardsController {
     @PostMapping("/api/boards/tasks/{taskId}/status")
     @Operation(summary = "Update task status in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Updated provider-neutral task.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
-    public TaskItem updateTaskStatus(
+            content = @Content(schema = @Schema(implementation = BoardsTaskResponse.class)))
+    public BoardsTaskResponse updateTaskStatus(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId,
             @Valid @RequestBody BoardsUpdateTaskStatusRequest request) {
@@ -91,8 +91,8 @@ public class BoardsController {
     @PostMapping("/api/boards/tasks/{taskId}/decision-links")
     @Operation(summary = "Link a workspace decision to a task in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Task with linked decision reference.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
-    public TaskItem linkDecision(
+            content = @Content(schema = @Schema(implementation = BoardsTaskResponse.class)))
+    public BoardsTaskResponse linkDecision(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId,
             @Valid @RequestBody BoardsLinkDecisionRequest request) {
@@ -102,8 +102,8 @@ public class BoardsController {
     @PostMapping("/api/boards/tasks/{taskId}/complete")
     @Operation(summary = "Complete a task without drag-and-drop in the Boards/Tasks workspace")
     @ApiResponse(responseCode = "200", description = "Completed provider-neutral task.",
-            content = @Content(schema = @Schema(implementation = TaskItem.class)))
-    public TaskItem completeTask(
+            content = @Content(schema = @Schema(implementation = BoardsTaskResponse.class)))
+    public BoardsTaskResponse completeTask(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Size(max = 128) String taskId) {
         return boardsFacadeService.completeTask(jwt, taskId);

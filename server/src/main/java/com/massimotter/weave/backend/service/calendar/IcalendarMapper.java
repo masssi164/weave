@@ -2,7 +2,7 @@ package com.massimotter.weave.backend.service.calendar;
 
 import com.massimotter.weave.backend.model.calendar.CalendarAttendeeResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarEventResponse;
-import com.massimotter.weave.backend.model.calendar.CalendarProviderRefResponse;
+import com.massimotter.weave.backend.model.calendar.CalendarProvenanceRefResponse;
 import com.massimotter.weave.backend.model.calendar.CalendarScopeResponse;
 import com.massimotter.weave.backend.model.calendar.CreateCalendarEventRequest;
 import com.massimotter.weave.backend.model.calendar.UpdateCalendarEventRequest;
@@ -87,7 +87,7 @@ public class IcalendarMapper {
                 CalendarScopeResponse.workspace(),
                 null,
                 attendees(eventProperties),
-                CalendarProviderRefResponse.caldavEvent(id, cleanEtag(etag), updatedAt),
+                CalendarProvenanceRefResponse.calendarMeeting(id, cleanEtag(etag), updatedAt),
                 updatedAt);
     }
 
