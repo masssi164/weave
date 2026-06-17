@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -74,6 +75,9 @@ class WorkspaceControllerTest {
 
     @Autowired
     private OAuth2ResourceServerProperties resourceServerProperties;
+
+    @Autowired
+    private WeaverRuntimeService weaverRuntimeService;
 
     @MockBean
     private JwtDecoder jwtDecoder;
@@ -263,6 +267,58 @@ class WorkspaceControllerTest {
     }
 
     @Test
+    void returnsContractBridgeDiscoveryEnvelope() throws Exception {
+        String runtimeProfileHash = runtimeProfileHash();
+        mockMvc.perform(get("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools")
+                        .param("runtimeProfileHash", runtimeProfileHash)
+                        .with(jwt().jwt(jwt -> jwt
+                                        .subject("member@example.invalid")
+                                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                                        .claim("realm_access", Map.of("roles", List.of("member")))
+                                        .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
+                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runtime.runtimeProfileHash").value(org.hamcrest.Matchers.startsWith("sha256:")))
+                .andExpect(jsonPath("$.catalog.serverNamespace").value("weave-domain-tools"))
+                .andExpect(jsonPath("$.catalog.contractVersion").value("weave-mcp-bridge-v1"))
+                .andExpect(jsonPath("$.catalog.tools").isArray());
+    }
+
+    @Test
+    void returnsContractBridgeInvocationEnvelope() throws Exception {
+        String runtimeProfileHash = runtimeProfileHash();
+        mockMvc.perform(post("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools/files.read:invoke")
+                        .with(jwt().jwt(jwt -> jwt
+                                        .subject("member@example.invalid")
+                                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                                        .claim("realm_access", Map.of("roles", List.of("member")))
+                                        .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot")))
+                                .authorities(new SimpleGrantedAuthority("SCOPE_weave:workspace")))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "toolName": "files.read",
+                                  "arguments": {"spaceRef": "space:control-room"},
+                                  "runtime": {
+                                    "orgRef": {"value": "org:workspace"},
+                                    "userRef": {"value": "user:member-example-invalid"},
+                                    "runtimeProfileRef": {"value": "weave-runtime-profile://%s"},
+                                    "runtimeProfileHash": "%s",
+                                    "runtimeTokenRef": {"value": "credentialref://weave/runtime/short-lived/user-member-example-invalid"},
+                                    "auditRef": "audit://weaver-mcp/weave-domain-tools/discover",
+                                    "capabilityGrants": ["files.read", "weaver.exec_disabled"],
+                                    "allowedTools": ["files.read"]
+                                  }
+                                }
+                                """.formatted(runtimeProfileHash, runtimeProfileHash)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.toolName").value("files.read"))
+                .andExpect(jsonPath("$.status").value("DENIED"))
+                .andExpect(jsonPath("$.supportSafe").value(true))
+                .andExpect(jsonPath("$.structuredContent.supportSafe").value(true));
+    }
+
+    @Test
     void rejectsAnonymousRequests() throws Exception {
         mockMvc.perform(get("/api/workspace/capabilities"))
                 .andExpect(status().isUnauthorized());
@@ -284,6 +340,19 @@ class WorkspaceControllerTest {
 
         mockMvc.perform(get("/api/v1/workspace/weaver/runtime-profile"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    private String runtimeProfileHash() {
+        return weaverRuntimeService.profileFor(org.springframework.security.oauth2.jwt.Jwt.withTokenValue("token")
+                        .header("alg", "none")
+                        .claim("sub", "member@example.invalid")
+                        .claim("iss", "https://auth.example.invalid/realms/acme")
+                        .claim("realm_access", Map.of("roles", List.of("member")))
+                        .claim("groups", List.of("weave-weaver-runtime", "weave-weaver-pilot"))
+                        .issuedAt(java.time.Instant.now())
+                        .expiresAt(java.time.Instant.now().plusSeconds(300))
+                        .build())
+                .runtimeProfileHash();
     }
 
     private void assertConfiguredWorkspaceCapabilities(String path) throws Exception {

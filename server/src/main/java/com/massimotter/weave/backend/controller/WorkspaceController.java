@@ -2,14 +2,14 @@ package com.massimotter.weave.backend.controller;
 
 import com.massimotter.weave.backend.model.ApiErrorResponse;
 import com.massimotter.weave.backend.model.OrganizationManifestResponse;
-import com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyResponse;
 import com.massimotter.weave.backend.model.WorkspaceHomeResponse;
 import com.massimotter.weave.backend.model.WorkspaceReleaseReadinessResponse;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
-import com.massimotter.weave.backend.weaver.WeaverToolInvocationResult;
-import java.util.List;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeDiscoveryResponse;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationRequest;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationResponse;
 import java.util.Map;
 import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
@@ -165,7 +165,7 @@ public class WorkspaceController {
     }
 
     @GetMapping({"/api/workspace/weaver/mcp/servers/{serverKey}/tools", "/api/v1/workspace/weaver/mcp/servers/{serverKey}/tools"})
-    public List<Map<String, Object>> weaverMcpToolDiscovery(
+    public BridgeDiscoveryResponse weaverMcpToolDiscovery(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String serverKey,
             @RequestParam String runtimeProfileHash) {
@@ -173,11 +173,11 @@ public class WorkspaceController {
     }
 
     @PostMapping({"/api/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke", "/api/v1/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke"})
-    public WeaverToolInvocationResult weaverMcpToolInvoke(
+    public BridgeInvocationResponse weaverMcpToolInvoke(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String serverKey,
             @PathVariable String toolName,
-            @RequestBody WeaverMcpToolInvocationRequest request) {
+            @RequestBody BridgeInvocationRequest request) {
         return weaverRuntimeService.invokeMcpTool(jwt, serverKey, toolName, request);
     }
 

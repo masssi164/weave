@@ -7,6 +7,7 @@ import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -159,15 +160,35 @@ class WeaverRuntimeServiceTest {
                 member,
                 "weave-domain-tools",
                 "files.read",
-                new com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest(profile.runtimeProfileHash(), Map.of("spaceRef", "space:control-room"), null));
+                new BridgeInvocationRequest(
+                        "files.read",
+                        Map.of("spaceRef", "space:control-room"),
+                        service.discoverMcpTools(member, profile.runtimeProfileHash(), "weave-domain-tools").runtime()));
 
         assertThat(serverProjection.toString())
                 .contains("weave-domain-tools", "routingPlaneSeparated=true", "channels.weave-chat")
                 .doesNotContain("Bearer ", "openclaw.json");
-        assertThat(tools).extracting(tool -> tool.get("name")).contains("files.read");
-        assertThat(invocation.status()).isEqualTo("ok");
-        assertThat(invocation.redactedResult()).containsEntry("rawProviderPayload", "redacted");
-        assertThat(invocation.redactedResult().get("canonicalRefs").toString()).contains("space:control-room");
+        assertThat(tools.catalog().tools()).extracting(tool -> tool.name()).contains("files.read");
+        assertThat(invocation.status()).isEqualTo(com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatus.SUCCESS);
+        assertThat(invocation.structuredContent()).containsEntry("rawProviderPayload", "redacted");
+        assertThat(invocation.structuredContent().get("canonicalRefs").toString()).contains("space:control-room");
+    }
+
+    @Test
+    void requiresMatchingToolNameBetweenPathAndBridgeRequest() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var profile = service.profileFor(member);
+        var runtime = service.discoverMcpTools(member, profile.runtimeProfileHash(), "weave-domain-tools").runtime();
+        var invocation = service.invokeMcpTool(
+                member,
+                "weave-domain-tools",
+                "files.read",
+                new BridgeInvocationRequest("calendar.create_event", Map.of(), runtime));
+
+        assertThat(invocation.status()).isEqualTo(com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatus.VALIDATION_ERROR);
+        assertThat(invocation.structuredContent()).containsEntry("requestedToolName", "calendar.create_event");
     }
 
     @Test
