@@ -116,6 +116,31 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertNotIn("credentialref://", discovery_text)
         self.assertFalse(any(tool["name"].startswith(("raw_files_provider.", "raw_calendar_provider.")) for tool in tools.values()))
 
+
+    def test_discovery_uses_canonical_domain_contract_vocabulary(self) -> None:
+        body = self.gateway().discover_tools({key.lower(): value for key, value in HEADERS.items()})
+        tools = {tool["name"]: tool for tool in body["tools"]}
+
+        self.assertEqual(tools["admin.get_readiness"]["meta"]["domain"], "admin_setup_adapters")
+        self.assertEqual(tools["calendar.search_events"]["meta"]["domain"], "calendar-meetings")
+        self.assertEqual(tools["calendar.create_event"]["meta"]["domain"], "calendar-meetings")
+        self.assertEqual(tools["files.search"]["meta"]["domain"], "files-docs")
+        self.assertEqual(tools["files.read"]["meta"]["domain"], "files-docs")
+        self.assertEqual(tools["boards.comment"]["meta"]["domain"], "boards-tasks")
+
+        discovery_text = json.dumps(body, sort_keys=True).lower()
+        for forbidden in [
+            "admin_setup_providers",
+            "calendar-events",
+            '"domain": "calendar"',
+            '"domain": "files"',
+            "files_documents",
+            "boards_tasks",
+            "provider-native",
+            "raw provider",
+        ]:
+            self.assertNotIn(forbidden, discovery_text)
+
     def test_user_weave_chat_send_uses_only_profile_governed_domain_tools(self) -> None:
         profile = {
             **RUNTIME_PROFILE_PROJECTION,

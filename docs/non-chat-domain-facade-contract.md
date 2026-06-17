@@ -38,3 +38,15 @@ The shared facade is a contract, not a generic data model. Files, Calendar, and 
 - Docs and Marketing/Product Messaging review claim hygiene: release wording may claim facade/contract parity only, not production provider replacement, until live replacement evidence exists.
 
 Small PRs are required. A child PR should either satisfy a complete vertical slice for one domain operation family or explicitly name the unsupported remainder in tests/docs.
+
+## Issue #815 integration: one canonical truth, scoped surfaces
+
+The canonical contract vocabulary is the source of truth for Files, Calendar, Boards, readiness, and Weaver/MCP exposure. Domain-specific services remain the fachliche seams, but they must use the same canonical domain keys, capability names, operation names, object kinds, support-safe states, mapping refs, and audit metadata as `CanonicalDomainDefinition` / `CanonicalDomainContract`.
+
+Role-specific surfaces are deliberately different:
+
+- Member/client APIs expose canonical domain concepts only. They must not expose provider-native domains, raw provider IDs, raw provider payloads, raw endpoints, adapter class names, SecretRef values, or operational diagnostics that belong to admin/support.
+- Weaver/MCP tools are a governed projection over the same canonical domain vocabulary. Backend `WeaverToolRegistry` and the infra MCP contract must validate non-chat domain tools against canonical domain keys such as `files-docs`, `calendar-meetings`, and `boards-tasks`.
+- Admin/Weave-Control is the explicit control-plane surface for adapter assignment, selected provider mappings, readiness, provenance, SecretRefs, lossy replacement notes, and support-safe diagnostics. Admin visibility does not make those fields valid in member or MCP schemas.
+
+No implementation may introduce a parallel `calendar-events`, `files_documents`, or `boards_tasks` tool/domain vocabulary for these canonical non-chat domains. Drift tests should fail when a member facade, Weaver tool registry, or infra MCP contract invents names outside the canonical contract.

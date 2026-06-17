@@ -45,15 +45,19 @@ jq -e '
   and .globalControls.auditRequiredForEveryToolCall == true
   and .globalControls.approvalReceiptRequiredForWriteDeleteExternalSendProviderSwitch == true
   and (.canonicalDomains | length) == 8
-  and ([.canonicalDomains[].key] | index("calendar"))
-  and ([.canonicalDomains[].key] | index("files_documents"))
-  and ([.canonicalDomains[].key] | index("boards_tasks"))
+  and ([.canonicalDomains[].key] | index("calendar-meetings"))
+  and ([.canonicalDomains[].key] | index("files-docs"))
+  and ([.canonicalDomains[].key] | index("boards-tasks"))
   and ([.canonicalDomains[].key] | index("chat_comms"))
   and ([.canonicalDomains[].key] | index("people_identity_org"))
-  and ([.canonicalDomains[].key] | index("admin_setup_providers"))
+  and ([.canonicalDomains[].key] | index("admin_setup_adapters"))
   and ([.canonicalDomains[].key] | index("audit_policy"))
   and ([.canonicalDomains[].key] | index("weaver_runtime_governance"))
-  and ([.canonicalDomains[] | select(.key == "admin_setup_providers") | .forbiddenOutputs[]] | index("SecretRefValues"))
+  and ([.canonicalDomains[].key] | index("calendar") | not)
+  and ([.canonicalDomains[].key] | index("calendar-events") | not)
+  and ([.canonicalDomains[].key] | index("files_documents") | not)
+  and ([.canonicalDomains[].key] | index("boards_tasks") | not)
+  and ([.canonicalDomains[] | select(.key == "admin_setup_adapters") | .forbiddenOutputs[]] | index("SecretRefValues"))
   and ([.canonicalDomains[] | select(.key == "weaver_runtime_governance") | .forbiddenOutputs[]] | index("openclaw.json"))
   and ([.canonicalDomains[] | select(.key == "chat_comms") | .forbiddenOutputs[]] | index("mxcUris"))
   and ([.canonicalDomains[].writeToolsRequireApproval | length] | all(. > 0))
@@ -67,5 +71,12 @@ assert_contains "${DOC}" "SecretRef/CredentialRef handling"
 assert_contains "${DOC}" "Do not build every provider adapter in Sprint 16."
 assert_contains "${PRODUCT_PLAN}" "Weave is planned product-first, not agent-first."
 assert_contains "${PRODUCT_PLAN}" "OpenClaw configuration remains an implementation target, not the product model."
+
+if grep -Eq '"key": "(calendar|calendar-events|files_documents|boards_tasks)"' "${CONTRACT}"; then
+  fail "MCP contract contains a non-canonical non-chat domain key"
+fi
+if grep -Eiq 'raw(CalDav|WebDav|Nextcloud|OpenProject)|providerNative' "${CONTRACT}"; then
+  fail "MCP contract contains provider-native member/tool vocabulary"
+fi
 
 printf '%s\n' 'weave MCP tool contract tests passed'

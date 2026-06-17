@@ -20,7 +20,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "admin.get_readiness": ToolDefinition(
         name="admin.get_readiness",
         capability="weaver.admin_readiness_read",
-        domain="admin_setup_providers",
+        domain="admin_setup_adapters",
         read_only=True,
         approval_required=False,
         description="Read support-safe admin readiness from the Weave backend control plane.",
@@ -36,7 +36,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "calendar.search_events": ToolDefinition(
         name="calendar.search_events",
         capability="weaver.calendar_read",
-        domain="calendar",
+        domain="calendar-meetings",
         read_only=True,
         approval_required=False,
         description="Search calendar events via the backend Calendar facade with redacted support-safe output.",
@@ -45,7 +45,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "calendar.create_event": ToolDefinition(
         name="calendar.create_event",
         capability="weaver.calendar_create_event",
-        domain="calendar",
+        domain="calendar-meetings",
         read_only=False,
         approval_required=True,
         description="Create a support-safe test calendar event through the backend Calendar facade and return a readback reference.",
@@ -63,7 +63,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "files.search": ToolDefinition(
         name="files.search",
         capability="weaver.files_read",
-        domain="files",
+        domain="files-docs",
         read_only=True,
         approval_required=False,
         description="Search Weave Files through the backend Files facade with support-safe references only.",
@@ -72,10 +72,10 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "files.read": ToolDefinition(
         name="files.read",
         capability="weaver.files_read",
-        domain="files",
+        domain="files-docs",
         read_only=True,
         approval_required=False,
-        description="Read Weave Files metadata through the backend Files facade without exposing raw provider payloads.",
+        description="Read Weave Files metadata through the backend Files facade with support-safe canonical metadata only.",
         input_schema={"type": "object", "required": ["fileRef"], "properties": {"fileRef": {"type": "string"}}},
     ),
     "chat.list_threads": ToolDefinition(
@@ -84,7 +84,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
         domain="chat",
         read_only=True,
         approval_required=False,
-        description="List Weave Chat threads through the Chat-domain facade; provider room ids remain hidden.",
+        description="List Weave Chat threads through the Chat-domain facade; canonical room references remain support-safe.",
         input_schema={"type": "object", "properties": {"channelId": {"type": "string"}, "spaceRef": {"type": "string"}}},
     ),
     "chat.send_message": ToolDefinition(
@@ -93,13 +93,13 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
         domain="chat",
         read_only=False,
         approval_required=True,
-        description="Send a message through the Weave Chat-domain facade, never directly to a provider-native channel.",
+        description="Send a message through the Weave Chat-domain facade, through the governed Weave Chat domain boundary.",
         input_schema={"type": "object", "required": ["threadRef", "body", "approvalReceiptRef"]},
     ),
     "boards.comment": ToolDefinition(
         name="boards.comment",
         capability="weaver.boards_write",
-        domain="boards_tasks",
+        domain="boards-tasks",
         read_only=False,
         approval_required=True,
         description="Approval-required write stub for adding a board/task comment through backend action requests.",
