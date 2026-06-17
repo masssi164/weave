@@ -160,7 +160,7 @@ public class OpenProjectBoardsStepDefinitions {
     public void weaveReturnsAnOpenProjectReadOnlyBoardsSnapshot() {
         assertThat(thrown).isNull();
         assertThat(response).isNotNull();
-        assertThat(response.source()).isEqualTo("openproject-workspace-sync-backend-facade");
+        assertThat(response.source()).isEqualTo("canonical-domain-facade");
         assertThat(response.capabilities().provider().contractName()).isEqualTo("openproject");
         assertThat(response.capabilities().enabled()).isTrue();
     }
@@ -176,8 +176,8 @@ public class OpenProjectBoardsStepDefinitions {
 
     @Then("sync metadata is support-safe and user-write audited")
     public void syncMetadataIsSupportSafeAndReadOnly() {
-        assertThat(response.syncMetadata().provider()).isEqualTo("openproject");
-        assertThat(response.syncMetadata().mode()).isEqualTo("workspace-sync");
+        assertThat(response.syncMetadata().provider()).isEqualTo("boards");
+        assertThat(response.syncMetadata().mode()).isEqualTo("canonical-domain-port");
         assertThat(response.syncMetadata().userWriteAudited()).isTrue();
         assertThat(response.syncMetadata().contextScoped()).isTrue();
         assertThat(response.syncMetadata().supportSafe()).isTrue();

@@ -5,8 +5,8 @@ import java.time.OffsetDateTime;
 
 @Schema(description = "Safe provider reference for a calendar event. Raw provider paths, URLs, and credentials are deliberately not exposed.")
 public record CalendarProviderRefResponse(
-        @Schema(description = "Provider family behind the facade.", example = "nextcloud-caldav")
-        String provider,
+        @Schema(description = "Canonical domain behind the facade.", example = "calendar")
+        String domain,
         @Schema(description = "Provider object kind.", example = "calendar-event")
         String objectKind,
         @Schema(description = "Opaque Weave facade identifier for the provider object.")
@@ -19,7 +19,7 @@ public record CalendarProviderRefResponse(
         boolean rawProviderPathExposed) {
 
     public CalendarProviderRefResponse {
-        provider = provider == null || provider.isBlank() ? "nextcloud-caldav" : provider.trim();
+        domain = "calendar";
         objectKind = objectKind == null || objectKind.isBlank() ? "calendar-event" : objectKind.trim();
         opaqueId = opaqueId == null || opaqueId.isBlank() ? null : opaqueId.trim();
         etag = etag == null || etag.isBlank() ? null : etag.trim();
@@ -27,6 +27,6 @@ public record CalendarProviderRefResponse(
     }
 
     public static CalendarProviderRefResponse caldavEvent(String opaqueId, String etag, OffsetDateTime lastSyncedAt) {
-        return new CalendarProviderRefResponse("nextcloud-caldav", "calendar-event", opaqueId, etag, lastSyncedAt, false);
+        return new CalendarProviderRefResponse("calendar", "event", opaqueId == null ? null : "provider-mapping://calendar/event/" + Integer.toHexString(opaqueId.hashCode()), etag, lastSyncedAt, false);
     }
 }

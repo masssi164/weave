@@ -7,8 +7,8 @@ import java.util.Set;
 
 public enum CanonicalDomainDefinition {
     FILES_DOCS(
-            "files-docs",
-            "Files and documents",
+            "files",
+            "Files",
             List.of("files", "documents-collaboration"),
             List.of("files.read", "documents.view"),
             List.of("files.upload", "files.delete", "documents.edit", "documents.comment", "documents.collaborate"),
@@ -16,8 +16,8 @@ public enum CanonicalDomainDefinition {
             List.of("provider_native_share_links", "raw_storage_credentials", "editor_launch_without_backend_session"),
             List.of("drive", "folder", "file", "file_version", "blob_ref", "permission", "share_link", "lock", "trash_entry", "checksum", "document", "editor_session", "editor_provider", "coauthoring_state", "version_ref", "space_ref", "chat_attachment_ref", "task_attachment_ref")),
     CALENDAR_MEETINGS(
-            "calendar-meetings",
-            "Calendar and meetings",
+            "calendar",
+            "Calendar",
             List.of("calendar", "meetings-calls"),
             List.of("calendar.read", "meetings.join"),
             List.of("calendar.manage_events", "meetings.host", "meetings.recording_policy"),
@@ -25,8 +25,8 @@ public enum CanonicalDomainDefinition {
             List.of("meeting_recording_control", "provider_native_recurrence_extensions", "external_meeting_admin", "client_side_media_secret"),
             List.of("calendar", "event", "occurrence", "recurrence_rule", "recurrence_exception", "attendee", "resource", "reminder", "time_zone", "conference_link", "meeting", "meeting_room", "participant", "join_grant", "media_session", "recording", "transcript", "caption", "meeting_chat_ref", "consent_record", "retention_policy", "space_ref", "agenda_ref")),
     BOARDS_TASKS(
-            "boards-tasks",
-            "Boards and tasks",
+            "boards",
+            "Boards",
             List.of("boards-tasks"),
             List.of("boards.read"),
             List.of("boards.update_task", "boards.sync_workspace"),

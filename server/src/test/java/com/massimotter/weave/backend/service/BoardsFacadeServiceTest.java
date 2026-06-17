@@ -285,10 +285,10 @@ class BoardsFacadeServiceTest {
 
         var response = service.workspace(jwt());
 
-        assertThat(response.source()).isEqualTo("openproject-workspace-sync-backend-facade");
+        assertThat(response.source()).isEqualTo("canonical-domain-facade");
         assertThat(response.capabilities().provider()).isEqualTo(ProviderKind.OPEN_PROJECT);
-        assertThat(response.syncMetadata().provider()).isEqualTo("openproject");
-        assertThat(response.syncMetadata().mode()).isEqualTo("workspace-sync");
+        assertThat(response.syncMetadata().provider()).isEqualTo("boards");
+        assertThat(response.syncMetadata().mode()).isEqualTo("canonical-domain-port");
         assertThat(response.syncMetadata().userWriteAudited()).isTrue();
         assertThat(response.syncMetadata().contextScoped()).isTrue();
         assertThat(response.syncMetadata().supportSafe()).isTrue();
@@ -345,7 +345,7 @@ class BoardsFacadeServiceTest {
     void workspaceFailsClosedInsteadOfLeakingUnsafeProviderCursor() {
         BoardsFacadeService service = new BoardsFacadeService(
                 new BoardsRuntimeGuard(true),
-                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "https://openproject.example.test/page?token=secret"),
+                new EmptyBoardsRepository(ProviderKind.OPEN_PROJECT, "https://boards.example.test/page?token=secret"),
                 request -> ContextAuthorizationDecision.allow("test allow"),
                 contextAuthorizationProperties(),
                 workspaceCapabilityService());
@@ -354,7 +354,7 @@ class BoardsFacadeServiceTest {
                 .isInstanceOfSatisfying(ApiErrorException.class, error -> {
                     assertThat(error.status().value()).isEqualTo(400);
                     assertThat(error.code()).isEqualTo("boards-validation");
-                    assertThat(error.getMessage()).doesNotContain("openproject.example")
+                    assertThat(error.getMessage()).doesNotContain("boards.example")
                             .doesNotContain("secret");
                     assertThat(error.details())
                             .containsEntry("cursorKey", "projects")

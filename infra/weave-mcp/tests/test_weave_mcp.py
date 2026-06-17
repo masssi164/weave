@@ -225,10 +225,7 @@ class WeaveMcpGatewayTest(unittest.TestCase):
             projection["result"]["mcp"]["servers"]["weave-domain-tools"]["endpointRef"],
             "internal://weave-mcp/streamable-http",
         )
-        self.assertEqual(
-            projection["result"]["mcp"]["servers"]["weave-domain-tools"]["credentialRef"],
-            "credentialref://weave/mcp/weave-domain-tools/runtime-token",
-        )
+        self.assertFalse(projection["result"]["mcp"]["servers"]["weave-domain-tools"]["credentialMaterialReturned"])
         self.assertNotIn("channels.weave-chat", json.dumps(projection, sort_keys=True))
 
         with self.assertRaises(McpDenied):
@@ -340,7 +337,7 @@ class WeaveMcpGatewayTest(unittest.TestCase):
 
         self.assertIn("/api/calendar/events?from=2026-06-12T00%3A00%3A00Z&to=2026-06-13T00%3A00%3A00Z", backend.request.full_url)
         self.assertEqual(backend.request.headers["Authorization"], "Bearer dev-runtime-token")
-        self.assertTrue(result["providerSourceMappedByBackend"])
+        self.assertTrue(result["sourceMappedByBackend"])
         self.assertTrue(result["redactedItems"])
         self.assertEqual(result["items"][0]["titlePresent"], True)
         self.assertNotIn("Private title", repr(result))

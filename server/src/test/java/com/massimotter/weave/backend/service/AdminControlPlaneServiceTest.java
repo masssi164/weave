@@ -456,7 +456,7 @@ class AdminControlPlaneServiceTest {
         var response = service.overview(jwt("admin"));
 
         assertThat(response.suiteDomainReadiness()).extracting(domain -> domain.domain())
-                .containsExactly("files-docs", "boards-tasks", "calendar-meetings");
+                .containsExactly("files", "boards", "calendar");
         assertThat(response.suiteDomainReadiness()).allSatisfy(domain -> {
             assertThat(domain.backendOwnedFacade()).isTrue();
             assertThat(domain.providerMappingOwnedByServer()).isTrue();

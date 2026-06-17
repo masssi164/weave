@@ -16,13 +16,13 @@ class WeaverToolRegistryTest {
         // V01_GOVERNED_WEAVER_TOOL_REGISTRY
         WeaverToolRegistry registry = new WeaverToolRegistry(new InMemoryAuditEventPublisher());
 
-        var tools = registry.discover(List.of("weaver.files_read", "weaver.boards_write"));
+        var tools = registry.discover(List.of("files.read", "boards.update_task"));
 
         assertThat(tools).extracting(WeaverDomainToolDefinition::name)
                 .containsExactly("files.read", "files.search", "boards.comment");
         assertThat(tools).extracting(WeaverDomainToolDefinition::version).containsOnly("v1");
         assertThat(tools).extracting(WeaverDomainToolDefinition::requiredCapability)
-                .containsExactly("weaver.files_read", "weaver.files_read", "weaver.boards_write");
+                .containsExactly("files.read", "files.read", "boards.update_task");
         assertThat(tools).allSatisfy(tool -> {
             assertThat(tool.name()).contains(".");
             assertThat(tool.inputSchema()).containsEntry("additionalProperties", false);
@@ -35,14 +35,14 @@ class WeaverToolRegistryTest {
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         WeaverToolRegistry registry = new WeaverToolRegistry(audit);
 
-        assertThat(registry.discover(List.of("weaver.files_read"))).extracting(WeaverDomainToolDefinition::name)
+        assertThat(registry.discover(List.of("files.read"))).extracting(WeaverDomainToolDefinition::name)
                 .doesNotContain("boards.comment", "notifications.create_action_request");
 
         var result = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
                 "user:abc123",
                 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                List.of("weaver.files_read"),
+                List.of("files.read"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 null));
 
@@ -57,8 +57,8 @@ class WeaverToolRegistryTest {
                 .containsEntry("tool", "boards.comment")
                 .containsEntry("action", "tool.invoke")
                 .containsEntry("domain", "weaver-runtime")
-                .containsEntry("providerRef", "provider:domain-facade")
-                .containsEntry("credentialRef", "credentialref://weave/runtime/short-lived")
+                .containsEntry("adapterBoundary", "canonical-domain-port")
+                .containsEntry("credentialMaterialReturned", false)
                 .containsEntry("decision", "blocked");
         assertThat(audit.events().get(0).payload()).containsEntry("supportSafe", true);
     }
@@ -72,7 +72,7 @@ class WeaverToolRegistryTest {
                 "boards.comment",
                 "user:abc123",
                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-                List.of("weaver.boards_write"),
+                List.of("boards.update_task"),
                 Map.of("taskId", "TASK-1", "body", "Looks good"),
                 null));
 
@@ -89,7 +89,7 @@ class WeaverToolRegistryTest {
                 false,
                 future(),
                 true,
-                List.of("weaver.boards_write"),
+                List.of("boards.update_task"),
                 List.of("boards.comment"),
                 Map.of(
                         "spaceRef", "space:control-room",
@@ -108,7 +108,7 @@ class WeaverToolRegistryTest {
 
         assertThat(approved.status()).isEqualTo("ok");
         assertThat(approved.approvalRequired()).isFalse();
-        assertThat(approved.redactedResult()).containsEntry("rawProviderPayload", "redacted");
+        assertThat(approved.redactedResult()).containsEntry("rawProviderPayloadReturned", false);
         assertThat(approved.redactedResult()).containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/test");
         assertThat(approved.redactedResult().get("canonicalRefs").toString())
                 .contains("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601")
@@ -116,7 +116,7 @@ class WeaverToolRegistryTest {
         assertThat(audit.events()).hasSize(2);
         assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload()).containsEntry("supportSafe", true));
         assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
-                .containsKeys("runtimeProfileHash", "user", "tool", "action", "domain", "providerRef", "credentialRef", "decision", "auditRef"));
+                .containsKeys("runtimeProfileHash", "user", "tool", "action", "domain", "adapterBoundary", "credentialMaterialReturned", "decision", "auditRef"));
         assertThat(audit.events().get(1).payload())
                 .containsEntry("approvalReceiptValidated", true)
                 .containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/test")
@@ -187,11 +187,11 @@ class WeaverToolRegistryTest {
                 "weaver.identity_read",
                 "weaver.registry_tools_read",
                 "weaver.audit_query",
-                "weaver.files_read",
-                "weaver.calendar_read",
+                "files.read",
+                "calendar.read",
                 "weaver.contacts_read",
                 "weaver.chat_read",
-                "weaver.tasks_read",
+                "boards.read",
                 "weaver.search_query"));
 
         assertThat(tools).extracting(WeaverDomainToolDefinition::name).contains(
@@ -247,7 +247,7 @@ class WeaverToolRegistryTest {
                 revoked,
                 runtimeTokenExpiresAt,
                 consentGranted,
-                List.of("weaver.boards_write"),
+                List.of("boards.update_task"),
                 scopedToolGrants,
                 Map.of(
                         "spaceRef", "space:control-room",

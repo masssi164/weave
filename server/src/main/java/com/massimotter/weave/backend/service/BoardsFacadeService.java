@@ -104,7 +104,7 @@ public class BoardsFacadeService {
                 addCursor(nextCursors, "tasks:" + board.id(), tasksPage.nextCursor());
             }
 
-            String source = sourceFor(capabilities.provider());
+            String source = "canonical-domain-facade";
             return new BoardsWorkspaceResponse(
                     true,
                     "active-dogfood-production",
@@ -369,8 +369,8 @@ public class BoardsFacadeService {
             List<Board> boards,
             List<TaskItem> tasks) {
         return new BoardsSyncMetadataResponse(
-                provider.contractName(),
-                provider == ProviderKind.OPEN_PROJECT ? "workspace-sync" : source,
+                "boards",
+                "canonical-domain-port",
                 true,
                 true,
                 true,

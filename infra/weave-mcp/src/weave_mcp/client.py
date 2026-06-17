@@ -62,7 +62,7 @@ class WeaveBackendClient:
                 "boards.comment",
             ],
             "rawEndpointExposed": False,
-            "credentialRef": "credentialref://weave/mcp/weave-domain-tools/runtime-token",
+            "credentialMaterialReturned": False,
         }
         return ToolResult(
             {
@@ -142,7 +142,8 @@ class WeaveBackendClient:
             "queryRef": "query://calendar/support-safe/" + _stable_ref_fragment(query),
             "items": items,
             "redactedItems": True,
-            "providerSourceMappedByBackend": backend_available,
+            "canonicalDomain": "calendar",
+            "sourceMappedByBackend": backend_available,
             "readbackVerified": bool(requested_ref and fixture_items),
         }
         if not backend_available:
@@ -160,6 +161,7 @@ class WeaveBackendClient:
             "orgId": ctx.org_id,
             "createdBy": ctx.user_ref,
             "calendarRef": "calendar://fixture/weave-governed-tool-proof",
+            "canonicalDomain": "calendar",
             "providerMutationPerformedByMcp": False,
             "stateChangeFixtureOnly": True,
         }
@@ -173,7 +175,8 @@ class WeaveBackendClient:
                 "approvalRef": str(query.get("approvalRef", "")),
                 "readbackVerified": readback.get("readbackVerified") is True,
                 "finalChatAnswer": f"Ich habe das Testereignis um {starts_at} angelegt. Audit: audit://mcp/calendar-create/support-safe",
-                "providerMutationPerformedByMcp": False,
+                "canonicalDomain": "calendar",
+            "providerMutationPerformedByMcp": False,
             },
             "audit://mcp/calendar-create/support-safe",
         )
@@ -189,7 +192,8 @@ class WeaveBackendClient:
                         "spaceRef": str(query.get("spaceRef", "space:dogfood")),
                     }
                 ],
-                "providerSourceMappedByBackend": True,
+                "canonicalDomain": "files",
+                "sourceMappedByBackend": True,
                 "rawProviderPayloadExposed": False,
             },
             "audit://mcp/files-search/support-safe",
@@ -201,7 +205,8 @@ class WeaveBackendClient:
                 "fileRef": str(query.get("fileRef", "file://weave/support-safe/unknown")),
                 "metadataOnly": True,
                 "contentRedacted": True,
-                "providerSourceMappedByBackend": True,
+                "canonicalDomain": "files",
+                "sourceMappedByBackend": True,
                 "rawProviderPayloadExposed": False,
             },
             "audit://mcp/files-read/support-safe",
@@ -219,7 +224,8 @@ class WeaveBackendClient:
                         "titlePresent": True,
                     }
                 ],
-                "providerSourceMappedByBackend": True,
+                "canonicalDomain": "chat",
+                "sourceMappedByBackend": True,
                 "rawProviderThreadIdsExposed": False,
             },
             "audit://mcp/chat-list-threads/support-safe",
@@ -232,6 +238,8 @@ class WeaveBackendClient:
                 "threadRef": str(query.get("threadRef", "chat-thread://weave/support-safe/unknown")),
                 "messageRef": "chat-message://pending/support-safe/" + _stable_ref_fragment([ctx.user_ref, query.get("threadRef"), query.get("body")]),
                 "channelId": "channels.weave-chat",
+                "canonicalDomain": "calendar",
+            "canonicalDomain": "chat",
                 "providerMutationPerformedByMcp": False,
                 "rawProviderChannelExposed": False,
             },
@@ -244,6 +252,8 @@ class WeaveBackendClient:
                 "decision": "accepted-for-backend-action-request",
                 "taskRef": str(query.get("taskRef", "task://support-safe/unknown")),
                 "commentRef": "comment://pending/support-safe",
+                "canonicalDomain": "calendar",
+            "canonicalDomain": "boards",
                 "providerMutationPerformedByMcp": False,
             },
             "audit://mcp/boards-comment/support-safe",

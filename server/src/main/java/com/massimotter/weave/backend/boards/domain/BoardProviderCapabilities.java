@@ -1,11 +1,12 @@
 package com.massimotter.weave.backend.boards.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.Set;
 
 import static java.util.Objects.requireNonNull;
 
 public record BoardProviderCapabilities(
-        ProviderKind provider,
+        @JsonIgnore ProviderKind provider,
         boolean enabled,
         Set<BoardCapability> supported,
         Set<BoardCapability> unsupported,

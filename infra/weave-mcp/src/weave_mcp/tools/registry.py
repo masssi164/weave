@@ -20,7 +20,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "admin.get_readiness": ToolDefinition(
         name="admin.get_readiness",
         capability="weaver.admin_readiness_read",
-        domain="admin_setup_providers",
+        domain="health",
         read_only=True,
         approval_required=False,
         description="Read support-safe admin readiness from the Weave backend control plane.",
@@ -28,7 +28,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "weaver.get_runtime_profile_projection": ToolDefinition(
         name="weaver.get_runtime_profile_projection",
         capability="weaver.runtime_profile_read",
-        domain="weaver_runtime_governance",
+        domain="weaver",
         read_only=True,
         approval_required=False,
         description="Read support-safe MCP bindings projected into the Weaver RuntimeProfile.",
@@ -85,7 +85,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
         read_only=True,
         approval_required=False,
         description="List Weave Chat threads through the Chat-domain facade; provider room ids remain hidden.",
-        input_schema={"type": "object", "properties": {"channelId": {"type": "string"}, "spaceRef": {"type": "string"}}},
+        input_schema={"type": "object", "properties": {"threadRef": {"type": "string"}, "spaceRef": {"type": "string"}}},
     ),
     "chat.send_message": ToolDefinition(
         name="chat.send_message",
@@ -99,7 +99,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "boards.comment": ToolDefinition(
         name="boards.comment",
         capability="weaver.boards_write",
-        domain="boards_tasks",
+        domain="boards",
         read_only=False,
         approval_required=True,
         description="Approval-required write stub for adding a board/task comment through backend action requests.",

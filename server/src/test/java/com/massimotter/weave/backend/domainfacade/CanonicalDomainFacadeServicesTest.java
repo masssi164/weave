@@ -38,7 +38,7 @@ class CanonicalDomainFacadeServicesTest {
         var services = services(new InMemoryProviderSelectionRepository(), configuredProviders(), allowedCapabilities());
 
         assertThat(services).extracting(service -> service.contract().domain())
-                .containsExactly("files-docs", "calendar-meetings", "boards-tasks", "identity-admin-policy");
+                .containsExactly("files", "calendar", "boards", "identity-admin-policy");
 
         for (CanonicalDomainFacade service : services) {
             CanonicalDomainContract contract = service.contract();
@@ -59,19 +59,19 @@ class CanonicalDomainFacadeServicesTest {
     void contractsExposeSpaceCenteredWorkspaceFlowAcrossSuiteFacades() {
         var services = services(new InMemoryProviderSelectionRepository(), configuredProviders(), allowedCapabilities());
 
-        CanonicalDomainContract filesDocs = contract(services, "files-docs");
+        CanonicalDomainContract filesDocs = contract(services, "files");
         assertThat(filesDocs.adapterBoundaryOperations())
                 .contains("read_space_scoped_file_refs", "link_document_to_space_context", "attach_file_ref_to_chat_or_task");
         assertThat(filesDocs.canonicalObjectKinds())
                 .contains("space_ref", "chat_attachment_ref", "task_attachment_ref");
 
-        CanonicalDomainContract calendarMeetings = contract(services, "calendar-meetings");
+        CanonicalDomainContract calendarMeetings = contract(services, "calendar");
         assertThat(calendarMeetings.adapterBoundaryOperations())
                 .contains("bind_event_to_space_context", "link_meeting_capsule_to_chat_thread", "read_space_scoped_agenda_refs");
         assertThat(calendarMeetings.canonicalObjectKinds())
                 .contains("space_ref", "meeting_chat_ref", "agenda_ref");
 
-        CanonicalDomainContract boardsTasks = contract(services, "boards-tasks");
+        CanonicalDomainContract boardsTasks = contract(services, "boards");
         assertThat(boardsTasks.adapterBoundaryOperations())
                 .contains("read_space_scoped_tasks", "link_task_to_chat_decision_or_file", "preview_space_task_write");
         assertThat(boardsTasks.canonicalObjectKinds())
