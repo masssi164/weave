@@ -2,6 +2,7 @@ package com.massimotter.weave.backend.weaver;
 
 import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -10,6 +11,29 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class WeaverToolRegistryTest {
+
+    @Test
+    void mcpToolsForNonChatDomainsUseCanonicalDomainContractVocabulary() {
+        WeaverToolRegistry registry = new WeaverToolRegistry(new InMemoryAuditEventPublisher());
+
+        var tools = registry.discover(List.of(
+                "weaver.files_read",
+                "weaver.calendar_read",
+                "weaver.tasks_read",
+                "weaver.boards_read",
+                "weaver.boards_write"));
+
+        assertThat(tools).filteredOn(tool -> tool.name().startsWith("files."))
+                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(CanonicalDomainDefinition.FILES_DOCS.domain()));
+        assertThat(tools).filteredOn(tool -> tool.name().startsWith("calendar."))
+                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(CanonicalDomainDefinition.CALENDAR_MEETINGS.domain()));
+        assertThat(tools).filteredOn(tool -> tool.name().startsWith("boards.") || tool.name().startsWith("tasks."))
+                .allSatisfy(tool -> assertThat(tool.domain()).isEqualTo(CanonicalDomainDefinition.BOARDS_TASKS.domain()));
+        assertThat(tools).extracting(WeaverDomainToolDefinition::domain)
+                .doesNotContain("calendar-events", "files_documents", "boards_tasks", "provider", "adapter");
+        assertThat(tools).allSatisfy(tool -> assertThat(tool.inputSchema().toString().toLowerCase())
+                .doesNotContain("caldav", "webdav", "nextcloud", "openproject", "provider", "adapter"));
+    }
 
     @Test
     void discoversOnlyDomainToolsGrantedByRuntimeProfile() {

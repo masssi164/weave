@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.backend.domainfacade.CanonicalDomainDefinition;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Collections;
@@ -231,26 +232,35 @@ public class WeaverToolRegistry {
         add(registry, tool("identity.read", "identity", WeaverToolMode.READ, "weaver.identity_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("registry.tools.read", "weaver", WeaverToolMode.READ, "weaver.registry_tools_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("audit.query", "health", WeaverToolMode.READ, "weaver.audit_query", WeaverApprovalRequirement.NONE));
-        add(registry, tool("files.read", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("calendar.read", "calendar-events", WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
+        add(registry, canonicalTool("files.read", CanonicalDomainDefinition.FILES_DOCS, WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
+        add(registry, canonicalTool("calendar.read", CanonicalDomainDefinition.CALENDAR_MEETINGS, WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("contacts.read", "people", WeaverToolMode.READ, "weaver.contacts_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("chat.read", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("tasks.read", "boards-tasks", WeaverToolMode.READ, "weaver.tasks_read", WeaverApprovalRequirement.NONE));
+        add(registry, canonicalTool("tasks.read", CanonicalDomainDefinition.BOARDS_TASKS, WeaverToolMode.READ, "weaver.tasks_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("search.query", "weave-search", WeaverToolMode.READ, "weaver.search_query", WeaverApprovalRequirement.NONE));
-        add(registry, tool("calendar.search_events", "calendar-events", WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("boards.search_tasks", "boards-tasks", WeaverToolMode.READ, "weaver.boards_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("files.search", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("files.read", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
+        add(registry, canonicalTool("calendar.search_events", CanonicalDomainDefinition.CALENDAR_MEETINGS, WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
+        add(registry, canonicalTool("boards.search_tasks", CanonicalDomainDefinition.BOARDS_TASKS, WeaverToolMode.READ, "weaver.boards_read", WeaverApprovalRequirement.NONE));
+        add(registry, canonicalTool("files.search", CanonicalDomainDefinition.FILES_DOCS, WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
+        add(registry, canonicalTool("files.read", CanonicalDomainDefinition.FILES_DOCS, WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("chat.list_threads", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("chat.send_message", "chat-channels", WeaverToolMode.EXTERNAL_SEND, "weaver.chat_send", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
         add(registry, tool("chat.search_messages", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
         add(registry, tool("notifications.create_action_request", "notifications", WeaverToolMode.EXTERNAL_SEND, "weaver.notifications_write", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
-        add(registry, tool("boards.comment", "boards-tasks", WeaverToolMode.WRITE, "weaver.boards_write", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
+        add(registry, canonicalTool("boards.comment", CanonicalDomainDefinition.BOARDS_TASKS, WeaverToolMode.WRITE, "weaver.boards_write", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
         return Collections.unmodifiableMap(registry);
     }
 
     private void add(Map<String, WeaverDomainToolDefinition> registry, WeaverDomainToolDefinition definition) {
         registry.put(definition.name(), definition);
+    }
+
+    private WeaverDomainToolDefinition canonicalTool(
+            String name,
+            CanonicalDomainDefinition canonicalDomain,
+            WeaverToolMode mode,
+            String requiredCapability,
+            WeaverApprovalRequirement approvalRequirement) {
+        return tool(name, canonicalDomain.domain(), mode, requiredCapability, approvalRequirement);
     }
 
     private WeaverDomainToolDefinition tool(
@@ -269,7 +279,7 @@ public class WeaverToolRegistry {
                 Map.of(
                         "type", "object",
                         "additionalProperties", false,
-                        "description", "Validated by the Weave " + domain + " facade before provider access."),
+                        "description", "Validated by the Weave " + domain + " domain capability boundary before execution."),
                 List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
                 "Weaver domain tool exposed only through Weave capability grants.");
     }

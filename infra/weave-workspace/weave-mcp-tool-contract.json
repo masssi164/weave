@@ -29,23 +29,23 @@
   },
   "canonicalDomains": [
     {
-      "key": "calendar",
+      "key": "calendar-meetings",
       "label": "Calendar",
-      "toolFamilies": ["calendar.crud", "calendar.availability", "calendar.invite_rsvp", "calendar.recurrence", "calendar.provider_source_mapping"],
+      "toolFamilies": ["calendar.crud", "calendar.availability", "calendar.invite_rsvp", "calendar.recurrence", "calendar.canonical_mapping_ref"],
       "allowedProofTools": ["calendar.search_events", "calendar.read_event"],
       "writeToolsRequireApproval": ["calendar.create_event", "calendar.update_event", "calendar.delete_event", "calendar.invite_attendee"],
-      "forbiddenOutputs": ["privateCalendarTokens", "providerNativeCredentials", "rawCalDavPayloads"]
+      "forbiddenOutputs": ["privateCalendarTokens", "canonicalCredentialRefOnly", "rawCalendarAdapterPayloads"]
     },
     {
-      "key": "files_documents",
+      "key": "files-docs",
       "label": "Files and documents",
       "toolFamilies": ["files.crud", "files.search", "files.metadata", "files.version_content", "files.permissions", "documents.actions"],
       "allowedProofTools": ["files.search", "files.read_metadata"],
       "writeToolsRequireApproval": ["files.upload", "files.delete", "files.share_link", "documents.request_edit_session"],
-      "forbiddenOutputs": ["providerNativeShareSecret", "rawStorageCredentials", "credentialBearingDownloadUrl"]
+      "forbiddenOutputs": ["canonicalSharePolicySecretRef", "rawStorageCredentials", "credentialBearingDownloadUrl"]
     },
     {
-      "key": "boards_tasks",
+      "key": "boards-tasks",
       "label": "Boards and tasks",
       "toolFamilies": ["boards.crud", "tasks.crud", "tasks.assignment", "tasks.labels_status_due_dates", "comments.activity"],
       "allowedProofTools": ["boards.search_tasks", "boards.read_task"],
@@ -69,12 +69,12 @@
       "forbiddenOutputs": ["rawClaimsDump", "idmTokens", "credentialExport"]
     },
     {
-      "key": "admin_setup_providers",
+      "key": "admin_setup_adapters",
       "label": "Admin setup and providers",
-      "toolFamilies": ["provider_registry", "category_mapping", "readiness_checks", "dry_run", "capability_mapping", "secret_ref_refs"],
+      "toolFamilies": ["adapter_registry", "category_mapping", "readiness_checks", "dry_run", "capability_mapping", "secret_ref_refs"],
       "allowedProofTools": ["admin.providers.list_categories", "admin.providers.readiness_summary"],
       "writeToolsRequireApproval": ["admin.providers.select_provider", "admin.providers.run_replacement_dry_run", "admin.providers.apply_mapping"],
-      "forbiddenOutputs": ["SecretRefValues", "providerAdminTokens", "rawDownstreamErrors"]
+      "forbiddenOutputs": ["SecretRefValues", "adapterAdminTokens", "rawDownstreamErrors"]
     },
     {
       "key": "audit_policy",
@@ -82,7 +82,7 @@
       "toolFamilies": ["audit_events", "redaction_views", "policy_simulation", "permission_scopes"],
       "allowedProofTools": ["audit.search_support_safe", "policy.simulate_effective_rights"],
       "writeToolsRequireApproval": ["policy.update_profile", "policy.grant_capability", "policy.revoke_capability"],
-      "forbiddenOutputs": ["unredactedAuditPayload", "memberPrivateMemory", "rawProviderDiagnostics"]
+      "forbiddenOutputs": ["unredactedAuditPayload", "memberPrivateMemory", "rawAdapterDiagnostics"]
     },
     {
       "key": "weaver_runtime_governance",
