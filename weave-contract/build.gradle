@@ -1,0 +1,11 @@
+plugins { id 'java-library' }
+
+group = 'com.massimotter.weave'
+version = '0.1.0'
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+
+
+dependencies { testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2' }
+
+tasks.named('test') { useJUnitPlatform() }

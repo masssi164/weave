@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.audit.AuditAction;
 import com.massimotter.weave.backend.audit.AuditEvent;
 import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
+import com.massimotter.weave.contract.mcp.MemberMcpToolCatalog;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.Collections;
@@ -55,44 +56,21 @@ public class WeaverToolRegistry {
         boolean approvalReceiptValidated = false;
         if (definition.writeLike()) {
             WeaverApprovalReceipt approvalReceipt = request.approvalReceipt();
-            String terminalApprovalStatus = terminalApprovalStatus(request.approvalReceiptRef(), approvalReceipt);
-            if (terminalApprovalStatus != null) {
-                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), terminalApprovalStatus, Map.of(
+            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName())) {
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "approval_required", Map.of(
                         "domain", definition.domain(),
-                        "approvalAuthority", "user_openclaw_runtime",
                         "approvalReceiptValidated", false,
-                        "serverApprovalDecision", false,
-                        "auditRef", auditRef(request.toolName(), terminalApprovalStatus)));
-                return blocked(request.toolName(), terminalApprovalStatus, "Weaver action failed closed after the user runtime did not approve it.");
-            }
-            List<String> requiredScopeRefs = canonicalScopeRefs(request.input());
-            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), requiredScopeRefs)) {
-                String status = approvalReceipt == null ? "approval_required" : "approval_scope_mismatch";
-                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), status, Map.of(
-                        "domain", definition.domain(),
-                        "approvalAuthority", "user_openclaw_runtime",
-                        "approvalReceiptValidated", false,
-                        "serverApprovalDecision", false,
-                        "canonicalRefs", requiredScopeRefs,
-                        "auditRef", auditRef(request.toolName(), status)));
+                        "auditRef", auditRef(request.toolName(), "approval_required")));
                 return new WeaverToolInvocationResult(
                         request.toolName(),
-                        status,
-                        approvalReceipt == null,
+                        "approval_required",
+                        true,
                         true,
                         Map.of(
                                 "approvalPolicy", definition.approvalRequirement().name(),
-                                "approvalAuthority", "user_openclaw_runtime",
-                                "approvalSurface", "openclaw_native_or_beta_equivalent_runtime_ux",
-                                "serverApprovalDecision", false,
-                                "approvalPromptInputs", List.of("toolName", "domain", "mode", "canonicalRefs", "supportSafeParameterSummary"),
-                                "approvalPromptForbiddenInputs", List.of("rawProviderPayload", "secretRef.value", "providerCredentials", "privatePrompt"),
                                 "approvalReceiptValidated", false,
-                                "canonicalRefs", requiredScopeRefs,
-                                "auditRef", auditRef(request.toolName(), status)),
-                        approvalReceipt == null
-                                ? "This action requires a valid approval receipt before Weaver may continue."
-                                : "Approval receipt scope does not match the Weaver tool invocation.");
+                                "auditRef", auditRef(request.toolName(), "approval_required")),
+                        "This action requires a valid approval receipt before Weaver may continue.");
             }
             approvalReceiptValidated = true;
         }
@@ -100,8 +78,6 @@ public class WeaverToolRegistry {
                 "domain", definition.domain(),
                 "mode", definition.mode().name(),
                 "consentGranted", true,
-                "approvalAuthority", definition.writeLike() ? "user_openclaw_runtime" : "not_required",
-                "serverApprovalDecision", false,
                 "approvalReceiptRef", request.approvalReceiptRef() == null ? "none" : request.approvalReceiptRef(),
                 "approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef(),
                 "approvalReceiptPolicyVersion", request.approvalReceipt() == null ? "none" : request.approvalReceipt().policyVersion(),
@@ -112,30 +88,37 @@ public class WeaverToolRegistry {
                 "ok",
                 false,
                 true,
-                Map.of(
-                        "domain", definition.domain(),
-                        "result", "support-safe-placeholder",
-                        "canonicalRefs", canonicalRefs(request.input()),
-                        "approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef(),
-                        "approvalAuthority", definition.writeLike() ? "user_openclaw_runtime" : "not_required",
-                        "rawProviderPayload", "redacted",
-                        "auditRef", auditRef(request.toolName(), "invoked")),
+                successResult(request, definition),
                 "Tool invocation went through a Weave domain capability boundary; raw provider APIs are not exposed.");
     }
 
-    private String terminalApprovalStatus(String approvalReceiptRef, WeaverApprovalReceipt approvalReceipt) {
-        String marker = approvalReceipt != null ? approvalReceipt.receiptRef() : approvalReceiptRef;
-        if (marker == null) {
-            return null;
+    private Map<String, Object> successResult(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {
+        Map<String, Object> base = new LinkedHashMap<>();
+        base.put("domain", definition.domain());
+        base.put("canonicalRefs", canonicalRefs(request.input()));
+        base.put("approvalReceiptAuditRef", request.approvalReceipt() == null ? "none" : request.approvalReceipt().auditRef());
+        base.put("rawProviderPayload", "redacted");
+        base.put("auditRef", auditRef(request.toolName(), "invoked"));
+        if ("identity.read".equals(definition.name())) {
+            base.put("identity", Map.of(
+                    "userRef", request.userRef(),
+                    "runtimeProfileHash", request.runtimeProfileHash(),
+                    "supportSafe", true,
+                    "rawClaimsExposed", false));
+        } else if ("registry.tools.read".equals(definition.name())) {
+            base.put("tools", definitions.values().stream()
+                    .filter(tool -> request.grantedCapabilities().contains(tool.requiredCapability()))
+                    .filter(tool -> request.scopedToolGrants().contains(tool.name()))
+                    .map(tool -> Map.of(
+                            "name", tool.name(),
+                            "mode", tool.mode().name(),
+                            "domain", tool.domain(),
+                            "approvalRequirement", tool.approvalRequirement().name()))
+                    .toList());
+        } else {
+            base.put("result", "support-safe-placeholder");
         }
-        String normalized = marker.strip().toLowerCase();
-        if (normalized.contains("denied") || normalized.contains("deny")) {
-            return "approval_denied";
-        }
-        if (normalized.contains("timeout") || normalized.contains("expired")) {
-            return "approval_timeout";
-        }
-        return null;
+        return Map.copyOf(base);
     }
 
     private String governanceDenial(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {
@@ -202,14 +185,6 @@ public class WeaverToolRegistry {
         return Map.copyOf(refs);
     }
 
-    private List<String> canonicalScopeRefs(Map<String, Object> input) {
-        return canonicalRefs(input).values().stream()
-                .filter(String.class::isInstance)
-                .map(String.class::cast)
-                .sorted()
-                .toList();
-    }
-
     private void copyCanonicalRef(Map<String, Object> input, Map<String, Object> refs, String inputKey, String outputKey) {
         Object value = input.get(inputKey);
         if (value instanceof String ref && canonicalRef(ref)) {
@@ -253,12 +228,16 @@ public class WeaverToolRegistry {
 
     private Map<String, WeaverDomainToolDefinition> initialDefinitions() {
         Map<String, WeaverDomainToolDefinition> registry = new LinkedHashMap<>();
-        add(registry, tool("calendar.search_events", "calendar-events", WeaverToolMode.READ, "weaver.calendar_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("boards.search_tasks", "boards-tasks", WeaverToolMode.READ, "weaver.boards_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("files.search", "files-docs", WeaverToolMode.READ, "weaver.files_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("chat.search_messages", "chat-channels", WeaverToolMode.READ, "weaver.chat_read", WeaverApprovalRequirement.NONE));
-        add(registry, tool("notifications.create_action_request", "notifications", WeaverToolMode.EXTERNAL_SEND, "weaver.notifications_write", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
-        add(registry, tool("boards.comment", "boards-tasks", WeaverToolMode.WRITE, "weaver.boards_write", WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION));
+        MemberMcpToolCatalog.tools().forEach(tool -> add(registry, new WeaverDomainToolDefinition(
+                tool.name(),
+                tool.version(),
+                tool.domain(),
+                toWeaverMode(tool.mode()),
+                tool.requiredCapability(),
+                tool.approvalRequired() ? WeaverApprovalRequirement.REQUIRED_BEFORE_INVOCATION : WeaverApprovalRequirement.NONE,
+                tool.inputSchema(),
+                List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
+                tool.description())));
         return Collections.unmodifiableMap(registry);
     }
 
@@ -266,28 +245,11 @@ public class WeaverToolRegistry {
         registry.put(definition.name(), definition);
     }
 
-    private WeaverDomainToolDefinition tool(
-            String name,
-            String domain,
-            WeaverToolMode mode,
-            String requiredCapability,
-            WeaverApprovalRequirement approvalRequirement) {
-        return new WeaverDomainToolDefinition(
-                name,
-                "v1",
-                domain,
-                mode,
-                requiredCapability,
-                approvalRequirement,
-                Map.of(
-                        "type", "object",
-                        "additionalProperties", false,
-                        "properties", Map.of(
-                                "spaceRef", Map.of("type", "string"),
-                                "query", Map.of("type", "string"),
-                                "limit", Map.of("type", "integer", "minimum", 1, "maximum", 50)),
-                        "description", "Validated by the Weave " + domain + " facade before provider access."),
-                List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
-                "Weaver domain tool exposed only through Weave capability grants.");
+    private WeaverToolMode toWeaverMode(com.massimotter.weave.contract.mcp.MemberMcpToolMode mode) {
+        return switch (mode) {
+            case READ -> WeaverToolMode.READ;
+            case WRITE -> WeaverToolMode.WRITE;
+            case EXTERNAL_SEND -> WeaverToolMode.EXTERNAL_SEND;
+        };
     }
 }

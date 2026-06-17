@@ -1,1 +1,5 @@
+pluginManagement { repositories { gradlePluginPortal(); mavenCentral() } }
+dependencyResolutionManagement { repositories { mavenCentral() } }
 rootProject.name = 'weave-backend'
+include 'weave-contract'
+project(':weave-contract').projectDir = file('../weave-contract')
