@@ -11,6 +11,7 @@ public record MemberMcpToolDefinition(
         MemberMcpToolMode mode,
         String requiredCapability,
         boolean approvalRequired,
+        boolean serverExecutable,
         Map<String, Object> inputSchema,
         String description) {
 
@@ -47,6 +48,7 @@ public record MemberMcpToolDefinition(
                 MemberMcpToolMode.fromBridgeMode(definition.mode()),
                 definition.requiredCapability(),
                 definition.approvalRequired(),
+                false,
                 definition.inputSchema(),
                 definition.description());
     }

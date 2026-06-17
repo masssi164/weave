@@ -74,7 +74,8 @@ public class WorkspaceCapabilityService {
             "weave-meeting-hosts", List.of("meetings.host"),
             "weave-document-editors", List.of("documents.edit"),
             "weave-decision-recorders", List.of("decisions.record"),
-            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"));
+            "weave-weaver-pilot", List.of("weaver.files_read", "weaver.exec_disabled"),
+            "weave-weaver-calendar", List.of("calendar.read", "calendar.manage_events", "weaver.exec_disabled"));
 
     private final OAuth2ResourceServerProperties resourceServerProperties;
     private final WeaveSecurityProperties weaveSecurityProperties;

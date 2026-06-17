@@ -23,6 +23,7 @@ import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpContentBloc
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpRef;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolCatalog;
 import com.massimotter.weave.contract.mcp.MemberMcpToolCatalog;
+import com.massimotter.weave.contract.mcp.MemberMcpDomainDefinition;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,7 @@ class McpJsonRpcControllerTest {
     void toolsListProjectsTypedBackendCatalogWithoutMetadataDrift() throws Exception {
         when(client.discover(eq("sha256:test"), any(RuntimeHeaders.class))).thenReturn(new BridgeDiscoveryResponse(runtime(), new WeaveMcpToolCatalog(
                 "weave-domain-tools",
-                "weave-mcp-bridge-v1",
+                MemberMcpDomainDefinition.CONTRACT_VERSION,
                 MemberMcpToolCatalog.tools().stream().map(tool -> tool.asBridgeDefinition()).toList())));
 
         var response = mvc.perform(post("/mcp")
