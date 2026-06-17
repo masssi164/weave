@@ -43,6 +43,7 @@ class MemberMcpToolCatalogTest {
 
     @Test void bridgeCatalogProjectsLegacyTools() {
         var bridgeCatalog = MemberMcpToolCatalog.bridgeCatalog();
+        assertEquals("weave-domain-tools", MemberMcpToolCatalog.SERVER_NAMESPACE);
         assertEquals(MemberMcpToolCatalog.SERVER_NAMESPACE, bridgeCatalog.serverNamespace());
         assertEquals(MemberMcpDomainDefinition.CONTRACT_VERSION, bridgeCatalog.contractVersion());
         assertEquals(MemberMcpToolCatalog.tools().size(), bridgeCatalog.tools().size());

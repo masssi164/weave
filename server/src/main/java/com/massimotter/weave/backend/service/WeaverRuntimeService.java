@@ -759,15 +759,14 @@ public class WeaverRuntimeService {
         if (ref == null) {
             return null;
         }
-        Map<String, Object> arguments = request.arguments();
         return new WeaverApprovalReceipt(
                 ref.value(),
                 request.runtime().userRef().value(),
                 request.toolName(),
                 List.of(request.runtime().runtimeProfileRef().value()),
-                String.valueOf(arguments.getOrDefault("approvalPolicyVersion", "support-safe-bridge-v1")),
-                String.valueOf(arguments.getOrDefault("approvalExpiresAt", Instant.now().plus(5, ChronoUnit.MINUTES))),
-                String.valueOf(arguments.getOrDefault("approvalAuditRef", request.runtime().auditRef())));
+                "support-safe-bridge-v1",
+                Instant.now().plus(5, ChronoUnit.MINUTES).toString(),
+                request.runtime().auditRef());
     }
 
     private BridgeInvocationResponse bridgeInvocationResponse(String toolName, ToolInvocationStatus status, String auditRef, String message, Map<String, Object> structuredContent) {

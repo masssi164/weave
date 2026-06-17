@@ -7,7 +7,7 @@ import java.util.Map;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolAnnotations;
 
 public final class MemberMcpToolCatalog {
-    public static final String SERVER_NAMESPACE = "weave-mcp";
+    public static final String SERVER_NAMESPACE = "weave-domain-tools";
     private static final List<MemberMcpToolDefinition> TOOLS = List.of(
             tool("registry.tools.read", "weave-runtime", MemberMcpToolMode.READ, "registry.tools.read", false),
             tool("files.search", MemberMcpDomainDefinition.FILES_DOCS.domain(), MemberMcpToolMode.READ, "files.read", false),
