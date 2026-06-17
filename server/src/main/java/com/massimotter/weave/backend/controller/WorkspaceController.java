@@ -15,6 +15,7 @@ import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
+import com.massimotter.weave.backend.service.WeaverMcpBridgeService;
 import com.massimotter.weave.backend.service.WeaverRuntimeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -41,6 +42,7 @@ public class WorkspaceController {
     private final WorkspaceReleaseReadinessService workspaceReleaseReadinessService;
     private final WorkspaceHomeService workspaceHomeService;
     private final WeaverRuntimeService weaverRuntimeService;
+    private final WeaverMcpBridgeService weaverMcpBridgeService;
     private final OrganizationManifestService organizationManifestService;
 
     public WorkspaceController(
@@ -48,11 +50,13 @@ public class WorkspaceController {
             WorkspaceReleaseReadinessService workspaceReleaseReadinessService,
             WorkspaceHomeService workspaceHomeService,
             WeaverRuntimeService weaverRuntimeService,
+            WeaverMcpBridgeService weaverMcpBridgeService,
             OrganizationManifestService organizationManifestService) {
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.workspaceReleaseReadinessService = workspaceReleaseReadinessService;
         this.workspaceHomeService = workspaceHomeService;
         this.weaverRuntimeService = weaverRuntimeService;
+        this.weaverMcpBridgeService = weaverMcpBridgeService;
         this.organizationManifestService = organizationManifestService;
     }
 
@@ -169,7 +173,7 @@ public class WorkspaceController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String serverKey,
             @RequestParam String runtimeProfileHash) {
-        return weaverRuntimeService.discoverMcpTools(jwt, runtimeProfileHash, serverKey);
+        return weaverMcpBridgeService.discoverMcpTools(jwt, runtimeProfileHash, serverKey);
     }
 
     @PostMapping({"/api/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke", "/api/v1/workspace/weaver/mcp/servers/{serverKey}/tools/{toolName}:invoke"})
@@ -178,7 +182,7 @@ public class WorkspaceController {
             @PathVariable String serverKey,
             @PathVariable String toolName,
             @RequestBody BridgeInvocationRequest request) {
-        return weaverRuntimeService.invokeMcpTool(jwt, serverKey, toolName, request);
+        return weaverMcpBridgeService.invokeMcpTool(jwt, serverKey, toolName, request);
     }
 
     @GetMapping({"/api/workspace/release-readiness", "/api/v1/workspace/release-readiness"})

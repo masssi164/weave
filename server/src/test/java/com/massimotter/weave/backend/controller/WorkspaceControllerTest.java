@@ -13,7 +13,17 @@ import com.massimotter.weave.backend.service.OrganizationManifestService;
 import com.massimotter.weave.backend.service.WorkspaceCapabilityService;
 import com.massimotter.weave.backend.service.WorkspaceHomeService;
 import com.massimotter.weave.backend.service.WorkspaceReleaseReadinessService;
+import com.massimotter.weave.backend.service.WeaverMcpBridgeService;
 import com.massimotter.weave.backend.service.WeaverRuntimeService;
+import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
+import com.massimotter.weave.contract.mcp.MemberMcpDomainDefinition;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeDiscoveryResponse;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationResponse;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.RuntimeInvocationContext;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatus;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpContentBlock;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpRef;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolCatalog;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -31,6 +41,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -47,6 +60,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         WorkspaceReleaseReadinessService.class,
         WorkspaceHomeService.class,
         WeaverRuntimeService.class,
+        WeaverToolRegistry.class,
         ApiAuthenticationEntryPoint.class,
         ApiAccessDeniedHandler.class,
         ApiErrorResponseWriter.class
@@ -82,6 +96,9 @@ class WorkspaceControllerTest {
 
     @MockBean
     private AuditEventPublisher auditEventPublisher;
+
+    @MockBean
+    private WeaverMcpBridgeService weaverMcpBridgeService;
 
     @Test
     void returnsOrganizationManifestForMemberClientWithoutAdminConsoleLeakage() throws Exception {
@@ -267,6 +284,8 @@ class WorkspaceControllerTest {
     @Test
     void returnsContractBridgeDiscoveryEnvelope() throws Exception {
         String runtimeProfileHash = runtimeProfileHash();
+        when(weaverMcpBridgeService.discoverMcpTools(any(), eq(runtimeProfileHash), eq("weave-domain-tools")))
+                .thenReturn(new BridgeDiscoveryResponse(runtime(runtimeProfileHash), new WeaveMcpToolCatalog("weave-domain-tools", MemberMcpDomainDefinition.CONTRACT_VERSION, List.of())));
         mockMvc.perform(get("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools")
                         .param("runtimeProfileHash", runtimeProfileHash)
                         .with(jwt().jwt(jwt -> jwt
@@ -278,13 +297,21 @@ class WorkspaceControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.runtime.runtimeProfileHash").value(org.hamcrest.Matchers.startsWith("sha256:")))
                 .andExpect(jsonPath("$.catalog.serverNamespace").value("weave-domain-tools"))
-                .andExpect(jsonPath("$.catalog.contractVersion").value("weave-mcp-bridge-v1"))
+                .andExpect(jsonPath("$.catalog.contractVersion").value(MemberMcpDomainDefinition.CONTRACT_VERSION))
                 .andExpect(jsonPath("$.catalog.tools").isArray());
     }
 
     @Test
     void returnsContractBridgeInvocationEnvelope() throws Exception {
         String runtimeProfileHash = runtimeProfileHash();
+        when(weaverMcpBridgeService.invokeMcpTool(any(), eq("weave-domain-tools"), eq("files.read"), any()))
+                .thenReturn(new BridgeInvocationResponse(
+                        "files.read",
+                        ToolInvocationStatus.DENIED,
+                        "audit://weaver-tool/files.read/blocked",
+                        true,
+                        List.of(new WeaveMcpContentBlock("text", "blocked", null, Map.of("status", "DENIED"))),
+                        Map.of("supportSafe", true)));
         mockMvc.perform(post("/api/v1/workspace/weaver/mcp/servers/weave-domain-tools/tools/files.read:invoke")
                         .with(jwt().jwt(jwt -> jwt
                                         .subject("member@example.invalid")
@@ -338,6 +365,20 @@ class WorkspaceControllerTest {
 
         mockMvc.perform(get("/api/v1/workspace/weaver/runtime-profile"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    private RuntimeInvocationContext runtime(String runtimeProfileHash) {
+        return new RuntimeInvocationContext(
+                new WeaveMcpRef("org:workspace"),
+                new WeaveMcpRef("user:test"),
+                new WeaveMcpRef("weave-runtime-profile://" + runtimeProfileHash),
+                runtimeProfileHash,
+                new WeaveMcpRef("credentialref://weave/runtime/short-lived/test"),
+                "audit://weaver-mcp/weave-domain-tools/discover",
+                null,
+                null,
+                List.of(),
+                List.of());
     }
 
     private String runtimeProfileHash() {

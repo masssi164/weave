@@ -8,6 +8,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
+import com.massimotter.weave.contract.mcp.MemberMcpDomainDefinition;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationRequest;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.RuntimeInvocationContext;
 import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpRef;
@@ -37,7 +38,7 @@ class WeaveServerClientTest {
                 .andExpect(queryParam("runtimeProfileHash", "sha256:test"))
                 .andRespond(withSuccess("{" +
                         "\"runtime\":{\"orgRef\":{\"value\":\"org:workspace\"},\"userRef\":{\"value\":\"user:member\"},\"runtimeProfileRef\":{\"value\":\"weave-runtime-profile://sha256:test\"},\"runtimeProfileHash\":\"sha256:test\",\"runtimeTokenRef\":{\"value\":\"credentialref://weave/runtime/short-lived/test\"},\"auditRef\":\"audit://bridge/discovery\",\"approvalReceiptRef\":null,\"alwaysAllowGrantRef\":null,\"capabilityGrants\":[],\"allowedTools\":[]}," +
-                        "\"catalog\":{\"serverNamespace\":\"weave-domain-tools\",\"contractVersion\":\"weave-mcp-bridge-v1\",\"tools\":[]}}", MediaType.APPLICATION_JSON));
+                        "\"catalog\":{\"serverNamespace\":\"weave-domain-tools\",\"contractVersion\":\"" + MemberMcpDomainDefinition.CONTRACT_VERSION + "\",\"tools\":[]}}", MediaType.APPLICATION_JSON));
 
         BridgeInvocationRequest request = new BridgeInvocationRequest(
                 "files.read",
