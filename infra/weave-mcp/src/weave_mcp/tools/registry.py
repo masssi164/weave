@@ -19,7 +19,7 @@ Handler = Callable[[RuntimeContext, dict[str, Any], WeaveBackendClient], dict[st
 TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     "admin.get_readiness": ToolDefinition(
         name="admin.get_readiness",
-        capability="weaver.admin_readiness_read",
+        capability="registry.tools.read",
         domain="admin_setup_adapters",
         read_only=True,
         approval_required=False,
@@ -27,7 +27,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     ),
     "weaver.get_runtime_profile_projection": ToolDefinition(
         name="weaver.get_runtime_profile_projection",
-        capability="weaver.runtime_profile_read",
+        capability="registry.tools.read",
         domain="weaver_runtime_governance",
         read_only=True,
         approval_required=False,
@@ -35,7 +35,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     ),
     "calendar.search_events": ToolDefinition(
         name="calendar.search_events",
-        capability="weaver.calendar_read",
+        capability="calendar.read",
         domain="calendar-meetings",
         read_only=True,
         approval_required=False,
@@ -44,7 +44,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     ),
     "calendar.create_event": ToolDefinition(
         name="calendar.create_event",
-        capability="weaver.calendar_create_event",
+        capability="calendar.manage_events",
         domain="calendar-meetings",
         read_only=False,
         approval_required=True,
@@ -62,7 +62,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     ),
     "files.search": ToolDefinition(
         name="files.search",
-        capability="weaver.files_read",
+        capability="files.read",
         domain="files-docs",
         read_only=True,
         approval_required=False,
@@ -71,7 +71,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     ),
     "files.read": ToolDefinition(
         name="files.read",
-        capability="weaver.files_read",
+        capability="files.read",
         domain="files-docs",
         read_only=True,
         approval_required=False,
@@ -80,7 +80,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     ),
     "chat.list_threads": ToolDefinition(
         name="chat.list_threads",
-        capability="weaver.chat_read",
+        capability="chat.read",
         domain="chat",
         read_only=True,
         approval_required=False,
@@ -89,7 +89,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     ),
     "chat.send_message": ToolDefinition(
         name="chat.send_message",
-        capability="weaver.chat_send",
+        capability="chat.send",
         domain="chat",
         read_only=False,
         approval_required=True,
@@ -98,7 +98,7 @@ TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     ),
     "boards.comment": ToolDefinition(
         name="boards.comment",
-        capability="weaver.boards_write",
+        capability="boards.update_task",
         domain="boards-tasks",
         read_only=False,
         approval_required=True,

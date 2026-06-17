@@ -1,6 +1,6 @@
 # Deprecated Python Weave MCP gateway
 
-Status: transitional/deprecated after issue #818. New member/Weaver-facing MCP work belongs in `weave-contract` and `weave-mcp-server`; this Python path remains only as historical/local evidence until Java parity is complete and release owners remove it deliberately.
+Status: transitional/deprecated after issue #818. New member/Weaver-facing MCP work belongs in `weave-contract` and `weave-mcp-server`; this Python path remains only as historical/local evidence until Java parity is complete and release owners remove it deliberately. The historical `weaver.*` capability dialect is retired here too: local fixtures must use the Java contract capability vocabulary (`files.read`, `calendar.read`, `calendar.manage_events`, `boards.update_task`, and related domain grants) so this deprecated path cannot drift into a second canonical MCP contract.
 
 # Weave MCP gateway skeleton
 
