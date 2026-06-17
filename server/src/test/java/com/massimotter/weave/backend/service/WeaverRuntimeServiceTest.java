@@ -7,6 +7,8 @@ import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ApprovalReceiptRef;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -159,15 +161,71 @@ class WeaverRuntimeServiceTest {
                 member,
                 "weave-domain-tools",
                 "files.read",
-                new com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest(profile.runtimeProfileHash(), Map.of("spaceRef", "space:control-room"), null));
+                new BridgeInvocationRequest(
+                        "files.read",
+                        Map.of("spaceRef", "space:control-room"),
+                        service.discoverMcpTools(member, profile.runtimeProfileHash(), "weave-domain-tools").runtime()));
 
         assertThat(serverProjection.toString())
                 .contains("weave-domain-tools", "routingPlaneSeparated=true", "channels.weave-chat")
                 .doesNotContain("Bearer ", "openclaw.json");
-        assertThat(tools).extracting(tool -> tool.get("name")).contains("files.read");
-        assertThat(invocation.status()).isEqualTo("ok");
-        assertThat(invocation.redactedResult()).containsEntry("rawProviderPayload", "redacted");
-        assertThat(invocation.redactedResult().get("canonicalRefs").toString()).contains("space:control-room");
+        assertThat(tools.catalog().tools()).extracting(tool -> tool.name()).contains("files.read");
+        assertThat(invocation.status()).isEqualTo(com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatus.SUCCESS);
+        assertThat(invocation.structuredContent()).containsEntry("rawProviderPayload", "redacted");
+        assertThat(invocation.structuredContent().get("canonicalRefs").toString()).contains("space:control-room");
+    }
+
+    @Test
+    void requiresMatchingToolNameBetweenPathAndBridgeRequest() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var profile = service.profileFor(member);
+        var runtime = service.discoverMcpTools(member, profile.runtimeProfileHash(), "weave-domain-tools").runtime();
+        var invocation = service.invokeMcpTool(
+                member,
+                "weave-domain-tools",
+                "files.read",
+                new BridgeInvocationRequest("calendar.create_event", Map.of(), runtime));
+
+        assertThat(invocation.status()).isEqualTo(com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatus.VALIDATION_ERROR);
+        assertThat(invocation.structuredContent()).containsEntry("requestedToolName", "calendar.create_event");
+    }
+
+    @Test
+    void approvalReceiptMetadataStaysServerLocalAndOutOfBusinessArguments() {
+        WeaverRuntimeService service = service(true, runtimePropertiesWithWriteTool(), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot", "weave-calendar-editors"));
+
+        var profile = service.profileFor(member);
+        var runtime = service.discoverMcpTools(member, profile.runtimeProfileHash(), "weave-domain-tools").runtime();
+        var invocation = service.invokeMcpTool(
+                member,
+                "weave-domain-tools",
+                "calendar.create_event",
+                new BridgeInvocationRequest(
+                        "calendar.create_event",
+                        Map.of(
+                                "title", "Planning",
+                                "startsAt", "2026-06-18T10:00:00Z",
+                                "approvalPolicyVersion", "client-forged-policy",
+                                "approvalExpiresAt", "1970-01-01T00:00:00Z",
+                                "approvalAuditRef", "audit://client/forged"),
+                        new com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.RuntimeInvocationContext(
+                                runtime.orgRef(),
+                                runtime.userRef(),
+                                runtime.runtimeProfileRef(),
+                                runtime.runtimeProfileHash(),
+                                runtime.runtimeTokenRef(),
+                                runtime.auditRef(),
+                                new ApprovalReceiptRef("approval://calendar/granted"),
+                                runtime.alwaysAllowGrantRef(),
+                                runtime.capabilityGrants(),
+                                runtime.allowedTools())));
+
+        assertThat(invocation.status()).as(invocation.structuredContent().toString()).isEqualTo(com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatus.SUCCESS);
+        assertThat(invocation.structuredContent()).containsEntry("approvalReceiptAuditRef", runtime.auditRef());
+        assertThat(invocation.structuredContent().toString()).doesNotContain("client-forged-policy", "1970-01-01", "audit://client/forged");
     }
 
     @Test
@@ -390,6 +448,24 @@ class WeaverRuntimeServiceTest {
                 List.of("files.read", "weaver.exec_disabled"),
                 List.of("weave-files-readonly"),
                 List.of("files.read"),
+                false,
+                false,
+                true,
+                false);
+    }
+
+    private WeaverRuntimeProperties runtimePropertiesWithWriteTool() {
+        return new WeaverRuntimeProperties(
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of("weave-weaver-runtime"),
+                List.of("files.read", "calendar.manage_events", "weaver.exec_disabled"),
+                List.of("weave-files-readonly"),
+                List.of("files.read", "calendar.create_event"),
                 false,
                 false,
                 true,

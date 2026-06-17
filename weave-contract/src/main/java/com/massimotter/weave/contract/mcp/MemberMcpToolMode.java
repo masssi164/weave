@@ -5,4 +5,7 @@ public enum MemberMcpToolMode {
     private final boolean approvalRequiredByDefault;
     MemberMcpToolMode(boolean approvalRequiredByDefault) { this.approvalRequiredByDefault = approvalRequiredByDefault; }
     public boolean approvalRequiredByDefault() { return approvalRequiredByDefault; }
+
+    public WeaveMcpToolMode toBridgeMode() { return WeaveMcpToolMode.valueOf(name()); }
+    public static MemberMcpToolMode fromBridgeMode(WeaveMcpToolMode mode) { return MemberMcpToolMode.valueOf(mode.name()); }
 }

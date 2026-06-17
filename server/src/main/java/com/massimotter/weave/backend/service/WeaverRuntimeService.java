@@ -6,10 +6,23 @@ import com.massimotter.weave.backend.audit.AuditEventPublisher;
 import com.massimotter.weave.backend.audit.AuditRedactionLevel;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
-import com.massimotter.weave.backend.model.WeaverMcpToolInvocationRequest;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
+import com.massimotter.weave.backend.weaver.WeaverApprovalReceipt;
 import com.massimotter.weave.backend.weaver.WeaverToolInvocationResult;
 import com.massimotter.weave.backend.weaver.WeaverToolRegistry;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ApprovalReceiptRef;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeDiscoveryResponse;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationRequest;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.BridgeInvocationResponse;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.RuntimeInvocationContext;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.ToolInvocationStatus;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpContentBlock;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpKey;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpRef;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolAnnotations;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolCatalog;
+import com.massimotter.weave.contract.mcp.WeaveMcpBridgeDtos.WeaveMcpToolDefinition;
+import com.massimotter.weave.contract.mcp.WeaveMcpToolMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -667,36 +680,58 @@ public class WeaverRuntimeService {
         return Map.of("server", servers.get(serverKey), "supportSafe", true);
     }
 
-    public List<Map<String, Object>> discoverMcpTools(Jwt jwt, String runtimeProfileHash, String serverKey) {
+    public BridgeDiscoveryResponse discoverMcpTools(Jwt jwt, String runtimeProfileHash, String serverKey) {
         WeaverRuntimeProfileResponse profile = profileByHash(jwt, runtimeProfileHash);
+        RuntimeInvocationContext runtime = runtimeContext(profile, serverKey, null, discoveryAuditRef(serverKey));
         if (!profile.enabled() || !"weave-domain-tools".equals(serverKey)) {
-            return List.of();
+            return new BridgeDiscoveryResponse(runtime, new WeaveMcpToolCatalog(new WeaveMcpKey(serverKey).value(), "weave-mcp-bridge-v1", List.of()));
         }
-        return weaverToolRegistry.discover(profile.allowedCapabilities()).stream()
-                .filter(definition -> profile.toolAllowlist().contains(definition.name()))
-                .map(definition -> Map.<String, Object>of(
-                        "name", definition.name(),
-                        "version", definition.version(),
-                        "domain", definition.domain(),
-                        "mode", definition.mode().name(),
-                        "requiredCapability", definition.requiredCapability(),
-                        "approvalRequirement", definition.approvalRequirement().name(),
-                        "inputSchema", definition.inputSchema(),
-                        "supportSafeDescription", definition.supportSafeDescription(),
-                        "resultRedactionRules", definition.resultRedactionRules()))
-                .toList();
+        return new BridgeDiscoveryResponse(
+                runtime,
+                new WeaveMcpToolCatalog(
+                        "weave-domain-tools",
+                        "weave-mcp-bridge-v1",
+                        weaverToolRegistry.discover(profile.allowedCapabilities()).stream()
+                                .filter(definition -> profile.toolAllowlist().contains(definition.name()))
+                                .map(definition -> new WeaveMcpToolDefinition(
+                                        definition.name(),
+                                        definition.version(),
+                                        definition.domain(),
+                                        toContractMode(definition.mode().name()),
+                                        definition.requiredCapability(),
+                                        definition.writeLike(),
+                                        definition.inputSchema(),
+                                        new WeaveMcpToolAnnotations(
+                                                "READ".equals(definition.mode().name()),
+                                                definition.writeLike(),
+                                                false),
+                                        definition.supportSafeDescription()))
+                                .toList()));
     }
 
-    public WeaverToolInvocationResult invokeMcpTool(
+    public BridgeInvocationResponse invokeMcpTool(
             Jwt jwt,
             String serverKey,
             String toolName,
-            WeaverMcpToolInvocationRequest request) {
-        WeaverRuntimeProfileResponse profile = profileByHash(jwt, request.runtimeProfileHash());
+            BridgeInvocationRequest request) {
+        WeaverRuntimeProfileResponse profile = profileByHash(jwt, request.runtime().runtimeProfileHash());
         if (!profile.enabled() || !"weave-domain-tools".equals(serverKey)) {
-            return new WeaverToolInvocationResult(toolName, "runtime_profile_fetch_denied", false, true, Map.of("supportSafe", true), "MCP invocation failed closed.");
+            return bridgeInvocationResponse(
+                    toolName,
+                    ToolInvocationStatus.DENIED,
+                    auditRef(toolName, "runtime_profile_fetch_denied"),
+                    "MCP invocation failed closed.",
+                    Map.of("supportSafe", true));
         }
-        return weaverToolRegistry.invoke(new com.massimotter.weave.backend.weaver.WeaverToolInvocationRequest(
+        if (!toolName.equals(request.toolName())) {
+            return bridgeInvocationResponse(
+                    toolName,
+                    ToolInvocationStatus.VALIDATION_ERROR,
+                    auditRef(toolName, "tool_name_mismatch"),
+                    "Tool name in request body must match the URL path.",
+                    Map.of("supportSafe", true, "requestedToolName", request.toolName()));
+        }
+        WeaverToolInvocationResult result = weaverToolRegistry.invoke(new com.massimotter.weave.backend.weaver.WeaverToolInvocationRequest(
                 toolName,
                 profile.userRef(),
                 profile.runtimeProfileHash(),
@@ -707,9 +742,97 @@ public class WeaverRuntimeService {
                 true,
                 profile.allowedCapabilities(),
                 profile.toolAllowlist(),
-                request.input(),
-                request.approvalReceipt() == null ? null : request.approvalReceipt().receiptRef(),
-                request.approvalReceipt()));
+                request.arguments(),
+                request.runtime().approvalReceiptRef() == null ? null : request.runtime().approvalReceiptRef().value(),
+                approvalReceipt(request)));
+        return new BridgeInvocationResponse(
+                result.toolName(),
+                toInvocationStatus(result.status()),
+                String.valueOf(result.redactedResult().getOrDefault("auditRef", auditRef(toolName, result.status()))),
+                true,
+                List.of(new WeaveMcpContentBlock("text", result.supportSafeMessage(), null, Map.of("status", result.status()))),
+                result.redactedResult());
+    }
+
+    private WeaverApprovalReceipt approvalReceipt(BridgeInvocationRequest request) {
+        ApprovalReceiptRef ref = request.runtime().approvalReceiptRef();
+        if (ref == null) {
+            return null;
+        }
+        return new WeaverApprovalReceipt(
+                ref.value(),
+                request.runtime().userRef().value(),
+                request.toolName(),
+                List.of(request.runtime().runtimeProfileRef().value()),
+                "support-safe-bridge-v1",
+                Instant.now().plus(5, ChronoUnit.MINUTES).toString(),
+                request.runtime().auditRef());
+    }
+
+    private BridgeInvocationResponse bridgeInvocationResponse(String toolName, ToolInvocationStatus status, String auditRef, String message, Map<String, Object> structuredContent) {
+        return new BridgeInvocationResponse(
+                toolName,
+                status,
+                auditRef,
+                true,
+                List.of(new WeaveMcpContentBlock("text", message, null, Map.of("status", status.name()))),
+                structuredContent);
+    }
+
+    private RuntimeInvocationContext runtimeContext(
+            WeaverRuntimeProfileResponse profile,
+            String serverKey,
+            ApprovalReceiptRef approvalReceiptRef,
+            String auditRef) {
+        return new RuntimeInvocationContext(
+                new WeaveMcpRef("org:workspace"),
+                new WeaveMcpRef(profile.userRef()),
+                new WeaveMcpRef("weave-runtime-profile://" + profile.runtimeProfileHash()),
+                profile.runtimeProfileHash(),
+                new WeaveMcpRef(String.valueOf(serverProjectionRuntimeTokenRef(profile, serverKey))),
+                auditRef,
+                approvalReceiptRef,
+                null,
+                profile.allowedCapabilities(),
+                profile.toolAllowlist());
+    }
+
+    private Object serverProjectionRuntimeTokenRef(WeaverRuntimeProfileResponse profile, String serverKey) {
+        Object servers = profile.mcpProjection().get("servers");
+        if (servers instanceof Map<?, ?> serverMap) {
+            Object server = serverMap.get(serverKey);
+            if (server instanceof Map<?, ?> serverProjection) {
+                Object runtimeTokenRef = serverProjection.get("runtimeTokenRef");
+                return runtimeTokenRef == null ? "credentialref://weave/runtime/short-lived/unknown" : runtimeTokenRef;
+            }
+        }
+        return "credentialref://weave/runtime/short-lived/unknown";
+    }
+
+    private String discoveryAuditRef(String serverKey) {
+        return "audit://weaver-mcp/" + serverKey + "/discover";
+    }
+
+    private String auditRef(String toolName, String status) {
+        return "audit://weaver-tool/" + (toolName == null || toolName.isBlank() ? "unknown" : toolName) + "/" + status;
+    }
+
+    private ToolInvocationStatus toInvocationStatus(String status) {
+        return switch (status) {
+            case "ok" -> ToolInvocationStatus.SUCCESS;
+            case "approval_required", "blocked", "scoped_grant_missing", "runtime_profile_fetch_denied", "runtime_profile_unsigned", "runtime_profile_user_mismatch", "runtime_profile_revoked", "runtime_token_expired", "consent_required", "overbroad_grant" -> ToolInvocationStatus.DENIED;
+            case "tool_name_mismatch" -> ToolInvocationStatus.VALIDATION_ERROR;
+            default -> ToolInvocationStatus.UNAVAILABLE;
+        };
+    }
+
+    private WeaveMcpToolMode toContractMode(String mode) {
+        return switch (mode) {
+            case "READ" -> WeaveMcpToolMode.READ;
+            case "WRITE" -> WeaveMcpToolMode.WRITE;
+            case "EXTERNAL_SEND" -> WeaveMcpToolMode.EXTERNAL_SEND;
+            default -> WeaveMcpToolMode.READ;
+        };
     }
 
     private Map<String, Object> credentialBrokerContract(String userRef) {
