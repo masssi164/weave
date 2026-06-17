@@ -37,14 +37,13 @@ RUNTIME_PROFILE_PROJECTION = {
     "runtimeTokenRef": "credentialref://weave/runtime/short-lived/local-rc-evidence",
     "runtimeTokenExpiresAt": future_iso(10),
     "capabilityGrants": [
-        "weaver.admin_readiness_read",
-        "weaver.runtime_profile_read",
-        "weaver.calendar_read",
-        "weaver.calendar_create_event",
-        "weaver.files_read",
-        "weaver.chat_read",
-        "weaver.chat_send",
-        "weaver.boards_write",
+        "registry.tools.read",
+        "calendar.read",
+        "calendar.manage_events",
+        "files.read",
+        "chat.read",
+        "chat.send",
+        "boards.update_task",
     ],
     "allowedTools": [
         "admin.get_readiness",
@@ -117,6 +116,43 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertFalse(any(tool["name"].startswith(("raw_files_provider.", "raw_calendar_provider.")) for tool in tools.values()))
 
 
+    def test_transitional_python_fixture_rejects_deprecated_weaver_capability_dialect(self) -> None:
+        profile = {
+            **RUNTIME_PROFILE_PROJECTION,
+            "allowedTools": ["files.read", "calendar.search_events", "boards.comment"],
+            "capabilityGrants": ["weaver.files_read", "weaver.calendar_read", "weaver.boards_write"],
+        }
+        headers = {key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(profile)}.items()}
+
+        discovered = self.gateway().discover_tools(headers)
+        self.assertEqual(discovered["tools"], [])
+
+        with self.assertRaises(McpDenied) as denied:
+            self.gateway().invoke_tool(headers, {"tool": "files.read", "input": {"fileRef": "file://weave/support-safe/one"}})
+        self.assertEqual(denied.exception.reason, "capability-not-granted")
+
+    def test_transitional_python_fixture_uses_java_contract_capability_vocabulary(self) -> None:
+        body = self.gateway().discover_tools({key.lower(): value for key, value in HEADERS.items()})
+        discovery_text = json.dumps(body, sort_keys=True)
+
+        for deprecated in [
+            "weaver.admin_readiness_read",
+            "weaver.runtime_profile_read",
+            "weaver.calendar_read",
+            "weaver.calendar_create_event",
+            "weaver.files_read",
+            "weaver.chat_read",
+            "weaver.chat_send",
+            "weaver.boards_write",
+        ]:
+            self.assertNotIn(deprecated, discovery_text)
+
+        tools = {tool["name"]: tool for tool in body["tools"]}
+        self.assertEqual(tools["files.read"]["meta"]["capability"], "files.read")
+        self.assertEqual(tools["calendar.search_events"]["meta"]["capability"], "calendar.read")
+        self.assertEqual(tools["calendar.create_event"]["meta"]["capability"], "calendar.manage_events")
+        self.assertEqual(tools["boards.comment"]["meta"]["capability"], "boards.update_task")
+
     def test_discovery_uses_canonical_domain_contract_vocabulary(self) -> None:
         body = self.gateway().discover_tools({key.lower(): value for key, value in HEADERS.items()})
         tools = {tool["name"]: tool for tool in body["tools"]}
@@ -145,7 +181,7 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         profile = {
             **RUNTIME_PROFILE_PROJECTION,
             "allowedTools": ["chat.list_threads", "chat.send_message", "calendar.search_events", "files.search"],
-            "capabilityGrants": ["weaver.chat_read", "weaver.chat_send", "weaver.calendar_read", "weaver.files_read"],
+            "capabilityGrants": ["chat.read", "chat.send", "calendar.read", "files.read"],
         }
         headers = {key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(profile)}.items()}
 
@@ -183,9 +219,9 @@ class WeaveMcpGatewayTest(unittest.TestCase):
         self.assertNotIn("Hello Weaver", json.dumps(sent, sort_keys=True))
 
     def test_discovery_uses_runtime_profile_projection_not_caller_grant_headers(self) -> None:
-        profile = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events"], "capabilityGrants": ["weaver.calendar_read"]}
+        profile = {**RUNTIME_PROFILE_PROJECTION, "allowedTools": ["calendar.search_events"], "capabilityGrants": ["calendar.read"]}
         headers = {key.lower(): value for key, value in {**HEADERS, "X-Weave-Runtime-Profile-Projection": encoded_projection(profile)}.items()}
-        headers["x-weave-capabilities"] = "weaver.boards_write,weaver.admin_readiness_read"
+        headers["x-weave-capabilities"] = "boards.update_task,registry.tools.read"
 
         body = self.gateway().discover_tools(headers)
         tools = {tool["name"]: tool for tool in body["tools"]}
