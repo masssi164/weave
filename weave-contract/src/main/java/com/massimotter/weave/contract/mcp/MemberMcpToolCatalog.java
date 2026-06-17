@@ -16,7 +16,7 @@ public final class MemberMcpToolCatalog {
             tool("calendar.create_event", MemberMcpDomainDefinition.CALENDAR_MEETINGS.domain(), MemberMcpToolMode.WRITE, "calendar.manage_events", true),
             tool("boards.search_tasks", MemberMcpDomainDefinition.BOARDS_TASKS.domain(), MemberMcpToolMode.READ, "boards.read", false),
             tool("boards.comment", MemberMcpDomainDefinition.BOARDS_TASKS.domain(), MemberMcpToolMode.WRITE, "boards.update_task", true),
-            tool("chat.send_message", "chat", MemberMcpToolMode.EXTERNAL_SEND, "chat.send_message", true));
+            tool("chat.send_message", "chat", MemberMcpToolMode.EXTERNAL_SEND, "chat.send", true));
 
     private MemberMcpToolCatalog() {}
     public static List<MemberMcpToolDefinition> tools() { return TOOLS; }

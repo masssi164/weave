@@ -16,7 +16,7 @@ class MemberMcpToolCatalogTest {
     @Test void canonicalToolsUseContractCapabilitiesAndNoWeaverDialect() {
         var capabilities = new HashSet<String>();
         for (var domain : MemberMcpDomainDefinition.values()) capabilities.addAll(domain.allCapabilities());
-        capabilities.add("chat.send_message");
+        capabilities.add("chat.send");
         for (var tool : MemberMcpToolCatalog.tools()) {
             assertFalse(tool.requiredCapability().startsWith("weaver."), tool.name());
             if (!tool.name().equals("registry.tools.read")) assertTrue(capabilities.contains(tool.requiredCapability()), tool.name());
