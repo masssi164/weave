@@ -309,6 +309,31 @@ class WeaverRuntimeServiceTest {
     }
 
     @Test
+    void provisionsFromStoredIssuedProfileWhenSerializedCopyTampersProvisioningFields() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        var issued = service.profileFor(member);
+        var tamperedCopy = copyProfile(
+                issued,
+                issued.runtimeProfileHash(),
+                issued.signature(),
+                issued.expiresAt(),
+                "registry.invalid/weaver/tampered:latest",
+                "/tmp/tampered-weaver-workspace",
+                "tampered-secret-posture");
+
+        var runtime = service.provisionRuntime(tamperedCopy, "org:acme", "policy:v32");
+
+        assertThat(runtime.containerImage()).isEqualTo(issued.containerImage());
+        assertThat(runtime.workspacePath()).isEqualTo(issued.workspacePath());
+        assertThat(runtime.containerImage()).isNotEqualTo(tamperedCopy.containerImage());
+        assertThat(runtime.workspacePath()).isNotEqualTo(tamperedCopy.workspacePath());
+        assertThat(runtime.labels())
+                .containsEntry("weave.profile_hash", issued.runtimeProfileHash())
+                .containsEntry("weave.user", issued.userRef());
+    }
+
+    @Test
     void usesConfigBoundSigningKeyAcrossServiceReplicasAndFailsWhenMissing() {
         var first = service(true, runtimePropertiesWithKey(true, "stable-weaver-runtime-profile-signing-key-32-bytes"), new InMemoryAuditEventPublisher());
         var second = service(true, runtimePropertiesWithKey(true, "stable-weaver-runtime-profile-signing-key-32-bytes"), new InMemoryAuditEventPublisher());
@@ -546,15 +571,33 @@ class WeaverRuntimeServiceTest {
             String runtimeProfileHash,
             String signature,
             String expiresAt) {
+        return copyProfile(
+                profile,
+                runtimeProfileHash,
+                signature,
+                expiresAt,
+                profile.containerImage(),
+                profile.workspacePath(),
+                profile.secretPosture());
+    }
+
+    private WeaverRuntimeProfileResponse copyProfile(
+            WeaverRuntimeProfileResponse profile,
+            String runtimeProfileHash,
+            String signature,
+            String expiresAt,
+            String containerImage,
+            String workspacePath,
+            String secretPosture) {
         return new WeaverRuntimeProfileResponse(
                 profile.enabled(), profile.posture(), profile.runtimeKind(), profile.runtimeProvider(), profile.modelProvider(),
                 profile.toolProvider(), profile.generatedFrom(), profile.userRef(), profile.profileVersion(), runtimeProfileHash,
                 signature, expiresAt, profile.revoked(), profile.revocationStatus(), profile.revocationGeneration(),
-                profile.previousProfileHash(), profile.rollbackProfileHash(), profile.baselineProfile(), profile.containerImage(),
-                profile.workspacePath(), profile.isolatedAgentDirectory(), profile.dockerNetworkMode(), profile.allowedCapabilities(),
+                profile.previousProfileHash(), profile.rollbackProfileHash(), profile.baselineProfile(), containerImage,
+                workspacePath, profile.isolatedAgentDirectory(), profile.dockerNetworkMode(), profile.allowedCapabilities(),
                 profile.pluginAllowlist(), profile.toolAllowlist(), profile.execEnabled(), profile.elevatedEnabled(),
                 profile.auditRequired(), profile.forkRequired(), profile.channelProjection(), profile.credentialBrokerContract(),
-                profile.auditPolicy(), profile.supportSafeProfileReceipt(), profile.approvalPolicy(), profile.secretPosture(),
+                profile.auditPolicy(), profile.supportSafeProfileReceipt(), profile.approvalPolicy(), secretPosture,
                 profile.isolationBoundary(), profile.memberImpact());
     }
 

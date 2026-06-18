@@ -227,19 +227,23 @@ public class WeaverRuntimeService {
         if (Instant.parse(profile.expiresAt()).isBefore(Instant.now()) || !verifyProfile(profile) || !isCurrentIssuedProfile(profile)) {
             throw new IllegalArgumentException("Only valid signed current Weaver RuntimeProfiles can be provisioned.");
         }
-        Map<String, String> labels = runtimeLabels(profile, orgRef, policyVersion);
+        WeaverRuntimeProfileResponse issuedProfile = issuedProfiles.get(profile.runtimeProfileHash());
+        if (issuedProfile == null || !verifyProfile(issuedProfile)) {
+            throw new IllegalArgumentException("Only valid signed current Weaver RuntimeProfiles can be provisioned.");
+        }
+        Map<String, String> labels = runtimeLabels(issuedProfile, orgRef, policyVersion);
         WeaverRuntimeInstance instance = new WeaverRuntimeInstance(
-                profile.userRef(),
-                containerId(profile.userRef(), profile.runtimeProfileHash(), policyVersion),
+                issuedProfile.userRef(),
+                containerId(issuedProfile.userRef(), issuedProfile.runtimeProfileHash(), policyVersion),
                 "running",
-                profile.runtimeProfileHash(),
+                issuedProfile.runtimeProfileHash(),
                 policyVersion,
-                profile.containerImage(),
-                profile.workspacePath(),
+                issuedProfile.containerImage(),
+                issuedProfile.workspacePath(),
                 labels,
                 Instant.now().toString(),
                 null);
-        runtimeInstances.put(profile.userRef(), instance);
+        runtimeInstances.put(issuedProfile.userRef(), instance);
         return instance;
     }
 
