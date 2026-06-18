@@ -16,6 +16,7 @@ Weave uses layered evidence so contributors can move quickly while release claim
 | Docs build | User/admin handbook content builds without broken links, secret-pattern docs drift, or image-only instructions. | `build/docs/user` and `build/docs/admin` from `./gradlew docsBuild`. |
 | CI summary artifact | The root Gradle task graph emitted a sanitized summary of commit, branch, tool versions, gate outcomes, artifact paths, and live-E2E skip reason. | `build/evidence/ci-summary.json` from `./gradlew ci` or `./gradlew ciSummary`. |
 | Enterprise release gate contract | Release lanes, required gates, Live Stack artifact names, marker requirements, and waiver rules stay machine-checkable. | [Enterprise release foundation](enterprise-release-foundation.md), `release/enterprise-release-gates.json`, `./gradlew enterpriseReleaseGateCheck`. |
+| Beta readiness claim gates | Sprint 32 Beta claims stay scoped to the end-to-end Admin, User, governed Weaver, and foundation slice, with each claim mapped to CI, E2E, migration dry-run, accessibility smoke, and release-note evidence before promotion. | [Beta readiness slice and claim gates](beta-readiness-claim-gates.md), GitHub issues #830-#836, and the owning issue gates. |
 | Live Stack E2E | A prepared self-hosted stack can boot the app-level journey and upload acceptance evidence artifacts. | `.github/workflows/live-stack-e2e.yml` workflow runs and their uploaded artifacts. |
 
 ## Default PR validation
@@ -88,6 +89,7 @@ The workflow prepares an acceptance evidence directory, runs the app-level live-
 - [Spec-driven development for Weave](spec-driven-development.md)
 - [Acceptance contracts](acceptance-contracts.md)
 - [Product acceptance flows](product-acceptance-flows.md)
+- [Beta readiness slice and claim gates](beta-readiness-claim-gates.md)
 - [Accessibility Release Gate](accessibility-release-gate.md)
 - [ISO 9241-110 Dogfood UX Gate](iso-9241-110-dogfood-ux-gate.md)
 - [Roadmap and guarded surfaces](roadmap-and-guarded-surfaces.md)
