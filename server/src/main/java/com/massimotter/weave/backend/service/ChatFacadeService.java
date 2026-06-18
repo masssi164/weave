@@ -67,6 +67,9 @@ public class ChatFacadeService {
     private static final String DEFAULT_MODEL_PROVIDER_KEY = "lmstudio";
     private static final String WEAVER_CHAT_PROVIDER_REF = "provider:chat:selected-by-admin";
     private static final String WEAVER_LMSTUDIO_MODEL_REF = "lmstudio/qwen/qwen3.5-9b";
+    private static final String WEAVER_RUNTIME_PROFILE_VERSION = "weaver-runtime-profile:v1";
+    private static final String WEAVER_RUNTIME_PROFILE_HASH = "runtime-profile:qwen-mcp-weave-chat";
+    private static final String WEAVER_MCP_SERVER_ID = "mcp-weave-domain-tools";
 
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WorkspaceCapabilityService workspaceCapabilityService;
@@ -286,6 +289,14 @@ public class ChatFacadeService {
         responseEvidence.put("lmStudioResponseReceived", assistantEvidence.get("lmStudioResponseReceived"));
         responseEvidence.put("assistantMessageId", assistantMessage.id());
         responseEvidence.put("modelRef", assistantEvidence.get("modelRef"));
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "runtimeProfileHash");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "runtimeProfileVersion");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "mcpServerId");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "toolId");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "auditRef");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "approvalState");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "denyState");
+        copySupportSafeEvidence(assistantEvidence, responseEvidence, "toolResultFedBackToModel");
         responseEvidence.put("supportSafe", assistantEvidence.getOrDefault("supportSafe", true));
         return new ChatMessageResponse(
                 userMessage.id(),
@@ -317,6 +328,11 @@ public class ChatFacadeService {
                     Map.of(
                             "contextId", conversation.contextId(),
                             "chatProviderRef", WEAVER_CHAT_PROVIDER_REF,
+                            "runtimeProfileHash", WEAVER_RUNTIME_PROFILE_HASH,
+                            "runtimeProfileVersion", WEAVER_RUNTIME_PROFILE_VERSION,
+                            "mcpServerId", WEAVER_MCP_SERVER_ID,
+                            "offeredToolIds", List.of("calendar.search_events", "chat.search_messages"),
+                            "toolPolicy", "domain-first-read-only-fail-closed",
                             "supportSafe", true,
                             "rawProviderContentIncluded", false)));
         } catch (WeaverPaChatUnavailableException exception) {
@@ -339,12 +355,22 @@ public class ChatFacadeService {
         evidence.put("weaverReceived", result.weaverReceived());
         evidence.put("lmStudioResponseReceived", result.lmStudioResponseReceived());
         evidence.put("auditRef", result.auditRef());
+        evidence.put("runtimeProfileHash", WEAVER_RUNTIME_PROFILE_HASH);
+        evidence.put("runtimeProfileVersion", WEAVER_RUNTIME_PROFILE_VERSION);
+        evidence.put("mcpServerId", WEAVER_MCP_SERVER_ID);
         evidence.put("supportSafe", true);
         evidence.put("rawProviderDiagnosticsExposed", false);
         copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "source");
         copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "liveCall");
         copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "approvedReplyTool");
         copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "unsafeExecTool");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "runtimeProfileHash");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "runtimeProfileVersion");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "mcpServerId");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "toolId");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "approvalState");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "denyState");
+        copySupportSafeEvidence(result.supportSafeEvidence(), evidence, "toolResultFedBackToModel");
         ChatMessageResponse assistantMessage = new ChatMessageResponse(
                 "msg-" + UUID.randomUUID(),
                 conversation.id(),

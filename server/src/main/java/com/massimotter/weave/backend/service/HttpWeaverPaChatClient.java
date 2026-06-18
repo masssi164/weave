@@ -4,6 +4,7 @@ import com.massimotter.weave.backend.config.WeaverPaChatProperties;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -16,7 +17,9 @@ public class HttpWeaverPaChatClient implements WeaverPaChatClient {
 
     @Autowired
     public HttpWeaverPaChatClient(WeaverPaChatProperties properties) {
-        this(properties, RestClient.builder().build());
+        this(properties, RestClient.builder()
+                .requestFactory(requestFactory(properties))
+                .build());
     }
 
     HttpWeaverPaChatClient(WeaverPaChatProperties properties, RestClient restClient) {
@@ -75,6 +78,15 @@ public class HttpWeaverPaChatClient implements WeaverPaChatClient {
                 hasText(response.providerRef()) ? response.providerRef() : "provider:model:lmstudio",
                 auditRef,
                 evidence);
+    }
+
+    private static SimpleClientHttpRequestFactory requestFactory(WeaverPaChatProperties properties) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        if (properties != null && properties.timeout() != null) {
+            requestFactory.setConnectTimeout(properties.timeout());
+            requestFactory.setReadTimeout(properties.timeout());
+        }
+        return requestFactory;
     }
 
     private static boolean hasText(String value) {
