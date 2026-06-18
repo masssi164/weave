@@ -31,21 +31,22 @@ public class MigrationDryRunService {
     public MigrationDryRunResponse dryRun(MigrationDryRunRequest request) {
         MigrationDryRunRequest.SourceInventory inventory = request.inventory();
         List<String> scopes = inventory.scopes() == null ? List.of() : inventory.scopes();
-        List<String> requiredScopes = requiredScopes(request.sourceProvider());
+        String provider = normalizeProvider(request.sourceProvider());
+        List<String> requiredScopes = requiredScopes(provider);
         List<String> missing = requiredScopes.stream().filter(scope -> !scopes.contains(scope)).toList();
         int estimatedRequests = Math.max(1,
                 inventory.workspaces() + inventory.channels() + inventory.users()
                         + ((inventory.files() + 99) / 100) + ((inventory.messages() + 199) / 200));
         int unmappable = Math.max(0, inventory.users() - inventory.channels() - inventory.workspaces());
-        String stable = request.sourceProvider() + ":" + inventory.workspaces() + ":" + inventory.channels() + ":"
+        String stable = provider + ":" + inventory.workspaces() + ":" + inventory.channels() + ":"
                 + inventory.users() + ":" + inventory.files() + ":" + inventory.messages() + ":" + String.join(",", scopes);
         String jobId = idempotencyKeyService.key("migration:dry-run", stable);
-        boolean matrixChatDryRun = isMatrixChatProvider(request.sourceProvider());
+        boolean matrixChatDryRun = isMatrixChatProvider(provider);
         var response = new MigrationDryRunResponse(
                 jobId,
                 "completed",
                 "dry-run",
-                normalizeProvider(request.sourceProvider()),
+                provider,
                 new MigrationDryRunResponse.InventorySummary(
                         inventory.workspaces(), inventory.channels(), inventory.users(), inventory.files(), inventory.messages()),
                 new MigrationDryRunResponse.MappingProposal(
@@ -263,6 +264,13 @@ public class MigrationDryRunService {
     }
 
     private String normalizeProvider(String provider) {
-        return provider == null ? "external-provider" : provider.toLowerCase(Locale.ROOT);
+        if (provider == null || provider.isBlank()) {
+            return "external-provider";
+        }
+        String candidate = provider.trim().toLowerCase(Locale.ROOT);
+        return switch (candidate) {
+            case "slack", "teams", "matrix-synapse", "matrix-synapse-chat", "synapse-homeserver" -> candidate;
+            default -> "external-provider";
+        };
     }
 }

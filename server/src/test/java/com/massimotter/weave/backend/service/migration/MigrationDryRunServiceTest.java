@@ -99,6 +99,38 @@ class MigrationDryRunServiceTest {
     }
 
     @Test
+    void unsafeUnknownSourceProviderIsMappedToSupportSafeGenericKey() {
+        var repository = new InMemoryMigrationRunEvidenceRepository();
+        var service = new MigrationDryRunService(new IdempotencyKeyService(), repository);
+        String unsafeProvider = "https://provider.example/export?access_token=secret-ish-token";
+
+        var response = service.dryRun(new MigrationDryRunRequest(
+                unsafeProvider,
+                new MigrationDryRunRequest.SourceInventory(
+                        1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        List.of("inventory:read"))));
+
+        assertThat(response.sourceProvider()).isEqualTo("external-provider");
+        assertThat(response.consentRequirements().missingScopes()).isEmpty();
+        assertThat(response.continuityReports()).allSatisfy(report -> {
+            assertThat(report.provenanceRefs()).contains("provider:external-provider:boards-export-snapshot");
+            assertThat(report.provenanceRefs()).allSatisfy(ref -> assertThat(ref)
+                    .doesNotContain("https://", "provider.example", "access_token", "secret-ish-token"));
+        });
+        assertThat(response.domainMappings()).allSatisfy(mapping ->
+                assertThat(mapping.sourceObject())
+                        .startsWith("external-provider:")
+                        .doesNotContain("https://", "provider.example", "access_token", "secret-ish-token"));
+        assertThat(response.toString())
+                .doesNotContain(unsafeProvider)
+                .doesNotContain("https://", "provider.example", "access_token", "secret-ish-token");
+    }
+
+    @Test
     void providerNormalizationIsLocaleStable() {
         Locale previous = Locale.getDefault();
         try {
