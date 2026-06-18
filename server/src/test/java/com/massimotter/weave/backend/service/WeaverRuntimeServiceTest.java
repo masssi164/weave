@@ -292,6 +292,12 @@ class WeaverRuntimeServiceTest {
         Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
 
         var issued = service.profileFor(member);
+
+        var serializedCopy = copyProfile(issued, issued.runtimeProfileHash(), issued.signature(), issued.expiresAt());
+        assertThat(serializedCopy).isNotSameAs(issued);
+        assertThat(service.provisionRuntime(serializedCopy, "org:acme", "policy:v32").runtimeProfileHash())
+                .isEqualTo(issued.runtimeProfileHash());
+
         var customized = service.applyRuntimeCustomization(member, Map.of("style", "concise"));
 
         assertThat(customized.accepted()).isTrue();
@@ -309,10 +315,19 @@ class WeaverRuntimeServiceTest {
         Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
 
         var issued = first.profileFor(member);
-        var replicaIssued = second.profileFor(member);
+        var issuedCopy = copyProfile(issued, issued.runtimeProfileHash(), issued.signature(), issued.expiresAt());
 
+        assertThat(first.provisionRuntime(issuedCopy, "org:acme", "policy:v32").runtimeProfileHash())
+                .isEqualTo(issued.runtimeProfileHash());
+        assertThat(second.provisionRuntime(issuedCopy, "org:acme", "policy:v32").runtimeProfileHash())
+                .isEqualTo(issued.runtimeProfileHash());
+
+        var replicaIssued = second.profileFor(member);
         assertThat(replicaIssued.signature()).isNotBlank();
-        assertThat(replicaIssued.signature().split(":")[3]).isEqualTo(issued.signature().split(":")[3]);
+        assertThat(replicaIssued.signature()).startsWith("weave-hmac-sha256:v1:keyref:");
+        assertThatThrownBy(() -> second.provisionRuntime(issuedCopy, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed current");
         assertThatThrownBy(() -> service(true, runtimePropertiesWithKey(true, null), new InMemoryAuditEventPublisher()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("signing key is not configured");

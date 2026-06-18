@@ -661,10 +661,39 @@ public class WeaverRuntimeService {
 
     private boolean isCurrentIssuedProfile(WeaverRuntimeProfileResponse profile) {
         WeaverRuntimeProfileResponse issued = issuedProfiles.get(profile.runtimeProfileHash());
-        return issued != null
-                && issued == profile
-                && !issued.revoked()
-                && profile.runtimeProfileHash().equals(currentProfileHashByUser.getOrDefault(profile.userRef(), ""));
+        String currentProfileHash = currentProfileHashByUser.get(profile.userRef());
+        if (currentProfileHash != null && !profile.runtimeProfileHash().equals(currentProfileHash)) {
+            return false;
+        }
+        if (issued == null) {
+            return currentProfileHash == null;
+        }
+        return !issued.revoked()
+                && !Instant.parse(issued.expiresAt()).isBefore(Instant.now())
+                && sameIssuedProfileIdentity(issued, profile);
+    }
+
+    private boolean sameIssuedProfileIdentity(WeaverRuntimeProfileResponse issued, WeaverRuntimeProfileResponse supplied) {
+        return issued.enabled() == supplied.enabled()
+                && issued.revoked() == supplied.revoked()
+                && issued.posture().equals(supplied.posture())
+                && issued.userRef().equals(supplied.userRef())
+                && issued.profileVersion().equals(supplied.profileVersion())
+                && issued.runtimeProfileHash().equals(supplied.runtimeProfileHash())
+                && issued.signature().equals(supplied.signature())
+                && issued.expiresAt().equals(supplied.expiresAt())
+                && issued.revocationGeneration() == supplied.revocationGeneration()
+                && issued.runtimeKind().equals(supplied.runtimeKind())
+                && issued.runtimeProvider().equals(supplied.runtimeProvider())
+                && issued.modelProvider().equals(supplied.modelProvider())
+                && issued.toolProvider().equals(supplied.toolProvider())
+                && issued.allowedCapabilities().equals(supplied.allowedCapabilities())
+                && issued.pluginAllowlist().equals(supplied.pluginAllowlist())
+                && issued.toolAllowlist().equals(supplied.toolAllowlist())
+                && issued.execEnabled() == supplied.execEnabled()
+                && issued.elevatedEnabled() == supplied.elevatedEnabled()
+                && issued.auditRequired() == supplied.auditRequired()
+                && issued.forkRequired() == supplied.forkRequired();
     }
 
     private String signProfile(String runtimeProfileHash, String profileVersion) {
