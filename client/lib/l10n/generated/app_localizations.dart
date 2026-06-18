@@ -113,19 +113,19 @@ abstract class AppLocalizations {
   /// Subtitle text below the welcome heading
   ///
   /// In en, this message translates to:
-  /// **'Your unified collaboration hub for messaging, files, and secure self-hosted access.'**
+  /// **'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.'**
   String get welcomeSubtitle;
 
   /// Label for the primary CTA on the welcome screen
   ///
   /// In en, this message translates to:
-  /// **'Get Started'**
+  /// **'Join your organization'**
   String get continueButton;
 
   /// Title for the setup flow screen
   ///
   /// In en, this message translates to:
-  /// **'Setup'**
+  /// **'Join Weave'**
   String get setupTitle;
 
   /// Title for the setup provider and issuer step
@@ -6284,6 +6284,78 @@ abstract class AppLocalizations {
     String channelState,
     String connectionState,
   );
+
+  /// Title for the normal member handoff-first setup screen
+  ///
+  /// In en, this message translates to:
+  /// **'Join from an invite or organization sign-in'**
+  String get setupMemberHandoffTitle;
+
+  /// Description for the normal member handoff-first setup screen
+  ///
+  /// In en, this message translates to:
+  /// **'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.'**
+  String get setupMemberHandoffDescription;
+
+  /// Primary action label for handoff-first setup
+  ///
+  /// In en, this message translates to:
+  /// **'I have an invite or sign-in link'**
+  String get setupMemberHandoffPrimaryAction;
+
+  /// Guidance for using a member handoff link
+  ///
+  /// In en, this message translates to:
+  /// **'Use the link from your browser, email, or chat. If it is missing or expired, ask your workspace admin for a new invite.'**
+  String get setupMemberHandoffPrimaryGuidance;
+
+  /// Heading for operator-only setup note
+  ///
+  /// In en, this message translates to:
+  /// **'Admins and operators'**
+  String get setupMemberHandoffAdminNoteTitle;
+
+  /// Note explaining raw provider setup boundary
+  ///
+  /// In en, this message translates to:
+  /// **'Raw provider endpoints are managed in admin or operator recovery, not during normal member onboarding.'**
+  String get setupMemberHandoffAdminNote;
+
+  /// Button that opens admin/operator raw endpoint recovery setup
+  ///
+  /// In en, this message translates to:
+  /// **'Open operator recovery setup'**
+  String get setupOpenOperatorRecoveryButton;
+
+  /// Title for the explicit operator recovery setup mode
+  ///
+  /// In en, this message translates to:
+  /// **'Operator recovery setup'**
+  String get setupOperatorRecoveryTitle;
+
+  /// Loading title while consuming a member handoff
+  ///
+  /// In en, this message translates to:
+  /// **'Opening Weave invite'**
+  String get memberHandoffLoadingTitle;
+
+  /// Loading hint while consuming a member handoff
+  ///
+  /// In en, this message translates to:
+  /// **'We are preparing sign-in for this workspace.'**
+  String get memberHandoffLoadingHint;
+
+  /// Error title when member handoff consumption fails
+  ///
+  /// In en, this message translates to:
+  /// **'We could not open this Weave invite'**
+  String get memberHandoffErrorTitle;
+
+  /// Support-safe guidance when member handoff consumption fails
+  ///
+  /// In en, this message translates to:
+  /// **'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.'**
+  String get memberHandoffErrorGuidance;
 }
 
 class _AppLocalizationsDelegate

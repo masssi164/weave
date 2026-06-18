@@ -22,11 +22,11 @@ void main() {
       expect(find.byType(WeaveLogo), findsOneWidget);
     });
 
-    testWidgets('renders Get Started button', (tester) async {
+    testWidgets('renders Join your organization button', (tester) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Get Started'), findsOneWidget);
+      expect(find.text('Join your organization'), findsOneWidget);
     });
 
     testWidgets('meets androidTapTargetGuideline', (tester) async {

@@ -16,13 +16,13 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get welcomeSubtitle =>
-      'Dein einheitlicher Kollaborations-Hub — Nachrichten, Dateien und Kalender an einem Ort.';
+      'Tritt deiner Organisation über eine Einladung oder Anmelde-Übergabe bei. Anbieter-Setup bleibt bei den Admins.';
 
   @override
-  String get continueButton => 'Los geht\'s';
+  String get continueButton => 'Organisation beitreten';
 
   @override
-  String get setupTitle => 'Einrichtung';
+  String get setupTitle => 'Weave beitreten';
 
   @override
   String get setupProviderStepTitle => 'Provider-Kategorien konfigurieren';
@@ -3910,4 +3910,49 @@ class AppLocalizationsDe extends AppLocalizations {
   ) {
     return 'Weaver Beta helper. Personal helper: $personalState. Channel helper: $channelState. Workspace connection: $connectionState. Results are support-safe and do not expose secrets or raw provider payloads.';
   }
+
+  @override
+  String get setupMemberHandoffTitle =>
+      'Über Einladung oder Organisationsanmeldung beitreten';
+
+  @override
+  String get setupMemberHandoffDescription =>
+      'Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dass du Anbieter-Endpunkte bearbeiten musst.';
+
+  @override
+  String get setupMemberHandoffPrimaryAction =>
+      'Ich habe eine Einladung oder einen Anmeldelink';
+
+  @override
+  String get setupMemberHandoffPrimaryGuidance =>
+      'Nutze den Link aus Browser, E-Mail oder Chat. Wenn er fehlt oder abgelaufen ist, bitte deinen Workspace-Admin um eine neue Einladung.';
+
+  @override
+  String get setupMemberHandoffAdminNoteTitle => 'Admins und Operatoren';
+
+  @override
+  String get setupMemberHandoffAdminNote =>
+      'Rohdaten zu Anbieter-Endpunkten werden im Admin- oder Operator-Recovery verwaltet, nicht im normalen Mitglieder-Onboarding.';
+
+  @override
+  String get setupOpenOperatorRecoveryButton =>
+      'Operator-Recovery-Setup öffnen';
+
+  @override
+  String get setupOperatorRecoveryTitle => 'Operator-Recovery-Setup';
+
+  @override
+  String get memberHandoffLoadingTitle => 'Weave-Einladung wird geöffnet';
+
+  @override
+  String get memberHandoffLoadingHint =>
+      'Wir bereiten die Anmeldung für diesen Workspace vor.';
+
+  @override
+  String get memberHandoffErrorTitle =>
+      'Diese Weave-Einladung konnte nicht geöffnet werden';
+
+  @override
+  String get memberHandoffErrorGuidance =>
+      'Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.';
 }

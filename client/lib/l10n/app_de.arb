@@ -2,9 +2,9 @@
   "@@locale": "de",
   "appTitle": "Weave",
   "welcomeTitle": "Willkommen bei Weave",
-  "welcomeSubtitle": "Dein einheitlicher Kollaborations-Hub — Nachrichten, Dateien und Kalender an einem Ort.",
-  "continueButton": "Los geht's",
-  "setupTitle": "Einrichtung",
+  "welcomeSubtitle": "Tritt deiner Organisation über eine Einladung oder Anmelde-Übergabe bei. Anbieter-Setup bleibt bei den Admins.",
+  "continueButton": "Organisation beitreten",
+  "setupTitle": "Weave beitreten",
   "setupProviderStepTitle": "Provider-Kategorien konfigurieren",
   "setupProviderStepDescription": "Die Admin-Einrichtung beginnt mit der Kategorie Identität/IDM und hält Chat, Dateien, Kalender, Boards/Aufgaben, Besprechungen/Anrufe, Dokumente/Zusammenarbeit und Weaver als Provider-Kategorien sichtbar, bevor Mitglieder beitreten.",
   "setupServicesStepTitle": "Dienstendpunkte prüfen",
@@ -1326,5 +1326,53 @@
         "type": "String"
       }
     }
+  },
+  "setupMemberHandoffTitle": "Über Einladung oder Organisationsanmeldung beitreten",
+  "@setupMemberHandoffTitle": {
+    "description": "Title for the normal member handoff-first setup screen"
+  },
+  "setupMemberHandoffDescription": "Öffne den Einladungslink, /join-Link oder die Organisations-Anmelde-URL, die dein Admin gesendet hat. Weave bereitet deinen Workspace aus dem Organisationsmanifest vor, ohne dass du Anbieter-Endpunkte bearbeiten musst.",
+  "@setupMemberHandoffDescription": {
+    "description": "Description for the normal member handoff-first setup screen"
+  },
+  "setupMemberHandoffPrimaryAction": "Ich habe eine Einladung oder einen Anmeldelink",
+  "@setupMemberHandoffPrimaryAction": {
+    "description": "Primary action label for handoff-first setup"
+  },
+  "setupMemberHandoffPrimaryGuidance": "Nutze den Link aus Browser, E-Mail oder Chat. Wenn er fehlt oder abgelaufen ist, bitte deinen Workspace-Admin um eine neue Einladung.",
+  "@setupMemberHandoffPrimaryGuidance": {
+    "description": "Guidance for using a member handoff link"
+  },
+  "setupMemberHandoffAdminNoteTitle": "Admins und Operatoren",
+  "@setupMemberHandoffAdminNoteTitle": {
+    "description": "Heading for operator-only setup note"
+  },
+  "setupMemberHandoffAdminNote": "Rohdaten zu Anbieter-Endpunkten werden im Admin- oder Operator-Recovery verwaltet, nicht im normalen Mitglieder-Onboarding.",
+  "@setupMemberHandoffAdminNote": {
+    "description": "Note explaining raw provider setup boundary"
+  },
+  "setupOpenOperatorRecoveryButton": "Operator-Recovery-Setup öffnen",
+  "@setupOpenOperatorRecoveryButton": {
+    "description": "Button that opens admin/operator raw endpoint recovery setup"
+  },
+  "setupOperatorRecoveryTitle": "Operator-Recovery-Setup",
+  "@setupOperatorRecoveryTitle": {
+    "description": "Title for the explicit operator recovery setup mode"
+  },
+  "memberHandoffLoadingTitle": "Weave-Einladung wird geöffnet",
+  "@memberHandoffLoadingTitle": {
+    "description": "Loading title while consuming a member handoff"
+  },
+  "memberHandoffLoadingHint": "Wir bereiten die Anmeldung für diesen Workspace vor.",
+  "@memberHandoffLoadingHint": {
+    "description": "Loading hint while consuming a member handoff"
+  },
+  "memberHandoffErrorTitle": "Diese Weave-Einladung konnte nicht geöffnet werden",
+  "@memberHandoffErrorTitle": {
+    "description": "Error title when member handoff consumption fails"
+  },
+  "memberHandoffErrorGuidance": "Die Einladung ist möglicherweise abgelaufen, unvollständig oder noch nicht bereit. Bitte deinen Workspace-Admin um eine neue Einladung oder Organisations-Anmelde-URL.",
+  "@memberHandoffErrorGuidance": {
+    "description": "Support-safe guidance when member handoff consumption fails"
   }
 }

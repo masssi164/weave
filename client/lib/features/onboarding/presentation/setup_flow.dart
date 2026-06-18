@@ -11,15 +11,11 @@ import 'package:weave/features/server_config/presentation/widgets/provider_categ
 import 'package:weave/features/server_config/presentation/widgets/server_configuration_form.dart';
 import 'package:weave/l10n/generated/app_localizations.dart';
 
-/// A multi-step setup flow presented after the welcome screen.
+/// Handoff-first setup presented after the welcome screen.
 ///
-/// Two steps:
-/// 1. Select provider type and issuer URL
-/// 2. Review and adjust derived service endpoints
-///
-/// Focus is moved to each step's heading when it becomes active.
-/// Back navigation works via both the system back gesture and the
-/// visible back button.
+/// Normal members are directed to invite/auth/deep-link handoff. Raw provider
+/// endpoint editing is available only after explicitly entering operator
+/// recovery mode.
 class SetupFlow extends ConsumerStatefulWidget {
   const SetupFlow({super.key});
 
@@ -29,19 +25,22 @@ class SetupFlow extends ConsumerStatefulWidget {
 
 class _SetupFlowState extends ConsumerState<SetupFlow> {
   int _currentStep = 0;
+  bool _operatorRecoveryMode = false;
   static const _totalSteps = 2;
 
+  final _memberFocusNode = FocusNode();
   final _step0FocusNode = FocusNode();
   final _step1FocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    FocusUtils.requestFocusAfterFrame(_step0FocusNode);
+    FocusUtils.requestFocusAfterFrame(_memberFocusNode);
   }
 
   @override
   void dispose() {
+    _memberFocusNode.dispose();
     _step0FocusNode.dispose();
     _step1FocusNode.dispose();
     super.dispose();
@@ -62,11 +61,14 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
   }
 
   void _goBack() {
-    if (_currentStep > 0) {
-      setState(() => _currentStep--);
-      FocusUtils.requestFocusAfterFrame(_step0FocusNode);
-    } else {
+    if (!_operatorRecoveryMode) {
       context.go(AppRoutes.welcome);
+    } else if (_currentStep > 0) {
+      setState(() => _currentStep--);
+      FocusUtils.requestFocusAfterFrame(_memberFocusNode);
+    } else {
+      setState(() => _operatorRecoveryMode = false);
+      FocusUtils.requestFocusAfterFrame(_memberFocusNode);
     }
   }
 
@@ -107,7 +109,12 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
               ),
               const SizedBox(width: 12),
               Flexible(
-                child: Text(l10n.setupTitle, overflow: TextOverflow.ellipsis),
+                child: Text(
+                  _operatorRecoveryMode
+                      ? l10n.setupOperatorRecoveryTitle
+                      : l10n.setupTitle,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -120,70 +127,204 @@ class _SetupFlowState extends ConsumerState<SetupFlow> {
         body: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Step indicator — announced to screen readers.
-                Semantics(
-                  label: l10n.setupStepIndicator(_currentStep + 1, _totalSteps),
-                  child: ExcludeSemantics(
-                    child: LinearProgressIndicator(
-                      value: (_currentStep + 1) / _totalSteps,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+            child: _operatorRecoveryMode
+                ? _OperatorRecoverySetup(
+                    currentStep: _currentStep,
+                    totalSteps: _totalSteps,
+                    step0FocusNode: _step0FocusNode,
+                    step1FocusNode: _step1FocusNode,
+                    onBack: _goBack,
+                    onNext: _goNext,
+                    onFinish: _finish,
+                  )
+                : _MemberHandoffSetup(
+                    focusNode: _memberFocusNode,
+                    onOpenOperatorRecovery: () {
+                      setState(() {
+                        _operatorRecoveryMode = true;
+                        _currentStep = 0;
+                      });
+                      FocusUtils.requestFocusAfterFrame(_step0FocusNode);
+                    },
                   ),
-                ),
-                const SizedBox(height: 32),
-
-                // Step content
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: _currentStep == 0
-                        ? _ProviderStep(
-                            key: const ValueKey('step_0'),
-                            focusNode: _step0FocusNode,
-                          )
-                        : _ServicesStep(
-                            key: const ValueKey('step_1'),
-                            focusNode: _step1FocusNode,
-                          ),
-                  ),
-                ),
-
-                // Navigation buttons
-                Row(
-                  children: [
-                    if (_currentStep > 0)
-                      Expanded(
-                        child: AccessibleButton(
-                          outlined: true,
-                          onPressed: _goBack,
-                          semanticLabel: l10n.setupBackButton,
-                          child: Text(l10n.setupBackButton),
-                        ),
-                      ),
-                    if (_currentStep > 0) const SizedBox(width: 16),
-                    Expanded(
-                      child: _currentStep < _totalSteps - 1
-                          ? AccessibleButton(
-                              onPressed: _goNext,
-                              semanticLabel: l10n.setupNextButton,
-                              child: Text(l10n.setupNextButton),
-                            )
-                          : AccessibleButton(
-                              onPressed: _finish,
-                              semanticLabel: l10n.setupFinishButton,
-                              child: Text(l10n.setupFinishButton),
-                            ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MemberHandoffSetup extends StatelessWidget {
+  const _MemberHandoffSetup({
+    required this.focusNode,
+    required this.onOpenOperatorRecovery,
+  });
+
+  final FocusNode focusNode;
+  final VoidCallback onOpenOperatorRecovery;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+
+    return SingleChildScrollView(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Focus(
+                focusNode: focusNode,
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    l10n.setupMemberHandoffTitle,
+                    style: theme.textTheme.headlineSmall,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                l10n.setupMemberHandoffDescription,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          l10n.setupMemberHandoffPrimaryAction,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(l10n.setupMemberHandoffPrimaryGuidance),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Semantics(
+                        header: true,
+                        child: Text(
+                          l10n.setupMemberHandoffAdminNoteTitle,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(l10n.setupMemberHandoffAdminNote),
+                      const SizedBox(height: 16),
+                      AccessibleButton(
+                        outlined: true,
+                        onPressed: onOpenOperatorRecovery,
+                        semanticLabel: l10n.setupOpenOperatorRecoveryButton,
+                        child: Text(l10n.setupOpenOperatorRecoveryButton),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OperatorRecoverySetup extends StatelessWidget {
+  const _OperatorRecoverySetup({
+    required this.currentStep,
+    required this.totalSteps,
+    required this.step0FocusNode,
+    required this.step1FocusNode,
+    required this.onBack,
+    required this.onNext,
+    required this.onFinish,
+  });
+
+  final int currentStep;
+  final int totalSteps;
+  final FocusNode step0FocusNode;
+  final FocusNode step1FocusNode;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+  final VoidCallback onFinish;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          label: l10n.setupStepIndicator(currentStep + 1, totalSteps),
+          child: ExcludeSemantics(
+            child: LinearProgressIndicator(
+              value: (currentStep + 1) / totalSteps,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+        const SizedBox(height: 32),
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: currentStep == 0
+                ? _ProviderStep(
+                    key: const ValueKey('step_0'),
+                    focusNode: step0FocusNode,
+                  )
+                : _ServicesStep(
+                    key: const ValueKey('step_1'),
+                    focusNode: step1FocusNode,
+                  ),
+          ),
+        ),
+        Row(
+          children: [
+            if (currentStep > 0)
+              Expanded(
+                child: AccessibleButton(
+                  outlined: true,
+                  onPressed: onBack,
+                  semanticLabel: l10n.setupBackButton,
+                  child: Text(l10n.setupBackButton),
+                ),
+              ),
+            if (currentStep > 0) const SizedBox(width: 16),
+            Expanded(
+              child: currentStep < totalSteps - 1
+                  ? AccessibleButton(
+                      onPressed: onNext,
+                      semanticLabel: l10n.setupNextButton,
+                      child: Text(l10n.setupNextButton),
+                    )
+                  : AccessibleButton(
+                      onPressed: onFinish,
+                      semanticLabel: l10n.setupFinishButton,
+                      child: Text(l10n.setupFinishButton),
+                    ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
