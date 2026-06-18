@@ -1078,7 +1078,6 @@
   "@agentCapabilityPolicyLoading": {
     "description": "Loading message for AI agent capability policy settings section"
   },
-
   "weaverMemberTitle": "Mein Weaver",
   "@weaverMemberTitle": {
     "description": "Title for the governed member Weaver settings entry point"
@@ -1272,5 +1271,60 @@
   "connectorPreviewTileSemanticLabel": "{name}. Status {statusLabel}. {summary} {auditSummary} {actionsState}; die App verarbeitet kein Provider-Geheimnis.",
   "channelWorkspaceStatusDisabledByPolicy": "disabled_by_policy",
   "channelWorkspaceStatusDegraded": "degraded",
-  "agentCapabilityAvailabilityDisabledByPolicy": "Durch Policy deaktiviert"
+  "agentCapabilityAvailabilityDisabledByPolicy": "Durch Policy deaktiviert",
+  "chatWeaverBetaTitle": "Weaver Beta helper",
+  "@chatWeaverBetaTitle": {
+    "description": "Title for the bounded Weaver helper card in chat home"
+  },
+  "chatWeaverBetaDescription": "Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.",
+  "@chatWeaverBetaDescription": {
+    "description": "Description for bounded Weaver helper card"
+  },
+  "chatWeaverBetaConnectedState": "Connected",
+  "@chatWeaverBetaConnectedState": {
+    "description": "Weaver connection state label"
+  },
+  "chatWeaverBetaUnconnectedState": "Unconnected",
+  "@chatWeaverBetaUnconnectedState": {
+    "description": "Weaver connection state label"
+  },
+  "chatWeaverBetaEnabledState": "Weaver enabled",
+  "@chatWeaverBetaEnabledState": {
+    "description": "Weaver enabled state label"
+  },
+  "chatWeaverBetaDisabledState": "Weaver disabled",
+  "@chatWeaverBetaDisabledState": {
+    "description": "Weaver disabled state label"
+  },
+  "chatWeaverBetaCapabilityUnavailableState": "Capability unavailable",
+  "@chatWeaverBetaCapabilityUnavailableState": {
+    "description": "Weaver capability unavailable state label"
+  },
+  "chatWeaverBetaApprovalRequiredState": "Approval required for sensitive actions",
+  "@chatWeaverBetaApprovalRequiredState": {
+    "description": "Weaver approval state label"
+  },
+  "chatWeaverBetaDeniedFailedState": "Denied or failed safely",
+  "@chatWeaverBetaDeniedFailedState": {
+    "description": "Weaver denied/failed state label"
+  },
+  "chatWeaverBetaSupportSafeResult": "Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.",
+  "@chatWeaverBetaSupportSafeResult": {
+    "description": "Support-safe result note for Weaver helper"
+  },
+  "chatWeaverBetaSemanticLabel": "Weaver Beta helper. Personal helper: {personalState}. Channel helper: {channelState}. Workspace connection: {connectionState}. Results are support-safe and do not expose secrets or raw provider payloads.",
+  "@chatWeaverBetaSemanticLabel": {
+    "description": "Accessibility label for Weaver helper card",
+    "placeholders": {
+      "personalState": {
+        "type": "String"
+      },
+      "channelState": {
+        "type": "String"
+      },
+      "connectionState": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -6214,6 +6214,76 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disabled by policy'**
   String get agentCapabilityAvailabilityDisabledByPolicy;
+
+  /// Title for the bounded Weaver helper card in chat home
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver Beta helper'**
+  String get chatWeaverBetaTitle;
+
+  /// Description for bounded Weaver helper card
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.'**
+  String get chatWeaverBetaDescription;
+
+  /// Weaver connection state label
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get chatWeaverBetaConnectedState;
+
+  /// Weaver connection state label
+  ///
+  /// In en, this message translates to:
+  /// **'Unconnected'**
+  String get chatWeaverBetaUnconnectedState;
+
+  /// Weaver enabled state label
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver enabled'**
+  String get chatWeaverBetaEnabledState;
+
+  /// Weaver disabled state label
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver disabled'**
+  String get chatWeaverBetaDisabledState;
+
+  /// Weaver capability unavailable state label
+  ///
+  /// In en, this message translates to:
+  /// **'Capability unavailable'**
+  String get chatWeaverBetaCapabilityUnavailableState;
+
+  /// Weaver approval state label
+  ///
+  /// In en, this message translates to:
+  /// **'Approval required for sensitive actions'**
+  String get chatWeaverBetaApprovalRequiredState;
+
+  /// Weaver denied/failed state label
+  ///
+  /// In en, this message translates to:
+  /// **'Denied or failed safely'**
+  String get chatWeaverBetaDeniedFailedState;
+
+  /// Support-safe result note for Weaver helper
+  ///
+  /// In en, this message translates to:
+  /// **'Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.'**
+  String get chatWeaverBetaSupportSafeResult;
+
+  /// Accessibility label for Weaver helper card
+  ///
+  /// In en, this message translates to:
+  /// **'Weaver Beta helper. Personal helper: {personalState}. Channel helper: {channelState}. Workspace connection: {connectionState}. Results are support-safe and do not expose secrets or raw provider payloads.'**
+  String chatWeaverBetaSemanticLabel(
+    String personalState,
+    String channelState,
+    String connectionState,
+  );
 }
 
 class _AppLocalizationsDelegate
