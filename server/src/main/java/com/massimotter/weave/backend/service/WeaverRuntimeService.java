@@ -662,11 +662,11 @@ public class WeaverRuntimeService {
     private boolean isCurrentIssuedProfile(WeaverRuntimeProfileResponse profile) {
         WeaverRuntimeProfileResponse issued = issuedProfiles.get(profile.runtimeProfileHash());
         String currentProfileHash = currentProfileHashByUser.get(profile.userRef());
-        if (currentProfileHash != null && !profile.runtimeProfileHash().equals(currentProfileHash)) {
+        if (currentProfileHash == null || issued == null) {
             return false;
         }
-        if (issued == null) {
-            return currentProfileHash == null;
+        if (!profile.runtimeProfileHash().equals(currentProfileHash)) {
+            return false;
         }
         return !issued.revoked()
                 && !Instant.parse(issued.expiresAt()).isBefore(Instant.now())

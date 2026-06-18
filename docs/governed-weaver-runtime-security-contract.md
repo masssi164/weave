@@ -14,7 +14,7 @@ Weaver is an optional per-user personal-assistant runtime. It is generated from 
 
 ## RuntimeProfile and OpenClaw projection boundary
 
-The Weaver/OpenClaw fork consumes one keyed-signed `WeaverRuntimeProfile` from Weave. The signature is an HMAC-SHA-256 verification boundary over the issued profile hash and version; the signing key is represented only by `secretref://weave/weaver/runtime-profile-signing-key` in support evidence, never as raw key material. Weave remains the source of truth for domains, provider selection, policy, credentials, and audit; OpenClaw configuration is generated runtime output, not a member-managed product model.
+The Weaver/OpenClaw fork consumes one keyed-signed `WeaverRuntimeProfile` from Weave. The signature is an HMAC-SHA-256 verification boundary over the issued profile hash and version; the signing key is represented only by `secretref://weave/weaver/runtime-profile-signing-key` in support evidence, never as raw key material. A valid signature is necessary but not sufficient: provisioning must also verify backend current-issuance state for the same user and profile hash. Beta keeps this current-issuance state in the issuing service instance, so a fresh replica/restart without that state must fail closed rather than accepting an otherwise unexpired signed profile; production hardening must replace this Beta limitation with a durable current-profile store before multi-replica profile handoff is claimed. Weave remains the source of truth for domains, provider selection, policy, credentials, and audit; OpenClaw configuration is generated runtime output, not a member-managed product model.
 
 Required projection controls:
 

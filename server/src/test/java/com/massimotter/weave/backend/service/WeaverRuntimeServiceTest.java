@@ -319,8 +319,9 @@ class WeaverRuntimeServiceTest {
 
         assertThat(first.provisionRuntime(issuedCopy, "org:acme", "policy:v32").runtimeProfileHash())
                 .isEqualTo(issued.runtimeProfileHash());
-        assertThat(second.provisionRuntime(issuedCopy, "org:acme", "policy:v32").runtimeProfileHash())
-                .isEqualTo(issued.runtimeProfileHash());
+        assertThatThrownBy(() -> second.provisionRuntime(issuedCopy, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed current");
 
         var replicaIssued = second.profileFor(member);
         assertThat(replicaIssued.signature()).isNotBlank();
@@ -328,6 +329,8 @@ class WeaverRuntimeServiceTest {
         assertThatThrownBy(() -> second.provisionRuntime(issuedCopy, "org:acme", "policy:v32"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("valid signed current");
+        assertThat(second.provisionRuntime(replicaIssued, "org:acme", "policy:v32").runtimeProfileHash())
+                .isEqualTo(replicaIssued.runtimeProfileHash());
         assertThatThrownBy(() -> service(true, runtimePropertiesWithKey(true, null), new InMemoryAuditEventPublisher()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("signing key is not configured");
@@ -335,6 +338,32 @@ class WeaverRuntimeServiceTest {
                 .contains("secretref://weave/weaver/runtime-profile-signing-key")
                 .doesNotContain("stable-weaver-runtime-profile-signing-key");
         // RuntimeProfile has no not-before field today; expiry and current-issued checks are the temporal fail-closed gates.
+    }
+
+    @Test
+    void freshReplicaRejectsStaleAndCurrentProfilesWithoutCurrentIssuanceState() {
+        var primary = service(true, runtimePropertiesWithKey(true, "stable-weaver-runtime-profile-signing-key-32-bytes"), new InMemoryAuditEventPublisher());
+        var freshReplica = service(true, runtimePropertiesWithKey(true, "stable-weaver-runtime-profile-signing-key-32-bytes"), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var oldProfile = primary.profileFor(member);
+        var currentProfile = primary.applyRuntimeCustomization(member, Map.of("style", "concise")).profile();
+
+        assertThatThrownBy(() -> primary.provisionRuntime(oldProfile, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed current");
+        assertThat(primary.provisionRuntime(currentProfile, "org:acme", "policy:v32").runtimeProfileHash())
+                .isEqualTo(currentProfile.runtimeProfileHash());
+        assertThatThrownBy(() -> freshReplica.provisionRuntime(oldProfile, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed current");
+        assertThatThrownBy(() -> freshReplica.provisionRuntime(currentProfile, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed current");
+
+        var replicaCurrent = freshReplica.profileFor(member);
+        assertThat(freshReplica.provisionRuntime(replicaCurrent, "org:acme", "policy:v32").runtimeProfileHash())
+                .isEqualTo(replicaCurrent.runtimeProfileHash());
     }
 
     @Test
