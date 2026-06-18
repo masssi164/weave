@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "weave-sprint-32-beta-readiness-stage-0-snapshot",
+  "capturedAt": "2026-06-18T06:40:00+02:00",
+  "sourceBoundary": {
+    "branch": "origin/dev",
+    "commit": "2608cec027",
+    "truth": "GitHub PRs/issues/checks and checked-in evidence artifacts; local dirty worktrees are not release truth"
+  },
+  "governingDocs": [
+    "specs/weave-specs.lock.json",
+    "docs/product-line-and-weaver-plan.md",
+    "docs/beta-readiness-claim-gates.md",
+    "docs/product-trust-provider-choice-claim-matrix.md",
+    "docs/evidence/sprint-32-beta-readiness-release-evidence.md",
+    "docs/sprint-32-closure-report.md"
+  ],
+  "mergedPullRequests": [
+    {
+      "number": 837,
+      "title": "docs: define Beta readiness claim gates",
+      "url": "https://github.com/masssi164/weave/pull/837",
+      "mergedAt": "2026-06-18T04:30:45Z",
+      "releaseNotesLabel": "release-notes-feature",
+      "ci": "GitHub Gradle CI success"
+    },
+    {
+      "number": 838,
+      "title": "feat(server): add adapter continuity dry-run report",
+      "url": "https://github.com/masssi164/weave/pull/838",
+      "mergedAt": "2026-06-18T04:39:54Z",
+      "releaseNotesLabel": "release-notes-feature",
+      "ci": "GitHub Gradle CI success"
+    },
+    {
+      "number": 839,
+      "title": "feat(admin): add Beta readiness control preview",
+      "url": "https://github.com/masssi164/weave/pull/839",
+      "mergedAt": "2026-06-18T04:30:50Z",
+      "releaseNotesLabel": "release-notes-feature",
+      "ci": "GitHub Gradle CI success"
+    },
+    {
+      "number": 840,
+      "title": "feat(weaver): route approvals through runtime",
+      "url": "https://github.com/masssi164/weave/pull/840",
+      "mergedAt": "2026-06-18T04:39:58Z",
+      "releaseNotesLabel": "release-notes-feature",
+      "ci": "GitHub Gradle CI success"
+    },
+    {
+      "number": 841,
+      "title": "feat(client): add bounded Weaver beta helper flow",
+      "url": "https://github.com/masssi164/weave/pull/841",
+      "mergedAt": "2026-06-18T04:40:01Z",
+      "releaseNotesLabel": "release-notes-feature",
+      "ci": "GitHub Gradle CI success"
+    }
+  ],
+  "betaGates": {
+    "claimGates": "present",
+    "adapterContinuityDryRun": "present",
+    "adminReadinessPreview": "present",
+    "runtimeApprovalEvidence": "present",
+    "memberClientWeaverFlow": "present",
+    "e2eAcceptanceEvidence": "blocked_by_issue_835",
+    "accessibilitySmoke": "blocked_by_issue_835",
+    "releaseDemoAlignment": "prepared_not_final"
+  },
+  "openBlockers": [
+    {
+      "issue": 835,
+      "url": "https://github.com/masssi164/weave/issues/835",
+      "inFlightPullRequest": 842,
+      "inFlightPullRequestUrl": "https://github.com/masssi164/weave/pull/842",
+      "reason": "Admin + User + Weaver E2E proof and critical a11y smoke remain open/in flight; final Beta closure must wait for PR #842 to merge."
+    }
+  ],
+  "claimBoundary": {
+    "allowed": "guarded Beta candidate / release-demo preparation after #830-#834 merged",
+    "forbiddenUntilFinalClosure": [
+      "Beta complete",
+      "general availability or public launch",
+      "production provider migration apply",
+      "lossless provider switching",
+      "unrestricted autonomous Weaver",
+      "MCP as user-facing product surface"
+    ]
+  }
+}
