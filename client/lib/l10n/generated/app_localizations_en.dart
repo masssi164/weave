@@ -3817,4 +3817,47 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get agentCapabilityAvailabilityDisabledByPolicy =>
       'Disabled by policy';
+
+  @override
+  String get chatWeaverBetaTitle => 'Weaver Beta helper';
+
+  @override
+  String get chatWeaverBetaDescription =>
+      'Weaver stays inside this Weave workspace and can only use approved capabilities. Members see approved Weave actions, not internal runtime catalogs.';
+
+  @override
+  String get chatWeaverBetaConnectedState => 'Connected';
+
+  @override
+  String get chatWeaverBetaUnconnectedState => 'Unconnected';
+
+  @override
+  String get chatWeaverBetaEnabledState => 'Weaver enabled';
+
+  @override
+  String get chatWeaverBetaDisabledState => 'Weaver disabled';
+
+  @override
+  String get chatWeaverBetaCapabilityUnavailableState =>
+      'Capability unavailable';
+
+  @override
+  String get chatWeaverBetaApprovalRequiredState =>
+      'Approval required for sensitive actions';
+
+  @override
+  String get chatWeaverBetaDeniedFailedState => 'Denied or failed safely';
+
+  @override
+  String get chatWeaverBetaSupportSafeResult =>
+      'Results show a summary, status, and audit reference only; secrets and raw provider payloads stay out of the member view.';
+
+  @override
+  String chatWeaverBetaSemanticLabel(
+    String personalState,
+    String channelState,
+    String connectionState,
+  ) {
+    return 'Weaver Beta helper. Personal helper: $personalState. Channel helper: $channelState. Workspace connection: $connectionState. Results are support-safe and do not expose secrets or raw provider payloads.';
+  }
 }
