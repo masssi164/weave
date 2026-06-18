@@ -170,6 +170,7 @@ class MigrationControllerSecurityTest {
                 new MigrationDryRunResponse.InventorySummary(1, 2, 5, 13, 200),
                 new MigrationDryRunResponse.MappingProposal(2, 5, 0, List.of()),
                 List.of(),
+                List.of(),
                 new MigrationDryRunResponse.UnmappableContentReport(0, List.of()),
                 new MigrationDryRunResponse.ConsentRequirementReport(List.of(), List.of(), false),
                 new MigrationDryRunResponse.RateLimitBudgetEstimate(1, 2, List.of()),

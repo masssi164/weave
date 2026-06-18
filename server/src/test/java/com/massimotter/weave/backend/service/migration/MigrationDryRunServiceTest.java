@@ -29,6 +29,19 @@ class MigrationDryRunServiceTest {
         assertThat(response.providerDiagnosticsRedacted()).isTrue();
         assertThat(response.replaySafe()).isTrue();
         assertThat(response.domainMappings()).extracting("domain").containsExactly("files", "calendar", "boards", "chat");
+        assertThat(response.continuityReports()).filteredOn(report -> report.domain().equals("boards"))
+                .singleElement()
+                .satisfies(report -> {
+                    assertThat(report.canonicalObjectCounts()).containsEntry("Board", 1).containsEntry("Task", 15).containsEntry("Watcher", 5);
+                    assertThat(report.stableIdStrategy()).startsWith("weave:boards").contains("sha256-normalized-title-status-owner");
+                    assertThat(report.provenanceRefs()).allSatisfy(ref -> assertThat(ref).doesNotContain("https://", "token", "Bearer"));
+                    assertThat(report.lossyFields()).isNotEmpty();
+                    assertThat(report.permissionImpact()).isNotEmpty();
+                    assertThat(report.conflicts()).isNotEmpty();
+                    assertThat(report.unsupportedObjects()).contains("board automations", "provider-only custom fields");
+                    assertThat(report.abortRollbackPosture()).contains("dry-run only", "rollback archive", "restore smoke");
+                    assertThat(report.accountedForNoDataLoss()).isTrue();
+                });
         assertThat(response.domainMappings()).extracting("mappingClass")
                 .contains("portable", "lossy", "manual_review", "archive_only");
         assertThat(response.domainMappings())
