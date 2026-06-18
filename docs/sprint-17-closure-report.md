@@ -53,5 +53,5 @@ Passing on 2026-06-01:
 
 ## Remaining risks / carryovers
 
-- Production-grade RuntimeProfile projection signing/fetch-by-hash remains future hardening beyond this local RC evidence slice.
+- Production-grade KMS/HSM-backed RuntimeProfile signing remains future hardening; the Sprint 32 implementation now uses keyed HMAC verification instead of hash-only markers.
 - Real production runtime token issuance/signing and live provider CRUD remain future work beyond this RC-shaped evidence slice.

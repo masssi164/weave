@@ -139,7 +139,7 @@ public class WeaverToolRegistry {
     }
 
     private String governanceDenial(WeaverToolInvocationRequest request, WeaverDomainToolDefinition definition) {
-        if (!request.runtimeProfileSignature().startsWith("weave-signature:v1:")) {
+        if (!request.runtimeProfileSignature().startsWith("weave-hmac-sha256:v1:")) {
             return "runtime_profile_unsigned";
         }
         if (!request.userRef().equals(request.runtimeProfileUserRef())) {

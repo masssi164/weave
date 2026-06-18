@@ -5,6 +5,7 @@ import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
 import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
+import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
 import java.time.Instant;
 import java.util.List;
@@ -14,6 +15,7 @@ import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2Res
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WeaverRuntimeServiceTest {
 
@@ -74,7 +76,7 @@ class WeaverRuntimeServiceTest {
         assertThat(profile.userRef()).doesNotContain("member@example.invalid");
         assertThat(profile.profileVersion()).startsWith("v");
         assertThat(profile.runtimeProfileHash()).startsWith("sha256:");
-        assertThat(profile.signature()).startsWith("weave-signature:v1:");
+        assertThat(profile.signature()).startsWith("weave-hmac-sha256:v1:keyref:");
         assertThat(profile.revoked()).isFalse();
         assertThat(profile.revocationStatus()).isEqualTo("active");
         assertThat(profile.revocationGeneration()).isZero();
@@ -117,6 +119,8 @@ class WeaverRuntimeServiceTest {
                 .containsEntry("profileVersion", profile.profileVersion())
                 .containsEntry("runtimeProfileHash", profile.runtimeProfileHash())
                 .containsEntry("signature", profile.signature())
+                .containsEntry("signatureAlgorithm", "weave-hmac-sha256:v1")
+                .containsEntry("signatureKeyRef", "secretref://weave/weaver/runtime-profile-signing-key")
                 .containsEntry("signed", true)
                 .containsEntry("fetchByHashRequired", true)
                 .containsEntry("fetchRef", "weave-runtime-profile://" + profile.runtimeProfileHash())
@@ -251,6 +255,35 @@ class WeaverRuntimeServiceTest {
         assertThat(mismatched.enabled()).isFalse();
         assertThat(mismatched.posture()).isEqualTo("runtime-profile-fetch-denied");
         assertThat(mismatched.toString()).doesNotContain("Bearer ", "openclaw.json", "refresh_token", "https://matrix.weave.test");
+    }
+
+    @Test
+    void rejectsMissingTamperedExpiredAndWrongKeyRuntimeProfileSignatures() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        var issued = service.profileFor(member);
+
+        assertThat(service.profileByHash(member, issued.runtimeProfileHash()).enabled()).isTrue();
+
+        var missingSignature = copyProfile(issued, issued.runtimeProfileHash(), "", issued.expiresAt());
+        assertThatThrownBy(() -> service.provisionRuntime(missingSignature, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed");
+
+        var tamperedProfile = copyProfile(issued, "sha256:tampered", issued.signature(), issued.expiresAt());
+        assertThatThrownBy(() -> service.provisionRuntime(tamperedProfile, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed");
+
+        var expiredProfile = copyProfile(issued, issued.runtimeProfileHash(), issued.signature(), Instant.now().minusSeconds(60).toString());
+        assertThatThrownBy(() -> service.provisionRuntime(expiredProfile, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed");
+
+        WeaverRuntimeService wrongKeyService = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        assertThatThrownBy(() -> wrongKeyService.provisionRuntime(issued, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("valid signed");
     }
 
     @Test
@@ -412,10 +445,28 @@ class WeaverRuntimeServiceTest {
                 allowedCapabilities,
                 List.of("weave-files-readonly"),
                 toolAllowlist,
+                null,
                 false,
                 false,
                 true,
                 false);
+    }
+
+    private WeaverRuntimeProfileResponse copyProfile(
+            WeaverRuntimeProfileResponse profile,
+            String runtimeProfileHash,
+            String signature,
+            String expiresAt) {
+        return new WeaverRuntimeProfileResponse(
+                profile.enabled(), profile.posture(), profile.runtimeKind(), profile.runtimeProvider(), profile.modelProvider(),
+                profile.toolProvider(), profile.generatedFrom(), profile.userRef(), profile.profileVersion(), runtimeProfileHash,
+                signature, expiresAt, profile.revoked(), profile.revocationStatus(), profile.revocationGeneration(),
+                profile.previousProfileHash(), profile.rollbackProfileHash(), profile.baselineProfile(), profile.containerImage(),
+                profile.workspacePath(), profile.isolatedAgentDirectory(), profile.dockerNetworkMode(), profile.allowedCapabilities(),
+                profile.pluginAllowlist(), profile.toolAllowlist(), profile.execEnabled(), profile.elevatedEnabled(),
+                profile.auditRequired(), profile.forkRequired(), profile.channelProjection(), profile.credentialBrokerContract(),
+                profile.auditPolicy(), profile.supportSafeProfileReceipt(), profile.approvalPolicy(), profile.secretPosture(),
+                profile.isolationBoundary(), profile.memberImpact());
     }
 
     private Jwt jwt(String subject, List<String> roles, List<String> groups) {

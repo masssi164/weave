@@ -31,7 +31,7 @@ public record WeaverToolInvocationRequest(
                 userRef,
                 runtimeProfileHash,
                 userRef,
-                "weave-signature:v1:test-support-safe",
+                "weave-hmac-sha256:v1:keyref:test-support-safe:test-support-safe",
                 false,
                 Instant.now().plusSeconds(300).toString(),
                 true,

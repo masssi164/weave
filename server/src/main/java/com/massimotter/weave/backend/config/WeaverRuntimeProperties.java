@@ -15,6 +15,7 @@ public record WeaverRuntimeProperties(
         List<String> allowedCapabilities,
         List<String> pluginAllowlist,
         List<String> toolAllowlist,
+        String signingKeySecretRef,
         boolean execEnabled,
         boolean elevatedEnabled,
         boolean auditRequired,
@@ -30,6 +31,7 @@ public record WeaverRuntimeProperties(
         allowedCapabilities = normalize(allowedCapabilities, List.of("weaver.files_read", "weaver.exec_disabled"));
         pluginAllowlist = normalize(pluginAllowlist, List.of("weave-files-readonly"));
         toolAllowlist = normalize(toolAllowlist, List.of("files.read"));
+        signingKeySecretRef = hasText(signingKeySecretRef) ? signingKeySecretRef : "secretref://weave/weaver/runtime-profile-signing-key";
         // Even when an admin enables the runtime, audit remains required by default.
         auditRequired = true;
     }

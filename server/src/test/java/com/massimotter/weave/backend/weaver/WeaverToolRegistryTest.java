@@ -309,7 +309,7 @@ class WeaverToolRegistryTest {
     }
 
     private String signature() {
-        return "weave-signature:v1:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        return "weave-hmac-sha256:v1:keyref:aaaaaaaaaaaaaaaa:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     }
 
     private String future() {

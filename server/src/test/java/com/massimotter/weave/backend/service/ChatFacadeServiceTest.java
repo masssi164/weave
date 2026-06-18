@@ -305,6 +305,7 @@ class ChatFacadeServiceTest {
                 List.of("weaver.files_read", "weaver.exec_disabled"),
                 List.of("weave-chat"),
                 List.of("message.send"),
+                null,
                 false,
                 false,
                 true,

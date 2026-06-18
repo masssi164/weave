@@ -14,7 +14,7 @@ Weaver is an optional per-user personal-assistant runtime. It is generated from 
 
 ## RuntimeProfile and OpenClaw projection boundary
 
-The Weaver/OpenClaw fork consumes one signed `WeaverRuntimeProfile` from Weave. Weave remains the source of truth for domains, provider selection, policy, credentials, and audit; OpenClaw configuration is generated runtime output, not a member-managed product model.
+The Weaver/OpenClaw fork consumes one keyed-signed `WeaverRuntimeProfile` from Weave. The signature is an HMAC-SHA-256 verification boundary over the issued profile hash and version; the signing key is represented only by `secretref://weave/weaver/runtime-profile-signing-key` in support evidence, never as raw key material. Weave remains the source of truth for domains, provider selection, policy, credentials, and audit; OpenClaw configuration is generated runtime output, not a member-managed product model.
 
 Required projection controls:
 
@@ -26,7 +26,7 @@ Required projection controls:
 - MCP servers, skills, and tools are distributed through Weave policy. `tools.deny` is hard-deny; `bundle-mcp`, gateway, cron, exec, write, and patch-style capabilities remain default-deny unless the signed profile explicitly allows a constrained use.
 - OpenClaw Policy/Doctor output is conformance lint over generated settings. It is not a second source of truth.
 
-Correct Chat provider-change flow: Admin changes the Chat domain provider in Weave -> readiness/migration checks run -> Credential Broker binds new provider credentials -> Weave backend routing/profile version changes -> signed RuntimeProfile vNext still exposes `channels.weave-chat` with updated profile hash/runtime token metadata -> the stable channel reloads or restarts if needed -> the user continues through Weave UX.
+Correct Chat provider-change flow: Admin changes the Chat domain provider in Weave -> readiness/migration checks run -> Credential Broker binds new provider credentials -> Weave backend routing/profile version changes -> keyed-signed RuntimeProfile vNext still exposes `channels.weave-chat` with updated profile hash, signature key reference, and runtime-token metadata -> the stable channel reloads or restarts if needed -> the user continues through Weave UX.
 
 ## Disabled-by-default gates
 
@@ -114,7 +114,7 @@ Sprint 12 keeps Weaver runtime execution disabled by default. See `docs/architec
 
 Every admin-distributed skill or tool manifest must be version-pinned and include:
 
-- signature and provenance;
+- keyed signature and provenance;
 - semantic version and immutable artifact digest;
 - declared capabilities, approval class, data classes, and egress destinations;
 - SecretRefs and OAuth/service-account broker requirements;

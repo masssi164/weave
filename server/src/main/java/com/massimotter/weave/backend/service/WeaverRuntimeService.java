@@ -9,11 +9,13 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.SecureRandom;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -22,6 +24,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -46,6 +50,7 @@ public class WeaverRuntimeService {
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WeaverRuntimeProperties weaverRuntimeProperties;
     private final AuditEventPublisher auditEventPublisher;
+    private final byte[] runtimeProfileSigningKey;
 
     public WeaverRuntimeService(
             WorkspaceCapabilityService workspaceCapabilityService,
@@ -56,6 +61,8 @@ public class WeaverRuntimeService {
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.weaverRuntimeProperties = weaverRuntimeProperties;
         this.auditEventPublisher = auditEventPublisher;
+        this.runtimeProfileSigningKey = new byte[32];
+        new SecureRandom().nextBytes(this.runtimeProfileSigningKey);
     }
 
     public WeaverRuntimeProfileResponse profileFor(Jwt jwt) {
@@ -181,6 +188,10 @@ public class WeaverRuntimeService {
             auditRollback(userRef, rollbackProfileHash, "rollback_denied");
             return disabledProfile(userRef, "runtime-profile-rollback-denied", "RuntimeProfile rollback failed closed.");
         }
+        if (!verifyProfile(rollback)) {
+            auditRollback(userRef, rollbackProfileHash, "rollback_signature_denied");
+            return disabledProfile(userRef, "runtime-profile-signature-invalid", "RuntimeProfile rollback failed closed.");
+        }
         String currentProfileHash = currentProfileHashByUser.getOrDefault(userRef, "none");
         rollbackProfileHashByUser.put(userRef, currentProfileHash);
         currentProfileHashByUser.put(userRef, rollback.runtimeProfileHash());
@@ -201,6 +212,9 @@ public class WeaverRuntimeService {
                 || !runtimeProfileHash.strip().equals(currentProfileHashByUser.getOrDefault(userRef, ""))) {
             return disabledProfile(userRef, "runtime-profile-fetch-denied", "RuntimeProfile fetch-by-hash failed closed.");
         }
+        if (!verifyProfile(issued)) {
+            return disabledProfile(userRef, "runtime-profile-signature-invalid", "RuntimeProfile fetch-by-hash failed closed.");
+        }
         if (!Boolean.TRUE.equals(issued.supportSafeProfileReceipt().get("signed"))
                 || !Boolean.TRUE.equals(issued.supportSafeProfileReceipt().get("fetchByHashRequired"))) {
             return disabledProfile(userRef, "runtime-profile-signature-missing", "RuntimeProfile fetch-by-hash failed closed.");
@@ -211,6 +225,9 @@ public class WeaverRuntimeService {
     public WeaverRuntimeInstance provisionRuntime(WeaverRuntimeProfileResponse profile, String orgRef, String policyVersion) {
         if (profile == null || !profile.enabled() || profile.revoked()) {
             throw new IllegalArgumentException("Only active Weaver RuntimeProfiles can be provisioned.");
+        }
+        if (Instant.parse(profile.expiresAt()).isBefore(Instant.now()) || !verifyProfile(profile)) {
+            throw new IllegalArgumentException("Only valid signed Weaver RuntimeProfiles can be provisioned.");
         }
         Map<String, String> labels = runtimeLabels(profile, orgRef, policyVersion);
         WeaverRuntimeInstance instance = new WeaverRuntimeInstance(
@@ -645,7 +662,33 @@ public class WeaverRuntimeService {
     }
 
     private String signProfile(String runtimeProfileHash, String profileVersion) {
-        return "weave-signature:v1:" + sha256(runtimeProfileHash + ":" + profileVersion + ":support-safe");
+        return "weave-hmac-sha256:v1:" + signingKeyRefFingerprint() + ":" + hmacSha256(signingPayload(runtimeProfileHash, profileVersion));
+    }
+
+    private boolean verifyProfile(WeaverRuntimeProfileResponse profile) {
+        if (profile == null || profile.signature() == null || !profile.signature().startsWith("weave-hmac-sha256:v1:")) {
+            return false;
+        }
+        String expected = signProfile(profile.runtimeProfileHash(), profile.profileVersion());
+        return MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8), profile.signature().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String signingPayload(String runtimeProfileHash, String profileVersion) {
+        return String.join("|", "runtime-profile", runtimeProfileHash, profileVersion);
+    }
+
+    private String signingKeyRefFingerprint() {
+        return "keyref:" + sha256(weaverRuntimeProperties.signingKeySecretRef()).substring(0, 16);
+    }
+
+    private String hmacSha256(String value) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(runtimeProfileSigningKey, "HmacSHA256"));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception e) {
+            throw new IllegalStateException("HMAC-SHA-256 is required for Weaver RuntimeProfile signatures", e);
+        }
     }
 
     private Map<String, Object> channelProjection(
@@ -658,17 +701,18 @@ public class WeaverRuntimeService {
             List<String> allowedCapabilities,
             List<String> toolAllowlist) {
         String runtimeTokenRef = "credentialref://weave/runtime/short-lived/" + userRef.replace("user:", "");
-        Map<String, Object> runtimeProfileFetch = Map.of(
-                "fetchRef", "weave-runtime-profile://" + runtimeProfileHash,
-                "runtimeProfileHash", runtimeProfileHash,
-                "profileVersion", profileVersion,
-                "expiresAt", expiresAt,
-                "previousProfileHash", previousProfileHash,
-                "signatureRequired", true,
-                "signatureAlgorithm", "weave-signature:v1",
-                "revocationChecked", true,
-                "supportSafe", true,
-                "rawProfileBodyReturnedToMembers", false);
+        Map<String, Object> runtimeProfileFetch = Map.ofEntries(
+                Map.entry("fetchRef", "weave-runtime-profile://" + runtimeProfileHash),
+                Map.entry("runtimeProfileHash", runtimeProfileHash),
+                Map.entry("profileVersion", profileVersion),
+                Map.entry("expiresAt", expiresAt),
+                Map.entry("previousProfileHash", previousProfileHash),
+                Map.entry("signatureRequired", true),
+                Map.entry("signatureAlgorithm", "weave-hmac-sha256:v1"),
+                Map.entry("signatureKeyRef", weaverRuntimeProperties.signingKeySecretRef()),
+                Map.entry("revocationChecked", true),
+                Map.entry("supportSafe", true),
+                Map.entry("rawProfileBodyReturnedToMembers", false));
         List<String> mcpAllowedTools = governedMcpAllowedTools(allowedCapabilities, toolAllowlist);
         return Map.ofEntries(
                 Map.entry("channelId", "channels.weave-chat"),
@@ -753,6 +797,8 @@ public class WeaverRuntimeService {
                 Map.entry("profileVersion", profileVersion),
                 Map.entry("runtimeProfileHash", runtimeProfileHash),
                 Map.entry("signature", signature),
+                Map.entry("signatureAlgorithm", "weave-hmac-sha256:v1"),
+                Map.entry("signatureKeyRef", weaverRuntimeProperties.signingKeySecretRef()),
                 Map.entry("signed", true),
                 Map.entry("fetchByHashRequired", true),
                 Map.entry("fetchRef", "weave-runtime-profile://" + runtimeProfileHash),

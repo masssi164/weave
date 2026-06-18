@@ -89,7 +89,7 @@ public class WorkspaceCapabilityService {
                 resourceServerProperties,
                 weaveSecurityProperties,
                 workspaceCapabilityProperties,
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, null, false, false, true, false));
     }
 
     @Autowired
