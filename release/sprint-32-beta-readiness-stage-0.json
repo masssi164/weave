@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "artifactKind": "weave-sprint-32-beta-readiness-stage-0-snapshot",
-  "capturedAt": "2026-06-18T06:40:00+02:00",
+  "capturedAt": "2026-06-18T10:30:00+02:00",
   "sourceBoundary": {
     "branch": "origin/dev",
-    "commit": "2608cec027",
+    "commit": "c4438ea847",
     "truth": "GitHub PRs/issues/checks and checked-in evidence artifacts; local dirty worktrees are not release truth"
   },
   "governingDocs": [
@@ -55,6 +55,14 @@
       "mergedAt": "2026-06-18T04:40:01Z",
       "releaseNotesLabel": "release-notes-feature",
       "ci": "GitHub Gradle CI success"
+    },
+    {
+      "number": 842,
+      "title": "test: map Sprint 32 Beta path evidence",
+      "url": "https://github.com/masssi164/weave/pull/842",
+      "mergedAt": "2026-06-18T08:21:23Z",
+      "releaseNotesLabel": "release-notes-skip",
+      "ci": "GitHub Gradle CI success"
     }
   ],
   "betaGates": {
@@ -63,21 +71,13 @@
     "adminReadinessPreview": "present",
     "runtimeApprovalEvidence": "present",
     "memberClientWeaverFlow": "present",
-    "e2eAcceptanceEvidence": "blocked_by_issue_835",
-    "accessibilitySmoke": "blocked_by_issue_835",
-    "releaseDemoAlignment": "prepared_not_final"
+    "e2eAcceptanceEvidence": "present_after_pr_842",
+    "accessibilitySmoke": "present_after_pr_842",
+    "releaseDemoAlignment": "prepared_pending_issue_836_merge"
   },
-  "openBlockers": [
-    {
-      "issue": 835,
-      "url": "https://github.com/masssi164/weave/issues/835",
-      "inFlightPullRequest": 842,
-      "inFlightPullRequestUrl": "https://github.com/masssi164/weave/pull/842",
-      "reason": "Admin + User + Weaver E2E proof and critical a11y smoke remain open/in flight; final Beta closure must wait for PR #842 to merge."
-    }
-  ],
+  "openBlockers": [],
   "claimBoundary": {
-    "allowed": "guarded Beta candidate / release-demo preparation after #830-#834 merged",
+    "allowed": "guarded Beta candidate / release-demo preparation after #830-#835 merged",
     "forbiddenUntilFinalClosure": [
       "Beta complete",
       "general availability or public launch",
@@ -86,5 +86,11 @@
       "unrestricted autonomous Weaver",
       "MCP as user-facing product surface"
     ]
+  },
+  "milestoneClosureCheck": {
+    "checkedAt": "2026-06-18T10:30:00+02:00",
+    "source": "gh issue list --milestone \"Sprint 32\" --state open",
+    "openIssueCount": 0,
+    "note": "Re-check before closing #836 so any remaining milestone issues outside #830-#836, if later added, are not missed."
   }
 }
