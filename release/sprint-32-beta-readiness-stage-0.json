@@ -73,9 +73,12 @@
     "memberClientWeaverFlow": "present",
     "e2eAcceptanceEvidence": "present_after_pr_842",
     "accessibilitySmoke": "present_after_pr_842",
-    "releaseDemoAlignment": "prepared_pending_issue_836_merge"
+    "releaseDemoAlignment": "prepared_pending_issue_836_merge",
+    "scope": "issue_830_to_836_beta_readiness_slice_only"
   },
-  "openBlockers": [],
+  "openBlockers": [
+    "Overall Sprint 32 milestone remains open pending remaining P0 lanes outside #830-#836, including #771, #787, #792, #794, and #795."
+  ],
   "claimBoundary": {
     "allowed": "guarded Beta candidate / release-demo preparation after #830-#835 merged",
     "forbiddenUntilFinalClosure": [
@@ -88,9 +91,10 @@
     ]
   },
   "milestoneClosureCheck": {
-    "checkedAt": "2026-06-18T10:30:00+02:00",
-    "source": "gh issue list --milestone \"Sprint 32\" --state open",
-    "openIssueCount": 0,
-    "note": "Re-check before closing #836 so any remaining milestone issues outside #830-#836, if later added, are not missed."
+    "checkedAt": "2026-06-18T11:16:00+02:00",
+    "source": "GitHub live milestone state for PR #843 review",
+    "openIssueCount": null,
+    "scope": "not_full_sprint_32_closure",
+    "note": "Do not use PR #843 to claim overall Sprint 32 completion. #830-#836 may close as the Beta readiness slice after #836 merges, while the overall Sprint 32 milestone remains open pending remaining P0 lanes outside #830-#836, including #771, #787, #792, #794, and #795."
   }
 }

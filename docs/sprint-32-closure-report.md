@@ -1,6 +1,6 @@
 # Sprint 32 closure report — Beta readiness candidate
 
-Status: **closure evidence refreshed after #835 / PR #842**. This report prepares the Sprint 32 release/demo/evidence closure for issue #836 after #830-#835 landed on `dev`. GitHub verification on 2026-06-18 found PR #842 merged, issue #835 closed, and no open issues remaining in the Sprint 32 milestone; final Sprint 32 closure still depends on keeping that GitHub closure gate green at #836 merge time.
+Status: **Beta readiness slice evidence refreshed after #835 / PR #842**. This report prepares the release/demo/evidence closure for issue #836 after #830-#835 landed on `dev`. GitHub verification on 2026-06-18 found PR #842 merged and issue #835 closed, so the #830-#836 Beta readiness slice is ready for #836 review. This is not overall Sprint 32 milestone completion: the milestone remains open pending remaining P0 lanes outside #830-#836, including #771, #787, #792, #794, and #795.
 
 ## Governing scope
 
@@ -51,14 +51,14 @@ Required for this #836 preparation PR:
 - `./gradlew docsCheck`
 - `./gradlew releaseEvidenceCheck`
 
-Final Sprint 32 closure still requires a refreshed GitHub closure gate at #836 merge time: no open issues in the Sprint 32 milestone (verified on 2026-06-18, but must remain true), closure report on the target release truth branch, green CI for the final integration head, and evidence links for E2E/acceptance, adapter dry-run, runtime approvals, accessibility smoke, and Stage-0/final snapshots.
+Final closure for the #830-#836 Beta readiness slice requires #836 review/merge, this closure report on the target release truth branch, green CI for the #836 integration head, and evidence links for E2E/acceptance, adapter dry-run, runtime approvals, accessibility smoke, and Stage-0/final snapshots. Full Sprint 32 milestone closure remains explicitly out of scope for PR #843 while other Sprint 32 P0 lanes remain open.
 
 ## Known limitations / blockers
 
-- #835 is closed and PR #842 is merged; the 2026-06-18 GitHub milestone query returned zero open Sprint 32 issues. Re-check before closing #836 so remaining milestone issues outside #830-#836, if any are added, are not missed.
+- #835 is closed and PR #842 is merged; this closes the #830-#836 Beta readiness slice only after #836 merges. It does not close the overall Sprint 32 milestone, which still has remaining P0 lanes outside #830-#836 such as #771, #787, #792, #794, and #795.
 - Local dirty worktrees are not release truth. Use GitHub PRs/checks, protected branches, and checked-in evidence artifacts.
 - Sprint 32 currently targets `dev`; promotion to `main`, RC tagging, or production publication is outside this #836 preparation PR.
 
 ## Next safe action
 
-Review and merge PR #843 for #836 release evidence after `docsCheck`, `releaseEvidenceCheck`, GitHub CI, and the refreshed milestone closure gate remain green. Then close #836 / the Sprint 32 milestone only if GitHub still reports no open Sprint 32 issues.
+Review and merge PR #843 for #836 release evidence after `docsCheck`, `releaseEvidenceCheck`, and GitHub CI are green. Then close #836 as the Beta readiness release-evidence slice; keep the overall Sprint 32 milestone open until the remaining P0 lanes outside #830-#836 are closed.
