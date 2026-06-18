@@ -78,7 +78,15 @@ class WeaverToolRegistryTest {
 
         assertThat(missingApproval.status()).isEqualTo("approval_required");
         assertThat(missingApproval.approvalRequired()).isTrue();
-        assertThat(missingApproval.redactedResult()).containsEntry("approvalPolicy", "REQUIRED_BEFORE_INVOCATION");
+        assertThat(missingApproval.redactedResult())
+                .containsEntry("approvalPolicy", "REQUIRED_BEFORE_INVOCATION")
+                .containsEntry("approvalAuthority", "user_openclaw_runtime")
+                .containsEntry("approvalSurface", "openclaw_native_or_beta_equivalent_runtime_ux")
+                .containsEntry("serverApprovalDecision", false);
+        assertThat(missingApproval.redactedResult().get("approvalPromptInputs").toString())
+                .contains("supportSafeParameterSummary")
+                .doesNotContain("rawProviderPayload", "secretRef.value");
+
 
         var approved = registry.invoke(new WeaverToolInvocationRequest(
                 "boards.comment",
@@ -101,7 +109,7 @@ class WeaverToolRegistryTest {
                         "approval:abc123",
                         "user:abc123",
                         "boards.comment",
-                        List.of("board-task:WEAVE-601"),
+                        List.of("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601"),
                         "policy:test",
                         future(),
                         "audit://weaver-approval/test")));
@@ -110,6 +118,7 @@ class WeaverToolRegistryTest {
         assertThat(approved.approvalRequired()).isFalse();
         assertThat(approved.redactedResult()).containsEntry("rawProviderPayload", "redacted");
         assertThat(approved.redactedResult()).containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/test");
+        assertThat(approved.redactedResult()).containsEntry("approvalAuthority", "user_openclaw_runtime");
         assertThat(approved.redactedResult().get("canonicalRefs").toString())
                 .contains("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601")
                 .doesNotContain("Looks good", "providerRoom", "matrix");
@@ -121,6 +130,101 @@ class WeaverToolRegistryTest {
                 .containsEntry("approvalReceiptValidated", true)
                 .containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/test")
                 .containsEntry("approvalReceiptPolicyVersion", "policy:test");
+    }
+
+    @Test
+    void mismatchedApprovalReceiptScopeFailsClosedBeforeInvocation() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var result = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.comment",
+                "user:abc123",
+                "sha256:scope-mismatch000000000000000000000000000000000000000000000000",
+                "user:abc123",
+                signature(),
+                false,
+                future(),
+                true,
+                List.of("weaver.boards_write"),
+                List.of("boards.comment"),
+                Map.of(
+                        "spaceRef", "space:control-room",
+                        "decisionRef", "decision:governed-weaver",
+                        "boardTaskRef", "board-task:WEAVE-602",
+                        "body", "Looks good"),
+                "approval:abc123",
+                new WeaverApprovalReceipt(
+                        "approval:abc123",
+                        "user:abc123",
+                        "boards.comment",
+                        List.of("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601"),
+                        "policy:test",
+                        future(),
+                        "audit://weaver-approval/test")));
+
+        assertThat(result.status()).isEqualTo("approval_scope_mismatch");
+        assertThat(result.approvalRequired()).isFalse();
+        assertThat(result.redactedResult()).containsEntry("approvalReceiptValidated", false);
+        assertThat(result.redactedResult().get("canonicalRefs").toString())
+                .contains("space:control-room", "decision:governed-weaver", "board-task:WEAVE-602")
+                .doesNotContain("WEAVE-601");
+        assertThat(audit.events()).hasSize(1);
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("status", "approval_scope_mismatch")
+                .containsEntry("approvalReceiptValidated", false)
+                .containsEntry("serverApprovalDecision", false);
+        assertThat(audit.events().get(0).payload().toString()).doesNotContain("Looks good", "provider payload", "secret");
+    }
+
+    @Test
+    void runtimeDeniedOrTimedOutApprovalFailsClosedWithoutServerDecision() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var denied = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.comment",
+                "user:abc123",
+                "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+                List.of("weaver.boards_write"),
+                Map.of("boardTaskRef", "board-task:WEAVE-833", "body", "provider payload must stay out"),
+                "approval:denied:user-runtime"));
+        var timedOut = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.comment",
+                "user:abc123",
+                "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+                List.of("weaver.boards_write"),
+                Map.of("boardTaskRef", "board-task:WEAVE-833", "body", "provider payload must stay out"),
+                "approval:timeout:user-runtime"));
+
+        assertThat(denied.status()).isEqualTo("approval_denied");
+        assertThat(timedOut.status()).isEqualTo("approval_timeout");
+        assertThat(denied.approvalRequired()).isFalse();
+        assertThat(timedOut.approvalRequired()).isFalse();
+        assertThat(audit.events()).hasSize(2);
+        assertThat(audit.events()).allSatisfy(event -> assertThat(event.payload())
+                .containsEntry("approvalAuthority", "user_openclaw_runtime")
+                .containsEntry("serverApprovalDecision", false)
+                .containsEntry("supportSafe", true));
+        assertThat(audit.events().toString()).doesNotContain("provider payload", "secret", "Bearer ");
+    }
+
+    @Test
+    void readOnlyToolsDoNotRequestApprovalToAvoidApprovalFatigue() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var result = registry.invoke(new WeaverToolInvocationRequest(
+                "calendar.search_events",
+                "user:abc123",
+                "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                List.of("weaver.calendar_read"),
+                Map.of("query", "today"),
+                null));
+
+        assertThat(result.status()).isEqualTo("ok");
+        assertThat(result.approvalRequired()).isFalse();
+        assertThat(result.redactedResult()).containsEntry("approvalAuthority", "not_required");
     }
 
     @Test

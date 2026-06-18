@@ -23,10 +23,12 @@ public record WeaverApprovalReceipt(
         auditRef = safe(auditRef);
     }
 
-    public boolean validFor(String actorRef, String action) {
+    public boolean validFor(String actorRef, String action, List<String> requiredScopeRefs) {
+        List<String> safeRequiredScopeRefs = List.copyOf(requiredScopeRefs == null ? List.of() : requiredScopeRefs);
         return !receiptRef.isBlank()
                 && this.actorRef.equals(actorRef)
                 && this.action.equals(action)
+                && scopeRefs.containsAll(safeRequiredScopeRefs)
                 && !policyVersion.isBlank()
                 && auditRef.startsWith("audit://")
                 && expiresInFuture();

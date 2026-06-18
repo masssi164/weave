@@ -25,7 +25,10 @@
     "credentialBearingUrlsReturned": false,
     "authorizationSource": "Generated Weave RuntimeProfile projection carrying the capability-policy intersection; caller-supplied capability headers are ignored",
     "auditRequiredForEveryToolCall": true,
-    "approvalReceiptRequiredForWriteDeleteExternalSendProviderSwitch": true
+    "approvalReceiptRequiredForWriteDeleteExternalSendProviderSwitch": true,
+    "approvalAuthority": "user_openclaw_runtime_for_member_tool_actions",
+    "serverApprovalOracleAllowed": false,
+    "approvalFatigueControl": "approval receipts are required only for write/delete/external-send/provider-switch/admin-risk actions; read-only granted tools do not prompt by default"
   },
   "canonicalDomains": [
     {
