@@ -316,6 +316,20 @@ describe("Admin Console MVP", () => {
     expect(
       screen.getByLabelText(/domain readiness dashboard/i),
     ).toHaveTextContent(/member preview: degraded/i);
+    expect(
+      screen.getByRole("heading", {
+        name: /beta setup and control readiness preview/i,
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(/beta setup and control readiness checklist/i),
+    ).toHaveTextContent(/idm and rbac posture: ready/i);
+    expect(
+      screen.getByLabelText(/beta setup and control readiness checklist/i),
+    ).toHaveTextContent(/weaver availability: coming_later/i);
+    expect(
+      screen.getByLabelText(/beta setup and control readiness checklist/i),
+    ).toHaveTextContent(/raw provider diagnostics exposed: no/i);
     expect(screen.getByText(/rc claim control/i)).toBeInTheDocument();
     expect(
       screen.getByLabelText(/rc go-live evidence and release claim gates/i),

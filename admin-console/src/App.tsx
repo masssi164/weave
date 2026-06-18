@@ -977,6 +977,54 @@ export default function App({
                 </CardContent>
               </Card>
 
+              <Card
+                component="section"
+                aria-labelledby="beta-readiness-preview-heading"
+              >
+                <CardContent>
+                  <Typography
+                    id="beta-readiness-preview-heading"
+                    variant="h2"
+                    sx={{ fontSize: "1.35rem", mb: 2 }}
+                  >
+                    Beta setup and control readiness preview
+                  </Typography>
+                  <Typography sx={{ mb: 2 }}>
+                    This Admin Console preview ties IDM/RBAC, provider adapters,
+                    Weaver eligibility, and evidence posture into one
+                    screen-reader-friendly checklist before members are invited.
+                    It is support-safe: admins see action labels and evidence
+                    refs, not raw provider payloads or secrets.
+                  </Typography>
+                  <List aria-label="Beta setup and control readiness checklist">
+                    <ListItem alignItems="flex-start">
+                      <ListItemText
+                        primary={`IDM and RBAC posture: ${readableState(controlPlane.identityProviderReadiness.overallState)}`}
+                        secondary={`Backend-owned identity facade: ${controlPlane.identityProviderReadiness.backendOwnedFacade ? "yes" : "no"}; member identity-provider setup controls: ${controlPlane.identityProviderReadiness.memberClientMayConfigureIdentityProvider ? "exposed" : "blocked"}.`}
+                      />
+                    </ListItem>
+                    <ListItem alignItems="flex-start">
+                      <ListItemText
+                        primary={`Provider adapter posture: ${controlPlane.providerCategories.map((category) => `${category.label} ${readableState(category.state)}`).join("; ")}`}
+                        secondary="Each provider category includes member impact, policy state, dry-run/apply gates, evidence freshness, and the next safe operator action."
+                      />
+                    </ListItem>
+                    <ListItem alignItems="flex-start">
+                      <ListItemText
+                        primary={`Weaver availability: ${controlPlane.weaverEligibilityPreview.memberStateWhenEligible}`}
+                        secondary={`Explicit policy enabled: ${controlPlane.weaverEligibilityPreview.policyEnabled ? "yes" : "no"}; required groups: ${controlPlane.weaverEligibilityPreview.requiredGroups.join(", ") || "none"}; fail-closed without group: ${controlPlane.weaverEligibilityPreview.memberStateWithoutGroup}.`}
+                      />
+                    </ListItem>
+                    <ListItem alignItems="flex-start">
+                      <ListItemText
+                        primary={`Evidence posture: ${readableState(controlPlane.goLiveReadiness.state)}`}
+                        secondary={`Support-safe go-live evidence: ${controlPlane.goLiveReadiness.supportSafe ? "yes" : "no"}; raw provider diagnostics exposed: ${controlPlane.goLiveReadiness.rawProviderDiagnosticsExposed ? "yes" : "no"}; blockers: ${controlPlane.goLiveReadiness.blockers.join(", ") || "none"}.`}
+                      />
+                    </ListItem>
+                  </List>
+                </CardContent>
+              </Card>
+
               {canInspectReadiness ? (
                 <Card component="section" aria-labelledby="go-live-heading">
                   <CardContent>
