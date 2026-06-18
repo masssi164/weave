@@ -79,3 +79,5 @@ Sprint 32 Beta claim promotion requires all of the following to be true:
 - [No-unaccounted-data-loss portability contract](architecture/no-unaccounted-data-loss.md)
 - [Product trust and provider-choice claim matrix](product-trust-provider-choice-claim-matrix.md)
 - [Unreleased release notes](release-notes/unreleased.md)
+- [Sprint 32 Beta readiness release evidence](evidence/sprint-32-beta-readiness-release-evidence.md)
+- [Sprint 32 closure report](sprint-32-closure-report.md)

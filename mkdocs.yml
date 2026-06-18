@@ -87,6 +87,8 @@ nav:
       - Admin-Suite readiness and setup contract: admin-suite-readiness-setup-contract.md
       - Governed Weaver runtime security contract: governed-weaver-runtime-security-contract.md
       - Beta readiness slice and claim gates: beta-readiness-claim-gates.md
+      - Sprint 32 Beta readiness release evidence: evidence/sprint-32-beta-readiness-release-evidence.md
+      - Sprint 32 closure report: sprint-32-closure-report.md
       - Weaver security/privacy/accessibility evidence: evidence/weaver-security-privacy-accessibility-report.md
       - Provider replacement and anti-silo contract: provider-replacement-and-anti-silo-contract.md
       - Product trust and provider-choice claim matrix: product-trust-provider-choice-claim-matrix.md
