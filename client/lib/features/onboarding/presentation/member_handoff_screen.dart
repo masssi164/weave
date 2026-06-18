@@ -8,6 +8,7 @@ import 'package:weave/core/widgets/error_state.dart';
 import 'package:weave/core/widgets/loading_state.dart';
 import 'package:weave/features/onboarding/domain/use_cases/consume_member_handoff.dart';
 import 'package:weave/features/server_config/presentation/providers/server_configuration_repository_provider.dart';
+import 'package:weave/l10n/generated/app_localizations.dart';
 
 final consumeMemberHandoffProvider = Provider<ConsumeMemberHandoff>((ref) {
   final httpClient = http.Client();
@@ -53,15 +54,16 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final failure = _failure;
     if (failure != null) {
       return Scaffold(
         body: SafeArea(
           child: Center(
             child: ErrorState(
-              message: 'We could not open this Weave invite',
-              guidance: '$failure',
-              retryLabel: 'Try again',
+              message: l10n.memberHandoffErrorTitle,
+              guidance: l10n.memberHandoffErrorGuidance,
+              retryLabel: l10n.retryButton,
               onRetry: () {
                 setState(() => _failure = null);
                 _consume();
@@ -71,12 +73,12 @@ class _MemberHandoffScreenState extends ConsumerState<MemberHandoffScreen> {
         ),
       );
     }
-    return const Scaffold(
+    return Scaffold(
       body: SafeArea(
         child: Center(
           child: LoadingState(
-            message: 'Opening Weave invite',
-            hint: 'We are preparing sign-in for this workspace.',
+            message: l10n.memberHandoffLoadingTitle,
+            hint: l10n.memberHandoffLoadingHint,
           ),
         ),
       ),

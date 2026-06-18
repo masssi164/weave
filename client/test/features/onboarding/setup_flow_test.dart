@@ -87,36 +87,41 @@ void main() {
       preferencesStore = InMemoryPreferencesStore();
     });
 
-    testWidgets(
-      'renders first step with identity endpoint and client id fields',
-      (tester) async {
-        await tester.pumpWidget(buildApp());
-        await tester.pumpAndSettle();
+    testWidgets('renders member handoff first without raw provider fields', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
 
-        expect(find.byType(WeaveLogo), findsOneWidget);
-        expect(find.text('Configure provider categories'), findsOneWidget);
-        expect(find.text('Provider categories'), findsOneWidget);
-        expect(find.text('Identity/IDM'), findsOneWidget);
-        expect(find.text('Documents/collaboration'), findsOneWidget);
-        expect(find.text('Weaver'), findsOneWidget);
-        expect(find.text('Identity endpoint'), findsOneWidget);
-        expect(
-          find.textContaining(
-            'Provider selection is owned by the Weave Admin Console',
-          ),
-          findsOneWidget,
-        );
-        expect(find.text('Provider type'), findsNothing);
-        expect(find.text('OIDC Client ID'), findsOneWidget);
-        expect(find.text('Next'), findsOneWidget);
-      },
-    );
+      expect(find.byType(WeaveLogo), findsOneWidget);
+      expect(
+        find.text('Join from an invite or organization sign-in'),
+        findsOneWidget,
+      );
+      expect(find.text('I have an invite or sign-in link'), findsOneWidget);
+      expect(find.text('Open operator recovery setup'), findsOneWidget);
+      expect(find.text('Configure provider categories'), findsNothing);
+      expect(find.text('Provider categories'), findsNothing);
+      expect(find.text('Identity endpoint'), findsNothing);
+      expect(find.text('Provider type'), findsNothing);
+      expect(find.text('OIDC Client ID'), findsNothing);
+      expect(find.text('OIDC Issuer URL'), findsNothing);
+      expect(find.text('Nextcloud Base URL'), findsNothing);
+    });
 
     testWidgets('derives service endpoints from the issuer host', (
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Open operator recovery setup'));
+      await tester.tap(find.text('Open operator recovery setup'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Provider categories'), findsOneWidget);
+      expect(find.text('Documents/collaboration'), findsOneWidget);
+      expect(find.text('Weaver'), findsOneWidget);
 
       await tester.enterText(
         _textFieldWithLabel('OIDC Issuer URL'),
@@ -136,6 +141,10 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Open operator recovery setup'));
+      await tester.tap(find.text('Open operator recovery setup'));
       await tester.pumpAndSettle();
 
       await tester.enterText(
@@ -164,6 +173,10 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(buildApp());
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Open operator recovery setup'));
+      await tester.tap(find.text('Open operator recovery setup'));
       await tester.pumpAndSettle();
 
       await tester.enterText(

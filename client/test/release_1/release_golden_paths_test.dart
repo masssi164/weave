@@ -106,9 +106,13 @@ void main() {
           container.read(appBootstrapProvider).requireValue.phase,
           BootstrapPhase.needsSetup,
         );
-        expect(find.text('Get Started'), findsOneWidget);
+        expect(find.text('Join your organization'), findsOneWidget);
 
-        await tester.tap(find.text('Get Started'));
+        await tester.tap(find.text('Join your organization'));
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('Open operator recovery setup'));
+        await tester.tap(find.text('Open operator recovery setup'));
         await tester.pumpAndSettle();
 
         await tester.enterText(

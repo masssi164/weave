@@ -8,15 +8,15 @@
   "@welcomeTitle": {
     "description": "Main heading on the welcome screen"
   },
-  "welcomeSubtitle": "Your unified collaboration hub for messaging, files, and secure self-hosted access.",
+  "welcomeSubtitle": "Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.",
   "@welcomeSubtitle": {
     "description": "Subtitle text below the welcome heading"
   },
-  "continueButton": "Get Started",
+  "continueButton": "Join your organization",
   "@continueButton": {
     "description": "Label for the primary CTA on the welcome screen"
   },
-  "setupTitle": "Setup",
+  "setupTitle": "Join Weave",
   "@setupTitle": {
     "description": "Title for the setup flow screen"
   },
@@ -4638,5 +4638,53 @@
         "type": "String"
       }
     }
+  },
+  "setupMemberHandoffTitle": "Join from an invite or organization sign-in",
+  "@setupMemberHandoffTitle": {
+    "description": "Title for the normal member handoff-first setup screen"
+  },
+  "setupMemberHandoffDescription": "Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.",
+  "@setupMemberHandoffDescription": {
+    "description": "Description for the normal member handoff-first setup screen"
+  },
+  "setupMemberHandoffPrimaryAction": "I have an invite or sign-in link",
+  "@setupMemberHandoffPrimaryAction": {
+    "description": "Primary action label for handoff-first setup"
+  },
+  "setupMemberHandoffPrimaryGuidance": "Use the link from your browser, email, or chat. If it is missing or expired, ask your workspace admin for a new invite.",
+  "@setupMemberHandoffPrimaryGuidance": {
+    "description": "Guidance for using a member handoff link"
+  },
+  "setupMemberHandoffAdminNoteTitle": "Admins and operators",
+  "@setupMemberHandoffAdminNoteTitle": {
+    "description": "Heading for operator-only setup note"
+  },
+  "setupMemberHandoffAdminNote": "Raw provider endpoints are managed in admin or operator recovery, not during normal member onboarding.",
+  "@setupMemberHandoffAdminNote": {
+    "description": "Note explaining raw provider setup boundary"
+  },
+  "setupOpenOperatorRecoveryButton": "Open operator recovery setup",
+  "@setupOpenOperatorRecoveryButton": {
+    "description": "Button that opens admin/operator raw endpoint recovery setup"
+  },
+  "setupOperatorRecoveryTitle": "Operator recovery setup",
+  "@setupOperatorRecoveryTitle": {
+    "description": "Title for the explicit operator recovery setup mode"
+  },
+  "memberHandoffLoadingTitle": "Opening Weave invite",
+  "@memberHandoffLoadingTitle": {
+    "description": "Loading title while consuming a member handoff"
+  },
+  "memberHandoffLoadingHint": "We are preparing sign-in for this workspace.",
+  "@memberHandoffLoadingHint": {
+    "description": "Loading hint while consuming a member handoff"
+  },
+  "memberHandoffErrorTitle": "We could not open this Weave invite",
+  "@memberHandoffErrorTitle": {
+    "description": "Error title when member handoff consumption fails"
+  },
+  "memberHandoffErrorGuidance": "The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.",
+  "@memberHandoffErrorGuidance": {
+    "description": "Support-safe guidance when member handoff consumption fails"
   }
 }

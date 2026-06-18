@@ -16,13 +16,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get welcomeSubtitle =>
-      'Your unified collaboration hub for messaging, files, and secure self-hosted access.';
+      'Join your organization through an invite or sign-in handoff. Provider setup stays with your admins.';
 
   @override
-  String get continueButton => 'Get Started';
+  String get continueButton => 'Join your organization';
 
   @override
-  String get setupTitle => 'Setup';
+  String get setupTitle => 'Join Weave';
 
   @override
   String get setupProviderStepTitle => 'Configure provider categories';
@@ -3860,4 +3860,47 @@ class AppLocalizationsEn extends AppLocalizations {
   ) {
     return 'Weaver Beta helper. Personal helper: $personalState. Channel helper: $channelState. Workspace connection: $connectionState. Results are support-safe and do not expose secrets or raw provider payloads.';
   }
+
+  @override
+  String get setupMemberHandoffTitle =>
+      'Join from an invite or organization sign-in';
+
+  @override
+  String get setupMemberHandoffDescription =>
+      'Open the invite link, /join link, or organization sign-in URL your admin sent you. Weave will prepare your workspace from the organization manifest without asking you to edit provider endpoints.';
+
+  @override
+  String get setupMemberHandoffPrimaryAction =>
+      'I have an invite or sign-in link';
+
+  @override
+  String get setupMemberHandoffPrimaryGuidance =>
+      'Use the link from your browser, email, or chat. If it is missing or expired, ask your workspace admin for a new invite.';
+
+  @override
+  String get setupMemberHandoffAdminNoteTitle => 'Admins and operators';
+
+  @override
+  String get setupMemberHandoffAdminNote =>
+      'Raw provider endpoints are managed in admin or operator recovery, not during normal member onboarding.';
+
+  @override
+  String get setupOpenOperatorRecoveryButton => 'Open operator recovery setup';
+
+  @override
+  String get setupOperatorRecoveryTitle => 'Operator recovery setup';
+
+  @override
+  String get memberHandoffLoadingTitle => 'Opening Weave invite';
+
+  @override
+  String get memberHandoffLoadingHint =>
+      'We are preparing sign-in for this workspace.';
+
+  @override
+  String get memberHandoffErrorTitle => 'We could not open this Weave invite';
+
+  @override
+  String get memberHandoffErrorGuidance =>
+      'The invite may be expired, incomplete, or not ready yet. Ask your workspace admin for a fresh invite or organization sign-in link.';
 }
