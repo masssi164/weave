@@ -4110,6 +4110,39 @@
           ]
         }
       ]
+    },
+    {
+      "tag": "@sprint32-beta-admin-user-weaver-path",
+      "scenario": "Admin prepares readiness, enables Weaver, and a member uses governed Weaver in a workspace",
+      "feature": "e2e/features/sprint_32_beta_path.feature",
+      "executableTest": "e2e/tests/sprint32_beta_path_check.py",
+      "evidenceMarkers": [
+        "BETA_ADMIN_READINESS_RESULT",
+        "BETA_WEAVER_ENABLEMENT_RESULT",
+        "BETA_MEMBER_WORKSPACE_RESULT",
+        "BETA_GOVERNED_RUNTIME_RESULT",
+        "BETA_ADAPTER_CONTINUITY_RESULT",
+        "BETA_AUDIT_EVIDENCE_RESULT"
+      ],
+      "evidenceMode": "offline-spec",
+      "additionalEvidence": [
+        {
+          "path": "docs/evidence/sprint-32-beta-path-evidence.md",
+          "fragments": [
+            "Admin prepares and validates organization/provider/category readiness",
+            "User opens the Client in workspace context and uses Weaver",
+            "No secrets, raw provider payloads, raw Weaver prompts, endpoint URLs, room IDs, event IDs, usernames, or member content are recorded"
+          ]
+        },
+        {
+          "path": "release/provider-lab/weaver-runtime/sprint-32-beta-path-evidence.fixture.json",
+          "fragments": [
+            "weave-beta-admin-user-weaver-path-evidence",
+            "blocked_environment_unavailable",
+            "BETA_GOVERNED_RUNTIME_RESULT"
+          ]
+        }
+      ]
     }
   ]
 }

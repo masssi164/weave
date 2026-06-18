@@ -3072,6 +3072,37 @@
         "heartbeat scope enforcement",
         "safe fallback audit"
       ]
+    },
+    {
+      "tag": "@sprint32-beta-admin-user-weaver-path",
+      "domains": [
+        "identity-idm",
+        "chat",
+        "files",
+        "calendar",
+        "boards-tasks",
+        "meetings-calls",
+        "admin-health-ops",
+        "weaver-governed-pa",
+        "provider-portability",
+        "decisions-evidence"
+      ],
+      "assertionFocus": [
+        "coherent Beta evaluator path",
+        "Admin readiness and Weaver enablement",
+        "member workspace Weaver use",
+        "governed runtime/tool execution",
+        "adapter-continuity accounting",
+        "support-safe audit evidence"
+      ],
+      "suiteId": "product-e2e-scenario-layer",
+      "personas": [
+        "admin",
+        "member",
+        "weaver_user",
+        "operator"
+      ],
+      "testLevel": "offline-contract"
     }
   ]
 }
