@@ -7,6 +7,7 @@ export type CapabilityState =
   | "misconfigured"
   | "unsupported"
   | "not_configured"
+  | "coming_later"
   | "configured";
 
 export type ProviderRealityLevel =
@@ -80,6 +81,7 @@ export interface IdentityProviderReadinessCard {
   remediation: string;
   nextActions: string[];
   evidenceRefs: string[];
+  diagnostics?: Record<string, unknown>;
 }
 
 export interface IdentityProviderReadiness {
@@ -668,6 +670,7 @@ interface ServerIdentityProviderReadiness {
     remediation?: string;
     nextActions?: string[];
     evidenceRefs?: string[];
+    diagnostics?: Record<string, unknown>;
   }>;
   nextActions?: string[];
 }
@@ -1148,6 +1151,7 @@ function normalizeIdentityProviderReadiness(
       "Run the backend readiness contract and resolve admin-action-required items.",
     nextActions: card.nextActions ?? [],
     evidenceRefs: card.evidenceRefs ?? [],
+    diagnostics: card.diagnostics ?? {},
   }));
   const versionSkewCards = [
     {
@@ -2051,6 +2055,7 @@ function normalizeState(value?: string): CapabilityState {
     case "misconfigured":
     case "unsupported":
     case "not_configured":
+    case "coming_later":
     case "configured":
       return value;
     case "policy_blocked":

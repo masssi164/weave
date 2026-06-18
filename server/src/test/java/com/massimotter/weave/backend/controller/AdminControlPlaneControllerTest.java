@@ -240,8 +240,16 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.identityProviderReadiness.contractVersion").value("identity-provider-readiness-v1"))
                 .andExpect(jsonPath("$.identityProviderReadiness.backendOwnedFacade").value(true))
                 .andExpect(jsonPath("$.identityProviderReadiness.memberClientMayConfigureIdentityProvider").value(false))
-                .andExpect(jsonPath("$.identityProviderReadiness.stableStates[*]", hasItems("ready", "degraded", "policy-blocked", "admin-action-required", "disabled")))
-                .andExpect(jsonPath("$.identityProviderReadiness.cards[*].key", hasItems("realm-import", "oidc-client-readiness", "roles-groups-mapping", "login-readiness", "policy-readiness")))
+                .andExpect(jsonPath("$.identityProviderReadiness.stableStates[*]", hasItems("ready", "degraded", "policy-blocked", "admin-action-required", "coming_later", "disabled")))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[*].key", hasItems(
+                        "realm-import", "federation-protocol-readiness", "provisioning-source-readiness",
+                        "roles-groups-mapping", "login-readiness", "deprovisioning-readiness",
+                        "break-glass-readiness", "service-principal-readiness", "policy-readiness")))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'provisioning-source-readiness')].diagnostics.scimConceptCovered", hasItems(true)))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'provisioning-source-readiness')].diagnostics.liveLdapAdConnectorClaimed", hasItems(false)))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'deprovisioning-readiness')].diagnostics.liveDestructiveMutationClaimed", hasItems(false)))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'break-glass-readiness')].diagnostics.emailRecoveryKeyAllowed", hasItems(false)))
+                .andExpect(jsonPath("$.identityProviderReadiness.cards[?(@.key == 'service-principal-readiness')].diagnostics.secretMaterialReturned", hasItems(false)))
                 .andExpect(jsonPath("$.identityProviderReadiness.cards[*].diagnostics.secretsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.identityProviderReadiness.cards[*].diagnostics.rawProviderErrorsReturned", hasItems(false)))
                 .andExpect(jsonPath("$.goLiveReadiness.releaseClaimControl.claimState").value("admin-action-required"))
@@ -354,7 +362,11 @@ class AdminControlPlaneControllerTest {
                 .andExpect(jsonPath("$.backendOwnedFacade").value(true))
                 .andExpect(jsonPath("$.memberClientMayConfigureIdentityProvider").value(false))
                 .andExpect(jsonPath("$.optionalForMemberFlows").value(true))
-                .andExpect(jsonPath("$.cards[*].key", hasItems("realm-import", "oidc-client-readiness", "roles-groups-mapping", "login-readiness", "policy-readiness")))
+                .andExpect(jsonPath("$.cards[*].key", hasItems(
+                        "realm-import", "federation-protocol-readiness", "provisioning-source-readiness",
+                        "roles-groups-mapping", "login-readiness", "deprovisioning-readiness",
+                        "break-glass-readiness", "service-principal-readiness", "policy-readiness")))
+                .andExpect(jsonPath("$.cards[?(@.key == 'service-principal-readiness')].diagnostics.secretMaterialReturned", hasItems(false)))
                 .andExpect(jsonPath("$.cards[*].state", hasItems("ready", "admin-action-required")))
                 .andExpect(jsonPath("$.cards[*].remediation").isArray())
                 .andExpect(content().string(not(containsString("server-test-secret-that-must-never-appear"))))

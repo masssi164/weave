@@ -33,7 +33,7 @@ public record IdentityProviderReadinessResponse(
         supportSafe = supportSafe && providerDiagnosticsRedacted && backendOwnedFacade && !memberClientMayConfigureIdentityProvider;
         generatedAt = generatedAt == null ? Instant.EPOCH : generatedAt;
         stableStates = stableStates == null || stableStates.isEmpty()
-                ? List.of("ready", "degraded", "policy-blocked", "admin-action-required", "disabled")
+                ? List.of("ready", "degraded", "policy-blocked", "admin-action-required", "coming_later", "disabled")
                 : List.copyOf(stableStates.stream().map(IdentityProviderReadinessResponse::normalizeState).distinct().toList());
         cards = cards == null ? List.of() : List.copyOf(cards);
         nextActions = nextActions == null ? List.of() : List.copyOf(nextActions);
@@ -47,7 +47,7 @@ public record IdentityProviderReadinessResponse(
         }
         String normalized = value.trim().replace('_', '-');
         return switch (normalized) {
-            case "ready", "degraded", "policy-blocked", "admin-action-required", "disabled" -> normalized;
+            case "ready", "degraded", "policy-blocked", "admin-action-required", "coming-later", "disabled" -> normalized.equals("coming-later") ? "coming_later" : normalized;
             default -> "admin-action-required";
         };
     }

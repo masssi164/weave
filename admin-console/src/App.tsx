@@ -63,6 +63,7 @@ const stateColor: Record<
   misconfigured: "error",
   unsupported: "error",
   not_configured: "default",
+  coming_later: "default",
   configured: "info",
 };
 
