@@ -9,7 +9,6 @@ import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WeaverRuntimeProfileResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.SecureRandom;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -61,8 +60,7 @@ public class WeaverRuntimeService {
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.weaverRuntimeProperties = weaverRuntimeProperties;
         this.auditEventPublisher = auditEventPublisher;
-        this.runtimeProfileSigningKey = new byte[32];
-        new SecureRandom().nextBytes(this.runtimeProfileSigningKey);
+        this.runtimeProfileSigningKey = configuredSigningKey(weaverRuntimeProperties);
     }
 
     public WeaverRuntimeProfileResponse profileFor(Jwt jwt) {
@@ -226,8 +224,8 @@ public class WeaverRuntimeService {
         if (profile == null || !profile.enabled() || profile.revoked()) {
             throw new IllegalArgumentException("Only active Weaver RuntimeProfiles can be provisioned.");
         }
-        if (Instant.parse(profile.expiresAt()).isBefore(Instant.now()) || !verifyProfile(profile)) {
-            throw new IllegalArgumentException("Only valid signed Weaver RuntimeProfiles can be provisioned.");
+        if (Instant.parse(profile.expiresAt()).isBefore(Instant.now()) || !verifyProfile(profile) || !isCurrentIssuedProfile(profile)) {
+            throw new IllegalArgumentException("Only valid signed current Weaver RuntimeProfiles can be provisioned.");
         }
         Map<String, String> labels = runtimeLabels(profile, orgRef, policyVersion);
         WeaverRuntimeInstance instance = new WeaverRuntimeInstance(
@@ -661,6 +659,14 @@ public class WeaverRuntimeService {
                 credentialBrokerContract(credentialUserRef).toString()));
     }
 
+    private boolean isCurrentIssuedProfile(WeaverRuntimeProfileResponse profile) {
+        WeaverRuntimeProfileResponse issued = issuedProfiles.get(profile.runtimeProfileHash());
+        return issued != null
+                && issued == profile
+                && !issued.revoked()
+                && profile.runtimeProfileHash().equals(currentProfileHashByUser.getOrDefault(profile.userRef(), ""));
+    }
+
     private String signProfile(String runtimeProfileHash, String profileVersion) {
         return "weave-hmac-sha256:v1:" + signingKeyRefFingerprint() + ":" + hmacSha256(signingPayload(runtimeProfileHash, profileVersion));
     }
@@ -679,6 +685,17 @@ public class WeaverRuntimeService {
 
     private String signingKeyRefFingerprint() {
         return "keyref:" + sha256(weaverRuntimeProperties.signingKeySecretRef()).substring(0, 16);
+    }
+
+    private static byte[] configuredSigningKey(WeaverRuntimeProperties properties) {
+        if (properties == null || properties.signingKey() == null || properties.signingKey().isBlank()) {
+            throw new IllegalStateException("Weaver RuntimeProfile signing key is not configured; configure weave.weaver.runtime.signing-key through the operator SecretRef source.");
+        }
+        byte[] key = properties.signingKey().getBytes(StandardCharsets.UTF_8);
+        if (key.length < 32) {
+            throw new IllegalStateException("Weaver RuntimeProfile signing key must be at least 32 bytes.");
+        }
+        return key;
     }
 
     private String hmacSha256(String value) {

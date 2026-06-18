@@ -214,6 +214,7 @@ class ChatFacadeServiceLiveWeaverRoundTripTest {
                         List.of("weave-chat"),
                         List.of("message.send"),
                         null,
+                        "weaver-runtime-profile-test-signing-key-32-bytes-minimum",
                         false,
                         false,
                         true,

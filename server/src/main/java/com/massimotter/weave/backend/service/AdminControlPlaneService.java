@@ -158,7 +158,7 @@ public class AdminControlPlaneService {
                 ? List.of(new KeycloakRealmLiveApplyAdapter(this.identityRealmApplyProperties))
                 : List.copyOf(adapters);
         this.weaverRuntimeProperties = weaverRuntimeProperties.getIfAvailable(
-                () -> new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, null, false, false, true, false));
+                () -> new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, null, null, false, false, true, false));
         this.clock = Clock.systemUTC();
     }
 
@@ -171,7 +171,7 @@ public class AdminControlPlaneService {
             Clock clock) {
         this(providerRegistry, workspaceCapabilityService, providerSelectionRepository, organizationBootstrapRepository, auditEventPublisher,
                 List.of(new KeycloakRealmDryRunProvider()), new InMemoryIdentityRealmEvidenceRepository(), List.of(new KeycloakRealmLiveApplyAdapter(new IdentityRealmApplyProperties())), new IdentityRealmApplyProperties(), clock,
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, null, false, false, true, false));
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, null, null, false, false, true, false));
     }
 
     AdminControlPlaneService(
@@ -205,7 +205,7 @@ public class AdminControlPlaneService {
                 : List.copyOf(identityRealmLiveApplyAdapters);
         this.clock = clock;
         this.weaverRuntimeProperties = weaverRuntimeProperties == null
-                ? new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, null, false, false, true, false)
+                ? new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, null, null, false, false, true, false)
                 : weaverRuntimeProperties;
     }
 

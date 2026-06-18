@@ -280,10 +280,46 @@ class WeaverRuntimeServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("valid signed");
 
-        WeaverRuntimeService wrongKeyService = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        WeaverRuntimeService wrongKeyService = service(true, runtimePropertiesWithKey(true, "different-weaver-runtime-profile-signing-key-32-bytes"), new InMemoryAuditEventPublisher());
         assertThatThrownBy(() -> wrongKeyService.provisionRuntime(issued, "org:acme", "policy:v32"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("valid signed");
+    }
+
+    @Test
+    void rejectsStaleSignedProfileDuringProvisioning() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var issued = service.profileFor(member);
+        var customized = service.applyRuntimeCustomization(member, Map.of("style", "concise"));
+
+        assertThat(customized.accepted()).isTrue();
+        assertThatThrownBy(() -> service.provisionRuntime(issued, "org:acme", "policy:v32"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("current Weaver RuntimeProfiles");
+        assertThat(service.provisionRuntime(customized.profile(), "org:acme", "policy:v32").runtimeProfileHash())
+                .isEqualTo(customized.profile().runtimeProfileHash());
+    }
+
+    @Test
+    void usesConfigBoundSigningKeyAcrossServiceReplicasAndFailsWhenMissing() {
+        var first = service(true, runtimePropertiesWithKey(true, "stable-weaver-runtime-profile-signing-key-32-bytes"), new InMemoryAuditEventPublisher());
+        var second = service(true, runtimePropertiesWithKey(true, "stable-weaver-runtime-profile-signing-key-32-bytes"), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        var issued = first.profileFor(member);
+        var replicaIssued = second.profileFor(member);
+
+        assertThat(replicaIssued.signature()).isNotBlank();
+        assertThat(replicaIssued.signature().split(":")[3]).isEqualTo(issued.signature().split(":")[3]);
+        assertThatThrownBy(() -> service(true, runtimePropertiesWithKey(true, null), new InMemoryAuditEventPublisher()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("signing key is not configured");
+        assertThat(issued.supportSafeProfileReceipt().toString())
+                .contains("secretref://weave/weaver/runtime-profile-signing-key")
+                .doesNotContain("stable-weaver-runtime-profile-signing-key");
+        // RuntimeProfile has no not-before field today; expiry and current-issued checks are the temporal fail-closed gates.
     }
 
     @Test
@@ -434,6 +470,14 @@ class WeaverRuntimeServiceTest {
     }
 
     private WeaverRuntimeProperties runtimeProperties(boolean enabled, List<String> allowedCapabilities, List<String> toolAllowlist) {
+        return runtimePropertiesWithKey(enabled, allowedCapabilities, toolAllowlist, "weaver-runtime-profile-test-signing-key-32-bytes-minimum");
+    }
+
+    private WeaverRuntimeProperties runtimePropertiesWithKey(boolean enabled, String signingKey) {
+        return runtimePropertiesWithKey(enabled, List.of("weaver.files_read", "weaver.exec_disabled"), List.of("files.read"), signingKey);
+    }
+
+    private WeaverRuntimeProperties runtimePropertiesWithKey(boolean enabled, List<String> allowedCapabilities, List<String> toolAllowlist, String signingKey) {
         return new WeaverRuntimeProperties(
                 enabled,
                 null,
@@ -446,6 +490,7 @@ class WeaverRuntimeServiceTest {
                 List.of("weave-files-readonly"),
                 toolAllowlist,
                 null,
+                signingKey,
                 false,
                 false,
                 true,
