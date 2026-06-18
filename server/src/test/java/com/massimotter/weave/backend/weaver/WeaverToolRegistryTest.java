@@ -228,16 +228,10 @@ class WeaverToolRegistryTest {
     }
 
     @Test
-    void failsClosedForUnsignedRevokedExpiredMismatchedConsentAndOverbroadGovernance() {
+    void failsClosedForServerPolicyConsentExpiryAndOverbroadGovernanceButNotRuntimeProfileMarkers() {
         InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
         WeaverToolRegistry registry = new WeaverToolRegistry(audit);
 
-        assertThat(registry.invoke(governedRequest("runtime_profile_unsigned", "", false, future(), true, "user:abc123", List.of("boards.comment"))).status())
-                .isEqualTo("runtime_profile_unsigned");
-        assertThat(registry.invoke(governedRequest("runtime_profile_user_mismatch", signature(), false, future(), true, "user:other", List.of("boards.comment"))).status())
-                .isEqualTo("runtime_profile_user_mismatch");
-        assertThat(registry.invoke(governedRequest("runtime_profile_revoked", signature(), true, future(), true, "user:abc123", List.of("boards.comment"))).status())
-                .isEqualTo("runtime_profile_revoked");
         assertThat(registry.invoke(governedRequest("runtime_token_expired", signature(), false, Instant.now().minusSeconds(60).toString(), true, "user:abc123", List.of("boards.comment"))).status())
                 .isEqualTo("runtime_token_expired");
         assertThat(registry.invoke(governedRequest("consent_required", signature(), false, future(), false, "user:abc123", List.of("boards.comment"))).status())
@@ -245,21 +239,46 @@ class WeaverToolRegistryTest {
         assertThat(registry.invoke(governedRequest("overbroad_grant", signature(), false, future(), true, "user:abc123", List.of("boards.*"))).status())
                 .isEqualTo("overbroad_grant");
 
-        assertThat(audit.events()).hasSize(6);
+        assertThat(audit.events()).hasSize(3);
         assertThat(audit.events()).extracting(event -> event.payload().get("status"))
                 .containsExactly(
-                        "runtime_profile_unsigned",
-                        "runtime_profile_user_mismatch",
-                        "runtime_profile_revoked",
                         "runtime_token_expired",
                         "consent_required",
                         "overbroad_grant");
         assertThat(audit.events()).allSatisfy(event -> {
             assertThat(event.action()).isEqualTo(AuditAction.WEAVER_TOOL_INVOCATION_RECORDED);
-            assertThat(event.payload()).containsEntry("supportSafe", true);
+            assertThat(event.payload())
+                    .containsEntry("supportSafe", true)
+                    .containsEntry("runtimeProfileAuthority", "correlation_only")
+                    .containsEntry("policyEnforcementPoint", "weave-mcp-server");
             assertThat(event.payload()).containsKeys("runtimeProfileHash", "user", "tool", "decision", "auditRef");
             assertThat(event.payload().toString()).doesNotContain("prompt", "Bearer ", "refresh_token", "providerRoom");
         });
+    }
+
+    @Test
+    void runtimeProfileMarkersAreCorrelationOnlyAndCannotOverrideServerPolicyApproval() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var unsignedMismatchedRevokedProfile = registry.invoke(governedRequest(
+                "profile_marker_correlation_only",
+                "",
+                true,
+                future(),
+                true,
+                "user:other",
+                List.of("boards.comment")));
+
+        assertThat(unsignedMismatchedRevokedProfile.status()).isEqualTo("approval_required");
+        assertThat(unsignedMismatchedRevokedProfile.approvalRequired()).isTrue();
+        assertThat(audit.events()).hasSize(1);
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("status", "approval_required")
+                .containsEntry("runtimeProfileAuthority", "correlation_only")
+                .containsEntry("policyEnforcementPoint", "weave-mcp-server");
+        assertThat(audit.events().get(0).payload().toString())
+                .doesNotContain("runtime_profile_unsigned", "runtime_profile_user_mismatch", "runtime_profile_revoked");
     }
 
     @Test

@@ -658,17 +658,18 @@ public class WeaverRuntimeService {
             List<String> allowedCapabilities,
             List<String> toolAllowlist) {
         String runtimeTokenRef = "credentialref://weave/runtime/short-lived/" + userRef.replace("user:", "");
-        Map<String, Object> runtimeProfileFetch = Map.of(
-                "fetchRef", "weave-runtime-profile://" + runtimeProfileHash,
-                "runtimeProfileHash", runtimeProfileHash,
-                "profileVersion", profileVersion,
-                "expiresAt", expiresAt,
-                "previousProfileHash", previousProfileHash,
-                "signatureRequired", true,
-                "signatureAlgorithm", "weave-signature:v1",
-                "revocationChecked", true,
-                "supportSafe", true,
-                "rawProfileBodyReturnedToMembers", false);
+        Map<String, Object> runtimeProfileFetch = Map.ofEntries(
+                Map.entry("fetchRef", "weave-runtime-profile://" + runtimeProfileHash),
+                Map.entry("runtimeProfileHash", runtimeProfileHash),
+                Map.entry("profileVersion", profileVersion),
+                Map.entry("expiresAt", expiresAt),
+                Map.entry("previousProfileHash", previousProfileHash),
+                Map.entry("runtimeProfileAuthority", "correlation_only"),
+                Map.entry("policyEnforcementPoint", "weave-mcp-server"),
+                Map.entry("profileIntegrityMarker", "support-safe-hash"),
+                Map.entry("revocationCheckedBy", "weave-mcp-server-policy-session"),
+                Map.entry("supportSafe", true),
+                Map.entry("rawProfileBodyReturnedToMembers", false));
         List<String> mcpAllowedTools = governedMcpAllowedTools(allowedCapabilities, toolAllowlist);
         return Map.ofEntries(
                 Map.entry("channelId", "channels.weave-chat"),
