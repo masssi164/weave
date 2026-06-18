@@ -65,17 +65,20 @@ public class WeaverToolRegistry {
                         "auditRef", auditRef(request.toolName(), terminalApprovalStatus)));
                 return blocked(request.toolName(), terminalApprovalStatus, "Weaver action failed closed after the user runtime did not approve it.");
             }
-            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName())) {
-                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), "approval_required", Map.of(
+            List<String> requiredScopeRefs = canonicalScopeRefs(request.input());
+            if (approvalReceipt == null || !approvalReceipt.validFor(request.userRef(), request.toolName(), requiredScopeRefs)) {
+                String status = approvalReceipt == null ? "approval_required" : "approval_scope_mismatch";
+                audit(request.userRef(), request.runtimeProfileHash(), request.toolName(), status, Map.of(
                         "domain", definition.domain(),
                         "approvalAuthority", "user_openclaw_runtime",
                         "approvalReceiptValidated", false,
                         "serverApprovalDecision", false,
-                        "auditRef", auditRef(request.toolName(), "approval_required")));
+                        "canonicalRefs", requiredScopeRefs,
+                        "auditRef", auditRef(request.toolName(), status)));
                 return new WeaverToolInvocationResult(
                         request.toolName(),
-                        "approval_required",
-                        true,
+                        status,
+                        approvalReceipt == null,
                         true,
                         Map.of(
                                 "approvalPolicy", definition.approvalRequirement().name(),
@@ -85,8 +88,11 @@ public class WeaverToolRegistry {
                                 "approvalPromptInputs", List.of("toolName", "domain", "mode", "canonicalRefs", "supportSafeParameterSummary"),
                                 "approvalPromptForbiddenInputs", List.of("rawProviderPayload", "secretRef.value", "providerCredentials", "privatePrompt"),
                                 "approvalReceiptValidated", false,
-                                "auditRef", auditRef(request.toolName(), "approval_required")),
-                        "This action requires a valid approval receipt before Weaver may continue.");
+                                "canonicalRefs", requiredScopeRefs,
+                                "auditRef", auditRef(request.toolName(), status)),
+                        approvalReceipt == null
+                                ? "This action requires a valid approval receipt before Weaver may continue."
+                                : "Approval receipt scope does not match the Weaver tool invocation.");
             }
             approvalReceiptValidated = true;
         }
@@ -194,6 +200,14 @@ public class WeaverToolRegistry {
         copyCanonicalRef(input, refs, "decisionRef", "decision");
         copyCanonicalRef(input, refs, "boardTaskRef", "boardTask");
         return Map.copyOf(refs);
+    }
+
+    private List<String> canonicalScopeRefs(Map<String, Object> input) {
+        return canonicalRefs(input).values().stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .sorted()
+                .toList();
     }
 
     private void copyCanonicalRef(Map<String, Object> input, Map<String, Object> refs, String inputKey, String outputKey) {

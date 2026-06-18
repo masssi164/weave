@@ -109,7 +109,7 @@ class WeaverToolRegistryTest {
                         "approval:abc123",
                         "user:abc123",
                         "boards.comment",
-                        List.of("board-task:WEAVE-601"),
+                        List.of("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601"),
                         "policy:test",
                         future(),
                         "audit://weaver-approval/test")));
@@ -130,6 +130,51 @@ class WeaverToolRegistryTest {
                 .containsEntry("approvalReceiptValidated", true)
                 .containsEntry("approvalReceiptAuditRef", "audit://weaver-approval/test")
                 .containsEntry("approvalReceiptPolicyVersion", "policy:test");
+    }
+
+    @Test
+    void mismatchedApprovalReceiptScopeFailsClosedBeforeInvocation() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverToolRegistry registry = new WeaverToolRegistry(audit);
+
+        var result = registry.invoke(new WeaverToolInvocationRequest(
+                "boards.comment",
+                "user:abc123",
+                "sha256:scope-mismatch000000000000000000000000000000000000000000000000",
+                "user:abc123",
+                signature(),
+                false,
+                future(),
+                true,
+                List.of("weaver.boards_write"),
+                List.of("boards.comment"),
+                Map.of(
+                        "spaceRef", "space:control-room",
+                        "decisionRef", "decision:governed-weaver",
+                        "boardTaskRef", "board-task:WEAVE-602",
+                        "body", "Looks good"),
+                "approval:abc123",
+                new WeaverApprovalReceipt(
+                        "approval:abc123",
+                        "user:abc123",
+                        "boards.comment",
+                        List.of("space:control-room", "decision:governed-weaver", "board-task:WEAVE-601"),
+                        "policy:test",
+                        future(),
+                        "audit://weaver-approval/test")));
+
+        assertThat(result.status()).isEqualTo("approval_scope_mismatch");
+        assertThat(result.approvalRequired()).isFalse();
+        assertThat(result.redactedResult()).containsEntry("approvalReceiptValidated", false);
+        assertThat(result.redactedResult().get("canonicalRefs").toString())
+                .contains("space:control-room", "decision:governed-weaver", "board-task:WEAVE-602")
+                .doesNotContain("WEAVE-601");
+        assertThat(audit.events()).hasSize(1);
+        assertThat(audit.events().get(0).payload())
+                .containsEntry("status", "approval_scope_mismatch")
+                .containsEntry("approvalReceiptValidated", false)
+                .containsEntry("serverApprovalDecision", false);
+        assertThat(audit.events().get(0).payload().toString()).doesNotContain("Looks good", "provider payload", "secret");
     }
 
     @Test
