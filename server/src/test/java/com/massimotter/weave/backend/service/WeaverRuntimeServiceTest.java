@@ -18,6 +18,7 @@ import org.springframework.boot.autoconfigure.security.oauth2.resource.OAuth2Res
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WeaverRuntimeServiceTest {
 
@@ -393,29 +394,61 @@ class WeaverRuntimeServiceTest {
 
     @Test
     void failsClosedWhenDurableRevocationStoreIsUnavailable() {
-        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher(), new WeaverRuntimeRevocationStore() {
-            @Override
-            public List<RevocationRecord> recordsForUser(String userRef) {
-                throw new IllegalStateException("store unavailable");
-            }
-
-            @Override
-            public java.util.Optional<RevocationRecord> recordForProfile(String runtimeProfileHash) {
-                throw new IllegalStateException("store unavailable");
-            }
-
-            @Override
-            public void record(RevocationRecord record) {
-                throw new IllegalStateException("store unavailable");
-            }
-        });
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher(), unavailableRevocationStore());
         Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
-        var issued = service.profileFor(member);
+
+        var blocked = service.profileFor(member);
+
+        assertThat(blocked.enabled()).isFalse();
+        assertThat(blocked.posture()).isEqualTo("runtime-profile-revocation-store-unavailable");
+    }
+
+    @Test
+    void fetchByHashFailsClosedWhenDurableRevocationStoreIsUnavailable() {
+        WeaverRuntimeService issuer = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        var issued = issuer.profileFor(member);
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher(), unavailableRevocationStore());
 
         var blocked = service.profileByHash(member, issued.runtimeProfileHash());
 
         assertThat(blocked.enabled()).isFalse();
         assertThat(blocked.posture()).isEqualTo("runtime-profile-fetch-revoked");
+    }
+
+    @Test
+    void provisionRuntimeFailsClosedWhenDurableRevocationStoreIsUnavailable() {
+        WeaverRuntimeService issuer = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        var issued = issuer.profileFor(member);
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher(), unavailableRevocationStore());
+
+        assertThatThrownBy(() -> service.provisionRuntime(issued, "org:acme", "policy:v24"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("failed closed");
+    }
+
+    @Test
+    void provisionRuntimeFailsClosedForStaleActiveObjectAfterDurableRevocation() {
+        Path storePath;
+        try {
+            storePath = Files.createTempFile("weaver-runtime-revocation-stale-active", ".json");
+            Files.deleteIfExists(storePath);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+        WeaverRuntimeProperties runtimeProperties = runtimeProperties(true);
+        Jwt eligible = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        WeaverRuntimeService beforeRevocation = service(true, runtimeProperties, new InMemoryAuditEventPublisher(), new FileBackedWeaverRuntimeRevocationStore(storePath));
+        var staleActive = beforeRevocation.profileFor(eligible);
+        beforeRevocation.profileFor(jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-pilot")));
+        WeaverRuntimeService afterRevocation = service(true, runtimeProperties, new InMemoryAuditEventPublisher(), new FileBackedWeaverRuntimeRevocationStore(storePath));
+
+        assertThat(staleActive.enabled()).isTrue();
+        assertThat(staleActive.revoked()).isFalse();
+        assertThatThrownBy(() -> afterRevocation.provisionRuntime(staleActive, "org:acme", "policy:v24"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("failed closed");
     }
 
     @Test
@@ -517,6 +550,7 @@ class WeaverRuntimeServiceTest {
                 null,
                 null,
                 null,
+                null,
                 List.of("weave-weaver-runtime", "weaver-group"),
                 allowedCapabilities,
                 List.of("weave-files-readonly"),
@@ -525,6 +559,25 @@ class WeaverRuntimeServiceTest {
                 false,
                 true,
                 false);
+    }
+
+    private WeaverRuntimeRevocationStore unavailableRevocationStore() {
+        return new WeaverRuntimeRevocationStore() {
+            @Override
+            public List<RevocationRecord> recordsForUser(String userRef) {
+                throw new IllegalStateException("store unavailable");
+            }
+
+            @Override
+            public java.util.Optional<RevocationRecord> recordForProfile(String runtimeProfileHash) {
+                throw new IllegalStateException("store unavailable");
+            }
+
+            @Override
+            public void record(RevocationRecord record) {
+                throw new IllegalStateException("store unavailable");
+            }
+        };
     }
 
     private Jwt jwt(String subject, List<String> roles, List<String> groups) {

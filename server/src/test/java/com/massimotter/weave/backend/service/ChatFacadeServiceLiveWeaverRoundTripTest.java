@@ -209,6 +209,7 @@ class ChatFacadeServiceLiveWeaverRoundTripTest {
                         "/var/lib/weave/weaver/{userId}",
                         ".weaver/agents",
                         "weave-runtime-net",
+                        null,
                         List.of("weave-weaver-runtime"),
                         List.of("weaver.files_read", "weaver.exec_disabled"),
                         List.of("weave-chat"),

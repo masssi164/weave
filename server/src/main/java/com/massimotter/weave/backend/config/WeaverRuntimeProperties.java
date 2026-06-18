@@ -11,6 +11,7 @@ public record WeaverRuntimeProperties(
         String workspaceRootTemplate,
         String isolatedAgentDirectory,
         String dockerNetworkMode,
+        String revocationStorePath,
         List<String> enabledGroups,
         List<String> allowedCapabilities,
         List<String> pluginAllowlist,
@@ -26,6 +27,9 @@ public record WeaverRuntimeProperties(
         workspaceRootTemplate = hasText(workspaceRootTemplate) ? workspaceRootTemplate : "/var/lib/weave/weaver/{userId}";
         isolatedAgentDirectory = hasText(isolatedAgentDirectory) ? isolatedAgentDirectory : ".weaver/agents";
         dockerNetworkMode = hasText(dockerNetworkMode) ? dockerNetworkMode : "none";
+        revocationStorePath = hasText(revocationStorePath)
+                ? revocationStorePath
+                : "/var/lib/weave/weaver/runtime-profile-revocations.json";
         enabledGroups = normalize(enabledGroups, List.of("weaver-group", "weave-weaver-runtime"));
         allowedCapabilities = normalize(allowedCapabilities, List.of("weaver.files_read", "weaver.exec_disabled"));
         pluginAllowlist = normalize(pluginAllowlist, List.of("weave-files-readonly"));

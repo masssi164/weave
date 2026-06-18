@@ -542,7 +542,7 @@ class AdminControlPlaneServiceTest {
                 List.of(new KeycloakRealmLiveApplyAdapter(properties)),
                 properties,
                 Clock.fixed(Instant.parse("2026-05-27T01:03:39Z"), ZoneOffset.UTC),
-                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, false, false, true, false));
+                new WeaverRuntimeProperties(false, null, null, null, null, null, null, null, null, null, null, false, false, true, false));
     }
 
     private WorkspaceCapabilityService workspaceCapabilityService() {

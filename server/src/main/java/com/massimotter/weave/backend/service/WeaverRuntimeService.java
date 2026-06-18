@@ -56,7 +56,7 @@ public class WeaverRuntimeService {
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
             WeaverRuntimeProperties weaverRuntimeProperties,
             AuditEventPublisher auditEventPublisher) {
-        this(workspaceCapabilityService, workspaceCapabilityProperties, weaverRuntimeProperties, auditEventPublisher, new FileBackedWeaverRuntimeRevocationStore(System.getProperty("java.io.tmpdir") + "/weave-runtime-profile-revocations.json"));
+        this(workspaceCapabilityService, workspaceCapabilityProperties, weaverRuntimeProperties, auditEventPublisher, new FileBackedWeaverRuntimeRevocationStore(weaverRuntimeProperties.revocationStorePath()));
     }
 
     WeaverRuntimeService(
@@ -95,6 +95,14 @@ public class WeaverRuntimeService {
                     userRef,
                     "policy-blocked",
                     "Your role or group policy does not allow a Weaver runtime.");
+        }
+        Optional<WeaverRuntimeRevocationStore.RevocationRecord> storeAvailability = durableRevocationReadCheck(userRef);
+        if (storeAvailability.isPresent()) {
+            auditRevocationDecision(userRef, "none", "runtime-profile-revocation-store-unavailable", storeAvailability.get().evidenceRef());
+            return disabledProfile(
+                    userRef,
+                    "runtime-profile-revocation-store-unavailable",
+                    "RuntimeProfile issuance failed closed because the durable revocation store is unavailable.");
         }
 
         List<String> allowedCapabilities = allowedCapabilities(grantedCapabilities);
@@ -229,6 +237,11 @@ public class WeaverRuntimeService {
     public WeaverRuntimeInstance provisionRuntime(WeaverRuntimeProfileResponse profile, String orgRef, String policyVersion) {
         if (profile == null || !profile.enabled() || profile.revoked()) {
             throw new IllegalArgumentException("Only active Weaver RuntimeProfiles can be provisioned.");
+        }
+        Optional<WeaverRuntimeRevocationStore.RevocationRecord> durableRevocation = durableRevocationFor(profile.runtimeProfileHash());
+        if (durableRevocation.isPresent()) {
+            auditRevocationDecision(profile.userRef(), profile.runtimeProfileHash(), "runtime-profile-provision-revoked", durableRevocation.get().evidenceRef());
+            throw new IllegalArgumentException("RuntimeProfile provision failed closed.");
         }
         Map<String, String> labels = runtimeLabels(profile, orgRef, policyVersion);
         WeaverRuntimeInstance instance = new WeaverRuntimeInstance(
@@ -479,17 +492,30 @@ public class WeaverRuntimeService {
         try {
             return revocationStore.recordForProfile(runtimeProfileHash == null ? "" : runtimeProfileHash.strip());
         } catch (RuntimeException exception) {
-            return Optional.of(new WeaverRuntimeRevocationStore.RevocationRecord(
-                    "user:unknown",
-                    runtimeProfileHash == null ? "none" : runtimeProfileHash,
-                    "unknown",
-                    -1,
-                    "revocation-store-unavailable",
-                    "system:weaver-runtime-policy",
-                    "runtime-profile",
-                    Instant.now(),
-                    "audit:weaver-runtime-revocation-store-unavailable"));
+            return Optional.of(unavailableRevocationRecord("user:unknown", runtimeProfileHash == null ? "none" : runtimeProfileHash));
         }
+    }
+
+    private Optional<WeaverRuntimeRevocationStore.RevocationRecord> durableRevocationReadCheck(String userRef) {
+        try {
+            revocationStore.recordsForUser(userRef);
+            return Optional.empty();
+        } catch (RuntimeException exception) {
+            return Optional.of(unavailableRevocationRecord(userRef, "none"));
+        }
+    }
+
+    private WeaverRuntimeRevocationStore.RevocationRecord unavailableRevocationRecord(String userRef, String runtimeProfileHash) {
+        return new WeaverRuntimeRevocationStore.RevocationRecord(
+                userRef,
+                runtimeProfileHash,
+                "unknown",
+                -1,
+                "revocation-store-unavailable",
+                "system:weaver-runtime-policy",
+                "runtime-profile",
+                Instant.now(),
+                "audit:weaver-runtime-revocation-store-unavailable");
     }
 
     private void persistRevocation(WeaverRuntimeProfileResponse revoked, String reason, int generation) {
