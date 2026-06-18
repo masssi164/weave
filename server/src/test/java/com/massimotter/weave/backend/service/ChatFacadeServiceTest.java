@@ -60,6 +60,9 @@ class ChatFacadeServiceTest {
                     assertThat(message.deliveryEvidence())
                             .containsEntry("channelId", "channels.weave-chat")
                             .containsEntry("modelRef", "lmstudio/qwen/qwen3.5-9b")
+                            .containsEntry("runtimeProfileHash", "runtime-profile:qwen-mcp-weave-chat")
+                            .containsEntry("runtimeProfileVersion", "weaver-runtime-profile:v1")
+                            .containsEntry("mcpServerId", "mcp-weave-domain-tools")
                             .containsEntry("rawProviderDiagnosticsExposed", false);
                 });
         assertThat(auditPublisher.events())
@@ -156,6 +159,10 @@ class ChatFacadeServiceTest {
         assertThat(capturedRequest.get().providerRef()).isEqualTo("provider:model:custom-lmstudio");
         assertThat(capturedRequest.get().supportSafeContext())
                 .containsEntry("chatProviderRef", "provider:chat:selected-by-admin")
+                .containsEntry("runtimeProfileHash", "runtime-profile:qwen-mcp-weave-chat")
+                .containsEntry("runtimeProfileVersion", "weaver-runtime-profile:v1")
+                .containsEntry("mcpServerId", "mcp-weave-domain-tools")
+                .containsEntry("toolPolicy", "domain-first-read-only-fail-closed")
                 .containsEntry("rawProviderContentIncluded", false);
     }
 

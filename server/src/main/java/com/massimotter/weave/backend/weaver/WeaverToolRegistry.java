@@ -282,6 +282,10 @@ public class WeaverToolRegistry {
                 Map.of(
                         "type", "object",
                         "additionalProperties", false,
+                        "properties", Map.of(
+                                "spaceRef", Map.of("type", "string"),
+                                "query", Map.of("type", "string"),
+                                "limit", Map.of("type", "integer", "minimum", 1, "maximum", 50)),
                         "description", "Validated by the Weave " + domain + " facade before provider access."),
                 List.of("providerCredentials", "rawProviderPayload", "secretRef.value"),
                 "Weaver domain tool exposed only through Weave capability grants.");
