@@ -21,7 +21,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -46,16 +48,28 @@ public class WeaverRuntimeService {
     private final WorkspaceCapabilityProperties workspaceCapabilityProperties;
     private final WeaverRuntimeProperties weaverRuntimeProperties;
     private final AuditEventPublisher auditEventPublisher;
+    private final WeaverRuntimeRevocationStore revocationStore;
 
+    @Autowired
     public WeaverRuntimeService(
             WorkspaceCapabilityService workspaceCapabilityService,
             WorkspaceCapabilityProperties workspaceCapabilityProperties,
             WeaverRuntimeProperties weaverRuntimeProperties,
             AuditEventPublisher auditEventPublisher) {
+        this(workspaceCapabilityService, workspaceCapabilityProperties, weaverRuntimeProperties, auditEventPublisher, new FileBackedWeaverRuntimeRevocationStore(System.getProperty("java.io.tmpdir") + "/weave-runtime-profile-revocations.json"));
+    }
+
+    WeaverRuntimeService(
+            WorkspaceCapabilityService workspaceCapabilityService,
+            WorkspaceCapabilityProperties workspaceCapabilityProperties,
+            WeaverRuntimeProperties weaverRuntimeProperties,
+            AuditEventPublisher auditEventPublisher,
+            WeaverRuntimeRevocationStore revocationStore) {
         this.workspaceCapabilityService = workspaceCapabilityService;
         this.workspaceCapabilityProperties = workspaceCapabilityProperties;
         this.weaverRuntimeProperties = weaverRuntimeProperties;
         this.auditEventPublisher = auditEventPublisher;
+        this.revocationStore = revocationStore;
     }
 
     public WeaverRuntimeProfileResponse profileFor(Jwt jwt) {
@@ -191,6 +205,10 @@ public class WeaverRuntimeService {
 
     public WeaverRuntimeProfileResponse profileByHash(Jwt jwt, String runtimeProfileHash) {
         String userRef = supportSafeUserRef(jwt);
+        if (durableRevocationFor(runtimeProfileHash).isPresent()) {
+            auditRevocationDecision(userRef, runtimeProfileHash, "runtime-profile-fetch-revoked", "durable-revocation-store");
+            return disabledProfile(userRef, "runtime-profile-fetch-revoked", "RuntimeProfile fetch-by-hash failed closed.");
+        }
         WeaverRuntimeProfileResponse issued = issuedProfiles.get(runtimeProfileHash == null ? "" : runtimeProfileHash.strip());
         if (issued == null) {
             return disabledProfile(userRef, "runtime-profile-hash-not-issued", "RuntimeProfile fetch-by-hash failed closed.");
@@ -391,18 +409,21 @@ public class WeaverRuntimeService {
 
     private void revokeProfilesForUser(String userRef, String reason) {
         boolean revokedAny = false;
+        int nextGeneration = revocationGenerationByUser.getOrDefault(userRef, 0) + 1;
         for (Map.Entry<String, WeaverRuntimeProfileResponse> entry : issuedProfiles.entrySet()) {
             WeaverRuntimeProfileResponse issued = entry.getValue();
             if (!issued.userRef().equals(userRef) || issued.revoked()) {
                 continue;
             }
-            issuedProfiles.put(entry.getKey(), revokeProfile(issued, reason));
+            WeaverRuntimeProfileResponse revoked = revokeProfile(issued, reason);
+            issuedProfiles.put(entry.getKey(), revoked);
+            persistRevocation(revoked, reason, nextGeneration);
             revokedAny = true;
         }
         currentProfileHashByUser.remove(userRef);
         rollbackProfileHashByUser.remove(userRef);
         if (revokedAny) {
-            revocationGenerationByUser.merge(userRef, 1, Integer::sum);
+            revocationGenerationByUser.put(userRef, nextGeneration);
         }
     }
 
@@ -452,6 +473,62 @@ public class WeaverRuntimeService {
                 issued.secretPosture(),
                 issued.isolationBoundary(),
                 issued.memberImpact());
+    }
+
+    private Optional<WeaverRuntimeRevocationStore.RevocationRecord> durableRevocationFor(String runtimeProfileHash) {
+        try {
+            return revocationStore.recordForProfile(runtimeProfileHash == null ? "" : runtimeProfileHash.strip());
+        } catch (RuntimeException exception) {
+            return Optional.of(new WeaverRuntimeRevocationStore.RevocationRecord(
+                    "user:unknown",
+                    runtimeProfileHash == null ? "none" : runtimeProfileHash,
+                    "unknown",
+                    -1,
+                    "revocation-store-unavailable",
+                    "system:weaver-runtime-policy",
+                    "runtime-profile",
+                    Instant.now(),
+                    "audit:weaver-runtime-revocation-store-unavailable"));
+        }
+    }
+
+    private void persistRevocation(WeaverRuntimeProfileResponse revoked, String reason, int generation) {
+        String evidenceRef = "audit:weaver-runtime-revocation:" + revoked.runtimeProfileHash();
+        revocationStore.record(new WeaverRuntimeRevocationStore.RevocationRecord(
+                revoked.userRef(),
+                revoked.runtimeProfileHash(),
+                revoked.signature(),
+                generation,
+                reason,
+                "system:weaver-runtime-policy",
+                "runtime-profile",
+                Instant.now(),
+                evidenceRef));
+        auditRevocationDecision(revoked.userRef(), revoked.runtimeProfileHash(), reason, evidenceRef);
+    }
+
+    private void auditRevocationDecision(String userRef, String runtimeProfileHash, String reason, String evidenceRef) {
+        auditEventPublisher.publish(new AuditEvent(
+                "tenant:workspace",
+                null,
+                userRef,
+                "weaver-runtime-policy",
+                AuditAction.WEAVER_RUNTIME_PROFILE_REVOKED,
+                Instant.now(),
+                "weaver-profile:" + userRef + ":revocation",
+                AuditRedactionLevel.SUPPORT_SAFE,
+                Map.ofEntries(
+                        Map.entry("user", userRef),
+                        Map.entry("runtimeProfileHash", runtimeProfileHash == null ? "none" : runtimeProfileHash),
+                        Map.entry("profileRef", runtimeProfileHash == null ? "none" : "weave-runtime-profile://" + runtimeProfileHash),
+                        Map.entry("action", "profile.revoke"),
+                        Map.entry("domain", "weaver-runtime"),
+                        Map.entry("decision", "revoked"),
+                        Map.entry("reason", reason),
+                        Map.entry("actor", "system:weaver-runtime-policy"),
+                        Map.entry("scope", "runtime-profile"),
+                        Map.entry("evidenceRef", evidenceRef),
+                        Map.entry("supportSafe", true))));
     }
 
     private Map<String, String> runtimeLabels(WeaverRuntimeProfileResponse profile, String orgRef, String policyVersion) {

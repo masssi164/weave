@@ -6,6 +6,10 @@ import com.massimotter.weave.backend.config.WeaveSecurityProperties;
 import com.massimotter.weave.backend.config.WeaverRuntimeProperties;
 import com.massimotter.weave.backend.config.WorkspaceCapabilityProperties;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -267,7 +271,7 @@ class WeaverRuntimeServiceTest {
 
         var revokedFetch = service.profileByHash(eligible, issued.runtimeProfileHash());
         assertThat(revokedFetch.enabled()).isFalse();
-        assertThat(revokedFetch.posture()).isEqualTo("runtime-profile-fetch-denied");
+        assertThat(revokedFetch.posture()).isEqualTo("runtime-profile-fetch-revoked");
     }
 
     @Test
@@ -342,6 +346,79 @@ class WeaverRuntimeServiceTest {
     }
 
     @Test
+    void keepsRuntimeProfileRevocationDurableAcrossServiceRestart() throws IOException {
+        Path storePath = Files.createTempFile("weaver-runtime-revocation-restart", ".json");
+        Files.deleteIfExists(storePath);
+        WeaverRuntimeRevocationStore store = new FileBackedWeaverRuntimeRevocationStore(storePath);
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        WeaverRuntimeProperties runtimeProperties = runtimeProperties(true);
+        Jwt eligible = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+
+        WeaverRuntimeService beforeRestart = service(true, runtimeProperties, audit, store);
+        var active = beforeRestart.profileFor(eligible);
+        beforeRestart.profileFor(jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-pilot")));
+
+        WeaverRuntimeService afterRestart = service(true, runtimeProperties, audit, new FileBackedWeaverRuntimeRevocationStore(storePath));
+        var blocked = afterRestart.profileByHash(eligible, active.runtimeProfileHash());
+
+        assertThat(blocked.enabled()).isFalse();
+        assertThat(blocked.posture()).isEqualTo("runtime-profile-fetch-revoked");
+        assertThat(new FileBackedWeaverRuntimeRevocationStore(storePath).recordForProfile(active.runtimeProfileHash())).isPresent()
+                .get()
+                .satisfies(record -> assertThat(record)
+                        .extracting(
+                                WeaverRuntimeRevocationStore.RevocationRecord::runtimeProfileHash,
+                                WeaverRuntimeRevocationStore.RevocationRecord::signature,
+                                WeaverRuntimeRevocationStore.RevocationRecord::reason,
+                                WeaverRuntimeRevocationStore.RevocationRecord::actor,
+                                WeaverRuntimeRevocationStore.RevocationRecord::scope,
+                                WeaverRuntimeRevocationStore.RevocationRecord::evidenceRef)
+                        .containsExactly(
+                                active.runtimeProfileHash(),
+                                active.signature(),
+                                "policy-blocked",
+                                "system:weaver-runtime-policy",
+                                "runtime-profile",
+                                "audit:weaver-runtime-revocation:" + active.runtimeProfileHash()));
+        assertThat(audit.events())
+                .filteredOn(event -> event.action() == AuditAction.WEAVER_RUNTIME_PROFILE_REVOKED)
+                .anySatisfy(event -> assertThat(event.payload())
+                        .containsEntry("runtimeProfileHash", active.runtimeProfileHash())
+                        .containsEntry("actor", "system:weaver-runtime-policy")
+                        .containsEntry("scope", "runtime-profile")
+                        .containsEntry("reason", "policy-blocked")
+                        .containsEntry("supportSafe", true));
+        assertThat(audit.events().toString()).doesNotContain("member@example.invalid", "Bearer ", "openclaw.json", "refresh_token");
+    }
+
+    @Test
+    void failsClosedWhenDurableRevocationStoreIsUnavailable() {
+        WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher(), new WeaverRuntimeRevocationStore() {
+            @Override
+            public List<RevocationRecord> recordsForUser(String userRef) {
+                throw new IllegalStateException("store unavailable");
+            }
+
+            @Override
+            public java.util.Optional<RevocationRecord> recordForProfile(String runtimeProfileHash) {
+                throw new IllegalStateException("store unavailable");
+            }
+
+            @Override
+            public void record(RevocationRecord record) {
+                throw new IllegalStateException("store unavailable");
+            }
+        });
+        Jwt member = jwt("member@example.invalid", List.of("member"), List.of("weave-weaver-runtime", "weave-weaver-pilot"));
+        var issued = service.profileFor(member);
+
+        var blocked = service.profileByHash(member, issued.runtimeProfileHash());
+
+        assertThat(blocked.enabled()).isFalse();
+        assertThat(blocked.posture()).isEqualTo("runtime-profile-fetch-revoked");
+    }
+
+    @Test
     void blocksCrossUserWorkspaceReadsAndRedactsWeaverSupportBundle() {
         WeaverRuntimeService service = service(true, runtimeProperties(true), new InMemoryAuditEventPublisher());
         Jwt aliceJwt = jwt("alice@example.invalid", List.of("member"), List.of("weave-weaver-runtime"));
@@ -393,7 +470,39 @@ class WeaverRuntimeServiceTest {
                 new WeaveSecurityProperties("weave-app", "weave-app"),
                 capabilities,
                 runtimeProperties);
-        return new WeaverRuntimeService(capabilityService, capabilities, runtimeProperties, audit);
+        return service(workspaceWeaverEnabled, runtimeProperties, audit, revocationStore());
+    }
+
+    private WeaverRuntimeService service(
+            boolean workspaceWeaverEnabled,
+            WeaverRuntimeProperties runtimeProperties,
+            InMemoryAuditEventPublisher audit,
+            WeaverRuntimeRevocationStore revocationStore) {
+        WorkspaceCapabilityProperties capabilities = new WorkspaceCapabilityProperties(
+                new WorkspaceCapabilityProperties.Capability(true, null, null),
+                new WorkspaceCapabilityProperties.Capability(true, "https://matrix.weave.test", WorkspaceCapabilityReadiness.READY),
+                new WorkspaceCapabilityProperties.Capability(true, "https://files.weave.test", WorkspaceCapabilityReadiness.READY),
+                new WorkspaceCapabilityProperties.Capability(true, null, WorkspaceCapabilityReadiness.READY),
+                new WorkspaceCapabilityProperties.Capability(true, null, WorkspaceCapabilityReadiness.READY),
+                new WorkspaceCapabilityProperties.Capability(workspaceWeaverEnabled, null, WorkspaceCapabilityReadiness.READY));
+        OAuth2ResourceServerProperties resourceServerProperties = new OAuth2ResourceServerProperties();
+        resourceServerProperties.getJwt().setIssuerUri("https://auth.weave.test/realms/weave");
+        WorkspaceCapabilityService capabilityService = new WorkspaceCapabilityService(
+                resourceServerProperties,
+                new WeaveSecurityProperties("weave-app", "weave-app"),
+                capabilities,
+                runtimeProperties);
+        return new WeaverRuntimeService(capabilityService, capabilities, runtimeProperties, audit, revocationStore);
+    }
+
+    private WeaverRuntimeRevocationStore revocationStore() {
+        try {
+            Path path = Files.createTempFile("weave-runtime-profile-revocations", ".json");
+            Files.deleteIfExists(path);
+            return new FileBackedWeaverRuntimeRevocationStore(path);
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
     }
 
     private WeaverRuntimeProperties runtimeProperties(boolean enabled) {
