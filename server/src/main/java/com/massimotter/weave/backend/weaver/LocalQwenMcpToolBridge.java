@@ -98,15 +98,44 @@ public class LocalQwenMcpToolBridge {
     }
 
     private static boolean inputAllowedBySchema(WeaverDomainToolDefinition definition, Map<String, Object> input) {
-        Object additionalProperties = definition.inputSchema().get("additionalProperties");
-        if (!Boolean.FALSE.equals(additionalProperties)) {
+        return valueAllowedBySchema(definition.inputSchema(), input);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static boolean valueAllowedBySchema(Map<String, Object> schema, Object value) {
+        Object type = schema.get("type");
+        if ("object".equals(type)) {
+            if (!(value instanceof Map<?, ?> map)) {
+                return false;
+            }
+            Object properties = schema.get("properties");
+            Map<?, ?> allowedProperties = properties instanceof Map<?, ?> propertyMap ? propertyMap : Map.of();
+            if (Boolean.FALSE.equals(schema.get("additionalProperties"))
+                    && !map.keySet().stream().allMatch(allowedProperties::containsKey)) {
+                return false;
+            }
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                Object nestedSchema = allowedProperties.get(entry.getKey());
+                if (nestedSchema instanceof Map<?, ?> nestedSchemaMap
+                        && !valueAllowedBySchema((Map<String, Object>) nestedSchemaMap, entry.getValue())) {
+                    return false;
+                }
+            }
             return true;
         }
-        Object properties = definition.inputSchema().get("properties");
-        if (!(properties instanceof Map<?, ?> allowedProperties)) {
-            return input.isEmpty();
+        if ("string".equals(type)) {
+            return value instanceof String;
         }
-        return input.keySet().stream().allMatch(allowedProperties::containsKey);
+        if ("integer".equals(type)) {
+            return value instanceof Integer || value instanceof Long;
+        }
+        if ("number".equals(type)) {
+            return value instanceof Number;
+        }
+        if ("boolean".equals(type)) {
+            return value instanceof Boolean;
+        }
+        return true;
     }
 
     private static boolean containsProviderShapedArgument(Object value) {
@@ -132,15 +161,21 @@ public class LocalQwenMcpToolBridge {
         }
         String normalized = stringKey.strip().toLowerCase();
         return normalized.equals("providerpayload")
+                || normalized.equals("rawpayload")
                 || normalized.equals("rawproviderpayload")
                 || normalized.equals("providerurl")
                 || normalized.equals("secret")
+                || normalized.equals("secretref")
+                || normalized.equals("secretref.value")
                 || normalized.equals("secrettoken")
                 || normalized.equals("accesstoken")
+                || normalized.equals("access_token")
                 || normalized.equals("token")
                 || normalized.equals("all")
                 || normalized.equals("*")
                 || normalized.startsWith("provider")
+                || normalized.startsWith("secret")
+                || normalized.contains("payload")
                 || normalized.contains("token");
     }
 

@@ -118,6 +118,44 @@ class LocalQwenMcpToolBridgeTest {
     }
 
     @Test
+    void nestedSecretRefUnderAllowedTopLevelArgIsDeniedBeforeInvocation() {
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
+
+        var turn = bridge.execute(request("calendar.search_events", false, Map.of(
+                "query", Map.of("secretRef", Map.of("value", "secret://calendar/provider-token")))));
+
+        assertThat(turn.allowed()).isFalse();
+        assertThat(turn.decision()).isEqualTo("overbroad_args");
+        assertThat(turn.supportSafeEvidence())
+                .containsEntry("denyState", "overbroad_args")
+                .containsEntry("toolResultFedBackToModel", false)
+                .containsEntry("rawProviderPayloadIncluded", false);
+        assertThat(turn.supportSafeEvidence().toString())
+                .doesNotContain("secret://calendar/provider-token", "secretRef");
+        assertThat(auditPublisher.events()).isEmpty();
+    }
+
+    @Test
+    void nestedRawPayloadUnderAllowedTopLevelArgIsDeniedBeforeInvocation() {
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
+
+        var turn = bridge.execute(request("calendar.search_events", false, Map.of(
+                "query", Map.of("rawPayload", Map.of("provider", "calendar", "body", "raw dump")))));
+
+        assertThat(turn.allowed()).isFalse();
+        assertThat(turn.decision()).isEqualTo("overbroad_args");
+        assertThat(turn.supportSafeEvidence())
+                .containsEntry("denyState", "overbroad_args")
+                .containsEntry("toolResultFedBackToModel", false)
+                .containsEntry("rawProviderPayloadIncluded", false);
+        assertThat(turn.supportSafeEvidence().toString())
+                .doesNotContain("raw dump", "rawPayload");
+        assertThat(auditPublisher.events()).isEmpty();
+    }
+
+    @Test
     void revokedRuntimeProfileIsDeniedByToolRegistryPolicyGuard() {
         InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
         LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
