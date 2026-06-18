@@ -270,6 +270,7 @@ void main() {
         'Weaver memory is isolated per user',
         'Weaver uses domain-first tools with approval receipts',
         'Weaver automation heartbeat fails closed with support-safe audit and fallback',
+        'Admin prepares readiness, enables Weaver, and a member uses governed Weaver in a workspace',
       ]),
     );
   });
