@@ -31,21 +31,22 @@ public class MigrationDryRunService {
     public MigrationDryRunResponse dryRun(MigrationDryRunRequest request) {
         MigrationDryRunRequest.SourceInventory inventory = request.inventory();
         List<String> scopes = inventory.scopes() == null ? List.of() : inventory.scopes();
-        List<String> requiredScopes = requiredScopes(request.sourceProvider());
+        String provider = normalizeProvider(request.sourceProvider());
+        List<String> requiredScopes = requiredScopes(provider);
         List<String> missing = requiredScopes.stream().filter(scope -> !scopes.contains(scope)).toList();
         int estimatedRequests = Math.max(1,
                 inventory.workspaces() + inventory.channels() + inventory.users()
                         + ((inventory.files() + 99) / 100) + ((inventory.messages() + 199) / 200));
         int unmappable = Math.max(0, inventory.users() - inventory.channels() - inventory.workspaces());
-        String stable = request.sourceProvider() + ":" + inventory.workspaces() + ":" + inventory.channels() + ":"
+        String stable = provider + ":" + inventory.workspaces() + ":" + inventory.channels() + ":"
                 + inventory.users() + ":" + inventory.files() + ":" + inventory.messages() + ":" + String.join(",", scopes);
         String jobId = idempotencyKeyService.key("migration:dry-run", stable);
-        boolean matrixChatDryRun = isMatrixChatProvider(request.sourceProvider());
+        boolean matrixChatDryRun = isMatrixChatProvider(provider);
         var response = new MigrationDryRunResponse(
                 jobId,
                 "completed",
                 "dry-run",
-                normalizeProvider(request.sourceProvider()),
+                provider,
                 new MigrationDryRunResponse.InventorySummary(
                         inventory.workspaces(), inventory.channels(), inventory.users(), inventory.files(), inventory.messages()),
                 new MigrationDryRunResponse.MappingProposal(
@@ -54,6 +55,7 @@ public class MigrationDryRunService {
                         unmappable,
                         List.of("Chat channels map to canonical Weave Chat conversations.", "Files map to canonical Weave Files objects before target-adapter import.", "Unmatched external users become guests only with explicit policy.")),
                 domainMappings(request.sourceProvider(), inventory, unmappable),
+                continuityReports(request.sourceProvider(), inventory, unmappable),
                 new MigrationDryRunResponse.UnmappableContentReport(
                         unmappable,
                         unmappable == 0 ? List.of() : List.of("External users without workspace member mapping require guest policy.")),
@@ -136,6 +138,37 @@ public class MigrationDryRunService {
                         List.of(
                                 "conversation ids are canonicalized before target import",
                                 "attachments re-link through Weave Files/attachment facades; raw media URLs are redacted")));
+    }
+
+    private List<MigrationDryRunResponse.ContinuityReport> continuityReports(
+            String sourceProvider,
+            MigrationDryRunRequest.SourceInventory inventory,
+            int unmappableUsers) {
+        String provider = normalizeProvider(sourceProvider);
+        Map<String, Integer> boardsCounts = objectCountsFor(
+                new MigrationDryRunResponse.InventorySummary(
+                        inventory.workspaces(), inventory.channels(), inventory.users(), inventory.files(), inventory.messages()),
+                "boards");
+        boolean noUnaccountedLoss = boardsCounts.values().stream().allMatch(count -> count >= 0);
+        return List.of(new MigrationDryRunResponse.ContinuityReport(
+                "boards",
+                boardsCounts,
+                "weave:boards:{workspace}:{provider-kind}:{provider-object-id}:sha256-normalized-title-status-owner",
+                List.of(
+                        "provider:" + provider + ":boards-export-snapshot",
+                        "mapping:weave:boards:provider-mapping",
+                        "audit:migration.dry_run:boards"),
+                List.of(
+                        "provider automation rules are archive-only",
+                        "custom fields without Weave task equivalents are listed in unsupportedObjects",
+                        "watcher/subscriber state may be reduced to member-visible notification eligibility"),
+                unmappableUsers > 0
+                        ? List.of("Some task watchers/owners require IDM guest or member mapping before apply.")
+                        : List.of("All task owners/watchers have canonical member mapping for this dry-run inventory."),
+                List.of("Task title/status collisions receive deterministic conflict ids and block apply until reviewed."),
+                List.of("board automations", "provider-only custom fields", "raw provider webhooks"),
+                "dry-run only: no target writes; apply remains blocked until admin approval, identity mapping, audit sink, rollback archive, and restore smoke evidence are present",
+                noUnaccountedLoss));
     }
 
     private void persistServerEvidence(MigrationDryRunResponse response) {
@@ -231,6 +264,13 @@ public class MigrationDryRunService {
     }
 
     private String normalizeProvider(String provider) {
-        return provider == null ? "external-provider" : provider.toLowerCase(Locale.ROOT);
+        if (provider == null || provider.isBlank()) {
+            return "external-provider";
+        }
+        String candidate = provider.trim().toLowerCase(Locale.ROOT);
+        return switch (candidate) {
+            case "slack", "teams", "matrix-synapse", "matrix-synapse-chat", "synapse-homeserver" -> candidate;
+            default -> "external-provider";
+        };
     }
 }

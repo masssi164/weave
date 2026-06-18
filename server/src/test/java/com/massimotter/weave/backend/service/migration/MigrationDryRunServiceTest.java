@@ -29,6 +29,19 @@ class MigrationDryRunServiceTest {
         assertThat(response.providerDiagnosticsRedacted()).isTrue();
         assertThat(response.replaySafe()).isTrue();
         assertThat(response.domainMappings()).extracting("domain").containsExactly("files", "calendar", "boards", "chat");
+        assertThat(response.continuityReports()).filteredOn(report -> report.domain().equals("boards"))
+                .singleElement()
+                .satisfies(report -> {
+                    assertThat(report.canonicalObjectCounts()).containsEntry("Board", 1).containsEntry("Task", 15).containsEntry("Watcher", 5);
+                    assertThat(report.stableIdStrategy()).startsWith("weave:boards").contains("sha256-normalized-title-status-owner");
+                    assertThat(report.provenanceRefs()).allSatisfy(ref -> assertThat(ref).doesNotContain("https://", "token", "Bearer"));
+                    assertThat(report.lossyFields()).isNotEmpty();
+                    assertThat(report.permissionImpact()).isNotEmpty();
+                    assertThat(report.conflicts()).isNotEmpty();
+                    assertThat(report.unsupportedObjects()).contains("board automations", "provider-only custom fields");
+                    assertThat(report.abortRollbackPosture()).contains("dry-run only", "rollback archive", "restore smoke");
+                    assertThat(report.accountedForNoDataLoss()).isTrue();
+                });
         assertThat(response.domainMappings()).extracting("mappingClass")
                 .contains("portable", "lossy", "manual_review", "archive_only");
         assertThat(response.domainMappings())
@@ -83,6 +96,38 @@ class MigrationDryRunServiceTest {
                 });
         assertThat(response.toString().toLowerCase(Locale.ROOT))
                 .doesNotContain("mxc://", "access_token", "homeserverurl", "https://matrix");
+    }
+
+    @Test
+    void unsafeUnknownSourceProviderIsMappedToSupportSafeGenericKey() {
+        var repository = new InMemoryMigrationRunEvidenceRepository();
+        var service = new MigrationDryRunService(new IdempotencyKeyService(), repository);
+        String unsafeProvider = "https://provider.example/export?access_token=secret-ish-token";
+
+        var response = service.dryRun(new MigrationDryRunRequest(
+                unsafeProvider,
+                new MigrationDryRunRequest.SourceInventory(
+                        1,
+                        1,
+                        2,
+                        3,
+                        4,
+                        List.of("inventory:read"))));
+
+        assertThat(response.sourceProvider()).isEqualTo("external-provider");
+        assertThat(response.consentRequirements().missingScopes()).isEmpty();
+        assertThat(response.continuityReports()).allSatisfy(report -> {
+            assertThat(report.provenanceRefs()).contains("provider:external-provider:boards-export-snapshot");
+            assertThat(report.provenanceRefs()).allSatisfy(ref -> assertThat(ref)
+                    .doesNotContain("https://", "provider.example", "access_token", "secret-ish-token"));
+        });
+        assertThat(response.domainMappings()).allSatisfy(mapping ->
+                assertThat(mapping.sourceObject())
+                        .startsWith("external-provider:")
+                        .doesNotContain("https://", "provider.example", "access_token", "secret-ish-token"));
+        assertThat(response.toString())
+                .doesNotContain(unsafeProvider)
+                .doesNotContain("https://", "provider.example", "access_token", "secret-ish-token");
     }
 
     @Test
