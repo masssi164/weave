@@ -4,6 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.massimotter.weave.backend.audit.InMemoryAuditEventPublisher;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationDecision;
+import com.massimotter.weave.backend.context.authz.ContextAuthorizationPort;
+import com.massimotter.weave.backend.context.authz.ContextPermission;
 import com.massimotter.weave.backend.model.WorkspaceCapabilitiesResponse;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityPolicyState;
 import com.massimotter.weave.backend.model.WorkspaceCapabilityReadiness;
@@ -189,6 +193,80 @@ class CanonicalDomainFacadeServicesTest {
         assertThat(providerCalls).hasValue(0);
     }
 
+    @Test
+    void nonChatOperationGuardEnforcesCapabilityContextAuditAndCanonicalMappingBeforeProviderAccess() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        var guard = new NonChatDomainFacadeOperationGuard(
+                filesDocs(selectedMappings(), configuredProviders(), allowedCapabilities()),
+                allowContext(),
+                audit,
+                FIXED);
+
+        NonChatDomainFacadeOperationDecision decision = guard.decide(memberJwt(), operation("files.upload", true, false));
+
+        assertThat(decision.allowed()).isTrue();
+        assertThat(decision.providerAccessAllowed()).isTrue();
+        assertThat(decision.audited()).isTrue();
+        assertThat(decision.error()).isNull();
+        assertThat(decision.canonicalObjectRef()).isEqualTo("file:weave:space-alpha:proposal.md");
+        assertThat(decision.provenanceRef()).isEqualTo("mapping:files:space-alpha:proposal.md");
+        assertThat(decision.supportSafeDiagnostics())
+                .containsEntry("policyEvaluatedBeforeProviderAccess", true)
+                .containsEntry("secretsReturned", false)
+                .containsEntry("rawProviderPayloadsReturned", false)
+                .containsEntry("rawProviderErrorsReturned", false);
+        assertThat(audit.events()).hasSize(1);
+        assertThat(audit.events().getFirst().payload())
+                .containsEntry("domain", "files-docs")
+                .containsEntry("canonicalObjectRef", "file:weave:space-alpha:proposal.md")
+                .containsEntry("provenanceRef", "mapping:files:space-alpha:proposal.md");
+        assertThat(audit.events().getFirst().toString()).doesNotContain("https://", "Bearer ", "access_token", "provider:");
+    }
+
+    @Test
+    void nonChatOperationGuardFailsClosedForPolicyOrContextAndDoesNotAuditDeniedWrites() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        var policyGuard = new NonChatDomainFacadeOperationGuard(
+                filesDocs(selectedMappings(), configuredProviders(), blockedCapabilities()),
+                allowContext(),
+                audit,
+                FIXED);
+        var contextGuard = new NonChatDomainFacadeOperationGuard(
+                filesDocs(selectedMappings(), configuredProviders(), allowedCapabilities()),
+                denyContext(),
+                audit,
+                FIXED);
+
+        NonChatDomainFacadeOperationDecision policyDenied = policyGuard.decide(guestJwt(), operation("files.upload", true, false));
+        NonChatDomainFacadeOperationDecision contextDenied = contextGuard.decide(memberJwt(), operation("files.upload", true, false));
+
+        assertThat(policyDenied.allowed()).isFalse();
+        assertThat(policyDenied.providerAccessAllowed()).isFalse();
+        assertThat(policyDenied.error()).isEqualTo(SupportSafeFacadeError.POLICY_BLOCKED);
+        assertThat(contextDenied.allowed()).isFalse();
+        assertThat(contextDenied.providerAccessAllowed()).isFalse();
+        assertThat(contextDenied.error()).isEqualTo(SupportSafeFacadeError.CONTEXT_FORBIDDEN);
+        assertThat(audit.events()).isEmpty();
+    }
+
+    @Test
+    void nonChatOperationGuardSupportsDryRunReplacementPreviewWithoutAuditForReads() {
+        InMemoryAuditEventPublisher audit = new InMemoryAuditEventPublisher();
+        var guard = new NonChatDomainFacadeOperationGuard(
+                filesDocs(selectedMappings(), configuredProviders(), allowedCapabilities()),
+                allowContext(),
+                audit,
+                FIXED);
+
+        NonChatDomainFacadeOperationDecision decision = guard.decide(memberJwt(), operation("files.read", false, true));
+
+        assertThat(decision.allowed()).isTrue();
+        assertThat(decision.dryRun()).isTrue();
+        assertThat(decision.reason()).isEqualTo("dry_run_allowed");
+        assertThat(decision.audited()).isFalse();
+        assertThat(audit.events()).isEmpty();
+    }
+
     private List<CanonicalDomainFacade> services(
             ProviderSelectionRepository selections,
             List<ProviderPort> providers,
@@ -217,6 +295,28 @@ class CanonicalDomainFacadeServicesTest {
         WorkspaceCapabilityService capabilityService = capabilityService(capabilities);
         ProviderRegistry registry = new ProviderRegistry(providers, capabilityService, selections);
         return new FilesDocsDomainFacadeService(registry, selections, capabilityService, FIXED);
+    }
+
+    private ContextAuthorizationPort allowContext() {
+        return request -> ContextAuthorizationDecision.allow("test context grants " + request.permission());
+    }
+
+    private ContextAuthorizationPort denyContext() {
+        return request -> ContextAuthorizationDecision.deny("test context denies");
+    }
+
+    private NonChatDomainFacadeOperationRequest operation(String capability, boolean writeOrDelete, boolean dryRun) {
+        return new NonChatDomainFacadeOperationRequest(
+                "weave-dogfood",
+                "space-alpha",
+                "user:member-123",
+                capability,
+                writeOrDelete ? "upload_file" : "preview_file_mapping",
+                writeOrDelete ? ContextPermission.EDIT : ContextPermission.VIEW,
+                writeOrDelete,
+                "file:weave:space-alpha:proposal.md",
+                "mapping:files:space-alpha:proposal.md",
+                dryRun);
     }
 
     private WorkspaceCapabilityService capabilityService(WorkspaceCapabilitiesResponse capabilities) {
