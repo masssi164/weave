@@ -73,6 +73,47 @@ class LocalQwenMcpToolBridgeTest {
         assertThat(turn.supportSafeEvidence())
                 .containsEntry("denyState", "overbroad_args")
                 .containsEntry("rawProviderPayloadIncluded", false);
+        assertThat(turn.supportSafeEvidence().toString())
+                .doesNotContain("dump everything", "providerPayload");
+        assertThat(auditPublisher.events()).isEmpty();
+    }
+
+    @Test
+    void unexpectedArgsAreDeniedBeforeInvocation() {
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
+
+        var turn = bridge.execute(request("calendar.search_events", false, Map.of("spaceRef", "space:default", "unexpected", "value")));
+
+        assertThat(turn.allowed()).isFalse();
+        assertThat(turn.decision()).isEqualTo("overbroad_args");
+        assertThat(turn.supportSafeEvidence())
+                .containsEntry("denyState", "overbroad_args")
+                .containsEntry("toolResultFedBackToModel", false)
+                .containsEntry("rawProviderPayloadIncluded", false);
+        assertThat(turn.supportSafeEvidence().toString()).doesNotContain("unexpected", "value");
+        assertThat(auditPublisher.events()).isEmpty();
+    }
+
+    @Test
+    void nestedProviderAndSecretShapedArgsAreDeniedBeforeInvocation() {
+        InMemoryAuditEventPublisher auditPublisher = new InMemoryAuditEventPublisher();
+        LocalQwenMcpToolBridge bridge = new LocalQwenMcpToolBridge(new WeaverToolRegistry(auditPublisher));
+
+        var turn = bridge.execute(request("calendar.search_events", false, Map.of(
+                "spaceRef", "space:default",
+                "query", Map.of(
+                        "providerUrl", "https://svc-user:svc-pass@calendar.weave.test?access_token=raw",
+                        "tokenLike", "Bearer raw"))));
+
+        assertThat(turn.allowed()).isFalse();
+        assertThat(turn.decision()).isEqualTo("overbroad_args");
+        assertThat(turn.supportSafeEvidence())
+                .containsEntry("denyState", "overbroad_args")
+                .containsEntry("toolResultFedBackToModel", false)
+                .containsEntry("rawProviderPayloadIncluded", false);
+        assertThat(turn.supportSafeEvidence().toString())
+                .doesNotContain("calendar.weave.test", "access_token", "Bearer raw", "providerUrl", "tokenLike");
         assertThat(auditPublisher.events()).isEmpty();
     }
 

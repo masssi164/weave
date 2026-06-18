@@ -26,12 +26,15 @@ public class LocalQwenMcpToolBridge {
 
     public QwenMcpToolTurn execute(QwenMcpToolRequest request) {
         List<WeaverDomainToolDefinition> offeredTools = offeredTools(request.grantedCapabilities());
-        boolean offered = offeredTools.stream().anyMatch(definition -> definition.name().equals(request.toolName()));
-        if (!offered) {
+        WeaverDomainToolDefinition offeredTool = offeredTools.stream()
+                .filter(definition -> definition.name().equals(request.toolName()))
+                .findFirst()
+                .orElse(null);
+        if (offeredTool == null) {
             return denied(request, "tool_not_offered", "Local Qwen requested a tool that is not in the governed read-only MCP offer.");
         }
-        if (request.input().keySet().stream().anyMatch(LocalQwenMcpToolBridge::overbroadArgument)) {
-            return denied(request, "overbroad_args", "Local Qwen requested overbroad or provider-shaped arguments; invocation failed closed.");
+        if (!inputAllowedBySchema(offeredTool, request.input()) || containsProviderShapedArgument(request.input())) {
+            return denied(request, "overbroad_args", "Local Qwen requested unknown, overbroad, or provider-shaped arguments; invocation failed closed.");
         }
         WeaverToolInvocationResult result = toolRegistry.invoke(new WeaverToolInvocationRequest(
                 request.toolName(),
@@ -94,18 +97,51 @@ public class LocalQwenMcpToolBridge {
         return toolName.substring(0, toolName.indexOf('.'));
     }
 
-    private static boolean overbroadArgument(String key) {
-        if (key == null) {
+    private static boolean inputAllowedBySchema(WeaverDomainToolDefinition definition, Map<String, Object> input) {
+        Object additionalProperties = definition.inputSchema().get("additionalProperties");
+        if (!Boolean.FALSE.equals(additionalProperties)) {
+            return true;
+        }
+        Object properties = definition.inputSchema().get("properties");
+        if (!(properties instanceof Map<?, ?> allowedProperties)) {
+            return input.isEmpty();
+        }
+        return input.keySet().stream().allMatch(allowedProperties::containsKey);
+    }
+
+    private static boolean containsProviderShapedArgument(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (providerShapedKey(entry.getKey()) || containsProviderShapedArgument(entry.getValue())) {
+                    return true;
+                }
+            }
+        } else if (value instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (containsProviderShapedArgument(item)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean providerShapedKey(Object key) {
+        if (!(key instanceof String stringKey)) {
             return false;
         }
-        String normalized = key.strip().toLowerCase();
+        String normalized = stringKey.strip().toLowerCase();
         return normalized.equals("providerpayload")
                 || normalized.equals("rawproviderpayload")
+                || normalized.equals("providerurl")
                 || normalized.equals("secret")
+                || normalized.equals("secrettoken")
+                || normalized.equals("accesstoken")
                 || normalized.equals("token")
                 || normalized.equals("all")
                 || normalized.equals("*")
-                || normalized.startsWith("provider");
+                || normalized.startsWith("provider")
+                || normalized.contains("token");
     }
 
     public record QwenMcpToolRequest(
