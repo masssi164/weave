@@ -352,8 +352,9 @@ void main() {
       expect(find.text('Weaver'), findsOneWidget);
       expect(find.text('Disabled by default'), findsOneWidget);
       expect(find.textContaining('Keycloak/Auth'), findsOneWidget);
-      expect(find.textContaining('Matrix/Chat'), findsOneWidget);
-      expect(find.textContaining('Nextcloud/Files'), findsOneWidget);
+      expect(find.textContaining('Chat'), findsWidgets);
+      expect(find.textContaining('File storage'), findsOneWidget);
+      expect(find.textContaining('Calendar sync'), findsOneWidget);
       expect(
         find.textContaining('OpenProject Boards validation'),
         findsOneWidget,

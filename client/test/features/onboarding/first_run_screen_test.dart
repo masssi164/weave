@@ -37,7 +37,7 @@ void main() {
       expect(find.text('Calendar'), findsOneWidget);
       expect(find.text('Ready'), findsWidgets);
       expect(
-        find.textContaining('no separate Matrix or Nextcloud'),
+        find.textContaining('no separate Chat, Files, or Calendar credentials'),
         findsOneWidget,
       );
       expect(find.text('Owner/admin setup responsibilities'), findsNothing);

@@ -209,7 +209,7 @@ abstract class AppLocalizations {
   /// Provider category detail for chat
   ///
   /// In en, this message translates to:
-  /// **'Matrix/Chat is the current dogfood choice behind the Weave chat surface.'**
+  /// **'Chat is the current dogfood service behind the Weave Chat surface.'**
   String get providerCategoryChatDetail;
 
   /// Provider category title for files
@@ -221,7 +221,7 @@ abstract class AppLocalizations {
   /// Provider category detail for files
   ///
   /// In en, this message translates to:
-  /// **'Nextcloud/Files is the current dogfood storage choice behind the Weave files facade.'**
+  /// **'File storage is the current dogfood service behind the Weave Files facade.'**
   String get providerCategoryFilesDetail;
 
   /// Provider category title for calendar
@@ -233,7 +233,7 @@ abstract class AppLocalizations {
   /// Provider category detail for calendar
   ///
   /// In en, this message translates to:
-  /// **'Nextcloud/Calendar backing is the current dogfood choice behind the Weave calendar facade.'**
+  /// **'Calendar sync is the current dogfood service behind the Weave Calendar facade.'**
   String get providerCategoryCalendarDetail;
 
   /// Provider category title for boards and tasks
@@ -662,7 +662,7 @@ abstract class AppLocalizations {
   /// No description provided for @firstRunDescription.
   ///
   /// In en, this message translates to:
-  /// **'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Matrix or Nextcloud credentials are needed.'**
+  /// **'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Chat, Files, or Calendar credentials are needed.'**
   String get firstRunDescription;
 
   /// No description provided for @firstRunIdentitySectionTitle.
@@ -1526,7 +1526,7 @@ abstract class AppLocalizations {
   /// Body for a Files card explaining the product/provider boundary
   ///
   /// In en, this message translates to:
-  /// **'Files actions use the Weave backend facade. Nextcloud remains the storage provider and admin/fallback surface; raw provider paths and credentials are not part of the normal Files UX.'**
+  /// **'Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.'**
   String get filesProductBoundaryBody;
 
   /// Button label used to start the Files connection flow
@@ -2036,7 +2036,7 @@ abstract class AppLocalizations {
   /// Help copy explaining what Weave is
   ///
   /// In en, this message translates to:
-  /// **'Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and additional collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.'**
+  /// **'Weave is a collaboration app for teams that want an accessible workspace without giving up data sovereignty. Chat, files, account settings, and other collaboration modules appear in Weave while open services work behind Weave facades in the background.'**
   String get helpWhatIsWeaveBody;
 
   /// Help section title for sign-in basics
@@ -2048,7 +2048,7 @@ abstract class AppLocalizations {
   /// Help copy for sign-in basics and recovery
   ///
   /// In en, this message translates to:
-  /// **'Use the workspace address provided by your admin, then sign in once with Weave SSO. You should not need separate Matrix or Nextcloud passwords for normal use. If sign-in loops or fails, check your connection, confirm the server address in Settings, and ask an admin whether your invite or account is active.'**
+  /// **'Use the workspace address from your admin, then sign in once with Weave SSO. For normal use, you should not need separate Chat, Files, or Calendar passwords. If sign-in fails or loops, check your connection, confirm the server address in Settings, and ask an admin whether your invitation or account is active.'**
   String get helpSignInBody;
 
   /// Help section title for chat
@@ -2120,7 +2120,7 @@ abstract class AppLocalizations {
   /// Help copy for privacy and security basics
   ///
   /// In en, this message translates to:
-  /// **'Your workspace controls its own services and data. Weave uses SSO for access and shows Matrix security status honestly. Do not assume chat is fully end-to-end encrypted unless Weave says the Matrix encryption, recovery, and device-trust gates are healthy. Keep recovery keys in a safe place and report lost devices to your admin.'**
+  /// **'Your workspace controls its own services and data. Weave uses SSO for access and reports the Chat security status honestly. Do not assume every chat is fully end-to-end encrypted unless Weave shows that encrypted rooms, recovery, and device trust are healthy. Keep recovery keys safe and report lost devices to your admin.'**
   String get helpPrivacySecurityBody;
 
   /// Section title for user-configurable shell module visibility

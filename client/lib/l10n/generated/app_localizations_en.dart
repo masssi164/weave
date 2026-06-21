@@ -70,21 +70,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providerCategoryChatDetail =>
-      'Matrix/Chat is the current dogfood choice behind the Weave chat surface.';
+      'Chat is the current dogfood service behind the Weave Chat surface.';
 
   @override
   String get providerCategoryFilesTitle => 'Files';
 
   @override
   String get providerCategoryFilesDetail =>
-      'Nextcloud/Files is the current dogfood storage choice behind the Weave files facade.';
+      'File storage is the current dogfood service behind the Weave Files facade.';
 
   @override
   String get providerCategoryCalendarTitle => 'Calendar';
 
   @override
   String get providerCategoryCalendarDetail =>
-      'Nextcloud/Calendar backing is the current dogfood choice behind the Weave calendar facade.';
+      'Calendar sync is the current dogfood service behind the Weave Calendar facade.';
 
   @override
   String get providerCategoryBoardsTitle => 'Boards/tasks';
@@ -330,7 +330,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get firstRunDescription =>
-      'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Matrix or Nextcloud credentials are needed.';
+      'You signed in once with Weave SSO. Weave is checking your profile and collaboration modules; no separate Chat, Files, or Calendar credentials are needed.';
 
   @override
   String get firstRunIdentitySectionTitle => 'Your Weave identity';
@@ -881,7 +881,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filesProductBoundaryBody =>
-      'Files actions use the Weave backend facade. Nextcloud remains the storage provider and admin/fallback surface; raw provider paths and credentials are not part of the normal Files UX.';
+      'Files actions use the Weave workspace service facade. File storage stays behind the admin/fallback surface; raw service paths and credentials are not part of the normal Files UX.';
 
   @override
   String get filesConnectButton => 'Connect Files';
@@ -1213,14 +1213,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpWhatIsWeaveBody =>
-      'Weave is a collaboration app for teams that want one accessible workspace without giving up data sovereignty. Chat, files, account settings, and additional collaboration modules are presented through Weave while open services such as Matrix, Nextcloud, Keycloak, and the Weave backend work behind the scenes.';
+      'Weave is a collaboration app for teams that want an accessible workspace without giving up data sovereignty. Chat, files, account settings, and other collaboration modules appear in Weave while open services work behind Weave facades in the background.';
 
   @override
   String get helpSignInTitle => 'Sign in basics';
 
   @override
   String get helpSignInBody =>
-      'Use the workspace address provided by your admin, then sign in once with Weave SSO. You should not need separate Matrix or Nextcloud passwords for normal use. If sign-in loops or fails, check your connection, confirm the server address in Settings, and ask an admin whether your invite or account is active.';
+      'Use the workspace address from your admin, then sign in once with Weave SSO. For normal use, you should not need separate Chat, Files, or Calendar passwords. If sign-in fails or loops, check your connection, confirm the server address in Settings, and ask an admin whether your invitation or account is active.';
 
   @override
   String get helpChatTitle => 'Chat';
@@ -1262,7 +1262,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get helpPrivacySecurityBody =>
-      'Your workspace controls its own services and data. Weave uses SSO for access and shows Matrix security status honestly. Do not assume chat is fully end-to-end encrypted unless Weave says the Matrix encryption, recovery, and device-trust gates are healthy. Keep recovery keys in a safe place and report lost devices to your admin.';
+      'Your workspace controls its own services and data. Weave uses SSO for access and reports the Chat security status honestly. Do not assume every chat is fully end-to-end encrypted unless Weave shows that encrypted rooms, recovery, and device trust are healthy. Keep recovery keys safe and report lost devices to your admin.';
 
   @override
   String get settingsShellModulesTitle => 'Shell modules';

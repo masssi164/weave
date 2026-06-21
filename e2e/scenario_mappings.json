@@ -304,7 +304,9 @@
           "fragments": [
             "Provider categories",
             "Keycloak/Auth",
-            "Matrix/Chat",
+            "Chat",
+            "File storage",
+            "Calendar sync",
             "Disabled by default",
             "Admin/operator readiness cockpit",
             "hides OIDC and service endpoint setup from members"

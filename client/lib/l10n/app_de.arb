@@ -45,7 +45,7 @@
   "@providerCategoryChatTitle": {
     "description": "Provider-Kategorietitel für Chat"
   },
-  "providerCategoryChatDetail": "Matrix/Chat ist die aktuelle Dogfood-Auswahl hinter der Weave-Chat-Oberfläche.",
+  "providerCategoryChatDetail": "Chat ist der aktuelle Dogfood-Dienst hinter der Weave-Chat-Oberfläche.",
   "@providerCategoryChatDetail": {
     "description": "Provider-Kategoriedetail für Chat"
   },
@@ -53,7 +53,7 @@
   "@providerCategoryFilesTitle": {
     "description": "Provider-Kategorietitel für Dateien"
   },
-  "providerCategoryFilesDetail": "Nextcloud/Files ist die aktuelle Dogfood-Speicherauswahl hinter der Weave-Datei-Fassade.",
+  "providerCategoryFilesDetail": "Dateispeicher ist der aktuelle Dogfood-Dienst hinter der Weave-Datei-Fassade.",
   "@providerCategoryFilesDetail": {
     "description": "Provider-Kategoriedetail für Dateien"
   },
@@ -61,7 +61,7 @@
   "@providerCategoryCalendarTitle": {
     "description": "Provider-Kategorietitel für Kalender"
   },
-  "providerCategoryCalendarDetail": "Nextcloud/Calendar-Anbindung ist die aktuelle Dogfood-Auswahl hinter der Weave-Kalender-Fassade.",
+  "providerCategoryCalendarDetail": "Kalender-Synchronisierung ist der aktuelle Dogfood-Dienst hinter der Weave-Kalender-Fassade.",
   "@providerCategoryCalendarDetail": {
     "description": "Provider-Kategoriedetail für Kalender"
   },
@@ -158,7 +158,7 @@
   "firstRunSignedOutSemanticLabel": "Melde dich an, um deinen Weave-Erststart-Status zu sehen. Wir brauchen eine aktive Weave-SSO-Sitzung, bevor Profil, Rolle und Modulbereitschaft geprüft werden können. Aktion: Zur Anmeldung",
   "firstRunReadyTitle": "Dein Weave-Arbeitsbereich ist bereit",
   "firstRunNeedsAttentionTitle": "Dein Weave-Arbeitsbereich wird vorbereitet",
-  "firstRunDescription": "Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Matrix- oder Nextcloud-Zugangsdaten sind nicht nötig.",
+  "firstRunDescription": "Du hast dich einmal per Weave-SSO angemeldet. Weave prüft Profil und Zusammenarbeitsmodule; separate Zugangsdaten für Chat, Dateien oder Kalender sind nicht nötig.",
   "firstRunIdentitySectionTitle": "Deine Weave-Identität",
   "firstRunIdentitySectionDescription": "Dieses Profil und diese Rolle kommen nach SSO aus dem Weave-Backend-Vertrag.",
   "firstRunDisplayNameLabel": "Name",
@@ -268,7 +268,7 @@
   "filesNextcloudTitle": "Weave-Dateien",
   "filesProductTitle": "Weave-Dateien",
   "filesProductBoundaryTitle": "Weave-Produktgrenze",
-  "filesProductBoundaryBody": "Dateiaktionen nutzen die Weave-Backend-Fassade. Nextcloud bleibt Speicheranbieter sowie Admin-/Fallback-Oberfläche; rohe Anbieterpfade und Zugangsdaten gehören nicht zur normalen Dateien-UX.",
+  "filesProductBoundaryBody": "Dateiaktionen laufen über die Weave-Workspace-Dienst-Fassade. Dateispeicher bleibt Teil der Admin- und Fallback-Ebene; rohe Dienstpfade und Zugangsdaten gehören nicht zur normalen Dateien-Oberfläche.",
   "filesConnectButton": "Dateien verbinden",
   "filesReconnectButton": "Dateien neu verbinden",
   "filesDisconnectButton": "Trennen",
@@ -353,9 +353,9 @@
   "helpEmbeddedManualPermissionLabel": "Eingeschränkte Einbettung: kein breiter Skript-, Kamera-, Mikrofon- oder Provider-Zugriff",
   "helpEmbeddedManualUnavailableLabel": "Wenn gebaute Dokumentation nicht verfügbar ist, zeigt Weave diesen support-sicheren Fallback statt Dateisystem- oder Provider-Fehlern.",
   "helpWhatIsWeaveTitle": "Was Weave ist",
-  "helpWhatIsWeaveBody": "Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und weitere Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste wie Matrix, Nextcloud, Keycloak und das Weave-Backend im Hintergrund arbeiten.",
+  "helpWhatIsWeaveBody": "Weave ist eine Zusammenarbeits-App für Teams, die einen barrierearmen Workspace nutzen möchten, ohne Datensouveränität aufzugeben. Chat, Dateien, Kontoeinstellungen und weitere Zusammenarbeitsmodule erscheinen in Weave, während offene Dienste im Hintergrund hinter Weave-Fassaden arbeiten.",
   "helpSignInTitle": "Anmelden: Grundlagen",
-  "helpSignInBody": "Nutze die Workspace-Adresse deines Admins und melde dich dann einmal mit Weave-SSO an. Für die normale Nutzung solltest du keine separaten Matrix- oder Nextcloud-Passwörter brauchen. Wenn die Anmeldung scheitert oder in einer Schleife hängt, prüfe deine Verbindung, bestätige die Serveradresse in den Einstellungen und frage einen Admin, ob deine Einladung oder dein Konto aktiv ist.",
+  "helpSignInBody": "Nutze die Workspace-Adresse deines Admins und melde dich dann einmal mit Weave-SSO an. Für die normale Nutzung solltest du keine separaten Passwörter für Chat, Dateien oder Kalender brauchen. Wenn die Anmeldung scheitert oder in einer Schleife hängt, prüfe deine Verbindung, bestätige die Serveradresse in den Einstellungen und frage einen Admin, ob deine Einladung oder dein Konto aktiv ist.",
   "helpChatTitle": "Chat",
   "helpChatBody": "Chat ist der tägliche Ort für Unterhaltungen und Nachrichten. Öffne Chat über die Hauptnavigation und wähle dann eine Unterhaltung. Weave zeigt Unterhaltungs- und Wiederherstellungszustände sichtbar an, damit du erkennst, ob Chat verbunden ist, wartet, beeinträchtigt ist oder Admin-Aufmerksamkeit braucht.",
   "helpFilesTitle": "Dateien",
@@ -367,7 +367,7 @@
   "helpTroubleshootingTitle": "Fehlersuche und Wiederherstellung",
   "helpTroubleshootingBody": "Wenn etwas nicht lädt, nutze zuerst Erneut versuchen. Wenn eine alte Chat-Raumliste oder ein alter Ordner sichtbar bleibt, bewahrt Weave deinen Kontext, während die Aktualisierung fehlschlägt. Dauerhafte Einrichtungs-, Anmelde-, Matrix-, Datei- oder Backend-Fehler solltest du deinem Admin zusammen mit der sichtbaren Meldung und der Serveradresse aus den Einstellungen melden.",
   "helpPrivacySecurityTitle": "Datenschutz und Sicherheit: Grundlagen",
-  "helpPrivacySecurityBody": "Dein Workspace kontrolliert seine eigenen Dienste und Daten. Weave nutzt SSO für den Zugriff und zeigt den Matrix-Sicherheitsstatus ehrlich an. Gehe nicht davon aus, dass Chat vollständig Ende-zu-Ende-verschlüsselt ist, solange Weave nicht meldet, dass Matrix-Verschlüsselung, Wiederherstellung und Gerätevertrauen gesund sind. Bewahre Wiederherstellungsschlüssel sicher auf und melde verlorene Geräte deinem Admin.",
+  "helpPrivacySecurityBody": "Dein Workspace kontrolliert seine eigenen Dienste und Daten. Weave nutzt SSO für den Zugriff und zeigt den Chat-Sicherheitsstatus ehrlich an. Gehe nicht davon aus, dass jeder Chat vollständig Ende-zu-Ende-verschlüsselt ist, solange Weave nicht meldet, dass verschlüsselte Räume, Wiederherstellung und Gerätevertrauen gesund sind. Bewahre Wiederherstellungsschlüssel sicher auf und melde verlorene Geräte deinem Admin.",
   "settingsShellModulesTitle": "Shell-Module",
   "settingsShellModulesDescription": "Wähle, welche Workspace-Shell-Module sichtbar bleiben. Die Navigation bleibt verfügbar, auch wenn ein Modul ausgeblendet ist.",
   "settingsShellWorkspaceStatusToggleTitle": "Workspace-Statusübersicht",
@@ -427,7 +427,7 @@
   "settingsWorkspaceInvalidationRestartSetup": "Einrichtung neu gestartet",
   "settingsWorkspaceInvalidationBackendApiBaseUrlChanged": "Backend-API-URL geändert",
   "chatSecuritySectionTitle": "Matrix-Sicherheit",
-  "chatSecuritySectionDescription": "Weave behandelt Matrix-Verschlüsselung nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.",
+  "chatSecuritySectionDescription": "Weave bewertet verschlüsselte Chaträume nur dann als gesund, wenn Secret Storage, Cross-Signing, Wiederherstellung und Gerätevertrauen vollständig eingerichtet sind.",
   "chatSecurityRecoveryKeyTitle": "Diesen Matrix-Wiederherstellungsschlüssel jetzt sichern",
   "chatSecurityRecoveryKeyDescription": "Weave verlässt sich für diesen Schlüssel nicht auf app-internen Speicher, weil sicherer Speicher nach Neuinstallation, Gerätewechsel oder manchen Wiederherstellungen verschwinden kann. Bewahren Sie ihn in Ihrem Passwortmanager oder an einem anderen sicheren Ort auf.",
   "chatSecurityBannerTitle": "Matrix-Sicherheit braucht Aufmerksamkeit",
@@ -469,12 +469,12 @@
   "chatSecurityStatusReady": "Bereit",
   "chatSecurityEncryptedRoomsStatusNone": "Noch keine verschlüsselten Räume",
   "chatSecurityEncryptedRoomsStatusAttention": "Verschlüsselte Räume brauchen Aufmerksamkeit",
-  "chatSecuritySetupDescriptionSignedOut": "Öffne Chat und verbinde Matrix, bevor du die Verschlüsselung verwaltest.",
+  "chatSecuritySetupDescriptionSignedOut": "Öffne Chat und verbinde deine Chat-Sitzung, bevor du die Sicherheit verschlüsselter Räume verwaltest.",
   "chatSecuritySetupDescriptionNotInitialized": "Richte Secret Storage, Cross-Signing und Online-Schlüssel-Backup ein, bevor du verschlüsselten Räumen vertraust.",
   "chatSecuritySetupDescriptionPartiallyInitialized": "Einige Verschlüsselungsteile sind vorhanden, aber Wiederherstellung oder Cross-Signing sind noch unvollständig.",
   "chatSecuritySetupDescriptionRecoveryRequired": "Dieses Konto wurde schon eingerichtet, aber dieses Gerät benötigt den Wiederherstellungsschlüssel oder die Passphrase, um sich sicher wieder zu verbinden.",
   "chatSecuritySetupDescriptionReady": "Dieses Gerät kann die aktuelle Matrix-Kryptoidentität und Wiederherstellung verwenden.",
-  "chatSecuritySetupDescriptionUnavailable": "Matrix-Verschlüsselung ist auf dieser Plattform nicht verfügbar.",
+  "chatSecuritySetupDescriptionUnavailable": "Sicherheit für verschlüsselte Chaträume ist auf dieser Plattform nicht verfügbar.",
   "chatSecurityCurrentDeviceDescriptionVerified": "Ein anderes vertrauenswürdiges Matrix-Gerät hat diese Sitzung verifiziert.",
   "chatSecurityCurrentDeviceDescriptionUnverified": "Vergleiche Sicherheits-Emojis oder Zahlen mit einem anderen angemeldeten Matrix-Gerät.",
   "chatSecurityCurrentDeviceDescriptionBlocked": "Dieses Gerät ist blockiert oder seine Vertrauenskette ist beschädigt.",
